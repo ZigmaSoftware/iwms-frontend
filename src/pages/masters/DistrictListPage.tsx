@@ -36,7 +36,7 @@ export default function DistrictListPage() {
         country: d.country,
         state: d.state,
       }));
-      // ✅ Sort by ID ascending
+      //  Sort by ID ascending
       mappedDistricts.sort((a, b) => a.id - b.id);
 
       console.log("Mapped districts:", mappedDistricts);

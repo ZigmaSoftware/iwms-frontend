@@ -12,6 +12,8 @@ import DistrictList from "./pages/masters/DistrictListPage";
 import DistrictForm from "./pages/masters/DistrictForm";
 import CityList from "./pages/masters/CityListPage";
 import CityForm from "./pages/masters/CityForm";
+import ZoneList from "./pages/masters/ZoneListPage";
+import ZoneForm from "./pages/masters/ZoneForm";
 
 export default function App() {
   return (
@@ -41,7 +43,13 @@ export default function App() {
             path="/masters/cities/:id/edit"
             element={<CityForm />}
           />
-          
+          <Route path="/masters/zones" element={<ZoneList/>}/>
+          <Route path="/masters/zones/new" element={<ZoneForm />} />
+          <Route
+            path="/masters/zones/:id/edit"
+            element={<ZoneForm />}
+          />
+        
           
         </Route>
       </Routes>
