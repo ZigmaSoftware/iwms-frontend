@@ -57,6 +57,7 @@ export default function ZoneForm() {
         const data = res.data
           .filter((s: any) => s.is_active)
           .map((s: any) => ({ value: s.id.toString(), label: s.name }));
+        console.log(data);
         setStates(data);
       })
       .catch((err) => console.error("Error fetching states:", err));
