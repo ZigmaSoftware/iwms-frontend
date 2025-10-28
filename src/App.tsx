@@ -14,6 +14,8 @@ import CityList from "./pages/masters/CityListPage";
 import CityForm from "./pages/masters/CityForm";
 import ZoneList from "./pages/masters/ZoneListPage";
 import ZoneForm from "./pages/masters/ZoneForm";
+import WardList from "./pages/masters/WardListPage";
+import WardForm from "./pages/masters/WardForm";
 
 export default function App() {
   return (
@@ -49,8 +51,13 @@ export default function App() {
             path="/masters/zones/:id/edit"
             element={<ZoneForm />}
           />
-        
-          
+          <Route path="/masters/wards" element={<WardList/>}/>
+          <Route path="/masters/wards/new" element={<WardForm />} />
+          <Route
+            path="/masters/wards/:id/edit"
+            element={<WardForm />}
+          />
+
         </Route>
       </Routes>
     </Router>
