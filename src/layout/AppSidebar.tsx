@@ -70,6 +70,14 @@ const masterItems: NavItem[] = [
   },
 ];
 
+// Transport Master
+const transportMasters: NavItem[] = [
+  {
+    icon: <ListIcon />,
+    name: "Transport Masters",
+    subItems: [{ name: "Fuel", path: "/transportMasters/fuels" }],
+  },
+];
 
 // Example Entry menu
 const entryItems: NavItem[] = [
@@ -126,7 +134,14 @@ const AppSidebar: React.FC = () => {
   const location = useLocation();
 
   const [openSubmenu, setOpenSubmenu] = useState<{
-    type: "main" | "admin" | "master" | "entry" | "report" | "others";
+    type:
+      | "main"
+      | "admin"
+      | "master"
+      | "entry"
+      | "report"
+      | "others"
+      | "transportMaster";
     index: number;
   } | null>(null);
 
@@ -149,6 +164,7 @@ const AppSidebar: React.FC = () => {
       admin: adminItems,
       master: masterItems,
       entry: entryItems,
+      transportMaster: transportMasters,
       report: reportItems,
       others: othersItems,
     };
@@ -163,9 +179,11 @@ const AppSidebar: React.FC = () => {
                   | "main"
                   | "admin"
                   | "master"
+                  | "transportMaster"
                   | "entry"
                   | "report"
                   | "others",
+
                 index,
               });
               submenuMatched = true;
@@ -195,7 +213,14 @@ const AppSidebar: React.FC = () => {
 
   const handleSubmenuToggle = (
     index: number,
-    menuType: "main" | "admin" | "master" | "entry" | "report" | "others"
+    menuType:
+      | "main"
+      | "admin"
+      | "master"
+      | "transportMaster"
+      | "entry"
+      | "report"
+      | "others"
   ) => {
     setOpenSubmenu((prev) => {
       if (prev && prev.type === menuType && prev.index === index) {
@@ -207,7 +232,14 @@ const AppSidebar: React.FC = () => {
 
   const renderMenuItems = (
     items: NavItem[],
-    menuType: "main" | "admin" | "master" | "entry" | "report" | "others"
+    menuType:
+      | "main"
+      | "admin"
+      | "master"
+      | "transportMaster"
+      | "entry"
+      | "report"
+      | "others"
   ) => (
     <ul className="flex flex-col gap-4">
       {items.map((nav, index) => (
@@ -216,18 +248,18 @@ const AppSidebar: React.FC = () => {
             <button
               onClick={() => handleSubmenuToggle(index, menuType)}
               className={`menu-item group ${
-                openSubmenu?.type === menuType &&
-                openSubmenu?.index === index
+                openSubmenu?.type === menuType && openSubmenu?.index === index
                   ? "menu-item-active"
                   : "menu-item-inactive"
               } cursor-pointer ${
-                !isExpanded && !isHovered ? "lg:justify-center" : "lg:justify-start"
+                !isExpanded && !isHovered
+                  ? "lg:justify-center"
+                  : "lg:justify-start"
               }`}
             >
               <span
                 className={`menu-item-icon-size ${
-                  openSubmenu?.type === menuType &&
-                  openSubmenu?.index === index
+                  openSubmenu?.type === menuType && openSubmenu?.index === index
                     ? "menu-item-icon-active"
                     : "menu-item-icon-inactive"
                 }`}
@@ -279,8 +311,7 @@ const AppSidebar: React.FC = () => {
               className="overflow-hidden transition-all duration-300"
               style={{
                 height:
-                  openSubmenu?.type === menuType &&
-                  openSubmenu?.index === index
+                  openSubmenu?.type === menuType && openSubmenu?.index === index
                     ? `${subMenuHeight[`${menuType}-${index}`]}px`
                     : "0px",
               }}
@@ -335,11 +366,12 @@ const AppSidebar: React.FC = () => {
   return (
     <aside
       className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
-        ${isExpanded || isMobileOpen
-          ? "w-[290px]"
-          : isHovered
-          ? "w-[290px]"
-          : "w-[90px]"
+        ${
+          isExpanded || isMobileOpen
+            ? "w-[290px]"
+            : isHovered
+            ? "w-[290px]"
+            : "w-[90px]"
         }
         ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
         lg:translate-x-0`}
@@ -375,33 +407,30 @@ const AppSidebar: React.FC = () => {
         <nav className="mb-6 flex flex-col gap-6">
           <div>{renderMenuItems(navItems, "main")}</div>
           <div>
-            <h2 className="mb-4 text-xs uppercase text-gray-400">
-              Admin
-            </h2>
+            <h2 className="mb-4 text-xs uppercase text-gray-400">Admin</h2>
             {renderMenuItems(adminItems, "admin")}
           </div>
           <div>
-            <h2 className="mb-4 text-xs uppercase text-gray-400">
-              Master
-            </h2>
+            <h2 className="mb-4 text-xs uppercase text-gray-400">Master</h2>
             {renderMenuItems(masterItems, "master")}
           </div>
           <div>
             <h2 className="mb-4 text-xs uppercase text-gray-400">
-              Entry
+              Transport Masters
             </h2>
-            {renderMenuItems(entryItems, "entry")}
+            {renderMenuItems(transportMasters, "transportMaster")}
           </div>
           <div>
-            <h2 className="mb-4 text-xs uppercase text-gray-400">
-              Report
-            </h2>
+            <h2 className="mb-4 text-xs uppercase text-gray-400">Entry</h2>
+            {renderMenuItems(entryItems, "entry")}
+          </div>
+
+          <div>
+            <h2 className="mb-4 text-xs uppercase text-gray-400">Report</h2>
             {renderMenuItems(reportItems, "report")}
           </div>
           <div>
-            <h2 className="mb-4 text-xs uppercase text-gray-400">
-              Others
-            </h2>
+            <h2 className="mb-4 text-xs uppercase text-gray-400">Others</h2>
             {renderMenuItems(othersItems, "others")}
           </div>
         </nav>
