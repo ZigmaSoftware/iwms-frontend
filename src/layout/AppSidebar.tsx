@@ -66,6 +66,8 @@ const masterItems: NavItem[] = [
       { name: "City", path: "/masters/cities" },
       { name: "Zone", path: "/masters/zones" },
       { name: "Ward", path: "/masters/wards" },
+      { name: "Property", path: "/masters/property"},
+      { name: "SubProperty", path: "/masters/subproperty"}
     ],
   },
 ];
