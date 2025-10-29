@@ -32,6 +32,10 @@ const navItems: NavItem[] = [
 // Admin menu
 const adminItems: NavItem[] = [
   { icon: <CalenderIcon />, name: "Calendar", path: "/calendar" },
+   { icon: <CalenderIcon />, name: "User Type", path: "/user-type" },
+  { icon: <UserCircleIcon />, name: "User Creation", path: "/user-creation" },
+   { icon: <UserCircleIcon />, name: "Vehicle TypeCreation", path: "/vehicle-typeCreation" },
+
   { icon: <UserCircleIcon />, name: "User Profile", path: "/profile" },
   {
     name: "Forms",

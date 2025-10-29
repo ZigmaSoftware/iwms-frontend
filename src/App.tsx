@@ -18,6 +18,12 @@ import WardList from "./pages/masters/WardListPage";
 import WardForm from "./pages/masters/WardForm";
 import FuelList from "./pages/transportMasters/fuelListPage";
 import FuelForm from "./pages/transportMasters/fuelForm";
+import UserTypePage from "./pages/userType/user-type";
+import UserTypeForm from "./pages/userType/user-typeForm";
+import UserCreation from "./pages/userCreation/user-creation";
+import UserCreationForm from "./pages/userCreation/user-creationForm";
+import VehicleTypeCreation from "./pages/vehicleTypecreation/vehicle-typeCreation";
+import VehicleTypeCreationForm from "./pages/vehicleTypecreation/vechicle-typeCreationForm";
 
 export default function App() {
   return (
@@ -66,6 +72,16 @@ export default function App() {
             path="/transportMasters/fuels/:id/edit"
             element={<FuelForm />}
           />
+          <Route path="/user-type" element={<UserTypePage />} />
+           <Route path="/user-typeForm" element={<UserTypeForm/>} />
+            <Route path="/user-type/:id/edit" element={<UserTypeForm />} />{/* New Add Form */}
+            <Route path="/user-creation" element={<UserCreation />} />  
+            <Route path="/user-form" element={<UserCreationForm />} />
+          <Route path="/user/:id/edit" element={<UserCreationForm />} />
+          <Route path="/vehicle-typeCreation" element={<VehicleTypeCreation />}></Route>
+          
+           <Route path="/vehicle-type/:id/edit" element={<VehicleTypeCreationForm />} /> 
+           <Route path="/vehicle-type" element={<VehicleTypeCreationForm />} />
 
         </Route>
       </Routes>
