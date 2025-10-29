@@ -16,6 +16,8 @@ import ZoneList from "./pages/masters/ZoneListPage";
 import ZoneForm from "./pages/masters/ZoneForm";
 import WardList from "./pages/masters/WardListPage";
 import WardForm from "./pages/masters/WardForm";
+import FuelList from "./pages/transportMasters/fuelListPage";
+import FuelForm from "./pages/transportMasters/fuelForm";
 
 export default function App() {
   return (
@@ -56,6 +58,13 @@ export default function App() {
           <Route
             path="/masters/wards/:id/edit"
             element={<WardForm />}
+          />
+
+          <Route path="/transportMasters/fuels" element={<FuelList/>}/>
+          <Route path="/transportMasters/fuels/new" element={<FuelForm />} />
+          <Route
+            path="/transportMasters/fuels/:id/edit"
+            element={<FuelForm />}
           />
 
         </Route>
