@@ -66,8 +66,8 @@ const masterItems: NavItem[] = [
       { name: "City", path: "/masters/cities" },
       { name: "Zone", path: "/masters/zones" },
       { name: "Ward", path: "/masters/wards" },
-      { name: "Property", path: "/masters/property"},
-      { name: "SubProperty", path: "/masters/subproperty"}
+      { name: "Property", path: "/masters/property" },
+      { name: "SubProperty", path: "/masters/subproperty" },
     ],
   },
 ];
@@ -78,6 +78,17 @@ const transportMasters: NavItem[] = [
     icon: <ListIcon />,
     name: "Transport Masters",
     subItems: [{ name: "Fuel", path: "/transportMasters/fuels" }],
+  },
+];
+
+//Customer Master
+const customerMasters: NavItem[] = [
+  {
+    icon: <UserCircleIcon />,
+    name: "Customer Masters",
+    subItems: [
+      { name: "CustomerCreation", path: "/customerMasters/customerCreations" },
+    ],
   },
 ];
 
@@ -143,7 +154,8 @@ const AppSidebar: React.FC = () => {
       | "entry"
       | "report"
       | "others"
-      | "transportMaster";
+      | "transportMaster"
+      | "customerMaster";
     index: number;
   } | null>(null);
 
@@ -167,6 +179,7 @@ const AppSidebar: React.FC = () => {
       master: masterItems,
       entry: entryItems,
       transportMaster: transportMasters,
+      customerMaster: customerMasters,
       report: reportItems,
       others: othersItems,
     };
@@ -220,6 +233,7 @@ const AppSidebar: React.FC = () => {
       | "admin"
       | "master"
       | "transportMaster"
+      | "customerMaster"
       | "entry"
       | "report"
       | "others"
@@ -239,6 +253,7 @@ const AppSidebar: React.FC = () => {
       | "admin"
       | "master"
       | "transportMaster"
+      | "customerMaster"
       | "entry"
       | "report"
       | "others"
@@ -421,6 +436,12 @@ const AppSidebar: React.FC = () => {
               Transport Masters
             </h2>
             {renderMenuItems(transportMasters, "transportMaster")}
+          </div>
+          <div>
+            <h2 className="mb-4 text-xs uppercase text-gray-400">
+              Customer Masters
+            </h2>
+            {renderMenuItems(customerMasters, "customerMaster")}
           </div>
           <div>
             <h2 className="mb-4 text-xs uppercase text-gray-400">Entry</h2>
