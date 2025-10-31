@@ -80,7 +80,9 @@ function FuelList() {
               </td>
               <td className="border p-2 text-center">
                 <button
-                  onClick={() => navigate(`/transportMasters/fuels/${c.id}/edit`)}
+                  onClick={() =>
+                    navigate(`/transportMasters/fuels/${c.id}/edit`)
+                  }
                   className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800 mr-3"
                   title="Edit"
                 >

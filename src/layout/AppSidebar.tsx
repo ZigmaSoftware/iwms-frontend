@@ -14,6 +14,7 @@ import {
   PlugInIcon,
   TableIcon,
   UserCircleIcon,
+  TrashBinIcon,
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 
@@ -92,6 +93,20 @@ const customerMasters: NavItem[] = [
   },
 ];
 
+// Waste Management
+const wasteManagementMasters: NavItem[] = [
+  {
+    icon: <TrashBinIcon />,
+    name: "Waste Management",
+    subItems: [
+      {
+        name: "WasteCollectedData",
+        path: "/wasteManagementMasters/wasteCollectedData",
+      },
+    ],
+  },
+];
+
 // Example Entry menu
 const entryItems: NavItem[] = [
   {
@@ -155,7 +170,8 @@ const AppSidebar: React.FC = () => {
       | "report"
       | "others"
       | "transportMaster"
-      | "customerMaster";
+      | "customerMaster"
+      | "wasteManagementMaster";
     index: number;
   } | null>(null);
 
@@ -180,6 +196,7 @@ const AppSidebar: React.FC = () => {
       entry: entryItems,
       transportMaster: transportMasters,
       customerMaster: customerMasters,
+      wasteManagementMaster: wasteManagementMasters,
       report: reportItems,
       others: othersItems,
     };
@@ -195,6 +212,8 @@ const AppSidebar: React.FC = () => {
                   | "admin"
                   | "master"
                   | "transportMaster"
+                  | "customerMaster"
+                  | "wasteManagementMaster"
                   | "entry"
                   | "report"
                   | "others",
@@ -234,6 +253,7 @@ const AppSidebar: React.FC = () => {
       | "master"
       | "transportMaster"
       | "customerMaster"
+      | "wasteManagementMaster"
       | "entry"
       | "report"
       | "others"
@@ -254,6 +274,7 @@ const AppSidebar: React.FC = () => {
       | "master"
       | "transportMaster"
       | "customerMaster"
+      | "wasteManagementMaster"
       | "entry"
       | "report"
       | "others"
@@ -442,6 +463,12 @@ const AppSidebar: React.FC = () => {
               Customer Masters
             </h2>
             {renderMenuItems(customerMasters, "customerMaster")}
+          </div>
+          <div>
+            <h2 className="mb-4 text-xs uppercase text-gray-400">
+              Waste Management
+            </h2>
+            {renderMenuItems(wasteManagementMasters, "wasteManagementMaster")}
           </div>
           <div>
             <h2 className="mb-4 text-xs uppercase text-gray-400">Entry</h2>

@@ -24,6 +24,8 @@ import SubPropertyList from "./pages/masters/SubPropertyListPage";
 import SubPropertyForm from "./pages/masters/SubPropertyForm";
 import CustomerCreationList from "./pages/customerMasters/customerCreationListPage";
 import CustomerCreationForm from "./pages/customerMasters/customerCreationForm";
+import WasteCollectedDataList from "./pages/wasteManagementMasters/wasteCollectedDataListPage";
+import WasteCollectedForm from "./pages/wasteManagementMasters/wasteCollectedDataForm";
 
 export default function App() {
   return (
@@ -80,13 +82,35 @@ export default function App() {
           <Route
             path="/transportMasters/fuels/:id/edit"
             element={<FuelForm />}
-          /> 
-           <Route path="/customerMasters/customerCreations" element={<CustomerCreationList />} />
-           <Route path="/customerMasters/customerCreations/new" element={<CustomerCreationForm />} />
+          />
+          <Route
+            path="/customerMasters/customerCreations"
+            element={<CustomerCreationList />}
+          />
+          <Route
+            path="/customerMasters/customerCreations/new"
+            element={<CustomerCreationForm />}
+          />
           <Route
             path="/customerMasters/customerCreations/:id/edit"
             element={<CustomerCreationForm />}
-          /> 
+          />
+          <Route
+            path="wasteManagementMasters/wasteCollectedData"
+            element={<WasteCollectedDataList />}
+          />
+
+          <Route
+            path="/wasteManagementMasters/wasteCollectedData/new"
+            element={<WasteCollectedForm />}
+          />
+          <Route
+            path="/wasteManagementMasters/wasteCollectedData/:id/edit"
+            element={<WasteCollectedForm />}
+          />
+
+          
+
         </Route>
       </Routes>
     </Router>
