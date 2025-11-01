@@ -119,7 +119,7 @@ function SubPropertyForm() {
 
   return (
     <ComponentCard title={isEdit ? "Edit SubProperty" : "Add SubProperty"}>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Parent Property Dropdown */}
           <div>
@@ -135,6 +135,7 @@ function SubPropertyForm() {
                 label: p.property_name,
               }))}
               className="input-validate w-full"
+              required
             />
           </div>
 
@@ -150,6 +151,7 @@ function SubPropertyForm() {
               onChange={(e) => setSubPropertyName(e.target.value)}
               placeholder="Enter SubProperty name"
               className="input-validate w-full"
+              required
             />
           </div>
 
@@ -167,6 +169,7 @@ function SubPropertyForm() {
                 { value: "false", label: "Inactive" },
               ]}
               className="input-validate w-full"
+              required
             />
           </div>
         </div>

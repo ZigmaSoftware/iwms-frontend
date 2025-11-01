@@ -12,7 +12,7 @@ type Country = {
   is_active: boolean;
 };
 
-export default function CountryList() {
+function CountryList() {
   const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -116,3 +116,4 @@ export default function CountryList() {
     </div>
   );
 }
+export default CountryList;

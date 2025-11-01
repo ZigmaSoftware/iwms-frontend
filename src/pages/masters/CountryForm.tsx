@@ -7,7 +7,7 @@ import ComponentCard from "../../components/common/ComponentCard";
 import Label from "../../components/form/Label";
 import Select from "../../components/form/Select";
 
-export default function CountryForm() {
+function CountryForm() {
   const [name, setName] = useState("");
   const [mob_code, setMobcode] = useState("");
   const [currency, setCurrency] = useState("");
@@ -65,7 +65,7 @@ export default function CountryForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 🔹 Basic validation BEFORE enabling loading or API call
+    //  Basic validation BEFORE enabling loading or API call
     if (!name || !continentId) {
       Swal.fire({
         icon: "warning",
@@ -130,7 +130,7 @@ export default function CountryForm() {
 
   return (
     <ComponentCard title={isEdit ? "Edit Country" : "Add Country"}>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Continent Dropdown */}
           <div>
@@ -144,6 +144,7 @@ export default function CountryForm() {
               options={continents}
               className="input-validate w-full"
               placeholder="Select Continent"
+              required
             />
           </div>
 
@@ -159,6 +160,7 @@ export default function CountryForm() {
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter country name"
               className="input-validate w-full"
+              required
             />
           </div>
           {/*  Mobile Code */}
@@ -173,6 +175,7 @@ export default function CountryForm() {
               onChange={(e) => setMobcode(e.target.value)}
               placeholder="Enter mobile code"
               className="input-validate w-full"
+              required
             />
           </div>
           {/*  Currency Name */}
@@ -187,6 +190,7 @@ export default function CountryForm() {
               onChange={(e) => setCurrency(e.target.value)}
               placeholder="Enter currency"
               className="input-validate w-full"
+              required
             />
           </div>
 
@@ -236,3 +240,5 @@ export default function CountryForm() {
     </ComponentCard>
   );
 }
+
+export default CountryForm;

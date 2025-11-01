@@ -102,7 +102,7 @@ function FuelForm() {
 
   return (
     <ComponentCard title={isEdit ? "Edit Fuel" : "Add Fuel"}>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Fuel Type */}
           <div>
@@ -116,6 +116,7 @@ function FuelForm() {
               onChange={(e) => setFuelType(e.target.value)}
               placeholder="Enter Fuel type"
               className="input-validate w-full"
+              required
             />
           </div>
 
@@ -130,6 +131,7 @@ function FuelForm() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Enter Description"
               className="input-validate w-full"
+              required
             />
           </div>
 
@@ -147,6 +149,7 @@ function FuelForm() {
                 { value: "false", label: "Inactive" },
               ]}
               className="input-validate w-full"
+              required
             />
           </div>
         </div>

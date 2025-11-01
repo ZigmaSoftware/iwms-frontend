@@ -7,18 +7,20 @@ import ComponentCard from "../../components/common/ComponentCard";
 import Label from "../../components/form/Label";
 import Select from "../../components/form/Select";
 
-export default function StateForm() {
+function StateForm() {
   const [name, setName] = useState("");
   const [label, setLabel] = useState("");
   const [countryId, setCountryId] = useState(""); // selected Country
-  const [countries, setCountries] = useState<{ value: string; label: string }[]>([]);
+  const [countries, setCountries] = useState<
+    { value: string; label: string }[]
+  >([]);
   const [isActive, setIsActive] = useState(true);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
 
-  // 🧭 Load country list from backend
+  //  Load country list from backend
   useEffect(() => {
     api
       .get("countries/")
@@ -34,7 +36,7 @@ export default function StateForm() {
       .catch((err) => console.error("Error fetching countries:", err));
   }, []);
 
-  // 🧭 Load existing country for editing
+  //  Load existing country for editing
   useEffect(() => {
     if (isEdit) {
       api
@@ -56,7 +58,7 @@ export default function StateForm() {
     }
   }, [id, isEdit, countries]);
 
-  // 🧠 Submit handler
+  //  Submit handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -65,7 +67,7 @@ export default function StateForm() {
         name,
         country: countryId, // sending continent foreign key
         is_active: isActive,
-        label: label
+        label: label,
       };
 
       if (isEdit) {
@@ -112,10 +114,9 @@ export default function StateForm() {
 
   return (
     <ComponentCard title={isEdit ? "Edit State" : "Add State"}>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* 🌍 Country Dropdown */}
+          {/*  Country Dropdown */}
           <div>
             <Label htmlFor="country">
               Country Name <span className="text-red-500">*</span>
@@ -131,7 +132,7 @@ export default function StateForm() {
             />
           </div>
 
-          {/* 🏳️ State Name */}
+          {/*  State Name */}
           <div>
             <Label htmlFor="stateName">
               State Name <span className="text-red-500">*</span>
@@ -146,8 +147,8 @@ export default function StateForm() {
               className="input-validate w-full"
             />
           </div>
-          
-          {/* 🏳️ label Name */}
+
+          {/* label Name */}
           <div>
             <Label htmlFor="label">
               Label Name <span className="text-red-500">*</span>
@@ -163,7 +164,7 @@ export default function StateForm() {
             />
           </div>
 
-          {/* ⚙️ Active Status */}
+          {/*  Active Status */}
           <div>
             <Label htmlFor="isActive">
               Active Status <span className="text-red-500">*</span>
@@ -182,7 +183,7 @@ export default function StateForm() {
           </div>
         </div>
 
-        {/* 🧾 Buttons */}
+        {/*  Buttons */}
         <div className="flex justify-end gap-3 mt-6">
           <button
             type="submit"
@@ -209,3 +210,5 @@ export default function StateForm() {
     </ComponentCard>
   );
 }
+
+export default StateForm;

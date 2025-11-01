@@ -7,7 +7,7 @@ import ComponentCard from "../../components/common/ComponentCard";
 import Label from "../../components/form/Label";
 import Select from "../../components/form/Select";
 
-export default function ZoneForm() {
+function ZoneForm() {
   const [name, setName] = useState("");
   const [countryId, setCountryId] = useState("");
   const [stateId, setStateId] = useState("");
@@ -186,7 +186,7 @@ export default function ZoneForm() {
 
       const errMsg = message.toLowerCase();
 
-      // 🎯 Custom duplicate check for unique constraint
+      // Custom duplicate check for unique constraint
       if (errMsg.includes("city, name must make a unique set")) {
         Swal.fire({
           icon: "warning",
@@ -213,7 +213,7 @@ export default function ZoneForm() {
 
   return (
     <ComponentCard title={isEdit ? "Edit Zone" : "Add Zone"}>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Country */}
           <div>
@@ -226,6 +226,7 @@ export default function ZoneForm() {
               onChange={(val) => setCountryId(val)}
               options={countries}
               placeholder="Select Country"
+              required
             />
           </div>
 
@@ -240,6 +241,7 @@ export default function ZoneForm() {
               onChange={(val) => setStateId(val)}
               options={states}
               placeholder="Select State"
+              required
             />
           </div>
 
@@ -252,6 +254,7 @@ export default function ZoneForm() {
               onChange={(val) => setDistrictId(val)}
               options={districts}
               placeholder="Select District"
+              required
             />
           </div>
 
@@ -264,6 +267,7 @@ export default function ZoneForm() {
               onChange={(val) => setCityId(val)}
               options={cities}
               placeholder="Select City"
+              required
             />
           </div>
 
@@ -278,12 +282,11 @@ export default function ZoneForm() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter Zone Name"
+              required
             />
           </div>
 
-          
-
-          {/* ⚙️ Active Status */}
+          {/* Active Status */}
           <div>
             <Label htmlFor="isActive">Active Status</Label>
             <Select
@@ -294,9 +297,10 @@ export default function ZoneForm() {
                 { value: "true", label: "Active" },
                 { value: "false", label: "Inactive" },
               ]}
+              required
             />
           </div>
-          {/* 📝 Description */}
+          {/*  Description */}
           <div className="md:col-span-2">
             <Label htmlFor="description">Description</Label>
             <textarea
@@ -310,7 +314,7 @@ export default function ZoneForm() {
           </div>
         </div>
 
-        {/* 🧾 Buttons */}
+        {/* Buttons */}
         <div className="flex justify-end gap-3 mt-6">
           <button
             type="submit"
@@ -337,3 +341,5 @@ export default function ZoneForm() {
     </ComponentCard>
   );
 }
+
+export default ZoneForm;

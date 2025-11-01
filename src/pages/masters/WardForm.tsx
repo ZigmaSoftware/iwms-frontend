@@ -7,7 +7,7 @@ import ComponentCard from "../../components/common/ComponentCard";
 import Label from "../../components/form/Label";
 import Select from "../../components/form/Select";
 
-export default function WardForm() {
+function WardForm() {
   const [name, setName] = useState("");
   const [countryId, setCountryId] = useState("");
   const [stateId, setStateId] = useState("");
@@ -17,9 +17,13 @@ export default function WardForm() {
   const [isActive, setIsActive] = useState(true);
   const [description, setDescription] = useState("");
 
-  const [countries, setCountries] = useState<{ value: string; label: string }[]>([]);
+  const [countries, setCountries] = useState<
+    { value: string; label: string }[]
+  >([]);
   const [states, setStates] = useState<{ value: string; label: string }[]>([]);
-  const [districts, setDistricts] = useState<{ value: string; label: string }[]>([]);
+  const [districts, setDistricts] = useState<
+    { value: string; label: string }[]
+  >([]);
   const [cities, setCities] = useState<{ value: string; label: string }[]>([]);
   const [zones, setZones] = useState<{ value: string; label: string }[]>([]);
 
@@ -43,7 +47,14 @@ export default function WardForm() {
 
   // States by country
   useEffect(() => {
-    setStates([]); setDistricts([]); setCities([]); setZones([]); setStateId(""); setDistrictId(""); setCityId(""); setZoneId("");
+    setStates([]);
+    setDistricts([]);
+    setCities([]);
+    setZones([]);
+    setStateId("");
+    setDistrictId("");
+    setCityId("");
+    setZoneId("");
     if (!countryId) return;
     api
       .get(`states/?country=${countryId}`)
@@ -58,7 +69,12 @@ export default function WardForm() {
 
   // Districts by state
   useEffect(() => {
-    setDistricts([]); setCities([]); setZones([]); setDistrictId(""); setCityId(""); setZoneId("");
+    setDistricts([]);
+    setCities([]);
+    setZones([]);
+    setDistrictId("");
+    setCityId("");
+    setZoneId("");
     if (!stateId) return;
     api
       .get(`districts/?state=${stateId}`)
@@ -73,7 +89,10 @@ export default function WardForm() {
 
   // Cities by district
   useEffect(() => {
-    setCities([]); setZones([]); setCityId(""); setZoneId("");
+    setCities([]);
+    setZones([]);
+    setCityId("");
+    setZoneId("");
     if (!districtId) return;
     api
       .get(`cities/?district=${districtId}`)
@@ -88,7 +107,8 @@ export default function WardForm() {
 
   // Zones by city (your ZoneViewSet supports ?city=)
   useEffect(() => {
-    setZones([]); setZoneId("");
+    setZones([]);
+    setZoneId("");
     if (!cityId) return;
     api
       .get(`zones/?city=${cityId}`)
@@ -208,10 +228,20 @@ export default function WardForm() {
 
       if (isEdit) {
         await api.put(`wards/${id}/`, payload);
-        Swal.fire({ icon: "success", title: "Updated successfully!", timer: 1500, showConfirmButton: false });
+        Swal.fire({
+          icon: "success",
+          title: "Updated successfully!",
+          timer: 1500,
+          showConfirmButton: false,
+        });
       } else {
         await api.post("wards/", payload);
-        Swal.fire({ icon: "success", title: "Added successfully!", timer: 1500, showConfirmButton: false });
+        Swal.fire({
+          icon: "success",
+          title: "Added successfully!",
+          timer: 1500,
+          showConfirmButton: false,
+        });
       }
       navigate("/masters/wards");
     } catch (error: any) {
@@ -228,8 +258,15 @@ export default function WardForm() {
       }
 
       const errMsg = message.toLowerCase();
-      if (errMsg.includes("ward name already exists") || errMsg.includes("duplicate")) {
-        Swal.fire({ icon: "warning", title: "Duplicate Ward", text: "Ward name already exists in the selected scope." });
+      if (
+        errMsg.includes("ward name already exists") ||
+        errMsg.includes("duplicate")
+      ) {
+        Swal.fire({
+          icon: "warning",
+          title: "Duplicate Ward",
+          text: "Ward name already exists in the selected scope.",
+        });
       } else {
         Swal.fire({ icon: "error", title: "Save failed", text: message });
       }
@@ -240,29 +277,35 @@ export default function WardForm() {
 
   return (
     <ComponentCard title={isEdit ? "Edit Ward" : "Add Ward"}>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Country */}
           <div>
-            <Label htmlFor="country">Country <span className="text-red-500">*</span></Label>
+            <Label htmlFor="country">
+              Country <span className="text-red-500">*</span>
+            </Label>
             <Select
               id="country"
               value={countryId}
               onChange={(val) => setCountryId(val)}
               options={countries}
               placeholder="Select Country"
+              required
             />
           </div>
 
           {/* State */}
           <div>
-            <Label htmlFor="state">State <span className="text-red-500">*</span></Label>
+            <Label htmlFor="state">
+              State <span className="text-red-500">*</span>
+            </Label>
             <Select
               id="state"
               value={stateId}
               onChange={(val) => setStateId(val)}
               options={states}
               placeholder="Select State"
+              required
             />
           </div>
 
@@ -275,6 +318,7 @@ export default function WardForm() {
               onChange={(val) => setDistrictId(val)}
               options={districts}
               placeholder="Select District"
+              required
             />
           </div>
 
@@ -287,6 +331,7 @@ export default function WardForm() {
               onChange={(val) => setCityId(val)}
               options={cities}
               placeholder="Select City"
+              required
             />
           </div>
 
@@ -299,18 +344,22 @@ export default function WardForm() {
               onChange={(val) => setZoneId(val)}
               options={zones}
               placeholder="Select Zone"
+              required
             />
           </div>
 
           {/* Ward Name */}
           <div>
-            <Label htmlFor="wardName">Ward Name <span className="text-red-500">*</span></Label>
+            <Label htmlFor="wardName">
+              Ward Name <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="wardName"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter Ward Name"
+              required
             />
           </div>
 
@@ -325,6 +374,7 @@ export default function WardForm() {
                 { value: "true", label: "Active" },
                 { value: "false", label: "Inactive" },
               ]}
+              required
             />
           </div>
 
@@ -349,7 +399,13 @@ export default function WardForm() {
             disabled={loading}
             className="bg-green-custom text-white px-4 py-2 rounded disabled:opacity-50 transition-colors"
           >
-            {loading ? (isEdit ? "Updating..." : "Saving...") : (isEdit ? "Update" : "Save")}
+            {loading
+              ? isEdit
+                ? "Updating..."
+                : "Saving..."
+              : isEdit
+              ? "Update"
+              : "Save"}
           </button>
           <button
             type="button"
@@ -363,3 +419,5 @@ export default function WardForm() {
     </ComponentCard>
   );
 }
+
+export default WardForm;

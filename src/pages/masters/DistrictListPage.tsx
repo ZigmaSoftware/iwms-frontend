@@ -15,7 +15,7 @@ type District = {
   state: number; // numeric state id
 };
 
-export default function DistrictListPage() {
+function DistrictListPage() {
   const [districts, setDistricts] = useState<District[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -137,3 +137,5 @@ export default function DistrictListPage() {
     </div>
   );
 }
+
+export default DistrictListPage;

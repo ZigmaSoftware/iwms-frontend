@@ -101,7 +101,7 @@ function PropertyForm() {
 
   return (
     <ComponentCard title={isEdit ? "Edit Property" : "Add Property"}>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/*Property Name */}
           <div>
@@ -115,6 +115,7 @@ function PropertyForm() {
               onChange={(e) => setPropertyName(e.target.value)}
               placeholder="Enter Fuel type"
               className="input-validate w-full"
+              required
             />
           </div>
 
@@ -132,6 +133,7 @@ function PropertyForm() {
                 { value: "false", label: "Inactive" },
               ]}
               className="input-validate w-full"
+              required
             />
           </div>
         </div>
