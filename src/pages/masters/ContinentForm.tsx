@@ -7,7 +7,7 @@ import ComponentCard from "../../components/common/ComponentCard";
 import Label from "../../components/form/Label";
 import Select from "../../components/form/Select";
 
-export default function ContinentForm() {
+function ContinentForm() {
   const [name, setName] = useState("");
   const [isActive, setIsActive] = useState(true); // default active on create
   const [loading, setLoading] = useState(false);
@@ -99,7 +99,7 @@ export default function ContinentForm() {
 
   return (
     <ComponentCard title={isEdit ? "Edit Continent" : "Add Continent"}>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Continent Name */}
           <div>
@@ -113,6 +113,7 @@ export default function ContinentForm() {
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter continent name"
               className="input-validate w-full"
+              required
             />
           </div>
 
@@ -130,6 +131,7 @@ export default function ContinentForm() {
                 { value: "false", label: "Inactive" },
               ]}
               className="input-validate w-full"
+              required
             />
           </div>
         </div>
@@ -161,3 +163,5 @@ export default function ContinentForm() {
     </ComponentCard>
   );
 }
+
+export default ContinentForm;

@@ -22,11 +22,11 @@ type Customer = {
 function WasteCollectedForm() {
   const [customerId, setCustomerId] = useState<number | "">("");
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [wetWaste, setWetWaste] = useState<number>(0);
-  const [dryWaste, setDryWaste] = useState<number>(0);
-  const [mixedWaste, setMixedWaste] = useState<number>(0);
+  const [wetWaste, setWetWaste] = useState<number>();
+  const [dryWaste, setDryWaste] = useState<number>();
+  const [mixedWaste, setMixedWaste] = useState<number>();
   const [loading, setLoading] = useState(false);
-  const [totalQuantity, setTotalQuantity] = useState<number>(0);
+  const [totalQuantity, setTotalQuantity] = useState<number>();
 
   const navigate = useNavigate();
   const { id } = useParams();
@@ -38,16 +38,15 @@ function WasteCollectedForm() {
   }, [wetWaste, dryWaste, mixedWaste]);
 
   // Fetch all customers for selection
-useEffect(() => {
-  api
-    .get("customercreations/")
-    .then((res) => {
-      console.log("Fetched customers:", res.data); // <-- log the response
-      setCustomers(res.data);
-    })
-    .catch((err) => console.error("Failed to fetch customers:", err));
-}, []);
-
+  useEffect(() => {
+    api
+      .get("customercreations/")
+      .then((res) => {
+        console.log("Fetched customers:", res.data); // <-- log the response
+        setCustomers(res.data);
+      })
+      .catch((err) => console.error("Failed to fetch customers:", err));
+  }, []);
 
   // Fetch existing waste collection if editing
   useEffect(() => {
@@ -131,7 +130,7 @@ useEffect(() => {
     <ComponentCard
       title={isEdit ? "Edit Waste Collection" : "Add Waste Collection"}
     >
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Customer Select */}
           <div>
@@ -149,6 +148,7 @@ useEffect(() => {
                 })`,
               }))}
               className="w-full"
+              required
             />
           </div>
 
@@ -160,8 +160,8 @@ useEffect(() => {
               type="number"
               value={dryWaste}
               onChange={(e) => setDryWaste(Number(e.target.value))}
-              min={0}
-              className="w-full"
+              className="input-validate w-full"
+              required
             />
           </div>
 
@@ -173,8 +173,8 @@ useEffect(() => {
               type="number"
               value={wetWaste}
               onChange={(e) => setWetWaste(Number(e.target.value))}
-              min={0}
               className="w-full"
+              required
             />
           </div>
 
@@ -186,8 +186,8 @@ useEffect(() => {
               type="number"
               value={mixedWaste}
               onChange={(e) => setMixedWaste(Number(e.target.value))}
-              min={0}
               className="w-full"
+              required
             />
           </div>
 
@@ -198,8 +198,9 @@ useEffect(() => {
               id="totalQuantity"
               type="number"
               value={totalQuantity}
-              readOnly
+              disabled
               className="w-full bg-gray-100"
+              required
             />
           </div>
         </div>
@@ -228,7 +229,6 @@ useEffect(() => {
           >
             Cancel
           </button>
-
         </div>
       </form>
     </ComponentCard>

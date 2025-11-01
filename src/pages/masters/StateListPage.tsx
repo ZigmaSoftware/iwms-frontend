@@ -10,8 +10,7 @@ type State = {
   label : string;
   is_active: boolean;
 };
-
-export default function StateList() {
+function StateList() {
   const [states, setStates] = useState<State[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -114,3 +113,5 @@ export default function StateList() {
     </div>
   );
 }
+
+export default StateList;

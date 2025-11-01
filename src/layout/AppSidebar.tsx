@@ -103,6 +103,10 @@ const wasteManagementMasters: NavItem[] = [
         name: "WasteCollectedData",
         path: "/wasteManagementMasters/wasteCollectedData",
       },
+      {
+        name: "CollectionMonitoring",
+        path: "/wasteManagementMasters/collectionMonitoring",
+      }
     ],
   },
 ];
@@ -451,28 +455,15 @@ const AppSidebar: React.FC = () => {
           <div>
             <h2 className="mb-4 text-xs uppercase text-gray-400">Master</h2>
             {renderMenuItems(masterItems, "master")}
-          </div>
-          <div>
-            <h2 className="mb-4 text-xs uppercase text-gray-400">
-              Transport Masters
-            </h2>
+
             {renderMenuItems(transportMasters, "transportMaster")}
-          </div>
-          <div>
-            <h2 className="mb-4 text-xs uppercase text-gray-400">
-              Customer Masters
-            </h2>
             {renderMenuItems(customerMasters, "customerMaster")}
           </div>
-          <div>
-            <h2 className="mb-4 text-xs uppercase text-gray-400">
-              Waste Management
-            </h2>
-            {renderMenuItems(wasteManagementMasters, "wasteManagementMaster")}
-          </div>
+
           <div>
             <h2 className="mb-4 text-xs uppercase text-gray-400">Entry</h2>
             {renderMenuItems(entryItems, "entry")}
+            {renderMenuItems(wasteManagementMasters, "wasteManagementMaster")}
           </div>
 
           <div>

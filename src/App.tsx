@@ -26,6 +26,7 @@ import CustomerCreationList from "./pages/customerMasters/customerCreationListPa
 import CustomerCreationForm from "./pages/customerMasters/customerCreationForm";
 import WasteCollectedDataList from "./pages/wasteManagementMasters/wasteCollectedDataListPage";
 import WasteCollectedForm from "./pages/wasteManagementMasters/wasteCollectedDataForm";
+import CollectionMonitoring from "./pages/wasteManagementMasters/collectionMonitoring";
 
 export default function App() {
   return (
@@ -99,7 +100,6 @@ export default function App() {
             path="wasteManagementMasters/wasteCollectedData"
             element={<WasteCollectedDataList />}
           />
-
           <Route
             path="/wasteManagementMasters/wasteCollectedData/new"
             element={<WasteCollectedForm />}
@@ -108,9 +108,10 @@ export default function App() {
             path="/wasteManagementMasters/wasteCollectedData/:id/edit"
             element={<WasteCollectedForm />}
           />
-
-          
-
+          <Route
+            path="/wasteManagementMasters/collectionMonitoring"
+            element={<CollectionMonitoring />}
+          />
         </Route>
       </Routes>
     </Router>

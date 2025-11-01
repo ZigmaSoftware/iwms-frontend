@@ -168,7 +168,7 @@ export default function DistrictForm() {
 
   return (
     <ComponentCard title={isEdit ? "Edit District" : "Add District"}>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Country */}
           <div>
@@ -191,6 +191,7 @@ export default function DistrictForm() {
               }))}
               placeholder="Select Country"
               className="input-validate w-full"
+              required
             />
           </div>
 
@@ -211,6 +212,7 @@ export default function DistrictForm() {
               placeholder={countryId ? "Select State" : "Select Country First"}
               className="input-validate w-full"
               disabled={!countryId} // disable until a country is selected
+              required
             />
           </div>
 
@@ -226,6 +228,7 @@ export default function DistrictForm() {
               onChange={(e) => setDistrictName(e.target.value)}
               placeholder="Enter district name"
               className="input-validate w-full"
+              required
             />
           </div>
 
@@ -243,6 +246,7 @@ export default function DistrictForm() {
                 { value: "false", label: "Inactive" },
               ]}
               className="input-validate w-full"
+              required
             />
           </div>
         </div>

@@ -9,7 +9,7 @@ type Continent = {
   is_active: boolean;
 };
 
-export default function ContinentList() {
+function ContinentList() {
   const [continents, setContinents] = useState<Continent[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -107,3 +107,5 @@ export default function ContinentList() {
     </div>
   );
 }
+
+export default ContinentList;

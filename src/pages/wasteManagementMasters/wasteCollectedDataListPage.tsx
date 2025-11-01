@@ -105,6 +105,7 @@ function WasteCollectedDataList() {
             <th className="p-2 border">Quantity</th>
             <th className="p-2 border">Zone</th>
             <th className="p-2 border">City</th>
+            <th className="p-2 border">Status</th>
 
             <th className="p-2 border text-center">Actions</th>
           </tr>
@@ -151,7 +152,7 @@ function WasteCollectedDataList() {
           ))}
           {wasteCollectedDatas.length === 0 && (
             <tr>
-              <td colSpan={4} className="text-center p-3 text-gray-500">
+              <td colSpan={4} className="text-center p-3 text-gray-500">       
                 No Waste Collected Data found.
               </td>
             </tr>

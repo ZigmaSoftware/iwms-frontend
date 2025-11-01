@@ -9,7 +9,7 @@ import Select from "../../components/form/Select";
 
 type Option = { value: number; label: string };
 
-export default function CityForm() {
+function CityForm() {
   const [cityName, setCityName] = useState("");
   const [countryId, setCountryId] = useState<number | "">("");
   const [stateId, setStateId] = useState<number | "">("");
@@ -26,7 +26,7 @@ export default function CityForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
 
-  // 🔹 Fetch active countries
+  //  Fetch active countries
   useEffect(() => {
     const fetchCountries = async () => {
       try {
@@ -42,7 +42,7 @@ export default function CityForm() {
     fetchCountries();
   }, []);
 
-  // 🔹 Fetch city details (Edit mode)
+  //  Fetch city details (Edit mode)
   useEffect(() => {
     if (!isEdit) return;
 
@@ -56,7 +56,7 @@ export default function CityForm() {
         setStateId(data.state);
         setIsActive(data.is_active);
 
-        // ✅ Fetch districts for this state before setting districtId
+        //  Fetch districts for this state before setting districtId
         if (data.state) {
           const districtRes = await api.get(`districts/?state=${data.state}`);
           const districtOptions = districtRes.data
@@ -79,7 +79,7 @@ export default function CityForm() {
     fetchCity();
   }, [id, isEdit]);
 
-  // 🔹 Fetch states when country changes
+  // Fetch states when country changes
   useEffect(() => {
     if (!countryId) return;
 
@@ -114,7 +114,7 @@ export default function CityForm() {
           .map((d: any) => ({ value: d.id, label: d.name }));
         setDistricts(data);
 
-        // ✅ Only clear selected district when adding new city
+        // Only clear selected district when adding new city
         if (!isEdit) setDistrictId("");
       } catch (err) {
         console.error("Error fetching districts:", err);
@@ -196,10 +196,10 @@ export default function CityForm() {
     }
   };
 
-  // 🔹 Render form
+  // Render form
   return (
     <ComponentCard title={isEdit ? "Edit City" : "Add City"}>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Country */}
           <div>
@@ -216,6 +216,7 @@ export default function CityForm() {
               }))}
               placeholder="Select Country"
               className="input-validate w-full"
+              required
             />
           </div>
 
@@ -235,6 +236,7 @@ export default function CityForm() {
               placeholder={countryId ? "Select State" : "Select Country First"}
               className="input-validate w-full"
               disabled={!countryId}
+              required
             />
           </div>
 
@@ -254,6 +256,7 @@ export default function CityForm() {
               placeholder={stateId ? "Select District" : "Select State First"}
               className="input-validate w-full"
               disabled={!stateId}
+              required
             />
           </div>
 
@@ -269,6 +272,7 @@ export default function CityForm() {
               onChange={(e) => setCityName(e.target.value)}
               placeholder="Enter city name"
               className="input-validate w-full"
+              required
             />
           </div>
 
@@ -286,6 +290,7 @@ export default function CityForm() {
                 { value: "false", label: "Inactive" },
               ]}
               className="input-validate w-full"
+              required
             />
           </div>
         </div>
@@ -318,3 +323,5 @@ export default function CityForm() {
     </ComponentCard>
   );
 }
+
+export default CityForm;
