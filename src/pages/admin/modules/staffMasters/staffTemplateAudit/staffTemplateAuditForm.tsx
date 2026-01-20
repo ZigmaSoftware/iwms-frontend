@@ -6,21 +6,19 @@ import { useTranslation } from "react-i18next";
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
 
-import { staffTemplateApi } from "@/helpers/admin";
+import { staffTemplateAuditLogApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 type StaffTemplateAuditRecord = {
-  unique_id: string;
-  driver_name?: string | null;
-  operator_name?: string | null;
-  extra_operator_id?: string[];
-  status?: string | null;
-  approval_status?: string | null;
-  created_by_name?: string | null;
-  updated_by_name?: string | null;
-  approved_by_name?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
+  id: number;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+  performed_by?: string | null;
+  performed_by_name?: string | null;
+  performed_role?: string | null;
+  change_remarks?: string | null;
+  performed_at?: string | null;
 };
 
 export default function StaffTemplateAuditForm() {
@@ -37,7 +35,7 @@ export default function StaffTemplateAuditForm() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    staffTemplateApi
+    staffTemplateAuditLogApi
       .get(id)
       .then((res: any) => setRecord(res ?? null))
       .catch(() => {
@@ -45,10 +43,6 @@ export default function StaffTemplateAuditForm() {
       })
       .finally(() => setLoading(false));
   }, [id, t]);
-
-  const extraOperators = record?.extra_operator_id?.length
-    ? record.extra_operator_id.join(", ")
-    : "-";
 
   return (
     <div className="p-3">
@@ -58,103 +52,65 @@ export default function StaffTemplateAuditForm() {
       >
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <div>
-            <Label>{t("admin.staff_template.columns.template_id")}</Label>
+            <Label>{t("admin.staff_template_audit.entity_type")}</Label>
             <input
               className="w-full rounded border border-gray-200 bg-gray-100 p-2 text-sm"
-              value={record?.unique_id ?? ""}
+              value={record?.entity_type ?? "-"}
               readOnly
             />
           </div>
 
           <div>
-            <Label>{t("admin.staff_template.columns.primary_driver")}</Label>
+            <Label>{t("admin.staff_template_audit.entity_id")}</Label>
             <input
               className="w-full rounded border border-gray-200 bg-gray-100 p-2 text-sm"
-              value={record?.driver_name ?? "-"}
+              value={record?.entity_id ?? "-"}
               readOnly
             />
           </div>
 
           <div>
-            <Label>{t("admin.staff_template.columns.primary_operator")}</Label>
+            <Label>{t("admin.staff_template_audit.action")}</Label>
             <input
               className="w-full rounded border border-gray-200 bg-gray-100 p-2 text-sm"
-              value={record?.operator_name ?? "-"}
+              value={record?.action ?? "-"}
               readOnly
             />
           </div>
 
           <div>
-            <Label>{t("admin.staff_template.columns.extra_staff")}</Label>
-            <textarea
-              className="w-full rounded border border-gray-200 bg-gray-100 p-2 text-sm"
-              value={extraOperators}
-              readOnly
-            />
-          </div>
-
-          <div>
-            <Label>{t("common.status")}</Label>
+            <Label>{t("admin.staff_template_audit.performed_by")}</Label>
             <input
               className="w-full rounded border border-gray-200 bg-gray-100 p-2 text-sm"
-              value={record?.status ?? "-"}
+              value={record?.performed_by_name ?? record?.performed_by ?? "-"}
               readOnly
             />
           </div>
 
           <div>
-            <Label>{t("admin.staff_template.columns.approval_status")}</Label>
+            <Label>{t("admin.staff_template_audit.performed_role")}</Label>
             <input
               className="w-full rounded border border-gray-200 bg-gray-100 p-2 text-sm"
-              value={record?.approval_status ?? "-"}
+              value={record?.performed_role ?? "-"}
               readOnly
             />
           </div>
 
           <div>
-            <Label>{t("admin.staff_template.created_by")}</Label>
+            <Label>{t("admin.staff_template_audit.change_remarks")}</Label>
             <input
               className="w-full rounded border border-gray-200 bg-gray-100 p-2 text-sm"
-              value={record?.created_by_name ?? "-"}
+              value={record?.change_remarks ?? "-"}
               readOnly
             />
           </div>
 
           <div>
-            <Label>{t("admin.staff_template.updated_by")}</Label>
-            <input
-              className="w-full rounded border border-gray-200 bg-gray-100 p-2 text-sm"
-              value={record?.updated_by_name ?? "-"}
-              readOnly
-            />
-          </div>
-
-          <div>
-            <Label>{t("admin.staff_template.approved_by")}</Label>
-            <input
-              className="w-full rounded border border-gray-200 bg-gray-100 p-2 text-sm"
-              value={record?.approved_by_name ?? "-"}
-              readOnly
-            />
-          </div>
-
-          <div>
-            <Label>{t("common.created_at")}</Label>
+            <Label>{t("admin.staff_template_audit.performed_at")}</Label>
             <input
               className="w-full rounded border border-gray-200 bg-gray-100 p-2 text-sm"
               value={
-                record?.created_at ? new Date(record.created_at).toLocaleString() : "-"
-              }
-              readOnly
-            />
-          </div>
-
-          <div>
-            <Label>{t("common.updated_at")}</Label>
-            <input
-              className="w-full rounded border border-gray-200 bg-gray-100 p-2 text-sm"
-              value={
-                record?.updated_at ? new Date(record.updated_at).toLocaleString() : "-"
+                record?.performed_at ? new Date(record.performed_at).toLocaleString() : "-"
               }
               readOnly
             />

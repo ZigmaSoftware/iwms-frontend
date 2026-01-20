@@ -16,6 +16,7 @@ type AlternativeStaffTemplate = {
   id: number;
   unique_id: string;
   staff_template: string;
+  staff_template_display_code?: string;
   effective_date: string;
   driver: string;
   operator: string;
@@ -132,6 +133,7 @@ export default function AlternativeStaffTemplateList() {
         globalFilterFields={[
           "unique_id",
           "staff_template",
+          "staff_template_display_code",
           "driver",
           "operator",
           "change_reason",
@@ -145,7 +147,12 @@ export default function AlternativeStaffTemplateList() {
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 70 }} />
         <Column field="unique_id" header={t("admin.alternative_staff_template.columns.template_id")} sortable />
-        <Column field="staff_template" header={t("admin.alternative_staff_template.columns.staff_template")} />
+        <Column
+          header={t("admin.alternative_staff_template.columns.staff_template")}
+          body={(row: AlternativeStaffTemplate) =>
+            row.staff_template_display_code ?? row.staff_template
+          }
+        />
         <Column field="effective_date" header={t("admin.alternative_staff_template.columns.effective_date")} />
         <Column field="driver" header={t("admin.alternative_staff_template.columns.driver")} />
         <Column field="operator" header={t("admin.alternative_staff_template.columns.operator")} />

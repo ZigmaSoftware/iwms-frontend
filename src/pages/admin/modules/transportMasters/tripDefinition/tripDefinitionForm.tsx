@@ -102,7 +102,7 @@ export default function TripDefinitionForm() {
       .then(([routeRes, staffRes, propertyRes, subPropertyRes]) => {
         setRoutePlans(toOptions(normalizeList(routeRes), "unique_id", "unique_id"));
         setStaffTemplates(
-          toOptions(normalizeList(staffRes), "unique_id", "unique_id", "driver_name")
+          toOptions(normalizeList(staffRes), "unique_id", "display_code", "unique_id")
         );
         setProperties(toOptions(normalizeList(propertyRes), "unique_id", "property_name"));
         setSubProperties(toOptions(normalizeList(subPropertyRes), "unique_id", "sub_property_name"));

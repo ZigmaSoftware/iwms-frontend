@@ -95,7 +95,7 @@ export default function TripDefinitionList() {
       setRecords(normalizeList(tripRes));
       setRoutePlanLookup(buildLookup(normalizeList(routeRes), "unique_id", "unique_id"));
       setStaffTemplateLookup(
-        buildLookup(normalizeList(staffRes), "unique_id", "unique_id", "driver_name")
+        buildLookup(normalizeList(staffRes), "unique_id", "display_code", "unique_id")
       );
       setPropertyLookup(buildLookup(normalizeList(propertyRes), "unique_id", "property_name"));
       setSubPropertyLookup(buildLookup(normalizeList(subPropertyRes), "unique_id", "sub_property_name"));

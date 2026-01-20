@@ -8,21 +8,19 @@ import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
-import { staffTemplateApi } from "@/helpers/admin";
+import { staffTemplateAuditLogApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 type StaffTemplateAuditRecord = {
-  unique_id: string;
-  driver_name?: string | null;
-  operator_name?: string | null;
-  extra_operator_id?: string[];
-  status?: string | null;
-  approval_status?: string | null;
-  created_by_name?: string | null;
-  updated_by_name?: string | null;
-  approved_by_name?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
+  id: number;
+  entity_type: string;
+  entity_id: string;
+  action: string;
+  performed_by?: string | null;
+  performed_by_name?: string | null;
+  performed_role?: string | null;
+  change_remarks?: string | null;
+  performed_at?: string | null;
 };
 
 const normalizeList = (payload: any): StaffTemplateAuditRecord[] => {
@@ -50,7 +48,7 @@ export default function StaffTemplateAuditList() {
   const fetchRecords = async () => {
     setLoading(true);
     try {
-      const payload: any = await staffTemplateApi.list();
+      const payload: any = await staffTemplateAuditLogApi.list();
       setRecords(normalizeList(payload));
     } catch {
       Swal.fire(t("common.error"), t("common.load_failed"), "error");
@@ -73,7 +71,7 @@ export default function StaffTemplateAuditList() {
     <div className="flex justify-center">
       <button
         title={t("common.view")}
-        onClick={() => navigate(ENC_VIEW_PATH(row.unique_id))}
+        onClick={() => navigate(ENC_VIEW_PATH(String(row.id)))}
         className="text-blue-600 hover:text-blue-800"
       >
         {t("common.view")}
@@ -108,20 +106,19 @@ export default function StaffTemplateAuditList() {
 
       <DataTable
         value={records}
-        dataKey="unique_id"
+        dataKey="id"
         paginator
         rows={10}
         loading={loading}
         filters={filters}
         globalFilterFields={[
-          "unique_id",
-          "driver_name",
-          "operator_name",
-          "status",
-          "approval_status",
-          "created_by_name",
-          "updated_by_name",
-          "approved_by_name",
+          "entity_type",
+          "entity_id",
+          "action",
+          "performed_by",
+          "performed_by_name",
+          "performed_role",
+          "change_remarks",
         ]}
         stripedRows
         showGridlines
@@ -134,43 +131,36 @@ export default function StaffTemplateAuditList() {
           style={{ width: 70 }}
         />
         <Column
-          field="unique_id"
-          header={t("admin.staff_template.columns.template_id")}
+          header={t("admin.staff_template_audit.entity_type")}
+          field="entity_type"
           sortable
         />
         <Column
-          header={t("admin.staff_template.columns.primary_driver")}
-          body={(r: StaffTemplateAuditRecord) => r.driver_name ?? "-"}
+          header={t("admin.staff_template_audit.entity_id")}
+          field="entity_id"
           sortable
         />
         <Column
-          header={t("admin.staff_template.columns.primary_operator")}
-          body={(r: StaffTemplateAuditRecord) => r.operator_name ?? "-"}
+          header={t("admin.staff_template_audit.action")}
+          field="action"
           sortable
         />
         <Column
-          header={t("admin.staff_template.columns.extra_staff")}
-          body={(r: StaffTemplateAuditRecord) => r.extra_operator_id?.length ?? 0}
-          style={{ width: 120 }}
-        />
-        <Column field="status" header={t("common.status")} sortable />
-        <Column field="approval_status" header={t("admin.staff_template.columns.approval_status")} sortable />
-        <Column
-          header={t("admin.staff_template.created_by")}
-          body={(r: StaffTemplateAuditRecord) => r.created_by_name ?? "-"}
+          header={t("admin.staff_template_audit.performed_by")}
+          body={(r: StaffTemplateAuditRecord) => r.performed_by_name ?? r.performed_by ?? "-"}
         />
         <Column
-          header={t("admin.staff_template.updated_by")}
-          body={(r: StaffTemplateAuditRecord) => r.updated_by_name ?? "-"}
+          header={t("admin.staff_template_audit.performed_role")}
+          body={(r: StaffTemplateAuditRecord) => r.performed_role ?? "-"}
         />
         <Column
-          header={t("admin.staff_template.approved_by")}
-          body={(r: StaffTemplateAuditRecord) => r.approved_by_name ?? "-"}
+          header={t("admin.staff_template_audit.change_remarks")}
+          body={(r: StaffTemplateAuditRecord) => r.change_remarks ?? "-"}
         />
         <Column
-          header={t("common.created_at")}
+          header={t("admin.staff_template_audit.performed_at")}
           body={(r: StaffTemplateAuditRecord) =>
-            r.created_at ? new Date(r.created_at).toLocaleDateString() : "-"
+            r.performed_at ? new Date(r.performed_at).toLocaleString() : "-"
           }
         />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
