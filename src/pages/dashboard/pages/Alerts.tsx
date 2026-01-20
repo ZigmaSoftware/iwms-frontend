@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, MapPin, Clock, Filter, BellRing, ShieldAlert, Activity } from "lucide-react";
+import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/contexts/ThemeContext";
 import { complaintApi, customerCreationApi, wasteCollectionApi } from "@/helpers/admin";
@@ -515,6 +516,32 @@ export default function Alerts() {
     });
   }, [alerts, selectedZone, selectedSeverity]);
 
+  const trendData = useMemo(() => {
+    const days = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (6 - index));
+      date.setHours(0, 0, 0, 0);
+      return date;
+    });
+
+    const base = days.map((date) => ({
+      key: formatDateKey(date),
+      label: date.toLocaleDateString(i18n.language, { month: "short", day: "numeric" }),
+      total: 0,
+    }));
+
+    const bucketMap = new Map(base.map((entry) => [entry.key, entry]));
+    filteredAlerts.forEach((alert) => {
+      if (!alert.occurredAt) return;
+      const key = formatDateKey(new Date(alert.occurredAt));
+      const bucket = bucketMap.get(key);
+      if (!bucket) return;
+      bucket.total += 1;
+    });
+
+    return base;
+  }, [filteredAlerts, i18n.language]);
+
   const { theme } = useTheme();
   const isDarkMode = theme === "dark";
 
@@ -717,6 +744,55 @@ export default function Alerts() {
             );
           })}
         </div>
+
+        <Card className={surfaceCardClass}>
+          <CardHeader>
+            <CardTitle>{t("dashboard.alerts.trend_title")}</CardTitle>
+            <CardDescription>{t("dashboard.alerts.trend_subtitle")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-52 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={trendData} margin={{ top: 10, right: 18, left: -10, bottom: 0 }}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={isDarkMode ? "#1f2937" : "#e2e8f0"}
+                  />
+                  <XAxis
+                    dataKey="label"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: isDarkMode ? "#94a3b8" : "#64748b" }}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: isDarkMode ? "#94a3b8" : "#64748b" }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: isDarkMode ? "#0f172a" : "#ffffff",
+                      border: isDarkMode ? "1px solid #1e293b" : "1px solid #e2e8f0",
+                      borderRadius: "10px",
+                      fontSize: "12px",
+                    }}
+                    labelStyle={{ color: isDarkMode ? "#e2e8f0" : "#0f172a" }}
+                    itemStyle={{ color: isDarkMode ? "#38bdf8" : "#2563eb" }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="total"
+                    stroke={isDarkMode ? "#38bdf8" : "#2563eb"}
+                    strokeWidth={2.5}
+                    dot={false}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className={surfaceCardClass}>
           <CardHeader>

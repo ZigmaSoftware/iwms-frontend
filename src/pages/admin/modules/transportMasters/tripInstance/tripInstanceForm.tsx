@@ -117,7 +117,7 @@ export default function TripInstanceForm() {
       .then(([tripDefRes, staffRes, altStaffRes, zoneRes, vehicleRes, propertyRes, subPropertyRes]) => {
         setTripDefinitions(toOptions(normalizeList(tripDefRes), "unique_id", "unique_id"));
         setStaffTemplates(
-          toOptions(normalizeList(staffRes), "unique_id", "unique_id", "driver_name")
+          toOptions(normalizeList(staffRes), "unique_id", "display_code", "unique_id")
         );
         setAltStaffTemplates(toOptions(normalizeList(altStaffRes), "unique_id", "unique_id"));
         setZones(toOptions(normalizeList(zoneRes), "unique_id", "name"));

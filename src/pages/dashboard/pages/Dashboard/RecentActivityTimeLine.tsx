@@ -208,6 +208,7 @@ export function RecentActivityTimeline() {
     return { high, medium, low };
   };
 
+
   useEffect(() => {
     let isMounted = true;
 
@@ -243,6 +244,7 @@ export function RecentActivityTimeline() {
       window.clearInterval(interval);
     };
   }, []);
+
 
   const rtf = new Intl.RelativeTimeFormat(i18n.language, { numeric: "auto" });
   const formatTimeAgo = (timestamp?: number | null) => {
@@ -327,12 +329,21 @@ export function RecentActivityTimeline() {
     [items]
   );
   const shouldScroll = visibleItems.length > 3;
+  const maxValue = useMemo(() => {
+    const values = visibleItems.map((item) => item.value ?? 0);
+    return Math.max(1, ...values);
+  }, [visibleItems]);
 
   const priorityStyles: Record<"High" | "Medium" | "Low", string> = {
     High: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-700/50 dark:bg-rose-900/30 dark:text-rose-200",
     Medium:
       "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700/50 dark:bg-amber-900/30 dark:text-amber-200",
     Low: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-700/50 dark:bg-emerald-900/30 dark:text-emerald-200",
+  };
+  const barStyles: Record<"High" | "Medium" | "Low", string> = {
+    High: "bg-gradient-to-r from-rose-400 to-rose-500",
+    Medium: "bg-gradient-to-r from-amber-400 to-amber-500",
+    Low: "bg-gradient-to-r from-emerald-400 to-emerald-500",
   };
 
   const getPriorityMeta = (priority: "High" | "Medium" | "Low") => {
@@ -403,6 +414,12 @@ export function RecentActivityTimeline() {
                 <p className="text-[11px] text-gray-500 dark:text-gray-400">
                   {item.value} • {formatTimeAgo(lastUpdated)}
                 </p>
+                <div className="mt-2 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
+                  <div
+                    className={`h-1.5 rounded-full ${barStyles[item.priority as "High" | "Medium"]}`}
+                    style={{ width: `${Math.min(100, (item.value / maxValue) * 100)}%` }}
+                  />
+                </div>
               </div>
             </Link>
           );

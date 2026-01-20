@@ -24,6 +24,7 @@ export const staffUserTypeApi = adminApi.staffUserTypes;
 export const userTypeApi = adminApi.userTypes;
 export const userCreationApi = adminApi.usercreations;
 export const staffTemplateApi = adminApi.staffTemplate;
+export const staffTemplateAuditLogApi = adminApi.staffTemplateAuditLog;
 export const alternativeStaffTemplateApi = adminApi.alternativeStaffTemplate;
 export const supervisorZoneMapApi = adminApi.supervisorZoneMap;
 export const supervisorZoneAccessAuditApi = adminApi.supervisorZoneAccessAudit;

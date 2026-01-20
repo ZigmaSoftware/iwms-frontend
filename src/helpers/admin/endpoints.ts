@@ -44,6 +44,7 @@ export const adminEndpoints = {
   staffCreation: "user-creation/staffcreation",
   staffTemplate: "user-creation/stafftemplate-creation",
   alternativeStaffTemplate: "user-creation/alternative-stafftemplate",
+  staffTemplateAuditLog: "user-creation/stafftemplate-audit-log",
   supervisorZoneMap: "user-creation/supervisor-zone-map",
   supervisorZoneAccessAudit: "user-creation/supervisor-zone-access-audit",
 

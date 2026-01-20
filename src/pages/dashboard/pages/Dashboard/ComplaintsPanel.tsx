@@ -185,6 +185,7 @@ export function ComplaintsPanel() {
     <DataCard
       title={t("dashboard.home.grievances_title")}
       compact
+      className="h-[240px] flex flex-col overflow-hidden"
       action={
         <Link
           to={grievancesPath}
@@ -194,85 +195,83 @@ export function ComplaintsPanel() {
         </Link>
       }
     >
-      {loading && !complaints.length ? (
-        <div className="py-4 text-center text-xs text-muted-foreground">
-          {t("dashboard.home.grievances_loading")}
-        </div>
-      ) : null}
-      <div className="grid grid-cols-3 gap-2 mt-2">
-        {/* TOTAL */}
-        <div className={`${CARD_STYLE} bg-blue-50 dark:bg-blue-900/20`}>
-          <div className="text-[14px] text-gray-600 dark:text-gray-300 font-bold">
-            {t("common.total")}
+      <div className="flex-1 min-h-0 flex flex-col">
+        {loading && !complaints.length ? (
+          <div className="py-4 text-center text-xs text-muted-foreground">
+            {t("dashboard.home.grievances_loading")}
           </div>
-          <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
-            {summary.total}
-          </div>
-        </div>
-
-        {/* IN PROGRESS */}
-        <div className={`${CARD_STYLE} bg-yellow-50 dark:bg-yellow-900/20`}>
-          <div className="text-[14px] text-gray-600 dark:text-gray-300 font-bold">
-            {t("common.status_in_progress")}
-          </div>
-          <div className="text-lg font-bold text-yellow-700 dark:text-yellow-300">
-            {summary.inProgress}
-          </div>
-        </div>
-
-        {/* RESOLVED */}
-        <div className={`${CARD_STYLE} bg-green-50 dark:bg-green-900/20`}>
-          <div className="text-[14px] text-gray-600 dark:text-gray-300 font-bold">
-            {t("common.status_resolved")}
-          </div>
-          <div className="text-lg font-bold text-green-700 dark:text-green-300">
-            {summary.resolved}
-          </div>
-        </div>
-      </div>
-
-      <div
-        className={`mt-3 space-y-2 pr-1 ${
-          shouldScroll ? "max-h-40 overflow-y-auto" : ""
-        }`}
-      >
-        {!loading && !complaints.length && (
-          <div className="text-xs text-muted-foreground">
-            {t("dashboard.home.grievances_none")}
-          </div>
-        )}
-        {complaints.map((complaint, idx) => {
-          const meta = getStatusMeta(complaint.status);
-          const statusLabel = getStatusLabel(complaint.status);
-          const priorityLabel = getPriorityLabel(complaint.priority);
-          return (
-            <div key={complaint.id} className="flex gap-2">
-              <div className="flex flex-col items-center">
-                <div className={`p-1 rounded-full ${meta.ring}`}>
-                  {meta.icon}
-                </div>
-                {idx < complaints.length - 1 && (
-                  <div className="w-px h-full bg-gray-200 dark:bg-gray-700 my-1" />
-                )}
-              </div>
-              <div className="flex-1 pb-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-medium text-gray-900 dark:text-white">
-                    {complaint.title}
-                  </p>
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full border ${priorityStyles[complaint.priority]}`}
-                  >
-                    {priorityLabel}
-                  </span>
-                </div>
-                <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                  {statusLabel} • {formatTimeAgo(complaint.createdAt)}
-                </p>
-              </div>
+        ) : null}
+        <div className="grid grid-cols-3 gap-2 mt-2">
+          {/* TOTAL */}
+          <div className={`${CARD_STYLE} bg-blue-50 dark:bg-blue-900/20`}>
+            <div className="text-[14px] text-gray-600 dark:text-gray-300 font-bold">
+              {t("common.total")}
             </div>
-          );
-        })}
+            <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
+              {summary.total}
+            </div>
+          </div>
+
+          {/* IN PROGRESS */}
+          <div className={`${CARD_STYLE} bg-yellow-50 dark:bg-yellow-900/20`}>
+            <div className="text-[14px] text-gray-600 dark:text-gray-300 font-bold">
+              {t("common.status_in_progress")}
+            </div>
+            <div className="text-lg font-bold text-yellow-700 dark:text-yellow-300">
+              {summary.inProgress}
+            </div>
+          </div>
+
+          {/* RESOLVED */}
+          <div className={`${CARD_STYLE} bg-green-50 dark:bg-green-900/20`}>
+            <div className="text-[14px] text-gray-600 dark:text-gray-300 font-bold">
+              {t("common.status_resolved")}
+            </div>
+            <div className="text-lg font-bold text-green-700 dark:text-green-300">
+              {summary.resolved}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 flex-1 min-h-0 space-y-2 pr-1 overflow-y-auto">
+          {!loading && !complaints.length && (
+            <div className="text-xs text-muted-foreground">
+              {t("dashboard.home.grievances_none")}
+            </div>
+          )}
+          {complaints.map((complaint, idx) => {
+            const meta = getStatusMeta(complaint.status);
+            const statusLabel = getStatusLabel(complaint.status);
+            const priorityLabel = getPriorityLabel(complaint.priority);
+            return (
+              <div key={complaint.id} className="flex gap-2">
+                <div className="flex flex-col items-center">
+                  <div className={`p-1 rounded-full ${meta.ring}`}>
+                    {meta.icon}
+                  </div>
+                  {idx < complaints.length - 1 && (
+                    <div className="w-px h-full bg-gray-200 dark:bg-gray-700 my-1" />
+                  )}
+                </div>
+                <div className="flex-1 pb-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-gray-900 dark:text-white">
+                      {complaint.title}
+                    </p>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full border ${priorityStyles[complaint.priority]}`}
+                    >
+                      {priorityLabel}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    {statusLabel} • {formatTimeAgo(complaint.createdAt)}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </DataCard>
   );
