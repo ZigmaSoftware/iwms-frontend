@@ -917,7 +917,14 @@ const resources = {
           "subtitle": "Review staff template history and approvals.",
           "list_title": "Staff Template Audit",
           "list_subtitle": "Audit trail for staff templates",
-          "empty_message": "No staff template audit records found"
+          "empty_message": "No staff template audit records found",
+          "entity_type": "Entity Type",
+          "entity_id": "Entity ID",
+          "action": "Action",
+          "performed_by": "Performed By",
+          "performed_role": "Performed Role",
+          "change_remarks": "Remarks",
+          "performed_at": "Performed At"
         },
         "supervisor_zone_map": {
           "title": "Supervisor Zone Map",
@@ -2750,7 +2757,14 @@ const resources = {
           "subtitle": "பணியாளர் டெம்ப்ளேட் வரலாறும் ஒப்புதல்களும் பார்க்கவும்.",
           "list_title": "பணியாளர் டெம்ப்ளேட் ஆய்வு",
           "list_subtitle": "பணியாளர் டெம்ப்ளேட்டுகளுக்கான ஆய்வு தடம்",
-          "empty_message": "பணியாளர் டெம்ப்ளேட் ஆய்வு பதிவுகள் இல்லை"
+          "empty_message": "பணியாளர் டெம்ப்ளேட் ஆய்வு பதிவுகள் இல்லை",
+          "entity_type": "Entity Type",
+          "entity_id": "Entity ID",
+          "action": "Action",
+          "performed_by": "Performed By",
+          "performed_role": "Performed Role",
+          "change_remarks": "Remarks",
+          "performed_at": "Performed At"
         },
         "supervisor_zone_map": {
           "title": "மேற்பார்வையாளர் மண்டல வரைபடம்",
@@ -4572,7 +4586,14 @@ const resources = {
           "subtitle": "स्टाफ टेम्पलेट इतिहास और अनुमोदन देखें।",
           "list_title": "स्टाफ टेम्पलेट ऑडिट",
           "list_subtitle": "स्टाफ टेम्पलेट्स के लिए ऑडिट ट्रेल",
-          "empty_message": "कोई स्टाफ टेम्पलेट ऑडिट रिकॉर्ड नहीं मिला"
+          "empty_message": "कोई स्टाफ टेम्पलेट ऑडिट रिकॉर्ड नहीं मिला",
+          "entity_type": "Entity Type",
+          "entity_id": "Entity ID",
+          "action": "Action",
+          "performed_by": "Performed By",
+          "performed_role": "Performed Role",
+          "change_remarks": "Remarks",
+          "performed_at": "Performed At"
         },
         "supervisor_zone_map": {
           "title": "सुपरवाइज़र ज़ोन मैप",
