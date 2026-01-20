@@ -339,6 +339,8 @@ const resources = {
           "summary_needs_review": "Needs review",
           "summary_medium_low": "Medium & Low",
           "summary_monitoring": "Monitoring",
+          "trend_title": "Alert Trend",
+          "trend_subtitle": "Last 7 days of active alerts",
           "active_alerts_title": "Active Alerts",
           "active_alerts_description": "Real-time alerts requiring attention",
           "review": "Review",
@@ -917,7 +919,14 @@ const resources = {
           "subtitle": "Review staff template history and approvals.",
           "list_title": "Staff Template Audit",
           "list_subtitle": "Audit trail for staff templates",
-          "empty_message": "No staff template audit records found"
+          "empty_message": "No staff template audit records found",
+          "entity_type": "Entity Type",
+          "entity_id": "Entity ID",
+          "action": "Action",
+          "performed_by": "Performed By",
+          "performed_role": "Performed Role",
+          "change_remarks": "Remarks",
+          "performed_at": "Performed At"
         },
         "supervisor_zone_map": {
           "title": "Supervisor Zone Map",
@@ -2161,6 +2170,8 @@ const resources = {
           "summary_needs_review": "மீளாய்வு தேவை",
           "summary_medium_low": "மிதம் & குறைவு",
           "summary_monitoring": "கண்காணிப்பு",
+          "trend_title": "எச்சரிக்கை போக்கு",
+          "trend_subtitle": "கடந்த 7 நாட்களின் செயலில் உள்ள எச்சரிக்கைகள்",
           "active_alerts_title": "செயலில் உள்ள எச்சரிக்கைகள்",
           "active_alerts_description": "கவனத்திற்கு வேண்டிய நேரடி எச்சரிக்கைகள்",
           "review": "மீளாய்வு",
@@ -2750,7 +2761,14 @@ const resources = {
           "subtitle": "பணியாளர் டெம்ப்ளேட் வரலாறும் ஒப்புதல்களும் பார்க்கவும்.",
           "list_title": "பணியாளர் டெம்ப்ளேட் ஆய்வு",
           "list_subtitle": "பணியாளர் டெம்ப்ளேட்டுகளுக்கான ஆய்வு தடம்",
-          "empty_message": "பணியாளர் டெம்ப்ளேட் ஆய்வு பதிவுகள் இல்லை"
+          "empty_message": "பணியாளர் டெம்ப்ளேட் ஆய்வு பதிவுகள் இல்லை",
+          "entity_type": "Entity Type",
+          "entity_id": "Entity ID",
+          "action": "Action",
+          "performed_by": "Performed By",
+          "performed_role": "Performed Role",
+          "change_remarks": "Remarks",
+          "performed_at": "Performed At"
         },
         "supervisor_zone_map": {
           "title": "மேற்பார்வையாளர் மண்டல வரைபடம்",
@@ -3983,6 +4001,8 @@ const resources = {
           "summary_needs_review": "समीक्षा आवश्यक",
           "summary_medium_low": "मध्यम और कम",
           "summary_monitoring": "निगरानी",
+          "trend_title": "अलर्ट ट्रेंड",
+          "trend_subtitle": "पिछले 7 दिनों के सक्रिय अलर्ट",
           "active_alerts_title": "सक्रिय अलर्ट",
           "active_alerts_description": "ध्यान देने योग्य रियल-टाइम अलर्ट",
           "review": "समीक्षा",
@@ -4572,7 +4592,14 @@ const resources = {
           "subtitle": "स्टाफ टेम्पलेट इतिहास और अनुमोदन देखें।",
           "list_title": "स्टाफ टेम्पलेट ऑडिट",
           "list_subtitle": "स्टाफ टेम्पलेट्स के लिए ऑडिट ट्रेल",
-          "empty_message": "कोई स्टाफ टेम्पलेट ऑडिट रिकॉर्ड नहीं मिला"
+          "empty_message": "कोई स्टाफ टेम्पलेट ऑडिट रिकॉर्ड नहीं मिला",
+          "entity_type": "Entity Type",
+          "entity_id": "Entity ID",
+          "action": "Action",
+          "performed_by": "Performed By",
+          "performed_role": "Performed Role",
+          "change_remarks": "Remarks",
+          "performed_at": "Performed At"
         },
         "supervisor_zone_map": {
           "title": "सुपरवाइज़र ज़ोन मैप",

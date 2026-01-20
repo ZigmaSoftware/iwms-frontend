@@ -12,7 +12,7 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 type SupervisorZoneAccessAuditRecord = {
-  id: number;
+  unique_id: string;
   supervisor_id: string;
   performed_by: string;
   performed_role?: string | null;
@@ -53,7 +53,7 @@ export default function SupervisorZoneAccessAuditList() {
   const [userLookup, setUserLookup] = useState<Record<string, string>>({});
 
   const { encStaffMasters, encSupervisorZoneAccessAudit } = getEncryptedRoute();
-  const ENC_VIEW_PATH = (id: number) =>
+  const ENC_VIEW_PATH = (id: string) =>
     `/${encStaffMasters}/${encSupervisorZoneAccessAudit}/${id}/edit`;
 
   const fetchRecords = async () => {
@@ -70,7 +70,7 @@ export default function SupervisorZoneAccessAuditList() {
       );
 
       setRecords(normalizeList(auditRes));
-      setZoneLookup(buildLookup(normalizeList(zoneRes), "id", "name"));
+      setZoneLookup(buildLookup(normalizeList(zoneRes), "unique_id", "name"));
       setUserLookup(buildLookup(users, "unique_id", "staff_name"));
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
@@ -100,7 +100,7 @@ export default function SupervisorZoneAccessAuditList() {
     <div className="flex justify-center">
       <button
         title={t("common.view")}
-        onClick={() => navigate(ENC_VIEW_PATH(row.id))}
+        onClick={() => navigate(ENC_VIEW_PATH(row.unique_id))}
         className="text-blue-600 hover:text-blue-800"
       >
         {t("common.view")}
@@ -135,12 +135,12 @@ export default function SupervisorZoneAccessAuditList() {
 
       <DataTable
         value={records}
-        dataKey="id"
+        dataKey="unique_id"
         paginator
         rows={10}
         loading={loading}
         filters={filters}
-        globalFilterFields={["supervisor_id", "performed_by", "performed_role"]}
+        globalFilterFields={["unique_id", "supervisor_id", "performed_by", "performed_role"]}
         stripedRows
         showGridlines
         className="p-datatable-sm"
