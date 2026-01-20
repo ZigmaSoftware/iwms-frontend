@@ -10,7 +10,7 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 type SupervisorZoneAccessAuditRecord = {
-  id: number;
+  unique_id: string;
   supervisor_id: string;
   performed_by: string;
   performed_role?: string | null;
@@ -56,7 +56,7 @@ export default function SupervisorZoneAccessAuditForm() {
     Promise.all([auditApi.get(id), zoneApi.list(), userCreationApi.list()])
       .then(([auditRes, zoneRes, userRes]) => {
         setRecord(auditRes ?? null);
-        setZoneLookup(buildLookup(normalizeList(zoneRes), "id", "name"));
+        setZoneLookup(buildLookup(normalizeList(zoneRes), "unique_id", "name"));
 
         const users = normalizeList(userRes).filter(
           (u: any) => u?.user_type_name?.toLowerCase() === "staff"

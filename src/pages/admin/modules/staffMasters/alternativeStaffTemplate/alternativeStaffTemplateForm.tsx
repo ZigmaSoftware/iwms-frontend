@@ -80,7 +80,7 @@ export default function AlternativeStaffTemplateForm() {
       setStaffTemplateOptions(
         data.map((tpl: any) => ({
           value: String(tpl.unique_id),
-          label: tpl.unique_id,
+          label: tpl.display_code ?? tpl.unique_id,
         }))
       );
     });

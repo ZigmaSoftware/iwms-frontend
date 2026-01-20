@@ -20,7 +20,6 @@ import {
   zoneApi,
 } from "@/helpers/admin";
 
-
 /* =======================
    SHADCN SELECT
    ======================= */
@@ -81,7 +80,7 @@ const parseIdentifierForPayload = (value: string) => {
 
 const mapToOptions = (
   items: any[] = [],
-  labelBuilder: (item: any) => string | undefined
+  labelBuilder: (item: any) => string | undefined,
 ): SelectOption[] =>
   items
     .map((item) => {
@@ -97,14 +96,21 @@ const normalizeList = (payload: any) =>
     ? payload
     : Array.isArray(payload?.data)
       ? payload.data
-      : payload?.data?.results ?? [];
+      : (payload?.data?.results ?? []);
 
 /* =======================
    ROLE CONFIG
    ======================= */
 const ROLE_CONFIG: Record<string, any> = {
   staff: {
-    fields: ["staffusertype_id", "staff_id", "district_id", "city_id", "zone_id", "ward_id"],
+    fields: [
+      "staffusertype_id",
+      "staff_id",
+      "district_id",
+      "city_id",
+      "zone_id",
+      "ward_id",
+    ],
     apis: ["staffusertypes/", "staffcreation/", "districts/"],
   },
   customer: {
@@ -152,7 +158,6 @@ export default function UserCreationForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
   const [showPassword, setShowPassword] = useState(false);
-
 
   const [loading, setLoading] = useState(false);
 
@@ -215,8 +220,8 @@ export default function UserCreationForm() {
           const list = normalizeList(res);
           setCustomerList(
             mapToOptions(list, (c) =>
-              [c.customer_name].filter(Boolean).join(" - ")
-            )
+              [c.customer_name].filter(Boolean).join(" - "),
+            ),
           );
         })
         .catch((err) => {
@@ -233,13 +238,13 @@ export default function UserCreationForm() {
       ])
         .then(([staffTypesRes, staffRes, districtsRes]) => {
           setStaffUserTypes(
-            mapToOptions(normalizeList(staffTypesRes), (s) => s.name)
+            mapToOptions(normalizeList(staffTypesRes), (s) => s.name),
           );
           setStaffList(
-            mapToOptions(normalizeList(staffRes), (s) => s.employee_name)
+            mapToOptions(normalizeList(staffRes), (s) => s.employee_name),
           );
           setDistrictList(
-            mapToOptions(normalizeList(districtsRes), (d) => d.name)
+            mapToOptions(normalizeList(districtsRes), (d) => d.name),
           );
         })
         .catch((err) => {
@@ -255,7 +260,7 @@ export default function UserCreationForm() {
     cityApi
       .list({ params: { district: parseIdentifierForPayload(district) } })
       .then((res) =>
-        setCityList(mapToOptions(normalizeList(res), (c) => c.name))
+        setCityList(mapToOptions(normalizeList(res), (c) => c.name)),
       )
       .catch((err) => {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
@@ -268,7 +273,7 @@ export default function UserCreationForm() {
     zoneApi
       .list({ params: { city: parseIdentifierForPayload(city) } })
       .then((res) =>
-        setZoneList(mapToOptions(normalizeList(res), (z) => z.name))
+        setZoneList(mapToOptions(normalizeList(res), (z) => z.name)),
       )
       .catch((err) => {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
@@ -281,7 +286,7 @@ export default function UserCreationForm() {
     wardApi
       .list({ params: { zone: parseIdentifierForPayload(zone) } })
       .then((res) =>
-        setWardList(mapToOptions(normalizeList(res), (w) => w.name))
+        setWardList(mapToOptions(normalizeList(res), (w) => w.name)),
       )
       .catch((err) => {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
@@ -318,7 +323,7 @@ export default function UserCreationForm() {
     e.preventDefault();
 
     const payload: any = {
-      user_type: parseIdentifierForPayload(userType),
+      user_type_id: parseIdentifierForPayload(userType),
       password,
       is_active: isActive ? 1 : 0,
     };
@@ -335,6 +340,7 @@ export default function UserCreationForm() {
       payload.zone_id = parseIdentifierForPayload(zone);
       payload.ward_id = parseIdentifierForPayload(ward);
     }
+    console.log("Payload:", payload); 
 
     try {
       setLoading(true);
@@ -371,7 +377,6 @@ export default function UserCreationForm() {
     >
       <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
           <div>
             <Label>{t("admin.nav.user_type")} *</Label>
             <ShadcnSelect
@@ -385,23 +390,23 @@ export default function UserCreationForm() {
           </div>
 
           <div>
-  <Label>{t("admin.user_creation.password_label")} *</Label>
-  <div className="relative">
-    <Input
-      type={showPassword ? "text" : "password"}
-      value={password}
-      onChange={(e) => setPassword(e.target.value)}
-      className="pr-10"
-    />
-    <button
-      type="button"
-      onClick={() => setShowPassword((prev) => !prev)}
-      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
-    >
-      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-    </button>
-  </div>
-</div>
+            <Label>{t("admin.user_creation.password_label")} *</Label>
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
 
           <div>
             <Label>{t("common.status")} *</Label>
@@ -516,15 +521,23 @@ export default function UserCreationForm() {
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
-          <button type="button" onClick={() => navigate(ENC_LIST_PATH)} className="bg-red-400 px-4 py-2 text-white rounded">
+          <button
+            type="button"
+            onClick={() => navigate(ENC_LIST_PATH)}
+            className="bg-red-400 px-4 py-2 text-white rounded"
+          >
             {t("common.cancel")}
           </button>
-          <button type="submit" disabled={loading} className="bg-green-custom px-4 py-2 text-white rounded">
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-green-custom px-4 py-2 text-white rounded"
+          >
             {loading
               ? t("common.saving")
               : isEdit
-              ? t("common.update")
-              : t("common.save")}
+                ? t("common.update")
+                : t("common.save")}
           </button>
         </div>
       </form>

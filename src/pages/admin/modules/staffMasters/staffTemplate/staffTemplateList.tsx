@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 type StaffTemplate = {
   id: number;
   unique_id: string;
+  display_code?: string;
 
   driver_id: string;
   driver_name: string;
@@ -171,6 +172,7 @@ export default function StaffTemplateList() {
         filters={datatableFilters}
         globalFilterFields={[
           "unique_id",
+          "display_code",
           "driver_name",
           "operator_name",
           "status",
@@ -185,9 +187,10 @@ export default function StaffTemplateList() {
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 70 }} />
 
         <Column
-          field="unique_id"
           header={t("admin.staff_template.columns.template_id")}
+          body={(r: StaffTemplate) => r.display_code ?? r.unique_id}
           sortable
+          field="unique_id"
         />
 
         <Column

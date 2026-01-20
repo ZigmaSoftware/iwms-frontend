@@ -7,7 +7,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, MapPin, Truck, Gauge, PauseCircle, Square } from "lucide-react";
+import {
+  ChevronDown,
+  MapPin,
+  Truck,
+  Gauge,
+  PauseCircle,
+  Square,
+  HelpCircle,
+} from "lucide-react";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 
@@ -100,46 +108,85 @@ export function VehicleStatusPanel() {
     return () => clearInterval(interval); // cleanup
   }, []);
 
-  const items = [
+  const totalVehicles = Math.max(stats.all, 0);
+  const knownTotal = stats.running + stats.idle + stats.stopped;
+  const unknownCount = Math.max(totalVehicles - knownTotal, 0);
+  const getPercent = (value: number) =>
+    totalVehicles ? (value / totalVehicles) * 100 : 0;
+
+  const baseSegments = [
     {
-      label: t("dashboard.home.vehicle_status_all"),
-      value: stats.all,
-      icon: Truck,
-      bg: "bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-900",
-      color: "text-gray-800 dark:text-gray-200",
-      dot: "bg-gray-400",
-    },
-    {
+      key: "running",
       label: t("dashboard.home.vehicle_status_running"),
       value: stats.running,
       icon: Gauge,
-      bg: "bg-gradient-to-r from-green-100 to-green-50 dark:from-green-900/20 dark:to-green-900/10",
-      color: "text-green-700 dark:text-green-400",
+      color: "#22c55e",
+      text: "text-green-700 dark:text-green-400",
       dot: "bg-green-500",
+      bar: "bg-gradient-to-r from-green-400 to-emerald-500",
     },
     {
+      key: "idle",
       label: t("dashboard.home.vehicle_status_idle"),
       value: stats.idle,
       icon: PauseCircle,
-      bg: "bg-gradient-to-r from-yellow-100 to-yellow-50 dark:from-yellow-900/20 dark:to-yellow-900/10",
-      color: "text-yellow-700 dark:text-yellow-400",
+      color: "#f59e0b",
+      text: "text-yellow-700 dark:text-yellow-400",
       dot: "bg-yellow-500",
+      bar: "bg-gradient-to-r from-yellow-400 to-amber-500",
     },
     {
+      key: "stopped",
       label: t("dashboard.home.vehicle_status_stopped"),
       value: stats.stopped,
       icon: Square,
-      bg: "bg-gradient-to-r from-red-100 to-red-50 dark:from-red-900/20 dark:to-red-900/10",
-      color: "text-red-700 dark:text-red-400",
+      color: "#ef4444",
+      text: "text-red-700 dark:text-red-400",
       dot: "bg-red-500",
+      bar: "bg-gradient-to-r from-red-400 to-rose-500",
     },
   ];
+
+  const segments = unknownCount
+    ? [
+        ...baseSegments,
+        {
+          key: "unknown",
+          label: t("common.unknown"),
+          value: unknownCount,
+          icon: HelpCircle,
+          color: "#94a3b8",
+          text: "text-slate-600 dark:text-slate-300",
+          dot: "bg-slate-400",
+          bar: "bg-gradient-to-r from-slate-300 to-slate-400",
+        },
+      ]
+    : baseSegments;
+
+  const segmentsWithPercent = segments.map((segment) => ({
+    ...segment,
+    percent: getPercent(segment.value),
+    displayPercent: Math.round(getPercent(segment.value)),
+  }));
+
+  let startOffset = 0;
+  const conicStops = segmentsWithPercent.map((segment) => {
+    const endOffset = startOffset + segment.percent;
+    const stop = `${segment.color} ${startOffset}% ${endOffset}%`;
+    startOffset = endOffset;
+    return stop;
+  });
+
+  const hasSegmentValue = segmentsWithPercent.some((segment) => segment.value > 0);
+  const conicGradient = totalVehicles && hasSegmentValue
+    ? `conic-gradient(${conicStops.join(", ")})`
+    : "conic-gradient(#e2e8f0 0% 100%)";
 
   return (
     <DataCard
       title={t("dashboard.home.vehicle_status_title")}
       compact
-      className="h-[275px]"
+      className="h-[280px]"
       action={
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -168,27 +215,64 @@ export function VehicleStatusPanel() {
         </DropdownMenu>
       }
     >
-      <div className="grid grid-cols-2 gap-3">
-        {items.map((item, i) => (
-          <div
-            key={i}
-            className={`flex flex-col items-center justify-between p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all cursor-pointer ${item.bg}`}
-          >
-            <div className="flex flex-wrap items-center justify-center gap-2 text-center">
-              <item.icon className={`w-5 h-5 ${item.color}`} />
-              <div className={`text-sm font-semibold break-words leading-tight ${item.color}`}>
-                {item.label}
+      <div className="flex h-full flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-col items-center gap-2">
+            <div className="relative h-28 w-28">
+              <div
+                className="absolute inset-0 rounded-full shadow-sm"
+                style={{ background: conicGradient }}
+              />
+              <div className="absolute inset-[10px] rounded-full border border-gray-200 bg-white dark:border-gray-500 dark:bg-gray-700/60" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {stats.all}
+                </span>
+                <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                  {t("dashboard.home.vehicle_status_all")}
+                </span>
               </div>
             </div>
-
-            <div className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full ${item.dot}`}></div>
-              <span className={`text-lg font-bold ${item.color}`}>
-                {item.value}
-              </span>
-            </div>
+            <span className="text-[10px] text-gray-500 dark:text-gray-400">
+              {t("common.status")}
+            </span>
           </div>
-        ))}
+
+          <div className="flex-1 space-y-2">
+            {segmentsWithPercent.map((segment) => (
+              <div
+                key={segment.key}
+                className="rounded-lg border border-gray-200 bg-white/80 p-2 shadow-sm dark:border-gray-500 dark:bg-gray-700/30"
+              >
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${segment.dot}`} />
+                    <segment.icon className={`h-3.5 w-3.5 ${segment.text}`} />
+                    <span className={`font-semibold ${segment.text}`}>
+                      {segment.label}
+                    </span>
+                  </div>
+                  <span className={`font-semibold ${segment.text}`}>
+                    {segment.value}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 rounded-full bg-gray-100 dark:bg-gray-600/60">
+                  <div
+                    className={`h-2 rounded-full ${segment.bar}`}
+                    style={{ width: `${segment.percent}%` }}
+                    title={`${segment.displayPercent}%`}
+                  />
+                </div>
+                <div className="mt-1 flex items-center justify-between text-[10px] text-gray-500 dark:text-gray-400">
+                  <span className="font-semibold">{segment.displayPercent}%</span>
+                  <span>
+                    {totalVehicles ? `${segment.value}/${totalVehicles}` : "0/0"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </DataCard>
   );
