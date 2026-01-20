@@ -90,9 +90,12 @@ export default function UserCreationList() {
   return key ? customerMap[String(key)] ?? null : null;
 };
 
+console.log(users);
+
   const customerList = users
     .filter((u) => u.user_type_name?.toLowerCase() === "customer")
     .map((u) => ({ ...u, customer: composeCustomerInfo(u) }));
+  console.log(customerList);
 
   /* ---------------- QR ---------------- */
   const buildCustomerQrPayload = (c: any) =>
