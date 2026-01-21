@@ -29,6 +29,11 @@ type FormState = {
   approval_status?: string;
 };
 
+type AlternativeStaffTemplateRecord = FormState & {
+  driver_id?: string;
+  operator_id?: string;
+};
+
 const initialFormState: FormState = {
   staff_template: "",
   effective_date: "",
@@ -59,7 +64,9 @@ export default function AlternativeStaffTemplateForm() {
 
   const { encStaffMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encStaffMasters}/${encAlternativeStaffTemplate}`;
-  const stateRecord = (location.state as { record?: FormState & { approval_status?: string } } | null)?.record;
+  const stateRecord = (
+    location.state as { record?: AlternativeStaffTemplateRecord & { approval_status?: string } } | null
+  )?.record;
 
   /* =====================================================
      HARD RESET ON EVERY CREATE PAGE ENTRY
@@ -102,11 +109,21 @@ export default function AlternativeStaffTemplateForm() {
       });
 
       setDriverOptions(
-        staff.filter((s: any) => s.staffusertype_name === "driver").map(toOption)
+        staff
+          .filter(
+            (s: any) =>
+              String(s.staffusertype_name || "").toLowerCase() === "driver"
+          )
+          .map(toOption)
       );
 
       setOperatorOptions(
-        staff.filter((s: any) => s.staffusertype_name === "operator").map(toOption)
+        staff
+          .filter(
+            (s: any) =>
+              String(s.staffusertype_name || "").toLowerCase() === "operator"
+          )
+          .map(toOption)
       );
     });
   }, []);
@@ -120,8 +137,8 @@ export default function AlternativeStaffTemplateForm() {
     setFormData({
       staff_template: String(stateRecord.staff_template ?? ""),
       effective_date: stateRecord.effective_date ?? "",
-      driver: String(stateRecord.driver ?? ""),
-      operator: String(stateRecord.operator ?? ""),
+      driver: String(stateRecord.driver_id ?? stateRecord.driver ?? ""),
+      operator: String(stateRecord.operator_id ?? stateRecord.operator ?? ""),
       extra_operator: Array.isArray(stateRecord.extra_operator)
         ? stateRecord.extra_operator.map(String)
         : stateRecord.extra_operator
@@ -144,8 +161,8 @@ export default function AlternativeStaffTemplateForm() {
         setFormData({
           staff_template: String(rec.staff_template),
           effective_date: rec.effective_date,
-          driver: String(rec.driver),
-          operator: String(rec.operator),
+          driver: String(rec.driver_id ?? rec.driver),
+          operator: String(rec.operator_id ?? rec.operator),
           extra_operator: Array.isArray(rec.extra_operator)
             ? rec.extra_operator.map(String)
             : rec.extra_operator
