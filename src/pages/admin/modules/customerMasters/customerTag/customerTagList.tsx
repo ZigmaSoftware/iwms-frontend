@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
+import ReactDOM from "react-dom/client";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "primereact/datatable";
@@ -8,19 +9,20 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
+import QRCode from "react-qr-code";
 
-import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 
 type CustomerTagRecord = {
-  id: number;
+  unique_id: string;
   customer_id: string;
+  customer_name?: string | null;
   tag_code: string;
   status: string;
-  issued_at?: string | null;
-  revoked_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 const normalizeList = (payload: any): any[] =>
@@ -53,8 +55,6 @@ export default function CustomerTagList() {
 
   const { encCustomerMaster, encCustomerTag } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encCustomerMaster}/${encCustomerTag}/new`;
-  const ENC_EDIT_PATH = (id: number) =>
-    `/${encCustomerMaster}/${encCustomerTag}/${id}/edit`;
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -90,22 +90,43 @@ export default function CustomerTagList() {
     const isActive = row.status === "ACTIVE";
 
     const updateStatus = async (checked: boolean) => {
-      if (checked) return;
+      const nextStatus = checked ? "ACTIVE" : "INACTIVE";
+      if (row.status === nextStatus) return;
       try {
-        await customerTagApi.update(row.id, {});
+        await customerTagApi.update(row.unique_id, { status: nextStatus });
         fetchRecords();
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       }
     };
 
-    return (
-      <Switch
-        checked={isActive}
-        disabled={!isActive}
-        onCheckedChange={updateStatus}
-      />
-    );
+    return <Switch checked={isActive} onCheckedChange={updateStatus} />;
+  };
+
+  const buildQrPayload = (row: CustomerTagRecord) => ({
+    unique_id: row.unique_id,
+    customer_id: row.customer_id,
+    customer_name: row.customer_name ?? customerLookup[row.customer_id] ?? null,
+    tag_code: row.tag_code,
+    status: row.status,
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null,
+  });
+
+  const openQRPopup = (row: CustomerTagRecord) => {
+    const payload = buildQrPayload(row);
+    Swal.fire({
+      title: t("admin.user_creation.qr_title"),
+      html: `<div id="qr-holder" class="flex justify-center"></div>`,
+      width: 350,
+      didOpen: () => {
+        const div = document.getElementById("qr-holder");
+        if (div) {
+          const root = ReactDOM.createRoot(div);
+          root.render(<QRCode value={JSON.stringify(payload)} size={180} />);
+        }
+      },
+    });
   };
 
   const header = (
@@ -142,28 +163,16 @@ export default function CustomerTagList() {
     </div>
   );
 
-  const actionTemplate = (row: CustomerTagRecord) => (
-    <div className="flex justify-center">
-      <button
-        title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.id))}
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
-    </div>
-  );
-
   return (
     <div className="p-3">
       <DataTable
         value={records}
-        dataKey="id"
+        dataKey="unique_id"
         paginator
         rows={10}
         loading={loading}
         filters={filters}
-        globalFilterFields={["tag_code", "customer_id", "status"]}
+        globalFilterFields={["tag_code", "customer_id", "customer_name", "status"]}
         header={header}
         stripedRows
         showGridlines
@@ -174,18 +183,31 @@ export default function CustomerTagList() {
         <Column field="tag_code" header={t("admin.customer_tag.tag_code")} />
         <Column
           header={t("admin.customer_tag.customer")}
-          body={(row: CustomerTagRecord) => customerLookup[row.customer_id] ?? row.customer_id}
+          body={(row: CustomerTagRecord) =>
+            row.customer_name || customerLookup[row.customer_id] || row.customer_id
+          }
         />
         <Column header={t("admin.customer_tag.status")} body={statusBodyTemplate} style={{ width: 120 }} />
         <Column
           header={t("admin.customer_tag.issued_at")}
-          body={(row: CustomerTagRecord) => formatDate(row.issued_at)}
+          body={(row: CustomerTagRecord) => formatDate(row.created_at)}
         />
         <Column
           header={t("admin.customer_tag.revoked_at")}
-          body={(row: CustomerTagRecord) => formatDate(row.revoked_at)}
+          body={(row: CustomerTagRecord) => formatDate(row.updated_at)}
         />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
+        <Column
+          header={t("admin.user_creation.qr_label")}
+          body={(row: CustomerTagRecord) => (
+            <button
+              className="p-1 border rounded"
+              onClick={() => openQRPopup(row)}
+              type="button"
+            >
+              <QRCode value={JSON.stringify(buildQrPayload(row))} size={48} />
+            </button>
+          )}
+        />
       </DataTable>
     </div>
   );
