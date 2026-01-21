@@ -19,7 +19,9 @@ type AlternativeStaffTemplate = {
   staff_template_display_code?: string;
   effective_date: string;
   driver: string;
+  driver_name?: string;
   operator: string;
+  operator_name?: string;
   extra_operator?: string[] | null;
   change_reason: string;
   change_remarks?: string;
@@ -135,7 +137,9 @@ export default function AlternativeStaffTemplateList() {
           "staff_template",
           "staff_template_display_code",
           "driver",
+          "driver_name",
           "operator",
+          "operator_name",
           "change_reason",
           "approval_status",
         ]}
@@ -154,8 +158,14 @@ export default function AlternativeStaffTemplateList() {
           }
         />
         <Column field="effective_date" header={t("admin.alternative_staff_template.columns.effective_date")} />
-        <Column field="driver" header={t("admin.alternative_staff_template.columns.driver")} />
-        <Column field="operator" header={t("admin.alternative_staff_template.columns.operator")} />
+        <Column
+          header={t("admin.alternative_staff_template.columns.driver")}
+          body={(row: AlternativeStaffTemplate) => row.driver_name ?? row.driver}
+        />
+        <Column
+          header={t("admin.alternative_staff_template.columns.operator")}
+          body={(row: AlternativeStaffTemplate) => row.operator_name ?? row.operator}
+        />
         <Column
           header={t("admin.alternative_staff_template.columns.extra_operator")}
           body={(row: AlternativeStaffTemplate) =>
