@@ -1092,14 +1092,14 @@ const resources = {
           "subtitle": "Create and revoke customer tags.",
           "list_title": "Customer Tags",
           "list_subtitle": "Issued QR tags for customers",
-          "create_button": "Issue Tag",
+          "create_button": "Add Tag",
           "search_placeholder": "Search tags",
           "empty_message": "No customer tags found",
           "customer": "Customer",
           "tag_code": "Tag Code",
           "status": "Status",
-          "issued_at": "Issued At",
-          "revoked_at": "Revoked At",
+          "issued_at": "Created At",
+          "revoked_at": "Updated At",
           "revoke": "Revoke Tag"
         },
         "household_pickup_event": {
@@ -2940,8 +2940,8 @@ const resources = {
           "customer": "வாடிக்கையாளர்",
           "tag_code": "டேக் குறியீடு",
           "status": "நிலை",
-          "issued_at": "வழங்கப்பட்டது",
-          "revoked_at": "ரத்து செய்யப்பட்டது",
+          "issued_at": "Created At",
+          "revoked_at": "Updated At",
           "revoke": "டேக் ரத்து செய்"
         },
         "household_pickup_event": {
@@ -4771,8 +4771,8 @@ const resources = {
           "customer": "ग्राहक",
           "tag_code": "टैग कोड",
           "status": "स्थिति",
-          "issued_at": "जारी किया गया",
-          "revoked_at": "रद्द किया गया",
+          "issued_at": "Created At",
+          "revoked_at": "Updated At",
           "revoke": "टैग रद्द करें"
         },
         "household_pickup_event": {
