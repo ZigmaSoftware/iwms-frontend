@@ -85,6 +85,7 @@ export default function RoutePlanList() {
         vehicleApi.list(),
         staffApi.list(),
       ]);
+      console.log(routeRes);
 
       setList(normalize(routeRes));
       setDistrictLookup(buildLookup(normalizeList(districtRes), "unique_id", "name"));

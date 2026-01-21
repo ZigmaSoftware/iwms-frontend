@@ -67,13 +67,14 @@ export default function RoutePlanForm() {
       .then(([districtRes, zoneRes, vehicleRes, staffRes]) => {
         setDistricts(toOptions(normalizeList(districtRes), "unique_id", "name"));
         setZones(toOptions(normalizeList(zoneRes), "unique_id", "name"));
-        setVehicles(toOptions(normalizeList(vehicleRes), "id", "vehicle_no"));
-        setSupervisors(toOptions(normalizeList(staffRes), "id", "employee_name"));
+        setVehicles(toOptions(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
+        setSupervisors(toOptions(normalizeList(staffRes), "unique_id", "employee_name", "staffusertype_id"));
       })
       .catch(() => {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       })
       .finally(() => setFetching(false));
+    
 
     if (!id) return;
 
@@ -92,6 +93,8 @@ export default function RoutePlanForm() {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       });
   }, [districtApi, id, routePlanApi, staffApi, t, vehicleApi, zoneApi]);
+    // console.log("supervisor",supervisors);
+    // console.log("vehiccle",vehicles);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -104,10 +107,11 @@ export default function RoutePlanForm() {
     const payload = {
       district_id: form.district_id,
       zone_id: form.zone_id,
-      vehicle_id: Number(form.vehicle_id),
-      supervisor_id: Number(form.supervisor_id),
+      vehicle_id: form.vehicle_id,
+      supervisor_id: form.supervisor_id,
       status: form.status,
     };
+    console.log(payload);
 
     setSubmitting(true);
     try {
