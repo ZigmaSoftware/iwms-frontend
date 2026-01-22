@@ -13,45 +13,48 @@ import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
-type ZonePropertyLoadTrackerRecord = {
-  id: number;
-  zone_id: string;
-  vehicle_id: string;
-  property_id: string;
-  sub_property_id: string;
+export type ZonePropertyLoadTrackerApiRecord = {
+  unique_id: string;
+
+  zone_details: {
+    unique_id: string;
+    name: string;
+  };
+
+  vehicle_details: {
+    unique_id: string;
+    vehicle_no: string;
+  };
+
+  property_details: {
+    unique_id: string;
+    property_name: string;
+  };
+
+  sub_property_details: {
+    unique_id: string;
+    sub_property_name: string;
+  };
+
   current_weight_kg: number;
-  last_updated?: string | null;
+  last_updated: string;
 };
 
 const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
-
-const buildLookup = (items: any[], key: string, label: string) =>
-  items.reduce<Record<string, string>>((acc, item) => {
-    const lookupKey = item?.[key];
-    if (lookupKey !== undefined && lookupKey !== null) {
-      acc[String(lookupKey)] = String(item?.[label] ?? lookupKey);
-    }
-    return acc;
-  }, {});
+  Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : payload?.results ?? [];
 
 export default function ZonePropertyLoadTrackerList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
   const zonePropertyLoadTrackerApi = adminApi.zonePropertyLoadTrackers;
-  const zoneApi = adminApi.zones;
-  const vehicleApi = adminApi.vehicleCreations;
-  const propertyApi = adminApi.properties;
-  const subPropertyApi = adminApi.subProperties;
 
-  const [records, setRecords] = useState<ZonePropertyLoadTrackerRecord[]>([]);
+  const [records, setRecords] = useState<ZonePropertyLoadTrackerApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [zoneLookup, setZoneLookup] = useState<Record<string, string>>({});
-  const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>({});
-  const [propertyLookup, setPropertyLookup] = useState<Record<string, string>>({});
-  const [subPropertyLookup, setSubPropertyLookup] = useState<Record<string, string>>({});
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<any>({
@@ -60,25 +63,14 @@ export default function ZonePropertyLoadTrackerList() {
 
   const { encTransportMaster, encZonePropertyLoadTracker } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encTransportMaster}/${encZonePropertyLoadTracker}/new`;
-  const ENC_EDIT_PATH = (id: number) =>
+  const ENC_EDIT_PATH = (id: string) =>
     `/${encTransportMaster}/${encZonePropertyLoadTracker}/${id}/edit`;
 
   const fetchRecords = async () => {
     setLoading(true);
     try {
-      const [trackerRes, zoneRes, vehicleRes, propertyRes, subPropertyRes] = await Promise.all([
-        zonePropertyLoadTrackerApi.list(),
-        zoneApi.list(),
-        vehicleApi.list(),
-        propertyApi.list(),
-        subPropertyApi.list(),
-      ]);
-
+      const trackerRes = await zonePropertyLoadTrackerApi.list();
       setRecords(normalizeList(trackerRes));
-      setZoneLookup(buildLookup(normalizeList(zoneRes), "unique_id", "name"));
-      setVehicleLookup(buildLookup(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
-      setPropertyLookup(buildLookup(normalizeList(propertyRes), "unique_id", "property_name"));
-      setSubPropertyLookup(buildLookup(normalizeList(subPropertyRes), "unique_id", "sub_property_name"));
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
@@ -95,9 +87,6 @@ export default function ZonePropertyLoadTrackerList() {
     setGlobalFilterValue(value);
     setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
   };
-
-  const formatUpdatedAt = (value?: string | null) =>
-    value ? new Date(value).toLocaleString() : "-";
 
   const header = (
     <div className="space-y-4">
@@ -133,11 +122,11 @@ export default function ZonePropertyLoadTrackerList() {
     </div>
   );
 
-  const actionTemplate = (row: ZonePropertyLoadTrackerRecord) => (
+  const actionTemplate = (row: ZonePropertyLoadTrackerApiRecord) => (
     <div className="flex justify-center">
       <button
         title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.id), { state: { record: row } })}
+        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id), { state: { record: row } })}
         className="text-blue-600 hover:text-blue-800"
       >
         <PencilIcon className="size-5" />
@@ -149,16 +138,16 @@ export default function ZonePropertyLoadTrackerList() {
     <div className="p-3">
       <DataTable
         value={records}
-        dataKey="id"
+        dataKey="unique_id"
         paginator
         rows={10}
         loading={loading}
         filters={filters}
         globalFilterFields={[
-          "zone_id",
-          "vehicle_id",
-          "property_id",
-          "sub_property_id",
+          "zone_details.name",
+          "vehicle_details.vehicle_no",
+          "property_details.property_name",
+          "sub_property_details.sub_property_name",
         ]}
         header={header}
         stripedRows
@@ -169,30 +158,25 @@ export default function ZonePropertyLoadTrackerList() {
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
         <Column
           header={t("admin.zone_property_load_tracker.zone")}
-          body={(row: ZonePropertyLoadTrackerRecord) => zoneLookup[row.zone_id] ?? row.zone_id}
+          body={(row: ZonePropertyLoadTrackerApiRecord) => row.zone_details.name}
         />
         <Column
           header={t("admin.zone_property_load_tracker.vehicle")}
-          body={(row: ZonePropertyLoadTrackerRecord) => vehicleLookup[row.vehicle_id] ?? row.vehicle_id}
+          body={(row: ZonePropertyLoadTrackerApiRecord) => row.vehicle_details.vehicle_no}
         />
         <Column
           header={t("admin.zone_property_load_tracker.property")}
-          body={(row: ZonePropertyLoadTrackerRecord) => propertyLookup[row.property_id] ?? row.property_id}
+          body={(row: ZonePropertyLoadTrackerApiRecord) => row.property_details.property_name}
         />
         <Column
           header={t("admin.zone_property_load_tracker.sub_property")}
-          body={(row: ZonePropertyLoadTrackerRecord) =>
-            subPropertyLookup[row.sub_property_id] ?? row.sub_property_id
-          }
+          body={(row: ZonePropertyLoadTrackerApiRecord) => row.sub_property_details.sub_property_name}
         />
         <Column
           field="current_weight_kg"
           header={t("admin.zone_property_load_tracker.current_weight")}
         />
-        <Column
-          header={t("admin.zone_property_load_tracker.last_updated")}
-          body={(row: ZonePropertyLoadTrackerRecord) => formatUpdatedAt(row.last_updated)}
-        />
+
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
       </DataTable>
     </div>
