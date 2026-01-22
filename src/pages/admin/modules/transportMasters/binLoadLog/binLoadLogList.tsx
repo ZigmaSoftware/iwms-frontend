@@ -13,18 +13,41 @@ import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
-type BinLoadLogRecord = {
-  id: number;
-  zone_id: string;
-  vehicle_id: string;
-  property_id: string;
-  sub_property_id: string;
+export type BinLoadLogApiRecord = {
+  unique_id: string;
+
+  zone_details: {
+    unique_id: string;
+    name: string;
+  };
+
+  vehicle_details: {
+    unique_id: string;
+    vehicle_no: string;
+  };
+
+  property_details: {
+    unique_id: string;
+    property_name: string;
+  };
+
+  sub_property_details: {
+    unique_id: string;
+    sub_property_name: string;
+  };
+
+  bin_details: {
+    unique_id: string;
+    bin_code: string | null;
+  } | null;
+
   weight_kg: number;
-  source_type: string;
-  event_time: string;
+  source_type: "MANUAL" | string;
+  event_time: string;   // ISO datetime
   processed: boolean;
-  created_at: string;
+  created_at: string;   // ISO datetime
 };
+
 
 const normalizeList = (payload: any): any[] =>
   Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
@@ -48,7 +71,7 @@ export default function BinLoadLogList() {
   const propertyApi = adminApi.properties;
   const subPropertyApi = adminApi.subProperties;
 
-  const [records, setRecords] = useState<BinLoadLogRecord[]>([]);
+  const [records, setRecords] = useState<BinLoadLogApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [zoneLookup, setZoneLookup] = useState<Record<string, string>>({});
@@ -69,19 +92,9 @@ export default function BinLoadLogList() {
   const fetchRecords = async () => {
     setLoading(true);
     try {
-      const [binLoadRes, zoneRes, vehicleRes, propertyRes, subPropertyRes] = await Promise.all([
-        binLoadLogApi.list(),
-        zoneApi.list(),
-        vehicleApi.list(),
-        propertyApi.list(),
-        subPropertyApi.list(),
-      ]);
-
+      const binLoadRes = await binLoadLogApi.list()
+      console.log(binLoadRes);
       setRecords(normalizeList(binLoadRes));
-      setZoneLookup(buildLookup(normalizeList(zoneRes), "unique_id", "name"));
-      setVehicleLookup(buildLookup(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
-      setPropertyLookup(buildLookup(normalizeList(propertyRes), "unique_id", "property_name"));
-      setSubPropertyLookup(buildLookup(normalizeList(subPropertyRes), "unique_id", "sub_property_name"));
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
@@ -136,17 +149,7 @@ export default function BinLoadLogList() {
   const resolveEventTime = (value?: string) =>
     value ? new Date(value).toLocaleString() : "-";
 
-  const actionTemplate = (row: BinLoadLogRecord) => (
-    <div className="flex justify-center">
-      <button
-        title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.id))}
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
-    </div>
-  );
+
 
   return (
     <div className="p-3">
@@ -173,33 +176,33 @@ export default function BinLoadLogList() {
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
         <Column
           header={t("admin.bin_load_log.zone")}
-          body={(row: BinLoadLogRecord) => zoneLookup[row.zone_id] ?? row.zone_id}
+          body={(row: BinLoadLogApiRecord) => zoneLookup[row.zone_details.name] ?? row.zone_details.name}
         />
         <Column
           header={t("admin.bin_load_log.vehicle")}
-          body={(row: BinLoadLogRecord) => vehicleLookup[row.vehicle_id] ?? row.vehicle_id}
+          body={(row: BinLoadLogApiRecord) => vehicleLookup[row.vehicle_details.vehicle_no] ?? row.vehicle_details.vehicle_no}
         />
         <Column
           header={t("admin.bin_load_log.property")}
-          body={(row: BinLoadLogRecord) => propertyLookup[row.property_id] ?? row.property_id}
+          body={(row: BinLoadLogApiRecord) => propertyLookup[row.property_details.property_name] ?? row.property_details.property_name}
         />
         <Column
           header={t("admin.bin_load_log.sub_property")}
-          body={(row: BinLoadLogRecord) =>
-            subPropertyLookup[row.sub_property_id] ?? row.sub_property_id
+          body={(row: BinLoadLogApiRecord) =>
+            subPropertyLookup[row.sub_property_details.sub_property_name] ?? row.sub_property_details.sub_property_name
           }
         />
         <Column field="weight_kg" header={t("admin.bin_load_log.weight_kg")} />
         <Column field="source_type" header={t("admin.bin_load_log.source_type")} />
         <Column
           header={t("admin.bin_load_log.event_time")}
-          body={(row: BinLoadLogRecord) => resolveEventTime(row.event_time)}
+          body={(row: BinLoadLogApiRecord) => resolveEventTime(row.event_time)}
         />
         <Column
           header={t("admin.bin_load_log.processed")}
-          body={(row: BinLoadLogRecord) => (row.processed ? t("common.active") : t("common.inactive"))}
+          body={(row: BinLoadLogApiRecord) => (row.processed ? t("common.active") : t("common.inactive"))}
         />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
+     
       </DataTable>
     </div>
   );

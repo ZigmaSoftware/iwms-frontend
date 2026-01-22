@@ -102,26 +102,36 @@ export default function ZonePropertyLoadTrackerForm() {
   }, [isEdit, stateRecord]);
 
   useEffect(() => {
-    if (!isEdit || !id) return;
+  if (!isEdit || !id) return;
 
-    zonePropertyLoadTrackerApi
-      .get(id)
-      .then((res: any) => {
-        setFormData({
-          zone_id: res?.zone_id ?? "",
-          vehicle_id: res?.vehicle_id ?? "",
-          property_id: res?.property_id ?? "",
-          sub_property_id: res?.sub_property_id ?? "",
-          current_weight_kg:
-            res?.current_weight_kg !== undefined && res?.current_weight_kg !== null
-              ? String(res.current_weight_kg)
-              : "",
-        });
-      })
-      .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+  zonePropertyLoadTrackerApi
+    .get(id)
+    .then((res: any) => {
+      console.log("ZonePropertyLoadTracker API response:", res);
+
+      console.log("Resolved names:", {
+        zone_name: res?.zone_details?.name,
+        vehicle_no: res?.vehicle_details?.vehicle_no,
+        property_name: res?.property_details?.property_name,
+        sub_property_name: res?.sub_property_details?.sub_property_name,
       });
-  }, [id, isEdit, t, zonePropertyLoadTrackerApi]);
+
+      setFormData({
+        zone_id: res?.zone_details?.unique_id ?? "",
+        vehicle_id: res?.vehicle_details?.unique_id ?? "",
+        property_id: res?.property_details?.unique_id ?? "",
+        sub_property_id: res?.sub_property_details?.unique_id ?? "",
+        current_weight_kg:
+          res?.current_weight_kg !== undefined && res?.current_weight_kg !== null
+            ? String(res.current_weight_kg)
+            : "",
+      });
+    })
+    .catch(() => {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    });
+}, [id, isEdit, t, zonePropertyLoadTrackerApi]);
+
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
