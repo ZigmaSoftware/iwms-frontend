@@ -17,9 +17,13 @@ import { Switch } from "@/components/ui/switch";
 type TripDefinitionRecord = {
   unique_id: string;
   routeplan_id: string;
+  routeplan?: { display_code?: string };
   staff_template_id: string;
-  property_id: string;
-  sub_property_id: string;
+  staff_template?: { display_code?: string };
+  property_id?: string;
+  sub_property_id?: string;
+  property?: { unique_id?: string; property_name?: string };
+  sub_property?: { unique_id?: string; sub_property_name?: string };
   trip_trigger_weight_kg: number;
   max_vehicle_capacity_kg: number;
   approval_status: string;
@@ -30,14 +34,12 @@ type TripDefinitionRecord = {
 const normalizeList = (payload: any): any[] =>
   Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
 
-const buildLookup = (items: any[], key: string, label: string, fallbackKey?: string) =>
-  items.reduce<Record<string, string>>((acc, item) => {
-    const lookupKey = item?.[key];
-    if (lookupKey !== undefined && lookupKey !== null) {
-      acc[String(lookupKey)] = String(item?.[label] ?? item?.[fallbackKey ?? ""] ?? lookupKey);
-    }
+const buildLookup = (items: any[], keyField: string, valueField: string): Record<string, string> => {
+  return items.reduce((acc, item) => {
+    acc[item[keyField]] = item[valueField];
     return acc;
-  }, {});
+  }, {} as Record<string, string>);
+};
 
 const extractErrorMessage = (error: any): string | null => {
   const data = error?.response?.data;
@@ -68,8 +70,6 @@ export default function TripDefinitionList() {
   const [records, setRecords] = useState<TripDefinitionRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [routePlanLookup, setRoutePlanLookup] = useState<Record<string, string>>({});
-  const [staffTemplateLookup, setStaffTemplateLookup] = useState<Record<string, string>>({});
   const [propertyLookup, setPropertyLookup] = useState<Record<string, string>>({});
   const [subPropertyLookup, setSubPropertyLookup] = useState<Record<string, string>>({});
 
@@ -96,10 +96,6 @@ export default function TripDefinitionList() {
       console.log(tripRes);
 
       setRecords(normalizeList(tripRes));
-      setRoutePlanLookup(buildLookup(normalizeList(routeRes), "unique_id", "unique_id"));
-      setStaffTemplateLookup(
-        buildLookup(normalizeList(staffRes), "unique_id", "display_code", "unique_id")
-      );
       setPropertyLookup(buildLookup(normalizeList(propertyRes), "unique_id", "property_name"));
       setSubPropertyLookup(buildLookup(normalizeList(subPropertyRes), "unique_id", "sub_property_name"));
     } catch (error: any) {
@@ -215,22 +211,34 @@ export default function TripDefinitionList() {
         <Column field="unique_id" header="ID" />
         <Column
           header={t("admin.trip_definition.route_plan")}
-          body={(row: TripDefinitionRecord) => routePlanLookup[row.routeplan_id] ?? row.routeplan_id}
+          body={(row: TripDefinitionRecord) =>
+            row.routeplan?.display_code ?? row.routeplan_id
+          }
         />
         <Column
           header={t("admin.trip_definition.staff_template")}
           body={(row: TripDefinitionRecord) =>
-            staffTemplateLookup[row.staff_template_id] ?? row.staff_template_id
+            row.staff_template?.display_code ?? row.staff_template_id
           }
         />
         <Column
           header={t("admin.trip_definition.property")}
-          body={(row: TripDefinitionRecord) => propertyLookup[row.property_id] ?? row.property_id}
+          body={(row: TripDefinitionRecord) =>
+            row.property?.property_name ??
+            propertyLookup[row.property_id ?? row.property?.unique_id ?? ""] ??
+            row.property_id ??
+            row.property?.unique_id ??
+            ""
+          }
         />
         <Column
           header={t("admin.trip_definition.sub_property")}
           body={(row: TripDefinitionRecord) =>
-            subPropertyLookup[row.sub_property_id] ?? row.sub_property_id
+            row.sub_property?.sub_property_name ??
+            subPropertyLookup[row.sub_property_id ?? row.sub_property?.unique_id ?? ""] ??
+            row.sub_property_id ??
+            row.sub_property?.unique_id ??
+            ""
           }
         />
         <Column field="trip_trigger_weight_kg" header={t("admin.trip_definition.trigger_weight")} />

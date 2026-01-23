@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -11,6 +11,17 @@ import Select, { type SelectOption } from "@/components/form/Select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 
+// Helper to extract ID from a value that could be a string, number, or object
+const extractId = (value: any): string => {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  if (typeof value === "object") {
+    return value.unique_id ?? value.id ?? "";
+  }
+  return String(value);
+};
+
 export default function RoutePlanForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -19,31 +30,30 @@ export default function RoutePlanForm() {
 
   const routePlanApi = adminApi.routePlans;
   const districtApi = adminApi.districts;
+  const cityApi = adminApi.cities;
   const zoneApi = adminApi.zones;
   const vehicleApi = adminApi.vehicleCreations;
-  const staffApi = adminApi.staffCreation;
+  const userApi = adminApi.usercreations;
 
   const [districts, setDistricts] = useState<SelectOption[]>([]);
+  const [cities, setCities] = useState<SelectOption[]>([]);
   const [zones, setZones] = useState<SelectOption[]>([]);
   const [vehicles, setVehicles] = useState<SelectOption[]>([]);
   const [supervisors, setSupervisors] = useState<SelectOption[]>([]);
   const [fetching, setFetching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [optionsLoaded, setOptionsLoaded] = useState(false);
 
   const [form, setForm] = useState({
     district_id: "",
+    city_id: "",
     zone_id: "",
     vehicle_id: "",
     supervisor_id: "",
-    status: "ACTIVE" as "ACTIVE" | "INACTIVE",
   });
 
   const { encStaffMasters, encRoutePlans } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encStaffMasters}/${encRoutePlans}`;
-  const statusOptions: SelectOption[] = [
-    { value: "ACTIVE", label: t("common.active") },
-    { value: "INACTIVE", label: t("common.inactive") },
-  ];
 
   const normalizeList = (payload: any): any[] =>
     Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
@@ -56,62 +66,84 @@ export default function RoutePlanForm() {
       }))
       .filter((option) => option.value !== undefined && option.value !== null);
 
+  // Filter supervisors - only users with supervisor staff user type
+  const toSupervisorOptions = (items: any[]): SelectOption[] =>
+    items
+      .filter((item) => {
+        // Check staffusertype_name field (from API response)
+        const roleName = (item?.staffusertype_name || "").toLowerCase();
+        return roleName === "supervisor";
+      })
+      .map((item) => ({
+        value: item?.unique_id,
+        label: item?.staff_name ?? item?.unique_id,
+      }))
+      .filter((option) => option.value !== undefined && option.value !== null);
+
+  // Fetch route plan data for editing
+  const fetchRoutePlan = useCallback(async () => {
+    if (!id) return;
+    
+    try {
+      const res: any = await routePlanApi.get(id);
+      setForm({
+        district_id: extractId(res?.district_id),
+        city_id: extractId(res?.city_id),
+        zone_id: extractId(res?.zone_id),
+        vehicle_id: extractId(res?.vehicle_id),
+        supervisor_id: extractId(res?.supervisor_id),
+      });
+    } catch {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    }
+  }, [id, routePlanApi, t]);
+
+  // Load dropdown options first
   useEffect(() => {
     setFetching(true);
     Promise.all([
       districtApi.list(),
+      cityApi.list(),
       zoneApi.list(),
       vehicleApi.list(),
-      staffApi.list(),
+      userApi.list(),
     ])
-      .then(([districtRes, zoneRes, vehicleRes, staffRes]) => {
+      .then(([districtRes, cityRes, zoneRes, vehicleRes, userRes]) => {
         setDistricts(toOptions(normalizeList(districtRes), "unique_id", "name"));
+        setCities(toOptions(normalizeList(cityRes), "unique_id", "name"));
         setZones(toOptions(normalizeList(zoneRes), "unique_id", "name"));
         setVehicles(toOptions(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
-        setSupervisors(toOptions(normalizeList(staffRes), "unique_id", "employee_name", "staffusertype_id"));
+        setSupervisors(toSupervisorOptions(normalizeList(userRes)));
+        setOptionsLoaded(true);
       })
       .catch(() => {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       })
       .finally(() => setFetching(false));
-    
+  }, [cityApi, districtApi, userApi, t, vehicleApi, zoneApi]);
 
-    if (!id) return;
-
-    routePlanApi
-      .get(id)
-      .then((res: any) =>
-        setForm({
-          district_id: res?.district_id ?? "",
-          zone_id: res?.zone_id ?? "",
-          vehicle_id: res?.vehicle_id ? String(res.vehicle_id) : "",
-          supervisor_id: res?.supervisor_id ? String(res.supervisor_id) : "",
-          status: res?.status ?? "ACTIVE",
-        })
-      )
-      .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      });
-  }, [districtApi, id, routePlanApi, staffApi, t, vehicleApi, zoneApi]);
-    // console.log("supervisor",supervisors);
-    // console.log("vehiccle",vehicles);
+  // Fetch route plan data after options are loaded (for edit mode)
+  useEffect(() => {
+    if (optionsLoaded && isEdit) {
+      fetchRoutePlan();
+    }
+  }, [optionsLoaded, isEdit, fetchRoutePlan]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!form.district_id || !form.zone_id || !form.vehicle_id || !form.supervisor_id) {
+    if (!form.district_id || !form.city_id || !form.zone_id || !form.vehicle_id || !form.supervisor_id) {
       Swal.fire(t("common.error"), t("common.missing_fields"), "warning");
       return;
     }
 
     const payload = {
       district_id: form.district_id,
+      city_id: form.city_id,
       zone_id: form.zone_id,
       vehicle_id: form.vehicle_id,
       supervisor_id: form.supervisor_id,
-      status: form.status,
     };
-    console.log(payload);
 
     setSubmitting(true);
     try {
@@ -151,6 +183,18 @@ export default function RoutePlanForm() {
             </div>
 
             <div>
+              <Label>{t("common.city")}</Label>
+              <Select
+                value={form.city_id}
+                onChange={(value) => setForm((prev) => ({ ...prev, city_id: value }))}
+                options={cities}
+                placeholder={t("common.select_option")}
+                disabled={fetching}
+                required
+              />
+            </div>
+
+            <div>
               <Label>{t("admin.route_plan.zone")}</Label>
               <Select
                 value={form.zone_id}
@@ -181,20 +225,6 @@ export default function RoutePlanForm() {
                 onChange={(value) => setForm((prev) => ({ ...prev, supervisor_id: value }))}
                 options={supervisors}
                 placeholder={t("common.select_option")}
-                disabled={fetching}
-                required
-              />
-            </div>
-
-            <div>
-              <Label>{t("common.status")}</Label>
-              <Select
-                value={form.status}
-                onChange={(value) =>
-                  setForm((prev) => ({ ...prev, status: value as "ACTIVE" | "INACTIVE" }))
-                }
-                options={statusOptions}
-                placeholder={t("common.select_status")}
                 disabled={fetching}
                 required
               />
