@@ -33,6 +33,27 @@ const statusOptions: SelectOption[] = [
 const normalizeList = (payload: any): any[] =>
   Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
 
+const buildSelectOptions = (items: any[], labelKey: string) => {
+  const map: Record<string, string> = {};
+  const options: SelectOption[] = [];
+
+  items.forEach((item) => {
+    const uniqueId = item?.unique_id;
+    const pkValue = item?.id ?? uniqueId;
+    if (!uniqueId || pkValue === undefined || pkValue === null) return;
+
+    const value = String(pkValue);
+    map[uniqueId] = value;
+
+    options.push({
+      value,
+      label: String(item?.[labelKey] ?? item?.display_code ?? uniqueId),
+    });
+  });
+
+  return { options, map };
+};
+
 const toOptions = (items: any[], valueKey: string, labelKey: string, fallbackKey?: string): SelectOption[] =>
   items
     .map((item) => ({
@@ -40,6 +61,31 @@ const toOptions = (items: any[], valueKey: string, labelKey: string, fallbackKey
       label: String(item?.[labelKey] ?? item?.[fallbackKey ?? ""] ?? item?.[valueKey] ?? ""),
     }))
     .filter((option) => option.value);
+
+const matchesPropertyForSubProperty = (item: any, propertyId?: string): boolean => {
+  if (!propertyId) return true;
+  const target = String(propertyId);
+  const candidates = [
+    item?.property_id,
+    item?.property?.unique_id,
+    item?.property?.id,
+    item?.property?.property_id,
+  ];
+
+  return candidates.some((candidate) => {
+    if (candidate === undefined || candidate === null) return false;
+    return String(candidate) === target;
+  });
+};
+
+const getSubPropertyOptions = (items: any[], propertyId?: string): SelectOption[] =>
+  toOptions(items.filter((item) => matchesPropertyForSubProperty(item, propertyId)), "unique_id", "sub_property_name");
+
+const parseForeignKeyValue = (value: string): string | number => {
+  if (!value) return value;
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : value;
+};
 
 const extractErrorMessage = (error: any): string | null => {
   const data = error?.response?.data;
@@ -57,6 +103,11 @@ const extractErrorMessage = (error: any): string | null => {
 
 export default function TripDefinitionForm() {
   const { t } = useTranslation();
+  const approvalStatusOptions: SelectOption[] = [
+    { value: "PENDING", label: t("common.pending") },
+    { value: "APPROVED", label: t("common.approved") },
+    { value: "REJECTED", label: t("common.rejected") },
+  ];
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const location = useLocation();
@@ -75,6 +126,11 @@ export default function TripDefinitionForm() {
   const [staffTemplates, setStaffTemplates] = useState<SelectOption[]>([]);
   const [properties, setProperties] = useState<SelectOption[]>([]);
   const [subProperties, setSubProperties] = useState<SelectOption[]>([]);
+  const [subPropertyCache, setSubPropertyCache] = useState<any[]>([]);
+  const [routePlanIdMap, setRoutePlanIdMap] = useState<Record<string, string>>({});
+  const [staffTemplateIdMap, setStaffTemplateIdMap] = useState<Record<string, string>>({});
+  const [pendingRoutePlanUniqueId, setPendingRoutePlanUniqueId] = useState("");
+  const [pendingStaffTemplateUniqueId, setPendingStaffTemplateUniqueId] = useState("");
 
   const [formData, setFormData] = useState<TripDefinitionFormState>({
     routeplan_id: "",
@@ -83,13 +139,39 @@ export default function TripDefinitionForm() {
     sub_property_id: "",
     trip_trigger_weight_kg: "",
     max_vehicle_capacity_kg: "",
-    approval_status: "",
+    approval_status: "PENDING",
     status: "ACTIVE",
   });
 
   const { encTransportMaster, encTripDefinition } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encTransportMaster}/${encTripDefinition}`;
   const stateRecord = (location.state as { record?: Partial<TripDefinitionFormState> } | null)?.record;
+
+  const normalizeNumber = (value: any): string =>
+    value !== undefined && value !== null ? String(value) : "";
+
+  const populateFormFromRecord = (record: Partial<TripDefinitionFormState> & {
+      routeplan_id?: string;
+      staff_template_id?: string;
+      trip_trigger_weight_kg?: number | string;
+      max_vehicle_capacity_kg?: number | string;
+      property?: { unique_id?: string };
+      sub_property?: { unique_id?: string };
+    }) => {
+    setPendingRoutePlanUniqueId(record.routeplan_id ?? "");
+    setPendingStaffTemplateUniqueId(record.staff_template_id ?? "");
+    setFormData((prev) => ({
+      ...prev,
+      routeplan_id: "",
+      staff_template_id: "",
+      property_id: record.property_id ?? record.property?.unique_id ?? "",
+      sub_property_id: record.sub_property_id ?? record.sub_property?.unique_id ?? "",
+      trip_trigger_weight_kg: normalizeNumber(record.trip_trigger_weight_kg),
+      max_vehicle_capacity_kg: normalizeNumber(record.max_vehicle_capacity_kg),
+      approval_status: record.approval_status ?? "",
+      status: record.status ?? "ACTIVE",
+    }));
+  };
 
   useEffect(() => {
     setFetching(true);
@@ -100,12 +182,19 @@ export default function TripDefinitionForm() {
       subPropertyApi.list(),
     ])
       .then(([routeRes, staffRes, propertyRes, subPropertyRes]) => {
-        setRoutePlans(toOptions(normalizeList(routeRes), "unique_id", "unique_id"));
-        setStaffTemplates(
-          toOptions(normalizeList(staffRes), "unique_id", "display_code", "unique_id")
-        );
+        const normalizedRoutes = normalizeList(routeRes);
+        const normalizedStaff = normalizeList(staffRes);
+        const { options: routeOptions, map: routeMap } = buildSelectOptions(normalizedRoutes, "display_code");
+        const { options: staffOptions, map: staffMap } = buildSelectOptions(normalizedStaff, "display_code");
+
+        setRoutePlans(routeOptions);
+        setRoutePlanIdMap(routeMap);
+        setStaffTemplates(staffOptions);
+        setStaffTemplateIdMap(staffMap);
         setProperties(toOptions(normalizeList(propertyRes), "unique_id", "property_name"));
-        setSubProperties(toOptions(normalizeList(subPropertyRes), "unique_id", "sub_property_name"));
+        const normalizedSubProperties = normalizeList(subPropertyRes);
+        setSubPropertyCache(normalizedSubProperties);
+        setSubProperties(getSubPropertyOptions(normalizedSubProperties));
       })
       .catch((error: any) => {
         const message = extractErrorMessage(error) ?? t("common.load_failed");
@@ -117,23 +206,50 @@ export default function TripDefinitionForm() {
   useEffect(() => {
     if (!isEdit || !stateRecord) return;
 
-    setFormData({
-      routeplan_id: stateRecord?.routeplan_id ?? "",
-      staff_template_id: stateRecord?.staff_template_id ?? "",
-      property_id: stateRecord?.property_id ?? "",
-      sub_property_id: stateRecord?.sub_property_id ?? "",
-      trip_trigger_weight_kg:
-        stateRecord?.trip_trigger_weight_kg !== undefined && stateRecord?.trip_trigger_weight_kg !== null
-          ? String(stateRecord.trip_trigger_weight_kg)
-          : "",
-      max_vehicle_capacity_kg:
-        stateRecord?.max_vehicle_capacity_kg !== undefined && stateRecord?.max_vehicle_capacity_kg !== null
-          ? String(stateRecord.max_vehicle_capacity_kg)
-          : "",
-      approval_status: stateRecord?.approval_status ?? "",
-      status: stateRecord?.status ?? "ACTIVE",
+    populateFormFromRecord({
+      routeplan_id: stateRecord.routeplan_id ?? "",
+      staff_template_id: stateRecord.staff_template_id ?? "",
+      property_id: stateRecord.property_id ?? "",
+      sub_property_id: stateRecord.sub_property_id ?? "",
+      trip_trigger_weight_kg: stateRecord.trip_trigger_weight_kg ?? "",
+      max_vehicle_capacity_kg: stateRecord.max_vehicle_capacity_kg ?? "",
+      approval_status: stateRecord.approval_status ?? "",
+      status: stateRecord.status ?? "ACTIVE",
     });
   }, [isEdit, stateRecord]);
+
+  useEffect(() => {
+    const options = getSubPropertyOptions(subPropertyCache, formData.property_id);
+    setSubProperties(options);
+    if (
+      formData.sub_property_id &&
+      !options.some((option) => option.value === formData.sub_property_id)
+    ) {
+      setFormData((prev) => ({ ...prev, sub_property_id: "" }));
+    }
+  }, [formData.property_id, formData.sub_property_id, subPropertyCache]);
+
+  useEffect(() => {
+    if (!pendingRoutePlanUniqueId) return;
+    const mapped = routePlanIdMap[pendingRoutePlanUniqueId];
+    if (!mapped) return;
+    setFormData((prev) => ({
+      ...prev,
+      routeplan_id: mapped,
+    }));
+    setPendingRoutePlanUniqueId("");
+  }, [pendingRoutePlanUniqueId, routePlanIdMap]);
+
+  useEffect(() => {
+    if (!pendingStaffTemplateUniqueId) return;
+    const mapped = staffTemplateIdMap[pendingStaffTemplateUniqueId];
+    if (!mapped) return;
+    setFormData((prev) => ({
+      ...prev,
+      staff_template_id: mapped,
+    }));
+    setPendingStaffTemplateUniqueId("");
+  }, [pendingStaffTemplateUniqueId, staffTemplateIdMap]);
 
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -141,13 +257,13 @@ export default function TripDefinitionForm() {
     tripDefinitionApi
       .get(id)
       .then((res: any) => {
-        setFormData({
+        populateFormFromRecord({
           routeplan_id: res?.routeplan_id ?? "",
           staff_template_id: res?.staff_template_id ?? "",
           property_id: res?.property_id ?? "",
           sub_property_id: res?.sub_property_id ?? "",
-          trip_trigger_weight_kg: res?.trip_trigger_weight_kg ? String(res.trip_trigger_weight_kg) : "",
-          max_vehicle_capacity_kg: res?.max_vehicle_capacity_kg ? String(res.max_vehicle_capacity_kg) : "",
+          trip_trigger_weight_kg: res?.trip_trigger_weight_kg ?? "",
+          max_vehicle_capacity_kg: res?.max_vehicle_capacity_kg ?? "",
           approval_status: res?.approval_status ?? "",
           status: res?.status ?? "ACTIVE",
         });
@@ -189,12 +305,13 @@ export default function TripDefinitionForm() {
     setLoading(true);
     try {
       const payload = {
-        routeplan_id: formData.routeplan_id,
-        staff_template_id: formData.staff_template_id,
+        routeplan_id: parseForeignKeyValue(formData.routeplan_id),
+        staff_template_id: parseForeignKeyValue(formData.staff_template_id),
         property_id: formData.property_id,
         sub_property_id: formData.sub_property_id,
         trip_trigger_weight_kg: triggerWeight,
         max_vehicle_capacity_kg: maxCapacity,
+        approval_status: formData.approval_status,
         status: formData.status,
       };
 
@@ -311,16 +428,17 @@ export default function TripDefinitionForm() {
               />
             </div>
 
-            {isEdit ? (
-              <div>
-                <Label>{t("admin.trip_definition.approval_status")}</Label>
-                <Input
-                  value={formData.approval_status}
-                  disabled
-                  className="bg-gray-100"
-                />
-              </div>
-            ) : null}
+            <div>
+              <Label>{t("admin.trip_definition.approval_status")}</Label>
+              <Select
+                value={formData.approval_status}
+                onChange={(value) => setFormData((prev) => ({ ...prev, approval_status: value }))}
+                options={approvalStatusOptions}
+                placeholder={t("common.select_option")}
+                disabled={fetching}
+                required
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-3">
