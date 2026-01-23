@@ -65,6 +65,8 @@ export default function TripDefinitionList() {
   const propertyApi = adminApi.properties;
   const subPropertyApi = adminApi.subProperties;
 
+
+
   const [records, setRecords] = useState<TripDefinitionRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -91,6 +93,7 @@ export default function TripDefinitionList() {
         propertyApi.list(),
         subPropertyApi.list(),
       ]);
+      console.log(tripRes);
 
       setRecords(normalizeList(tripRes));
       setPropertyLookup(buildLookup(normalizeList(propertyRes), "unique_id", "property_name"));
