@@ -14,6 +14,21 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 
 type SelectOption = { value: string; label: string };
 
+type TripDefinitionRecord = {
+  routeplan_id?: string;
+  staff_template_id?: string;
+  property_id?: string;
+  sub_property_id?: string;
+  routeplan?: { unique_id?: string; display_code?: string };
+  staff_template?: { unique_id?: string; display_code?: string };
+  property?: { unique_id?: string; property_name?: string };
+  sub_property?: { unique_id?: string; sub_property_name?: string };
+  trip_trigger_weight_kg?: number | string;
+  max_vehicle_capacity_kg?: number | string;
+  approval_status?: string;
+  status?: string;
+};
+
 type TripDefinitionFormState = {
   routeplan_id: string;
   staff_template_id: string;
@@ -33,26 +48,13 @@ const statusOptions: SelectOption[] = [
 const normalizeList = (payload: any): any[] =>
   Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
 
-const buildSelectOptions = (items: any[], labelKey: string) => {
-  const map: Record<string, string> = {};
-  const options: SelectOption[] = [];
-
-  items.forEach((item) => {
-    const uniqueId = item?.unique_id;
-    const pkValue = item?.id ?? uniqueId;
-    if (!uniqueId || pkValue === undefined || pkValue === null) return;
-
-    const value = String(pkValue);
-    map[uniqueId] = value;
-
-    options.push({
-      value,
-      label: String(item?.[labelKey] ?? item?.display_code ?? uniqueId),
-    });
-  });
-
-  return { options, map };
-};
+const buildSelectOptions = (items: any[], labelKey: string): SelectOption[] =>
+  items
+    .map((item) => ({
+      value: String(item?.unique_id ?? ""),
+      label: String(item?.[labelKey] ?? item?.display_code ?? item?.unique_id ?? ""),
+    }))
+    .filter((option) => option.value);
 
 const toOptions = (items: any[], valueKey: string, labelKey: string, fallbackKey?: string): SelectOption[] =>
   items
@@ -127,10 +129,6 @@ export default function TripDefinitionForm() {
   const [properties, setProperties] = useState<SelectOption[]>([]);
   const [subProperties, setSubProperties] = useState<SelectOption[]>([]);
   const [subPropertyCache, setSubPropertyCache] = useState<any[]>([]);
-  const [routePlanIdMap, setRoutePlanIdMap] = useState<Record<string, string>>({});
-  const [staffTemplateIdMap, setStaffTemplateIdMap] = useState<Record<string, string>>({});
-  const [pendingRoutePlanUniqueId, setPendingRoutePlanUniqueId] = useState("");
-  const [pendingStaffTemplateUniqueId, setPendingStaffTemplateUniqueId] = useState("");
 
   const [formData, setFormData] = useState<TripDefinitionFormState>({
     routeplan_id: "",
@@ -145,30 +143,21 @@ export default function TripDefinitionForm() {
 
   const { encTransportMaster, encTripDefinition } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encTransportMaster}/${encTripDefinition}`;
-  const stateRecord = (location.state as { record?: Partial<TripDefinitionFormState> } | null)?.record;
+  const stateRecord = (location.state as { record?: TripDefinitionRecord } | null)?.record;
 
   const normalizeNumber = (value: any): string =>
     value !== undefined && value !== null ? String(value) : "";
 
-  const populateFormFromRecord = (record: Partial<TripDefinitionFormState> & {
-      routeplan_id?: string;
-      staff_template_id?: string;
-      trip_trigger_weight_kg?: number | string;
-      max_vehicle_capacity_kg?: number | string;
-      property?: { unique_id?: string };
-      sub_property?: { unique_id?: string };
-    }) => {
-    setPendingRoutePlanUniqueId(record.routeplan_id ?? "");
-    setPendingStaffTemplateUniqueId(record.staff_template_id ?? "");
+  const populateFormFromRecord = (record: TripDefinitionRecord) => {
     setFormData((prev) => ({
       ...prev,
-      routeplan_id: "",
-      staff_template_id: "",
+      routeplan_id: record.routeplan_id ?? record.routeplan?.unique_id ?? "",
+      staff_template_id: record.staff_template_id ?? record.staff_template?.unique_id ?? "",
       property_id: record.property_id ?? record.property?.unique_id ?? "",
       sub_property_id: record.sub_property_id ?? record.sub_property?.unique_id ?? "",
       trip_trigger_weight_kg: normalizeNumber(record.trip_trigger_weight_kg),
       max_vehicle_capacity_kg: normalizeNumber(record.max_vehicle_capacity_kg),
-      approval_status: record.approval_status ?? "",
+      approval_status: record.approval_status ?? "PENDING",
       status: record.status ?? "ACTIVE",
     }));
   };
@@ -184,13 +173,9 @@ export default function TripDefinitionForm() {
       .then(([routeRes, staffRes, propertyRes, subPropertyRes]) => {
         const normalizedRoutes = normalizeList(routeRes);
         const normalizedStaff = normalizeList(staffRes);
-        const { options: routeOptions, map: routeMap } = buildSelectOptions(normalizedRoutes, "display_code");
-        const { options: staffOptions, map: staffMap } = buildSelectOptions(normalizedStaff, "display_code");
 
-        setRoutePlans(routeOptions);
-        setRoutePlanIdMap(routeMap);
-        setStaffTemplates(staffOptions);
-        setStaffTemplateIdMap(staffMap);
+        setRoutePlans(buildSelectOptions(normalizedRoutes, "display_code"));
+        setStaffTemplates(buildSelectOptions(normalizedStaff, "display_code"));
         setProperties(toOptions(normalizeList(propertyRes), "unique_id", "property_name"));
         const normalizedSubProperties = normalizeList(subPropertyRes);
         setSubPropertyCache(normalizedSubProperties);
@@ -206,50 +191,20 @@ export default function TripDefinitionForm() {
   useEffect(() => {
     if (!isEdit || !stateRecord) return;
 
-    populateFormFromRecord({
-      routeplan_id: stateRecord.routeplan_id ?? "",
-      staff_template_id: stateRecord.staff_template_id ?? "",
-      property_id: stateRecord.property_id ?? "",
-      sub_property_id: stateRecord.sub_property_id ?? "",
-      trip_trigger_weight_kg: stateRecord.trip_trigger_weight_kg ?? "",
-      max_vehicle_capacity_kg: stateRecord.max_vehicle_capacity_kg ?? "",
-      approval_status: stateRecord.approval_status ?? "",
-      status: stateRecord.status ?? "ACTIVE",
-    });
+    populateFormFromRecord(stateRecord);
   }, [isEdit, stateRecord]);
 
   useEffect(() => {
     const options = getSubPropertyOptions(subPropertyCache, formData.property_id);
     setSubProperties(options);
+    if (fetching) return;
     if (
       formData.sub_property_id &&
       !options.some((option) => option.value === formData.sub_property_id)
     ) {
       setFormData((prev) => ({ ...prev, sub_property_id: "" }));
     }
-  }, [formData.property_id, formData.sub_property_id, subPropertyCache]);
-
-  useEffect(() => {
-    if (!pendingRoutePlanUniqueId) return;
-    const mapped = routePlanIdMap[pendingRoutePlanUniqueId];
-    if (!mapped) return;
-    setFormData((prev) => ({
-      ...prev,
-      routeplan_id: mapped,
-    }));
-    setPendingRoutePlanUniqueId("");
-  }, [pendingRoutePlanUniqueId, routePlanIdMap]);
-
-  useEffect(() => {
-    if (!pendingStaffTemplateUniqueId) return;
-    const mapped = staffTemplateIdMap[pendingStaffTemplateUniqueId];
-    if (!mapped) return;
-    setFormData((prev) => ({
-      ...prev,
-      staff_template_id: mapped,
-    }));
-    setPendingStaffTemplateUniqueId("");
-  }, [pendingStaffTemplateUniqueId, staffTemplateIdMap]);
+  }, [fetching, formData.property_id, formData.sub_property_id, subPropertyCache]);
 
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -258,10 +213,10 @@ export default function TripDefinitionForm() {
       .get(id)
       .then((res: any) => {
         populateFormFromRecord({
-          routeplan_id: res?.routeplan_id ?? "",
-          staff_template_id: res?.staff_template_id ?? "",
-          property_id: res?.property_id ?? "",
-          sub_property_id: res?.sub_property_id ?? "",
+          routeplan_id: res?.routeplan?.unique_id ?? "",
+          staff_template_id: res?.staff_template?.unique_id ?? "",
+          property_id: res?.property?.unique_id ?? "",
+          sub_property_id: res?.sub_property?.unique_id ?? "",
           trip_trigger_weight_kg: res?.trip_trigger_weight_kg ?? "",
           max_vehicle_capacity_kg: res?.max_vehicle_capacity_kg ?? "",
           approval_status: res?.approval_status ?? "",
