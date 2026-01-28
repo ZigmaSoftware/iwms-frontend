@@ -57,6 +57,7 @@ export default function StaffTemplateForm() {
   const [operatorOptions, setOperatorOptions] = useState<Option[]>([]);
   const [adminOptions, setAdminOptions] = useState<Option[]>([]);
   const [supervisorOptions, setSupervisorOptions] = useState<Option[]>([]);
+  const [userLookup, setUserLookup] = useState<Record<string, string>>({});
   const [extraOperatorPick, setExtraOperatorPick] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -112,6 +113,14 @@ export default function StaffTemplateForm() {
             u.is_deleted === false &&
             u.unique_id
         );
+        const lookup: Record<string, string> = {};
+
+        staffOnly.forEach((u: any) => {
+          lookup[String(u.unique_id)] = u.staff_name;
+        });
+
+        setUserLookup(lookup);
+
 
         const normalizeRole = (value: unknown) =>
           String(value ?? "").trim().toLowerCase();
@@ -187,11 +196,11 @@ export default function StaffTemplateForm() {
         const extraIds = Array.isArray(tpl.extra_operator_id)
           ? tpl.extra_operator_id.map(String)
           : typeof tpl.extra_operator_id === "string"
-          ? tpl.extra_operator_id
+            ? tpl.extra_operator_id
               .split(",")
               .map((item: string) => item.trim())
               .filter(Boolean)
-          : [];
+            : [];
 
         setFormData({
           driver_id: tpl.driver_id ?? "",
@@ -239,6 +248,11 @@ export default function StaffTemplateForm() {
     );
     return match?.label ?? value;
   };
+  const resolveUserName = (userId?: string) => {
+    if (!userId) return "-";
+    return userLookup[userId] || userId;
+  };
+
 
   const handleAddExtraOperator = (value: string) => {
     if (!value) return;
@@ -463,9 +477,10 @@ export default function StaffTemplateForm() {
               <Label>{t("admin.staff_template.created_by")}</Label>
               <input
                 className="w-full rounded border border-gray-200 bg-gray-100 p-2 text-sm"
-                value={formData.created_by}
+                value={resolveUserName(formData.created_by)}
                 readOnly
               />
+
             </div>
 
             {/* UPDATED BY */}
@@ -493,8 +508,8 @@ export default function StaffTemplateForm() {
               {submitting
                 ? t("common.saving")
                 : isEdit
-                ? t("common.update")
-                : t("common.save")}
+                  ? t("common.update")
+                  : t("common.save")}
             </button>
 
             <button
