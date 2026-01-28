@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -64,24 +64,24 @@ const toOptions = (items: any[], valueKey: string, labelKey: string, fallbackKey
     }))
     .filter((option) => option.value);
 
-const matchesPropertyForSubProperty = (item: any, propertyId?: string): boolean => {
-  if (!propertyId) return true;
-  const target = String(propertyId);
-  const candidates = [
-    item?.property_id,
-    item?.property?.unique_id,
-    item?.property?.id,
-    item?.property?.property_id,
-  ];
+const getSubPropertyOptions = (
+  subProperties: any[],
+  propertyUniqueId?: string,
+  propertyIdToPk?: Record<string, any>
+): SelectOption[] => {
+  if (!propertyUniqueId || !propertyIdToPk) {
+    return toOptions(subProperties, "unique_id", "sub_property_name");
+  }
 
-  return candidates.some((candidate) => {
-    if (candidate === undefined || candidate === null) return false;
-    return String(candidate) === target;
-  });
+  const propertyPk = propertyIdToPk[propertyUniqueId];
+
+  const filtered = subProperties.filter(
+    (sp) => sp.property_id === propertyPk
+  );
+
+  return toOptions(filtered, "unique_id", "sub_property_name");
 };
 
-const getSubPropertyOptions = (items: any[], propertyId?: string): SelectOption[] =>
-  toOptions(items.filter((item) => matchesPropertyForSubProperty(item, propertyId)), "unique_id", "sub_property_name");
 
 const parseForeignKeyValue = (value: string): string | number => {
   if (!value) return value;
@@ -129,6 +129,7 @@ export default function TripDefinitionForm() {
   const [properties, setProperties] = useState<SelectOption[]>([]);
   const [subProperties, setSubProperties] = useState<SelectOption[]>([]);
   const [subPropertyCache, setSubPropertyCache] = useState<any[]>([]);
+  const [propertyCache, setPropertyCache] = useState<any[]>([]);
 
   const [formData, setFormData] = useState<TripDefinitionFormState>({
     routeplan_id: "",
@@ -147,6 +148,15 @@ export default function TripDefinitionForm() {
 
   const normalizeNumber = (value: any): string =>
     value !== undefined && value !== null ? String(value) : "";
+
+  const propertyIdToPk = useMemo(() =>
+    propertyCache.reduce((acc, prop) => {
+      acc[prop.unique_id] = prop.id;
+      return acc;
+    }, {} as Record<string, any>),
+    [propertyCache]
+  );
+
 
   const populateFormFromRecord = (record: TripDefinitionRecord) => {
     setFormData((prev) => ({
@@ -176,7 +186,9 @@ export default function TripDefinitionForm() {
 
         setRoutePlans(buildSelectOptions(normalizedRoutes, "display_code"));
         setStaffTemplates(buildSelectOptions(normalizedStaff, "display_code"));
-        setProperties(toOptions(normalizeList(propertyRes), "unique_id", "property_name"));
+        const normalizedProperties = normalizeList(propertyRes);
+        setPropertyCache(normalizedProperties);
+        setProperties(toOptions(normalizedProperties, "unique_id", "property_name"));
         const normalizedSubProperties = normalizeList(subPropertyRes);
         setSubPropertyCache(normalizedSubProperties);
         setSubProperties(getSubPropertyOptions(normalizedSubProperties));
@@ -193,18 +205,6 @@ export default function TripDefinitionForm() {
 
     populateFormFromRecord(stateRecord);
   }, [isEdit, stateRecord]);
-
-  useEffect(() => {
-    const options = getSubPropertyOptions(subPropertyCache, formData.property_id);
-    setSubProperties(options);
-    if (fetching) return;
-    if (
-      formData.sub_property_id &&
-      !options.some((option) => option.value === formData.sub_property_id)
-    ) {
-      setFormData((prev) => ({ ...prev, sub_property_id: "" }));
-    }
-  }, [fetching, formData.property_id, formData.sub_property_id, subPropertyCache]);
 
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -228,6 +228,17 @@ export default function TripDefinitionForm() {
         Swal.fire(t("common.error"), message, "error");
       });
   }, [id, isEdit, t, tripDefinitionApi]);
+  useEffect(() => {
+  if (!isEdit || !formData.property_id || !subPropertyCache.length) return;
+
+  const options = getSubPropertyOptions(
+    subPropertyCache,
+    formData.property_id
+  );
+
+  setSubProperties(options);
+}, [isEdit, formData.property_id, subPropertyCache]);
+
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -262,7 +273,7 @@ export default function TripDefinitionForm() {
       const payload = {
         routeplan_id: parseForeignKeyValue(formData.routeplan_id),
         staff_template_id: parseForeignKeyValue(formData.staff_template_id),
-        property_id: formData.property_id,
+        property_id: propertyIdToPk[formData.property_id] || formData.property_id,
         sub_property_id: formData.sub_property_id,
         trip_trigger_weight_kg: triggerWeight,
         max_vehicle_capacity_kg: maxCapacity,
