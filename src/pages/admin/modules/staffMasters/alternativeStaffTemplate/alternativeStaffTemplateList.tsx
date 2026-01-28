@@ -15,6 +15,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 type AlternativeStaffTemplate = {
   id: number;
   unique_id: string;
+  display_code?: string;
   staff_template: string;
   staff_template_display_code?: string;
   effective_date: string;
@@ -134,6 +135,7 @@ export default function AlternativeStaffTemplateList() {
         filters={datatableFilters}
         globalFilterFields={[
           "unique_id",
+          "display_code",
           "staff_template",
           "staff_template_display_code",
           "driver",
@@ -150,7 +152,13 @@ export default function AlternativeStaffTemplateList() {
         emptyMessage={t("admin.alternative_staff_template.empty_message")}
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 70 }} />
-        <Column field="unique_id" header={t("admin.alternative_staff_template.columns.template_id")} sortable />
+        <Column 
+          header={t("admin.alternative_staff_template.columns.template_id")} 
+          body={(row: AlternativeStaffTemplate) =>
+            row.display_code ?? row.unique_id
+          }
+          sortable 
+        />
         <Column
           header={t("admin.alternative_staff_template.columns.staff_template")}
           body={(row: AlternativeStaffTemplate) =>

@@ -961,6 +961,7 @@ const resources = {
           "trigger_weight": "Trigger Weight (kg)",
           "max_capacity": "Max Vehicle Capacity (kg)",
           "approval_status": "Approval Status",
+          "validation_trigger": "Trigger weight must be less than vehicle capacity.",
           "status": "Status"
         },
         "trip_instance": {
@@ -2803,6 +2804,7 @@ const resources = {
           "trigger_weight": "தூண்டுதல் எடை (கிலோ)",
           "max_capacity": "அதிகபட்ச கொள்ளளவு (கிலோ)",
           "approval_status": "ஒப்புதல் நிலை",
+          "validation_trigger": "தூண்டுதல் எடை வாகன கொள்ளளவை விட குறைவாக இருக்க வேண்டும்.",
           "status": "நிலை"
         },
         "trip_instance": {
@@ -4634,6 +4636,7 @@ const resources = {
           "trigger_weight": "ट्रिगर वजन (किग्रा)",
           "max_capacity": "अधिकतम क्षमता (किग्रा)",
           "approval_status": "अनुमोदन स्थिति",
+          "validation_trigger": "ट्रिगर वजन वाहन क्षमता से कम होना चाहिए।",
           "status": "स्थिति"
         },
         "trip_instance": {
