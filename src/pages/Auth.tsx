@@ -247,6 +247,21 @@ export default function Auth() {
                 : t("login.sign_in")}
             </Button>
 
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+              <div className="font-semibold text-gray-800">Platform Super Admin?</div>
+              <div className="mt-1 text-gray-600">
+                Platform users (Django superusers) must use the platform console login.
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3 w-full border-dashed border-[#43A047] text-[#2e7d32]"
+                onClick={() => navigate("/platform/login")}
+              >
+                Open Platform Login
+              </Button>
+            </div>
+
             <div className="pt-6 border-t border-dashed border-gray-200">
               <p className="text-xs uppercase tracking-[0.2em] text-gray-400 dark:text-gray-300 text-center">
                 {t("login.rnd_shortcuts_label")}

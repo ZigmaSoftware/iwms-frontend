@@ -11,7 +11,14 @@ const API_ROOT = IS_PROD
 /* --------------------------------------------------------
    CREATE INSTANCE
 -------------------------------------------------------- */
-const createApi = (type: "desktop" | "mobile"): AxiosInstance => {
+type ApiType = "desktop" | "mobile" | "platform" | "company";
+
+type CreateApiOptions = {
+  tokenStorageKey: string;
+  loginPathIncludes: string[];
+};
+
+const createApi = (type: ApiType, opts: CreateApiOptions): AxiosInstance => {
   const api = axios.create({
     baseURL: `${API_ROOT}/${type}`,
     withCredentials: type === "mobile",
@@ -25,10 +32,10 @@ const createApi = (type: "desktop" | "mobile"): AxiosInstance => {
       AUTH INTERCEPTOR (ATTACHED IMMEDIATELY)
   ---------------------------------------------------- */
   api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("access_token");
+    const token = localStorage.getItem(opts.tokenStorageKey);
 
     const isLogin =
-      config.url?.includes("/login/login-user");
+      opts.loginPathIncludes.some((p) => config.url?.includes(p));
 
     if (token && !isLogin) {
       config.headers = config.headers ?? {};
@@ -44,5 +51,22 @@ const createApi = (type: "desktop" | "mobile"): AxiosInstance => {
 /* --------------------------------------------------------
    EXPORT SINGLETONS
 -------------------------------------------------------- */
-export const desktopApi = createApi("desktop");
-export const mobileApi = createApi("mobile");
+export const desktopApi = createApi("desktop", {
+  tokenStorageKey: "access_token",
+  loginPathIncludes: ["/login/login-user"],
+});
+
+export const mobileApi = createApi("mobile", {
+  tokenStorageKey: "access_token",
+  loginPathIncludes: ["/login/login-user"],
+});
+
+export const platformApi = createApi("platform", {
+  tokenStorageKey: "platform_access_token",
+  loginPathIncludes: ["/auth/login"],
+});
+
+export const companyApi = createApi("company", {
+  tokenStorageKey: "access_token",
+  loginPathIncludes: ["/login/login-user"],
+});
