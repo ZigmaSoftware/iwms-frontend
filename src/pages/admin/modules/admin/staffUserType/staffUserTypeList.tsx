@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
-import { desktopApi } from "@/api";
+import { api } from "@/api";
 
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
@@ -119,7 +119,7 @@ const list = Array.isArray(res) ? res : (res as any)?.results ?? [];
     console.log("Payload Sent to API:", payload);
 
     try {
-      // const response = await desktopApi.put(
+      // const response = await api.put(
       //   `staffusertypes/${row.unique_id}/`,
       //   payload
       // );

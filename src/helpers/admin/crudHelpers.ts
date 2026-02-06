@@ -1,5 +1,5 @@
 import type { AxiosRequestConfig } from "axios";
-import { desktopApi } from "@/api";
+import { api } from "@/api";
 
 /* -----------------------------------------
    Normalize API path
@@ -40,7 +40,7 @@ export const createCrudHelpers = <T = any>(basePath: string): CrudHelpers<T> => 
        LIST
     ---------------------------- */
     list: async (config) => {
-      const { data } = await desktopApi.get<T[]>(resource, config);
+      const { data } = await api.get<T[]>(resource, config);
       return data;
     },
 
@@ -61,23 +61,23 @@ export const createCrudHelpers = <T = any>(basePath: string): CrudHelpers<T> => 
         url = `${resource}${path}/`;
       }
 
-      const { data } = await desktopApi.get<T>(url, config);
+      const { data } = await api.get<T>(url, config);
       return data;
     },
 
     create: async (payload, config) => {
-      const { data } = await desktopApi.post<T>(resource, payload, config);
+      const { data } = await api.post<T>(resource, payload, config);
       return data;
     },
 
     update: async (id, payload, config) => {
       // Use PATCH so partial payloads (e.g., status toggles) work with ModelViewSet
-      const { data } = await desktopApi.patch<T>(`${resource}${id}/`, payload, config);
+      const { data } = await api.patch<T>(`${resource}${id}/`, payload, config);
       return data;
     },
 
     remove: async (id, config) => {
-      await desktopApi.delete(`${resource}${id}/`, config);
+      await api.delete(`${resource}${id}/`, config);
     },
 
     /* ---------------------------
@@ -90,11 +90,11 @@ export const createCrudHelpers = <T = any>(basePath: string): CrudHelpers<T> => 
       const url = `${resource}${action}${endsWithSlash ? "" : "/"}`;
 
       if (payload) {
-        const { data } = await desktopApi.post(url, payload, config);
+        const { data } = await api.post(url, payload, config);
         return data;
       }
 
-      const { data } = await desktopApi.get(url, config);
+      const { data } = await api.get(url, config);
       return data;
     },
   };

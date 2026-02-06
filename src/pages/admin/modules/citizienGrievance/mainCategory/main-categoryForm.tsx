@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
-import { mobileApi } from "@/api";
+import { api } from "@/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,7 @@ export function MainComplaintCategoryForm() {
   // fetch record
   useEffect(() => {
     if (isEdit) {
-      mobileApi
+      api
         .get(`main-category/${id}/`)
         .then((res) => {
           const data = res.data;
@@ -69,7 +69,7 @@ export function MainComplaintCategoryForm() {
 
     try {
       if (isEdit) {
-        await mobileApi.put(`main-category/${id}/`, payload);
+        await api.put(`main-category/${id}/`, payload);
         Swal.fire({
           icon: "success",
           title: t("admin.citizen_grievance.main_category_form.updated"),
@@ -77,7 +77,7 @@ export function MainComplaintCategoryForm() {
           showConfirmButton: false,
         });
       } else {
-        await mobileApi.post("main-category/", payload);
+        await api.post("main-category/", payload);
         Swal.fire({
           icon: "success",
           title: t("admin.citizen_grievance.main_category_form.added"),

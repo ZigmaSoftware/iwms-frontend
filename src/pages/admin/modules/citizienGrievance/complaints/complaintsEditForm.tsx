@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { desktopApi } from "@/api";
+import { api } from "@/api";
 import Swal from "sweetalert2";
 import ComponentCard from "@/components/common/ComponentCard";
 import Select from "@/components/form/Select";

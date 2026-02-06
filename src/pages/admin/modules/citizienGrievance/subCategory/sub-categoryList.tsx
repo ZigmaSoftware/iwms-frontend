@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
-import { mobileApi } from "@/api";
+import { api } from "@/api";
 
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
@@ -39,7 +39,7 @@ export default function SubComplaintCategoryList() {
 
   const fetchData = async () => {
     try {
-      const res = await mobileApi.get("sub-category/");
+      const res = await api.get("sub-category/");
       const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
       setRecords(list);
     } catch (err) {
@@ -65,7 +65,7 @@ export default function SubComplaintCategoryList() {
 
     if (!confirmation.isConfirmed) return;
 
-    await mobileApi.delete(`sub-category/${id}/`);
+    await api.delete(`sub-category/${id}/`);
 
     Swal.fire({
       icon: "success",
@@ -79,7 +79,7 @@ export default function SubComplaintCategoryList() {
 
   const statusTemplate = (row: any) => {
     const updateStatus = async (value: boolean) => {
-      await mobileApi.patch(`sub-category/${row.unique_id}/`, {
+      await api.patch(`sub-category/${row.unique_id}/`, {
         is_active: value,
       });
       fetchData();

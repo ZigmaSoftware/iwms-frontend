@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
-import { desktopApi } from "@/api";
+import { api } from "@/api";
 import { PencilIcon } from "@/icons";
 import { FilterMatchMode } from "primereact/api";
 import { Column } from "primereact/column";

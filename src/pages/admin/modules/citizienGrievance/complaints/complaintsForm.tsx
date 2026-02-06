@@ -22,7 +22,7 @@ import {
   normalizeCustomerArray,
 } from "@/utils/customerUtils";
 
-import { mobileApi } from "@/api";
+import { api } from "@/api";
 import {
   customerCreationApi,
   zoneApi,
@@ -96,11 +96,11 @@ export default function ComplaintAddForm() {
       setCustomers(filterActiveCustomers(normalized));
     });
 
-    mobileApi.get("main-category/").then((res) =>
+    api.get("main-category/").then((res) =>
       setMainCategories(filterActiveRecords(listFromResponse(res.data)))
     );
 
-    mobileApi.get("sub-category/").then((res) =>
+    api.get("sub-category/").then((res) =>
       setAllSubCategories(filterActiveRecords(listFromResponse(res.data)))
     );
   }, []);

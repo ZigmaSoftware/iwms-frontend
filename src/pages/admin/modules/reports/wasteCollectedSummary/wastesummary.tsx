@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./wastesummary.css";
-import { desktopApi } from "@/api";
+import { api } from "@/api";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import { customerCreationApi, wasteCollectionApi } from "@/helpers/admin";

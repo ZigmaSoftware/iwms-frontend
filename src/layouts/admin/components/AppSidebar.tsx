@@ -401,7 +401,20 @@ const reportItems: NavItem[] = [
 ];
 
 const menuButtonBase =
-  "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold";
+  "group flex w-full items-center gap-2 rounded-[14px] px-3 py-2 text-left text-sm font-semibold transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300";
+const menuActiveClasses =
+  "border border-sky-200 bg-sky-100 text-sky-900";
+const menuInactiveClasses =
+  "border border-transparent bg-white/80 text-sky-600 hover:border-sky-200 hover:bg-white hover:text-sky-900";
+const subMenuContainerClasses = "mt-2 ml-5 space-y-1 pl-2";
+const subMenuActiveClasses = "bg-sky-100 text-sky-900 font-semibold rounded-lg";
+const subMenuInactiveClasses = "text-sky-600 hover:text-sky-900";
+
+// const subMenuContainerClasses =
+//   "mt-2 ml-5 space-y-1 rounded-[14px] border-l-2 border-sky-200 bg-white/80 px-3 py-2";
+// const subMenuActiveClasses = "bg-sky-100 text-sky-900 font-semibold";
+// const subMenuInactiveClasses =
+//   "text-sky-600 hover:text-sky-900 hover:bg-sky-50";
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, toggleSidebar } = useSidebar();
@@ -542,112 +555,113 @@ const AppSidebar: React.FC = () => {
 
   const renderMenuItems = (items: NavItem[], type: any) => (
     <ul className="flex flex-col gap-2">
-      {items.map((nav, index) => (
-        <li key={nav.path ?? nav.nameKey}>
-          {nav.subItems ? (
-            <button
-              onClick={() => handleSubmenuToggle(index, type)}
-              className={`${menuButtonBase} ${
-                openSubmenu?.type === type && openSubmenu?.index === index
-                  ? "border-[var(--admin-border)] bg-[var(--admin-primarySoft)]/80 text-[var(--admin-primary)] shadow-[0_18px_40px_rgba(1,62,126,0.16)]"
-                  : "border-transparent text-[var(--admin-mutedText)] hover:border-[var(--admin-border)] "
-              }`}
-            >
-              <span
-                className={`menu-item-icon-size ${!showFullSidebar ? "mx-auto" : ""}`}
-              >
-                {nav.icon}
-              </span>
-
-              {showFullSidebar && (
-                <>
-                  <span className="text-sm font-semibold">
-                    {t(nav.nameKey)}
-                  </span>
-                  <ChevronDown
-                    className={`ml-auto h-5 w-5 transition-transform ${
-                      openSubmenu?.type === type && openSubmenu?.index === index
-                        ? "rotate-180 text-[var(--admin-primary)]"
-                        : "text-[var(--admin-mutedText)]"
-                    }`}
-                  />
-                </>
-              )}
-            </button>
-          ) : (
-            nav.path && (
-              <Link
-                to={nav.path}
+      {items.map((nav, index) => {
+        const isSubmenuOpen =
+          openSubmenu?.type === type && openSubmenu?.index === index;
+        return (
+          <li key={nav.path ?? nav.nameKey}>
+            {nav.subItems ? (
+              <button
+                onClick={() => handleSubmenuToggle(index, type)}
                 className={`${menuButtonBase} ${
-                  isActive(nav.path, true)
-                    ? "border-[var(--admin-border)] bg-[var(--admin-primarySoft)]/80 text-[var(--admin-primary)] shadow-[0_18px_40px_rgba(1,62,126,0.16)]"
-                    : "border-transparent text-[var(--admin-mutedText)] hover:border-[var(--admin-border)] hover:bg-[var(--admin-surfaceMuted)]/80 hover:text-[var(--admin-primary)]"
+                  isSubmenuOpen ? menuActiveClasses : menuInactiveClasses
                 }`}
               >
                 <span
-                  className={`menu-item-icon-size ${!showFullSidebar ? "mx-auto" : ""}`}
+                  className={`menu-item-icon-size ${!showFullSidebar ? "mx-auto" : ""} text-emerald-600`}
                 >
                   {nav.icon}
                 </span>
+ 
                 {showFullSidebar && (
-                  <span className="text-sm font-semibold">
-                    {t(nav.nameKey)}
-                  </span>
+                  <>
+                    <span className="text-sm font-semibold text-emerald-900">
+                      {t(nav.nameKey)}
+                    </span>
+                    <ChevronDown
+                      className={`ml-auto h-5 w-5 transition-transform ${
+                        isSubmenuOpen
+                          ? "rotate-180 text-emerald-700"
+                          : "text-emerald-500"
+                      }`}
+                    />
+                  </>
                 )}
-              </Link>
-            )
-          )}
+              </button>
+            ) : (
+              nav.path && (
+                <Link
+                  to={nav.path}
+                  className={`${menuButtonBase} ${
+                    isActive(nav.path, true)
+                      ? menuActiveClasses
+                      : menuInactiveClasses
+                  }`}
+                >
+                  <span
+                    className={`menu-item-icon-size ${!showFullSidebar ? "mx-auto" : ""} text-emerald-600`}
+                  >
+                    {nav.icon}
+                  </span>
+                  {showFullSidebar && (
+                    <span className="text-sm font-semibold text-emerald-900">
+                      {t(nav.nameKey)}
+                    </span>
+                  )}
+                </Link>
+              )
+            )}
 
-          {nav.subItems && showFullSidebar && (
-            <div
-              ref={(el) => {
-                subMenuRefs.current[`${type}-${index}`] = el;
-              }}
-              className="overflow-hidden transition-all duration-300"
-              style={{
-                height:
-                  openSubmenu?.type === type && openSubmenu?.index === index
+            {nav.subItems && showFullSidebar && (
+              <div
+                ref={(el) => {
+                  subMenuRefs.current[`${type}-${index}`] = el;
+                }}
+                className="overflow-hidden transition-all duration-300"
+                style={{
+                  height: isSubmenuOpen
                     ? `${subMenuHeight[`${type}-${index}`]}px`
                     : "0px",
-              }}
-            >
-              <ul className="mt-2 ml-5 space-y-1 rounded-xl border-l-2 border-[var(--admin-border)]/70 pl-3">
-                {nav.subItems.map((subItem) => (
-                  <li key={subItem.path}>
-                    <Link
-                      to={subItem.path}
-                      className={`block rounded-xl px-3 py-1.5 text-sm font-medium transition ${
-                        isActive(subItem.path, true)
-                          ? "bg-[var(--admin-accentSoft)] text-[var(--admin-accent)]"
-                          : "text-[var(--admin-mutedText)] hover:bg-[var(--admin-primarySoft)] hover:text-[var(--admin-primary)]"
-                      }`}
-                    >
-                      {t(subItem.nameKey)}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </li>
-      ))}
+                }}
+              >
+                <ul className={subMenuContainerClasses}>
+                  {nav.subItems.map((subItem) => (
+                    <li key={subItem.path}>
+                      <Link
+                        to={subItem.path}
+                        className={`block px-3 py-1.5 text-sm font-medium transition-colors ${
+                          isActive(subItem.path, true)
+                            ? subMenuActiveClasses
+                            : subMenuInactiveClasses
+                        }`}
+                      >
+                        {t(subItem.nameKey)}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 
   return (
     <aside
-      className={`mt -10 fixed top-0 left-0 z-50 h-screen border-r border-[var(--admin-border)]/80 bg-[var(--admin-surfaceAlt)]/95 text-[var(--admin-text)] transition-all duration-300 ease-out backdrop-blur-2xl ${
+      className={`mt-10 fixed top-0 left-0 z-50 h-screen border-r bg-white text-sky-900 transition-all duration-300 ease-out ${
         showFullSidebar ? "w-[300px]" : "w-[140px]"
       } ${isMobileOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
-      style={{
-        boxShadow: showFullSidebar
-          ? "var(--admin-cardShadow)"
-          : "0 10px 35px rgba(1,62,126,0.18)",
-      }}
     >
-      <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[var(--admin-primarySoft)] to-transparent opacity-70" />
+      <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/60 to-transparent opacity-80" />
       <div className="flex h-full flex-col px-4 pb-6 pt-6">
-        <div className="mt-[70px] flex-1 overflow-y-auto pr-2 no-scrollbar">
+        {showFullSidebar && (
+          <div className="mb-4 text-xs font-semibold uppercase tracking-[0.4em] text-sky-500">
+            Admin Navigation
+          </div>
+        )}
+        <div className="flex-1 overflow-y-auto pr-2 no-scrollbar">
           <nav className="flex flex-col gap-4">
             <div>{renderMenuItems(navItems, "main")}</div>
             <div>{renderMenuItems(adminItems, "admin")}</div>

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { desktopApi } from "@/api";
+import { api } from "@/api";
 
 type SelectOption = { value: string; label: string };
 
@@ -115,7 +115,7 @@ export default function TripAttendanceForm() {
     ?.record;
 
   const backendOrigin = useMemo(
-    () => desktopApi.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "",
+    () => api.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "",
     []
   );
 

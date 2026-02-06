@@ -145,7 +145,7 @@ export default function UserScreenPermissionList() {
   // const statusTemplate = (row: StaffUserType) => {
   //   const updateStatus = async (value: boolean) => {
   //     try {
-  //       await desktopApi.put(`staffusertypes/${row.unique_id}/`, {
+  //       await api.put(`staffusertypes/${row.unique_id}/`, {
   //         is_active: value,
   //         name: row.name,
   //         usertype_id: row.usertype_id,

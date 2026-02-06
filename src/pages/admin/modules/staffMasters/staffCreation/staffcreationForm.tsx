@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
-import { desktopApi } from "@/api";
+import { api } from "@/api";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import Label from "@/components/form/Label";
@@ -167,7 +167,7 @@ export default function StaffCreationForm() {
   const { encStaffMasters, encStaffCreation } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encStaffMasters}/${encStaffCreation}`;
   const backendOrigin =
-    desktopApi.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "";
+    api.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "";
 
   const gradeOptions = getGradeOptions(t);
   const siteOptions = getSiteOptions(t);
