@@ -785,6 +785,7 @@ const resources = {
         "nav": {
           "dashboard": "Dashboard",
           "admin": "Admin",
+          "common_masters": "Common Masters",
           "main_screen_type": "MainScreen Type",
           "user_screen_action": "UserScreen Action",
           "main_screen": "MainScreen",

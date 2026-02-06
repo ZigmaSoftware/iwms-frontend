@@ -3,8 +3,6 @@ import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import Auth from "@/pages/Auth";
-import PlatformLogin from "@/pages/platform/PlatformLogin";
-import PlatformConsole from "@/pages/platform/PlatformConsole";
 import Dashboard from "@/pages/dashboard/pages/Dashboard";
 import NotFound from "@/pages/dashboard/pages/NotFound";
 import { HomeDashboard } from "@/pages/dashboard/pages/Dashboard/HomeDashboard";
@@ -16,7 +14,6 @@ import DashboardEncryptedRouter from "@/layouts/dashboard/encryptedRouting/Dashb
 import { AdminLayout } from "@/layouts/admin/AdminLayout";
 import { RoleBasedLayout } from "@/layouts/shared/RoleBasedLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { PlatformProtectedRoute } from "@/components/PlatformProtectedRoute";
 import type { AdminViewMode, UserRole } from "@/types/roles";
 import {
   ADMIN_ROLE,
@@ -76,15 +73,6 @@ export default function App() {
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />
-      <Route path="/platform/login" element={<PlatformLogin />} />
-      <Route
-        path="/platform"
-        element={(
-          <PlatformProtectedRoute>
-            <PlatformConsole />
-          </PlatformProtectedRoute>
-        )}
-      />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />
       <Route path="/dashboard/overview" element={withDashboard(<Dashboard />)} />
