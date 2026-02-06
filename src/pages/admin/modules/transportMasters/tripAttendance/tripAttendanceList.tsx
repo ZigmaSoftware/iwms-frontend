@@ -12,7 +12,7 @@ import { FilterMatchMode } from "primereact/api";
 import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { desktopApi } from "@/api";
+import { api } from "@/api";
 
 type TripAttendanceRecord = {
   id: number;
@@ -68,7 +68,7 @@ export default function TripAttendanceList() {
   const ENC_EDIT_PATH = (id: number) => `/${encTransportMaster}/${encTripAttendance}/${id}/edit`;
 
   const backendOrigin = useMemo(
-    () => desktopApi.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "",
+    () => api.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "",
     []
   );
 

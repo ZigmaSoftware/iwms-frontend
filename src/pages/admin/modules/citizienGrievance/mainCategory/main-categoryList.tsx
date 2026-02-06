@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
-import { mobileApi } from "@/api";
+import { api } from "@/api";
 
 import { DataTable } from "primereact/datatable";
 import { Column } from "primereact/column";
@@ -44,7 +44,7 @@ export default function MainComplaintCategoryList() {
 
   const fetchData = async () => {
     try {
-      const res = await mobileApi.get("main-category/");
+      const res = await api.get("main-category/");
       setRecords(res.data);
     } finally {
       setLoading(false);
@@ -68,7 +68,7 @@ export default function MainComplaintCategoryList() {
 
     if (!confirm.isConfirmed) return;
 
-    await mobileApi.delete(`main-category/${id}/`);
+    await api.delete(`main-category/${id}/`);
     Swal.fire({
       icon: "success",
       title: t("admin.citizen_grievance.main_category.deleted"),
@@ -80,7 +80,7 @@ export default function MainComplaintCategoryList() {
 
   const statusTemplate = (row: MainCategory) => {
     const updateStatus = async (value: boolean) => {
-      await mobileApi.patch(`main-category/${row.unique_id}/`, {
+      await api.patch(`main-category/${row.unique_id}/`, {
         is_active: value,
       });
       fetchData();

@@ -3,55 +3,68 @@
 -------------------------------------------------------- */
 export const adminEndpoints = {
   /* =========================
+     COMMON MASTERS
+  ========================= */
+  continents: "common-masters/continents",
+  countries: "common-masters/countries",
+  states: "common-masters/states",
+
+  /* =========================
      MASTERS
   ========================= */
-  continents: "masters/continents",
-  countries: "masters/countries",
-  bins: "masters/bins",
-  states: "masters/states",
   districts: "masters/districts",
   cities: "masters/cities",
   zones: "masters/zones",
   wards: "masters/wards",
 
   /* =========================
+     WASTE TYPES
+  ========================= */
+  properties: "waste-types/properties",
+  subProperties: "waste-types/subproperties",
+
+  /* =========================
      ASSETS
   ========================= */
-  fuels: "assets/fuels",
-  properties: "assets/properties",
-  subProperties: "assets/subproperties",
-  zonePropertyLoadTrackers: "assets/zone-property-load-tracker",
+  bins: "assets/bins",
 
   /* =========================
      SCREEN MANAGEMENT
   ========================= */
-  mainscreentype: "screen-management/mainscreentype",
-  mainscreens: "screen-management/mainscreens",
-  userscreens: "screen-management/userscreens",
-  userscreenaction: "screen-management/userscreen-action",
-  userscreenpermissions: "screen-management/userscreenpermissions",
+  mainScreenTypes: "screen-managements/mainscreentype",
+  mainScreens: "screen-managements/mainscreens",
+  userScreens: "screen-managements/userscreens",
+  userScreenActions: "screen-managements/userscreen-action",
+  companyWiseScreenPermissions:
+    "screen-managements/companywisescreenpermissions",
 
   /* =========================
      ROLE ASSIGNMENT
   ========================= */
-  userTypes: "role-assign/user-type",
-  staffUserTypes: "role-assign/staffusertypes",
+  userTypes: "role-assigns/user-type",
+  staffUserTypes: "role-assigns/staffusertypes",
 
   /* =========================
      USER CREATION
   ========================= */
-  usercreations: "user-creation/users-creation",
-  staffCreation: "user-creation/staffcreation",
-  staffTemplate: "user-creation/stafftemplate-creation",
-  alternativeStaffTemplate: "user-creation/alternative-stafftemplate",
-  staffTemplateAuditLog: "user-creation/stafftemplate-audit-log",
-  supervisorZoneMap: "user-creation/supervisor-zone-map",
-  supervisorZoneAccessAudit: "user-creation/supervisor-zone-access-audit",
+  usersCreation: "user-creations/users-creation",
+  staffCreation: "user-creations/staffcreation",
+  staffTemplateCreation: "user-creations/stafftemplate-creation",
+  alternativeStaffTemplate:
+    "user-creations/alternative-stafftemplate",
+  supervisorZoneMap: "user-creations/supervisor-zone-map",
+  unassignedStaffPool: "user-creations/unassigned-staff-pool",
 
   /* =========================
-     Login
+     PROCESS
   ========================= */
-  
+  routePlans: "process/route-plans",
+  zonePropertyLoadTrackers:
+    "process/zone-property-load-tracker",
+
+  /* =========================
+     AUTHENTICATION
+  ========================= */
   loginUser: "login/login-user",
 
   /* =========================
@@ -60,31 +73,41 @@ export const adminEndpoints = {
   customerCreations: "customers/customercreations",
   wasteCollections: "customers/wastecollections",
   feedbacks: "customers/feedbacks",
-  complaints: "customers/complaints",
-  customerTags: "customers/customer-tag",
-  householdPickupEvents: "customers/household-pickup-event",
-  mainCategory: "customers/main-category",
-  SubCategory: "customers/sub-category",
-  
 
   /* =========================
-     VEHICLES
+     GRIEVANCES
   ========================= */
-  vehicleTypes: "vehicles/vehicle-type",
-  vehicleCreations: "vehicles/vehicle-creation",
-  tripDefinitions: "vehicles/trip-definition",
-  tripInstances: "vehicles/trip-instance",
-  binLoadLogs: "vehicles/bin-load-log",
-  tripAttendances: "vehicles/trip-attendance",
-  vehicleTripAudits: "vehicles/vehicle-trip-audit",
-  tripExceptionLogs: "vehicles/trip-exception-log",
-  routePlans: "user-creation/route-plans",
-  unassignedStaffPool: "user-creation/unassigned-staff-pool",
+  complaints: "grivences/complaints",
+  mainCategory: "grivences/main-category",
+  subCategory: "grivences/sub-category",
+
+  /* =========================
+     TRANSPORT MASTERS
+  ========================= */
+  vehicleTypes: "transport-masters/vehicle-type",
+  vehicleCreations: "transport-masters/vehicle-creation",
+  tripDefinitions: "transport-masters/trip-definition",
+  tripInstances: "transport-masters/trip-instance",
+  tripAttendances: "transport-masters/trip-attendance",
+  fuels: "transport-masters/fuels",
+
+  /* =========================
+     AUDITS
+  ========================= */
+  vehicleTripAudits: "audits/vehicle-trip-audit",
+  tripExceptionLogs: "audits/trip-exception-log",
+  binLoadLogs: "audits/bin-load-log",
+  supervisorZoneAccessAudits:
+    "audits/supervisor-zone-access-audit",
+  staffTemplateAuditLogs:
+    "audits/stafftemplate-audit-log",
 } as const;
 
 export type AdminEntity = keyof typeof adminEndpoints;
 
-export const getAdminEndpointPath = (entity: AdminEntity): string => {
+export const getAdminEndpointPath = (
+  entity: AdminEntity
+): string => {
   const path = adminEndpoints[entity];
   return path.startsWith("/") ? path : `/${path}`;
 };

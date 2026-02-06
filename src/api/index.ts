@@ -48,5 +48,5 @@ const createApi = (opts: CreateApiOptions): AxiosInstance => {
 -------------------------------------------------------- */
 export const api = createApi({
   tokenStorageKey: "access_token",
-  loginPathIncludes: ["/login/login-user"],
+  loginPathIncludes: ["/login"],
 });

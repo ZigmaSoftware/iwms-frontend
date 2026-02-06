@@ -1,5 +1,5 @@
 import type { AxiosInstance } from "axios";
-import { desktopApi, mobileApi } from "./index";
+import { api } from "./index";
 
 const attachAuthInterceptor = (api: AxiosInstance) => {
   api.interceptors.request.use(
@@ -21,5 +21,4 @@ const attachAuthInterceptor = (api: AxiosInstance) => {
 };
 
 // Attach once per instance
-attachAuthInterceptor(desktopApi);
-attachAuthInterceptor(mobileApi);
+attachAuthInterceptor(api);

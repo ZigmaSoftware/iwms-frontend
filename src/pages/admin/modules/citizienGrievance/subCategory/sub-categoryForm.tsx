@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
-import { mobileApi } from "@/api";
+import { api } from "@/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ export default function SubComplaintCategoryForm() {
 
   // Load dropdown
   useEffect(() => {
-    mobileApi.get("main-category/").then((res) => {
+    api.get("main-category/").then((res) => {
       const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
       setMainList(list);
     });
@@ -43,7 +43,7 @@ export default function SubComplaintCategoryForm() {
   // Load edit data
   useEffect(() => {
     if (isEdit) {
-      mobileApi.get(`sub-category/${id}/`).then(res => {
+      api.get(`sub-category/${id}/`).then(res => {
         const d = res.data.data || res.data;
         setName(d.name);
         setMainCategory(String(d.mainCategory));
@@ -68,7 +68,7 @@ export default function SubComplaintCategoryForm() {
 
     try {
       if (isEdit) {
-        await mobileApi.patch(`sub-category/${id}/`, payload);
+        await api.patch(`sub-category/${id}/`, payload);
         Swal.fire({
           icon: "success",
           title: t("admin.citizen_grievance.sub_category_form.updated"),
@@ -76,7 +76,7 @@ export default function SubComplaintCategoryForm() {
           showConfirmButton: false,
         });
       } else {
-        await mobileApi.post("sub-category/", payload);
+        await api.post("sub-category/", payload);
         Swal.fire({
           icon: "success",
           title: t("admin.citizen_grievance.sub_category_form.added"),
