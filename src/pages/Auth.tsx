@@ -1,6 +1,6 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { desktopApi } from "@/api";
+import { api } from "@/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,29 +30,11 @@ type LoginResponse = {
   email?: string;
 };
 
-const DUMMY_ACCESS_TOKEN =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjQxMDI0NDQ4MDAsInN1YiI6IklXTVNfUk5EIn0.dHVubmVsLXNpZ25hdHVyZQ";
-
-const RND_PROFILES: Record<
-  UserRole,
-  { name: string; email: string; uniqueId: string }
-> = {
-  admin: {
-    name: "Admin Preview",
-    email: "admin-preview@rnd.local",
-    uniqueId: "RND-ADMIN",
-  },
-  user: {
-    name: "Dashboard Preview",
-    email: "dashboard-preview@rnd.local",
-    uniqueId: "RND-USER",
-  },
-};
 
 export default function Auth() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // ✅ added
+  const [showPassword, setShowPassword] = useState(false); 
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
@@ -63,15 +45,8 @@ export default function Auth() {
   const handleRndAccess = (targetRole: UserRole) => {
     const normalizedRole: UserRole =
       targetRole === ADMIN_ROLE ? ADMIN_ROLE : DEFAULT_ROLE;
-    const profile = RND_PROFILES[normalizedRole] ?? RND_PROFILES[DEFAULT_ROLE];
 
-    localStorage.setItem("access_token", DUMMY_ACCESS_TOKEN);
     localStorage.setItem(USER_ROLE_STORAGE_KEY, normalizedRole);
-    localStorage.setItem("unique_id", profile.uniqueId);
-    setUser({
-      name: profile.name,
-      email: profile.email,
-    });
 
     if (normalizedRole === ADMIN_ROLE) {
       setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);
@@ -90,8 +65,8 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      const res = await desktopApi.post<LoginResponse>(
-        "/login/login-user/",
+      const res = await api.post<LoginResponse>(
+        "/login/",
         { username, password }
       );
 
@@ -247,44 +222,7 @@ export default function Auth() {
                 : t("login.sign_in")}
             </Button>
 
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
-              <div className="font-semibold text-gray-800">Platform Super Admin?</div>
-              <div className="mt-1 text-gray-600">
-                Platform users (Django superusers) must use the platform console login.
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-3 w-full border-dashed border-[#43A047] text-[#2e7d32]"
-                onClick={() => navigate("/platform/login")}
-              >
-                Open Platform Login
-              </Button>
-            </div>
-
-            <div className="pt-6 border-t border-dashed border-gray-200">
-              <p className="text-xs uppercase tracking-[0.2em] text-gray-400 dark:text-gray-300 text-center">
-                {t("login.rnd_shortcuts_label")}
-              </p>
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1 min-h-[2.75rem] h-auto border-dashed border-[#43A047] px-3 py-2 text-xs leading-snug text-center whitespace-normal break-words text-[#2e7d32]"
-                  onClick={() => handleRndAccess(DEFAULT_ROLE)}
-                >
-                  {t("login.rnd_dashboard")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex-1 min-h-[2.75rem] h-auto border-dashed border-orange-500 px-3 py-2 text-xs leading-snug text-center whitespace-normal break-words text-orange-700"
-                  onClick={() => handleRndAccess(ADMIN_ROLE)}
-                >
-                  {t("login.rnd_admin")}
-                </Button>
-              </div>
-            </div>
+      
           </form>
         </div>
       </div>
