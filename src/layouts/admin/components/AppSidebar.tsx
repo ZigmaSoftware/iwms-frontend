@@ -104,44 +104,6 @@ const navItems: NavItem[] = [
   },
 ];
 
-const adminItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.admin",
-    icon: <Settings size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.main_screen_type",
-        path: `/${encAdmins}/${encMainScreenType}`,
-      },
-      {
-        nameKey: "admin.nav.user_screen_action",
-        path: `/${encAdmins}/${encUserScreenAction}`,
-      },
-      {
-        nameKey: "admin.nav.main_screen",
-        path: `/${encAdmins}/${encMainScreen}`,
-      },
-      {
-        nameKey: "admin.nav.user_screen",
-        path: `/${encAdmins}/${encUserScreen}`,
-      },
-      {
-        nameKey: "admin.nav.user_screen_permission",
-        path: `/${encAdmins}/${encUserScreenPermission}`,
-      },
-      { nameKey: "admin.nav.user_type", path: `/${encAdmins}/${encUserType}` },
-      {
-        nameKey: "admin.nav.user_creation",
-        path: `/${encAdmins}/${encUserCreation}`,
-      },
-      {
-        nameKey: "admin.nav.staff_user_type",
-        path: `/${encAdmins}/${encStaffUserType}`,
-      },
-    ],
-  },
-];
-
 const commonMasterItems: NavItem[] = [
   {
     nameKey: "admin.nav.common_masters",
@@ -172,9 +134,9 @@ const masterItems: NavItem[] = [
   },
 ];
 
-const assets: NavItem[] = [
+const wasteTypeItems: NavItem[] = [
   {
-    nameKey: "admin.nav.assets",
+    nameKey: "admin.nav.wastetype",
     icon: <Users size={18}/>,
     subItems: [
       {
@@ -189,9 +151,74 @@ const assets: NavItem[] = [
   }
 ]
 
-const staffMasters: NavItem[] = [
+const assetItems: NavItem[] = [
   {
-    nameKey: "admin.nav.staff_master",
+    nameKey: "admin.nav.assets",
+    icon: <Users size={18}/>,
+    subItems: [
+      { nameKey: "admin.nav.bin_creation", path: `/${encMasters}/${encBins}` },
+    ]
+  }
+]
+
+const screenManagementItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.screenManagements",
+    icon: <Settings size={18} />,
+    subItems: [
+      {
+        nameKey: "admin.nav.main_screen_type",
+        path: `/${encAdmins}/${encMainScreenType}`,
+      },
+      {
+        nameKey: "admin.nav.main_screen",
+        path: `/${encAdmins}/${encMainScreen}`,
+      },
+      {
+        nameKey: "admin.nav.user_screen",
+        path: `/${encAdmins}/${encUserScreen}`,
+      },
+      {
+        nameKey: "admin.nav.user_screen_action",
+        path: `/${encAdmins}/${encUserScreenAction}`,
+      },
+
+
+      {
+        nameKey: "admin.nav.companywise_user_screen_permission",
+        path: `/${encAdmins}/${encUserScreenPermission}`,
+      },
+      { nameKey: "admin.nav.user_type", path: `/${encAdmins}/${encUserType}` },
+      {
+        nameKey: "admin.nav.user_creation",
+        path: `/${encAdmins}/${encUserCreation}`,
+      },
+      {
+        nameKey: "admin.nav.staff_user_type",
+        path: `/${encAdmins}/${encStaffUserType}`,
+      },
+    ],
+  },
+];
+
+const roleAssignsItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.roleAssigns",
+    icon: <Settings size={18} />,
+    subItems: [
+      
+      { nameKey: "admin.nav.user_type", path: `/${encAdmins}/${encUserType}` },
+      {
+        nameKey: "admin.nav.staff_user_type",
+        path: `/${encAdmins}/${encStaffUserType}`,
+      },
+    ],
+  },
+]
+
+const userCreationMasters: NavItem[] = [
+  {
+    nameKey: "admin.nav.user_creations",
     icon: <Users size={18} />,
     subItems: [
       {
@@ -206,26 +233,39 @@ const staffMasters: NavItem[] = [
         nameKey: "admin.nav.alternative_staff_template",
         path: `/${encStaffMasters}/${encAlternativeStaffTemplate}`,
       },
-      {
-        nameKey: "admin.nav.staff_template_audit",
-        path: `/${encStaffMasters}/${encStaffTemplateAudit}`,
-      },
-      {
-        nameKey: "admin.nav.route_plans",
-        path: `/${encStaffMasters}/${encRoutePlans}`,
-      },
+   
       {
         nameKey: "admin.nav.supervisor_zone_map",
         path: `/${encStaffMasters}/${encSupervisorZoneMap}`,
       },
       {
-        nameKey: "admin.nav.supervisor_zone_access_audit",
-        path: `/${encStaffMasters}/${encSupervisorZoneAccessAudit}`,
-      },
-      {
         nameKey: "admin.nav.unassigned_staff_pool",
         path: `/${encStaffMasters}/${encUnassignedStaffPool}`,
       },
+    ],
+  },
+];
+
+const processItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.process_items",
+    icon: <Truck size={18} />,
+    subItems: [
+
+
+
+
+            {
+        nameKey: "admin.nav.route_plans",
+        path: `/${encStaffMasters}/${encRoutePlans}`,
+      },
+            {
+        nameKey: "admin.nav.zone_property_load_tracker",
+        path: `/${encTransportMaster}/${encZonePropertyLoadTracker}`,
+      },
+
+
+
     ],
   },
 ];
@@ -239,6 +279,16 @@ const customerMasters: NavItem[] = [
         nameKey: "admin.nav.customer_creation",
         path: `/${encCustomerMaster}/${encCustomerCreation}`,
       },
+                  {
+        nameKey: "admin.nav.waste_collected_data",
+        path: `/${encWasteManagementMaster}/${encWasteCollectedData}`,
+      },
+            {
+        nameKey: "admin.nav.feedback",
+        path: `/${encCitizenGrivence}/${encFeedback}`,
+      },
+
+      
       {
         nameKey: "admin.nav.customer_tag",
         path: `/${encCustomerMaster}/${encCustomerTag}`,
@@ -247,96 +297,7 @@ const customerMasters: NavItem[] = [
         nameKey: "admin.nav.household_pickup_event",
         path: `/${encCustomerMaster}/${encHouseholdPickupEvent}`,
       },
-    ],
-  },
-];
 
-const transportMasters: NavItem[] = [
-  {
-    nameKey: "admin.nav.transport_masters",
-    icon: <Truck size={18} />,
-    subItems: [
-      { nameKey: "admin.nav.fuel", path: `/${encTransportMaster}/${encFuel}` },
-      {
-        nameKey: "admin.nav.vehicle_type",
-        path: `/${encTransportMaster}/${encVehicleType}`,
-      },
-      {
-        nameKey: "admin.nav.vehicle_creation",
-        path: `/${encTransportMaster}/${encVehicleCreation}`,
-      },
-      {
-        nameKey: "admin.nav.trip_definition",
-        path: `/${encTransportMaster}/${encTripDefinition}`,
-      },
-      {
-        nameKey: "admin.nav.bin_load_log",
-        path: `/${encTransportMaster}/${encBinLoadLog}`,
-      },
-      {
-        nameKey: "admin.nav.trip_instance",
-        path: `/${encTransportMaster}/${encTripInstance}`,
-      },
-      {
-        nameKey: "admin.nav.zone_property_load_tracker",
-        path: `/${encTransportMaster}/${encZonePropertyLoadTracker}`,
-      },
-      {
-        nameKey: "admin.nav.trip_attendance",
-        path: `/${encTransportMaster}/${encTripAttendance}`,
-      },
-      {
-        nameKey: "admin.nav.vehicle_trip_audit",
-        path: `/${encTransportMaster}/${encVehicleTripAudit}`,
-      },
-      {
-        nameKey: "admin.nav.trip_exception_log",
-        path: `/${encTransportMaster}/${encTripExceptionLog}`,
-      },
-    ],
-  },
-];
-
-const vehicleTrackingItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.vehicle_tracking",
-    icon: <Navigation size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.vehicle_tracking",
-        path: `/${encVehicleTracking}/${encVehicleTrack}`,
-      },
-      {
-        nameKey: "admin.nav.vehicle_history",
-        path: `/${encVehicleTracking}/${encVehicleHistory}`,
-      },
-    ],
-  },
-];
-
-const binItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.bin_master",
-    icon: <Archive size={18} />,
-    subItems: [
-      { nameKey: "admin.nav.bin_creation", path: `/${encMasters}/${encBins}` },
-    ],
-  },
-];
-
-const wasteManagementMasters: NavItem[] = [
-  {
-    nameKey: "admin.nav.waste_management",
-    icon: <Recycle size={18} />,
-    subItems: [
-      {
-        nameKey: "admin.nav.waste_collected_data",
-        path: `/${encWasteManagementMaster}/${encWasteCollectedData}`,
-      },
-      {
-        nameKey: "admin.nav.collection_monitoring",
-        path: `/${encWasteManagementMaster}/${encCollectionMonitoring}`,
-      },
     ],
   },
 ];
@@ -358,13 +319,110 @@ const citizenGrievanceItems: NavItem[] = [
         nameKey: "admin.nav.sub_category",
         path: `/${encCitizenGrivence}/${encSubComplaintCategory}`,
       },
+
+    ],
+  },
+];
+
+const transportMastersItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.transport_masters",
+    icon: <Truck size={18} />,
+    subItems: [
       {
-        nameKey: "admin.nav.feedback",
-        path: `/${encCitizenGrivence}/${encFeedback}`,
+        nameKey: "admin.nav.vehicle_type",
+        path: `/${encTransportMaster}/${encVehicleType}`,
+      },
+      {
+        nameKey: "admin.nav.vehicle_creation",
+        path: `/${encTransportMaster}/${encVehicleCreation}`,
+      },
+      {
+        nameKey: "admin.nav.trip_definition",
+        path: `/${encTransportMaster}/${encTripDefinition}`,
+      },
+
+      {
+        nameKey: "admin.nav.trip_instance",
+        path: `/${encTransportMaster}/${encTripInstance}`,
+      },
+            {
+        nameKey: "admin.nav.trip_attendance",
+        path: `/${encTransportMaster}/${encTripAttendance}`,
+      },
+            { nameKey: "admin.nav.fuel", path: `/${encTransportMaster}/${encFuel}` },
+
+
+
+
+
+    ],
+  },
+];
+
+const auditItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.audit_items",
+    icon: <Truck size={18} />,
+    subItems: [
+
+      {
+        nameKey: "admin.nav.vehicle_trip_audit",
+        path: `/${encTransportMaster}/${encVehicleTripAudit}`,
+      },
+            {
+        nameKey: "admin.nav.trip_exception_log",
+        path: `/${encTransportMaster}/${encTripExceptionLog}`,
+      },
+
+            {
+        nameKey: "admin.nav.bin_load_log",
+        path: `/${encTransportMaster}/${encBinLoadLog}`,
+      },
+            {
+        nameKey: "admin.nav.supervisor_zone_access_audit",
+        path: `/${encStaffMasters}/${encSupervisorZoneAccessAudit}`,
+      },
+         {
+        nameKey: "admin.nav.staff_template_audit",
+        path: `/${encStaffMasters}/${encStaffTemplateAudit}`,
+      },
+
+    ],
+  },
+];
+
+const vehicleTrackingItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.vehicle_tracking",
+    icon: <Navigation size={18} />,
+    subItems: [
+      {
+        nameKey: "admin.nav.vehicle_tracking",
+        path: `/${encVehicleTracking}/${encVehicleTrack}`,
+      },
+      {
+        nameKey: "admin.nav.vehicle_history",
+        path: `/${encVehicleTracking}/${encVehicleHistory}`,
       },
     ],
   },
 ];
+
+const wasteManagementMasters: NavItem[] = [
+  {
+    nameKey: "admin.nav.waste_management",
+    icon: <Recycle size={18} />,
+    subItems: [
+
+      {
+        nameKey: "admin.nav.collection_monitoring",
+        path: `/${encWasteManagementMaster}/${encCollectionMonitoring}`,
+      },
+    ],
+  },
+];
+
 
 const workforceManagements: NavItem[] = [
   {
@@ -400,6 +458,28 @@ const reportItems: NavItem[] = [
   },
 ];
 
+const sidebarSections = [
+  { key: "main", items: navItems },
+  { key: "commonMaster", items: commonMasterItems },
+  { key: "master", items: masterItems },
+  { key: "wasteType", items: wasteTypeItems },
+  { key: "assets", items: assetItems },
+  { key: "screenManagement", items: screenManagementItems },
+  { key: "roleAssigns", items: roleAssignsItems },
+  { key: "userCreations", items: userCreationMasters },
+  { key: "processItems", items: processItems },
+  { key: "customerMasters", items: customerMasters },
+  { key: "citizenGrievance", items: citizenGrievanceItems },
+  { key: "transportMasters", items: transportMastersItems },
+  { key: "auditItems", items: auditItems },
+  { key: "vehicleTracking", items: vehicleTrackingItems },
+  { key: "wasteManagement", items: wasteManagementMasters },
+  { key: "workforceManagement", items: workforceManagements },
+  { key: "reports", items: reportItems },
+] as const;
+
+type SidebarSectionKey = (typeof sidebarSections)[number]["key"];
+
 const menuButtonBase =
   "group flex w-full items-center gap-2 rounded-[14px] px-3 py-2 text-left text-sm font-semibold transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300";
 const menuActiveClasses =
@@ -410,12 +490,6 @@ const subMenuContainerClasses = "mt-2 ml-5 space-y-1 pl-2";
 const subMenuActiveClasses = "bg-sky-100 text-sky-900 font-semibold rounded-lg";
 const subMenuInactiveClasses = "text-sky-600 hover:text-sky-900";
 
-// const subMenuContainerClasses =
-//   "mt-2 ml-5 space-y-1 rounded-[14px] border-l-2 border-sky-200 bg-white/80 px-3 py-2";
-// const subMenuActiveClasses = "bg-sky-100 text-sky-900 font-semibold";
-// const subMenuInactiveClasses =
-//   "text-sky-600 hover:text-sky-900 hover:bg-sky-50";
-
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, toggleSidebar } = useSidebar();
   const location = useLocation();
@@ -423,22 +497,7 @@ const AppSidebar: React.FC = () => {
   const showFullSidebar = isExpanded || isMobileOpen;
 
   const [openSubmenu, setOpenSubmenu] = useState<{
-    type:
-      | "main"
-      | "admin"
-      | "commonMaster"
-      | "master"
-      | "staffMaster"
-      | "entry"
-      | "report"
-      | "others"
-      | "transportMaster"
-      | "customerMaster"
-      | "vehicleTracking"
-      | "binMaster"
-      | "wasteManagementMaster"
-      | "citizenGrievance"
-      | "workforceManagement";
+    type: SidebarSectionKey;
     index: number;
   } | null>(null);
 
@@ -493,30 +552,13 @@ const AppSidebar: React.FC = () => {
       "admin.nav.collection_monitoring",
     ]);
 
-    const menus: Record<string, NavItem[]> = {
-      main: navItems,
-      admin: adminItems,
-      commonMaster: commonMasterItems,
-      master: masterItems,
-      staffMaster: staffMasters,
-      entry: [],
-      citizenGrievance: citizenGrievanceItems,
-      transportMaster: transportMasters,
-      customerMaster: customerMasters,
-      vehicleTracking: vehicleTrackingItems,
-      binMaster: binItems,
-      wasteManagementMaster: wasteManagementMasters,
-      report: reportItems,
-      workforceManagement: workforceManagements,
-    };
-
-    Object.entries(menus).forEach(([type, items]) => {
-      items.forEach((nav, index) => {
+    sidebarSections.forEach((section) => {
+      section.items.forEach((nav, index) => {
         nav.subItems?.forEach((sub) => {
           if (isActive(sub.path, true)) {
             matched = true;
             if (!skipAutoOpenSubmenuKeys.has(sub.nameKey)) {
-              setOpenSubmenu({ type: type as any, index });
+              setOpenSubmenu({ type: section.key, index });
             }
           }
         });
@@ -539,7 +581,7 @@ const AppSidebar: React.FC = () => {
     }
   }, [openSubmenu]);
 
-  const handleSubmenuToggle = (index: number, type: any) => {
+  const handleSubmenuToggle = (index: number, type: SidebarSectionKey) => {
     if (!showFullSidebar) {
       toggleSidebar();
       setOpenSubmenu({ type, index });
@@ -553,7 +595,7 @@ const AppSidebar: React.FC = () => {
     );
   };
 
-  const renderMenuItems = (items: NavItem[], type: any) => (
+  const renderMenuItems = (items: NavItem[], type: SidebarSectionKey) => (
     <ul className="flex flex-col gap-2">
       {items.map((nav, index) => {
         const isSubmenuOpen =
@@ -663,27 +705,11 @@ const AppSidebar: React.FC = () => {
         )}
         <div className="flex-1 overflow-y-auto pr-2 no-scrollbar">
           <nav className="flex flex-col gap-4">
-            <div>{renderMenuItems(navItems, "main")}</div>
-            <div>{renderMenuItems(adminItems, "admin")}</div>
-            <div>{renderMenuItems(commonMasterItems, "commonMaster")}</div>
-            <div>{renderMenuItems(masterItems, "master")}</div>
-            <div>{renderMenuItems(staffMasters, "staffMaster")}</div>
-            <div>{renderMenuItems(customerMasters, "customerMaster")}</div>
-            <div>{renderMenuItems(transportMasters, "transportMaster")}</div>
-            <div>
-              {renderMenuItems(vehicleTrackingItems, "vehicleTracking")}
-            </div>
-            <div>{renderMenuItems(binItems, "binMaster")}</div>
-            <div>
-              {renderMenuItems(wasteManagementMasters, "wasteManagementMaster")}
-            </div>
-            <div>
-              {renderMenuItems(citizenGrievanceItems, "citizenGrievance")}
-            </div>
-            <div>
-              {renderMenuItems(workforceManagements, "workforceManagement")}
-            </div>
-            <div>{renderMenuItems(reportItems, "report")}</div>
+            {sidebarSections.map((section) => (
+              <div key={section.key}>
+                {renderMenuItems(section.items, section.key)}
+              </div>
+            ))}
           </nav>
         </div>
       </div>
