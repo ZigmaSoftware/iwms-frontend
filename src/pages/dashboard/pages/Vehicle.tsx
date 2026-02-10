@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/select";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import Swal from "sweetalert2";
+import { vehicleCreationApi } from "@/helpers/admin";
 
 type VehicleStatus = "active" | "maintenance" | "inactive";
 
@@ -49,6 +51,31 @@ const resolveStatus = (raw: any, lastMaintenance: string): VehicleStatus => {
   return "active";
 };
 
+type VehicleCreationRecord = {
+  unique_id: string;
+  vehicle_no: string;
+  vehicle_type_id?: string | null;
+  fuel_type_id?: string | null;
+  vehicle_type_name?: string | null;
+  fuel_type_name?: string | null;
+  capacity?: string | null;
+  mileage_per_liter?: string | null;
+  service_record?: string | null;
+  vehicle_insurance?: string | null;
+  insurance_expiry_date?: string | null;
+  vehicle_condition?: "NEW" | "SECOND_HAND" | string | null;
+  fuel_tank_capacity?: string | null;
+  rc_upload?: string | null;
+  vehicle_insurance_file?: string | null;
+  is_active: boolean;
+  driver_name?: string | null;
+  driver_mobile?: string | null;
+  driver_no?: string | null;
+  zone?: string | null;
+  zone_name?: string | null;
+};
+
+
 export default function Vehicle() {
   const { t } = useTranslation();
   const [vehicles, setVehicles] = useState<VehicleCard[]>([]);
@@ -58,63 +85,85 @@ export default function Vehicle() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [capacityFilter, setCapacityFilter] = useState("all");
   const [maintenanceFilter, setMaintenanceFilter] = useState("all");
+  
 
-  // useEffect(() => {
-  //   let isMounted = true;
-  //   const loadVehicles = async () => {
-  //     try {
-  //       const response = await vehicleAssigningApi.list();
-  //       const rows = normalizeList(response);
-  //       const deduped = new Map<string, VehicleCard>();
 
-  //       rows.forEach((row: Record<string, any>, index: number) => {
-  //         const vehicleNo = row.vehicle_no ?? row.registration ?? "";
-  //         const key = String(
-  //           vehicleNo || row.unique_id || row.id || index
-  //         ).trim();
-  //         if (!key) return;
+  const conditionLabel = (value?: string | null) => {
+    if (value === "SECOND_HAND")
+      return t("admin.vehicle_creation.condition_second_hand");
+    if (value === "NEW") return t("admin.vehicle_creation.condition_new");
+    return value ?? t("common.not_available");
+  };
 
-  //         const lastMaintenance = formatDate(
-  //           row.last_maintenance ?? row.lastMaintenance
-  //         );
+  const normalizeVehicleCreations = (payload: any): VehicleCreationRecord[] => {
+    const rawList: VehicleCreationRecord[] = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.results)
+        ? payload.results
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
 
-  //         const card: VehicleCard = {
-  //           vehicleId: String(
-  //             row.unique_id ?? vehicleNo ?? row.id ?? key
-  //           ).trim(),
-  //           registration: String(vehicleNo || "-"),
-  //           type: String(row.vehicle_type_name ?? row.vehicle_type ?? "-"),
-  //           capacity: String(row.capacity ?? "-"),
-  //           fuelEfficiency: String(row.fuel_efficiency ?? "-"),
-  //           lastMaintenance,
-  //           status: resolveStatus(row.is_active, lastMaintenance),
-  //           driver: String(row.driver_name ?? row.driver ?? "Unassigned"),
-  //           zone: String(row.zone_name ?? row.zone ?? "-"),
-  //         };
+    const seen = new Set<string>();
+    return rawList.filter((item) => {
+      const key = (item?.unique_id ?? item?.vehicle_no)?.toString();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
 
-  //         deduped.set(key, card);
-  //       });
+  const mapRecordToVehicleCard = (record: VehicleCreationRecord): VehicleCard => {
+    const notAvailable = t("common.not_available");
+    const registration = record.vehicle_no ?? notAvailable;
+    const lastMaintenance = formatDate(
+      record.service_record ?? record.insurance_expiry_date,
+    );
+    const resolvedZone =
+      record.zone_name ??
+      record.zone ??
+      (record.vehicle_condition ? conditionLabel(record.vehicle_condition) : null) ??
+      notAvailable;
+    const driver =
+      record.driver_name ?? record.driver_no ?? record.driver_mobile ?? notAvailable;
 
-  //       if (isMounted) {
-  //         setVehicles(Array.from(deduped.values()));
-  //       }
-  //     } catch (error) {
-  //       console.error("Failed to load vehicle data:", error);
-  //       if (isMounted) {
-  //         setVehicles([]);
-  //       }
-  //     } finally {
-  //       if (isMounted) {
-  //         setLoading(false);
-  //       }
-  //     }
-  //   };
+    return {
+      vehicleId: record.unique_id ?? registration,
+      registration,
+      type: record.vehicle_type_name ?? record.vehicle_type_id ?? notAvailable,
+      capacity: record.capacity ?? notAvailable,
+      status: resolveStatus(record.is_active, lastMaintenance),
+      driver,
+      zone: resolvedZone,
+      lastMaintenance,
+      fuelEfficiency: record.mileage_per_liter ?? notAvailable,
+    };
+  };
 
-  //   loadVehicles();
-  //   return () => {
-  //     isMounted = false;
-  //   };
-  // }, []);
+  const fetchVehicles = async () => {
+    try {
+      const res = await vehicleCreationApi.list();
+      setVehicles(
+        normalizeVehicleCreations(res).map((record) =>
+          mapRecordToVehicleCard(record),
+        ),
+      );
+    } catch (error) {
+      console.error("Failed to fetch vehicles:", error);
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: t("common.fetch_failed"),
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchVehicles();
+  }, []);
+
 
   const statusGradients: Record<string, string> = {
     active: "from-white via-emerald-50 to-emerald-300 dark:from-slate-900 dark:via-emerald-900/30 dark:to-emerald-800",
