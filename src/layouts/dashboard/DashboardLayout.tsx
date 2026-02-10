@@ -12,7 +12,7 @@ import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
 import ZigmaLogo from "@/images/logo.png";
 import {
-  ADMIN_ROLE,
+  DEFAULT_ROLE,
   ADMIN_VIEW_MODE_ADMIN,
   USER_ROLE_STORAGE_KEY,
   clearAdminViewPreference,
@@ -39,7 +39,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   useEffect(() => {
     const role = normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
-    setIsAdmin(role === ADMIN_ROLE);
+    setIsAdmin(role === DEFAULT_ROLE);
   }, []);
 
   const handleSignOut = () => {

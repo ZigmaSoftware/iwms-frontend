@@ -2,7 +2,6 @@ import { AdminLayout } from "@/layouts/admin/AdminLayout";
 import { DashboardLayout } from "@/layouts/dashboard/DashboardLayout";
 import type { RoleBasedLayoutProps, UserRole } from "@/types/roles";
 import {
-  ADMIN_ROLE,
   ADMIN_VIEW_MODE_DASHBOARD,
   DEFAULT_ROLE,
   USER_ROLE_STORAGE_KEY,
@@ -24,7 +23,7 @@ export function RoleBasedLayout({
 }: RoleBasedLayoutProps) {
   const resolvedRole = roleOverride ?? getStoredRole() ?? DEFAULT_ROLE;
 
-  if (resolvedRole === ADMIN_ROLE) {
+  if (resolvedRole === DEFAULT_ROLE) {
     const adminPreference = getAdminViewPreference();
     if (adminPreference === ADMIN_VIEW_MODE_DASHBOARD) {
       return <DashboardLayout>{children}</DashboardLayout>;

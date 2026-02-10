@@ -8,7 +8,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { useUser } from "@/contexts/UserContext";
 import {
-  ADMIN_ROLE,
   DEFAULT_ROLE,
   USER_ROLE_STORAGE_KEY,
   normalizeRole,
@@ -16,6 +15,7 @@ import {
   clearAdminViewPreference,
   ADMIN_VIEW_MODE_ADMIN,
   type UserRole,
+  isAdmin,
 } from "@/types/roles";
 import { Eye, EyeOff } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
@@ -30,11 +30,10 @@ type LoginResponse = {
   email?: string;
 };
 
-
 export default function Auth() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false); 
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
@@ -43,21 +42,19 @@ export default function Auth() {
   const { setUser } = useUser();
 
   const handleRndAccess = (targetRole: UserRole) => {
-    const normalizedRole: UserRole =
-      targetRole === ADMIN_ROLE ? ADMIN_ROLE : DEFAULT_ROLE;
+    const normalizedRole: UserRole = isAdmin(targetRole)
+      ? targetRole
+      : DEFAULT_ROLE;
 
     localStorage.setItem(USER_ROLE_STORAGE_KEY, normalizedRole);
 
-    if (normalizedRole === ADMIN_ROLE) {
+    if (isAdmin(normalizedRole)) {
       setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);
+      navigate("/admin", { replace: true });
     } else {
       clearAdminViewPreference();
+      navigate("/dashboard", { replace: true });
     }
-
-    navigate(
-      normalizedRole === ADMIN_ROLE ? "/admin" : "/dashboard",
-      { replace: true }
-    );
   };
 
   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
@@ -65,10 +62,10 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      const res = await api.post<LoginResponse>(
-        "/login/",
-        { username, password }
-      );
+      const res = await api.post<LoginResponse>("/login/", {
+        username,
+        password,
+      });
 
       const {
         access_token,
@@ -85,21 +82,18 @@ export default function Auth() {
       localStorage.setItem(USER_ROLE_STORAGE_KEY, normalizedRole);
       localStorage.setItem("unique_id", unique_id);
 
-      await Promise.resolve();
-
       setUser({
         name: name ?? apiUsername ?? username,
         email: email ?? "",
       });
 
-      if (normalizedRole === ADMIN_ROLE) {
+      if (isAdmin(normalizedRole)) {
         setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);
         navigate("/admin", { replace: true });
       } else {
         clearAdminViewPreference();
         navigate("/", { replace: true });
       }
-
     } catch (error: any) {
       toast({
         title: t("login.title"),
@@ -221,8 +215,6 @@ export default function Auth() {
                 ? t("login.authenticating")
                 : t("login.sign_in")}
             </Button>
-
-      
           </form>
         </div>
       </div>
