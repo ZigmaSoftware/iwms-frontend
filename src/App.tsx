@@ -19,6 +19,7 @@ import {
   ADMIN_ROLES,
   DEFAULT_ROLE,
   ADMIN_VIEW_MODE_ADMIN,
+  ADMIN_VIEW_MODE_DASHBOARD,
   USER_ROLE_STORAGE_KEY,
   getAdminViewPreference,
   normalizeRole,
@@ -51,13 +52,22 @@ function HomeRedirect() {
   }
 
   const storedRole = normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
+  const preference = getAdminViewPreference();
 
   if (isAdmin(storedRole)) {
+    if (preference === ADMIN_VIEW_MODE_DASHBOARD) {
+      return <Navigate to="/dashboard" replace />;
+    }
     return <Navigate to="/admin" replace />;
   }
 
-  if (storedRole === DEFAULT_ROLE && getAdminViewPreference() === ADMIN_VIEW_MODE_ADMIN) {
-    return <Navigate to="/admin" replace />;
+  const resolvedRole = storedRole ?? DEFAULT_ROLE;
+
+  if (resolvedRole === DEFAULT_ROLE) {
+    if (preference === ADMIN_VIEW_MODE_ADMIN) {
+      return <Navigate to="/admin" replace />;
+    }
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <Navigate to="/dashboard" replace />;
@@ -72,9 +82,7 @@ function DashboardRouteGuard({ children }: { children: ReactNode }) {
     try {
       const storedRole = normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
       setRole(storedRole);
-      if (storedRole === DEFAULT_ROLE) {
-        setAdminViewPreferenceState(getAdminViewPreference());
-      }
+      setAdminViewPreferenceState(getAdminViewPreference());
     } finally {
       setChecked(true);
     }
@@ -84,11 +92,13 @@ function DashboardRouteGuard({ children }: { children: ReactNode }) {
     return null;
   }
 
-  if (isAdmin(role)) {
+  const preference = adminViewPreference ?? ADMIN_VIEW_MODE_ADMIN;
+
+  if (isAdmin(role) && preference === ADMIN_VIEW_MODE_ADMIN) {
     return <Navigate to="/admin" replace />;
   }
 
-  if (role === DEFAULT_ROLE && (adminViewPreference ?? ADMIN_VIEW_MODE_ADMIN) === ADMIN_VIEW_MODE_ADMIN) {
+  if (role === DEFAULT_ROLE && preference === ADMIN_VIEW_MODE_ADMIN) {
     return <Navigate to="/admin" replace />;
   }
 
