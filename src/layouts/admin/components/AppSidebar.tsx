@@ -182,16 +182,13 @@ const screenManagementItems: NavItem[] = [
         nameKey: "admin.nav.user_screen_action",
         path: `/${encAdmins}/${encUserScreenAction}`,
       },
-
-
       {
         nameKey: "admin.nav.companywise_user_screen_permission",
         path: `/${encAdmins}/${encUserScreenPermission}`,
       },
-      { nameKey: "admin.nav.user_type", path: `/${encAdmins}/${encUserType}` },
-      {
-        nameKey: "admin.nav.user_creation",
-        path: `/${encAdmins}/${encUserCreation}`,
+      { 
+        nameKey: "admin.nav.user_type", 
+        path: `/${encAdmins}/${encUserType}` 
       },
       {
         nameKey: "admin.nav.staff_user_type",

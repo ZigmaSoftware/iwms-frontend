@@ -49,6 +49,7 @@ export default function UserScreenList() {
   const fetchScreens = async () => {
     try {
       const res = await userScreenApi.list();
+      console.log(res);
       setScreens(extractData(res));
     } finally {
       setLoading(false);

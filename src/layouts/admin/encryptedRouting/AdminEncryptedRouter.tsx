@@ -29,13 +29,9 @@ import StaffCreationForm from "@/pages/admin/modules/staffMasters/staffCreation/
 // Admin
 import UserTypeList from "@/pages/admin/modules/admin/userType/user-typeList";
 import UserTypeForm from "@/pages/admin/modules/admin/userType/user-typeForm";
-import UserCreationList from "@/pages/admin/modules/admin/userCreation/user-creationList";
-import UserCreationForm from "@/pages/admin/modules/admin/userCreation/user-creationForm";
 // Customer Master
 import CustomerCreationList from "@/pages/admin/modules/customerMasters/customerCreations/customerCreationListPage";
 import CustomerCreationForm from "@/pages/admin/modules/customerMasters/customerCreations/customerCreationForm";
-import CustomerTagList from "@/pages/admin/modules/customerMasters/customerTag/customerTagList";
-import CustomerTagForm from "@/pages/admin/modules/customerMasters/customerTag/customerTagForm";
 import HouseholdPickupEventList from "@/pages/admin/modules/customerMasters/householdPickupEvent/householdPickupEventList";
 import HouseholdPickupEventForm from "@/pages/admin/modules/customerMasters/householdPickupEvent/householdPickupEventForm";
 
@@ -124,7 +120,6 @@ type RouteMap = Record<string, Record<string, RouteConfig>>;
 const ROUTES: RouteMap = {
   admins: {
     "user-type": { list: UserTypeList, form: UserTypeForm },
-    "user-creation": { list: UserCreationList, form: UserCreationForm },
     "staff-user-type": { list: StaffUserTypeList, form: StaffUserTypeForm },
     "mainscreen-type": {list: MainScreenTypeList, form: MainScreenTypeForm},
     "userscreen-action": {list:UserScreenActionList, form: UserScreenActionForm },
@@ -168,7 +163,6 @@ const ROUTES: RouteMap = {
   },
   "customer-master": {
     "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },
-    "customer-tag": { list: CustomerTagList, form: CustomerTagForm },
     "household-pickup-event": { list: HouseholdPickupEventList, form: HouseholdPickupEventForm },
   },
   "vehicle-tracking": {
