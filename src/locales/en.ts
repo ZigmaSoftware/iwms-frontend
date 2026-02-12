@@ -765,6 +765,8 @@ const enResource = {
           "dashboard": "Dashboard",
           "admin": "Admin",
           "common_masters": "Common Masters",
+          "superAdmin_masters": "SuperAdmin Masters",
+          "company": "Company",
           "masters": "Masters",
           "continent": "Continent",
           "country": "Country",

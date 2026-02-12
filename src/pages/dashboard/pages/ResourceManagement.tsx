@@ -6,7 +6,7 @@ import { Search, Mail, Phone, Sparkles } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useEffect, useMemo, useState } from "react";
-import { staffCreationApi, userCreationApi } from "@/helpers/admin";
+import { staffCreationApi } from "@/helpers/admin";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
@@ -117,7 +117,7 @@ export default function ResourceManagement() {
             (record.staffusertype_name?.toLowerCase() === "staff") ||
             (record.designation?.toLowerCase() === "driver") ||
             (record.designation?.toLowerCase() === "operator")
-        );
+        );  
 
         const mapped = staffOnly.map((record: any) => mapRecord(record, t));
         setEmployees(mapped);

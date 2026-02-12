@@ -83,6 +83,9 @@ const {
   encTripAttendance,
   encVehicleTripAudit,
   encTripExceptionLog,
+  encCompanyCreation,
+  encProjectCreation,
+  encSuperAdminMaster
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -101,6 +104,19 @@ const navItems: NavItem[] = [
     nameKey: "admin.nav.dashboard",
     icon: <LayoutGrid size={18} />,
     path: "/admin",
+  },
+];
+
+const superadminMasterItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.superAdmin_masters",
+    icon: <Settings size={18} />,
+    subItems: [
+      {
+        nameKey: "admin.nav.company",
+        path: `/${encSuperAdminMaster}/${encCompanyCreation}`,
+      }
+    ],
   },
 ];
 
@@ -457,6 +473,7 @@ const reportItems: NavItem[] = [
 
 const sidebarSections = [
   { key: "main", items: navItems },
+  { key: "superadminMaster", items: superadminMasterItems},
   { key: "commonMaster", items: commonMasterItems },
   { key: "master", items: masterItems },
   { key: "wasteType", items: wasteTypeItems },
