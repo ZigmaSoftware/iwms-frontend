@@ -104,6 +104,8 @@ import SupervisorZoneAccessAuditList from "@/pages/admin/modules/staffMasters/su
 import SupervisorZoneAccessAuditForm from "@/pages/admin/modules/staffMasters/supervisorZoneAccessAudit/supervisorZoneAccessAuditForm";
 import UnassignedStaffPoolList from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolList";
 import UnassignedStaffPoolForm from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolForm";
+import CompanyList from "@/pages/admin/modules/superadminMasters/company/companyListPage";
+import CompanyListForm from "@/pages/admin/modules/superadminMasters/company/companyForm";
 
 
 type ModuleComponent = ComponentType | undefined;
@@ -126,6 +128,9 @@ const ROUTES: RouteMap = {
     "mainscreens": {list: MainScreenList, form: MainScreenForm},
     "userscreens": {list: UserScreenList, form: UserScreenForm},
     "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm}
+  },
+  "superadmin-masters": {
+    "company-creation": {list: CompanyList, form: CompanyListForm}
   },
   masters: {
     continents: { list: ContinentList, form: ContinentForm },

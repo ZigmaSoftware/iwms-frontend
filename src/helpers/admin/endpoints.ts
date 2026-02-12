@@ -2,6 +2,13 @@
    Admin endpoint registry (Grouped)
 -------------------------------------------------------- */
 export const adminEndpoints = {
+
+   /* =========================
+     SuperAdmin
+  ========================= */
+  companies: "superadmin/company",
+  projects: "superadmin/project",
+
   /* =========================
      COMMON MASTERS
   ========================= */

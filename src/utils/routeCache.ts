@@ -75,6 +75,10 @@ export type EncryptedRoutes = {
   encDashboardReports: string;
   encDashboardWeighBridge: string;
   encDashboardBins: string;
+
+  encCompanyCreation: string;
+  encProjectCreation: string;
+  encSuperAdminMaster: string;
 };
 
 const plainRoutes: EncryptedRoutes = {
@@ -88,6 +92,9 @@ const plainRoutes: EncryptedRoutes = {
   encBins: "bins",
   encCustomerCreation: "customer-creation",
   encCustomerMaster: "customer-master",
+  encSuperAdminMaster: "superadmin-masters",
+  encCompanyCreation: "company-creation",
+  encProjectCreation: "project-creation",
   encDistricts: "districts",
   encFeedback: "feedback",
   encFuel: "fuel",
@@ -153,6 +160,8 @@ const plainRoutes: EncryptedRoutes = {
   encDashboardReports: "dashboard-reports",
   encDashboardWeighBridge: "dashboard-weighbridge",
   encDashboardBins: "dashboard-bins"
+
+  
 };
 
 const encryptRoutes = (routes: EncryptedRoutes): EncryptedRoutes => {
