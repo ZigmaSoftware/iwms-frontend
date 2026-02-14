@@ -106,6 +106,8 @@ import UnassignedStaffPoolList from "@/pages/admin/modules/staffMasters/unassign
 import UnassignedStaffPoolForm from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolForm";
 import CompanyList from "@/pages/admin/modules/superadminMasters/company/companyListPage";
 import CompanyListForm from "@/pages/admin/modules/superadminMasters/company/companyForm";
+import ProjectList from "@/pages/admin/modules/superadminMasters/project/projectListPage";
+import ProjectForm from "@/pages/admin/modules/superadminMasters/project/projectForm";
 
 
 type ModuleComponent = ComponentType | undefined;
@@ -130,7 +132,8 @@ const ROUTES: RouteMap = {
     "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm}
   },
   "superadmin-masters": {
-    "company-creation": {list: CompanyList, form: CompanyListForm}
+    "company-creation": { list: CompanyList, form: CompanyListForm },
+    "project-creation": { list: ProjectList, form: ProjectForm },
   },
   masters: {
     continents: { list: ContinentList, form: ContinentForm },

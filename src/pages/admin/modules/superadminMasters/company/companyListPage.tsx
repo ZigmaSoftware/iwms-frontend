@@ -32,10 +32,13 @@ type TableFilters = {
 
 const encSuperAdminMasters = encryptSegment("superadmin-masters");
 const encCompanyCreation = encryptSegment("company-creation");
+const encProjectCreation = encryptSegment("project-creation");
 
 const ENC_NEW_PATH = `/${encSuperAdminMasters}/${encCompanyCreation}/new`;
 const ENC_EDIT_PATH = (id: string) =>
   `/${encSuperAdminMasters}/${encCompanyCreation}/${id}/edit`;
+const ENC_PROJECT_LIST_PATH = (companyUniqueId: string) =>
+  `/${encSuperAdminMasters}/${encProjectCreation}?company_unique_id=${encodeURIComponent(companyUniqueId)}`;
 
 export default function CompanyList() {
   const { t } = useTranslation();
@@ -108,6 +111,13 @@ export default function CompanyList() {
         title={t("common.edit")}
       >
         <PencilIcon className="size-5" />
+      </button>
+      <button
+        onClick={() => navigate(ENC_PROJECT_LIST_PATH(row.unique_id))}
+        className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+        title={t("admin.nav.project")}
+      >
+        {t("admin.nav.project")}
       </button>
 
       {/* <button

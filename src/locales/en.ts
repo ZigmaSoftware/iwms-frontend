@@ -767,6 +767,7 @@ const enResource = {
           "common_masters": "Common Masters",
           "superAdmin_masters": "SuperAdmin Masters",
           "company": "Company",
+          "project": "Project",
           "masters": "Masters",
           "continent": "Continent",
           "country": "Country",
@@ -832,6 +833,17 @@ const enResource = {
           "trip_summary": "Trip Summary",
           "monthly_distance": "Monthly Distance",
           "waste_collected_summary": "Waste Collected Summary"
+        },
+        "project": {
+          "company_id": "Company ID",
+          "filtered_company": "Filtered by Company: {{id}}",
+          "admin_help_text": "Optional: provide project admin details only when creating the first project for a company.",
+          "admin_employee_name": "Admin Employee Name",
+          "admin_username": "Admin Username",
+          "admin_password": "Admin Password",
+          "admin_email": "Admin Email",
+          "admin_required_together": "admin_username, admin_password, and admin_employee_name must be provided together.",
+          "company_admin_created": "Project admin created - Username: {{username}}, ID: {{unique_id}}"
         },
         "roles": {
           "admin": "Admin",
