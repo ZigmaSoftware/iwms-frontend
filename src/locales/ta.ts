@@ -766,6 +766,9 @@ const taResource = {
           "assets": "சொத்துகள்",
           "screenManagements": "திரை மேலாண்மைகள்",
           "common_masters": "பொது மாஸ்டர்கள்",
+          "superAdmin_masters": "சூப்பர் அட்மின் மாஸ்டர்கள்",
+          "company": "நிறுவனம்",
+          "project": "திட்டம்",
           "main_screen_type": "மெயின் ஸ்கிரீன் வகை",
           "user_screen_action": "யூசர் ஸ்கிரீன் செயல்கள்",
           "main_screen": "மெயின் ஸ்கிரீன்",
@@ -829,6 +832,17 @@ const taResource = {
           "trip_summary": "பயண சுருக்கம்",
           "monthly_distance": "மாதாந்திர தூரம்",
           "waste_collected_summary": "கழிவு சேகரிப்பு சுருக்கம்"
+        },
+        "project": {
+          "company_id": "நிறுவன ஐடி",
+          "filtered_company": "வடிகட்டிய நிறுவனம்: {{id}}",
+          "admin_help_text": "விருப்பம்: ஒரு நிறுவனத்தின் முதல் திட்டத்தை உருவாக்கும் போது மட்டும் திட்ட நிர்வாகி விவரங்களை வழங்கவும்.",
+          "admin_employee_name": "நிர்வாகி பணியாளர் பெயர்",
+          "admin_username": "நிர்வாகி பயனர் பெயர்",
+          "admin_password": "நிர்வாகி கடவுச்சொல்",
+          "admin_email": "நிர்வாகி மின்னஞ்சல்",
+          "admin_required_together": "admin_username, admin_password, மற்றும் admin_employee_name மூன்றும் ஒன்றாக வழங்கப்பட வேண்டும்.",
+          "company_admin_created": "திட்ட நிர்வாகி உருவாக்கப்பட்டது - பயனர் பெயர்: {{username}}, ஐடி: {{unique_id}}"
         },
         "roles": {
           "admin": "நிர்வாகி",

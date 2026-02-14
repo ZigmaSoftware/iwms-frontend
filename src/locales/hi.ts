@@ -766,6 +766,9 @@ const hiResource = {
           "assets": "एसेट्स",
           "screenManagements": "स्क्रीन प्रबंधन",
           "common_masters": "कॉमन मास्टर्स",
+          "superAdmin_masters": "सुपरएडमिन मास्टर्स",
+          "company": "कंपनी",
+          "project": "प्रोजेक्ट",
           "main_screen_type": "मेन स्क्रीन प्रकार",
           "user_screen_action": "यूज़र स्क्रीन एक्शन",
           "main_screen": "मेन स्क्रीन",
@@ -829,6 +832,17 @@ const hiResource = {
           "trip_summary": "ट्रिप सारांश",
           "monthly_distance": "मासिक दूरी",
           "waste_collected_summary": "संग्रहित कचरा सारांश"
+        },
+        "project": {
+          "company_id": "कंपनी आईडी",
+          "filtered_company": "फ़िल्टर की गई कंपनी: {{id}}",
+          "admin_help_text": "वैकल्पिक: किसी कंपनी का पहला प्रोजेक्ट बनाते समय ही प्रोजेक्ट एडमिन विवरण दें।",
+          "admin_employee_name": "एडमिन कर्मचारी नाम",
+          "admin_username": "एडमिन यूज़रनेम",
+          "admin_password": "एडमिन पासवर्ड",
+          "admin_email": "एडमिन ईमेल",
+          "admin_required_together": "admin_username, admin_password और admin_employee_name तीनों साथ में देने होंगे।",
+          "company_admin_created": "प्रोजेक्ट एडमिन बना दिया गया - यूज़रनेम: {{username}}, आईडी: {{unique_id}}"
         },
         "roles": {
           "admin": "एडमिन",

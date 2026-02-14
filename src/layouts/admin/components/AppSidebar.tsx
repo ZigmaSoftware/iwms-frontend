@@ -115,7 +115,11 @@ const superadminMasterItems: NavItem[] = [
       {
         nameKey: "admin.nav.company",
         path: `/${encSuperAdminMaster}/${encCompanyCreation}`,
-      }
+      },
+      {
+        nameKey: "admin.nav.project",
+        path: `/${encSuperAdminMaster}/${encProjectCreation}`,
+      },
     ],
   },
 ];

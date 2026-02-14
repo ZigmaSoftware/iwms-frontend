@@ -1,0 +1,198 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { DataTable } from "primereact/datatable";
+import { Column } from "primereact/column";
+import { Button } from "primereact/button";
+import { InputText } from "primereact/inputtext";
+import { FilterMatchMode } from "primereact/api";
+import { useLocation, useNavigate } from "react-router-dom";
+import Swal from "sweetalert2";
+import { useTranslation } from "react-i18next";
+
+import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/primereact.min.css";
+import "primeicons/primeicons.css";
+
+import { projectApi } from "@/helpers/admin";
+import { encryptSegment } from "@/utils/routeCrypto";
+import { PencilIcon } from "@/icons";
+
+type Project = {
+  unique_id: string;
+  company_unique_id: string;
+  name: string;
+  description: string | null;
+  is_active: boolean;
+};
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  name: { value: string | null; matchMode: FilterMatchMode };
+  company_unique_id: { value: string | null; matchMode: FilterMatchMode };
+};
+
+const encSuperAdminMasters = encryptSegment("superadmin-masters");
+const encProjectCreation = encryptSegment("project-creation");
+
+const ENC_LIST_PATH = `/${encSuperAdminMasters}/${encProjectCreation}`;
+const ENC_NEW_PATH = (companyUniqueId?: string | null) =>
+  companyUniqueId
+    ? `${ENC_LIST_PATH}/new?company_unique_id=${encodeURIComponent(companyUniqueId)}`
+    : `${ENC_LIST_PATH}/new`;
+const ENC_EDIT_PATH = (id: string, companyUniqueId?: string | null) =>
+  companyUniqueId
+    ? `${ENC_LIST_PATH}/${id}/edit?company_unique_id=${encodeURIComponent(companyUniqueId)}`
+    : `${ENC_LIST_PATH}/${id}/edit`;
+
+export default function ProjectListPage() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const companyUniqueId = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("company_unique_id");
+  }, [location.search]);
+
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [filters, setFilters] = useState<TableFilters>({
+    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    name: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    company_unique_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  });
+
+  const fetchProjects = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await projectApi.list({
+        params: companyUniqueId ? { company_unique_id: companyUniqueId } : undefined,
+      });
+      setProjects(data);
+      console.log("Fetched projects:", data);
+    } catch {
+      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [companyUniqueId, t]);
+
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const updated = { ...filters };
+    updated.global.value = e.target.value;
+    setFilters(updated);
+    setGlobalFilterValue(e.target.value);
+  };
+
+  const actionBodyTemplate = (row: Project) => (
+    <div className="flex gap-3 justify-center">
+      <button
+        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id, companyUniqueId))}
+        className="text-blue-600 hover:text-blue-800"
+        title={t("common.edit")}
+      >
+        <PencilIcon className="size-5" />
+      </button>
+    </div>
+  );
+
+  const indexTemplate = (_: unknown, options: { rowIndex: number }) => options.rowIndex + 1;
+
+  const descriptionTemplate = (row: Project) => row.description || t("common.not_available");
+
+  const header = (
+    <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
+        <i className="pi pi-search text-gray-500" />
+        <InputText
+          value={globalFilterValue}
+          onChange={onGlobalFilterChange}
+          placeholder={t("common.search_item_placeholder", { item: t("admin.nav.project") })}
+          className="p-inputtext-sm border-0 shadow-none"
+        />
+      </div>
+      {companyUniqueId ? (
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <span>{t("admin.project.filtered_company", { id: companyUniqueId })}</span>
+          <button
+            type="button"
+            className="text-blue-600 hover:text-blue-800 font-medium"
+            onClick={() => navigate(ENC_LIST_PATH)}
+          >
+            {t("common.view_all")}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  return (
+    <div className="p-3">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">{t("admin.nav.project")}</h1>
+          <p className="text-gray-500 text-sm">
+            {t("common.manage_item_records", {
+              item: t("admin.nav.project"),
+            })}
+          </p>
+        </div>
+
+        <Button
+          label={t("common.add_item", { item: t("admin.nav.project") })}
+          icon="pi pi-plus"
+          className="p-button-success"
+          onClick={() => navigate(ENC_NEW_PATH(companyUniqueId))}
+        />
+      </div>
+
+      <DataTable
+        value={projects}
+        dataKey="unique_id"
+        paginator
+        rows={10}
+        rowsPerPageOptions={[5, 10, 25, 50]}
+        loading={loading}
+        filters={filters}
+        globalFilterFields={["name", "company_unique_id"]}
+        header={header}
+        stripedRows
+        showGridlines
+        className="p-datatable-sm"
+      >
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+
+        <Column
+          field="name"
+          header={t("common.item_name", { item: t("admin.nav.project") })}
+          sortable
+          style={{ minWidth: "220px" }}
+        />
+
+        <Column
+          field="company_unique_id"
+          header={t("admin.project.company_id")}
+          sortable
+          style={{ minWidth: "220px" }}
+        />
+
+        <Column
+          field="description"
+          header={t("common.description")}
+          body={descriptionTemplate}
+          style={{ minWidth: "240px" }}
+        />
+
+        <Column
+          header={t("common.actions")}
+          body={actionBodyTemplate}
+          style={{ width: "120px", textAlign: "center" }}
+        />
+      </DataTable>
+    </div>
+  );
+}
