@@ -124,7 +124,6 @@ const AppHeader: React.FC = () => {
                     isDark ? "bg-blue-500/30" : "bg-blue-400/30"
                   )}
                 />
-
                 <motion.div
                   animate={{ rotate: isMobileOpen ? 90 : 0 }}
                   transition={{ duration: 0.3 }}

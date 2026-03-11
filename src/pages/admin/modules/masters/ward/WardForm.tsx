@@ -14,10 +14,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { encryptSegment } from "@/utils/routeCrypto";
+import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 
 import { continentApi, countryApi, stateApi, districtApi, cityApi, zoneApi, wardApi } from "@/helpers/admin";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 
 /* ------------------------------
@@ -91,8 +92,7 @@ const normalizeNullable = (v: any): string | null => {
 /* ------------------------------
   ROUTES
 ------------------------------ */
-const encMasters = encryptSegment("masters");
-const encWards = encryptSegment("wards");
+const { encMasters, encWards } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encWards}`;
 
 /* ==========================================================
@@ -141,6 +141,17 @@ export default function WardForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    loggedInCompanyUniqueId,
+    setProjectId,
+    onCompanyChange,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({ isEdit });
 
   const extractErr = (e: any): string => {
     if (e?.response?.data) return String(e.response.data);
@@ -165,6 +176,8 @@ export default function WardForm() {
         )
       )
       .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
+
+      console.log(continents);
   }, []);
 
   useEffect(() => {
@@ -238,7 +251,7 @@ export default function WardForm() {
         setAllZones(
           res.map((z: any) => ({
             id: String(z.unique_id),
-            name: z.name,
+            name: z.zone_name,
             cityId: normalizeNullable(z.city_id ?? z.city),
             isActive: Boolean(z.is_active),
           }))
@@ -366,9 +379,10 @@ export default function WardForm() {
         dis && setPendingDistrict(dis);
         cty && setPendingCity(cty);
         zne && setPendingZone(zne);
+        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
       })
       .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
-  }, [id, isEdit]);
+  }, [applyCompanyProjectFromRecord, id, isEdit]);
 
   /* ==========================================================
         AUTO-INFER CHAINS
@@ -450,11 +464,27 @@ export default function WardForm() {
       return;
     }
 
+    if (!companyUniqueId) {
+      Swal.fire(
+        "Error",
+        !loggedInCompanyUniqueId && !isSuperAdmin
+          ? "Company is not mapped to this login. Only super admin can choose a company."
+          : "Company is required",
+        "error"
+      );
+      return;
+    }
+
+    if (!projectId) {
+      Swal.fire("Error", "Project is required", "error");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const payload = {
-        name: wardName.trim(),
+        ward_name: wardName.trim(),
         continent_id: continentId,
         country_id: countryId,
         state_id: stateId,
@@ -463,6 +493,8 @@ export default function WardForm() {
         zone_id: zoneId || null,
         description,
         is_active: isActive,
+        company_id: companyUniqueId,
+        project_id: projectId,
       };
 
       if (isEdit && id) {
@@ -494,6 +526,72 @@ export default function WardForm() {
     >
       <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <Label>Company *</Label>
+            <Select
+              value={companyUniqueId}
+              onValueChange={onCompanyChange}
+              disabled={
+                Boolean(loggedInCompanyUniqueId) ||
+                (!isSuperAdmin && !loggedInCompanyUniqueId) ||
+                companies.length === 0
+              }
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={
+                    loggedInCompanyUniqueId
+                      ? "Company from logged-in profile"
+                      : isSuperAdmin
+                        ? "Select Company"
+                        : "Only super admin can select company"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((company) => (
+                  <SelectItem key={company.value} value={company.value}>
+                    {company.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!loggedInCompanyUniqueId && !isSuperAdmin && (
+              <p className="mt-1 text-xs text-red-500">
+                Company is not mapped to this login. Only super admin can view
+                all companies.
+              </p>
+            )}
+            {isSuperAdmin && !loggedInCompanyUniqueId && companies.length === 0 && (
+              <p className="mt-1 text-xs text-red-500">No companies found.</p>
+            )}
+          </div>
+
+          <div>
+            <Label>Project *</Label>
+            <Select
+              value={projectId}
+              onValueChange={setProjectId}
+              disabled={!companyUniqueId || projects.length === 0}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select Project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.value} value={project.value}>
+                    {project.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {companyUniqueId && projects.length === 0 && (
+              <p className="mt-1 text-xs text-red-500">
+                No projects found for this company.
+              </p>
+            )}
+          </div>
+
           {/* Continent */}
           <div>
             <Label>{t("admin.nav.continent")} *</Label>

@@ -18,6 +18,20 @@ import ZoneList from "@/pages/admin/modules/masters/zone/ZoneListPage";
 import ZoneForm from "@/pages/admin/modules/masters/zone/ZoneForm";
 import WardList from "@/pages/admin/modules/masters/ward/WardListPage";
 import WardForm from "@/pages/admin/modules/masters/ward/WardForm";
+import CollectionPointListPage from "@/pages/admin/modules/masters/collectionPoint/CollectionPointListPage";
+import CollectionPointForm from "@/pages/admin/modules/masters/collectionPoint/CollectionPointForm";
+import WasteTypeListPage from "@/pages/admin/modules/masters/wasteType/WasteTypeListPage";
+import WasteTypeForm from "@/pages/admin/modules/masters/wasteType/WasteTypeForm";
+
+
+import PanchayatListPage from "@/pages/admin/modules/masters/panchayat/PanchayatListPage";
+import PanchayatForm from "@/pages/admin/modules/masters/panchayat/PanchaytForm";
+import AreaTypeListPage from "@/pages/admin/modules/masters/areaType/AreaTypeListPage";
+import AreaTypeForm from "@/pages/admin/modules/masters/areaType/AreaTypeForm";
+import HierarchyListPage from "@/pages/admin/modules/masters/hierarchy/HierarchyListPage";
+import HierarchyForm from "@/pages/admin/modules/masters/hierarchy/HierarchyForm";
+
+
 import PropertyList from "@/pages/admin/modules/masters/property/PropertyListPage";
 import PropertyForm from "@/pages/admin/modules/masters/property/PropertyForm";
 import SubPropertyList from "@/pages/admin/modules/masters/subproperty/SubPropertyListPage";
@@ -72,7 +86,10 @@ import WorkforceManagement from "@/pages/admin/modules/workforcemanagement/workf
 import DateReport from "@/pages/admin/modules/workforcemanagement/datereport";
 import DayReport from "@/pages/admin/modules/workforcemanagement/dayreport";
 
-import WasteCollectionMonitor from "@/pages/admin/modules/wasteManagementMasters/collectionMonitoring/collectionMonitoring";
+import CollectionMonitoringListPage from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringListPage";
+import CollectionMonitoringForm from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringForm";
+import PanchayatBaseCollectionListPage from "@/pages/admin/modules/wasteManagementMasters/panchayatbasecollection/PanchayatBaseCollectionListPage";
+import WardBaseCollectionListPage from "@/pages/admin/modules/wasteManagementMasters/wardbasecollection/WardBaseCollectionListPage";
 import WasteCollectedDataList from "@/pages/admin/modules/wasteManagementMasters/wasteCollectedData/wasteCollectedDataListPage";
 import WasteCollectedForm from "@/pages/admin/modules/wasteManagementMasters/wasteCollectedData/wasteCollectedDataForm";
 import StaffUserTypeForm from "@/pages/admin/modules/admin/staffUserType/staffUserTypeForm";
@@ -144,6 +161,15 @@ const ROUTES: RouteMap = {
     cities: { list: CityList, form: CityForm },
     zones: { list: ZoneList, form: ZoneForm },
     wards: { list: WardList, form: WardForm },
+    "collection-points": { list: CollectionPointListPage, form: CollectionPointForm },
+    "waste-types": { list: WasteTypeListPage, form: WasteTypeForm },
+
+
+    panchayats: { list: PanchayatListPage, form: PanchayatForm },
+    "area-types": { list: AreaTypeListPage, form: AreaTypeForm },
+    hierarchies: { list: HierarchyListPage, form: HierarchyForm },
+
+    
     properties: { list: PropertyList, form: PropertyForm },
     "sub-properties": { list: SubPropertyList, form: SubPropertyForm },
   },
@@ -179,7 +205,9 @@ const ROUTES: RouteMap = {
   },
   "waste-management": {
     "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
-    "collection-monitoring": { component: WasteCollectionMonitor },
+    "collection-monitoring": { list: CollectionMonitoringListPage, form: CollectionMonitoringForm },
+    "panchayat-base-collection": { list: PanchayatBaseCollectionListPage },
+    "ward-base-collection": { list: WardBaseCollectionListPage },
   },
   "workforce-management": {
     "workforce-management": { component: WorkforceManagement },

@@ -21,6 +21,26 @@ import { Eye, EyeOff } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import BgImg from "../images/bgSignin.png";
 
+type Profile = {
+  user_type: string;
+  unique_id: string;
+  name: string;
+  role: string;
+  email: string;
+  company_unique_id: string;
+  company_name: string;
+  staff_unique_id: string;
+  employee_id: string;
+  employee_name: string;
+  emp_id: string;
+  staffusertype_unique_id: string;
+  project_id?: string;
+  project_unique_id?: string;
+  project?: {
+    unique_id?: string;
+  };
+};
+
 type LoginResponse = {
   access_token: string;
   role: string;
@@ -28,6 +48,7 @@ type LoginResponse = {
   name?: string;
   username?: string;
   email?: string;
+  profile?: Profile;
 };
 
 export default function Auth() {
@@ -66,6 +87,7 @@ export default function Auth() {
         username,
         password,
       });
+      console.log("Login response:", res.data); // Debug log
 
       const {
         access_token,
@@ -74,13 +96,27 @@ export default function Auth() {
         name,
         username: apiUsername,
         email,
+        profile,
       } = res.data;
 
       const normalizedRole = normalizeRole(role) ?? DEFAULT_ROLE;
 
       localStorage.setItem("access_token", access_token);
       localStorage.setItem(USER_ROLE_STORAGE_KEY, normalizedRole);
-      localStorage.setItem("unique_id", unique_id);
+      if (profile) {
+        localStorage.setItem("profile", JSON.stringify(profile));
+
+        const projectId =
+          profile.project_id ??
+          profile.project_unique_id ??
+          profile.project?.unique_id;
+
+        if (projectId) {
+          localStorage.setItem("project_id", projectId);
+        } else {
+          localStorage.removeItem("project_id");
+        }
+      }
 
       setUser({
         name: name ?? apiUsername ?? username,
@@ -221,3 +257,6 @@ export default function Auth() {
     </div>
   );
 }
+
+
+

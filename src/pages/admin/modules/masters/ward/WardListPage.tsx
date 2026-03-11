@@ -14,13 +14,13 @@ import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
 import { PencilIcon, TrashBinIcon } from "@/icons";
-import { encryptSegment } from "@/utils/routeCrypto";
+import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { wardApi } from "@/helpers/admin";
 
 type WardRecord = {
   unique_id: string;
-  name: string;
+  ward_name: string;
   is_active: boolean;
   zone_name: string;
   city_name: string;
@@ -48,8 +48,7 @@ export default function WardList() {
 
   const navigate = useNavigate();
 
-  const encMasters = encryptSegment("masters");
-  const encWards = encryptSegment("wards");
+  const { encMasters, encWards } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encWards}/new`;
   const ENC_EDIT_PATH = (id: string) =>
@@ -265,7 +264,7 @@ export default function WardList() {
             field="name"
             header={t("admin.nav.ward")}
             sortable
-            body={(row) => cap(row.name)}
+            body={(row) => cap(row.ward_name)}
           />
 
           <Column

@@ -41,7 +41,7 @@ const enResource = {
         house_type: "House Type",
         bin_type: "Bin Type",
         waste_type: "Waste Type",
-        capacity_liters: "Capacity (L)",
+        bin_capacity: "Capacity (L)",
         installed_on: "Installed On",
         expected_life_years: "Expected Life (Years)",
         color_code: "Color Code",
@@ -776,6 +776,14 @@ const enResource = {
           "city": "City",
           "zone": "Zone",
           "ward": "Ward",
+          "collection_point": "Collection Point",
+
+
+          "panchayat": "Panchayat",
+          "area_type": "Area Type",
+          "hierarchy": "Hierarchy",
+
+          
           "wastetype": "Waste Type",
           "property": "Property",
           "sub_property": "SubProperty",
@@ -828,6 +836,8 @@ const enResource = {
           "vehicle_history": "Vehicle History",
           "waste_management": "Waste Management",
           "collection_monitoring": "Collection Monitoring",
+          "panchayat_base_collection": "Panchayat Base Collection",
+          "ward_base_collection": "Ward Base Collection",
           "workforce_management": "Workforce Management",
           "reports": "Reports",
           "trip_summary": "Trip Summary",
@@ -836,6 +846,7 @@ const enResource = {
         },
         "project": {
           "company_id": "Company ID",
+          "company_name": "Company Name",
           "filtered_company": "Filtered by Company: {{id}}",
           "admin_help_text": "Optional: provide project admin details only when creating the first project for a company.",
           "admin_employee_name": "Admin Employee Name",

@@ -14,7 +14,7 @@ import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
 import { PencilIcon, TrashBinIcon } from "@/icons";
-import { encryptSegment } from "@/utils/routeCrypto";
+import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { cityApi } from "@/helpers/admin";
 
@@ -67,8 +67,7 @@ export default function CityList() {
 
   const navigate = useNavigate();
 
-  const encMasters = encryptSegment("masters");
-  const encCities = encryptSegment("cities");
+  const { encMasters, encCities } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encCities}/new`;
   const ENC_EDIT_PATH = (id: string) =>

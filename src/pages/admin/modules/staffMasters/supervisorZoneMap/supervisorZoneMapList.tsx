@@ -17,6 +17,7 @@ type SupervisorZoneMapRecord = {
   id: number;
   unique_id: string;
   supervisor_id: string;
+  employee_name?: string;
   district_id?: string | null;
   city_id?: string | null;
   zone_ids?: string[];
@@ -44,7 +45,7 @@ export default function SupervisorZoneMapList() {
   const districtApi = adminApi.districts;
   const cityApi = adminApi.cities;
   const zoneApi = adminApi.zones;
-  const userCreationApi = adminApi.usercreations;
+  const userCreationApi = adminApi.usersCreation;
 
   const [records, setRecords] = useState<SupervisorZoneMapRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,23 +75,31 @@ export default function SupervisorZoneMapList() {
         userCreationApi.list(),
       ]);
 
+
+      console.log("User Response:", userRes)
+
       const users = normalizeList(userRes).filter(
         (u: any) =>
           u?.user_type_name?.toLowerCase() === "staff" &&
           String(u?.staffusertype_name ?? "").trim().toLowerCase() === "supervisor"
       );
+      console.log("Filtered Supervisors:", users);
 
       setRecords(normalizeList(mapRes));
       setDistrictLookup(buildLookup(normalizeList(districtRes), "unique_id", "name"));
       setCityLookup(buildLookup(normalizeList(cityRes), "unique_id", "name"));
-      setZoneLookup(buildLookup(normalizeList(zoneRes), "unique_id", "name"));
-      setSupervisorLookup(buildLookup(users, "unique_id", "staff_name"));
+      setZoneLookup(buildLookup(normalizeList(zoneRes), "unique_id", "zone_name"));
+      setSupervisorLookup(buildLookup(normalizeList(users), "unique_id", "employee_name"));
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
       setLoading(false);
     }
+
+    
   };
+
+  
 
   useEffect(() => {
     fetchRecords();
@@ -185,7 +194,7 @@ export default function SupervisorZoneMapList() {
 
       <DataTable
         value={records}
-        dataKey="id"
+        dataKey="unique_id"
         paginator
         rows={10}
         loading={loading}
