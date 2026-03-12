@@ -4,7 +4,7 @@ import { saveAs } from "file-saver";
 
 import "./monthlydistance.css";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";

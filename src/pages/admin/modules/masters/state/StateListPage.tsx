@@ -2,7 +2,7 @@
 // import { useNavigate } from "react-router-dom";
 // import Swal from "sweetalert2";
 
-// import { DataTable } from "primereact/datatable";
+// import { DataTable } from "@/components/common/SafeDataTable";
 // import { Column } from "primereact/column";
 // import { Button } from "primereact/button";
 // import { InputText } from "primereact/inputtext";
@@ -258,8 +258,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
-import { DataTable } from "primereact/datatable";
-import type { DataTableFilterEvent } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";

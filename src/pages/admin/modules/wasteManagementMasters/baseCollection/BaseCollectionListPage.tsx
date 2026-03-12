@@ -1,7 +1,7 @@
 // import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 // import { adminApi } from "@/helpers/admin/registry";
 
-// import { DataTable } from "primereact/datatable";
+// import { DataTable } from "@/components/common/SafeDataTable";
 // import { Column } from "primereact/column";
 // import { InputText } from "primereact/inputtext";
 // import { Dialog } from "primereact/dialog";
@@ -607,7 +607,7 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { adminApi } from "@/helpers/admin/registry";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Dialog } from "primereact/dialog";
