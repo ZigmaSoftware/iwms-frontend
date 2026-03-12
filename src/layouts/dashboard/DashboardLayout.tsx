@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LogOut, Moon, Sun } from "lucide-react";
+import { Crown, LogOut, Moon, ShieldCheck, Sun } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -16,9 +16,11 @@ import {
   ADMIN_VIEW_MODE_ADMIN,
   USER_ROLE_STORAGE_KEY,
   clearAdminViewPreference,
+  isAdmin,
   normalizeRole,
   setAdminViewPreference,
   type DashboardLayoutProps,
+  type UserRole,
 } from "@/types/roles";
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
@@ -28,19 +30,17 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const { setUser } = useUser();
+  const [role] = useState<UserRole | null>(() => {
+    if (typeof window === "undefined") return null;
+    return normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
+  });
   const [isNavigating, setIsNavigating] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     setIsNavigating(true);
     const timer = window.setTimeout(() => setIsNavigating(false), 450);
     return () => window.clearTimeout(timer);
   }, [location.pathname]);
-
-  useEffect(() => {
-    const role = normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
-    setIsAdmin(role === DEFAULT_ROLE);
-  }, []);
 
   const handleSignOut = () => {
     try {
@@ -53,7 +53,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       setUser(null);
 
       navigate("/auth", { replace: true });
-    } catch (error) {
+    } catch {
       toast({
         title: t("common.logout_failed_title"),
         description: t("common.logout_failed_desc"),
@@ -66,6 +66,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);
     navigate("/admin", { replace: true });
   };
+
+  const canSwitchToAdmin = role === DEFAULT_ROLE || isAdmin(role);
+  const AdminViewIcon = role === "superadmin" ? Crown : ShieldCheck;
 
   return (
     <div className="flex min-h-screen w-full   flex-col bg-gray-50 dark:bg-gray-900">
@@ -99,14 +102,17 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             {/* NAVIGATION */}
             <HorizontalNav />
 
-            {isAdmin && (
+            {canSwitchToAdmin && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleSwitchToAdmin}
-                className="rainbow-border"
+                className="rainbow-border flex h-9 w-9 items-center justify-center p-0"
+                title={t("common.admin_view")}
+                aria-label={t("common.admin_view")}
               >
-                {t("common.admin_view")}
+                <AdminViewIcon className="h-4 w-4" />
+                <span className="sr-only">{t("common.admin_view")}</span>
               </Button>
             )}
 
