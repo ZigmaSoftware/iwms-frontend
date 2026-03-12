@@ -26,6 +26,11 @@ export const districtApi = adminApi.districts;
 export const cityApi = adminApi.cities;
 export const zoneApi = adminApi.zones;
 export const wardApi = adminApi.wards;
+export const collectionPointApi = adminApi.collectionPoints;
+export const wasteTypeApi = adminApi.wasteTypes;
+export const panchayatApi = adminApi.panchayats;
+export const areaTypeApi = adminApi.areatypes;
+export const hierarchyApi = adminApi.hierarchies;
 
 /* =========================
    WASTE TYPES
@@ -83,6 +88,8 @@ export const loginApi = adminApi.loginUser;
 ========================= */
 export const customerCreationApi = adminApi.customerCreations;
 export const wasteCollectionApi = adminApi.wasteCollections;
+export const panchayatWiseCollectionApi = adminApi.panchayatWiseCollections;
+export const wardWiseCollectionApi = adminApi.wardWiseCollections;
 export const feedbackApi = adminApi.feedbacks;
 
 /* =========================

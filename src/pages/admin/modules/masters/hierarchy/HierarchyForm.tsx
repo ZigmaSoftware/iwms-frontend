@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
-import ComponentCard from "@/components/common/ComponentCard";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -12,22 +12,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useTranslation } from "react-i18next";
-
-import { continentApi } from "@/helpers/admin";
+import ComponentCard from "@/components/common/ComponentCard";
+import { getEncryptedRoute } from "@/utils/routeCache";
+import { hierarchyApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-import { getEncryptedRoute } from "@/utils/routeCache";
+const { encMasters, encHierarchies } = getEncryptedRoute();
+const ENC_LIST_PATH = `/${encMasters}/${encHierarchies}`;
 
+type ApiError = {
+  response?: {
+    data?: {
+      detail?: string;
+    };
+  };
+};
 
-const { encMasters, encContinents } = getEncryptedRoute();
-
-const ENC_LIST_PATH = `/${encMasters}/${encContinents}`;
-
-function ContinentForm() {
+export default function HierarchyForm() {
   const { t } = useTranslation();
   const [name, setName] = useState("");
-  const [isActive, setIsActive] = useState(true); // default active on create
+  const [isActive, setIsActive] = useState(true);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { id } = useParams();
@@ -44,42 +48,50 @@ function ContinentForm() {
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit });
 
-  // Fetch existing data if editing
   useEffect(() => {
-    if (isEdit) {
-      continentApi
-        .get(id as string)
-        .then((record) => {
-          setName(String(record.name ?? ""));
-          setIsActive(Boolean(record.is_active));
-          applyCompanyProjectFromRecord(
-            record as unknown as Record<string, unknown>
-          );
-        })
-        .catch((err) => {
-          console.error("Error fetching continent:", err);
-          Swal.fire({
-            icon: "error",
-            title: t("common.error"),
-            text: err.response?.data?.detail || t("common.load_failed"),
-          });
+    if (!isEdit) return;
+
+    hierarchyApi
+      .get(id as string)
+      .then((res: unknown) => {
+        const record = (res ?? {}) as {
+          level_name?: string;
+          is_active?: boolean;
+          company_unique_id?: string | number | null;
+          company_id?: string | number | null;
+          company?: { unique_id?: string | number | null };
+          project_id?: string | number | null;
+          project_unique_id?: string | number | null;
+          project?: { unique_id?: string | number | null };
+        };
+        setName(record.level_name ?? "");
+        setIsActive(Boolean(record.is_active));
+        applyCompanyProjectFromRecord(
+          record as unknown as Record<string, unknown>
+        );
+      })
+      .catch((err: unknown) => {
+        const message =
+          (err as ApiError)?.response?.data?.detail || t("common.load_failed");
+        console.error("Error fetching hierarchy:", err);
+        Swal.fire({
+          icon: "error",
+          title: t("common.error"),
+          text: message,
         });
-    }
+      });
   }, [applyCompanyProjectFromRecord, id, isEdit, t]);
 
-  // Handle save
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 🔹 Basic validation BEFORE enabling loading or API call
-    if (!name) {
+    if (!name.trim()) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
         text: t("common.missing_fields"),
-        confirmButtonColor: "#3085d6",
       });
-      return; // Stop here if validation fails
+      return;
     }
 
     if (!companyUniqueId) {
@@ -99,17 +111,15 @@ function ContinentForm() {
     }
 
     setLoading(true);
-
     try {
-      const payload = {
-        name,
+      const basePayload = {
+        level_name: name.trim(),
         is_active: isActive,
-        company_unique_id: companyUniqueId,
+        company_id: companyUniqueId,
         project_id: projectId,
       };
-
       if (isEdit) {
-        await continentApi.update(id as string, payload);
+        await hierarchyApi.update(id as string, basePayload);
         Swal.fire({
           icon: "success",
           title: t("common.updated_success"),
@@ -117,7 +127,7 @@ function ContinentForm() {
           showConfirmButton: false,
         });
       } else {
-        await continentApi.create(payload);
+        await hierarchyApi.create(basePayload);
         Swal.fire({
           icon: "success",
           title: t("common.added_success"),
@@ -125,22 +135,12 @@ function ContinentForm() {
           showConfirmButton: false,
         });
       }
-
       navigate(ENC_LIST_PATH);
     } catch (error: unknown) {
-      console.error("Failed to save:", error);
-
-      const data = (error as { response?: { data?: unknown } }).response?.data;
-      let message = t("common.save_failed_desc");
-
-      if (typeof data === "object" && data !== null) {
-        message = Object.entries(data)
-          .map(([key, val]) => `${key}: ${(val as string[]).join(", ")}`)
-          .join("\n");
-      } else if (typeof data === "string") {
-        message = data;
-      }
-
+      const message =
+        (error as ApiError)?.response?.data?.detail ||
+        t("common.save_failed_desc");
+      console.error("Failed to save hierarchy:", error);
       Swal.fire({
         icon: "error",
         title: t("common.save_failed"),
@@ -155,13 +155,12 @@ function ContinentForm() {
     <ComponentCard
       title={
         isEdit
-          ? t("common.edit_item", { item: t("admin.nav.continent") })
-          : t("common.add_item", { item: t("admin.nav.continent") })
+          ? t("common.edit_item", { item: t("admin.nav.hierarchy") })
+          : t("common.add_item", { item: t("admin.nav.hierarchy") })
       }
     >
-      <form onSubmit={handleSubmit} noValidate>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* <div>
+      <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6">
+          <div>
             <Label>Company *</Label>
             <Select
               value={companyUniqueId}
@@ -225,37 +224,34 @@ function ContinentForm() {
                 No projects found for this company.
               </p>
             )}
-          </div> */}
+          </div>
 
-          {/* Continent Name */}
           <div>
-            <Label htmlFor="continentName">
-              {t("common.item_name", { item: t("admin.nav.continent") })}{" "}
+            <Label htmlFor="name">
+              {t("common.item_name", { item: t("admin.nav.hierarchy") })}{" "}
               <span className="text-red-500">*</span>
             </Label>
             <Input
-              id="continentName"
+              id="name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t("common.enter_item_name", {
-                item: t("admin.nav.continent"),
+                item: t("admin.nav.hierarchy"),
               })}
-              className="input-validate w-full"
               required
             />
           </div>
 
-          {/* Active Status */}
           <div>
             <Label htmlFor="isActive">
               {t("common.status")} <span className="text-red-500">*</span>
             </Label>
             <Select
               value={isActive ? "true" : "false"}
-              onValueChange={(val) => setIsActive(val === "true")}
+              onValueChange={(value) => setIsActive(value === "true")}
             >
-              <SelectTrigger className="input-validate w-full" id="isActive">
+              <SelectTrigger id="isActive">
                 <SelectValue placeholder={t("common.select_status")} />
               </SelectTrigger>
               <SelectContent>
@@ -264,11 +260,11 @@ function ContinentForm() {
               </SelectContent>
             </Select>
           </div>
-        </div>
-
-        {/* Buttons */}
-        <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={loading}>
+        <div className="md:col-span-2 flex justify-end gap-3">
+          <Button
+            type="submit"
+            disabled={loading}
+          >
             {loading
               ? isEdit
                 ? t("common.updating")
@@ -277,7 +273,11 @@ function ContinentForm() {
                 ? t("common.update")
                 : t("common.save")}
           </Button>
-          <Button type="button" variant="destructive" onClick={() => navigate(ENC_LIST_PATH)}>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => navigate(ENC_LIST_PATH)}
+          >
             {t("common.cancel")}
           </Button>
         </div>
@@ -285,5 +285,3 @@ function ContinentForm() {
     </ComponentCard>
   );
 }
-
-export default ContinentForm;

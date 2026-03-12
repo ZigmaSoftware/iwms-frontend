@@ -12,14 +12,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { encryptSegment } from "@/utils/routeCrypto";
+import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 
 import { continentApi, countryApi } from "@/helpers/admin";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 
-const encMasters = encryptSegment("masters");
-const encCountries = encryptSegment("countries");
+const { encMasters, encCountries } = getEncryptedRoute();
 
 const ENC_LIST_PATH = `/${encMasters}/${encCountries}`;
 
@@ -70,6 +70,17 @@ function CountryForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    loggedInCompanyUniqueId,
+    setProjectId,
+    onCompanyChange,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({ isEdit });
 
   const extractErrorMessage = (error: unknown) => {
     if (!error) return t("common.request_failed");
@@ -147,6 +158,7 @@ function CountryForm() {
           data.continent_id ?? data.continent
         );
         setContinentId(resolvedContinentId ?? "");
+        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
       } catch (error) {
         console.error("Error fetching country:", error);
         Swal.fire({
@@ -158,7 +170,7 @@ function CountryForm() {
     };
 
     void fetchCountry();
-  }, [id, isEdit]);
+  }, [applyCompanyProjectFromRecord, id, isEdit]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -172,6 +184,23 @@ function CountryForm() {
       });
       return;
     }
+
+    if (!companyUniqueId) {
+      Swal.fire(
+        "Error",
+        !loggedInCompanyUniqueId && !isSuperAdmin
+          ? "Company is not mapped to this login. Only super admin can choose a company."
+          : "Company is required",
+        "error"
+      );
+      return;
+    }
+
+    if (!projectId) {
+      Swal.fire("Error", "Project is required", "error");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -181,6 +210,8 @@ function CountryForm() {
         is_active: isActive,
         mob_code: mobCode.trim(),
         currency: currency.trim(),
+        company_unique_id: companyUniqueId,
+        project_id: projectId,
       };
 
       if (isEdit && id) {
@@ -224,6 +255,72 @@ function CountryForm() {
     >
       <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* <div>
+            <Label>Company *</Label>
+            <Select
+              value={companyUniqueId}
+              onValueChange={onCompanyChange}
+              disabled={
+                Boolean(loggedInCompanyUniqueId) ||
+                (!isSuperAdmin && !loggedInCompanyUniqueId) ||
+                companies.length === 0
+              }
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={
+                    loggedInCompanyUniqueId
+                      ? "Company from logged-in profile"
+                      : isSuperAdmin
+                        ? "Select Company"
+                        : "Only super admin can select company"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((company) => (
+                  <SelectItem key={company.value} value={company.value}>
+                    {company.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!loggedInCompanyUniqueId && !isSuperAdmin && (
+              <p className="mt-1 text-xs text-red-500">
+                Company is not mapped to this login. Only super admin can view
+                all companies.
+              </p>
+            )}
+            {isSuperAdmin && !loggedInCompanyUniqueId && companies.length === 0 && (
+              <p className="mt-1 text-xs text-red-500">No companies found.</p>
+            )}
+          </div>
+
+          <div>
+            <Label>Project *</Label>
+            <Select
+              value={projectId}
+              onValueChange={setProjectId}
+              disabled={!companyUniqueId || projects.length === 0}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select Project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.value} value={project.value}>
+                    {project.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {companyUniqueId && projects.length === 0 && (
+              <p className="mt-1 text-xs text-red-500">
+                No projects found for this company.
+              </p>
+            )}
+          </div> */}
+
           {/* Continent Dropdown */}
           <div>
             <Label htmlFor="continent">

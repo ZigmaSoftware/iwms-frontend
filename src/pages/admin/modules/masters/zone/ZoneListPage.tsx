@@ -14,7 +14,7 @@ import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
 import { PencilIcon, TrashBinIcon } from "@/icons";
-import { encryptSegment } from "@/utils/routeCrypto";
+import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { zoneApi } from "@/helpers/admin";
 
@@ -23,7 +23,7 @@ import { zoneApi } from "@/helpers/admin";
 // ===========================
 type ZoneRecord = {
   unique_id: string;
-  name: string;
+  zone_name: string;
   city_name: string;
   district_name: string;
   state_name: string;
@@ -73,8 +73,7 @@ export default function ZoneList() {
 
   const navigate = useNavigate();
 
-  const encMasters = encryptSegment("masters");
-  const encZones = encryptSegment("zones");
+  const { encMasters, encZones } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encZones}/new`;
   const ENC_EDIT_PATH = (id: string) =>
@@ -258,10 +257,10 @@ export default function ZoneList() {
           />
 
           <Column
-            field="name"
+            field="zone_name"
             header={t("admin.nav.zone")}
             sortable
-            body={(row) => cap(row.name)}
+            body={(row) => cap(row.zone_name)}
           />
 
           <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />

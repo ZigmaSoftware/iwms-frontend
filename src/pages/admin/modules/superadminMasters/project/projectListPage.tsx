@@ -227,8 +227,8 @@ export default function ProjectListPage() {
         />
 
         <Column
-          field="company_unique_id"
-          header={t("admin.project.company_id")}
+          field="company_name"
+          header={t("admin.project.company_name")}
           sortable
           style={{ minWidth: "220px" }}
         />
