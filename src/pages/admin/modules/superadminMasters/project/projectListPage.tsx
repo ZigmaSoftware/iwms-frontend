@@ -19,6 +19,7 @@ import { PencilIcon } from "@/icons";
 type Project = {
   unique_id: string;
   company_unique_id: string;
+  company_name: string;
   name: string;
   description: string | null;
   is_active: boolean;
@@ -174,8 +175,8 @@ export default function ProjectListPage() {
         />
 
         <Column
-          field="company_unique_id"
-          header={t("admin.project.company_id")}
+          field="company_name"
+          header={t("admin.project.company_name")}
           sortable
           style={{ minWidth: "220px" }}
         />

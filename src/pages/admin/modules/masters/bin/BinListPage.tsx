@@ -4,7 +4,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import ReactDOM from "react-dom/client";
 import QRCode from "react-qr-code";
@@ -24,15 +24,33 @@ import { PencilIcon } from "@/icons";
 type Bin = {
   unique_id: string;
   bin_name: string;
-  capacity_liters: number;
+  bin_capacity: number;
+  panchayat_name?: string;
+  panchayat?: string;
   ward_name: string;
   ward?: string;
   bin_type?: string;
+  waste_type_name?: string;
+  wastetype_name?: string;
   waste_type?: string;
   bin_status?: string;
   latitude?: number | string;
   longitude?: number | string;
   is_active: boolean;
+};
+
+type QrPayload = {
+  id: string;
+  name: string;
+  ward: string;
+  bin_capacity: number;
+  bin_type?: string;
+  waste_type?: string;
+  bin_status?: string;
+  is_active: boolean;
+  status: "active" | "inactive";
+  latitude?: number | string;
+  longitude?: number | string;
 };
 
 type TableFilters = {
@@ -63,8 +81,6 @@ export default function BinList() {
   });
 
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
-  const isEdit = Boolean(id);
 
   /* ================= DATA FETCH ================= */
 
@@ -78,7 +94,7 @@ export default function BinList() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchBins();
@@ -104,7 +120,7 @@ export default function BinList() {
       try {
         await binApi.update(row.unique_id, {
           bin_name: row.bin_name,
-          capacity_liters: row.capacity_liters,
+          bin_capacity: row.bin_capacity,
           is_active: checked,
         });
         fetchBins();
@@ -135,7 +151,7 @@ export default function BinList() {
     </div>
   );
 
-  const indexTemplate = (_: any, options: any) =>
+  const indexTemplate = (_: Bin, options: { rowIndex: number }) =>
     options.rowIndex + 1;
 
   /* ================= HEADER SEARCH ================= */
@@ -156,13 +172,13 @@ export default function BinList() {
     </div>
   );
 
-  const buildBinQrPayload = (bin: Bin) => ({
+  const buildBinQrPayload = (bin: Bin): QrPayload => ({
     id: bin.unique_id,
     name: bin.bin_name,
     ward: bin.ward_name || bin.ward || "",
-    capacity_liters: bin.capacity_liters,
+    bin_capacity: bin.bin_capacity,
     bin_type: bin.bin_type,
-    waste_type: bin.waste_type,
+    waste_type: bin.waste_type_name ?? bin.wastetype_name ?? bin.waste_type,
     bin_status: bin.bin_status,
     is_active: bin.is_active,
     status: bin.is_active ? "active" : "inactive",
@@ -170,7 +186,7 @@ export default function BinList() {
     longitude: bin.longitude,
   });
 
-  const openQrPopup = (payload: any) => {
+  const openQrPopup = (payload: QrPayload) => {
     Swal.fire({
       title: t("admin.bin.qr_title"),
       html: `<div id="bin-qr-holder" class="flex justify-center"></div>`,
@@ -199,6 +215,12 @@ export default function BinList() {
   };
 
   /* ================= RENDER ================= */
+
+  const wasteTypeTemplate = (row: Bin) =>
+    row.waste_type_name ?? row.wastetype_name ?? row.waste_type ?? "-";
+
+  const cap = (str?: string) =>
+    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
   return (
     <div className="p-3">
@@ -229,7 +251,15 @@ export default function BinList() {
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
         filters={filters}
-        globalFilterFields={["bin_name"]}
+        globalFilterFields={[
+          "bin_name",
+          "panchayat_name",
+          "panchayat",
+          "ward_name",
+          "waste_type_name",
+          "wastetype_name",
+          "waste_type",
+        ]}
         header={header}
         stripedRows
         showGridlines
@@ -246,34 +276,56 @@ export default function BinList() {
           field="bin_name"
           header={t("common.item_name", { item: t("admin.nav.bin_master") })}
           sortable
+          body={(row: Bin) => cap(row.bin_name)}
           style={{ minWidth: "200px" }}
         />
 
         <Column
-          field="capacity_liters"
-          header={t("common.capacity_liters")}
+          field="bin_capacity"
+          header={t("common.bin_capacity")}
           sortable
           style={{ minWidth: "150px" }}
         />
         <Column
           field="ward_name"
           header={t("admin.nav.ward")}
-          body={(row: Bin) => row.ward_name || row.ward || "-"}
+          body={(row: Bin) => cap(row.ward_name || row.ward || "-")}
           sortable
           style={{ minWidth: "120px" }}
         />
-
-        <Column header={t("admin.bin.qr_label")} body={qrTemplate} style={{ width: "100px" }} />
+        <Column
+          field="panchayat_name"
+          header={t("admin.nav.panchayat")}
+          body={(row: Bin) => cap(row.panchayat_name || row.panchayat || "-")}
+          sortable
+          style={{ minWidth: "140px" }}
+        />
+        <Column
+          field="waste_type_name"
+          header={t("common.waste_type")}
+          body= {(row: Bin) => cap(wasteTypeTemplate(row))}
+          sortable
+          style={{ minWidth: "160px" }}
+        />
 
         <Column
+          field="qr_code"
+          header={t("admin.bin.qr_label")}
+          body={(row: Bin) => qrTemplate(row)}
+          style={{ width: "100px", textAlign: "center" }}
+        />
+
+        <Column
+          field="is_active"
           header={t("common.status")}
-          body={statusBodyTemplate}
+          body={(row: Bin) => statusBodyTemplate(row)}
           style={{ width: "150px", textAlign: "center" }}
         />
 
         <Column
+          field="actions"
           header={t("common.actions")}
-          body={actionBodyTemplate}
+          body={(row: Bin) => actionBodyTemplate(row)}
           style={{ width: "150px", textAlign: "center" }}
         />
       </DataTable>

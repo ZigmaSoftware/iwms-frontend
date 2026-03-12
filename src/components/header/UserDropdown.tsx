@@ -37,6 +37,11 @@ export default function UserDropdown() {
     localStorage.removeItem("unique_id");
     localStorage.removeItem("user_name");
     localStorage.removeItem("user_email");
+    localStorage.removeItem("profile");
+    localStorage.removeItem("project_id");
+    localStorage.removeItem("project_unique_id");
+    localStorage.removeItem("current_project_id");
+    localStorage.removeItem("selected_project_id");
     clearAdminViewPreference();
     setUser(null);
     navigate("/auth", { replace: true });
@@ -138,3 +143,5 @@ export default function UserDropdown() {
     </div>
   );
 }
+
+
