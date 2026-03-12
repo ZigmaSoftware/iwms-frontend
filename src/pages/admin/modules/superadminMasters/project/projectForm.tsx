@@ -29,6 +29,7 @@ type ProjectRecord = {
   company_unique_id: string;
   name: string;
   description: string | null;
+  is_active: boolean;
 };
 
 type ProjectCreateResponse = {
@@ -37,6 +38,16 @@ type ProjectCreateResponse = {
     unique_id: string;
     username: string;
   };
+};
+
+const normalizeIsActive = (value: unknown): boolean => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "true" || normalized === "1" || normalized === "yes";
+  }
+  return true;
 };
 
 const encSuperAdminMasters = encryptSegment("superadmin-masters");
@@ -78,6 +89,7 @@ export default function ProjectForm() {
   const [companyUniqueId, setCompanyUniqueId] = useState(companyUniqueIdFromQuery ?? "");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [isActive, setIsActive] = useState(true);
   const [adminUsername, setAdminUsername] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminEmployeeName, setAdminEmployeeName] = useState("");
@@ -110,10 +122,20 @@ export default function ProjectForm() {
 
     projectApi
       .get(id as string)
-      .then((record: ProjectRecord) => {
+      .then((response: ProjectRecord | { project?: ProjectRecord }) => {
+        let record: ProjectRecord | undefined;
+        if (response && typeof response === "object" && "project" in response) {
+          record = response.project;
+        } else {
+          record = response as ProjectRecord;
+        }
+        if (!record) {
+          throw new Error("Project not found in response");
+        }
         setName(record.name ?? "");
         setDescription(record.description ?? "");
         setCompanyUniqueId(record.company_unique_id ?? "");
+        setIsActive(normalizeIsActive(record.is_active));
       })
       .catch((error: unknown) => {
         Swal.fire({
@@ -159,11 +181,13 @@ export default function ProjectForm() {
         await projectApi.update(id as string, {
           name: name.trim(),
           description: description.trim() || null,
+          is_active: isActive,
         });
       } else {
-        const payload: Record<string, string | null> = {
+        const payload: Record<string, string | null | boolean> = {
           name: name.trim(),
           description: description.trim() || null,
+          is_active: isActive,
         };
         if (companyUniqueId.trim()) {
           payload.company_unique_id = companyUniqueId.trim();
@@ -258,6 +282,24 @@ export default function ProjectForm() {
               placeholder={t("common.enter_item_name", { item: t("admin.nav.project") })}
               required
             />
+          </div>
+
+          <div>
+            <Label htmlFor="isActive">
+              {t("common.status")} <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={isActive ? "true" : "false"}
+              onValueChange={(val) => setIsActive(val === "true")}
+            >
+              <SelectTrigger className="input-validate w-full" id="isActive">
+                <SelectValue placeholder={t("common.select_status")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">{t("common.active")}</SelectItem>
+                <SelectItem value="false">{t("common.inactive")}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="md:col-span-2">

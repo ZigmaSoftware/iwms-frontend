@@ -13,13 +13,14 @@ import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
 import { projectApi } from "@/helpers/admin";
+import { Switch } from "@/components/ui/switch";
 import { encryptSegment } from "@/utils/routeCrypto";
 import { PencilIcon } from "@/icons";
 
 type Project = {
   unique_id: string;
   company_unique_id: string;
-  company_name: string;
+  company_name?: string;
   name: string;
   description: string | null;
   is_active: boolean;
@@ -29,6 +30,16 @@ type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
   name: { value: string | null; matchMode: FilterMatchMode };
   company_unique_id: { value: string | null; matchMode: FilterMatchMode };
+};
+
+const normalizeIsActive = (value: unknown): boolean => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "true" || normalized === "1" || normalized === "yes";
+  }
+  return true;
 };
 
 const encSuperAdminMasters = encryptSegment("superadmin-masters");
@@ -56,6 +67,7 @@ export default function ProjectListPage() {
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -69,8 +81,13 @@ export default function ProjectListPage() {
       const data = await projectApi.list({
         params: companyUniqueId ? { company_unique_id: companyUniqueId } : undefined,
       });
-      setProjects(data);
-      console.log("Fetched projects:", data);
+      const normalized = Array.isArray(data)
+        ? data.map((project) => ({
+            ...project,
+            is_active: normalizeIsActive(project?.is_active),
+          }))
+        : [];
+      setProjects(normalized);
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
@@ -100,6 +117,41 @@ export default function ProjectListPage() {
       </button>
     </div>
   );
+
+  const statusBodyTemplate = (row: Project) => {
+    const updateStatus = async (checked: boolean) => {
+      setUpdatingStatusId(row.unique_id);
+      try {
+        await projectApi.update(row.unique_id, { is_active: checked });
+        setProjects((prev) =>
+          prev.map((project) =>
+            project.unique_id === row.unique_id
+              ? { ...project, is_active: checked }
+              : project
+          )
+        );
+      } catch (error: unknown) {
+        const axiosError = error as { response?: { data?: unknown } };
+        const errorData = axiosError.response?.data;
+        const errorMessage =
+          typeof errorData === "string"
+            ? errorData
+            : t("common.update_status_failed");
+        Swal.fire(t("common.error"), errorMessage, "error");
+      } finally {
+        setUpdatingStatusId(null);
+        fetchProjects();
+      }
+    };
+
+    return (
+      <Switch
+        checked={row.is_active}
+        onCheckedChange={updateStatus}
+        disabled={updatingStatusId === row.unique_id}
+      />
+    );
+  };
 
   const indexTemplate = (_: unknown, options: { rowIndex: number }) => options.rowIndex + 1;
 
@@ -186,6 +238,12 @@ export default function ProjectListPage() {
           header={t("common.description")}
           body={descriptionTemplate}
           style={{ minWidth: "240px" }}
+        />
+
+        <Column
+          header={t("common.status")}
+          body={statusBodyTemplate}
+          style={{ width: "140px", textAlign: "center" }}
         />
 
         <Column

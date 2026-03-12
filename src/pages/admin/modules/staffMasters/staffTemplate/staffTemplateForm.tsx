@@ -9,7 +9,7 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { staffTemplateApi, userCreationApi } from "@/helpers/admin";
+import { staffCreationApi, staffTemplateApi } from "@/helpers/admin";
 
 /* ================= TYPES ================= */
 
@@ -101,7 +101,7 @@ export default function StaffTemplateForm() {
   /* ================= LOAD STAFF OPTIONS ================= */
 
   useEffect(() => {
-    userCreationApi
+    staffCreationApi
       .list({ params: { active_status: 1 } })
       .then((res: any) => {
         const data = Array.isArray(res) ? res : res?.data ?? [];
