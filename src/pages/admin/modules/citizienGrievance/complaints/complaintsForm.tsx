@@ -55,6 +55,9 @@ const resolveMainCategoryLabel = (m: any) =>
   m?.name ??
   "";
 
+const resolveCustomerId = (c: any) =>
+  String(c?.id ?? c?.unique_id ?? "");
+
 /* ================= COMPONENT ================= */
 
 export default function ComplaintAddForm() {
@@ -118,7 +121,7 @@ export default function ComplaintAddForm() {
   };
 
   const onCustomerChange = (id: string) => {
-    const c = customers.find((x) => String(x.id) === id);
+    const c = customers.find((x) => resolveCustomerId(x) === id);
     setCustomer(c);
 
     setContact(c?.contact_no ?? "");
@@ -132,7 +135,8 @@ export default function ComplaintAddForm() {
     setWard("");
     setWards([]);
 
-    if (c) loadZones(c.id);
+    const customerId = resolveCustomerId(c);
+    if (customerId) loadZones(customerId);
   };
 
   /* ---------------- MAIN → SUB CATEGORY (FIXED) ---------------- */
@@ -212,9 +216,11 @@ export default function ComplaintAddForm() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
+    const customerId = resolveCustomerId(customer);
 
     if (
       !customer ||
+      !customerId ||
       !zone ||
       !ward ||
       !mainCategoryId ||
@@ -237,7 +243,7 @@ export default function ComplaintAddForm() {
       subCategories.find((s) => resolveValue(s) === subCategoryId)?.name || "";
 
     const fd = new FormData();
-    fd.append("customer", String(customer.id));
+    fd.append("customer", customerId);
     fd.append("zone", zone);
     fd.append("ward", ward);
     fd.append("contact_no", contact);
@@ -277,17 +283,19 @@ export default function ComplaintAddForm() {
 
           <div>
             <Label>{t("admin.citizen_grievance.complaints_form.customer")} *</Label>
-            <Select value={customer ? String(customer.id) : undefined}
+            <Select value={customer ? resolveCustomerId(customer) : undefined}
               onValueChange={onCustomerChange}>
               <SelectTrigger>
                 <SelectValue placeholder={t("admin.citizen_grievance.complaints_form.customer_placeholder")} />
               </SelectTrigger>
               <SelectContent>
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.customer_name}
-                  </SelectItem>
-                ))}
+                {customers
+                  .filter((c) => resolveCustomerId(c))
+                  .map((c) => (
+                    <SelectItem key={resolveCustomerId(c)} value={resolveCustomerId(c)}>
+                      {c.customer_name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
