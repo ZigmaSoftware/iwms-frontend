@@ -33,7 +33,7 @@ export default function RoutePlanForm() {
   const cityApi = adminApi.cities;
   const zoneApi = adminApi.zones;
   const vehicleApi = adminApi.vehicleCreations;
-  const userApi = adminApi.usercreations;
+  const userApi = adminApi.usersCreation;
 
   const [districts, setDistricts] = useState<SelectOption[]>([]);
   const [cities, setCities] = useState<SelectOption[]>([]);
