@@ -4,7 +4,7 @@ import { staffCreationApi } from "@/helpers/admin";
 import Swal from "sweetalert2";
 import ReactDOM from "react-dom/client";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";

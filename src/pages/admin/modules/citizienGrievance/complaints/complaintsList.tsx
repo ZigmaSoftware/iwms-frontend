@@ -5,7 +5,7 @@ import { api } from "@/api";
 import { PencilIcon } from "@/icons";
 import { FilterMatchMode } from "primereact/api";
 import { Column } from "primereact/column";
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
 import { InputText } from "primereact/inputtext";
 
 const pdfImg = "/images/pdfimage/download.png";

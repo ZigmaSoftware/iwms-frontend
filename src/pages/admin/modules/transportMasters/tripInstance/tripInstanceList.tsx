@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";

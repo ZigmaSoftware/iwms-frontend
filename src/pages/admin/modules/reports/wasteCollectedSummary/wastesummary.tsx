@@ -10,7 +10,7 @@ import {
   normalizeCustomerArray,
 } from "@/utils/customerUtils";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";

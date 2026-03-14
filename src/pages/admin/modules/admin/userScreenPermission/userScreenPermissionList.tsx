@@ -347,7 +347,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "sweetalert2";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
