@@ -47,7 +47,7 @@ export default function TripInstanceList() {
 
   const tripInstanceApi = adminApi.tripInstances;
   const tripDefinitionApi = adminApi.tripDefinitions;
-  const staffTemplateApi = adminApi.staffTemplate;
+  const staffTemplateApi = adminApi.staffTemplateCreation;
   const altStaffTemplateApi = adminApi.alternativeStaffTemplate;
   const zoneApi = adminApi.zones;
   const vehicleApi = adminApi.vehicleCreations;
