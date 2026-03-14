@@ -48,7 +48,7 @@ export default function TripAttendanceList() {
 
   const tripAttendanceApi = adminApi.tripAttendances;
   const tripInstanceApi = adminApi.tripInstances;
-  const userApi = adminApi.usercreations;
+  const userApi = adminApi.usersCreation;
   const vehicleApi = adminApi.vehicleCreations;
 
   const [records, setRecords] = useState<TripAttendanceRecord[]>([]);
