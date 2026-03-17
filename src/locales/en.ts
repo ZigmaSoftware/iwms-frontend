@@ -513,7 +513,7 @@ const enResource = {
           "subtitle": "Real-time weight tracking and discrepancy monitoring",
           "refresh": "Refresh",
           "stats": {
-            "total_entries": "Total Entries Today",
+            "total_entries": "Total Entries",
             "within_tolerance": "Within Tolerance",
             "minor_deviations": "Minor Deviations",
             "critical_mismatch": "Critical Mismatch"
