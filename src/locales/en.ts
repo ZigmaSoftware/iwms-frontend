@@ -1301,7 +1301,15 @@ const enResource = {
           "save_success_update": "Staff updated",
           "save_success_desc": "Details saved successfully.",
           "section_official": "Office Details",
-          "section_personal": "Personal Details"
+          "section_personal": "Personal Details",
+          "staff_user_type": "Staff User Type",
+          "staff_user_type_placeholder": "Select staff user type",
+          "driving_licence_no": "Driving Licence Number",
+          "driving_licence_upload": "Driving Licence Upload",
+          "driving_licence_choose": "Choose file",
+          "driving_licence_no_file": "No file selected",
+          "password": "Password",
+          "password_placeholder": "Enter password"
         },
         "dashboard_home": {
           "title": "Operations Overview",
