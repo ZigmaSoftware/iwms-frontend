@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 import { encryptSegment } from "@/utils/routeCrypto";
 
@@ -29,21 +30,44 @@ const ENC_LIST_PATH = `/${encAdmins}/${encMainScreenType}`;
 ------------------------------ */
 import { mainScreenTypeApi } from "@/helpers/admin";
 
+const firstErrorMessage = (value: unknown): string | undefined => {
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    return value[0];
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return undefined;
+};
+
 /* ==========================================================
     COMPONENT START
 ========================================================== */
 export default function MainScreenTypeForm() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEdit = Boolean(id);
+
   /* FORM FIELDS */
+  const {
+    companyUniqueId,
+    projectId,
+    companies,
+    projects,
+    isSuperAdmin,
+    loggedInCompanyUniqueId,
+    setProjectId,
+    onCompanyChange,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({ isEdit });
   const [typeName, setTypeName] = useState("");
   const [isActive, setIsActive] = useState(true);
 
   /* STATES */
   const [loading, setLoading] = useState(false);
-
-  const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
-  const isEdit = Boolean(id);
 
   /* ==========================================================
       EDIT MODE — LOAD RECORD
@@ -55,13 +79,14 @@ export default function MainScreenTypeForm() {
       try {
         const data = await mainScreenTypeApi.get(id);
 
+        applyCompanyProjectFromRecord(data as Record<string, unknown>);
         setTypeName(data.type_name ?? "");
         setIsActive(Boolean(data.is_active));
-      } catch (err: any) {
+      } catch {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       }
     })();
-  }, [id, isEdit]);
+  }, [id, isEdit, applyCompanyProjectFromRecord, t]);
 
   /* ==========================================================
       SUBMIT HANDLER
@@ -69,7 +94,7 @@ export default function MainScreenTypeForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!typeName.trim()) {
+    if (!companyUniqueId || !projectId || !typeName.trim()) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
@@ -78,6 +103,8 @@ export default function MainScreenTypeForm() {
 
     try {
       const payload = {
+        company_id: companyUniqueId,
+        project_id: projectId,
         type_name: typeName.trim(),
         is_active: isActive,
       };
@@ -91,10 +118,16 @@ export default function MainScreenTypeForm() {
       }
 
       navigate(ENC_LIST_PATH);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorData =
+        (err as { response?: { data?: Record<string, unknown> } })?.response
+          ?.data ?? {};
+
       const message =
-        err?.response?.data?.type_name?.[0] ||
-        err?.response?.data?.detail ||
+        firstErrorMessage(errorData.company_id) ||
+        firstErrorMessage(errorData.project_id) ||
+        firstErrorMessage(errorData.type_name) ||
+        firstErrorMessage(errorData.detail) ||
         t("common.save_failed_desc");
 
       Swal.fire(t("common.save_failed"), message, "error");
@@ -116,6 +149,60 @@ export default function MainScreenTypeForm() {
     >
       <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Company */}
+          <div>
+            <Label>{t("admin.nav.company")} *</Label>
+            <Select
+              value={companyUniqueId}
+              onValueChange={onCompanyChange}
+              disabled={
+                Boolean(loggedInCompanyUniqueId) ||
+                (!isSuperAdmin && !loggedInCompanyUniqueId) ||
+                companies.length === 0
+              }
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue
+                  placeholder={t("common.select_item_placeholder", {
+                    item: t("admin.nav.company"),
+                  })}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((company) => (
+                  <SelectItem key={company.value} value={company.value}>
+                    {company.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Project */}
+          <div>
+            <Label>{t("admin.nav.project")} *</Label>
+            <Select
+              value={projectId}
+              onValueChange={setProjectId}
+              disabled={!companyUniqueId || projects.length === 0}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue
+                  placeholder={t("common.select_item_placeholder", {
+                    item: t("admin.nav.project"),
+                  })}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.value} value={project.value}>
+                    {project.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Type Name */}
           <div>
             <Label>

@@ -82,21 +82,21 @@ function ContinentForm() {
       return; // Stop here if validation fails
     }
 
-    if (!companyUniqueId) {
-      Swal.fire(
-        "Error",
-        !loggedInCompanyUniqueId && !isSuperAdmin
-          ? "Company is not mapped to this login. Only super admin can choose a company."
-          : "Company is required",
-        "error"
-      );
-      return;
-    }
+    // if (!companyUniqueId) {
+    //   Swal.fire(
+    //     "Error",
+    //     !loggedInCompanyUniqueId && !isSuperAdmin
+    //       ? "Company is not mapped to this login. Only super admin can choose a company."
+    //       : "Company is required",
+    //     "error"
+    //   );
+    //   return;
+    // }
 
-    if (!projectId) {
-      Swal.fire("Error", "Project is required", "error");
-      return;
-    }
+    // if (!projectId) {
+    //   Swal.fire("Error", "Project is required", "error");
+    //   return;
+    // }
 
     setLoading(true);
 
@@ -104,8 +104,8 @@ function ContinentForm() {
       const payload = {
         name,
         is_active: isActive,
-        company_unique_id: companyUniqueId,
-        project_id: projectId,
+        // company_unique_id: companyUniqueId,
+        // project_id: projectId,
       };
 
       if (isEdit) {

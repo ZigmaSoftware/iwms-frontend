@@ -112,13 +112,13 @@ export default function CompanyList() {
       >
         <PencilIcon className="size-5" />
       </button>
-      <button
+      {/* <button
         onClick={() => navigate(ENC_PROJECT_LIST_PATH(row.unique_id))}
         className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
         title={t("admin.nav.project")}
       >
         {t("admin.nav.project")}
-      </button>
+      </button> */}
 
       {/* <button
         onClick={() => handleDelete(row.unique_id)}

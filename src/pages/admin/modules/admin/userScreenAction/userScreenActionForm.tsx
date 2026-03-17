@@ -14,12 +14,25 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 import { encryptSegment } from "@/utils/routeCrypto";
 
 import {
   userScreenActionApi
 } from "@/helpers/admin";
+
+const firstErrorMessage = (value: unknown): string | undefined => {
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    return value[0];
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return undefined;
+};
 
 /* ------------------------------
     ROUTES
@@ -42,6 +55,17 @@ export default function UserScreenActionForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
+  const {
+    companyUniqueId,
+    projectId,
+    companies,
+    projects,
+    isSuperAdmin,
+    loggedInCompanyUniqueId,
+    setProjectId,
+    onCompanyChange,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({ isEdit });
 
   /* ==========================================================
       FETCH EDIT DATA
@@ -53,14 +77,15 @@ export default function UserScreenActionForm() {
       try {
         const data = await userScreenActionApi.get(id);
 
+        applyCompanyProjectFromRecord(data as Record<string, unknown>);
         setActionName(data.action_name || "");
         setVariableName(data.variable_name || "");
         setIsActive(Boolean(data.is_active));
-      } catch (err) {
+      } catch {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       }
     })();
-  }, [id, isEdit]);
+  }, [id, isEdit, applyCompanyProjectFromRecord, t]);
 
   /* ==========================================================
       SUBMIT HANDLER
@@ -68,14 +93,16 @@ export default function UserScreenActionForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!actionName.trim() || !variableName.trim()) {
-      Swal.fire(t("common.warning"), t("common.all_fields_required"), "warning");
+    if (!companyUniqueId || !projectId || !actionName.trim() || !variableName.trim()) {
+      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
 
     setLoading(true);
 
     const payload = {
+      company_id: companyUniqueId,
+      project_id: projectId,
       action_name: actionName.trim(),
       variable_name: variableName.trim(),
       is_active: isActive,
@@ -91,21 +118,20 @@ export default function UserScreenActionForm() {
       }
 
       navigate(ENC_LIST_PATH);
-    } catch (err) {
-      const extractError = (error: any): string => {
-        if (error?.response?.data?.action_name) {
-          return error.response.data.action_name[0];
-        }
-        if (error?.response?.data?.variable_name) {
-          return error.response.data.variable_name[0];
-        }
-        if (error?.response?.data?.detail) {
-          return error.response.data.detail;
-        }
-        return t("common.unexpected_error");
-      };
+    } catch (err: unknown) {
+      const errorData =
+        (err as { response?: { data?: Record<string, unknown> } })?.response
+          ?.data ?? {};
 
-      Swal.fire(t("common.save_failed"), extractError(err), "error");
+      const message =
+        firstErrorMessage(errorData.company_id) ||
+        firstErrorMessage(errorData.project_id) ||
+        firstErrorMessage(errorData.action_name) ||
+        firstErrorMessage(errorData.variable_name) ||
+        firstErrorMessage(errorData.detail) ||
+        t("common.unexpected_error");
+
+      Swal.fire(t("common.save_failed"), message, "error");
     } finally {
       setLoading(false);
     }
@@ -125,6 +151,59 @@ export default function UserScreenActionForm() {
       <form onSubmit={handleSubmit} noValidate>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Company */}
+          <div>
+            <Label>{t("admin.nav.company")} *</Label>
+            <Select
+              value={companyUniqueId}
+              onValueChange={onCompanyChange}
+              disabled={
+                Boolean(loggedInCompanyUniqueId) ||
+                (!isSuperAdmin && !loggedInCompanyUniqueId) ||
+                companies.length === 0
+              }
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue
+                  placeholder={t("common.select_item_placeholder", {
+                    item: t("admin.nav.company"),
+                  })}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((company) => (
+                  <SelectItem key={company.value} value={company.value}>
+                    {company.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Project */}
+          <div>
+            <Label>{t("admin.nav.project")} *</Label>
+            <Select
+              value={projectId}
+              onValueChange={setProjectId}
+              disabled={!companyUniqueId || projects.length === 0}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue
+                  placeholder={t("common.select_item_placeholder", {
+                    item: t("admin.nav.project"),
+                  })}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.value} value={project.value}>
+                    {project.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           {/* Action Name */}
           <div>

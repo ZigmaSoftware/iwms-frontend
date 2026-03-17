@@ -18,14 +18,31 @@ type Option = {
   label: string;
 };
 
+type StaffRecord = {
+  unique_id?: string;
+  company_id?: string;
+  project_id?: string;
+  staff_name?: string;
+  employee_name?: string;
+  username?: string;
+  user_type_name?: string;
+  staffusertype_name?: string;
+  designation?: string;
+  is_active?: boolean;
+  is_deleted?: boolean;
+  active_status?: boolean | number | string | null;
+  company_name?: string;
+  project_name?: string;
+};
+
 type StaffTemplateFormData = {
   driver_id: string;
   operator_id: string;
   extra_operator_id: string[];
   status: "ACTIVE" | "INACTIVE";
   approval_status: "PENDING" | "APPROVED" | "REJECTED";
-  created_by: string;
-  updated_by: string;
+  // created_by: string;
+  // updated_by: string;
   approved_by: string;
 };
 
@@ -37,8 +54,8 @@ const initialFormData: StaffTemplateFormData = {
   extra_operator_id: [],
   status: "ACTIVE",
   approval_status: "PENDING",
-  created_by: "",
-  updated_by: "",
+  // created_by: "",
+  // updated_by: "",
   approved_by: "",
 };
 
@@ -57,6 +74,11 @@ export default function StaffTemplateForm() {
   const [operatorOptions, setOperatorOptions] = useState<Option[]>([]);
   const [adminOptions, setAdminOptions] = useState<Option[]>([]);
   const [supervisorOptions, setSupervisorOptions] = useState<Option[]>([]);
+  const [staffRecords, setStaffRecords] = useState<StaffRecord[]>([]);
+  const [companyOptions, setCompanyOptions] = useState<Option[]>([]);
+  const [projectOptions, setProjectOptions] = useState<Option[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState("");
   const [userLookup, setUserLookup] = useState<Record<string, string>>({});
   const [extraOperatorPick, setExtraOperatorPick] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -74,6 +96,102 @@ export default function StaffTemplateForm() {
     { value: "APPROVED", label: t("common.approved") },
     { value: "REJECTED", label: t("common.rejected") },
   ];
+
+  const normalizeRole = (value: unknown) =>
+    String(value ?? "").trim().toLowerCase();
+
+  const normalizeActiveStatus = (
+    value: StaffRecord["active_status"]
+  ): boolean => {
+    if (typeof value === "boolean") return value;
+    const normalized = String(value ?? "").trim().toLowerCase();
+    return normalized === "1" || normalized === "true" || normalized === "active";
+  };
+
+  const getStaffDisplayName = (staff: StaffRecord): string =>
+    String(
+      staff.employee_name ??
+        staff.staff_name ??
+        staff.username ??
+        staff.unique_id ??
+        ""
+    ).trim();
+
+  const toText = (value: unknown): string =>
+    String(value ?? "").trim();
+
+  const getCompanyId = (staff: StaffRecord): string =>
+    toText(staff.company_id) || toText(staff.company_name);
+
+  const getProjectId = (staff: StaffRecord): string =>
+    toText(staff.project_id) || toText(staff.project_name);
+
+  const getCompanyLabel = (staff: StaffRecord): string =>
+    toText(staff.company_name) || getCompanyId(staff);
+
+  const getProjectLabel = (staff: StaffRecord): string =>
+    toText(staff.project_name) || getProjectId(staff);
+
+  const getCompanyProjectLabel = (staff: StaffRecord): string => {
+    const company = String(staff.company_name ?? "").trim();
+    const project = String(staff.project_name ?? "").trim();
+
+    if (company && project) return `${company} / ${project}`;
+    return company || project;
+  };
+
+  const getStaffRole = (staff: StaffRecord): string =>
+    normalizeRole(staff.staffusertype_name ?? staff.designation);
+
+  const isStaffRow = (staff: StaffRecord): boolean => {
+    const userType = normalizeRole(staff.user_type_name);
+    return !userType || userType === "staff";
+  };
+
+  const isActiveStaff = (staff: StaffRecord): boolean => {
+    if (staff.is_deleted === true) return false;
+    if (typeof staff.is_active === "boolean") return staff.is_active;
+    return normalizeActiveStatus(staff.active_status);
+  };
+
+  const toStaffOption = (staff: StaffRecord): Option => {
+    const baseLabel = getStaffDisplayName(staff);
+    const companyProject = getCompanyProjectLabel(staff);
+
+    return {
+      value: String(staff.unique_id ?? ""),
+      label: companyProject ? `${baseLabel} (${companyProject})` : baseLabel,
+    };
+  };
+
+  const buildCompanyOptions = (records: StaffRecord[]): Option[] => {
+    const map = new Map<string, string>();
+    records.forEach((staff) => {
+      const id = getCompanyId(staff);
+      const label = getCompanyLabel(staff);
+      if (!id || !label || map.has(id)) return;
+      map.set(id, label);
+    });
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
+  };
+
+  const buildProjectOptions = (
+    records: StaffRecord[],
+    companyId: string
+  ): Option[] => {
+    const scoped = companyId
+      ? records.filter((staff) => getCompanyId(staff) === companyId)
+      : records;
+
+    const map = new Map<string, string>();
+    scoped.forEach((staff) => {
+      const id = getProjectId(staff);
+      const label = getProjectLabel(staff);
+      if (!id || !label || map.has(id)) return;
+      map.set(id, label);
+    });
+    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
+  };
 
   const extractError = (error: any): string => {
     const data = error?.response?.data;
@@ -104,57 +222,45 @@ export default function StaffTemplateForm() {
     staffCreationApi
       .list({ params: { active_status: 1 } })
       .then((res: any) => {
-        const data = Array.isArray(res) ? res : res?.data ?? [];
+        const data = Array.isArray(res)
+          ? res
+          : Array.isArray(res?.results)
+            ? res.results
+            : Array.isArray(res?.data?.results)
+              ? res.data.results
+              : Array.isArray(res?.data)
+                ? res.data
+                : [];
 
         const staffOnly = data.filter(
-          (u: any) =>
-            u.user_type_name === "Staff" &&
-            u.is_active === true &&
-            u.is_deleted === false &&
-            u.unique_id
+          (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && u.unique_id
         );
         const lookup: Record<string, string> = {};
 
-        staffOnly.forEach((u: any) => {
-          lookup[String(u.unique_id)] = u.staff_name;
+        staffOnly.forEach((u: StaffRecord) => {
+          lookup[String(u.unique_id)] = getStaffDisplayName(u);
         });
 
+        setStaffRecords(staffOnly);
         setUserLookup(lookup);
 
-
-        const normalizeRole = (value: unknown) =>
-          String(value ?? "").trim().toLowerCase();
-
-        const drivers: Option[] = staffOnly
-          .filter((s: any) => normalizeRole(s.staffusertype_name) === "driver")
-          .map((s: any) => ({
-            value: s.unique_id,
-            label: s.staff_name,
-          }));
-
-        const operators: Option[] = staffOnly
-          .filter((s: any) => normalizeRole(s.staffusertype_name) === "operator")
-          .map((s: any) => ({
-            value: s.unique_id,
-            label: s.staff_name,
-          }));
-
         const admins: Option[] = staffOnly
-          .filter((s: any) => normalizeRole(s.staffusertype_name) === "admin")
-          .map((s: any) => ({
-            value: s.unique_id,
-            label: s.staff_name,
-          }));
+          .filter((s: StaffRecord) => getStaffRole(s) === "admin")
+          .map((s: StaffRecord) => toStaffOption(s));
 
         const supervisors: Option[] = staffOnly
-          .filter((s: any) => normalizeRole(s.staffusertype_name) === "supervisor")
-          .map((s: any) => ({
-            value: s.unique_id,
-            label: s.staff_name,
-          }));
+          .filter((s: StaffRecord) => getStaffRole(s) === "supervisor")
+          .map((s: StaffRecord) => toStaffOption(s));
 
-        setDriverOptions(drivers);
-        setOperatorOptions(operators);
+        const companies = buildCompanyOptions(staffOnly);
+        setCompanyOptions(companies);
+        setSelectedCompanyId((prev) => {
+          if (prev && companies.some((option) => option.value === prev)) {
+            return prev;
+          }
+          return companies[0]?.value ?? "";
+        });
+
         setAdminOptions(admins);
         setSupervisorOptions(supervisors);
 
@@ -165,8 +271,8 @@ export default function StaffTemplateForm() {
         );
         setFormData((prev) => ({
           ...prev,
-          created_by: currentUserId,
-          updated_by: isSupervisor ? currentUserId : prev.updated_by,
+          // created_by: currentUserId,
+          // updated_by: isSupervisor ? currentUserId : prev.updated_by,
           approved_by: isAdmin ? currentUserId : prev.approved_by,
         }));
       })
@@ -175,17 +281,44 @@ export default function StaffTemplateForm() {
       });
   }, [t]);
 
+  useEffect(() => {
+    const projects = buildProjectOptions(staffRecords, selectedCompanyId);
+    setProjectOptions(projects);
+    setSelectedProjectId((prev) => {
+      if (prev && projects.some((option) => option.value === prev)) {
+        return prev;
+      }
+      return projects[0]?.value ?? "";
+    });
+  }, [selectedCompanyId, staffRecords]);
+
+  useEffect(() => {
+    const scopedStaff = staffRecords.filter((staff) => {
+      const companyMatch =
+        !selectedCompanyId || getCompanyId(staff) === selectedCompanyId;
+      const projectMatch =
+        !selectedProjectId || getProjectId(staff) === selectedProjectId;
+      return companyMatch && projectMatch;
+    });
+
+    setDriverOptions(
+      scopedStaff
+        .filter((staff) => getStaffRole(staff) === "driver")
+        .map((staff) => toStaffOption(staff))
+    );
+
+    setOperatorOptions(
+      scopedStaff
+        .filter((staff) => getStaffRole(staff) === "operator")
+        .map((staff) => toStaffOption(staff))
+    );
+  }, [selectedCompanyId, selectedProjectId, staffRecords]);
+
   /* ================= LOAD TEMPLATE (EDIT) ================= */
   // ⚠️ Loads ONLY after options exist
 
   useEffect(() => {
-    if (
-      !isEdit ||
-      !id ||
-      driverOptions.length === 0 ||
-      operatorOptions.length === 0
-    )
-      return;
+    if (!isEdit || !id || staffRecords.length === 0) return;
 
     setFetching(true);
 
@@ -208,10 +341,23 @@ export default function StaffTemplateForm() {
           extra_operator_id: extraIds,
           status: tpl.status ?? "ACTIVE",
           approval_status: tpl.approval_status ?? "PENDING",
-          created_by: tpl.created_by ?? "",
-          updated_by: tpl.updated_by ?? "",
+          // created_by: tpl.created_by ?? "",
+          // updated_by: tpl.updated_by ?? "",
           approved_by: tpl.approved_by ?? "",
         });
+
+        const matchedStaff =
+          staffRecords.find(
+            (staff) => String(staff.unique_id) === String(tpl.driver_id ?? "")
+          ) ??
+          staffRecords.find(
+            (staff) => String(staff.unique_id) === String(tpl.operator_id ?? "")
+          );
+
+        if (matchedStaff) {
+          setSelectedCompanyId(getCompanyId(matchedStaff));
+          setSelectedProjectId(getProjectId(matchedStaff));
+        }
       })
       .catch((error) => {
         const message = extractError(error);
@@ -219,7 +365,47 @@ export default function StaffTemplateForm() {
         Swal.fire(t("common.error"), message, "error");
       })
       .finally(() => setFetching(false));
-  }, [id, isEdit, driverOptions.length, operatorOptions.length, t]);
+  }, [id, isEdit, staffRecords, t]);
+
+  useEffect(() => {
+    setFormData((prev) => {
+      let hasChanges = false;
+      const next = { ...prev };
+
+      const isDriverValid = driverOptions.some(
+        (option) => String(option.value) === prev.driver_id
+      );
+      if (prev.driver_id && !isDriverValid) {
+        next.driver_id = "";
+        hasChanges = true;
+      }
+
+      const isOperatorValid = operatorOptions.some(
+        (option) => String(option.value) === prev.operator_id
+      );
+      if (prev.operator_id && !isOperatorValid) {
+        next.operator_id = "";
+        hasChanges = true;
+      }
+
+      const validOperatorIds = new Set(
+        operatorOptions.map((option) => String(option.value))
+      );
+      const filteredExtras = next.extra_operator_id.filter(
+        (value) =>
+          validOperatorIds.has(value) &&
+          value !== next.driver_id &&
+          value !== next.operator_id
+      );
+
+      if (filteredExtras.length !== next.extra_operator_id.length) {
+        next.extra_operator_id = filteredExtras;
+        hasChanges = true;
+      }
+
+      return hasChanges ? next : prev;
+    });
+  }, [driverOptions, operatorOptions]);
 
   useEffect(() => {
     setFormData((prev) => {
@@ -307,9 +493,12 @@ export default function StaffTemplateForm() {
         extra_operator_id: formData.extra_operator_id,
         status: formData.status,
         approval_status: formData.approval_status,
-        created_by: formData.created_by,
-        updated_by: formData.updated_by || formData.created_by,
+        // created_by: formData.created_by,
+        // updated_by: formData.updated_by || formData.created_by,
         approved_by: formData.approved_by || null,
+
+        company_id: selectedCompanyId,
+        project_id: selectedProjectId,
       };
 
       if (isEdit && id) {
@@ -358,6 +547,33 @@ export default function StaffTemplateForm() {
             </div>
           ) : null}
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            {/* COMPANY */}
+            <div>
+              <Label>{t("admin.nav.company")}</Label>
+              <Select
+                value={selectedCompanyId}
+                onChange={(value) => {
+                  setSelectedCompanyId(value);
+                  setSelectedProjectId("");
+                }}
+                options={companyOptions}
+                placeholder={t("common.select_option")}
+                disabled={fetching}
+              />
+            </div>
+
+            {/* PROJECT */}
+            <div>
+              <Label>{t("admin.nav.project")}</Label>
+              <Select
+                value={selectedProjectId}
+                onChange={(value) => setSelectedProjectId(value)}
+                options={projectOptions}
+                placeholder={t("common.select_option")}
+                disabled={fetching || projectOptions.length === 0}
+              />
+            </div>
+
             {/* DRIVER */}
             <div>
               <Label>{t("admin.staff_template.primary_driver")}</Label>
@@ -466,36 +682,12 @@ export default function StaffTemplateForm() {
                 onChange={(v) =>
                   setFormData((p) => ({ ...p, approved_by: v }))
                 }
-                options={adminOptions}
+                options={[...adminOptions,...supervisorOptions]}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
               />
             </div>
 
-            {/* CREATED BY */}
-            <div>
-              <Label>{t("admin.staff_template.created_by")}</Label>
-              <input
-                className="w-full rounded border border-gray-200 bg-gray-100 p-2 text-sm"
-                value={resolveUserName(formData.created_by)}
-                readOnly
-              />
-
-            </div>
-
-            {/* UPDATED BY */}
-            <div>
-              <Label>{t("admin.staff_template.updated_by")}</Label>
-              <Select
-                value={formData.updated_by}
-                onChange={(v) =>
-                  setFormData((p) => ({ ...p, updated_by: v }))
-                }
-                options={supervisorOptions}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-              />
-            </div>
           </div>
 
           {/* ACTIONS */}
