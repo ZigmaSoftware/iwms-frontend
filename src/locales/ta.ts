@@ -1303,7 +1303,15 @@ const taResource = {
           "save_success_update": "பணியாளர் புதுப்பிக்கப்பட்டது",
           "save_success_desc": "விவரங்கள் வெற்றிகரமாக சேமிக்கப்பட்டன.",
           "section_official": "அலுவலக விவரங்கள்",
-          "section_personal": "தனிப்பட்ட விவரங்கள்"
+          "section_personal": "தனிப்பட்ட விவரங்கள்",
+          "staff_user_type": "பணியாளர் பயனர் வகை",
+          "staff_user_type_placeholder": "பணியாளர் பயனர் வகையைத் தேர்ந்தெடுக்கவும்",
+          "driving_licence_no": "ஓட்டுநர் உரிமம் எண்",
+          "driving_licence_upload": "ஓட்டுநர் உரிமம் பதிவேற்றம்",
+          "driving_licence_choose": "கோப்பைத் தேர்ந்தெடுக்கவும்",
+          "driving_licence_no_file": "கோப்பு தேர்ந்தெடுக்கப்படவில்லை",
+          "password": "கடவுச்சொல்",
+          "password_placeholder": "கடவுச்சொல்லை உள்ளிடவும்"
         },
         "dashboard_home": {
           "title": "செயற்பாட்டு மேலோட்டம்",

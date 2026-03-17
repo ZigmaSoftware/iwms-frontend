@@ -105,7 +105,7 @@ export default function StaffTemplateForm() {
       .list({ params: { active_status: 1 } })
       .then((res: any) => {
         const data = Array.isArray(res) ? res : res?.data ?? [];
-
+        console.log("Fetched Staff for Template Form:", data);
         const staffOnly = data.filter(
           (u: any) =>
             u.user_type_name === "Staff" &&

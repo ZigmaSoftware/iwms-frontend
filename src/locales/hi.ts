@@ -1303,7 +1303,15 @@ const hiResource = {
           "save_success_update": "स्टाफ अपडेट किया गया",
           "save_success_desc": "विवरण सफलतापूर्वक सहेजे गए।",
           "section_official": "आधिकारिक विवरण",
-          "section_personal": "व्यक्तिगत विवरण"
+          "section_personal": "व्यक्तिगत विवरण",
+          "staff_user_type": "स्टाफ यूजर टाइप",
+          "staff_user_type_placeholder": "स्टाफ यूजर टाइप चुनें",
+          "driving_licence_no": "ड्राइविंग लाइसेंस नंबर",
+          "driving_licence_upload": "ड्राइविंग लाइसेंस अपलोड",
+          "driving_licence_choose": "फ़ाइल चुनें",
+          "driving_licence_no_file": "कोई फ़ाइल नहीं चुनी गई",
+          "password": "पासवर्ड",
+          "password_placeholder": "पासवर्ड दर्ज करें"
         },
         "dashboard_home": {
           "title": "संचालन अवलोकन",
