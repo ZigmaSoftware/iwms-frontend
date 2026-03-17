@@ -421,6 +421,7 @@ export default function ContinentList() {
         <Column
           field="name"
           header={t("common.item_name", { item: t("admin.nav.continent") })}
+          body={(r) => r.name }
           sortable
           filter
           showFilterMatchModes={false}

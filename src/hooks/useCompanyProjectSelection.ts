@@ -68,6 +68,8 @@ export const useCompanyProjectSelection = ({
   const [projectId, setProjectId] = useState("");
   const [apiCompanies, setApiCompanies] = useState<CompanyProjectOption[]>([]);
   const [projects, setProjects] = useState<CompanyProjectOption[]>([]);
+  const [resolvedLoggedInCompanyLabel, setResolvedLoggedInCompanyLabel] =
+    useState("");
 
   const profile = useMemo(() => readLoginProfile(), []);
   const loggedInCompanyUniqueId = useMemo(() => getCurrentCompanyUniqueId(), []);
@@ -82,7 +84,7 @@ export const useCompanyProjectSelection = ({
     return (roleFromStorage ?? roleFromProfile) === "superadmin";
   }, [profile]);
 
-  const loggedInCompanyLabel = useMemo(() => {
+  const profileCompanyLabel = useMemo(() => {
     const directName =
       typeof profile?.company_name === "string"
         ? profile.company_name.trim()
@@ -92,8 +94,51 @@ export const useCompanyProjectSelection = ({
         ? profile.company.name.trim()
         : "";
 
-    return directName || nestedName || loggedInCompanyUniqueId || "";
-  }, [profile, loggedInCompanyUniqueId]);
+    return directName || nestedName || "";
+  }, [profile]);
+
+  useEffect(() => {
+    if (!loggedInCompanyUniqueId || profileCompanyLabel) {
+      return;
+    }
+
+    let active = true;
+
+    companyApi
+      .get(loggedInCompanyUniqueId)
+      .then((company) => {
+        if (!active) return;
+
+        const name =
+          (typeof company?.name === "string" && company.name.trim()) ||
+          (typeof company?.company_name === "string" &&
+            company.company_name.trim()) ||
+          "";
+
+        setResolvedLoggedInCompanyLabel(name);
+      })
+      .catch(() => {
+        if (!active) return;
+        setResolvedLoggedInCompanyLabel("");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [loggedInCompanyUniqueId, profileCompanyLabel]);
+
+  const loggedInCompanyLabel = useMemo(() => {
+    return (
+      profileCompanyLabel ||
+      resolvedLoggedInCompanyLabel ||
+      loggedInCompanyUniqueId ||
+      ""
+    );
+  }, [
+    profileCompanyLabel,
+    resolvedLoggedInCompanyLabel,
+    loggedInCompanyUniqueId,
+  ]);
 
   const companies = useMemo<CompanyProjectOption[]>(() => {
     if (loggedInCompanyUniqueId) {

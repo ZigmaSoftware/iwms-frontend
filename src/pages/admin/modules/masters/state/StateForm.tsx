@@ -277,21 +277,21 @@ function StateForm() {
       return;
     }
 
-    if (!companyUniqueId) {
-      Swal.fire(
-        "Error",
-        !loggedInCompanyUniqueId && !isSuperAdmin
-          ? "Company is not mapped to this login. Only super admin can choose a company."
-          : "Company is required",
-        "error"
-      );
-      return;
-    }
+    // if (!companyUniqueId) {
+    //   Swal.fire(
+    //     "Error",
+    //     !loggedInCompanyUniqueId && !isSuperAdmin
+    //       ? "Company is not mapped to this login. Only super admin can choose a company."
+    //       : "Company is required",
+    //     "error"
+    //   );
+    //   return;
+    // }
 
-    if (!projectId) {
-      Swal.fire("Error", "Project is required", "error");
-      return;
-    }
+    // if (!projectId) {
+    //   Swal.fire("Error", "Project is required", "error");
+    //   return;
+    // }
 
     setLoading(true);
 
@@ -301,8 +301,8 @@ function StateForm() {
       country_id: countryId,
       continent_id: continentId,
       is_active: isActive,
-      company_unique_id: companyUniqueId,
-      project_id: projectId,
+      // company_unique_id: companyUniqueId,
+      // project_id: projectId,
     };
     console.log(payload)
 

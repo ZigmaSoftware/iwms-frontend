@@ -14,11 +14,19 @@ export interface BaseEntity {
 =========================================================== */
 export interface MainScreenType extends BaseEntity {
   type_name: string;
+  company_id?: string;
+  project_id?: string;
+  company_name?: string;
+  project_name?: string;
 }
 
 export interface MainScreen extends BaseEntity {
   mainscreentype_id: string;
   mainscreentype_name?: string;
+  company_id?: string;
+  company_name?: string;
+  project_id?: string;
+  project_name?: string;
 
   mainscreen_name: string;
   icon_name: string;
@@ -31,6 +39,10 @@ export interface MainScreen extends BaseEntity {
 =========================================================== */
 export interface UserScreen extends BaseEntity {
   mainscreen_id: string;
+  company_id?: string;
+  company_name?: string;
+  project_id?: string;
+  project_name?: string;
 
   mainscreen_name?: string;
   userscreen_name: string;
@@ -43,6 +55,10 @@ export interface UserScreen extends BaseEntity {
    USER SCREEN ACTIONS (CRUD BUTTON ACCESS)
 =========================================================== */
 export interface UserScreenAction extends BaseEntity {
+  company_id?: string;
+  company_name?: string;
+  project_id?: string;
+  project_name?: string;
   action_name: string;
   variable_name: string;
 }
