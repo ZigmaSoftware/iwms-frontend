@@ -27,8 +27,6 @@ function FuelForm() {
   const navigate = useNavigate();
 
 
-
-
   const { encTransportMaster, encFuel } = getEncryptedRoute();
 
   const ENC_LIST_PATH = `/${encTransportMaster}/${encFuel}`;
@@ -61,7 +59,7 @@ function FuelForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 🔹 Basic validation BEFORE enabling loading or API call
+    // Basic validation BEFORE enabling loading or API call
     if (!fuelType) {
       Swal.fire({
         icon: "warning",
