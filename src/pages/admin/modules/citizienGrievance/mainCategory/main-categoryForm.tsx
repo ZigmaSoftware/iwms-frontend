@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
-import { api } from "@/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,8 @@ import ComponentCard from "@/components/common/ComponentCard";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
+import { mainCategoryApi } from "@/helpers/admin";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 const { encCitizenGrivence, encMainComplaintCategory } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encCitizenGrivence}/${encMainComplaintCategory}`;
 
@@ -30,15 +31,23 @@ export function MainComplaintCategoryForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
 
+  const {
+    companyUniqueId,
+    loggedInCompanyUniqueId,
+    isSuperAdmin,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({ isEdit });
+
   // fetch record
   useEffect(() => {
     if (isEdit) {
-      api
-        .get(`main-category/${id}/`)
+      mainCategoryApi
+        .get(id as string)
         .then((res) => {
-          const data = res.data;
+          const data = res?.data || res;
           setMainCategoryName(data.main_categoryName);
           setIsActive(data.is_active);
+          applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
         })
         .catch(() => {
           Swal.fire({
@@ -47,11 +56,23 @@ export function MainComplaintCategoryForm() {
           });
         });
     }
-  }, [id, isEdit]);
+  }, [id, isEdit, applyCompanyProjectFromRecord, t]);
 
   // submit handler
   const handleSubmit = async (e: any) => {
     e.preventDefault();
+
+    if (!companyUniqueId) {
+      Swal.fire(
+        "Error",
+        !loggedInCompanyUniqueId && !isSuperAdmin
+          ? "Company is not mapped to this login. Only super admin can choose a company."
+          : "Company is required",
+        "error"
+      );
+      return;
+    }
+
     setLoading(true);
 
     const name = mainCategoryName.trim();
@@ -65,11 +86,15 @@ export function MainComplaintCategoryForm() {
       return;
     }
 
-    const payload = { main_categoryName: name, is_active: isActive };
+    const payload = { 
+      main_categoryName: name, 
+      is_active: isActive,
+      company_id: companyUniqueId 
+    };
 
     try {
       if (isEdit) {
-        await api.put(`main-category/${id}/`, payload);
+        await mainCategoryApi.update(id as string, payload);
         Swal.fire({
           icon: "success",
           title: t("admin.citizen_grievance.main_category_form.updated"),
@@ -77,7 +102,7 @@ export function MainComplaintCategoryForm() {
           showConfirmButton: false,
         });
       } else {
-        await api.post("main-category/", payload);
+        await mainCategoryApi.create(payload);
         Swal.fire({
           icon: "success",
           title: t("admin.citizen_grievance.main_category_form.added"),

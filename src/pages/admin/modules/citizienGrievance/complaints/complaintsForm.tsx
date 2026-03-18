@@ -28,9 +28,11 @@ import {
   zoneApi,
   wardApi,
   complaintApi,
+  mainCategoryApi,
+  subCategoryApi,
 } from "@/helpers/admin";
 import { useTranslation } from "react-i18next";
-
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 /* ================= CONSTANTS ================= */
 
@@ -66,6 +68,12 @@ export default function ComplaintAddForm() {
   const { encCitizenGrivence, encComplaint } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encCitizenGrivence}/${encComplaint}`;
 
+  const {
+    companyUniqueId,
+    loggedInCompanyUniqueId,
+    isSuperAdmin,
+  } = useCompanyProjectSelection({ isEdit: false });
+
   /* ---------------- STATE ---------------- */
   const [customers, setCustomers] = useState<any[]>([]);
   const [customer, setCustomer] = useState<any>(null);
@@ -74,6 +82,8 @@ export default function ComplaintAddForm() {
   const [wards, setWards] = useState<any[]>([]);
   const [zone, setZone] = useState("");
   const [ward, setWard] = useState("");
+  const [selectedZone, setSelectedZone] = useState<any>(null);
+  const [selectedWard, setSelectedWard] = useState<any>(null);
 
   const [contact, setContact] = useState("");
   const [address, setAddress] = useState("");
@@ -94,46 +104,102 @@ export default function ComplaintAddForm() {
 
   /* ---------------- INIT LOAD ---------------- */
   useEffect(() => {
+    console.log("=== Loading Initial Data ===");
+    console.log("Company Unique ID:", companyUniqueId);
+
     customerCreationApi.list().then((res) => {
       const normalized = normalizeCustomerArray(res);
+      console.log("Customers loaded:", normalized);
       setCustomers(filterActiveCustomers(normalized));
     });
 
-    api.get("main-category/").then((res) =>
-      setMainCategories(filterActiveRecords(listFromResponse(res.data)))
-    );
+    mainCategoryApi.list({ params: { company_id: companyUniqueId } })
+      .then((res) => {
+        const normalized = listFromResponse(res);
+        setMainCategories(filterActiveRecords(normalized));
+      });
 
-    api.get("sub-category/").then((res) =>
-      setAllSubCategories(filterActiveRecords(listFromResponse(res.data)))
-    );
-  }, []);
+    subCategoryApi.list({ params: { company_id: companyUniqueId } }).then((res) => {
+      const normalized = listFromResponse(res);
+      setAllSubCategories(filterActiveRecords(normalized));
+    });
+  }, [companyUniqueId]);
 
   /* ---------------- CUSTOMER → ZONE → WARD ---------------- */
 
   const loadZones = async (cid: string) => {
-  const res = await zoneApi.list({ params: { customer: cid } });
-  setZones(filterActiveRecords(listFromResponse(res)));
-};
+    try {
+      console.log("=== Loading Zones ===");
+      console.log("Customer ID:", cid);
+      const res = await zoneApi.list({ params: { customer_id: cid } });
+      console.log("Zone API raw response:", res);
+      const normalized = listFromResponse(res);
+      console.log("Normalized zones:", normalized);
+      const filtered = filterActiveRecords(normalized);
+      console.log("Filtered active zones:", filtered);
+      setZones(filtered);
+    } catch (error) {
+      console.error("Failed to load zones:", error);
+      setZones([]);
+    }
+  };
 
   const loadWards = async (zid: string) => {
-    const res = await wardApi.list({ params: { zone: zid } });
-    setWards(filterActiveRecords(listFromResponse(res)));
+    try {
+      console.log("=== Loading Wards ===");
+      console.log("Zone ID:", zid);
+      const res = await wardApi.list({ params: { zone_id: zid } });
+
+      console.log("Ward API raw response:", res);
+      const normalized = listFromResponse(res);
+      console.log("Normalized wards:", normalized);
+      const filtered = filterActiveRecords(normalized);
+      console.log("Filtered active wards:", filtered);
+      setWards(filtered);
+    } catch (error) {
+      console.error("Failed to load wards:", error);
+      setWards([]);
+    }
   };
+
+
+  console.log('ward', wards);
+  console.log('zone', zones);
+  console.log('maincategory', mainCategories);
+  console.log('sub category', subCategories);
 
   const onCustomerChange = (id: string) => {
     const c = customers.find((x) => resolveCustomerId(x) === id);
+    console.log("=== Customer Selected ===");
+    console.log("Selected Customer ID:", id);
+    console.log("Full Customer Object:", c);
+    console.log("Customer Fields:", Object.keys(c || {}));
     setCustomer(c);
 
-    setContact(c?.contact_no ?? "");
-    setAddress(
-      c
-        ? `${c.building_no}, ${c.street}, ${c.area}, ${c.city_name}, ${c.district_name}, ${c.state_name}, ${c.pincode}`
-        : ""
-    );
+    // Try different field names for contact
+    const contactNo = c?.contact_no || c?.contact || c?.phone || c?.mobile || c?.phone_number || "";
+    console.log("Contact No:", contactNo);
+    setContact(contactNo);
+
+    // Build address from available fields
+    const addressParts = [];
+    if (c?.building_no) addressParts.push(c.building_no);
+    if (c?.street) addressParts.push(c.street);
+    if (c?.area) addressParts.push(c.area);
+    if (c?.city_name) addressParts.push(c.city_name);
+    if (c?.district_name) addressParts.push(c.district_name);
+    if (c?.state_name) addressParts.push(c.state_name);
+    if (c?.pincode) addressParts.push(c.pincode);
+
+    const fullAddress = addressParts.join(", ");
+    console.log("Full Address:", fullAddress);
+    setAddress(fullAddress);
 
     setZone("");
     setWard("");
     setWards([]);
+    setSelectedZone(null);
+    setSelectedWard(null);
 
     const customerId = resolveCustomerId(c);
     if (customerId) loadZones(customerId);
@@ -216,6 +282,18 @@ export default function ComplaintAddForm() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!companyUniqueId) {
+      Swal.fire(
+        "Error",
+        !loggedInCompanyUniqueId && !isSuperAdmin
+          ? "Company is not mapped to this login. Only super admin can choose a company."
+          : "Company is required",
+        "error"
+      );
+      return;
+    }
+
     const customerId = resolveCustomerId(customer);
 
     if (
@@ -244,8 +322,11 @@ export default function ComplaintAddForm() {
 
     const fd = new FormData();
     fd.append("customer", customerId);
+    fd.append("company_id", companyUniqueId);
     fd.append("zone", zone);
+    fd.append("zone_name", selectedZone?.zone_name || "");
     fd.append("ward", ward);
+    fd.append("ward_name", selectedWard?.ward_name || "");
     fd.append("contact_no", contact);
     fd.append("address", address);
     fd.append("main_category", mainLabel);
@@ -312,19 +393,28 @@ export default function ComplaintAddForm() {
 
           <div>
             <Label>{t("common.zone")} *</Label>
-            <Select value={zone || undefined}
+            <Select
+              value={zone || undefined}
               onValueChange={(v) => {
+                const selected = zones.find((z) => resolveValue(z) === v);
                 setZone(v);
+                setSelectedZone(selected);
                 setWard("");
+                setSelectedWard(null);
                 loadWards(v);
-              }}>
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder={t("admin.citizen_grievance.complaints_form.zone_placeholder")} />
               </SelectTrigger>
+
               <SelectContent>
                 {zones.map((z) => (
-                  <SelectItem key={resolveValue(z)} value={resolveValue(z)}>
-                    {z.name}
+                  <SelectItem
+                    key={resolveValue(z)}
+                    value={resolveValue(z)}
+                  >
+                    {z.zone_name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -333,14 +423,18 @@ export default function ComplaintAddForm() {
 
           <div>
             <Label>{t("common.ward")} *</Label>
-            <Select value={ward || undefined} onValueChange={setWard}>
+            <Select value={ward || undefined} onValueChange={(v) => {
+              const selected = wards.find((w) => resolveValue(w) === v);
+              setWard(v);
+              setSelectedWard(selected);
+            }}>
               <SelectTrigger>
                 <SelectValue placeholder={t("admin.citizen_grievance.complaints_form.ward_placeholder")} />
               </SelectTrigger>
               <SelectContent>
                 {wards.map((w) => (
                   <SelectItem key={resolveValue(w)} value={resolveValue(w)}>
-                    {w.name}
+                    {w.ward_name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -357,7 +451,7 @@ export default function ComplaintAddForm() {
               <SelectContent>
                 {mainCategories.map((m) => (
                   <SelectItem key={resolveValue(m)} value={resolveValue(m)}>
-                    {resolveMainCategoryLabel(m)}
+                    {m.main_categoryName}
                   </SelectItem>
                 ))}
               </SelectContent>

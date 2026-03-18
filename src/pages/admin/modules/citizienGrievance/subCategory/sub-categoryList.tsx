@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
-import { api } from "@/api";
+import { subCategoryApi } from "@/helpers/admin";
+import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -33,15 +34,18 @@ export default function SubComplaintCategoryList() {
   const navigate = useNavigate();
   const { encCitizenGrivence, encSubComplaintCategory } = getEncryptedRoute();
 
+  const companyUniqueId = getCurrentCompanyUniqueId() ?? "";
+
   const NEW_PATH = `/${encCitizenGrivence}/${encSubComplaintCategory}/new`;
   const EDIT_PATH = (id: string) =>
     `/${encCitizenGrivence}/${encSubComplaintCategory}/${id}/edit`;
 
   const fetchData = async () => {
     try {
-      const res = await api.get("sub-category/");
-      const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
-      setRecords(list);
+      const res = await subCategoryApi.list({
+        params: { company_id: companyUniqueId }
+      });
+      setRecords(res);
     } catch (err) {
       console.error("Error loading sub categories:", err);
     } finally {
@@ -51,7 +55,7 @@ export default function SubComplaintCategoryList() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [companyUniqueId]);
 
   const handleDelete = async (id: string) => {
     const confirmation = await Swal.fire({
@@ -65,7 +69,7 @@ export default function SubComplaintCategoryList() {
 
     if (!confirmation.isConfirmed) return;
 
-    await api.delete(`sub-category/${id}/`);
+    await subCategoryApi.remove(id);
 
     Swal.fire({
       icon: "success",
@@ -79,7 +83,7 @@ export default function SubComplaintCategoryList() {
 
   const statusTemplate = (row: any) => {
     const updateStatus = async (value: boolean) => {
-      await api.patch(`sub-category/${row.unique_id}/`, {
+      await subCategoryApi.update(row.unique_id, {
         is_active: value,
       });
       fetchData();

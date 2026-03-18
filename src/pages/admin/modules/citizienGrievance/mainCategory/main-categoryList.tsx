@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
-import { api } from "@/api";
+import { mainCategoryApi } from "@/helpers/admin";
+import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -32,6 +33,8 @@ export default function MainComplaintCategoryList() {
 
   const navigate = useNavigate();
   const { encCitizenGrivence, encMainComplaintCategory } = getEncryptedRoute();
+  
+  const companyUniqueId = getCurrentCompanyUniqueId() ?? "";
 
   const ENC_NEW_PATH = `/${encCitizenGrivence}/${encMainComplaintCategory}/new`;
   const ENC_EDIT_PATH = (id: string) =>
@@ -44,8 +47,10 @@ export default function MainComplaintCategoryList() {
 
   const fetchData = async () => {
     try {
-      const res = await api.get("main-category/");
-      setRecords(res.data);
+      const res = await mainCategoryApi.list({
+        params: { company_id: companyUniqueId }
+      });
+      setRecords(res);
     } finally {
       setLoading(false);
     }
@@ -53,7 +58,7 @@ export default function MainComplaintCategoryList() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [companyUniqueId]);
 
   const handleDelete = async (id: string) => {
     const confirm = await Swal.fire({
@@ -68,7 +73,7 @@ export default function MainComplaintCategoryList() {
 
     if (!confirm.isConfirmed) return;
 
-    await api.delete(`main-category/${id}/`);
+    await mainCategoryApi.remove(id);
     Swal.fire({
       icon: "success",
       title: t("admin.citizen_grievance.main_category.deleted"),
@@ -80,7 +85,7 @@ export default function MainComplaintCategoryList() {
 
   const statusTemplate = (row: MainCategory) => {
     const updateStatus = async (value: boolean) => {
-      await api.patch(`main-category/${row.unique_id}/`, {
+      await mainCategoryApi.update(row.unique_id, {
         is_active: value,
       });
       fetchData();
