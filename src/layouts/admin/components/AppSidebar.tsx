@@ -1093,14 +1093,6 @@ const customerMasters: NavItem[] = [
         nameKey: "admin.nav.feedback",
         path: `/${encCitizenGrivence}/${encFeedback}`,
       },
-      {
-        nameKey: "admin.nav.customer_tag",
-        path: `/${encCustomerMaster}/${encCustomerTag}`,
-      },
-      {
-        nameKey: "admin.nav.household_pickup_event",
-        path: `/${encCustomerMaster}/${encHouseholdPickupEvent}`,
-      },
     ],
   },
 ];

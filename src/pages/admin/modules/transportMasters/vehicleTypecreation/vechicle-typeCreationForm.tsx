@@ -6,6 +6,11 @@ import { adminApi } from "@/helpers/admin/registry";
 import { useTranslation } from "react-i18next";
 
 const vehicleTypeApi = adminApi.vehicleTypes;
+const companyApi = adminApi.companies;
+const projectApi = adminApi.projects;
+
+type Company = { unique_id: string; name: string };
+type Project = { unique_id: string; name: string; company_unique_id?: string };
 
 export default function VehicleTypeCreationForm() {
   const { t } = useTranslation();
@@ -13,26 +18,44 @@ export default function VehicleTypeCreationForm() {
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [loading, setLoading] = useState(false);
+
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState("");
+  const [selectedProject, setSelectedProject] = useState("");
+
   const navigate = useNavigate();
-
-
   const { encTransportMaster, encVehicleType } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleType}`;
-
-
   const { id } = useParams();
   const isEdit = Boolean(id);
 
+  // Fetch companies & projects on mount
+  useEffect(() => {
+    companyApi
+      .listPaginated(1, 100)
+      .then((data: any) => setCompanies(data.results))
+      .catch(() => console.error("Failed to load companies"));
+
+    projectApi
+      .listPaginated(1, 100)
+      .then((data: any) => setProjects(data.results))
+      .catch(() => console.error("Failed to load projects"));
+  }, []);
+
   // Fetch existing record if editing
+  // Now res.company_id and res.project_id return unique_id strings
+  // because serializer SerializerMethodField returns them
   useEffect(() => {
     if (isEdit) {
       vehicleTypeApi
         .get(id as string)
-        .then((res) => {
+        .then((res: any) => {
           setVehicleType(res.vehicleType);
           setDescription(res.description || "");
           setIsActive(res.is_active);
-
+          setSelectedCompany(res.company_id || "");
+          setSelectedProject(res.project_id || "");
         })
         .catch(() => {
           Swal.fire({
@@ -43,7 +66,8 @@ export default function VehicleTypeCreationForm() {
         });
     }
   }, [id, isEdit]);
-  //  Submit logic
+
+  // Submit logic
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -61,10 +85,34 @@ export default function VehicleTypeCreationForm() {
       return;
     }
 
+    if (!selectedCompany) {
+      Swal.fire({
+        icon: "warning",
+        title: "Company Required",
+        text: "Please select a company.",
+      });
+      setLoading(false);
+      return;
+    }
+
+    if (!selectedProject) {
+      Swal.fire({
+        icon: "warning",
+        title: "Project Required",
+        text: "Please select a project.",
+      });
+      setLoading(false);
+      return;
+    }
+
+    // Use company_id_input and project_id_input
+    // to match the serializer write fields
     const payload = {
       vehicleType: normalizedVehicleType,
       description: normalizedDescription ? normalizedDescription : null,
       is_active: isActive,
+      company_id_input: selectedCompany,
+      project_id_input: selectedProject,
     };
 
     try {
@@ -85,11 +133,12 @@ export default function VehicleTypeCreationForm() {
           showConfirmButton: false,
         });
       }
-
       navigate(ENC_LIST_PATH);
     } catch (error: any) {
       const responseMessage =
         error?.response?.data?.vehicleType?.[0] ??
+        error?.response?.data?.company_id_input?.[0] ??
+        error?.response?.data?.project_id_input?.[0] ??
         error?.response?.data?.detail ??
         error?.message ??
         "Unable to save vehicle type.";
@@ -109,17 +158,21 @@ export default function VehicleTypeCreationForm() {
         {/* Header */}
         <div className="px-6 py-4 border-b">
           <h2 className="text-lg font-semibold text-gray-800">
-            {isEdit ? t("admin.vehicle_type.title_edit") : t("admin.vehicle_type.title_add")}
+            {isEdit
+              ? t("admin.vehicle_type.title_edit")
+              : t("admin.vehicle_type.title_add")}
           </h2>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-6 py-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
             {/* Vehicle Type Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t("admin.vehicle_type.label")} <span className="text-red-500">*</span>
+                {t("admin.vehicle_type.label")}{" "}
+                <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -127,17 +180,19 @@ export default function VehicleTypeCreationForm() {
                 value={vehicleType}
                 required
                 onChange={(e) => setVehicleType(e.target.value)}
-                className={`w-full px-3 py-2 border ${vehicleType.trim() === ""
-                  ? "border-red-400 focus:ring-red-200"
-                  : "border-green-400 focus:ring-green-200"
-                  } rounded-sm focus:outline-none focus:ring-2`}
+                className={`w-full px-3 py-2 border ${
+                  vehicleType.trim() === ""
+                    ? "border-red-400 focus:ring-red-200"
+                    : "border-green-400 focus:ring-green-200"
+                } rounded-sm focus:outline-none focus:ring-2`}
               />
             </div>
 
             {/* Active Status */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                {t("common.status")} <span className="text-red-500">*</span>
+                {t("common.status")}{" "}
+                <span className="text-red-500">*</span>
               </label>
               <select
                 value={isActive ? "Active" : "Inactive"}
@@ -149,8 +204,65 @@ export default function VehicleTypeCreationForm() {
               </select>
             </div>
 
+            {/* Company Dropdown — Required */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Company <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={selectedCompany}
+                onChange={(e) => {
+                  setSelectedCompany(e.target.value);
+                  setSelectedProject("");
+                }}
+                required
+                className={`w-full px-3 py-2 border ${
+                  !selectedCompany
+                    ? "border-red-400 focus:ring-red-200"
+                    : "border-green-400 focus:ring-green-200"
+                } rounded-sm focus:outline-none focus:ring-2`}
+              >
+                <option value="">-- Select Company --</option>
+                {companies.map((c) => (
+                  <option key={c.unique_id} value={c.unique_id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Project Dropdown — Required */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Project <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={selectedProject}
+                onChange={(e) => setSelectedProject(e.target.value)}
+                required
+                className={`w-full px-3 py-2 border ${
+                  !selectedProject
+                    ? "border-red-400 focus:ring-red-200"
+                    : "border-green-400 focus:ring-green-200"
+                } rounded-sm focus:outline-none focus:ring-2`}
+              >
+                <option value="">-- Select Project --</option>
+                {projects
+                  .filter((p: any) =>
+                    selectedCompany
+                      ? p.company_unique_id === selectedCompany
+                      : true
+                  )
+                  .map((p) => (
+                    <option key={p.unique_id} value={p.unique_id}>
+                      {p.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
             {/* Description */}
-            <div className="">
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {t("common.description")}
               </label>

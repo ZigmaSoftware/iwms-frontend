@@ -123,6 +123,8 @@ export default function UserScreenActionList() {
   const statusTemplate = (row: UserScreenAction) => {
     const updateStatus = async (value: boolean) => {
       await userScreenActionApi.update(row.unique_id, {
+        company_id: row.company_id,
+        project_id: row.project_id,
         action_name: row.action_name,
         variable_name: row.variable_name,
         is_active: value,

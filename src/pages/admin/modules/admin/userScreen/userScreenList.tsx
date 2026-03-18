@@ -104,6 +104,8 @@ export default function UserScreenList() {
         icon_name: row.icon_name,
         order_no: row.order_no,
         mainscreen_id: row.mainscreen_id,
+        company_id: row.company_id,
+        project_id: row.project_id,
         is_active: value,
       });
 

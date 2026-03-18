@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -34,6 +34,31 @@ import {
   mainScreenApi
 } from "@/helpers/admin";
 
+type MainScreenTypeOption = {
+  value: string;
+  label: string;
+  companyId: string;
+  projectId: string;
+  companyName: string;
+  projectName: string;
+};
+
+const toText = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+};
+
+const firstErrorMessage = (value: unknown): string | undefined => {
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    return value[0];
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  return undefined;
+};
 
 /* ==========================================================
       COMPONENT
@@ -46,10 +71,14 @@ export default function MainScreenForm() {
   const [orderNo, setOrderNo] = useState<number | string>("");
   const [description, setDescription] = useState("");
   const [mainscreenTypeId, setMainScreenTypeId] = useState<string>("");
+  const [fallbackCompanyId, setFallbackCompanyId] = useState("");
+  const [fallbackProjectId, setFallbackProjectId] = useState("");
+  const [fallbackCompanyName, setFallbackCompanyName] = useState("");
+  const [fallbackProjectName, setFallbackProjectName] = useState("");
 
   /* DROPDOWN DATA */
   const [mainScreenTypes, setMainScreenTypes] = useState<
-    { value: string; label: string }[]
+    MainScreenTypeOption[]
   >([]);
 
   /* STATE */
@@ -60,6 +89,22 @@ export default function MainScreenForm() {
   const isEdit = Boolean(id);
 
   const navigate = useNavigate();
+  const selectedMainScreenType = useMemo(
+    () => mainScreenTypes.find((x) => x.value === mainscreenTypeId),
+    [mainScreenTypes, mainscreenTypeId]
+  );
+  const resolvedCompanyId = selectedMainScreenType
+    ? selectedMainScreenType.companyId
+    : fallbackCompanyId;
+  const resolvedProjectId = selectedMainScreenType
+    ? selectedMainScreenType.projectId
+    : fallbackProjectId;
+  const resolvedCompanyName = selectedMainScreenType
+    ? selectedMainScreenType.companyName
+    : fallbackCompanyName;
+  const resolvedProjectName = selectedMainScreenType
+    ? selectedMainScreenType.projectName
+    : fallbackProjectName;
 
   /* ==========================================================
       LOAD MAINSCREEN TYPES
@@ -69,17 +114,21 @@ export default function MainScreenForm() {
       try {
         const res = await mainScreenTypeApi.list();
         const mapped = res
-          .filter((x: any) => x.is_active)
-          .map((x: any) => ({
-            value: String(x.unique_id),
-            label: x.type_name,
+          .filter((x: Record<string, unknown>) => Boolean(x.is_active))
+          .map((x: Record<string, unknown>) => ({
+            value: toText(x.unique_id),
+            label: toText(x.type_name),
+            companyId: toText(x.company_id),
+            projectId: toText(x.project_id),
+            companyName: toText(x.company_name),
+            projectName: toText(x.project_name),
           }));
         setMainScreenTypes(mapped);
-      } catch (err) {
+      } catch {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       }
     })();
-  }, []);
+  }, [t]);
 
   /* ==========================================================
       EDIT MODE — LOAD RECORD
@@ -96,12 +145,16 @@ export default function MainScreenForm() {
         setOrderNo(data.order_no ?? "");
         setDescription(data.description ?? "");
         setMainScreenTypeId(data.mainscreentype_id ?? "");
+        setFallbackCompanyId(toText(data.company_id));
+        setFallbackProjectId(toText(data.project_id));
+        setFallbackCompanyName(toText(data.company_name));
+        setFallbackProjectName(toText(data.project_name));
         setIsActive(Boolean(data.is_active));
-      } catch (err) {
+      } catch {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       }
     })();
-  }, [isEdit, id]);
+  }, [isEdit, id, t]);
 
   /* ==========================================================
       SUBMIT
@@ -110,6 +163,11 @@ export default function MainScreenForm() {
     e.preventDefault();
 
     if (!mainscreenName.trim() || !mainscreenTypeId) {
+      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+      return;
+    }
+
+    if (!resolvedCompanyId || !resolvedProjectId) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
@@ -123,6 +181,8 @@ export default function MainScreenForm() {
         order_no: Number(orderNo) || 0,
         description: description.trim(),
         mainscreentype_id: mainscreenTypeId,
+        company_id: resolvedCompanyId,
+        project_id: resolvedProjectId,
         is_active: isActive,
       };
 
@@ -135,10 +195,17 @@ export default function MainScreenForm() {
       }
 
       navigate(ENC_LIST_PATH);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorData =
+        (err as { response?: { data?: Record<string, unknown> } })?.response
+          ?.data ?? {};
+
       Swal.fire(
         t("common.save_failed"),
-        err?.response?.data?.detail || t("common.save_failed_desc"),
+        firstErrorMessage(errorData.detail) ||
+          firstErrorMessage(errorData.company_id) ||
+          firstErrorMessage(errorData.project_id) ||
+          t("common.save_failed_desc"),
         "error"
       );
     } finally {
@@ -159,6 +226,33 @@ export default function MainScreenForm() {
     >
       <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Company (from MainScreen Type) */}
+          <div>
+            <Label>{t("admin.nav.company")}</Label>
+            <Input
+              value={resolvedCompanyName}
+              placeholder={t("common.select_item_placeholder", {
+                item: t("admin.nav.main_screen_type"),
+              })}
+              className="input-validate w-full"
+              readOnly
+              disabled
+            />
+          </div>
+
+          {/* Project (from MainScreen Type) */}
+          <div>
+            <Label>{t("admin.nav.project")}</Label>
+            <Input
+              value={resolvedProjectName}
+              placeholder={t("common.select_item_placeholder", {
+                item: t("admin.nav.main_screen_type"),
+              })}
+              className="input-validate w-full"
+              readOnly
+              disabled
+            />
+          </div>
           
           {/* MainScreen Type */}
           <div>
