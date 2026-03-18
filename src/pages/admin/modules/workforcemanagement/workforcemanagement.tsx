@@ -99,7 +99,6 @@ export default function WorkforceManagement() {
           </div>
         </div>
       </div>
-
     </div>
   );
 }

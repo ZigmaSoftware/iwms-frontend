@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { userTypeApi } from "@/helpers/admin";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 const { encAdmins, encUserType } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encAdmins}/${encUserType}`;
@@ -21,6 +22,13 @@ export default function UserTypeForm() {
   const userTypeId = id;
   const isEdit = Boolean(userTypeId);
 
+  const {
+    companyUniqueId,
+    loggedInCompanyUniqueId,
+    isSuperAdmin,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({ isEdit });
+
   /* -----------------------------------------------------------
      LOAD RECORD FOR EDIT
   ----------------------------------------------------------- */
@@ -34,6 +42,7 @@ export default function UserTypeForm() {
 
         setName(data.name);
         setIsActive(data.is_active);
+        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
       } catch {
         Swal.fire({
           icon: "error",
@@ -44,18 +53,31 @@ export default function UserTypeForm() {
     };
 
     loadData();
-  }, [isEdit, userTypeId]);
+  }, [isEdit, userTypeId, applyCompanyProjectFromRecord, t]);
 
   /* -----------------------------------------------------------
      SUBMIT HANDLER
   ----------------------------------------------------------- */
   const handleSubmit = async (e: any) => {
     e.preventDefault();
+
+    if (!companyUniqueId) {
+      Swal.fire(
+        "Error",
+        !loggedInCompanyUniqueId && !isSuperAdmin
+          ? "Company is not mapped to this login. Only super admin can choose a company."
+          : "Company is required",
+        "error"
+      );
+      return;
+    }
+
     setLoading(true);
 
     const payload = {
       name,
       is_active: isActive,
+      company_id: companyUniqueId,
     };
 
     try {
