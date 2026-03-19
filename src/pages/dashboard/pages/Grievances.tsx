@@ -558,6 +558,7 @@ export default function Grievances() {
                 ) : (
                   <div className="grid gap-4">
                     {tabItems.map((g, index) => {
+                      console.log("Rendering grievance", g);
                       const statusStyles = getStatusStyles(g.status);
                       return (
                         <Card
@@ -576,8 +577,8 @@ export default function Grievances() {
                               value={`${cap(g.main_category)} / ${cap(g.sub_category)}`}
                             />
 
-                            <InfoField label={t("dashboard.grievances.fields.zone")} value={cap(g.zone_name)} />
-                            <InfoField label={t("dashboard.grievances.fields.ward")} value={cap(g.ward_name)} />
+                            <InfoField label={t("dashboard.grievances.fields.zone")} value={g.zone_name || (g.zone_id ? g.zone_id.split('-').pop() : '-')} />
+                            <InfoField label={t("dashboard.grievances.fields.ward")} value={g.ward_name || (g.ward_id ? g.ward_id.split('-').pop() : '-')} />
 
                             <div>
                               <p className="text-xs text-muted-foreground">{t("dashboard.grievances.fields.status")}</p>
@@ -627,7 +628,7 @@ export default function Grievances() {
                 <div className="grid md:grid-cols-2 gap-8">
                   <div className="space-y-6">
                     <InfoField label={t("dashboard.grievances.detail.complaint_no")} value={selectedComplaint.unique_id} />
-                    <InfoField label={t("dashboard.grievances.fields.zone")} value={cap(selectedComplaint.zone_name)} />
+                    <InfoField label={t("dashboard.grievances.fields.zone")} value={selectedComplaint.zone_name || (selectedComplaint.zone_id ? selectedComplaint.zone_id.split('-').pop() : '-')} />
                     <InfoField label={t("dashboard.grievances.detail.contact")} value={selectedComplaint.contact_no} />
                     <InfoField label={t("dashboard.grievances.detail.closed_at")} value={formatDateTime(selectedComplaint.complaint_closed_at)} />
                     <InfoField label={t("dashboard.grievances.detail.address")} value={selectedComplaint.address} />
@@ -635,7 +636,7 @@ export default function Grievances() {
 
                   <div className="space-y-6">
                     <InfoField label={t("dashboard.grievances.fields.category")} value={cap(selectedComplaint.category)} />
-                    <InfoField label={t("dashboard.grievances.fields.ward")} value={cap(selectedComplaint.ward_name)} />
+                    <InfoField label={t("dashboard.grievances.fields.ward")} value={selectedComplaint.ward_name || (selectedComplaint.ward_id ? selectedComplaint.ward_id.split('-').pop() : '-')} />
                     <InfoField label={t("dashboard.grievances.detail.created")} value={formatDateTime(selectedComplaint.created)} />
 
                     <div>

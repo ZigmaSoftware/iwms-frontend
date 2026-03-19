@@ -55,20 +55,21 @@ export default function ComplaintEditForm() {
   const isImageFile = (f: File) =>
     f.type.startsWith("image/") || isImageUrl(f.name || "");
 
-  const load = async () => {
+ const load = async () => {
+  try {
     const res = await complaintApi.get(id as string);
-    const c = res.data;
+    const c = res?.data || res;
+
+    if (!c) throw new Error("Invalid response");
 
     setData(c);
-    setStatus(c.status);
+    setStatus(c.status || "PROGRESSING");
     setRemarks(c.action_remarks || "");
-
-    if (c.close_image_url) {
-      setPreviewUrl(isImageUrl(c.close_image_url) ? c.close_image_url : FILE_ICON);
-      setIsPreviewImage(isImageUrl(c.close_image_url));
-      setPreviewName(c.close_image_url.split("/").pop() || "file");
-    }
-  };
+  } catch (err) {
+    console.error(err);
+    Swal.fire("Error", "Failed to load complaint", "error");
+  }
+};
 
   const upload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];

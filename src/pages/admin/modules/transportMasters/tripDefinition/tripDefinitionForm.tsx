@@ -117,7 +117,7 @@ export default function TripDefinitionForm() {
 
   const tripDefinitionApi = adminApi.tripDefinitions;
   const routePlanApi = adminApi.routePlans;
-  const staffTemplateApi = adminApi.staffTemplate;
+  const staffTemplateApi = adminApi.staffTemplateCreation;
   const propertyApi = adminApi.properties;
   const subPropertyApi = adminApi.subProperties;
 
