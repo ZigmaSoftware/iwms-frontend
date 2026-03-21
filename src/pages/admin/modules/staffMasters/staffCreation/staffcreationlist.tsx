@@ -28,8 +28,6 @@ type Staff = {
   salary_type?: string;
  contact_mobile?: number;
   department?: string;
-  comapany_name?: string;
-  project_name?: string;
 };
 
 const cap = (val?: string | number | null) => {
@@ -67,8 +65,6 @@ export default function StaffCreationList() {
     "designation",
     "site_name",
     "contact_mobile",
-    "comapany_name",
-    "project_name",
   ];
 
   const fetchStaffs = async (params = filterParams) => {
@@ -352,9 +348,6 @@ export default function StaffCreationList() {
               sortable
               body={(row: Staff) => cap(row.employee_name)}
             />
-            <Column field="company_name" header={t("admin.nav.company")} sortable />
-            <Column field="project_name" header={t("admin.project.project_name")} sortable />
-
             <Column field="designation" header={t("admin.staff_creation.designation")} sortable />
             <Column field="doj" header={t("admin.staff_creation.doj")} sortable />
             <Column field="site_name" header={t("admin.staff_creation.site_name")} sortable />

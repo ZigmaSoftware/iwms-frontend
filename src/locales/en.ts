@@ -847,7 +847,6 @@ const enResource = {
         "project": {
           "company_id": "Company ID",
           "company_name": "Company Name",
-          "project_name": "Project Name",
           "filtered_company": "Filtered by Company: {{id}}",
           "admin_help_text": "Optional: provide project admin details only when creating the first project for a company.",
           "admin_employee_name": "Admin Employee Name",
@@ -863,8 +862,7 @@ const enResource = {
           "driver": "Driver",
           "user": "User",
           "staff": "Staff",
-          "customer": "Customer",
-          "site_admin": "Site Admin",
+          "customer": "Customer"
         },
         "staff_user_type": {
           "role_label": "Staff User Role"

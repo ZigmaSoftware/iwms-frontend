@@ -788,9 +788,7 @@ import {
 import { useSidebar } from "@/contexts/SideBarContext";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { decryptSegment } from "@/utils/routeCrypto";
-import { USER_ROLE_STORAGE_KEY, normalizeRole } from "@/types/roles";
-import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
-import { userScreenApi, userScreenPermissionApi } from "@/helpers/admin";
+import { USER_ROLE_STORAGE_KEY } from "@/types/roles";
 
 const {
   encMasters,
@@ -870,25 +868,6 @@ type NavItem = {
   icon: React.ReactNode;
   path?: string;
   subItems?: { nameKey: string; path: string }[];
-};
-
-type LoginProfile = {
-  user_type?: string;
-  staffusertype_unique_id?: string;
-  company_unique_id?: string;
-};
-
-type PermissionRow = {
-  unique_id?: string;
-  userscreen_id?: string;
-  userscreenaction_id?: string;
-  is_active?: boolean;
-};
-
-type UserScreenRow = {
-  unique_id?: string;
-  folder_name?: string;
-  is_active?: boolean;
 };
 
 type SidebarSectionKey =
@@ -1279,60 +1258,6 @@ const subMenuContainerClasses = "mt-2 ml-5 space-y-1 pl-2";
 const subMenuActiveClasses = "bg-sky-100 text-sky-900 font-semibold rounded-lg";
 const subMenuInactiveClasses = "text-sky-600 hover:text-sky-900";
 
-const normalizeModuleKey = (value: string): string =>
-  value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-
-const readLoginProfile = (): LoginProfile | null => {
-  if (typeof window === "undefined") return null;
-
-  const rawProfile = localStorage.getItem("profile");
-  if (!rawProfile) return null;
-
-  try {
-    return JSON.parse(rawProfile) as LoginProfile;
-  } catch {
-    return null;
-  }
-};
-
-const getModuleKeyFromPath = (path: string): string => {
-  const segments = path.split("/").filter(Boolean);
-  const encodedModule = segments[1] ?? "";
-  const decodedModule = decryptSegment(encodedModule) ?? encodedModule;
-  return normalizeModuleKey(decodedModule);
-};
-
-const filterNavItemsByAllowedModules = (
-  items: NavItem[],
-  allowedModules: Set<string>,
-): NavItem[] =>
-  items.reduce<NavItem[]>((acc, nav) => {
-    if (nav.subItems?.length) {
-      const filteredSubItems = nav.subItems.filter((subItem) => {
-        const moduleKey = getModuleKeyFromPath(subItem.path);
-        return moduleKey.length > 0 && allowedModules.has(moduleKey);
-      });
-
-      if (filteredSubItems.length > 0) {
-        acc.push({ ...nav, subItems: filteredSubItems });
-      }
-
-      return acc;
-    }
-
-    if (!nav.path || nav.path === "/admin") {
-      acc.push(nav);
-      return acc;
-    }
-
-    const moduleKey = getModuleKeyFromPath(nav.path);
-    if (moduleKey.length > 0 && allowedModules.has(moduleKey)) {
-      acc.push(nav);
-    }
-
-    return acc;
-  }, []);
-
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, toggleSidebar } = useSidebar();
   const location = useLocation();
@@ -1340,177 +1265,11 @@ const AppSidebar: React.FC = () => {
   const showFullSidebar = isExpanded || isMobileOpen;
 
   // ✅ Get role from localStorage (stored during login)
-  const profile = useMemo(() => readLoginProfile(), []);
-  const role = useMemo(() => {
-    if (typeof window === "undefined") return null;
-    return normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
-  }, []);
-  const isSuperAdmin = role === "superadmin";
-
-  const companyUniqueId = useMemo(
-    () =>
-      getCurrentCompanyUniqueId() ??
-      String(profile?.company_unique_id ?? "").trim(),
-    [profile?.company_unique_id],
-  );
-  const staffUserTypeId = useMemo(
-    () => String(profile?.staffusertype_unique_id ?? "").trim(),
-    [profile?.staffusertype_unique_id],
-  );
-  const isStaffUser = useMemo(() => {
-    const userType = String(profile?.user_type ?? "").trim().toLowerCase();
-    return userType === "staff" || staffUserTypeId.length > 0;
-  }, [profile?.user_type, staffUserTypeId]);
-  const shouldFilterByPermissions =
-    !isSuperAdmin &&
-    isStaffUser &&
-    companyUniqueId.length > 0 &&
-    staffUserTypeId.length > 0;
-
-  const [allowedModules, setAllowedModules] = useState<Set<string> | null>(
-    null,
-  );
-
-  useEffect(() => {
-    if (!shouldFilterByPermissions) {
-      return;
-    }
-
-    let isActive = true;
-
-    const fetchPermissionRows = async (): Promise<PermissionRow[]> => {
-      const limit = 200;
-      const maxRounds = 30;
-      const seen = new Set<string>();
-      const rows: PermissionRow[] = [];
-
-      for (let round = 0; round < maxRounds; round += 1) {
-        const offset = round * limit;
-        const chunk = await userScreenPermissionApi.list({
-          params: {
-            company_id: companyUniqueId,
-            staffusertype_id: staffUserTypeId,
-            limit,
-            offset,
-          },
-        });
-
-        if (!Array.isArray(chunk) || chunk.length === 0) {
-          break;
-        }
-
-        let newRows = 0;
-
-        chunk.forEach((item) => {
-          const key = String(
-            item.unique_id ??
-              `${item.userscreen_id ?? ""}__${item.userscreenaction_id ?? ""}`,
-          );
-
-          if (!seen.has(key)) {
-            seen.add(key);
-            rows.push(item);
-            newRows += 1;
-          }
-        });
-
-        if (chunk.length < limit || newRows === 0) {
-          break;
-        }
-      }
-
-      return rows;
-    };
-
-    const fetchUserScreens = async (): Promise<UserScreenRow[]> => {
-      const limit = 200;
-      const maxRounds = 30;
-      const seen = new Set<string>();
-      const rows: UserScreenRow[] = [];
-
-      for (let round = 0; round < maxRounds; round += 1) {
-        const offset = round * limit;
-        const chunk = await userScreenApi.list({
-          params: {
-            company_id: companyUniqueId,
-            limit,
-            offset,
-          },
-        });
-
-        if (!Array.isArray(chunk) || chunk.length === 0) {
-          break;
-        }
-
-        let newRows = 0;
-
-        chunk.forEach((item) => {
-          const key = String(item.unique_id ?? "");
-          if (!key || seen.has(key)) return;
-
-          seen.add(key);
-          rows.push(item);
-          newRows += 1;
-        });
-
-        if (chunk.length < limit || newRows === 0) {
-          break;
-        }
-      }
-
-      return rows;
-    };
-
-    const loadAllowedModules = async () => {
-      try {
-        const [permissions, userScreens] = await Promise.all([
-          fetchPermissionRows(),
-          fetchUserScreens(),
-        ]);
-
-        const allowedScreenIds = new Set(
-          permissions
-            .filter((row) => row.is_active !== false)
-            .map((row) => String(row.userscreen_id ?? "").trim())
-            .filter(Boolean),
-        );
-
-        const modules = new Set<string>();
-
-        userScreens.forEach((screen) => {
-          const screenId = String(screen.unique_id ?? "").trim();
-          if (!screenId || !allowedScreenIds.has(screenId)) return;
-          if (screen.is_active === false) return;
-
-          const moduleKey = normalizeModuleKey(
-            String(screen.folder_name ?? ""),
-          );
-
-          if (moduleKey) {
-            modules.add(moduleKey);
-          }
-        });
-
-        if (isActive) {
-          setAllowedModules(modules);
-        }
-      } catch (error) {
-        console.error("Unable to load sidebar permissions", error);
-        if (isActive) {
-          setAllowedModules(new Set());
-        }
-      }
-    };
-
-    loadAllowedModules();
-
-    return () => {
-      isActive = false;
-    };
-  }, [companyUniqueId, shouldFilterByPermissions, staffUserTypeId]);
+  const role = localStorage.getItem(USER_ROLE_STORAGE_KEY);
+  const isSuperAdmin = role === "superadmin"; // matches normalizeRole output in roles.ts
 
   // ✅ Build sidebar sections dynamically based on role
-  const baseSidebarSections = useMemo(
+  const sidebarSections = useMemo(
     () => [
       { key: "main" as const,                items: navItems },
       { key: "superadminMaster" as const,    items: superadminMasterItems },
@@ -1538,21 +1297,6 @@ const AppSidebar: React.FC = () => {
     ],
     [isSuperAdmin],
   );
-
-  const sidebarSections = useMemo(() => {
-    if (!shouldFilterByPermissions) {
-      return baseSidebarSections;
-    }
-
-    const modules = allowedModules ?? new Set<string>();
-
-    return baseSidebarSections
-      .map((section) => ({
-        ...section,
-        items: filterNavItemsByAllowedModules(section.items, modules),
-      }))
-      .filter((section) => section.items.length > 0);
-  }, [allowedModules, baseSidebarSections, shouldFilterByPermissions]);
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: SidebarSectionKey;

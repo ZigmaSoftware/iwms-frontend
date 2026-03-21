@@ -23,11 +23,11 @@ export const adminEndpoints = {
   cities: "masters/cities",
   zones: "masters/zones",
   wards: "masters/wards",
- 
+  collectionPoints: "bp-palakkad/collection-point",
   wasteTypes: "waste-bluetooth/types",
-  panchayats: "masters/panchayat",
-  areatypes: "masters/areatype",
-  hierarchies: "masters/hierarchy",
+  panchayats: "bp-palakkad/panchayat",
+  areatypes: "bp-palakkad/areatype",
+  hierarchies: "bp-palakkad/hierarchy",
 
   /* =========================
      WASTE TYPES
@@ -38,10 +38,8 @@ export const adminEndpoints = {
   /* =========================
      ASSETS
   ========================= */
-  bins: "assets/bins",
-  collectionPoints: "assets/collection-point",
-  wasteCollections: "assets/point-collection",
-//   bins: "bp-palakkad/bins",
+//   bins: "assets/bins",
+  bins: "bp-palakkad/bins",
 
   /* =========================
      SCREEN MANAGEMENT
@@ -58,7 +56,6 @@ export const adminEndpoints = {
   ========================= */
   userTypes: "role-assigns/user-type",
   staffUserTypes: "role-assigns/staffusertypes",
-  roleTypes: "role-assigns/staffusertypes/role-choices",
 
   /* =========================
      USER CREATION
@@ -88,8 +85,9 @@ export const adminEndpoints = {
   ========================= */
   customerCreations: "customers/customercreations",
 //   wasteCollections: "customers/wastecollections",
-  panchayatWiseCollections: "collections/panchayat-wise",
-  wardWiseCollections: "collections/ward-wise",
+  wasteCollections: "bp-palakkad/point-collection",
+  panchayatWiseCollections: "bp-palakkad/panchayat-collection",
+  wardWiseCollections: "bp-palakkad/ward-collection",
   feedbacks: "customers/feedbacks",
 
   /* =========================
