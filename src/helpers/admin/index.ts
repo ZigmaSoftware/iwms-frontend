@@ -58,6 +58,7 @@ export const userScreenPermissionApi =
 ========================= */
 export const userTypeApi = adminApi.userTypes;
 export const staffUserTypeApi = adminApi.staffUserTypes;
+export const roleTypesApi = adminApi.roleTypes;
 
 /* =========================
    USER CREATION

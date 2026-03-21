@@ -90,6 +90,8 @@ export interface StaffUserType extends BaseEntity {
   mainscreen_id?: string | null;
 
   screens?: PermissionScreen[];
+
+  [key: string]: any;
 }
 
 /* ===========================================================
