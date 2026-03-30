@@ -8,6 +8,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ModuleProvider } from "@/contexts/ModuleContext";
 import { UserProvider } from "@/contexts/UserContext";
+import { PermissionProvider } from "@/contexts/PermissionContext";
+import { RolesProvider } from "@/contexts/RolesContext";
 
 const queryClient = new QueryClient();
 
@@ -18,19 +20,23 @@ type Props = {
 export function AppProviders({ children }: Props) {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <ModuleProvider>
-          <UserProvider>
-            <TooltipProvider>
-              <BrowserRouter>
-                {children}
-                <Toaster />
-                <Sonner />
-              </BrowserRouter>
-            </TooltipProvider>
-          </UserProvider>
-        </ModuleProvider>
-      </ThemeProvider>
+      <RolesProvider>
+        <ThemeProvider>
+          <ModuleProvider>
+            <UserProvider>
+              <PermissionProvider>
+                <TooltipProvider>
+                  <BrowserRouter>
+                    {children}
+                    <Toaster />
+                    <Sonner />
+                  </BrowserRouter>
+                </TooltipProvider>
+              </PermissionProvider>
+            </UserProvider>
+          </ModuleProvider>
+        </ThemeProvider>
+      </RolesProvider>
     </QueryClientProvider>
   );
 }

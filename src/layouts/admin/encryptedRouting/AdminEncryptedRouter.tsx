@@ -3,6 +3,7 @@ import { Navigate, useLocation, useParams } from "react-router-dom";
 
 import { decryptSegment } from "@/utils/routeCrypto";
 
+
 // Import your actual page components
 import ContinentList from "@/pages/admin/modules/masters/continent/ContinentListPage";
 import ContinentForm from "@/pages/admin/modules/masters/continent/ContinentForm";
@@ -257,7 +258,7 @@ export default function AdminEncryptedRouter() {
   }
 
   const mode: "view" | "new" | "edit" = id ? "edit" : location.pathname.endsWith("/new") ? "new" : "view";
-  const Component = resolveComponent(moduleRoutes, mode);
+    const Component = resolveComponent(moduleRoutes, mode);
 
   if (!Component) {
     return <Navigate to="/" replace />;

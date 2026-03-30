@@ -20,6 +20,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
 
+
 type Customer = {
   unique_id: string;
   customer_name: string;
@@ -43,9 +44,10 @@ type Customer = {
 
 const customerApi = adminApi.customerCreations;
 
+
 export default function CustomerCreationList() {
   const { t } = useTranslation();
-  const [customers, setCustomers] = useState<Customer[]>([]);
+    const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
@@ -62,7 +64,7 @@ export default function CustomerCreationList() {
     `/${encCustomerMaster}/${encCustomerCreation}/${unique_id}/edit`;
 
   const fetchCustomers = async () => {
-    try {
+     try {
       const res = await customerApi.list();
       setCustomers(res as Customer[]);
     } finally {
@@ -174,21 +176,23 @@ export default function CustomerCreationList() {
 
   const actionTemplate = (c: Customer) => (
     <div className="flex gap-3 justify-center">
-      <button
-        title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(c.unique_id))}
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
-
-      {/* <button
+      
+        <button
+          title={t("common.edit")}
+          onClick={() => navigate(ENC_EDIT_PATH(c.unique_id))}
+          className="text-blue-600 hover:text-blue-800"
+        >
+          <PencilIcon className="size-5" />
+        </button>
+     {/* <button
         title="Delete"
-        onClick={() => handleDelete(c.unique_id)}
-        className="text-red-600 hover:text-red-800"
-      >
-        <TrashBinIcon className="size-5" />
-      </button> */}
+
+          onClick={() => handleDelete(c.unique_id)}
+          className="text-red-600 hover:text-red-800"
+        >
+          <TrashBinIcon className="size-5" />
+        </button>*/}
+      
     </div>
   );
 
@@ -207,12 +211,14 @@ export default function CustomerCreationList() {
             </p>
           </div>
 
-          <Button
-            label={t("admin.customer_creation.add")}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          
+            <Button
+              label={t("admin.customer_creation.add")}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          
         </div>
 
         <DataTable
@@ -272,18 +278,22 @@ export default function CustomerCreationList() {
 
           <Column header={t("admin.customer_creation.qr_label")} body={qrTemplate} style={{ width: "100px" }} />
 
-          <Column
-            field="is_active"
-            header={t("common.status")}
-            body={statusTemplate}
-            style={{ width: "120px" }}
-          />
+          
+            <Column
+              field="is_active"
+              header={t("common.status")}
+              body={statusTemplate}
+              style={{ width: "120px" }}
+            />
+          
 
-          <Column
-            header={t("common.actions")}
-            body={actionTemplate}
-            style={{ width: "140px", textAlign: "center" }}
-          />
+          
+            <Column
+              header={t("common.actions")}
+              body={actionTemplate}
+              style={{ width: "140px", textAlign: "center" }}
+            />
+          
         </DataTable>
 
     </div>

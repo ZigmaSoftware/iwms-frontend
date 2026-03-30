@@ -1,17 +1,31 @@
 import type { ReactNode } from "react";
 
 /* ========================
-   Roles
+   Roles - DYNAMIC (from API)
 ======================== */
 
-export type UserRole = "user" | "admin" | "superadmin";
+// These are now fetched from the API via RolesContext
+// Import useRoles hook from @/contexts/RolesContext to use them
+
+export type UserRole = string; // Dynamic - can be any role value from API
 
 export const USER_ROLE_STORAGE_KEY = "user_role";
 
-export const ADMIN_ROLES = ["admin", "superadmin"] as const;
-export type AdminRole = typeof ADMIN_ROLES[number];
+/* ========================
+   Fallback Roles (for compatibility)
+   Use these only when RolesContext is not available
+======================== */
 
-export const DEFAULT_ROLE: UserRole = "user";
+export const FALLBACK_ADMIN_ROLES = ["admin", "superadmin", "companyadmin", "company_admin", "company_project_admin"] as const;
+export type FallbackAdminRole = typeof FALLBACK_ADMIN_ROLES[number];
+
+export const FALLBACK_DEFAULT_ROLE: UserRole = "company_user";
+
+// For backward compatibility - use fallback values
+export const ADMIN_ROLES = FALLBACK_ADMIN_ROLES;
+export type AdminRole = FallbackAdminRole;
+
+export const DEFAULT_ROLE: UserRole = FALLBACK_DEFAULT_ROLE;
 
 /* ========================
    Layout Props
@@ -40,15 +54,31 @@ export function normalizeRole(
 ): UserRole | null {
   if (!role) return null;
 
-  const normalized = role.toLowerCase();
-  if (normalized === "admin") return "admin";
-  if (normalized === "superadmin") return "superadmin";
+  const normalized = role.toLowerCase().trim();
+  if (!normalized) return null;
 
-  return null;
+  return normalized as UserRole;
 }
 
-export function isAdmin(role: UserRole | null | undefined): role is AdminRole {
-  return role === "admin" || role === "superadmin";
+export function isAdmin(role: UserRole | null | undefined): boolean {
+  if (!role) return false;
+  
+  const normalized = String(role).toLowerCase();
+  return (
+    FALLBACK_ADMIN_ROLES.some(r => normalized === r.toLowerCase()) ||
+    normalized.includes("admin") ||
+    normalized.includes("superadmin")
+  );
+}
+
+/**
+ * Check if user role is one of the allowed roles (flexible string comparison)
+ */
+export function isAllowedRole(userRole: UserRole | null | undefined, allowedRoles: string[]): boolean {
+  if (!userRole) return false;
+  
+  const normalizedUser = String(userRole).toLowerCase();
+  return allowedRoles.some(r => normalizedUser === r.toLowerCase());
 }
 
 /* ========================

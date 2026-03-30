@@ -62,6 +62,7 @@ interface FormDataType {
   company_id: string;
   project_id: string;
   is_active: boolean;
+  is_bulkwaste_generator: boolean;
 }
 
 /* ===============================
@@ -174,6 +175,10 @@ export default function CustomerCreationForm() {
   const ENC_LIST_PATH = `/${encCustomerMaster}/${encCustomerCreation}`;
 
   const [loading, setLoading] = useState(false);
+  const tOrFallback = (key: string, fallback: string) => {
+    const value = t(key);
+    return value === key ? fallback : value;
+  };
 
   const [formData, setFormData] = useState<FormDataType>({
     customer_name: "",
@@ -201,6 +206,7 @@ export default function CustomerCreationForm() {
     company_id: "",
     project_id: "",
     is_active: true,
+    is_bulkwaste_generator: false,
   });
 
   const resolveId = (o: any) => String(o?.unique_id ?? o?.id ?? "");
@@ -476,7 +482,7 @@ export default function CustomerCreationForm() {
             inputMode="numeric"
           />
           <FormInput
-            label={t("admin.customer_creation.username") || "Username"}
+            label={t("login.username") || "Username"}
             value={formData.username}
             onChange={(e) => update("username", e.target.value)}
             placeholder="Enter username"
@@ -548,6 +554,17 @@ export default function CustomerCreationForm() {
             step="0.01"
           />
           <ShadcnSelect
+            label={tOrFallback("admin.customer_creation.bulk_waste_generator", "Bulk Waste Generator")}
+            value={formData.is_bulkwaste_generator ? "true" : "false"}
+            onChange={(v: string) => update("is_bulkwaste_generator", v === "true")}
+            options={[
+              { value: "true", label: tOrFallback("common.yes", "Yes") },
+              { value: "false", label: tOrFallback("common.no", "No") },
+            ]}
+            placeholder={tOrFallback("admin.customer_creation.bulk_waste_generator_placeholder", "Select option")}
+            isRequired={false}
+          />
+          <ShadcnSelect
             label={t("admin.customer_creation.property") || "Property"}
             value={formData.property_id}
             onChange={(v: string) => {
@@ -598,7 +615,7 @@ export default function CustomerCreationForm() {
 
         <FormSection title={t("admin.customer_creation.company_project_info") || "Company & Project Information"}>
           <ShadcnSelect
-            label={t("admin.customer_creation.company") || "Company"}
+            label={t("admin.nav.company") || "Company"}
             value={formData.company_id}
             onChange={(v: string) => {
               update("company_id", v);
@@ -608,18 +625,18 @@ export default function CustomerCreationForm() {
               value: resolveId(c),
               label: c.name,
             }))}
-            placeholder={t("admin.customer_creation.company_placeholder") || "Select company"}
+            placeholder={t("admin.nav.company_placeholder") || "Select company"}
             isRequired={true}
           />
           <ShadcnSelect
-            label={t("admin.customer_creation.project") || "Project"}
+            label={t("admin.nav.project") || "Project"}
             value={formData.project_id}
             onChange={(v: string) => update("project_id", v)}
             options={filteredProjects.map((p: any) => ({
               value: resolveId(p),
               label: p.name,
             }))}
-            placeholder={t("admin.customer_creation.project_placeholder") || "Select project"}
+            placeholder={t("admin.nav.project_placeholder") || "Select project"}
             isRequired={true}
           />
         </FormSection>
@@ -719,14 +736,14 @@ export default function CustomerCreationForm() {
             placeholder={t("common.select_item_placeholder", { item: t("common.ward") }) || "Select ward"}
           />
           <ShadcnSelect
-            label={t("common.panchayat") || "Panchayat"}
+            label={t("admin.nav.panchayat") || "Panchayat"}
             value={formData.panchayat_id}
             onChange={(v: string) => update("panchayat_id", v)}
             options={filteredPanchayats.map((p: any) => ({
               value: resolveId(p),
               label: p.panchayat_name || p.name,
             }))}
-            placeholder={t("common.select_item_placeholder", { item: t("common.panchayat") }) || "Select panchayat"}
+            placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") }) || "Select panchayat"}
             isRequired={false}
           />
         </FormSection>
