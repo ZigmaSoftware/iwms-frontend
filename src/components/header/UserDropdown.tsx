@@ -4,6 +4,7 @@ import { Dropdown } from "../ui/dropdown/Dropdown";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { clearAdminViewPreference } from "@/types/roles";
+// import { clearStoredPermissions } from "@/utils/permissions";
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
@@ -41,6 +42,7 @@ export default function UserDropdown() {
     localStorage.removeItem("project_unique_id");
     localStorage.removeItem("current_project_id");
     localStorage.removeItem("selected_project_id");
+    // clearStoredPermissions();
     clearAdminViewPreference();
     setUser(null);
     navigate("/auth", { replace: true });

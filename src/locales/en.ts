@@ -767,7 +767,9 @@ const enResource = {
           "common_masters": "Common Masters",
           "superAdmin_masters": "SuperAdmin Masters",
           "company": "Company",
+          "company_placeholder": "Select company",
           "project": "Project",
+          "project_placeholder": "Select project",
           "masters": "Masters",
           "continent": "Continent",
           "country": "Country",
@@ -1309,7 +1311,9 @@ const enResource = {
           "driving_licence_choose": "Choose file",
           "driving_licence_no_file": "No file selected",
           "password": "Password",
-          "password_placeholder": "Enter password"
+          "password_placeholder": "Enter password",
+          "username": "Username",
+          "username_placeholder": "Enter username"
         },
         "dashboard_home": {
           "title": "Operations Overview",
@@ -1466,6 +1470,7 @@ const enResource = {
           supervisor: "Supervisor",
         },
         "customer_creation": {
+          "personal_info": "Personal Information",
           "title": "Customer Creation",
           "subtitle": "Manage customer records",
           "add": "Add Customer",
@@ -1478,6 +1483,8 @@ const enResource = {
           "title_edit": "Edit Customer",
           "customer_name": "Customer Name",
           "contact_no": "Contact No",
+          "bulk_waste_generator": "Bulk Waste Generator",
+          "bulk_waste_generator_placeholder": "Select option",
           "id_proof_type": "ID Proof Type",
           "id_proof_placeholder": "Select ID Proof",
           "id_proof_aadhaar": "Aadhaar",
@@ -1498,7 +1505,15 @@ const enResource = {
           "invalid_pincode_desc": "Pincode must be 6 digits.",
           "invalid_coordinates_title": "Invalid Coordinates",
           "invalid_coordinates_desc": "Latitude / Longitude invalid.",
-          "save_success": "Customer saved successfully"
+          "save_success": "Customer saved successfully",
+          "email": "Email",
+          "sqft": "Sq Ft",
+          "property_info": "Property Info",
+          "address_info": "Address Info",
+          "company_project_info": "Company & Project Info",
+          "identification": "Identification Info",
+          "location_details": "Location Details",
+          
         },
         "home": {
           "title": "Analytics Dashboard",

@@ -181,22 +181,13 @@ export default function UserScreenForm() {
             return;
         }
 
-        if (!resolvedCompanyId || !resolvedProjectId) {
-            Swal.fire(
-                t("common.warning"),
-                t("common.missing_fields"),
-                "warning"
-            );
-            return;
-        }
-
         setLoading(true);
 
         try {
             const payload = {
                 mainscreen_id: mainscreenId,
-                company_id: resolvedCompanyId,
-                project_id: resolvedProjectId,
+                company_id: resolvedCompanyId || null,
+                project_id: resolvedProjectId || null,
                 userscreen_name: userScreenName.trim(),
                 folder_name: folderName.trim(),
                 icon_name: iconName.trim(),

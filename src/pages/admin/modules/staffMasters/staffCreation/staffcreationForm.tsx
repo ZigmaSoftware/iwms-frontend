@@ -121,8 +121,8 @@ const initialFormData = {
   employee_known: "",
   salary_type: "",
   active_status: "1",
-  staffusertype_id: "", // Added property
-  username: "",
+  staffusertype_id: "",
+  username: "",       // ← username field
   password: "",
   office_email: "",
   marital_status: "",
@@ -178,7 +178,6 @@ export default function StaffCreationForm() {
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
 
-
   const {
     companyUniqueId,
     loggedInCompanyUniqueId,
@@ -203,7 +202,7 @@ export default function StaffCreationForm() {
     { value: "0", label: t("common.inactive") },
   ];
 
- const selectedUserType = staffUserTypeOptions.find(
+  const selectedUserType = staffUserTypeOptions.find(
     (opt) => opt.value === formData.staffusertype_id
   );
 
@@ -235,16 +234,18 @@ export default function StaffCreationForm() {
     const fileUrl = URL.createObjectURL(file);
     setLicencePreview(fileUrl);
   };
- useEffect(() => {
-  if (!isDriverSelected && !isEdit) {
-    setLicenceFile(null);
-    setLicencePreview("");
-    setFormData((prev) => ({
-      ...prev,
-      driving_licence_no: "",
-    }));
-  }
-}, [isDriverSelected]);
+
+  useEffect(() => {
+    if (!isDriverSelected && !isEdit) {
+      setLicenceFile(null);
+      setLicencePreview("");
+      setFormData((prev) => ({
+        ...prev,
+        driving_licence_no: "",
+      }));
+    }
+  }, [isDriverSelected]);
+
   useEffect(() => {
     const loadStaffUserTypes = async () => {
       try {
@@ -323,9 +324,9 @@ export default function StaffCreationForm() {
           salary_type: staff.salary_type ?? "",
           active_status: staff.active_status ? "1" : "0",
 
-          // passwords (only when returned from backend)
-          password:
-            staff.password ?? staff.user_password ?? staff.staff_password ?? "",
+          // Auth
+          username: staff.username ?? "",                                          // ← populate on edit
+          password: staff.password ?? staff.user_password ?? staff.staff_password ?? "",
 
           // Personal details (FLAT — NOT nested)
           marital_status:
@@ -388,7 +389,6 @@ export default function StaffCreationForm() {
           );
         }
       })
-
       .catch((error) => {
         console.error("Failed to load staff", error);
         Swal.fire({
@@ -525,6 +525,7 @@ export default function StaffCreationForm() {
         active_status: formData.active_status === "1",
         company_id: companyUniqueId,
         staffusertype_id: formData.staffusertype_id || null,
+        username: formData.username || null,     // ← username in payload
 
         // Personal
         marital_status: formData.marital_status,
@@ -619,6 +620,7 @@ export default function StaffCreationForm() {
       setSubmitting(false);
     }
   };
+
   const sectionButtons: { label: string; key: Section }[] = [
     { label: t("admin.staff_creation.section_official"), key: "official" },
     { label: t("admin.staff_creation.section_personal"), key: "personal" },
@@ -669,7 +671,6 @@ export default function StaffCreationForm() {
         <Label htmlFor="staffusertype_id">
           {t("admin.staff_creation.staff_user_type")}
         </Label>
-
         <Select
           id="staffusertype_id"
           value={formData.staffusertype_id}
@@ -678,6 +679,21 @@ export default function StaffCreationForm() {
           placeholder={t("admin.staff_creation.staff_user_type_placeholder")}
         />
       </div>
+
+      {/* ── Username ── */}
+      <div>
+        <Label htmlFor="username">
+          {t("admin.staff_creation.username")}
+        </Label>
+        <Input
+          id="username"
+          value={formData.username}
+          onChange={handleInputChange}
+          placeholder={t("admin.staff_creation.username_placeholder")}
+        />
+      </div>
+
+      {/* ── Password ── */}
       <div>
         <PasswordInput
           id="password"
@@ -687,6 +703,7 @@ export default function StaffCreationForm() {
           placeholder={t("admin.staff_creation.password_placeholder")}
         />
       </div>
+
       {isDriverSelected && (
         <>
           <div>
@@ -1227,10 +1244,11 @@ export default function StaffCreationForm() {
               key={btn.key}
               type="button"
               onClick={() => setSection(btn.key)}
-              className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${section === btn.key
+              className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                section === btn.key
                   ? "border-brand-500 bg-brand-500/10 text-brand-600"
                   : "border-gray-200 text-gray-600 hover:border-gray-300"
-                }`}
+              }`}
             >
               {btn.label}
             </button>

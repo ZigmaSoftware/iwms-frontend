@@ -12,7 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { userTypeApi, staffUserTypeApi } from "@/helpers/admin";
+import {
+  userTypeApi,
+  staffUserTypeApi,
+  roleTypesApi,
+} from "@/helpers/admin";
 
 const { encAdmins, encStaffUserType } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encAdmins}/${encStaffUserType}`;
@@ -23,10 +27,112 @@ type UserType = {
   is_active: boolean;
 };
 
+type RoleTypeOption = {
+  value: string;
+  label: string;
+};
+
+const prettifyRoleLabel = (value: string) =>
+  value
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const toRoleOption = (item: unknown): RoleTypeOption | null => {
+  if (typeof item === "string") {
+    const value = item.trim();
+    if (!value) return null;
+    return { value, label: prettifyRoleLabel(value) };
+  }
+
+  if (!item || typeof item !== "object") return null;
+
+  const record = item as Record<string, unknown>;
+  const rawValue =
+    record.value ??
+    record.key ??
+    record.id ??
+    record.unique_id ??
+    record.name ??
+    record.code;
+
+  if (typeof rawValue !== "string" && typeof rawValue !== "number") {
+    return null;
+  }
+
+  const value = String(rawValue).trim();
+  if (!value) return null;
+
+  const rawLabel =
+    record.label ??
+    record.display_name ??
+    record.title ??
+    record.name;
+
+  const label =
+    typeof rawLabel === "string" && rawLabel.trim()
+      ? rawLabel
+      : prettifyRoleLabel(value);
+
+  return { value, label };
+};
+
+const normalizeRoleTypes = (raw: unknown): RoleTypeOption[] => {
+  const payload =
+    raw && typeof raw === "object" && "data" in (raw as Record<string, unknown>)
+      ? (raw as Record<string, unknown>).data
+      : raw;
+
+  let source: unknown[] = [];
+
+  if (Array.isArray(payload)) {
+    source = payload;
+  } else if (payload && typeof payload === "object") {
+    const record = payload as Record<string, unknown>;
+    const arrayKeys = ["results", "choices", "role_choices", "items", "data"];
+
+    for (const key of arrayKeys) {
+      if (Array.isArray(record[key])) {
+        source = record[key] as unknown[];
+        break;
+      }
+    }
+
+    if (source.length === 0) {
+      const entries = Object.entries(record).filter(
+        ([key]) =>
+          !["count", "next", "previous", "detail", "message"].includes(key)
+      );
+
+      if (
+        entries.length > 0 &&
+        entries.every(([, value]) => typeof value === "string")
+      ) {
+        source = entries.map(([value, label]) => ({ value, label }));
+      }
+    }
+  }
+
+  const parsed = source
+    .map((item) => toRoleOption(item))
+    .filter((item): item is RoleTypeOption => Boolean(item));
+
+  const unique = new Map<string, RoleTypeOption>();
+  for (const option of parsed) {
+    if (!unique.has(option.value)) {
+      unique.set(option.value, option);
+    }
+  }
+
+  return Array.from(unique.values());
+};
+
 export default function StaffUserTypeForm() {
   const { t } = useTranslation();
   const [name, setName] = useState("");
   const [userTypes, setUserTypes] = useState<UserType[]>([]);
+  const [roleTypes, setRoleTypes] = useState<RoleTypeOption[]>([]);
   const [selectedUserType, setSelectedUserType] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -54,16 +160,45 @@ export default function StaffUserTypeForm() {
     }
   };
 
+  const fetchRoleTypes = async () => {
+    try {
+      const res = await roleTypesApi.list();
+      const list = normalizeRoleTypes(res);
+      setRoleTypes(list);
+      return list;
+    } catch (error) {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      throw error;
+    }
+  };
+
   /* =========================
      LOAD EDIT DATA
   ========================= */
-  const fetchEditData = async (usertypes: UserType[]) => {
+  const fetchEditData = async (
+    usertypes: UserType[],
+    availableRoleTypes: RoleTypeOption[]
+  ) => {
     try {
       const res = await staffUserTypeApi.get(id as string);
       const data = (res as any)?.data ?? res;
 
-      setName(data.name ?? "");
+      const roleValue = String(data.name ?? "").trim();
+      setName(roleValue);
       setIsActive(Boolean(data.is_active));
+
+      if (
+        roleValue &&
+        !availableRoleTypes.some((role) => role.value === roleValue)
+      ) {
+        setRoleTypes((prev) => [
+          ...prev,
+          {
+            value: roleValue,
+            label: prettifyRoleLabel(roleValue),
+          },
+        ]);
+      }
 
       // ensure selected value exists in dropdown
       const validUserType =
@@ -84,12 +219,22 @@ export default function StaffUserTypeForm() {
   useEffect(() => {
     (async () => {
       try {
-        const list = await fetchUserTypes();
+        const [userTypeList, roleTypeList] = await Promise.all([
+          fetchUserTypes(),
+          fetchRoleTypes(),
+        ]);
+
         if (isEdit) {
-          await fetchEditData(list);
-        } else if (list.length > 0) {
-          setSelectedUserType(list[0].unique_id);
+          await fetchEditData(userTypeList, roleTypeList);
+        } else {
+          if (userTypeList.length > 0) {
+            setSelectedUserType(userTypeList[0].unique_id);
+          }
+          if (roleTypeList.length > 0) {
+            setName(roleTypeList[0].value);
+          }
         }
+
         setPageReady(true);
       } catch {
         /* handled */
@@ -201,18 +346,17 @@ export default function StaffUserTypeForm() {
                   <SelectValue placeholder={t("common.select_role")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">
-                    {t("admin.roles.admin")}
-                  </SelectItem>
-                  <SelectItem value="operator">
-                    {t("admin.roles.operator")}
-                  </SelectItem>
-                  <SelectItem value="driver">
-                    {t("admin.roles.driver")}
-                  </SelectItem>
-                  <SelectItem value="user">
-                    {t("admin.roles.user")}
-                  </SelectItem>
+                  {roleTypes.length === 0 ? (
+                    <SelectItem value="__no_roles__" disabled>
+                      {t("common.not_available")}
+                    </SelectItem>
+                  ) : (
+                    roleTypes.map((role) => (
+                      <SelectItem key={role.value} value={role.value}>
+                        {role.label}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
