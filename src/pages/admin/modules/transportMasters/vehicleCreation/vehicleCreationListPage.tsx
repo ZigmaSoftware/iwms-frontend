@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
@@ -35,6 +36,17 @@ type VehicleCreationRecord = {
   rc_upload?: string | null;
   vehicle_insurance_file?: string | null;
   is_active: boolean;
+};
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_no?: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_type_name?: { value: string | null; matchMode: FilterMatchMode };
+  fuel_type_name?: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_condition?: { value: string | null; matchMode: FilterMatchMode };
+  insurance_expiry_date?: { value: string | null; matchMode: FilterMatchMode };
+  rc_upload?: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_insurance_file?: { value: string | null; matchMode: FilterMatchMode };
 };
 
 const vehicleCreationApi = adminApi.vehicleCreations;
@@ -76,10 +88,22 @@ export default function VehicleCreationListPage() {
     `/${encTransportMaster}/${encVehicleCreation}/${id}/edit`;
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  //   vehicle_no: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     vehicle_no: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    vehicle_type_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    fuel_type_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    vehicle_condition: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    insurance_expiry_date: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    rc_upload: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    vehicle_insurance_file: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
+
 
   const resolveId = (row: VehicleCreationRecord) => row.unique_id;
 
@@ -284,9 +308,9 @@ export default function VehicleCreationListPage() {
           style={{ width: "80px" }}
         />
 
-        <Column field="vehicle_no" header={t("admin.vehicle_creation.vehicle_no")} sortable />
-        <Column field="vehicle_type_name" header={t("admin.vehicle_creation.vehicle_type")} sortable />
-        <Column field="fuel_type_name" header={t("admin.vehicle_creation.fuel_type")} sortable />
+        <Column field="vehicle_no" header={t("admin.vehicle_creation.vehicle_no")} sortable filter showFilterMatchModes={false} />
+        <Column field="vehicle_type_name" header={t("admin.vehicle_creation.vehicle_type")} sortable filter showFilterMatchModes={false} />
+        <Column field="fuel_type_name" header={t("admin.vehicle_creation.fuel_type")} sortable filter showFilterMatchModes={false} />
         <Column field="capacity" header={t("admin.vehicle_creation.capacity")} sortable />
         <Column field="mileage_per_liter" header={t("admin.vehicle_creation.mileage_per_liter")} sortable />
         <Column field="fuel_tank_capacity" header={t("admin.vehicle_creation.fuel_tank_capacity")} sortable />
@@ -294,21 +318,30 @@ export default function VehicleCreationListPage() {
           field="vehicle_condition"
           header={t("admin.vehicle_creation.vehicle_condition")}
           body={(row: VehicleCreationRecord) => conditionLabel(row.vehicle_condition)}
+          sortable
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           field="insurance_expiry_date"
           header={t("admin.vehicle_creation.insurance_expiry_date")}
           body={(row: VehicleCreationRecord) => formatDate(row.insurance_expiry_date)}
+          sortable
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           field="rc_upload"
           header={t("admin.vehicle_creation.rc_upload")}
           body={(row: VehicleCreationRecord) => renderFilePreview(row.rc_upload)}
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           field="vehicle_insurance_file"
           header={t("admin.vehicle_creation.vehicle_insurance_file")}
           body={(row: VehicleCreationRecord) => renderFilePreview(row.vehicle_insurance_file)}
+          
         />
 
         <Column

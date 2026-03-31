@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
@@ -47,6 +48,14 @@ type WasteCollection = {
   is_active: boolean;
 };
 
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  customer_id?: { value: string | null; matchMode: FilterMatchMode };
+  customer_name?: { value: string | null; matchMode: FilterMatchMode };
+  zone_name?: { value: string | null; matchMode: FilterMatchMode };
+  city_name?: { value: string | null; matchMode: FilterMatchMode };
+};
 export default function WasteCollectedDataList() {
   const { t } = useTranslation();
   const [wasteCollectedDatas, setWasteCollectedDatas] =
@@ -65,9 +74,17 @@ export default function WasteCollectedDataList() {
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  //   customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    customer_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
     customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const fetchWasteCollectedData = async () => {
@@ -197,12 +214,16 @@ export default function WasteCollectedDataList() {
               (r.customer_unique_id ? String(r.customer_unique_id) : "") ||
               (r.customer_id ? String(r.customer_id) : "-")
             }
+            filter  
+            showFilterMatchModes={false}
           />
           <Column
             field="customer_name"
             header={t("admin.waste_collected_data.customer_name")}
             body={(r: WasteCollection) => cap(r.customer_name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
           <Column
             field="dry_waste"
@@ -224,12 +245,16 @@ export default function WasteCollectedDataList() {
             header={t("common.zone")}
             body={(r: WasteCollection) => cap(r.zone_name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
           <Column
             field="city_name"
             header={t("common.city")}
             body={(r: WasteCollection) => cap(r.city_name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
 
           {/*  NEW Switch Toggle */}

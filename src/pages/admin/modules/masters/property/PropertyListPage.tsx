@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -56,6 +57,10 @@ export default function PropertyList() {
   useEffect(() => {
     fetchProperties();
   }, []);
+
+  const onFilter = (e: DataTableFilterEvent) => {
+    setFilters(e.filters as any);
+  };
 
   const handleDelete = async (unique_id: string) => {
     const confirm = await Swal.fire({
@@ -175,6 +180,7 @@ export default function PropertyList() {
           rowsPerPageOptions={[5, 10, 25, 50]}
           loading={loading}
           filters={filters}
+          onFilter={onFilter}
           header={renderHeader()}
           stripedRows
           showGridlines
@@ -190,6 +196,8 @@ export default function PropertyList() {
             field="property_name"
             header={t("common.item_name", { item: t("admin.nav.property") })}
             sortable
+            filter
+            showFilterMatchModes={false}
             body={(row: Property) => cap(row.property_name)}
           />
 

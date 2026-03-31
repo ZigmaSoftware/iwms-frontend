@@ -5,6 +5,7 @@ import { mainCategoryApi } from "@/helpers/admin";
 import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
@@ -24,6 +25,10 @@ type MainCategory = {
   main_categoryName: string;
   is_active: boolean;
 };
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  main_categoryName?: { value: string | null; matchMode: FilterMatchMode };
+};
 
 export default function MainComplaintCategoryList() {
   const { t } = useTranslation();
@@ -40,7 +45,11 @@ export default function MainComplaintCategoryList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encCitizenGrivence}/${encMainComplaintCategory}/${id}/edit`;
 
-  const [filters, setFilters] = useState({
+  // const [filters, setFilters] = useState({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  //   main_categoryName: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  // });
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     main_categoryName: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
@@ -185,6 +194,8 @@ export default function MainComplaintCategoryList() {
             field="main_categoryName"
             header={t("admin.citizen_grievance.main_category.columns.main_category")}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
 
           <Column

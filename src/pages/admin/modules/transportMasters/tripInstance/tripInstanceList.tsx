@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
@@ -27,6 +28,21 @@ type TripInstanceRecord = {
   status: string;
   trip_start_time?: string | null;
   trip_end_time?: string | null;
+};
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  trip_no?: { value: string | null; matchMode: FilterMatchMode };
+  trip_definition_id?: { value: string | null; matchMode: FilterMatchMode };
+  staff_template_id?: { value: string | null; matchMode: FilterMatchMode };
+  alternative_staff_template_id?: { value: string | null; matchMode: FilterMatchMode };
+  zone_id?: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_id?: { value: string | null; matchMode: FilterMatchMode };
+  property_id?: { value: string | null; matchMode: FilterMatchMode };
+  sub_property_id?: { value: string | null; matchMode: FilterMatchMode };
+  status?: { value: string | null; matchMode: FilterMatchMode };
+  trip_start_time?: { value: string | null; matchMode: FilterMatchMode };
+  trip_end_time?: { value: string | null; matchMode: FilterMatchMode };
 };
 
 const normalizeList = (payload: any): any[] =>
@@ -66,8 +82,23 @@ export default function TripInstanceList() {
   const [subPropertyLookup, setSubPropertyLookup] = useState<Record<string, string>>({});
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    trip_no: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    trip_definition_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    staff_template_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    alternative_staff_template_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    zone_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    vehicle_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    property_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    sub_property_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    status: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    trip_start_time: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    trip_end_time: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
   const { encTransportMaster, encTripInstance } = getEncryptedRoute();
@@ -187,18 +218,22 @@ export default function TripInstanceList() {
         emptyMessage={t("admin.trip_instance.empty_message")}
       >
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
-        <Column field="trip_no" header={t("admin.trip_instance.trip_no")} />
+        <Column field="trip_no" header={t("admin.trip_instance.trip_no")} filter showFilterMatchModes={false} />
         <Column
           header={t("admin.trip_instance.trip_definition")}
           body={(row: TripInstanceRecord) =>
             tripDefinitionLookup[row.trip_definition_id] ?? row.trip_definition_id
           }
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           header={t("admin.trip_instance.staff_template")}
           body={(row: TripInstanceRecord) =>
             staffTemplateLookup[row.staff_template_id] ?? row.staff_template_id
           }
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           header={t("admin.trip_instance.alt_staff_template")}
@@ -207,34 +242,51 @@ export default function TripInstanceList() {
               ? altStaffTemplateLookup[row.alternative_staff_template_id] ?? row.alternative_staff_template_id
               : "-"
           }
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           header={t("admin.trip_instance.zone")}
           body={(row: TripInstanceRecord) => zoneLookup[row.zone_id] ?? row.zone_id}
+          filter
+          showFilterMatchModes={false}
+
         />
         <Column
           header={t("admin.trip_instance.vehicle")}
           body={(row: TripInstanceRecord) => vehicleLookup[row.vehicle_id] ?? row.vehicle_id}
+          filter
+          showFilterMatchModes={false}
+
         />
         <Column
           header={t("admin.trip_instance.property")}
           body={(row: TripInstanceRecord) => propertyLookup[row.property_id] ?? row.property_id}
+          filter
+          showFilterMatchModes={false}
+
         />
         <Column
           header={t("admin.trip_instance.sub_property")}
           body={(row: TripInstanceRecord) =>
             subPropertyLookup[row.sub_property_id] ?? row.sub_property_id
           }
+          filter
+          showFilterMatchModes={false}
         />
         <Column field="current_load_kg" header={t("admin.trip_instance.current_load")} />
-        <Column field="status" header={t("admin.trip_instance.status")} />
+        <Column field="status" header={t("admin.trip_instance.status")} filter showFilterMatchModes={false} />
         <Column
           header={t("admin.trip_instance.trip_start_time")}
           body={(row: TripInstanceRecord) => resolveDateTime(row.trip_start_time)}
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           header={t("admin.trip_instance.trip_end_time")}
           body={(row: TripInstanceRecord) => resolveDateTime(row.trip_end_time)}
+          filter
+          showFilterMatchModes={false}
         />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
       </DataTable>

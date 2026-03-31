@@ -103,6 +103,17 @@ type RoutePlan = {
   created_at?: string | null;
 };
 
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  display_code?: { value: string | null; matchMode: FilterMatchMode };
+  district_name?: { value: string | null; matchMode: FilterMatchMode };
+  city_name?: { value: string | null; matchMode: FilterMatchMode };
+  zone_name?: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_no?: { value: string | null; matchMode: FilterMatchMode };
+  supervisor_name?: { value: string | null; matchMode: FilterMatchMode };
+  is_active?: { value: string | null; matchMode: FilterMatchMode };
+};
+
 // Temporary mock data - Replace with actual API calls
 const mockRoutePlans: RoutePlan[] = [];
 
@@ -132,8 +143,19 @@ export default function RoutePlanList() {
     `/${encStaffMasters}/${encRoutePlans}/${id}/edit`;
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    display_code: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    district_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    vehicle_no: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    supervisor_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    is_active: { value: null, matchMode: FilterMatchMode.EQUALS },
   });
 
   const fetchList = async () => {
@@ -277,12 +299,12 @@ export default function RoutePlanList() {
         rowsPerPageOptions={[10, 20, 50]}
         className="p-datatable-striped"
       >
-        <Column field="display_code" header={t("common.code") || "Code"} sortable filter />
-        <Column field="zone_name" header={t("common.zone") || "Zone"} sortable filter />
-        <Column field="city_name" header={t("common.city") || "City"} sortable filter />
-        <Column field="district_name" header={t("common.district") || "District"} sortable filter />
-        <Column field="vehicle_no" header={t("common.vehicle") || "Vehicle"} sortable filter />
-        <Column field="supervisor_name" header={t("common.supervisor") || "Supervisor"} sortable filter />
+        <Column field="display_code" header={t("common.code") || "Code"} sortable filter showFilterMatchModes={false} />
+        <Column field="zone_name" header={t("common.zone") || "Zone"} sortable filter showFilterMatchModes={false} />
+        <Column field="city_name" header={t("common.city") || "City"} sortable filter showFilterMatchModes={false} />
+        <Column field="district_name" header={t("common.district") || "District"} sortable filter showFilterMatchModes={false} />
+        <Column field="vehicle_no" header={t("common.vehicle") || "Vehicle"} sortable filter showFilterMatchModes={false} />
+        <Column field="supervisor_name" header={t("common.supervisor") || "Supervisor"} sortable filter showFilterMatchModes={false} />
         <Column
           field="is_active"
           header={t("common.status") || "Status"}

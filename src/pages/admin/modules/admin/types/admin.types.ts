@@ -68,6 +68,7 @@ export interface UserScreenAction extends BaseEntity {
 =========================================================== */
 export interface UserType extends BaseEntity {
   name: string;
+  [key: string]: any;
 }
 
 /* ===========================================================

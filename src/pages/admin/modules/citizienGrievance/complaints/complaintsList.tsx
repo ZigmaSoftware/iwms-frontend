@@ -6,6 +6,7 @@ import { PencilIcon } from "@/icons";
 import { FilterMatchMode } from "primereact/api";
 import { Column } from "primereact/column";
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { InputText } from "primereact/inputtext";
 
 const pdfImg = "/images/pdfimage/download.png";
@@ -39,6 +40,13 @@ type Complaint = {
   created: string;
   complaint_closed_at?: string | null;
 };
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  customer_name?: { value: string | null; matchMode: FilterMatchMode };
+  contact_no?: { value: string | null; matchMode: FilterMatchMode };
+};
+
 
 export default function ComplaintsList() {
   const { t } = useTranslation();

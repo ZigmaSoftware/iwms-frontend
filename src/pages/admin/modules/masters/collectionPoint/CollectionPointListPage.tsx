@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -61,6 +62,14 @@ export default function CollectionPointListPage() {
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    cp_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    company_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    project_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    state_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    district_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    city_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    panchayat_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    ward_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const { encMasters, encCollectionPoints } = getEncryptedRoute();
@@ -84,12 +93,17 @@ export default function CollectionPointListPage() {
     fetchRows();
   }, [fetchRows]);
 
+  const onFilter = (e: DataTableFilterEvent) => {
+    setFilters(e.filters as any);
+  };
+
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setGlobalFilterValue(value);
-    setFilters({
+    setFilters((prev) => ({
+      ...prev,
       global: { value, matchMode: FilterMatchMode.CONTAINS },
-    });
+    }));
   };
 
   const renderHeader = () => (
@@ -173,6 +187,7 @@ export default function CollectionPointListPage() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
         filters={filters}
+        onFilter={onFilter}
         header={renderHeader()}
         stripedRows
         showGridlines
@@ -210,48 +225,64 @@ export default function CollectionPointListPage() {
           field="cp_name"
           header={t("admin.nav.collection_point")}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: CollectionPointRecord) => cap(row.cp_name)}
         />
         <Column
           field="company_name"
           header={t("admin.nav.company")}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: CollectionPointRecord) => cap(row.company_name)}
         />
         <Column
           field="project_name"
           header={t("admin.nav.project")}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: CollectionPointRecord) => cap(row.project_name)}
         />
         <Column
           field="state_name"
           header={t("common.state")}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: CollectionPointRecord) => cap(row.state_name)}
         />
         <Column
           field="district_name"
           header={t("common.district")}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: CollectionPointRecord) => cap(row.district_name)}
         />
         <Column
           field="city_name"
           header={t("common.city")}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: CollectionPointRecord) => cap(row.city_name)}
         />
         <Column
           field="panchayat_name"
           header={t("admin.nav.panchayat")}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: CollectionPointRecord) => toDisplay(row.panchayat_name)}
         />
         <Column
           field="ward_name"
           header={t("admin.nav.ward")}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: CollectionPointRecord) => toDisplay(row.ward_name)}
         />
         <Column

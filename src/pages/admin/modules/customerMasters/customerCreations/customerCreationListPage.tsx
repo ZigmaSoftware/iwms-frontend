@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 import ReactDOM from "react-dom/client";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -42,6 +43,16 @@ type Customer = {
   is_active: boolean;
 };
 
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  customer_name?: { value: string | null; matchMode: FilterMatchMode };
+  contact_no?: { value: string | null; matchMode: FilterMatchMode };
+  ward_name?: { value: string | null; matchMode: FilterMatchMode };
+  zone_name?: { value: string | null; matchMode: FilterMatchMode };
+  city_name?: { value: string | null; matchMode: FilterMatchMode };
+  state_name?: { value: string | null; matchMode: FilterMatchMode };
+};
+
 const customerApi = adminApi.customerCreations;
 
 
@@ -51,10 +62,20 @@ export default function CustomerCreationList() {
   const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  //   customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
+    contact_no: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    state_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  }); 
 
   const navigate = useNavigate();
   const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
@@ -249,31 +270,45 @@ export default function CustomerCreationList() {
             header={t("admin.customer_creation.customer")}
             body={(row: Customer) => cap(row.customer_name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
-          <Column field="contact_no" header={t("common.mobile")} sortable />
+          <Column field="contact_no" header={t("common.mobile")} 
+          sortable 
+          filter  
+          showFilterMatchModes={false}
+          />
           <Column
             field="ward_name"
             header={t("common.ward")}
             body={(row: Customer) => cap(row.ward_name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
           <Column
             field="zone_name"
             header={t("common.zone")}
             body={(row: Customer) => cap(row.zone_name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
           <Column
             field="city_name"
             header={t("common.city")}
             body={(row: Customer) => cap(row.city_name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
           <Column
             field="state_name"
             header={t("common.state")}
             body={(row: Customer) => cap(row.state_name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
 
           <Column header={t("admin.customer_creation.qr_label")} body={qrTemplate} style={{ width: "100px" }} />

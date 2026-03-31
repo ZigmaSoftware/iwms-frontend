@@ -6,6 +6,7 @@ import { subCategoryApi } from "@/helpers/admin";
 import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
@@ -20,16 +21,29 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  name?: { value: string | null; matchMode: FilterMatchMode };
+  mainCategory_name?: { value: string | null; matchMode: FilterMatchMode };
+};
+
 export default function SubComplaintCategoryList() {
   const { t } = useTranslation();
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
+  // const [filters, setFilters] = useState({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  //   name: { value: null, matchMode: FilterMatchMode.STARTS_WITH }
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH }
-  });
+    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    mainCategory_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH }
+  }); 
 
   const navigate = useNavigate();
   const { encCitizenGrivence, encSubComplaintCategory } = getEncryptedRoute();
@@ -183,11 +197,15 @@ export default function SubComplaintCategoryList() {
             field="name"
             header={t("admin.citizen_grievance.sub_category.columns.sub_category")}
             sortable
+            filter  
+            showFilterMatchModes={false}
           />
           <Column
             field="mainCategory_name"
             header={t("admin.citizen_grievance.sub_category.columns.main_category")}
             sortable
+            filter  
+            showFilterMatchModes={false}
           />
           <Column
             field="is_active"

@@ -44,6 +44,18 @@ type CollectionMonitoringRecord = {
   is_active: boolean;
 };
 
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  bin_name?: { value: string | null; matchMode: FilterMatchMode };
+  wastetype_name?: { value: string | null; matchMode: FilterMatchMode };
+  collection_point_name?: { value: string | null; matchMode: FilterMatchMode };
+  trip_id?: { value: string | null; matchMode: FilterMatchMode };
+  company_name?: { value: string | null; matchMode: FilterMatchMode };
+  project_name?: { value: string | null; matchMode: FilterMatchMode };
+  panchayat_name?: { value: string | null; matchMode: FilterMatchMode };
+  ward_name?: { value: string | null; matchMode: FilterMatchMode };
+};
+
 export default function CollectionMonitoringListPage() {
   const { t } = useTranslation();
   const [rows, setRows] = useState<CollectionMonitoringRecord[]>([]);
@@ -61,10 +73,23 @@ export default function CollectionMonitoringListPage() {
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  //   bin_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     bin_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    wastetype_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    collection_point_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    trip_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    company_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    project_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
+
 
   /* ---------------- FETCH DATA ---------------- */
 
@@ -247,6 +272,8 @@ export default function CollectionMonitoringListPage() {
           header={t("common.item_name", { item: t("admin.nav.bin_master") })}
           sortable
           body={(r: CollectionMonitoringRecord) => cap(r.bin_name)}
+          filter
+          showFilterMatchModes={false}
         />
 
         <Column
@@ -254,6 +281,8 @@ export default function CollectionMonitoringListPage() {
           header={t("common.waste_type")}
           sortable
           body={(r: CollectionMonitoringRecord) => cap(r.wastetype_name)}
+          filter
+          showFilterMatchModes={false}
         />
 
         <Column
@@ -263,6 +292,8 @@ export default function CollectionMonitoringListPage() {
           body={(r: CollectionMonitoringRecord) =>
             cap(r.collection_point_name)
           }
+          filter
+          showFilterMatchModes={false}
         />
 
         <Column
@@ -283,6 +314,8 @@ export default function CollectionMonitoringListPage() {
           header="Trip ID"
           sortable
           body={(r: CollectionMonitoringRecord) => toDisplay(r.trip_id)}
+          filter
+          showFilterMatchModes={false}
         />
 
         <Column
@@ -290,6 +323,8 @@ export default function CollectionMonitoringListPage() {
           header={t("admin.nav.company")}
           sortable
           body={(r: CollectionMonitoringRecord) => cap(r.company_name)}
+          filter
+          showFilterMatchModes={false}
         />
 
         <Column
@@ -297,6 +332,8 @@ export default function CollectionMonitoringListPage() {
           header={t("admin.nav.project")}
           sortable
           body={(r: CollectionMonitoringRecord) => cap(r.project_name)}
+          filter
+          showFilterMatchModes={false}
         />
 
         <Column
@@ -304,6 +341,8 @@ export default function CollectionMonitoringListPage() {
           header={t("admin.nav.panchayat")}
           sortable
           body={(r: CollectionMonitoringRecord) => toDisplay(r.panchayat_name)}
+          filter
+          showFilterMatchModes={false}
         />
 
         <Column
@@ -311,6 +350,8 @@ export default function CollectionMonitoringListPage() {
           header={t("common.ward")}
           sortable
           body={(r: CollectionMonitoringRecord) => toDisplay(r.ward_name)}
+          filter
+          showFilterMatchModes={false}
         />
 
         <Column

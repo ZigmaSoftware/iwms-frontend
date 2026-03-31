@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -31,6 +32,18 @@ export default function PanchayatListPage() {
       value: null as string | null,
       matchMode: FilterMatchMode.STARTS_WITH,
     },
+    state_name: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    district_name: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    city_name: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
   });
   const navigate = useNavigate();
   const { encMasters, encPanchayats } = getEncryptedRoute();
@@ -51,6 +64,10 @@ export default function PanchayatListPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const onFilter = (e: DataTableFilterEvent) => {
+    setFilters(e.filters as any);
+  };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -144,6 +161,7 @@ export default function PanchayatListPage() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
         filters={filters}
+        onFilter={onFilter}
         header={renderHeader()}
         stripedRows
         showGridlines
@@ -169,24 +187,32 @@ export default function PanchayatListPage() {
           field="panchayat_name"
           header={t("admin.nav.panchayat")}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: PanchayatRecord) => cap(row.panchayat_name)}
         />
         <Column
           field="state_name"
           header={t("common.state")}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: PanchayatRecord) => cap(row.state_name)}
         />
         <Column
           field="district_name"
           header={t("common.district")}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: PanchayatRecord) => cap(row.district_name)}
         />
         <Column
           field="city_name"
           header={t("common.city")}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: PanchayatRecord) => cap(row.city_name)}
         />
         <Column

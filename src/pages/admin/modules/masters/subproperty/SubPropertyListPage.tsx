@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -34,6 +35,7 @@ export default function SubPropertyList() {
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    property_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     sub_property_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
@@ -58,6 +60,10 @@ export default function SubPropertyList() {
   useEffect(() => {
     fetchSubProperties();
   }, []);
+
+  const onFilter = (e: DataTableFilterEvent) => {
+    setFilters(e.filters as any);
+  };
 
   /* ================= Delete ================= */
   const handleDelete = async (id: string) => {
@@ -181,6 +187,7 @@ export default function SubPropertyList() {
           rowsPerPageOptions={[5, 10, 25, 50]}
           loading={loading}
           filters={filters}
+          onFilter={onFilter}
           header={renderHeader()}
           stripedRows
           showGridlines
@@ -196,6 +203,8 @@ export default function SubPropertyList() {
             field="property_name"
             header={t("admin.nav.property")}
             sortable
+            filter
+            showFilterMatchModes={false}
             body={(row) => cap(row.property_name)}
           />
 
@@ -203,6 +212,8 @@ export default function SubPropertyList() {
             field="sub_property_name"
             header={t("admin.nav.sub_property")}
             sortable
+            filter
+            showFilterMatchModes={false}
             body={(row) => cap(row.sub_property_name)}
           />
 
