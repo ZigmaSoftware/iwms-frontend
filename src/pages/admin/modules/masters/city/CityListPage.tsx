@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -63,6 +64,10 @@ export default function CityList() {
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    country_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    state_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    district_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const navigate = useNavigate();
@@ -92,6 +97,10 @@ export default function CityList() {
   useEffect(() => {
     fetchCities();
   }, [fetchCities]);
+
+  const onFilter = (e: DataTableFilterEvent) => {
+    setFilters(e.filters as any);
+  };
 
   const handleDelete = async (id: string) => {
     const confirm = await Swal.fire({
@@ -208,6 +217,7 @@ export default function CityList() {
           rowsPerPageOptions={[5, 10, 25, 50]}
           loading={loading}
           filters={filters}
+          onFilter={onFilter}
           header={renderHeader()}
           stripedRows
           showGridlines
@@ -228,24 +238,32 @@ export default function CityList() {
             header={t("admin.nav.country")}
             body={(r) => cap(r.country_name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
           <Column
             field="state_name"
             header={t("admin.nav.state")}
             body={(r) => cap(r.state_name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
           <Column
             field="district_name"
             header={t("admin.nav.district")}
             body={(r) => cap(r.district_name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
           <Column
             field="name"
             header={t("admin.nav.city")}
             body={(r) => cap(r.name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
           <Column header={t("common.status")} body={statusTemplate} />
           <Column header={t("common.actions")} body={actionTemplate} />

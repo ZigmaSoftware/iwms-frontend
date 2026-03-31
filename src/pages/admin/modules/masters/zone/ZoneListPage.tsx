@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -69,6 +70,8 @@ export default function ZoneList() {
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const navigate = useNavigate();
@@ -101,6 +104,10 @@ export default function ZoneList() {
   useEffect(() => {
     fetchZones();
   }, [fetchZones]);
+
+  const onFilter = (e: DataTableFilterEvent) => {
+    setFilters(e.filters as any);
+  };
 
   // ===========================
   //   Delete
@@ -233,6 +240,7 @@ export default function ZoneList() {
           rowsPerPageOptions={[5, 10, 25, 50]}
           loading={loading}
           filters={filters}
+          onFilter={onFilter}
           header={renderHeader()}
           stripedRows
           showGridlines
@@ -240,7 +248,7 @@ export default function ZoneList() {
             item: t("admin.nav.zone"),
           })}
           globalFilterFields={[
-            "name",
+            "zone_name",
             "city_name",
             "district_name",
             "state_name",
@@ -253,6 +261,8 @@ export default function ZoneList() {
             field="city_name"
             header={t("admin.nav.city")}
             sortable
+            filter
+            showFilterMatchModes={false}
             body={(row) => cap(row.city_name)}
           />
 
@@ -260,6 +270,8 @@ export default function ZoneList() {
             field="zone_name"
             header={t("admin.nav.zone")}
             sortable
+            filter
+            showFilterMatchModes={false}
             body={(row) => cap(row.zone_name)}
           />
 

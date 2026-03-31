@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -51,6 +52,9 @@ export default function WasteTypeListPage() {
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    waste_type_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    company_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    project_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const { encMasters, encWasteTypes } = getEncryptedRoute();
@@ -73,12 +77,17 @@ export default function WasteTypeListPage() {
     fetchRows();
   }, [fetchRows]);
 
+  const onFilter = (e: DataTableFilterEvent) => {
+    setFilters(e.filters as any);
+  };
+
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setGlobalFilterValue(value);
-    setFilters({
+    setFilters((prev) => ({
+      ...prev,
       global: { value, matchMode: FilterMatchMode.CONTAINS },
-    });
+    }));
   };
 
   const renderHeader = () => (
@@ -155,6 +164,7 @@ export default function WasteTypeListPage() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
         filters={filters}
+        onFilter={onFilter}
         header={renderHeader()}
         stripedRows
         showGridlines
@@ -180,18 +190,24 @@ export default function WasteTypeListPage() {
           field="waste_type_name"
           header={t("common.item_name", { item: t("common.waste_type") })}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: WasteTypeRecord) => cap(row.waste_type_name)}
         />
         <Column
           field="company_name"
           header={t("admin.nav.company")}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: WasteTypeRecord) => cap(row.company_name)}
         />
         <Column
           field="project_name"
           header={t("admin.nav.project")}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: WasteTypeRecord) => cap(row.project_name)}
         />
         <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />

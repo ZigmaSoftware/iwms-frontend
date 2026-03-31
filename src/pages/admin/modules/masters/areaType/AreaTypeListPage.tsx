@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -44,6 +45,10 @@ export default function AreaTypeListPage() {
   useEffect(() => {
     fetchRecords();
   }, [fetchRecords]);
+
+  const onFilter = (e: DataTableFilterEvent) => {
+    setFilters(e.filters as any);
+  };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -135,6 +140,7 @@ export default function AreaTypeListPage() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
         filters={filters}
+        onFilter={onFilter}
         header={renderHeader()}
         stripedRows
         showGridlines
@@ -153,6 +159,8 @@ export default function AreaTypeListPage() {
           field="name"
           header={t("common.item_name", { item: t("admin.nav.area_type") })}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row) => cap(row.name)}
         />
         <Column

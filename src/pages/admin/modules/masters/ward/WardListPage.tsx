@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -43,7 +44,9 @@ export default function WardList() {
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const navigate = useNavigate();
@@ -98,6 +101,10 @@ export default function WardList() {
   useEffect(() => {
     fetchWards();
   }, [fetchWards]);
+
+  const onFilter = (e: DataTableFilterEvent) => {
+    setFilters(e.filters as any);
+  };
 
   // ===========================
   //   Delete
@@ -228,6 +235,7 @@ export default function WardList() {
           rowsPerPageOptions={[5, 10, 25, 50]}
           loading={loading}
           filters={filters}
+          onFilter={onFilter}
           header={renderHeader()}
           stripedRows
           showGridlines
@@ -235,7 +243,7 @@ export default function WardList() {
             item: t("admin.nav.ward"),
           })}
           globalFilterFields={[
-            "name",
+            "ward_name",
             "zone_name",
             "city_name",
             "district_name",
@@ -250,6 +258,8 @@ export default function WardList() {
             field="zone_name"
             header={t("admin.nav.zone")}
             sortable
+            filter
+            showFilterMatchModes={false}
             body={(row) => cap(row.zone_name)}
           />
 
@@ -257,13 +267,17 @@ export default function WardList() {
             field="city_name"
             header={t("admin.nav.city")}
             sortable
+            filter
+            showFilterMatchModes={false}
             body={(row) => cap(row.city_name)}
           />
 
           <Column
-            field="name"
+            field="ward_name"
             header={t("admin.nav.ward")}
             sortable
+            filter
+            showFilterMatchModes={false}
             body={(row) => cap(row.ward_name)}
           />
 

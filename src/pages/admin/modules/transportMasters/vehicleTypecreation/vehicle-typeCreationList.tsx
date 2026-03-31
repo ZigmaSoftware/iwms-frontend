@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
@@ -26,6 +27,11 @@ type VehicleType = {
   vehicleType: string;
   description: string;
   is_active: boolean;
+};
+
+type TableFilters = { 
+  global: { value: string | null; matchMode: FilterMatchMode };
+  vehicleType?: { value: string | null; matchMode: FilterMatchMode };
 };
 
 const normalizeVehicleTypes = (payload: any): VehicleType[] => {
@@ -64,7 +70,12 @@ export default function VehicleTypeCreation() {
     `/${encTransportMaster}/${encVehicleType}/${unique_id}/edit`;
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  //   vehicleType: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     vehicleType: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
@@ -233,6 +244,9 @@ export default function VehicleTypeCreation() {
             sortable
             body={(row: VehicleType) => cap(row.vehicleType)}
             style={{ minWidth: "200px" }}
+            filter
+            showFilterMatchModes={false}
+
           />
 
           {/* Toggle Status */}

@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
@@ -23,6 +24,16 @@ type StaffTemplateAuditRecord = {
   performed_at?: string | null;
 };
 
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  entity_type?: { value: string | null; matchMode: FilterMatchMode };
+  entity_id?: { value: string | null; matchMode: FilterMatchMode };
+  action?: { value: string | null; matchMode: FilterMatchMode };
+  performed_by?: { value: string | null; matchMode: FilterMatchMode };
+  performed_role?: { value: string | null; matchMode: FilterMatchMode };
+  change_remarks?: { value: string | null; matchMode: FilterMatchMode };
+};
+
 const normalizeList = (payload: any): StaffTemplateAuditRecord[] => {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.data)) return payload.data;
@@ -37,9 +48,20 @@ export default function StaffTemplateAuditList() {
   const [records, setRecords] = useState<StaffTemplateAuditRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    entity_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    entity_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    action: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    performed_by: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    performed_role: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    change_remarks: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
+
 
   const { encStaffMasters, encStaffTemplateAudit } = getEncryptedRoute();
   const ENC_VIEW_PATH = (id: string) =>
@@ -134,28 +156,45 @@ export default function StaffTemplateAuditList() {
           header={t("admin.staff_template_audit.entity_type")}
           field="entity_type"
           sortable
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           header={t("admin.staff_template_audit.entity_id")}
           field="entity_id"
           sortable
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           header={t("admin.staff_template_audit.action")}
           field="action"
           sortable
+          filter
+          showFilterMatchModes={false}
         />
         <Column
+          field="performed_by"
           header={t("admin.staff_template_audit.performed_by")}
           body={(r: StaffTemplateAuditRecord) => r.performed_by_name ?? r.performed_by ?? "-"}
+          filter
+          showFilterMatchModes={false}
+
         />
         <Column
+          field="performed_role"
           header={t("admin.staff_template_audit.performed_role")}
           body={(r: StaffTemplateAuditRecord) => r.performed_role ?? "-"}
+          filter
+          showFilterMatchModes={false}
+
         />
         <Column
+          field="change_remarks"
           header={t("admin.staff_template_audit.change_remarks")}
           body={(r: StaffTemplateAuditRecord) => r.change_remarks ?? "-"}
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           header={t("admin.staff_template_audit.performed_at")}

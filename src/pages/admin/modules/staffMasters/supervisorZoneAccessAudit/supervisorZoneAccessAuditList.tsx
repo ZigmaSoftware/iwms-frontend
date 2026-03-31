@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
@@ -22,6 +23,16 @@ type SupervisorZoneAccessAuditRecord = {
   created_at?: string | null;
 };
 
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  supervisor_id?: { value: string | null; matchMode: FilterMatchMode };
+  performed_by?: { value: string | null; matchMode: FilterMatchMode };
+  performed_role?: { value: string | null; matchMode: FilterMatchMode };
+  remarks?: { value: string | null; matchMode: FilterMatchMode };
+  old_zone_ids?: { value: string | null; matchMode: FilterMatchMode };
+  new_zone_ids?: { value: string | null; matchMode: FilterMatchMode };
+};
 const normalizeList = (payload: any): any[] =>
   Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
 
@@ -38,15 +49,25 @@ export default function SupervisorZoneAccessAuditList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const auditApi = adminApi.supervisorZoneAccessAudit;
+  const auditApi = adminApi.supervisorZoneAccessAudits;
   const zoneApi = adminApi.zones;
-  const userCreationApi = adminApi.usercreations;
+  const userCreationApi = adminApi.usersCreation;
 
   const [records, setRecords] = useState<SupervisorZoneAccessAuditRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    supervisor_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    performed_by: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    performed_role: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    remarks: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    old_zone_ids: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    new_zone_ids: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
   const [zoneLookup, setZoneLookup] = useState<Record<string, string>>({});
@@ -152,26 +173,42 @@ export default function SupervisorZoneAccessAuditList() {
           style={{ width: 70 }}
         />
         <Column
+        field="supervisor_id"
           header={t("admin.supervisor_zone_access_audit.supervisor")}
           body={(r: SupervisorZoneAccessAuditRecord) => resolveUser(r.supervisor_id)}
+          filter
+          showFilterMatchModes={false}
         />
         <Column
+        field="performed_by"
           header={t("admin.supervisor_zone_access_audit.performed_by")}
           body={(r: SupervisorZoneAccessAuditRecord) => resolveUser(r.performed_by)}
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           field="performed_role"
           header={t("admin.supervisor_zone_access_audit.performed_role")}
+          filter  
+          showFilterMatchModes={false}
         />
         <Column
+        field="old_zone_ids"
           header={t("admin.supervisor_zone_access_audit.old_zones")}
           body={(r: SupervisorZoneAccessAuditRecord) => resolveZones(r.old_zone_ids)}
+          filter
+          showFilterMatchModes={false}
+
         />
         <Column
+          field="new_zone_ids"
           header={t("admin.supervisor_zone_access_audit.new_zones")}
           body={(r: SupervisorZoneAccessAuditRecord) => resolveZones(r.new_zone_ids)}
+          filter
+          showFilterMatchModes={false}
+
         />
-        <Column field="remarks" header={t("admin.supervisor_zone_access_audit.remarks")} />
+        <Column field="remarks" header={t("admin.supervisor_zone_access_audit.remarks")} filter showFilterMatchModes={false} />
         <Column
           header={t("common.created_at")}
           body={(r: SupervisorZoneAccessAuditRecord) =>

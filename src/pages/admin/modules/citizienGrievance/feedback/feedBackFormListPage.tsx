@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
@@ -44,6 +45,15 @@ type feedback = {
   is_active: boolean;
 };
 
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  customer_id?: { value: string | null; matchMode: FilterMatchMode };
+  customer_name?: { value: string | null; matchMode: FilterMatchMode };
+  category?: { value: string | null; matchMode: FilterMatchMode };
+  zone_name?: { value: string | null; matchMode: FilterMatchMode };
+  city_name?: { value: string | null; matchMode: FilterMatchMode };
+};
+
 const feedbackApi = adminApi.feedbacks;
 
 export default function FeedBackFormList() {
@@ -59,10 +69,20 @@ export default function FeedBackFormList() {
     `/${encCitizenGrivence}/${encFeedback}/${id}/edit`;
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  //   customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    customer_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
     customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    category: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
+
 
   const fetchFeedbacks = useCallback(async () => {
     try {
@@ -236,6 +256,8 @@ export default function FeedBackFormList() {
               (row.customer_unique_id ? String(row.customer_unique_id) : "") ||
               (row.customer_id ? String(row.customer_id) : "-")
             }
+            filter
+            showFilterMatchModes={false}
           />
 
           <Column
@@ -243,6 +265,8 @@ export default function FeedBackFormList() {
             header={t("admin.citizen_grievance.feedback.columns.customer_name")}
             sortable
             body={(row: feedback) => cap(row.customer_name)}
+            filter
+            showFilterMatchModes={false}
           />
 
           <Column
@@ -257,6 +281,9 @@ export default function FeedBackFormList() {
             header={t("admin.citizen_grievance.feedback.columns.feedback_details")}
             sortable
             body={(row: feedback) => cap(row.feedback_details)}
+            filter
+            showFilterMatchModes={false}
+
           />
 
           <Column
@@ -264,6 +291,8 @@ export default function FeedBackFormList() {
             header={t("common.zone")}
             sortable
             body={(row: feedback) => cap(row.zone_name)}
+            filter
+            showFilterMatchModes={false}
           />
 
           <Column
@@ -271,6 +300,9 @@ export default function FeedBackFormList() {
             header={t("common.city")}
             sortable
             body={(row: feedback) => cap(row.city_name)}
+            filter
+            showFilterMatchModes={false}
+
           />
 
           {/* Status column removed per request */}

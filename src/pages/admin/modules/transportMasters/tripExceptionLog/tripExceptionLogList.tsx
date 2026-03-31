@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -19,6 +20,14 @@ type TripExceptionLogRecord = {
   remarks?: string | null;
   detected_by: string;
   created_at?: string | null;
+};
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  trip_instance_id?: { value: string | null; matchMode: FilterMatchMode };
+  exception_type?: { value: string | null; matchMode: FilterMatchMode };
+  detected_by?: { value: string | null; matchMode: FilterMatchMode };
+  remarks?: { value: string | null; matchMode: FilterMatchMode };
 };
 
 const normalizeList = (payload: any): any[] =>
@@ -52,8 +61,15 @@ export default function TripExceptionLogList() {
   const [tripLookup, setTripLookup] = useState<Record<string, string>>({});
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  // });
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    trip_instance_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },  
+    exception_type: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    detected_by: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    remarks: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
   const { encTransportMaster, encTripExceptionLog } = getEncryptedRoute();
@@ -149,6 +165,8 @@ export default function TripExceptionLogList() {
           body={(row: TripExceptionLogRecord) =>
             tripLookup[row.trip_instance_id] ?? row.trip_instance_id
           }
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           header={t("admin.trip_exception_log.exception_type")}
@@ -168,6 +186,8 @@ export default function TripExceptionLogList() {
                 return formatEnum(row.exception_type);
             }
           }}
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           header={t("admin.trip_exception_log.detected_by")}
@@ -181,8 +201,10 @@ export default function TripExceptionLogList() {
                 return formatEnum(row.detected_by);
             }
           }}
+          filter
+          showFilterMatchModes={false}
         />
-        <Column field="remarks" header={t("admin.trip_exception_log.remarks")} />
+        <Column field="remarks" header={t("admin.trip_exception_log.remarks")} filter showFilterMatchModes={false} />
         <Column
           header={t("common.created_at")}
           body={(row: TripExceptionLogRecord) => formatDateTime(row.created_at)}

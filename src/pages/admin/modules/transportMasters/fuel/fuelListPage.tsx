@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -26,6 +27,11 @@ type Fuel = {
   is_active: boolean;
 };
 
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  fuel_type?: { value: string | null; matchMode: FilterMatchMode };
+};
+
 const fuelApi = adminApi.fuels;
 
 export default function FuelList() {
@@ -34,7 +40,12 @@ export default function FuelList() {
   const [loading, setLoading] = useState(true);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  //   fuel_type: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     fuel_type: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
@@ -198,6 +209,8 @@ export default function FuelList() {
             sortable
             body={(row: Fuel) => cap(row.fuel_type)}
             style={{ minWidth: "200px" }}
+            filter
+            showFilterMatchModes={false}
           />
 
           {/* NEW — Toggle Status */}

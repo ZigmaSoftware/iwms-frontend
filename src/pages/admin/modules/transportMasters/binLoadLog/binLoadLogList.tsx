@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -48,6 +49,16 @@ export type BinLoadLogApiRecord = {
   created_at: string;   // ISO datetime
 };
 
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  zone_id?: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_id?: { value: string | null; matchMode: FilterMatchMode };
+  property_id?: { value: string | null; matchMode: FilterMatchMode };
+  sub_property_id?: { value: string | null; matchMode: FilterMatchMode };
+  source_type?: { value: string | null; matchMode: FilterMatchMode };
+  processed?: { value: string | null; matchMode: FilterMatchMode };
+};
+
 
 const normalizeList = (payload: any): any[] =>
   Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
@@ -80,8 +91,18 @@ export default function BinLoadLogList() {
   const [subPropertyLookup, setSubPropertyLookup] = useState<Record<string, string>>({});
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    zone_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    vehicle_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    property_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    sub_property_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    source_type: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    processed: { value: null, matchMode: FilterMatchMode.EQUALS },
   });
 
   const { encTransportMaster, encBinLoadLog } = getEncryptedRoute();
@@ -175,32 +196,48 @@ export default function BinLoadLogList() {
       >
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
         <Column
+        field = "zone_id"
           header={t("admin.bin_load_log.zone")}
           body={(row: BinLoadLogApiRecord) => zoneLookup[row.zone_details.name] ?? row.zone_details.name}
+          filter
+          showFilterMatchModes={false}
         />
         <Column
+        field = "vehicle_id"
           header={t("admin.bin_load_log.vehicle")}
           body={(row: BinLoadLogApiRecord) => vehicleLookup[row.vehicle_details.vehicle_no] ?? row.vehicle_details.vehicle_no}
+          filter
+          showFilterMatchModes={false}
+
         />
         <Column
+          field="property_id"
           header={t("admin.bin_load_log.property")}
           body={(row: BinLoadLogApiRecord) => propertyLookup[row.property_details.property_name] ?? row.property_details.property_name}
+          filter
+          showFilterMatchModes={false}
         />
         <Column
+        field = "sub_property_id"
           header={t("admin.bin_load_log.sub_property")}
           body={(row: BinLoadLogApiRecord) =>
             subPropertyLookup[row.sub_property_details.sub_property_name] ?? row.sub_property_details.sub_property_name
           }
+          filter
+          showFilterMatchModes={false}
         />
         <Column field="weight_kg" header={t("admin.bin_load_log.weight_kg")} />
-        <Column field="source_type" header={t("admin.bin_load_log.source_type")} />
+        <Column field="source_type" header={t("admin.bin_load_log.source_type")} filter showFilterMatchModes={false} />
         <Column
           header={t("admin.bin_load_log.event_time")}
           body={(row: BinLoadLogApiRecord) => resolveEventTime(row.event_time)}
         />
         <Column
+        field="processed"
           header={t("admin.bin_load_log.processed")}
           body={(row: BinLoadLogApiRecord) => (row.processed ? t("common.active") : t("common.inactive"))}
+          filter
+          showFilterMatchModes={false}
         />
      
       </DataTable>

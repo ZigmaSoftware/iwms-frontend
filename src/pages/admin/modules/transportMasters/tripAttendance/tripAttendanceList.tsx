@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -25,6 +26,15 @@ type TripAttendanceRecord = {
   photo?: string | null;
   source: string;
   created_at?: string | null;
+};
+
+type  TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  trip_instance_id?: { value: string | null; matchMode: FilterMatchMode };
+  staff_id?: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_id?: { value: string | null; matchMode: FilterMatchMode };
+  source?: { value: string | null; matchMode: FilterMatchMode };
+  attendance_time?: { value: string | null; matchMode: FilterMatchMode };
 };
 
 const normalizeList = (payload: any): any[] =>
@@ -59,8 +69,17 @@ export default function TripAttendanceList() {
   const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>({});
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  // });/
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    trip_instance_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    staff_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    vehicle_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    source: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    attendance_time: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const { encTransportMaster, encTripAttendance } = getEncryptedRoute();
@@ -199,28 +218,39 @@ export default function TripAttendanceList() {
           body={(row: TripAttendanceRecord) =>
             tripLookup[row.trip_instance_id] ?? row.trip_instance_id
           }
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           header={t("admin.trip_attendance.staff")}
           body={(row: TripAttendanceRecord) => staffLookup[row.staff_id] ?? row.staff_id}
+          filter
+          showFilterMatchModes={false}
+
         />
         <Column
           header={t("admin.trip_attendance.vehicle")}
           body={(row: TripAttendanceRecord) =>
             vehicleLookup[row.vehicle_id] ?? row.vehicle_id
           }
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           header={t("admin.trip_attendance.attendance_time")}
           body={(row: TripAttendanceRecord) => formatDateTime(row.attendance_time)}
+          filter
+          showFilterMatchModes={false}
         />
         <Column field="latitude" header={t("admin.trip_attendance.latitude")} />
         <Column field="longitude" header={t("admin.trip_attendance.longitude")} />
-        <Column header={t("admin.trip_attendance.source")} body={(row) => resolveSource(row.source)} />
+        <Column header={t("admin.trip_attendance.source")} body={(row) => resolveSource(row.source)} filter showFilterMatchModes={false} />
         <Column header={t("admin.trip_attendance.photo")} body={(row) => resolvePhotoLink(row.photo)} />
         <Column
           header={t("common.created_at")}
           body={(row: TripAttendanceRecord) => formatDateTime(row.created_at)}
+          filter
+          showFilterMatchModes={false}
         />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
       </DataTable>

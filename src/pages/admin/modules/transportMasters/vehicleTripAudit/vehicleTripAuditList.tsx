@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -23,6 +24,12 @@ type VehicleTripAuditRecord = {
   idle_seconds: number;
   captured_at: string;
   created_at?: string | null;
+};
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  trip_instance_id?: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_id?: { value: string | null; matchMode: FilterMatchMode };
 };
 
 const normalizeList = (payload: any): any[] =>
@@ -55,8 +62,14 @@ export default function VehicleTripAuditList() {
   const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>({});
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    trip_instance_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    vehicle_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const { encTransportMaster, encVehicleTripAudit } = getEncryptedRoute();
@@ -169,12 +182,18 @@ export default function VehicleTripAuditList() {
           body={(row: VehicleTripAuditRecord) =>
             tripLookup[row.trip_instance_id] ?? row.trip_instance_id
           }
+          filter
+          showFilterMatchModes={false}
+
         />
         <Column
           header={t("admin.vehicle_trip_audit.vehicle")}
           body={(row: VehicleTripAuditRecord) =>
             vehicleLookup[row.vehicle_id] ?? row.vehicle_id
           }
+          filter
+          showFilterMatchModes={false}
+
         />
         <Column
           header={t("admin.vehicle_trip_audit.gps_lat")}

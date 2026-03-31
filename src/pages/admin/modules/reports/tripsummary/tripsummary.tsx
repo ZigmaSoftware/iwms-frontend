@@ -7,6 +7,7 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
@@ -41,6 +42,26 @@ interface TripData {
 }
 
 type VisualStatus = "moving" | "parked" | "idle";
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  startTime?: { value: string | null; matchMode: FilterMatchMode };
+  endTime?: { value: string | null; matchMode: FilterMatchMode };
+  intLoc?: { value: string | null; matchMode: FilterMatchMode };
+  finLoc?: { value: string | null; matchMode: FilterMatchMode };
+  position?: { value: string | null; matchMode: FilterMatchMode };
+  duration?: { value: string | null; matchMode: FilterMatchMode };
+  tripDistance?: { value: string | null; matchMode: FilterMatchMode };
+  vehicleName?: { value: string | null; matchMode: FilterMatchMode };
+  startodo?: { value: string | null; matchMode: FilterMatchMode };
+  endodo?: { value: string | null; matchMode: FilterMatchMode };
+  totalTripLength?: { value: string | null; matchMode: FilterMatchMode };
+  moveCount?: { value: string | null; matchMode: FilterMatchMode };
+  parkCount?: { value: string | null; matchMode: FilterMatchMode };
+  idleCount?: { value: string | null; matchMode: FilterMatchMode };
+
+};
+
 
 const STATUS_ICONS: Record<VisualStatus, JSX.Element> = {
   moving: (
@@ -206,10 +227,28 @@ export default function TripSummary() {
   const [rosterReady, setRosterReady] = useState(false);
   const initialFetchRef = useRef(false);
   const fallbackAppliedRef = useRef(false);
-  const [filters, setFilters] = useState<{
-    [key: string]: { value: string | null; matchMode: FilterMatchMode };
-  }>({
+  // const [filters, setFilters] = useState<{
+  //   [key: string]: { value: string | null; matchMode: FilterMatchMode };
+  // }>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    startTime: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    endTime: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    intLoc: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    finLoc: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    position: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    duration: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    tripDistance: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    vehicleName: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    startodo: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    endodo: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    totalTripLength: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    moveCount: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    parkCount: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    idleCount: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
@@ -507,46 +546,72 @@ export default function TripSummary() {
               style={{ width: "80px" }}
             />
             <Column
+              field="startTime"
               header={t("admin.reports.trip_summary.columns.start_time")}
               body={(row: HistoryRow) => new Date(row.startTime).toLocaleString()}
               sortable
               style={{ minWidth: "170px" }}
+              filter
+              showFilterMatchModes={false}
             />
             <Column
+              field="intLoc"
               header={t("admin.reports.trip_summary.columns.start_address")}
               body={(row: HistoryRow) => row.intLoc || "-"}
               style={{ minWidth: "180px" }}
+              filter
+              showFilterMatchModes={false}
             />
             <Column
+              field="endTime"
               header={t("admin.reports.trip_summary.columns.end_time")}
               body={(row: HistoryRow) => new Date(row.endTime).toLocaleString()}
               sortable
               style={{ minWidth: "170px" }}
+              filter
+              showFilterMatchModes={false}
             />
             <Column
+              field="finLoc"
               header={t("admin.reports.trip_summary.columns.end_address")}
               body={(row: HistoryRow) => row.finLoc || "-"}
               style={{ minWidth: "180px" }}
+              filter
+              showFilterMatchModes={false}
+
             />
             <Column
+              field="vehicleName"
               header={t("admin.reports.trip_summary.columns.vehicle_no")}
               body={() => displaySummary.vehicleName || vehicleId}
               style={{ minWidth: "160px" }}
+              filter
+              showFilterMatchModes={false}
             />
             <Column
+              field="position"
               header={t("admin.reports.trip_summary.columns.position")}
               body={(row: HistoryRow) => row.position || "-"}
               style={{ minWidth: "140px" }}
+              filter
+              showFilterMatchModes={false}
+
             />
             <Column
+            field="duration"
               header={t("admin.reports.trip_summary.columns.total_minutes")}
               body={(row: HistoryRow) => Math.floor((row.duration ?? 0) / 60000)}
               style={{ width: "150px" }}
+              filter
+              showFilterMatchModes={false}
             />
             <Column
+              field="tripDistance"
               header={t("admin.reports.trip_summary.columns.distance")}
               body={(row: HistoryRow) => row.tripDistance ?? 0}
               style={{ width: "140px" }}
+              filter
+              showFilterMatchModes={false}
             />
           </DataTable>
         </div>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -56,6 +57,10 @@ type QrPayload = {
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
   bin_name: { value: string | null; matchMode: FilterMatchMode };
+  bin_capacity: { value: string | null; matchMode: FilterMatchMode };
+  ward_name: { value: string | null; matchMode: FilterMatchMode };
+  panchayat_name: { value: string | null; matchMode: FilterMatchMode };
+  waste_type_name: { value: string | null; matchMode: FilterMatchMode };
 };
 
 /* ================= ROUTES ================= */
@@ -78,6 +83,10 @@ export default function BinList() {
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     bin_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    bin_capacity: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    waste_type_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const navigate = useNavigate();
@@ -99,6 +108,10 @@ export default function BinList() {
   useEffect(() => {
     fetchBins();
   }, [fetchBins]);
+
+  const onFilter = (e: DataTableFilterEvent) => {
+    setFilters(e.filters as TableFilters);
+  };
 
   /* ================= FILTER ================= */
 
@@ -251,6 +264,7 @@ export default function BinList() {
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
         filters={filters}
+        onFilter={onFilter}
         globalFilterFields={[
           "bin_name",
           "panchayat_name",
@@ -276,6 +290,8 @@ export default function BinList() {
           field="bin_name"
           header={t("common.item_name", { item: t("admin.nav.bin_master") })}
           sortable
+          filter
+          showFilterMatchModes={false}
           body={(row: Bin) => cap(row.bin_name)}
           style={{ minWidth: "200px" }}
         />
@@ -284,6 +300,8 @@ export default function BinList() {
           field="bin_capacity"
           header={t("common.bin_capacity")}
           sortable
+          filter
+          showFilterMatchModes={false}
           style={{ minWidth: "150px" }}
         />
         <Column
@@ -291,6 +309,8 @@ export default function BinList() {
           header={t("admin.nav.ward")}
           body={(row: Bin) => cap(row.ward_name || row.ward || "-")}
           sortable
+          filter
+          showFilterMatchModes={false}
           style={{ minWidth: "120px" }}
         />
         <Column
@@ -298,6 +318,8 @@ export default function BinList() {
           header={t("admin.nav.panchayat")}
           body={(row: Bin) => cap(row.panchayat_name || row.panchayat || "-")}
           sortable
+          filter
+          showFilterMatchModes={false}
           style={{ minWidth: "140px" }}
         />
         <Column
@@ -305,6 +327,8 @@ export default function BinList() {
           header={t("common.waste_type")}
           body= {(row: Bin) => cap(wasteTypeTemplate(row))}
           sortable
+          filter
+          showFilterMatchModes={false}
           style={{ minWidth: "160px" }}
         />
 
