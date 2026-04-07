@@ -40,7 +40,7 @@ export const adminEndpoints = {
   ========================= */
   bins: "assets/bins",
   collectionPoints: "assets/collection-point",
-  wasteCollections: "assets/point-collection",
+ 
 //   bins: "bp-palakkad/bins",
 
   /* =========================
@@ -89,6 +89,7 @@ export const adminEndpoints = {
      CUSTOMERS
   ========================= */
   customerCreations: "customer-masters/customercreations",
+  wasteCollections: "customer-masters/point-collection",
 //   wasteCollections: "customer-masters/wastecollections",
   
   feedbacks: "customer-masters/feedbacks",
