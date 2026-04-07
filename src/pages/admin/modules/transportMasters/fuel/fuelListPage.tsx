@@ -19,12 +19,19 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { adminApi } from "@/helpers/admin/registry";
 import { useTranslation } from "react-i18next";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type Fuel = {
   unique_id: string;
   fuel_type: string;
   description: string;
   is_active: boolean;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
 };
 
 type TableFilters = {
@@ -33,6 +40,16 @@ type TableFilters = {
 };
 
 const fuelApi = adminApi.fuels;
+
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
+const normalizeFuels = (payload: any): Fuel[] =>
+  Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : payload?.results ?? [];
 
 export default function FuelList() {
   const { t } = useTranslation();
@@ -51,6 +68,15 @@ export default function FuelList() {
   });
 
   const navigate = useNavigate();
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
   const { encTransportMaster, encFuel } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encTransportMaster}/${encFuel}/new`;
@@ -60,9 +86,48 @@ export default function FuelList() {
   const resolveId = (value: Fuel) => value.unique_id;
 
   const fetchFuels = async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setFuels([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setFuels([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     try {
-      const res = await fuelApi.list();
-      setFuels(res);
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const res = await fuelApi.list({ params });
+      const rows = normalizeFuels(res);
+
+      const hasContextFields = rows.some((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        return Boolean(rowCompanyId || rowProjectId);
+      });
+
+      if (!hasContextFields) {
+        setFuels(rows);
+        return;
+      }
+
+      const filtered = rows.filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+        return companyMatches && projectMatches;
+      });
+
+      setFuels(filtered);
     } finally {
       setLoading(false);
     }
@@ -70,7 +135,7 @@ export default function FuelList() {
 
   useEffect(() => {
     fetchFuels();
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const handleDelete = async (id: string) => {
     const confirmDelete = await Swal.fire({
@@ -178,12 +243,47 @@ export default function FuelList() {
             </p>
           </div>
 
-          <Button
-            label={t("admin.fuel.add")}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <div className="flex items-center gap-3">
+            <select
+              value={companyUniqueId || ""}
+              onChange={(e) => onCompanyChange(e.target.value)}
+              disabled={!isSuperAdmin || companies.length === 0}
+              className="border rounded px-3 py-2 text-sm"
+            >
+              <option value="" disabled>
+                {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+              </option>
+              {companies.map((company) => (
+                <option key={company.value} value={company.value}>
+                  {company.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={projectId || ""}
+              onChange={(e) => setProjectId(e.target.value)}
+              disabled={!companyUniqueId || projects.length === 0}
+              className="border rounded px-3 py-2 text-sm"
+            >
+              <option value="" disabled>
+                {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+              </option>
+              {projects.map((project) => (
+                <option key={project.value} value={project.value}>
+                  {project.label}
+                </option>
+              ))}
+            </select>
+
+            <Button
+              label={t("admin.fuel.add")}
+              icon="pi pi-plus"
+              className="p-button-success"
+              disabled={!companyUniqueId || !projectId}
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </div>
         </div>
 
         <DataTable
@@ -194,7 +294,7 @@ export default function FuelList() {
           loading={loading}
           filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          globalFilterFields={["fuel_type"]}
+          globalFilterFields={["fuel_type", "company_name", "project_name"]}
           header={header}
           emptyMessage={t("admin.fuel.empty_message")}
           stripedRows

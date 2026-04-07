@@ -37,9 +37,9 @@ export default function SupervisorZoneAccessAuditForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
 
-  const auditApi = adminApi.supervisorZoneAccessAudit;
+  const auditApi = adminApi.supervisorZoneAccessAudits;
   const zoneApi = adminApi.zones;
-  const userCreationApi = adminApi.usercreations;
+  const userCreationApi = adminApi.usersCreation;
 
   const [record, setRecord] = useState<SupervisorZoneAccessAuditRecord | null>(null);
   const [loading, setLoading] = useState(false);

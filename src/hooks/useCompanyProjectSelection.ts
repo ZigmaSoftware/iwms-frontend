@@ -72,7 +72,10 @@ export const useCompanyProjectSelection = ({
     useState("");
 
   const profile = useMemo(() => readLoginProfile(), []);
-  const loggedInCompanyUniqueId = useMemo(() => getCurrentCompanyUniqueId(), []);
+  const loggedInCompanyUniqueIdRaw = useMemo(
+    () => getCurrentCompanyUniqueId(),
+    []
+  );
   
   const isSuperAdmin = useMemo(() => {
     if (typeof window === "undefined") return false;
@@ -81,8 +84,14 @@ export const useCompanyProjectSelection = ({
       localStorage.getItem(USER_ROLE_STORAGE_KEY)
     );
     const roleFromProfile = normalizeRole(profile?.role);
-    return (roleFromStorage ?? roleFromProfile) === "superadmin";
+    const normalizedRole = roleFromStorage ?? roleFromProfile;
+    return normalizedRole === "superadmin" || normalizedRole === "super_admin";
   }, [profile]);
+
+  const loggedInCompanyUniqueId = useMemo(() => {
+    if (isSuperAdmin) return "";
+    return loggedInCompanyUniqueIdRaw ?? "";
+  }, [isSuperAdmin, loggedInCompanyUniqueIdRaw]);
 
   const profileCompanyLabel = useMemo(() => {
     const directName =
@@ -98,14 +107,14 @@ export const useCompanyProjectSelection = ({
   }, [profile]);
 
   useEffect(() => {
-    if (!loggedInCompanyUniqueId || profileCompanyLabel) {
+    if (!loggedInCompanyUniqueIdRaw || profileCompanyLabel) {
       return;
     }
 
     let active = true;
 
     companyApi
-      .get(loggedInCompanyUniqueId)
+      .get(loggedInCompanyUniqueIdRaw)
       .then((company) => {
         if (!active) return;
 
@@ -125,26 +134,35 @@ export const useCompanyProjectSelection = ({
     return () => {
       active = false;
     };
-  }, [loggedInCompanyUniqueId, profileCompanyLabel]);
+  }, [loggedInCompanyUniqueIdRaw, profileCompanyLabel]);
 
   const loggedInCompanyLabel = useMemo(() => {
     return (
       profileCompanyLabel ||
       resolvedLoggedInCompanyLabel ||
-      loggedInCompanyUniqueId ||
+      loggedInCompanyUniqueIdRaw ||
       ""
     );
   }, [
     profileCompanyLabel,
     resolvedLoggedInCompanyLabel,
-    loggedInCompanyUniqueId,
+    loggedInCompanyUniqueIdRaw,
   ]);
 
   const companies = useMemo<CompanyProjectOption[]>(() => {
-    if (loggedInCompanyUniqueId) {
+    if (!isSuperAdmin && loggedInCompanyUniqueId) {
       return [
         {
           value: loggedInCompanyUniqueId,
+          label: loggedInCompanyLabel,
+        },
+      ];
+    }
+
+    if (isSuperAdmin && apiCompanies.length === 0 && loggedInCompanyUniqueIdRaw) {
+      return [
+        {
+          value: loggedInCompanyUniqueIdRaw,
           label: loggedInCompanyLabel,
         },
       ];
@@ -160,10 +178,11 @@ export const useCompanyProjectSelection = ({
     isSuperAdmin,
     loggedInCompanyLabel,
     loggedInCompanyUniqueId,
+    loggedInCompanyUniqueIdRaw,
   ]);
 
   useEffect(() => {
-    if (loggedInCompanyUniqueId || !isSuperAdmin) {
+    if (!isSuperAdmin) {
       return;
     }
 
@@ -183,10 +202,12 @@ export const useCompanyProjectSelection = ({
       .catch(() => {
         setApiCompanies([]);
       });
-  }, [isEdit, isSuperAdmin, loggedInCompanyUniqueId]);
+  }, [isEdit, isSuperAdmin]);
 
   useEffect(() => {
     if (!companyUniqueId) {
+      setProjects([]);
+      setProjectId("");
       return;
     }
 
@@ -238,13 +259,13 @@ export const useCompanyProjectSelection = ({
           null);
 
       const recordCompanyId = toStringId(companyCandidate);
-      if (recordCompanyId && !loggedInCompanyUniqueId) {
+      if (recordCompanyId && (isSuperAdmin || !loggedInCompanyUniqueId)) {
         setCompanyUniqueId(recordCompanyId);
       }
 
       setProjectId(toStringId(projectCandidate));
     },
-    [loggedInCompanyUniqueId]
+    [isSuperAdmin, loggedInCompanyUniqueId]
   );
 
   return {

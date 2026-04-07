@@ -56,7 +56,7 @@ export default function UnassignedStaffPoolForm() {
   const isEdit = Boolean(id);
 
   const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
-  const userApi = adminApi.usercreations;
+  const userApi = adminApi.usersCreation;
   const zoneApi = adminApi.zones;
   const wardApi = adminApi.wards;
   const tripInstanceApi = adminApi.tripInstances;

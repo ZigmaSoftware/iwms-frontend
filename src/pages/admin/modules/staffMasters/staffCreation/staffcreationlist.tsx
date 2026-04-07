@@ -394,6 +394,7 @@ import { PencilIcon, TrashBinIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 import { Switch } from "@/components/ui/switch";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type Staff = {
   unique_id: number;
@@ -406,6 +407,12 @@ type Staff = {
   salary_type?: string;
   contact_mobile?: number;
   department?: string;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
   [key: string]: unknown;
 };
 
@@ -423,11 +430,23 @@ const cap = (val?: string | number | null) => {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 };
 
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
 export default function StaffCreationList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [staffs, setStaffs] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const [filterParams, setFilterParams] = useState({
     salary_type: "",
@@ -456,17 +475,66 @@ export default function StaffCreationList() {
     "designation",
     "site_name",
     "contact_mobile",
+    "company_name",
+    "project_name",
   ];
 
   const fetchStaffs = async (params = filterParams) => {
+    if (isSuperAdmin && companies.length === 0) {
+      setStaffs([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setStaffs([]);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const payload: any = await staffCreationApi.list({ params });
+      setLoading(true);
+      const requestParams: Record<string, string> = {
+        salary_type: params.salary_type,
+        active_status: params.active_status,
+        site_name: params.site_name,
+        employee_name: params.employee_name,
+        company_id: companyUniqueId,
+      };
+      if (projectId) {
+        requestParams.project_id = projectId;
+      }
+
+      const payload: any = await staffCreationApi.list({ params: requestParams });
       const data = Array.isArray(payload)
         ? payload
         : Array.isArray(payload?.data)
           ? payload.data
           : payload?.data?.results ?? [];
-      setStaffs(data);
+      const rows = data as Staff[];
+
+      const hasContextFields = rows.some((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        return Boolean(rowCompanyId || rowProjectId);
+      });
+
+      if (!hasContextFields) {
+        setStaffs(rows);
+        return;
+      }
+
+      const filtered = rows.filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+
+        return companyMatches && projectMatches;
+      });
+
+      setStaffs(filtered);
     } catch (err) {
       Swal.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
@@ -476,7 +544,7 @@ export default function StaffCreationList() {
 
   useEffect(() => {
     fetchStaffs(filterParams);
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const applyFilter = () => fetchStaffs(filterParams);
 
@@ -604,10 +672,43 @@ export default function StaffCreationList() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="h-10 rounded-lg border px-3 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="h-10 rounded-lg border px-3 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
           <Button
             label={t("admin.staff_creation.create")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
+            disabled={!companyUniqueId || !projectId}
             onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>

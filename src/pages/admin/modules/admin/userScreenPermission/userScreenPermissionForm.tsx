@@ -43,6 +43,7 @@ type Option = {
 
 type PermissionScreen = {
   userscreen_id: string;
+  userscreen_name?: string;
   actions: string[];
 };
 
@@ -55,6 +56,40 @@ type ScreenMatrixRow = {
   userscreen_id: string;
   userscreen_name: string;
   actions: string[];
+};
+
+type ApiUserScreen = {
+  unique_id?: string;
+  userscreen_name?: string;
+  mainscreen_id?: string;
+  order_no?: number;
+  is_active?: boolean;
+  is_deleted?: boolean;
+  [key: string]: unknown;
+};
+
+const toId = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+};
+
+const toOrder = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+};
+
+const uniqueIds = (values: unknown[]): string[] => {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  values.forEach((value) => {
+    const id = toId(value);
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    normalized.push(id);
+  });
+
+  return normalized;
 };
 
 const buildByStaffFormatPath = (
@@ -114,7 +149,7 @@ export default function UserScreenPermissionForm() {
 
   const [staffUserTypes, setStaffUserTypes] = useState<Option[]>([]);
   const [mainScreens, setMainScreens] = useState<Option[]>([]);
-  const [allUserScreens, setAllUserScreens] = useState<any[]>([]);
+  const [allUserScreens, setAllUserScreens] = useState<ApiUserScreen[]>([]);
   const [actions, setActions] = useState<Option[]>([]);
 
   const [screenMatrix, setScreenMatrix] = useState<ScreenMatrixRow[]>([]);
@@ -154,25 +189,25 @@ export default function UserScreenPermissionForm() {
 
         setStaffUserTypes(
           sut.map((x: any) => ({
-            value: x.unique_id,
-            label: x.name,
-            userTypeId: x.usertype_id,
+            value: toId(x.unique_id),
+            label: String(x.name ?? ""),
+            userTypeId: toId(x.usertype_id ?? x.usertype?.unique_id),
           }))
         );
 
         setMainScreens(
           ms.map((x: any) => ({
-            value: x.unique_id,
-            label: x.mainscreen_name,
+            value: toId(x.unique_id),
+            label: String(x.mainscreen_name ?? ""),
           }))
         );
 
-        setAllUserScreens(us);
+        setAllUserScreens(Array.isArray(us) ? us : []);
 
         setActions(
           ac.map((x: any) => ({
-            value: x.unique_id,
-            label: x.action_name,
+            value: toId(x.unique_id),
+            label: String(x.action_name ?? ""),
           }))
         );
       } catch (err) {
@@ -256,11 +291,48 @@ export default function UserScreenPermissionForm() {
           formatted = { screens: [], description: "" };
         }
 
-        const matrix: ScreenMatrixRow[] = formatted.screens.map((scr: any) => ({
-          userscreen_id: scr.userscreen_id,
-          userscreen_name: scr.userscreen_name,
-          actions: scr.actions ?? [],
-        }));
+        const actionsByScreen = new Map<string, PermissionScreen>();
+        formatted.screens.forEach((scr: PermissionScreen) => {
+          const screenId = toId(scr.userscreen_id);
+          if (!screenId) return;
+
+          actionsByScreen.set(screenId, {
+            userscreen_id: screenId,
+            userscreen_name: String(scr.userscreen_name ?? "").trim(),
+            actions: uniqueIds(scr.actions ?? []),
+          });
+        });
+
+        const selectedMainScreens = allUserScreens
+          .filter((screen) => !Boolean(screen.is_deleted))
+          .filter((screen) => toId(screen.mainscreen_id) === mainScreenId)
+          .sort((a, b) => toOrder(a.order_no) - toOrder(b.order_no));
+
+        const matrix: ScreenMatrixRow[] = [];
+
+        selectedMainScreens.forEach((screen) => {
+          const screenId = toId(screen.unique_id);
+          if (!screenId) return;
+
+          const existing = actionsByScreen.get(screenId);
+          matrix.push({
+            userscreen_id: screenId,
+            userscreen_name: String(
+              screen.userscreen_name ?? existing?.userscreen_name ?? screenId
+            ).trim(),
+            actions: uniqueIds(existing?.actions ?? []),
+          });
+        });
+
+        actionsByScreen.forEach((existing, screenId) => {
+          if (matrix.some((row) => row.userscreen_id === screenId)) return;
+
+          matrix.push({
+            userscreen_id: screenId,
+            userscreen_name: String(existing.userscreen_name ?? screenId).trim(),
+            actions: uniqueIds(existing.actions ?? []),
+          });
+        });
 
         setDescription(formatted.description || "");
         setScreenMatrix(matrix);
@@ -314,7 +386,7 @@ export default function UserScreenPermissionForm() {
           ? {
               ...row,
               actions: checked
-                ? [...row.actions, actionId]
+                ? uniqueIds([...row.actions, actionId])
                 : row.actions.filter((a) => a !== actionId),
             }
           : row
@@ -347,10 +419,33 @@ export default function UserScreenPermissionForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!companyUniqueId || !staffUserTypeId || !mainScreenId) {
+    if (!companyUniqueId || !staffUserTypeId || !mainScreenId || !userTypeId) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
+
+    if (screenMatrix.length === 0) {
+      Swal.fire(
+        t("common.warning"),
+        t("admin.user_screen_permission.no_screens"),
+        "warning"
+      );
+      return;
+    }
+
+    const validActionIds = new Set(
+      actions.map((item) => toId(item.value)).filter(Boolean)
+    );
+
+    const normalizedScreens = screenMatrix
+      .map((screen) => ({
+        userscreen_id: toId(screen.userscreen_id),
+        actions: uniqueIds(screen.actions).filter(
+          (actionId) =>
+            validActionIds.size === 0 || validActionIds.has(actionId)
+        ),
+      }))
+      .filter((screen) => Boolean(screen.userscreen_id));
 
     const payload = {
       company_id: companyUniqueId,
@@ -358,10 +453,7 @@ export default function UserScreenPermissionForm() {
       mainscreen_id: mainScreenId,
       description: description.trim(),
       usertype_id: userTypeId,
-      screens: screenMatrix.map((s) => ({
-        userscreen_id: s.userscreen_id,
-        actions: s.actions,
-      })),
+      screens: normalizedScreens,
     };
 
     setLoading(true);

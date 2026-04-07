@@ -17,6 +17,7 @@ import "primeicons/primeicons.css";
 import { PencilIcon, TrashBinIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { subPropertiesApi } from "@/helpers/admin";
 
 type SubProperty = {
@@ -25,7 +26,16 @@ type SubProperty = {
   property_name?: string;
   is_active: boolean;
   property_id?: string;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
 };
+
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
 
 export default function SubPropertyList() {
   const { t } = useTranslation();
@@ -40,6 +50,15 @@ export default function SubPropertyList() {
   });
 
   const navigate = useNavigate();
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
   const { encMasters, encSubProperties } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encSubProperties}/new`;
@@ -48,10 +67,51 @@ export default function SubPropertyList() {
 
   /* ================= Fetch ================= */
   const fetchSubProperties = async () => {
-    // setLoading(true);
+    if (isSuperAdmin && companies.length === 0) {
+      setSubProperties([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setSubProperties([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     try {
-      const res = await subPropertiesApi.list();
-      setSubProperties(res);
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const res = await subPropertiesApi.list({ params });
+      const rows = Array.isArray(res) ? res : [];
+
+      const hasContextFields = rows.some((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        return Boolean(rowCompanyId || rowProjectId);
+      });
+
+      if (!hasContextFields) {
+        setSubProperties(rows);
+        return;
+      }
+
+      const filtered = rows.filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+        return companyMatches && projectMatches;
+      });
+
+      setSubProperties(filtered);
+    } catch {
+      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+      setSubProperties([]);
     } finally {
       setLoading(false);
     }
@@ -59,7 +119,7 @@ export default function SubPropertyList() {
 
   useEffect(() => {
     fetchSubProperties();
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as any);
@@ -171,12 +231,47 @@ export default function SubPropertyList() {
             </p>
           </div>
 
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.sub_property") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <div className="flex items-center gap-3">
+            <select
+              value={companyUniqueId || ""}
+              onChange={(e) => onCompanyChange(e.target.value)}
+              disabled={!isSuperAdmin || companies.length === 0}
+              className="border rounded px-3 py-2 text-sm"
+            >
+              <option value="" disabled>
+                {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+              </option>
+              {companies.map((company) => (
+                <option key={company.value} value={company.value}>
+                  {company.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={projectId || ""}
+              onChange={(e) => setProjectId(e.target.value)}
+              disabled={!companyUniqueId || projects.length === 0}
+              className="border rounded px-3 py-2 text-sm"
+            >
+              <option value="" disabled>
+                {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+              </option>
+              {projects.map((project) => (
+                <option key={project.value} value={project.value}>
+                  {project.label}
+                </option>
+              ))}
+            </select>
+
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.sub_property") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              disabled={!companyUniqueId || !projectId}
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </div>
         </div>
 
         <DataTable
@@ -194,7 +289,12 @@ export default function SubPropertyList() {
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.sub_property"),
           })}
-          globalFilterFields={["sub_property_name", "property_name"]}
+          globalFilterFields={[
+            "sub_property_name",
+            "property_name",
+            "company_name",
+            "project_name",
+          ]}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />

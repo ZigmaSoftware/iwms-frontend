@@ -5,10 +5,12 @@ export type PermissionAction = "view" | "add" | "edit" | "delete" | "show" | str
 export type PermissionsMap = Record<string, Record<string, string[]>>;
 
 type UnknownRecord = Record<string, unknown>;
+let permissionApiUnavailable = false;
 
 const ACTION_ALIASES: Record<string, string[]> = {
-  show: ["show", "display", "visible"],
-  view: ["view", "list", "read"],
+  // Sidebar checks use "show"; backend commonly stores "view".
+  show: ["show", "display", "visible", "view", "list", "read"],
+  view: ["view", "list", "read", "show", "display", "visible"],
   add: ["add", "create"],
   edit: ["edit", "update", "change"],
   delete: ["delete", "remove"],
@@ -97,6 +99,43 @@ const sanitizePermissions = (source: unknown): PermissionsMap => {
   });
 
   return sanitized;
+};
+
+const decodeJwtPayload = (token: string): UnknownRecord | null => {
+  try {
+    const payloadPart = token.split(".")[1];
+    if (!payloadPart) {
+      return null;
+    }
+
+    const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = `${base64}${"=".repeat((4 - (base64.length % 4)) % 4)}`;
+    const decoded = atob(padded);
+    const parsed = JSON.parse(decoded);
+
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const fallbackPermissionsFromTokenOrStorage = (token: string): PermissionsMap => {
+  const tokenPayload = decodeJwtPayload(token);
+  const tokenPermissions = sanitizePermissions(tokenPayload?.permissions);
+
+  if (Object.keys(tokenPermissions).length > 0) {
+    setStoredPermissions(tokenPermissions);
+    console.log("[Permissions API] ℹ️ Using permissions from JWT token payload");
+    return tokenPermissions;
+  }
+
+  const storedPermissions = getStoredPermissions();
+  if (Object.keys(storedPermissions).length > 0) {
+    console.log("[Permissions API] ℹ️ Using cached permissions from localStorage");
+    return storedPermissions;
+  }
+
+  return {};
 };
 
 export const getStoredPermissions = (): PermissionsMap => {
@@ -281,10 +320,14 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
       return {};
     }
 
+    if (permissionApiUnavailable) {
+      return fallbackPermissionsFromTokenOrStorage(token);
+    }
+
     const apiBaseUrl = import.meta.env.VITE_API_LOCAL || import.meta.env.VITE_API_PROD;
     if (!apiBaseUrl) {
       console.error("[Permissions API] ❌ API base URL not configured");
-      return {};
+      return fallbackPermissionsFromTokenOrStorage(token);
     }
 
     const url = `${apiBaseUrl}/${adminEndpoints.userpermission}/`;
@@ -302,7 +345,11 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
 
     if (!response.ok) {
       console.error(`[Permissions API] ❌ HTTP ${response.status}: ${response.statusText}`);
-      return {};
+      if (response.status === 404) {
+        permissionApiUnavailable = true;
+        console.warn("[Permissions API] ⚠️ /login/my-permissions endpoint not available (404). Falling back to token/storage.");
+      }
+      return fallbackPermissionsFromTokenOrStorage(token);
     }
 
     const data = (await response.json()) as PermissionsAPIResponse;
@@ -310,12 +357,20 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
     const permissions = sanitizePermissions(data);
     console.log("[Permissions API] ✅ Permissions processed:", permissions);
 
+    if (Object.keys(permissions).length === 0) {
+      return fallbackPermissionsFromTokenOrStorage(token);
+    }
+
     // Store as fallback
     setStoredPermissions(permissions);
 
     return permissions;
   } catch (error) {
     console.error("[Permissions API] ❌ Error fetching permissions:", error);
-    return {};
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      return {};
+    }
+    return fallbackPermissionsFromTokenOrStorage(token);
   }
 };

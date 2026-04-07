@@ -159,30 +159,32 @@ export function BinMapPanel() {
   /* ================= DATA ================= */
   const bins = useMemo(
     () =>
-      binRecords
-        .filter((bin) => bin.is_active !== false)
-        .map((bin) => {
-          const lat = parseCoordinate(bin.latitude);
-          const lng = parseCoordinate(bin.longitude);
-          if (lat === null || lng === null) return null;
-          return {
-            id: String(bin.unique_id ?? ""),
-            name: bin.bin_name || bin.unique_id || "Unnamed Bin",
-            lat,
-            lng,
-            priority: getPriorityFromColor(bin.color_code, bin.bin_status),
-            wardName: bin.ward_name || bin.ward || undefined,
-            installedDate: bin.installation_date || undefined,
-            binType: formatLabel(bin.bin_type),
-            wasteType: formatLabel(bin.waste_type),
-            capacityLiters: toNumberOrUndefined(bin.capacity_liters),
-            status: formatLabel(bin.bin_status),
-            colorCode: bin.color_code || undefined,
-            expectedLifeYears: toNumberOrUndefined(bin.expected_life_years),
-            isActive: bin.is_active,
-          } satisfies Bin;
-        })
-        .filter((bin): bin is Bin => Boolean(bin)),
+      binRecords.reduce<Bin[]>((acc, bin) => {
+        if (bin.is_active === false) return acc;
+
+        const lat = parseCoordinate(bin.latitude);
+        const lng = parseCoordinate(bin.longitude);
+        if (lat === null || lng === null) return acc;
+
+        acc.push({
+          id: String(bin.unique_id ?? ""),
+          name: bin.bin_name || bin.unique_id || "Unnamed Bin",
+          lat,
+          lng,
+          priority: getPriorityFromColor(bin.color_code, bin.bin_status),
+          wardName: bin.ward_name || bin.ward || undefined,
+          installedDate: bin.installation_date || undefined,
+          binType: formatLabel(bin.bin_type),
+          wasteType: formatLabel(bin.waste_type),
+          capacityLiters: toNumberOrUndefined(bin.capacity_liters),
+          status: formatLabel(bin.bin_status),
+          colorCode: bin.color_code || undefined,
+          expectedLifeYears: toNumberOrUndefined(bin.expected_life_years),
+          isActive: bin.is_active,
+        });
+
+        return acc;
+      }, []),
     [binRecords]
   );
 

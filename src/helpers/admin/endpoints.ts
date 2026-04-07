@@ -89,6 +89,7 @@ export const adminEndpoints = {
      CUSTOMERS
   ========================= */
   customerCreations: "customer-masters/customercreations",
+  householdPickupEvents: "customer-masters/household-pickup-event",
 //   wasteCollections: "customer-masters/wastecollections",
   
   feedbacks: "customer-masters/feedbacks",

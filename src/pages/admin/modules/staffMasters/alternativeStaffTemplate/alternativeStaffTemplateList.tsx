@@ -218,11 +218,18 @@ import { FilterMatchMode } from "primereact/api";
 
 import { alternativeStaffTemplateApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type AlternativeStaffTemplate = {
   id: number;
   unique_id: string;
   display_code?: string;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
   staff_template: string;
   staff_template_display_code?: string;
   effective_date: string;
@@ -250,6 +257,15 @@ type TableFilters = {
 export default function AlternativeStaffTemplateList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const [records, setRecords] = useState<AlternativeStaffTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -268,17 +284,58 @@ export default function AlternativeStaffTemplateList() {
   const ENC_EDIT_PATH = (id: number) =>
     `/${encStaffMasters}/${encAlternativeStaffTemplate}/${id}/edit`;
 
+  const normalizeId = (value: unknown): string =>
+    value === null || value === undefined ? "" : String(value).trim();
+
   const fetchRecords = async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const payload: any = await alternativeStaffTemplateApi.list();
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const payload: any = await alternativeStaffTemplateApi.list({ params });
       const data =
         Array.isArray(payload)
           ? payload
           : Array.isArray(payload?.data)
           ? payload.data
           : payload?.data?.results ?? [];
-      setRecords(data);
+      const rows = data as AlternativeStaffTemplate[];
+
+      const hasContextFields = rows.some((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        return Boolean(rowCompanyId || rowProjectId);
+      });
+
+      if (!hasContextFields) {
+        setRecords(rows);
+        return;
+      }
+
+      const filtered = rows.filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+        return companyMatches && projectMatches;
+      });
+
+      setRecords(filtered);
     } catch {
       Swal.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
@@ -288,7 +345,7 @@ export default function AlternativeStaffTemplateList() {
 
   useEffect(() => {
     fetchRecords();
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setDatatableFilters(e.filters as TableFilters);
@@ -315,12 +372,47 @@ export default function AlternativeStaffTemplateList() {
           </p>
         </div>
 
-        <Button
-          label={t("admin.alternative_staff_template.create_button")}
-          icon="pi pi-plus"
-          className="p-button-success p-button-sm"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("admin.alternative_staff_template.create_button")}
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <div className="flex justify-end">
@@ -372,6 +464,8 @@ export default function AlternativeStaffTemplateList() {
           "operator_name",
           "change_reason",
           "approval_status",
+          "company_name",
+          "project_name",
         ]}
         header={header}
         stripedRows
