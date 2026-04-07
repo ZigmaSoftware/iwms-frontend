@@ -7,10 +7,12 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
+import { Dropdown } from "primereact/dropdown";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
-import { panchayatApi } from "@/helpers/admin";
+import { panchayatApi, projectApi } from "@/helpers/admin";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type PanchayatRecord = {
   unique_id: string;
@@ -21,11 +23,23 @@ type PanchayatRecord = {
   is_active: boolean;
 };
 
+type ProjectOption = {
+  label: string;
+  value: string;
+};
+
 export default function PanchayatListPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+
   const [data, setData] = useState<PanchayatRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [projectUniqueId, setProjectUniqueId] = useState<string>("");
+  const [projectsLoading, setProjectsLoading] = useState(false);
+
   const [filters, setFilters] = useState({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     panchayat_name: {
@@ -45,21 +59,64 @@ export default function PanchayatListPage() {
       matchMode: FilterMatchMode.STARTS_WITH,
     },
   });
-  const navigate = useNavigate();
-  const { encMasters, encPanchayats } = getEncryptedRoute();
 
+  const {
+    companyUniqueId,
+    companies,
+    onCompanyChange,
+    isSuperAdmin,
+  } = useCompanyProjectSelection({ isEdit: false });
+  const { encMasters, encPanchayats } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encMasters}/${encPanchayats}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encMasters}/${encPanchayats}/${id}/edit`;
+  const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encPanchayats}/${id}/edit`;
+
+  /* ── Fetch projects ─────────────────────────────────────── */
+  useEffect(() => {
+    if (!companyUniqueId) {
+      setProjects([]);
+      setProjectUniqueId("");
+      return;
+    }
+
+    const loadProjects = async () => {
+      setProjectsLoading(true);
+      try {
+        const res = await projectApi.list({ params: { company_id: companyUniqueId } });
+        const data = res as any[];
+        const filtered = data.filter(
+          (p: any) =>
+            String(p.company_id ?? p.company_unique_id ?? "") === companyUniqueId
+        );
+        setProjects(
+          filtered.map((p: any) => ({
+            label: p.name ?? p.project_name,
+            value: p.unique_id,
+          }))
+        );
+        setProjectUniqueId("");
+      } catch {
+        setProjects([]);
+      } finally {
+        setProjectsLoading(false);
+      }
+    };
+
+    loadProjects();
+  }, [companyUniqueId]);
 
   const fetchData = useCallback(async () => {
     try {
-      const list = await panchayatApi.list();
+      setLoading(true);
+      const params: any = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectUniqueId) params.project_id = projectUniqueId;
+
+      const list = await panchayatApi.list({ params });
       setData(Array.isArray(list) ? (list as PanchayatRecord[]) : []);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [companyUniqueId, projectUniqueId]);
 
   useEffect(() => {
     fetchData();
@@ -145,12 +202,45 @@ export default function PanchayatListPage() {
             })}
           </p>
         </div>
-        <Button
-          label={t("common.add_item", { item: t("admin.nav.panchayat") })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+
+        <div className="flex gap-3 items-center flex-wrap justify-end">
+          {isSuperAdmin ? (
+            <select
+              value={companyUniqueId || ""}
+              onChange={(e) => onCompanyChange(e.target.value === "ALL" ? "" : e.target.value)}
+              className="border rounded px-3 py-2 text-sm min-w-[180px]"
+            >
+              <option value="ALL">N/A</option>
+              {companies.map((c: any) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+          ) : (
+            <div className="flex items-center gap-2 border rounded px-3 py-2 text-sm bg-gray-50 min-w-[180px]">
+              <span className="text-gray-700 font-medium">
+                {companies.find((c: any) => c.value === companyUniqueId)?.label ?? t("admin.nav.company")}
+              </span>
+            </div>
+          )}
+
+          {companyUniqueId && (
+            <Dropdown
+              value={projectUniqueId || null}
+              options={projects}
+              onChange={(e) => setProjectUniqueId(e.value ?? "")}
+              placeholder={t("admin.nav.project")}
+              disabled={projectsLoading}
+              className="text-sm min-w-[180px]"
+            />
+          )}
+
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.panchayat") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <DataTable

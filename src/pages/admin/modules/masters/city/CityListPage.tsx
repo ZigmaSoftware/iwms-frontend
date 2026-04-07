@@ -17,7 +17,9 @@ import "primeicons/primeicons.css";
 import { PencilIcon, TrashBinIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { cityApi } from "@/helpers/admin";
+import { cityApi, projectApi } from "@/helpers/admin";
+import { Dropdown } from "primereact/dropdown";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type CityRecord = {
   unique_id: string;
@@ -26,6 +28,11 @@ type CityRecord = {
   country_name: string;
   state_name: string;
   district_name: string;
+};
+
+type ProjectOption = {
+  label: string;
+  value: string;
 };
 
 type ErrorWithResponse = {
@@ -58,10 +65,16 @@ const extractErrorMessage = (error: unknown) => {
 
 export default function CityList() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+
   const [cities, setCities] = useState<CityRecord[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [projectUniqueId, setProjectUniqueId] = useState<string>("");
+  const [projectsLoading, setProjectsLoading] = useState(false);
+
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     country_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -70,18 +83,59 @@ export default function CityList() {
     name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
-  const navigate = useNavigate();
+  const {
+    companyUniqueId,
+    companies,
+    onCompanyChange,
+    isSuperAdmin,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const { encMasters, encCities } = getEncryptedRoute();
-
   const ENC_NEW_PATH = `/${encMasters}/${encCities}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encMasters}/${encCities}/${id}/edit`;
+  const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encCities}/${id}/edit`;
+
+  /* ── Fetch projects ─────────────────────────────────────── */
+  useEffect(() => {
+    if (!companyUniqueId) {
+      setProjects([]);
+      setProjectUniqueId("");
+      return;
+    }
+
+    const loadProjects = async () => {
+      setProjectsLoading(true);
+      try {
+        const res = await projectApi.list({ params: { company_id: companyUniqueId } });
+        const data = res as any[];
+        const filtered = data.filter(
+          (p: any) =>
+            String(p.company_id ?? p.company_unique_id ?? "") === companyUniqueId
+        );
+        setProjects(
+          filtered.map((p: any) => ({
+            label: p.name ?? p.project_name,
+            value: p.unique_id,
+          }))
+        );
+        setProjectUniqueId("");
+      } catch {
+        setProjects([]);
+      } finally {
+        setProjectsLoading(false);
+      }
+    };
+
+    loadProjects();
+  }, [companyUniqueId]);
 
   const fetchCities = useCallback(async () => {
-    // setLoading(true);
     try {
-      const data = (await cityApi.list()) as CityRecord[];
+      setLoading(true);
+      const params: any = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectUniqueId) params.project_id = projectUniqueId;
+
+      const data = (await cityApi.list({ params })) as CityRecord[];
       setCities(data);
     } catch (error) {
       Swal.fire({
@@ -92,7 +146,7 @@ export default function CityList() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [companyUniqueId, projectUniqueId]);
 
   useEffect(() => {
     fetchCities();
@@ -201,12 +255,44 @@ export default function CityList() {
             </p>
           </div>
 
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.city") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <div className="flex gap-3 items-center flex-wrap justify-end">
+            {isSuperAdmin ? (
+              <select
+                value={companyUniqueId || ""}
+                onChange={(e) => onCompanyChange(e.target.value === "ALL" ? "" : e.target.value)}
+                className="border rounded px-3 py-2 text-sm min-w-[180px]"
+              >
+                <option value="ALL">N/A</option>
+                {companies.map((c: any) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="flex items-center gap-2 border rounded px-3 py-2 text-sm bg-gray-50 min-w-[180px]">
+                <span className="text-gray-700 font-medium">
+                  {companies.find((c: any) => c.value === companyUniqueId)?.label ?? t("admin.nav.company")}
+                </span>
+              </div>
+            )}
+
+            {companyUniqueId && (
+              <Dropdown
+                value={projectUniqueId || null}
+                options={projects}
+                onChange={(e) => setProjectUniqueId(e.value ?? "")}
+                placeholder={t("admin.nav.project")}
+                disabled={projectsLoading}
+                className="text-sm min-w-[180px]"
+              />
+            )}
+
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.city") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </div>
         </div>
 
         <DataTable
