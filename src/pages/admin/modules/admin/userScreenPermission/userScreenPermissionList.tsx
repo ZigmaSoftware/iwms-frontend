@@ -57,6 +57,7 @@ export default function UserScreenPermissionList() {
     },
   });
 
+
   const { encAdmins, encUserScreenPermission } = getEncryptedRoute();
 
   const ENC_NEW_PATH = companyUniqueId
@@ -286,6 +287,7 @@ export default function UserScreenPermissionList() {
       >
         <TrashBinIcon className="size-5" />
       </button>
+     
     </div>
   );
 

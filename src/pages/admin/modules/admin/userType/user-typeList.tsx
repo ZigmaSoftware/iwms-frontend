@@ -232,6 +232,7 @@ import "primeicons/primeicons.css";
 import { PencilIcon, TrashBinIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 import type { UserType } from "../types/admin.types";
 import { userTypeApi } from "@/helpers/admin";
@@ -241,9 +242,21 @@ type TableFilters = {
   name: { value: string | null; matchMode: FilterMatchMode };
 };
 
+type UserTypeListRecord = UserType & {
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
+};
+
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
 export default function UserTypePage() {
   const { t } = useTranslation();
-  const [userTypes, setUserTypes] = useState<UserType[]>([]);
+  const [userTypes, setUserTypes] = useState<UserTypeListRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -254,21 +267,69 @@ export default function UserTypePage() {
 
   const navigate = useNavigate();
   const { encAdmins, encUserType } = getEncryptedRoute();
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const ENC_NEW_PATH = `/${encAdmins}/${encUserType}/new`;
   const ENC_EDIT_PATH = (unique_id: string) =>
     `/${encAdmins}/${encUserType}/${unique_id}/edit`;
 
   const fetchUserTypes = async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setUserTypes([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setUserTypes([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     try {
-      const res = await userTypeApi.list();
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const res = await userTypeApi.list({ params });
       const payload: any = res;
       const data = Array.isArray(payload)
         ? payload
         : Array.isArray(payload.data)
           ? payload.data
-          : (payload.data?.results ?? []);
-      setUserTypes(data);
+          : (payload.data?.results ?? payload.results ?? []);
+      const rows = data as UserTypeListRecord[];
+
+      const hasContextFields = rows.some((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        return Boolean(rowCompanyId || rowProjectId);
+      });
+
+      if (!hasContextFields) {
+        setUserTypes(rows);
+        return;
+      }
+
+      const filtered = rows.filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+        return companyMatches && projectMatches;
+      });
+
+      setUserTypes(filtered);
     } finally {
       setLoading(false);
     }
@@ -276,7 +337,7 @@ export default function UserTypePage() {
 
   useEffect(() => {
     fetchUserTypes();
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const handleDelete = async (unique_id: string) => {
     const confirmDelete = await Swal.fire({
@@ -385,12 +446,47 @@ export default function UserTypePage() {
           </p>
         </div>
 
-        <Button
-          label={t("common.add_item", { item: t("admin.nav.user_type") })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.user_type") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <DataTable
@@ -401,7 +497,7 @@ export default function UserTypePage() {
         filters={filters}
         onFilter={onFilter}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        globalFilterFields={["name"]}
+        globalFilterFields={["name", "company_name", "project_name"]}
         header={header}
         emptyMessage={t("common.no_items_found", {
           item: t("admin.nav.user_type"),

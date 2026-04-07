@@ -12,6 +12,7 @@ import { FilterMatchMode } from "primereact/api";
 import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type TripInstanceRecord = {
   id: number;
@@ -28,6 +29,12 @@ type TripInstanceRecord = {
   status: string;
   trip_start_time?: string | null;
   trip_end_time?: string | null;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
 };
 
 type TableFilters = {
@@ -47,6 +54,33 @@ type TableFilters = {
 
 const normalizeList = (payload: any): any[] =>
   Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
+
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
+const filterByCompanyProject = (
+  rows: any[],
+  companyId: string,
+  projectId: string
+) => {
+  const hasContextFields = rows.some((item) => {
+    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
+    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    return Boolean(rowCompanyId || rowProjectId);
+  });
+
+  if (!hasContextFields) {
+    return rows;
+  }
+
+  return rows.filter((item) => {
+    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
+    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    const companyMatches = !companyId || rowCompanyId === companyId;
+    const projectMatches = !projectId || rowProjectId === projectId;
+    return companyMatches && projectMatches;
+  });
+};
 
 const buildLookup = (items: any[], key: string, label: string, fallbackKey?: string) =>
   items.reduce<Record<string, string>>((acc, item) => {
@@ -80,6 +114,15 @@ export default function TripInstanceList() {
   const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>({});
   const [propertyLookup, setPropertyLookup] = useState<Record<string, string>>({});
   const [subPropertyLookup, setSubPropertyLookup] = useState<Record<string, string>>({});
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   // const [filters, setFilters] = useState<any>({
@@ -105,8 +148,25 @@ export default function TripInstanceList() {
   const ENC_EDIT_PATH = (id: number) => `/${encTransportMaster}/${encTripInstance}/${id}/edit`;
 
   const fetchRecords = async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
       const [
         tripRes,
         tripDefRes,
@@ -117,24 +177,65 @@ export default function TripInstanceList() {
         propertyRes,
         subPropertyRes,
       ] = await Promise.all([
-        tripInstanceApi.list(),
-        tripDefinitionApi.list(),
-        staffTemplateApi.list(),
-        altStaffTemplateApi.list(),
-        zoneApi.list(),
-        vehicleApi.list(),
-        propertyApi.list(),
-        subPropertyApi.list(),
+        tripInstanceApi.list({ params }),
+        tripDefinitionApi.list({ params }),
+        staffTemplateApi.list({ params }),
+        altStaffTemplateApi.list({ params }),
+        zoneApi.list({ params }),
+        vehicleApi.list({ params }),
+        propertyApi.list({ params }),
+        subPropertyApi.list({ params }),
       ]);
 
-      setRecords(normalizeList(tripRes));
-      setTripDefinitionLookup(buildLookup(normalizeList(tripDefRes), "unique_id", "unique_id"));
-      setStaffTemplateLookup(buildLookup(normalizeList(staffRes), "unique_id", "display_code", "unique_id"));
-      setAltStaffTemplateLookup(buildLookup(normalizeList(altStaffRes), "unique_id", "unique_id"));
-      setZoneLookup(buildLookup(normalizeList(zoneRes), "unique_id", "name"));
-      setVehicleLookup(buildLookup(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
-      setPropertyLookup(buildLookup(normalizeList(propertyRes), "unique_id", "property_name"));
-      setSubPropertyLookup(buildLookup(normalizeList(subPropertyRes), "unique_id", "sub_property_name"));
+      const tripRows = filterByCompanyProject(
+        normalizeList(tripRes),
+        companyUniqueId,
+        projectId
+      );
+      const tripDefRows = filterByCompanyProject(
+        normalizeList(tripDefRes),
+        companyUniqueId,
+        projectId
+      );
+      const staffRows = filterByCompanyProject(
+        normalizeList(staffRes),
+        companyUniqueId,
+        projectId
+      );
+      const altStaffRows = filterByCompanyProject(
+        normalizeList(altStaffRes),
+        companyUniqueId,
+        projectId
+      );
+      const zoneRows = filterByCompanyProject(
+        normalizeList(zoneRes),
+        companyUniqueId,
+        projectId
+      );
+      const vehicleRows = filterByCompanyProject(
+        normalizeList(vehicleRes),
+        companyUniqueId,
+        projectId
+      );
+      const propertyRows = filterByCompanyProject(
+        normalizeList(propertyRes),
+        companyUniqueId,
+        projectId
+      );
+      const subPropertyRows = filterByCompanyProject(
+        normalizeList(subPropertyRes),
+        companyUniqueId,
+        projectId
+      );
+
+      setRecords(tripRows as TripInstanceRecord[]);
+      setTripDefinitionLookup(buildLookup(tripDefRows, "unique_id", "unique_id"));
+      setStaffTemplateLookup(buildLookup(staffRows, "unique_id", "display_code", "unique_id"));
+      setAltStaffTemplateLookup(buildLookup(altStaffRows, "unique_id", "unique_id"));
+      setZoneLookup(buildLookup(zoneRows, "unique_id", "name"));
+      setVehicleLookup(buildLookup(vehicleRows, "unique_id", "vehicle_no"));
+      setPropertyLookup(buildLookup(propertyRows, "unique_id", "property_name"));
+      setSubPropertyLookup(buildLookup(subPropertyRows, "unique_id", "sub_property_name"));
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
@@ -144,7 +245,7 @@ export default function TripInstanceList() {
 
   useEffect(() => {
     fetchRecords();
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -165,6 +266,40 @@ export default function TripInstanceList() {
           <p className="text-sm text-gray-500">
             {t("admin.trip_instance.list_subtitle")}
           </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -210,6 +345,8 @@ export default function TripInstanceList() {
           "zone_id",
           "vehicle_id",
           "status",
+          "company_name",
+          "project_name",
         ]}
         header={header}
         stripedRows

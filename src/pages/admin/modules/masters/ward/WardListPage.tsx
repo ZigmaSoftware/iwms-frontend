@@ -8,16 +8,18 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
+import type { DataTableFilterMeta } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
+import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { wardApi } from "@/helpers/admin";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type WardRecord = {
   unique_id: string;
@@ -28,6 +30,12 @@ type WardRecord = {
   district_name: string;
   state_name: string;
   country_name: string;
+  company_id?: string;
+  company_unique_id?: string;
+  company_name?: string;
+  project_id?: string;
+  project_unique_id?: string;
+  project_name?: string;
 };
 
 type ErrorWithResponse = {
@@ -36,18 +44,52 @@ type ErrorWithResponse = {
   };
 };
 
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
+const extractErrorMessage = (error: unknown, fallbackMessage: string) => {
+  if (!error) return fallbackMessage;
+  if (typeof error === "string") return error;
+
+  const data = (error as ErrorWithResponse)?.response?.data;
+
+  if (typeof data === "string") return data;
+  if (Array.isArray(data)) return data.join(", ");
+
+  if (data && typeof data === "object") {
+    return Object.entries(data as Record<string, unknown>)
+      .map(([k, v]) =>
+        Array.isArray(v) ? `${k}: ${v.join(", ")}` : `${k}: ${String(v)}`
+      )
+      .join("\n");
+  }
+
+  if (error instanceof Error && error.message) return error.message;
+
+  return fallbackMessage;
+};
+
 export default function WardList() {
   const { t } = useTranslation();
   const [wards, setWards] = useState<WardRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const navigate = useNavigate();
 
@@ -57,90 +99,72 @@ export default function WardList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encMasters}/${encWards}/${id}/edit`;
 
-  const extractErrorMessage = (error: unknown) => {
-    if (!error) return t("common.request_failed");
-    if (typeof error === "string") return error;
-
-    const data = (error as ErrorWithResponse)?.response?.data;
-
-    if (typeof data === "string") return data;
-    if (Array.isArray(data)) return data.join(", ");
-
-    if (data && typeof data === "object") {
-      return Object.entries(data as Record<string, unknown>)
-        .map(([k, v]) =>
-          Array.isArray(v) ? `${k}: ${v.join(", ")}` : `${k}: ${String(v)}`
-        )
-        .join("\n");
-    }
-
-    if (error instanceof Error && error.message) return error.message;
-
-    return t("common.request_failed");
-  };
-
   // ===========================
   //   Load Data
   // ===========================
   const fetchWards = useCallback(async () => {
-    // setLoading(true);
+    if (isSuperAdmin && companies.length === 0) {
+      setWards([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setWards([]);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const data = (await wardApi.list()) as WardRecord[];
-      setWards(data);
+      setLoading(true);
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const data = (await wardApi.list({ params })) as WardRecord[];
+      const filtered = data.filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+
+        return companyMatches && projectMatches;
+      });
+
+      setWards(filtered);
     } catch (error) {
       Swal.fire({
         icon: "error",
         title: t("common.error"),
-        text: extractErrorMessage(error),
+        text: extractErrorMessage(error, t("common.request_failed")),
       });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
 
   useEffect(() => {
     fetchWards();
   }, [fetchWards]);
 
   const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as any);
+    setFilters(e.filters);
   };
 
   // ===========================
   //   Delete
   // ===========================
-  const handleDelete = async (id: string) => {
-    const confirm = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      confirmButtonText: t("common.confirm_delete_button"),
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    await wardApi.remove(id);
-
-    Swal.fire({
-      icon: "success",
-      title: t("common.deleted_success"),
-      timer: 1500,
-      showConfirmButton: false,
-    });
-
-    fetchWards();
-  };
-
   // ===========================
   //   Search
   // ===========================
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    const _filters = { ...filters };
-    _filters.global.value = value;
-    setFilters(_filters);
+    setFilters((prev) => ({
+      ...prev,
+      global: { value, matchMode: FilterMatchMode.CONTAINS },
+    }));
     setGlobalFilterValue(value);
   };
 
@@ -219,12 +243,47 @@ export default function WardList() {
             </p>
           </div>
 
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.ward") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <div className="flex items-center gap-3">
+            <select
+              value={companyUniqueId || ""}
+              onChange={(e) => onCompanyChange(e.target.value)}
+              disabled={!isSuperAdmin || companies.length === 0}
+              className="border rounded px-3 py-2 text-sm"
+            >
+              <option value="" disabled>
+                {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+              </option>
+              {companies.map((company) => (
+                <option key={company.value} value={company.value}>
+                  {company.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={projectId || ""}
+              onChange={(e) => setProjectId(e.target.value)}
+              disabled={!companyUniqueId || projects.length === 0}
+              className="border rounded px-3 py-2 text-sm"
+            >
+              <option value="" disabled>
+                {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+              </option>
+              {projects.map((project) => (
+                <option key={project.value} value={project.value}>
+                  {project.label}
+                </option>
+              ))}
+            </select>
+
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.ward") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              disabled={!companyUniqueId || !projectId}
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </div>
         </div>
 
         <DataTable
@@ -249,6 +308,8 @@ export default function WardList() {
             "district_name",
             "state_name",
             "country_name",
+            "company_name",
+            "project_name",
           ]}
           className="p-datatable-sm"
         >

@@ -244,9 +244,16 @@ import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type UnassignedStaffPoolRecord = {
   id: number;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
   operator_id?: string | null;
   driver_id?: string | null;
   zone_id: string;
@@ -280,6 +287,33 @@ const normalizeList = (payload: any): any[] =>
     ? payload.data
     : payload?.results ?? [];
 
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
+const filterByCompanyProject = (
+  items: any[],
+  companyId: string,
+  projectId: string
+) => {
+  const hasContextFields = items.some((item) => {
+    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
+    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    return Boolean(rowCompanyId || rowProjectId);
+  });
+
+  if (!hasContextFields) {
+    return items;
+  }
+
+  return items.filter((item) => {
+    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
+    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    const companyMatches = !companyId || rowCompanyId === companyId;
+    const projectMatches = !projectId || rowProjectId === projectId;
+    return companyMatches && projectMatches;
+  });
+};
+
 const buildLookup = (items: any[], key: string, label: string, fallbackKey?: string) =>
   items.reduce<Record<string, string>>((acc, item) => {
     const lookupKey = item?.[key];
@@ -294,6 +328,15 @@ const buildLookup = (items: any[], key: string, label: string, fallbackKey?: str
 export default function UnassignedStaffPoolList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
   const userApi = adminApi.usersCreation;
@@ -326,29 +369,72 @@ export default function UnassignedStaffPoolList() {
     `/${encStaffMasters}/${encUnassignedStaffPool}/${id}/edit`;
 
   const fetchRecords = async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
       const [poolRes, userRes, zoneRes, wardRes, tripRes] = await Promise.all([
-        unassignedStaffPoolApi.list(),
-        userApi.list(),
-        zoneApi.list(),
-        wardApi.list(),
-        tripInstanceApi.list(),
+        unassignedStaffPoolApi.list({ params }),
+        userApi.list({ params }),
+        zoneApi.list({ params }),
+        wardApi.list({ params }),
+        tripInstanceApi.list({ params }),
       ]);
+
+      const poolRows = filterByCompanyProject(
+        normalizeList(poolRes),
+        companyUniqueId,
+        projectId
+      );
+      const userRows = filterByCompanyProject(
+        normalizeList(userRes),
+        companyUniqueId,
+        projectId
+      );
+      const zoneRows = filterByCompanyProject(
+        normalizeList(zoneRes),
+        companyUniqueId,
+        projectId
+      );
+      const wardRows = filterByCompanyProject(
+        normalizeList(wardRes),
+        companyUniqueId,
+        projectId
+      );
+      const tripRows = filterByCompanyProject(
+        normalizeList(tripRes),
+        companyUniqueId,
+        projectId
+      );
 
       // Build lookups locally first so we can enrich records immediately
       const uLookup = buildLookup(
-        normalizeList(userRes),
+        userRows,
         "unique_id",
         "staff_name",
         "unique_id"
       );
-      const znLookup = buildLookup(normalizeList(zoneRes), "unique_id", "name");
-      const wLookup = buildLookup(normalizeList(wardRes), "unique_id", "name");
-      const tLookup = buildLookup(normalizeList(tripRes), "unique_id", "trip_no");
+      const znLookup = buildLookup(zoneRows, "unique_id", "name");
+      const wLookup = buildLookup(wardRows, "unique_id", "name");
+      const tLookup = buildLookup(tripRows, "unique_id", "trip_no");
 
       // Enrich each record with resolved name fields for column filtering
-      const enriched = normalizeList(poolRes).map((rec: any) => ({
+      const enriched = poolRows.map((rec: any) => ({
         ...rec,
         _operator_name: rec.operator_id
           ? (uLookup[rec.operator_id] ?? rec.operator_id)
@@ -377,7 +463,7 @@ export default function UnassignedStaffPoolList() {
 
   useEffect(() => {
     fetchRecords();
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);
@@ -427,12 +513,47 @@ export default function UnassignedStaffPoolList() {
           </p>
         </div>
 
-        <Button
-          label={t("admin.unassigned_staff_pool.create_button")}
-          icon="pi pi-plus"
-          className="p-button-success p-button-sm"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("admin.unassigned_staff_pool.create_button")}
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <div className="flex justify-end">
@@ -478,6 +599,8 @@ export default function UnassignedStaffPoolList() {
           "_ward_name",
           "status",
           "_trip_instance_name",
+          "company_name",
+          "project_name",
         ]}
         header={header}
         stripedRows

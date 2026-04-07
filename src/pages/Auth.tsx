@@ -283,7 +283,7 @@ import {
   ADMIN_VIEW_MODE_ADMIN,
   isAdmin,
 } from "@/types/roles";
-import { fetchPermissionsFromAPI } from "@/utils/permissions";
+import { fetchPermissionsFromAPI, setStoredPermissions } from "@/utils/permissions";
 import { Eye, EyeOff } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import BgImg from "../images/bgSignin.png";
@@ -379,6 +379,7 @@ export default function Auth() {
       } = res.data;
 
       const normalizedRole = normalizeRole(role) ?? DEFAULT_ROLE;
+      const loginPermissions = res.data.permissions ?? {};
 
       // ✅ Store auth
       localStorage.setItem("access_token", access_token);
@@ -389,6 +390,16 @@ export default function Auth() {
       let freshPermissions: Record<string, any> = {};
       try {
         freshPermissions = await fetchPermissionsFromAPI();
+
+        // If permission endpoint is missing/empty, fallback to login response permissions.
+        if (
+          !hasAnyPermission(freshPermissions) &&
+          hasAnyPermission(loginPermissions)
+        ) {
+          freshPermissions = loginPermissions;
+          setStoredPermissions(freshPermissions);
+          console.log("[Auth] ℹ️ Falling back to permissions from login response");
+        }
 
         // ✅ KEY FIX: push new permissions into PermissionContext React state
         // Without this, the context still holds the previous user's permissions
@@ -402,8 +413,9 @@ export default function Auth() {
           permError
         );
         // Fallback: use permissions from login response directly
-        freshPermissions = res.data.permissions ?? {};
+        freshPermissions = loginPermissions;
         if (Object.keys(freshPermissions).length > 0) {
+          setStoredPermissions(freshPermissions);
           updatePermissions(freshPermissions);
         }
       }
@@ -431,8 +443,6 @@ export default function Auth() {
       });
 
       // ✅ Check admin access by role name OR by any permission granted by superadmin
-      const loginPermissions = res.data.permissions ?? {};
-
       const hasAdminAccess =
         isAdmin(normalizedRole) ||
         hasAnyPermission(freshPermissions) ||

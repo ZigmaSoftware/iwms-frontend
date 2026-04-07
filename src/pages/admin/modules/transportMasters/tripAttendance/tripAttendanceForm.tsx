@@ -80,8 +80,8 @@ export default function TripAttendanceForm() {
 
   const tripAttendanceApi = adminApi.tripAttendances;
   const tripInstanceApi = adminApi.tripInstances;
-  const staffTemplateApi = adminApi.staffTemplate;
-  const userApi = adminApi.usercreations;
+  const staffTemplateApi = adminApi.staffTemplateCreation;
+  const userApi = adminApi.usersCreation;
   const vehicleApi = adminApi.vehicleCreations;
 
   const [loading, setLoading] = useState(false);

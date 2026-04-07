@@ -48,7 +48,7 @@ export default function HouseholdPickupEventList() {
   const zoneApi = adminApi.zones;
   const propertyApi = adminApi.properties;
   const subPropertyApi = adminApi.subProperties;
-  const userApi = adminApi.usercreations;
+  const userApi = adminApi.usersCreation;
   const vehicleApi = adminApi.vehicleCreations;
 
   const [records, setRecords] = useState<HouseholdPickupEventRecord[]>([]);

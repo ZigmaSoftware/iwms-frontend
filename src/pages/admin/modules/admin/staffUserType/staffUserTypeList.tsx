@@ -298,6 +298,7 @@ import "primeicons/primeicons.css";
 import { PencilIcon, TrashBinIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 import type { StaffUserType } from "../types/admin.types";
 import { staffUserTypeApi } from "@/helpers/admin";
@@ -308,9 +309,21 @@ type TableFilters = {
   usertype_name: { value: string | null; matchMode: FilterMatchMode };
 };
 
+type StaffUserTypeListRecord = StaffUserType & {
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
+};
+
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
 export default function StaffUserTypeList() {
   const { t } = useTranslation();
-  const [records, setRecords] = useState<StaffUserType[]>([]);
+  const [records, setRecords] = useState<StaffUserTypeListRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
@@ -322,6 +335,15 @@ export default function StaffUserTypeList() {
 
   const navigate = useNavigate();
   const { encAdmins, encStaffUserType } = getEncryptedRoute();
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const ENC_NEW_PATH = `/${encAdmins}/${encStaffUserType}/new`;
   const ENC_EDIT_PATH = (id: string) =>
@@ -331,11 +353,33 @@ export default function StaffUserTypeList() {
      FETCH DATA
   ----------------------------------------------------------- */
   const fetchRecords = async () => {
-    try {
-      const res: any[] | { results: any[] } = await staffUserTypeApi.list();
-      const list = Array.isArray(res) ? res : (res as any)?.results ?? [];
+    if (isSuperAdmin && companies.length === 0) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
 
-      const normalized = list.map((item: any) => ({
+    if (!companyUniqueId) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const payload: any = await staffUserTypeApi.list({ params });
+      const list = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : payload?.data?.results ?? payload?.results ?? [];
+
+      const normalized: StaffUserTypeListRecord[] = list.map((item: any): StaffUserTypeListRecord => ({
         ...item,
         usertype_id:
           item.usertype_id ??
@@ -347,7 +391,26 @@ export default function StaffUserTypeList() {
           t("common.unknown"),
       }));
 
-      setRecords(normalized);
+      const hasContextFields = normalized.some((row: StaffUserTypeListRecord) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        return Boolean(rowCompanyId || rowProjectId);
+      });
+
+      if (!hasContextFields) {
+        setRecords(normalized);
+        return;
+      }
+
+      const filtered = normalized.filter((row: StaffUserTypeListRecord) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+        return companyMatches && projectMatches;
+      });
+
+      setRecords(filtered);
     } finally {
       setLoading(false);
     }
@@ -355,7 +418,7 @@ export default function StaffUserTypeList() {
 
   useEffect(() => {
     fetchRecords();
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
 
   /* -----------------------------------------------------------
      DELETE RECORD
@@ -473,14 +536,49 @@ export default function StaffUserTypeList() {
           </p>
         </div>
 
-        <Button
-          label={t("common.add_item", {
-            item: t("admin.nav.staff_user_type"),
-          })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("common.add_item", {
+              item: t("admin.nav.staff_user_type"),
+            })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <DataTable
@@ -491,7 +589,7 @@ export default function StaffUserTypeList() {
         filters={filters}
         onFilter={onFilter}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        globalFilterFields={["name", "usertype_name"]}
+        globalFilterFields={["name", "usertype_name", "company_name", "project_name"]}
         header={header}
         stripedRows
         showGridlines

@@ -13,12 +13,15 @@ import { PencilIcon } from "@/icons";
 import { collectionPointApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type CollectionPointRecord = {
   unique_id: string;
   company_id?: string;
+  company_unique_id?: string;
   company_name?: string;
   project_id?: string;
+  project_unique_id?: string;
   project_name?: string;
   state_id?: string;
   state_name?: string;
@@ -34,6 +37,18 @@ type CollectionPointRecord = {
   latitude?: string | null;
   longitude?: string | null;
   is_active: boolean;
+};
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  cp_name: { value: string | null; matchMode: FilterMatchMode };
+  company_name: { value: string | null; matchMode: FilterMatchMode };
+  project_name: { value: string | null; matchMode: FilterMatchMode };
+  state_name: { value: string | null; matchMode: FilterMatchMode };
+  district_name: { value: string | null; matchMode: FilterMatchMode };
+  city_name: { value: string | null; matchMode: FilterMatchMode };
+  panchayat_name: { value: string | null; matchMode: FilterMatchMode };
+  ward_name: { value: string | null; matchMode: FilterMatchMode };
 };
 
 const toRecordList = (value: unknown): CollectionPointRecord[] => {
@@ -54,13 +69,16 @@ const toDisplay = (value: unknown): string =>
     ? "-"
     : String(value);
 
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
 export default function CollectionPointListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [rows, setRows] = useState<CollectionPointRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     cp_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     company_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -71,6 +89,15 @@ export default function CollectionPointListPage() {
     panchayat_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     ward_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const { encMasters, encCollectionPoints } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encMasters}/${encCollectionPoints}/new`;
@@ -78,23 +105,61 @@ export default function CollectionPointListPage() {
     `/${encMasters}/${encCollectionPoints}/${id}/edit`;
 
   const fetchRows = useCallback(async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const data = await collectionPointApi.list();
-      setRows(toRecordList(data));
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const data = await collectionPointApi.list({ params });
+      const records = toRecordList(data);
+
+      const hasContextFields = records.some((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        return Boolean(rowCompanyId || rowProjectId);
+      });
+
+      if (!hasContextFields) {
+        setRows(records);
+        return;
+      }
+
+      const filtered = records.filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+        return companyMatches && projectMatches;
+      });
+
+      setRows(filtered);
     } catch {
       setRows([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   useEffect(() => {
     fetchRows();
   }, [fetchRows]);
 
   const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as any);
+    setFilters(e.filters as TableFilters);
   };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,12 +236,47 @@ export default function CollectionPointListPage() {
             })}
           </p>
         </div>
-        <Button
-          label={t("common.add_item", { item: t("admin.nav.collection_point") })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.collection_point") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <DataTable

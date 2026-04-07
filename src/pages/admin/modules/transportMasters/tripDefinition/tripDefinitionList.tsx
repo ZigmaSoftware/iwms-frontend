@@ -14,6 +14,7 @@ import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type TripDefinitionRecord = {
   unique_id: string;
@@ -35,6 +36,12 @@ type TripDefinitionRecord = {
   _staff_template_name?: string;
   _property_name?: string;
   _sub_property_name?: string;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
   [key: string]: unknown;
 };
 
@@ -55,6 +62,33 @@ const normalizeList = (payload: any): any[] =>
     : Array.isArray(payload?.data)
       ? payload.data
       : payload?.results ?? [];
+
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
+const filterByCompanyProject = (
+  rows: any[],
+  companyId: string,
+  projectId: string
+) => {
+  const hasContextFields = rows.some((item) => {
+    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
+    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    return Boolean(rowCompanyId || rowProjectId);
+  });
+
+  if (!hasContextFields) {
+    return rows;
+  }
+
+  return rows.filter((item) => {
+    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
+    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    const companyMatches = !companyId || rowCompanyId === companyId;
+    const projectMatches = !projectId || rowProjectId === projectId;
+    return companyMatches && projectMatches;
+  });
+};
 
 const buildLookup = (
   items: any[],
@@ -97,6 +131,15 @@ export default function TripDefinitionList() {
 
   const [propertyLookup, setPropertyLookup] = useState<Record<string, string>>({});
   const [subPropertyLookup, setSubPropertyLookup] = useState<Record<string, string>>({});
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
@@ -116,30 +159,63 @@ export default function TripDefinitionList() {
     `/${encTransportMaster}/${encTripDefinition}/${id}/edit`;
 
   const fetchRecords = async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
       const [tripRes, , , propertyRes, subPropertyRes] = await Promise.all([
-        tripDefinitionApi.list(),
-        routePlanApi.list(),
-        staffTemplateApi.list(),
-        propertyApi.list(),
-        subPropertyApi.list(),
+        tripDefinitionApi.list({ params }),
+        routePlanApi.list({ params }),
+        staffTemplateApi.list({ params }),
+        propertyApi.list({ params }),
+        subPropertyApi.list({ params }),
       ]);
+
+      const tripRows = filterByCompanyProject(
+        normalizeList(tripRes),
+        companyUniqueId,
+        projectId
+      );
+      const propertyRows = filterByCompanyProject(
+        normalizeList(propertyRes),
+        companyUniqueId,
+        projectId
+      );
+      const subPropertyRows = filterByCompanyProject(
+        normalizeList(subPropertyRes),
+        companyUniqueId,
+        projectId
+      );
 
       // Build lookups locally first so we can enrich records immediately
       const pLookup = buildLookup(
-        normalizeList(propertyRes),
+        propertyRows,
         "unique_id",
         "property_name"
       );
       const spLookup = buildLookup(
-        normalizeList(subPropertyRes),
+        subPropertyRows,
         "unique_id",
         "sub_property_name"
       );
 
       // Enrich each record with resolved name fields for column filtering
-      const enriched = normalizeList(tripRes).map((rec: any) => ({
+      const enriched = tripRows.map((rec: any) => ({
         ...rec,
         _routeplan_name: rec.routeplan?.display_code ?? rec.routeplan_id ?? "",
         _staff_template_name:
@@ -169,7 +245,7 @@ export default function TripDefinitionList() {
 
   useEffect(() => {
     fetchRecords();
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);
@@ -215,12 +291,47 @@ export default function TripDefinitionList() {
           </p>
         </div>
 
-        <Button
-          label={t("admin.trip_definition.create_button")}
-          icon="pi pi-plus"
-          className="p-button-success p-button-sm"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("admin.trip_definition.create_button")}
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <div className="flex justify-end">
@@ -269,6 +380,8 @@ export default function TripDefinitionList() {
           "_sub_property_name",
           "approval_status",
           "status",
+          "company_name",
+          "project_name",
         ]}
         header={header}
         stripedRows

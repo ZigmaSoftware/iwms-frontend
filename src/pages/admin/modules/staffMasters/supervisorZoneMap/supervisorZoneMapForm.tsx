@@ -38,7 +38,7 @@ export default function SupervisorZoneMapForm() {
   const districtApi = adminApi.districts;
   const cityApi = adminApi.cities;
   const zoneApi = adminApi.zones;
-  const userCreationApi = adminApi.usercreations;
+  const userCreationApi = adminApi.usersCreation;
 
   const [fetching, setFetching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
