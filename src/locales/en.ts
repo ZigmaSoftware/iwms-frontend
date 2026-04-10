@@ -151,6 +151,8 @@ const enResource = {
         date: "Date",
         customer: "Customer",
         location_unavailable: "Location unavailable",
+        next: "Next",
+        change: "Change",
       },
       "login": {
         "title": "Welcome Back",
@@ -814,6 +816,7 @@ const enResource = {
           "zone_property_load_tracker": "Zone Load Tracker",
           "customer_masters": "Customer Masters",
           "customer_creation": "Customer Creation",
+          "apartment_list": "Apartment List",
           "waste_collected_data": "Waste Collected Data",
           "feedback": "Feedback",
           "customer_tag": "Customer Tag",
@@ -1513,7 +1516,11 @@ const enResource = {
           "company_project_info": "Company & Project Info",
           "identification": "Identification Info",
           "location_details": "Location Details",
-          
+          "select_property_subproperty": "Select Property & Sub-Property",
+          "step_1_info": "Step 1 of 2: Please select a Property and Sub-Property to proceed",
+          "step_2_info": "Step 2 of 2: Fill in the customer details",
+          "selected_property": "Selected Property",
+          "selected_sub_property": "Selected Sub-Property",
         },
         "home": {
           "title": "Analytics Dashboard",

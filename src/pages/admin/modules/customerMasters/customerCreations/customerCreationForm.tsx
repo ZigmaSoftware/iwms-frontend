@@ -63,6 +63,16 @@ interface FormDataType {
   project_id: string;
   is_active: boolean;
   is_bulkwaste_generator: boolean;
+
+  // Apartment fields
+  apartment_name: string;
+  block_no: string;
+  flat_no: string;
+  // Villa fields
+  villa_no: string;
+  // Industry fields
+  industry_name: string;
+  industry_type: string;
 }
 
 /* ===============================
@@ -163,6 +173,91 @@ const FormInput = ({
 );
 
 /* ===============================
+   STEP 1: PROPERTY SELECTION COMPONENT
+================================ */
+const PropertySelectionStep = ({
+  properties,
+  subProperties,
+  selectedProperty,
+  selectedSubProperty,
+  onPropertyChange,
+  onSubPropertyChange,
+  onNext,
+  t,
+  tOrFallback,
+}: {
+  properties: any[];
+  subProperties: any[];
+  selectedProperty: string;
+  selectedSubProperty: string;
+  onPropertyChange: (v: string) => void;
+  onSubPropertyChange: (v: string) => void;
+  onNext: () => void;
+  t: any;
+  tOrFallback: (key: string, fallback: string) => string;
+}) => {
+  const filteredSubProps = subProperties.filter(
+    (sp: any) => !selectedProperty || sp.property_id === selectedProperty
+  );
+
+  const isStepComplete = selectedProperty && selectedSubProperty;
+
+  return (
+    <ComponentCard title={t("admin.customer_creation.select_property_subproperty") || "Select Property & Sub-Property"}>
+      <div className="space-y-6">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <p className="text-sm text-blue-800">
+            📌 {t("admin.customer_creation.step_1_info") || "Step 1 of 2: Please select a Property and Sub-Property to proceed"}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <ShadcnSelect
+            label={t("admin.customer_creation.property") || "Property"}
+            value={selectedProperty}
+            onChange={onPropertyChange}
+            options={properties.map((p: any) => ({
+              value: String(p?.unique_id ?? p?.id ?? ""),
+              label: p.property_name,
+            }))}
+            placeholder={t("admin.customer_creation.property_placeholder") || "Select property"}
+          />
+
+          <ShadcnSelect
+            label={t("admin.customer_creation.sub_property") || "Sub Property"}
+            value={selectedSubProperty}
+            onChange={onSubPropertyChange}
+            options={filteredSubProps.map((sp: any) => ({
+              value: String(sp?.unique_id ?? sp?.id ?? ""),
+              label: sp.sub_property_name,
+            }))}
+            placeholder={t("admin.customer_creation.sub_property_placeholder") || "Select sub property"}
+          />
+        </div>
+
+        <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
+          <button
+            type="button"
+            onClick={() => window.history.back()}
+            className="bg-red-500 hover:bg-red-600 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
+          >
+            {t("common.cancel") || "Cancel"}
+          </button>
+          <button
+            type="button"
+            disabled={!isStepComplete}
+            onClick={onNext}
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
+          >
+            {t("common.next") || "Next"}
+          </button>
+        </div>
+      </div>
+    </ComponentCard>
+  );
+};
+
+/* ===============================
    MAIN COMPONENT
 ================================ */
 export default function CustomerCreationForm() {
@@ -175,6 +270,7 @@ export default function CustomerCreationForm() {
   const ENC_LIST_PATH = `/${encCustomerMaster}/${encCustomerCreation}`;
 
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState(isEdit ? 1 : 0); // 0 = property selection, 1 = form
   const tOrFallback = (key: string, fallback: string) => {
     const value = t(key);
     return value === key ? fallback : value;
@@ -207,6 +303,13 @@ export default function CustomerCreationForm() {
     project_id: "",
     is_active: true,
     is_bulkwaste_generator: false,
+    // Property type specific fields
+    apartment_name: "",
+    block_no: "",
+    flat_no: "",
+    villa_no: "",
+    industry_name: "",
+    industry_type: "",
   });
 
   const resolveId = (o: any) => String(o?.unique_id ?? o?.id ?? "");
@@ -337,6 +440,22 @@ export default function CustomerCreationForm() {
     [dropdowns.subProperties, formData.property_id]
   );
 
+  /* ===============================
+     SUB_PROPERTY TYPE DETECTION
+  ================================ */
+  const selectedSubProperty = useMemo(
+    () => dropdowns.subProperties.find(
+      (sp: any) => resolveId(sp) === formData.sub_property_id
+    ),
+    [formData.sub_property_id, dropdowns.subProperties]
+  );
+
+  const subName = selectedSubProperty?.sub_property_name?.toLowerCase() || "";
+  const isIndividual = subName.includes("individual") || subName.includes("house");
+  const isApartment = subName.includes("apartment");
+  const isVilla = subName.includes("villa");
+  const isIndustry = subName.includes("industry");
+
   const filteredProjects = useMemo(
     () =>
       dropdowns.projects.filter(
@@ -351,9 +470,9 @@ export default function CustomerCreationForm() {
   const validateForm = (): boolean => {
     // Check required fields (company_id and project_id are mandatory)
     const requiredFields = [
-      "customer_name", "contact_no", "email", "username", "building_no", "street",
-      "area", "pincode", "latitude", "longitude", "sqft", "id_proof_type", "id_no",
-      "country_id", "state_id", "district_id", "city_id", "zone_id", "ward_id",
+      "customer_name", "contact_no", "email", "username",
+       "pincode", "latitude", "longitude", "sqft", "id_proof_type", "id_no",
+      "country_id", "state_id", "district_id", "city_id",  
       "property_id", "sub_property_id", "company_id", "project_id"
     ];
 
@@ -453,6 +572,28 @@ export default function CustomerCreationForm() {
   /* ===============================
      RENDER
   ================================ */
+
+  // Show property selection step first (unless in edit mode)
+  if (step === 0) {
+    return (
+      <PropertySelectionStep
+        properties={dropdowns.properties}
+        subProperties={dropdowns.subProperties}
+        selectedProperty={formData.property_id}
+        selectedSubProperty={formData.sub_property_id}
+        onPropertyChange={(v: string) => {
+          update("property_id", v);
+          update("sub_property_id", "");
+        }}
+        onSubPropertyChange={(v: string) => update("sub_property_id", v)}
+        onNext={() => setStep(1)}
+        t={t}
+        tOrFallback={tOrFallback}
+      />
+    );
+  }
+
+  // Show form step (step 1)
   return (
     <ComponentCard
       title={
@@ -461,6 +602,15 @@ export default function CustomerCreationForm() {
           : t("admin.customer_creation.title_add") || "Add Customer"
       }
     >
+      {/* Step indicator for new records */}
+      {!isEdit && (
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-sm text-blue-800">
+            📍 {t("admin.customer_creation.step_2_info") || "Step 2 of 2: Fill in the customer details"}
+          </p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
 
         <FormSection title={t("admin.customer_creation.personal_info") || "Personal Information"}>
@@ -497,24 +647,108 @@ export default function CustomerCreationForm() {
         </FormSection>
 
         <FormSection title={t("admin.customer_creation.address_info") || "Address Information"}>
-          <FormInput
-            label={t("common.building_no") || "Building No"}
-            value={formData.building_no}
-            onChange={(e) => update("building_no", e.target.value)}
-            placeholder="e.g., 13A"
-          />
-          <FormInput
-            label={t("common.street") || "Street"}
-            value={formData.street}
-            onChange={(e) => update("street", e.target.value)}
-            placeholder="e.g., Main Street"
-          />
-          <FormInput
-            label={t("common.area") || "Area"}
-            value={formData.area}
-            onChange={(e) => update("area", e.target.value)}
-            placeholder="e.g., Village Center"
-          />
+          {/* INDIVIDUAL HOUSE */}
+          {isIndividual && (
+            <>
+              <FormInput
+                label={t("common.building_no") || "Building No"}
+                value={formData.building_no}
+                onChange={(e) => update("building_no", e.target.value)}
+                placeholder="e.g., 13A"
+              />
+              <FormInput
+                label={t("common.street") || "Street"}
+                value={formData.street}
+                onChange={(e) => update("street", e.target.value)}
+                placeholder="e.g., Main Street"
+              />
+              <FormInput
+                label={t("common.area") || "Area"}
+                value={formData.area}
+                onChange={(e) => update("area", e.target.value)}
+                placeholder="e.g., Village Center"
+              />
+            </>
+          )}
+
+          {/* APARTMENT */}
+          {isApartment && (
+            <>
+              <FormInput
+                label="Apartment Name"
+                value={formData.apartment_name}
+                onChange={(e) => update("apartment_name", e.target.value)}
+                placeholder="Enter apartment name"
+                isRequired={false}
+              />
+              <FormInput
+                label="Block No"
+                value={formData.block_no}
+                onChange={(e) => update("block_no", e.target.value)}
+                placeholder="Enter block number"
+                isRequired={false}
+              />
+              <FormInput
+                label="Flat No"
+                value={formData.flat_no}
+                onChange={(e) => update("flat_no", e.target.value)}
+                placeholder="Enter flat number"
+                isRequired={false}
+              />
+            </>
+          )}
+
+          {/* VILLA */}
+          {isVilla && (
+            <>
+              <FormInput
+                label={t("common.street") || "Street"}
+                value={formData.street}
+                onChange={(e) => update("street", e.target.value)}
+                placeholder="e.g., Main Street"
+              />
+              <FormInput
+                label={t("common.area") || "Area"}
+                value={formData.area}
+                onChange={(e) => update("area", e.target.value)}
+                placeholder="e.g., Village Center"
+              />
+              <FormInput
+                label="Villa No"
+                value={formData.villa_no}
+                onChange={(e) => update("villa_no", e.target.value)}
+                placeholder="Enter villa number"
+                isRequired={false}
+              />
+            </>
+          )}
+
+          {/* INDUSTRY */}
+          {isIndustry && (
+            <>
+              <FormInput
+                label="Industry Name"
+                value={formData.industry_name}
+                onChange={(e) => update("industry_name", e.target.value)}
+                placeholder="Enter industry name"
+                isRequired={false}
+              />
+              <FormInput
+                label="Industry Type"
+                value={formData.industry_type}
+                onChange={(e) => update("industry_type", e.target.value)}
+                placeholder="Enter industry type"
+                isRequired={false}
+              />
+              <FormInput
+                label={t("common.area") || "Area"}
+                value={formData.area}
+                onChange={(e) => update("area", e.target.value)}
+                placeholder="e.g., Industrial Zone"
+              />
+            </>
+          )}
+
           <FormInput
             label={t("common.pincode") || "Pincode"}
             value={formData.pincode}
@@ -545,6 +779,35 @@ export default function CustomerCreationForm() {
         </FormSection>
 
         <FormSection title={t("admin.customer_creation.property_info") || "Property Information"}>
+          {/* Display selected property and sub-property (read-only in form step) */}
+          {!isEdit && (
+            <div className="md:col-span-3 bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm text-gray-600">
+                    {t("admin.customer_creation.selected_property") || "Selected Property"}:{" "}
+                    <span className="font-semibold text-gray-800">
+                      {dropdowns.properties.find((p: any) => String(p?.unique_id ?? p?.id ?? "") === formData.property_id)?.property_name || "-"}
+                    </span>
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {t("admin.customer_creation.selected_sub_property") || "Selected Sub-Property"}:{" "}
+                    <span className="font-semibold text-gray-800">
+                      {dropdowns.subProperties.find((sp: any) => String(sp?.unique_id ?? sp?.id ?? "") === formData.sub_property_id)?.sub_property_name || "-"}
+                    </span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStep(0)}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium transition"
+                >
+                  {t("common.change") || "Change"}
+                </button>
+              </div>
+            </div>
+          )}
+
           <FormInput
             label={t("admin.customer_creation.sqft") || "Square Feet (Sqft)"}
             value={formData.sqft}
@@ -563,29 +826,6 @@ export default function CustomerCreationForm() {
             ]}
             placeholder={tOrFallback("admin.customer_creation.bulk_waste_generator_placeholder", "Select option")}
             isRequired={false}
-          />
-          <ShadcnSelect
-            label={t("admin.customer_creation.property") || "Property"}
-            value={formData.property_id}
-            onChange={(v: string) => {
-              update("property_id", v);
-              update("sub_property_id", "");
-            }}
-            options={dropdowns.properties.map((p: any) => ({
-              value: resolveId(p),
-              label: p.property_name,
-            }))}
-            placeholder={t("admin.customer_creation.property_placeholder") || "Select property"}
-          />
-          <ShadcnSelect
-            label={t("admin.customer_creation.sub_property") || "Sub Property"}
-            value={formData.sub_property_id}
-            onChange={(v: string) => update("sub_property_id", v)}
-            options={filteredSubProperties.map((sp: any) => ({
-              value: resolveId(sp),
-              label: sp.sub_property_name,
-            }))}
-            placeholder={t("admin.customer_creation.sub_property_placeholder") || "Select sub property"}
           />
         </FormSection>
 
@@ -762,7 +1002,25 @@ export default function CustomerCreationForm() {
         </FormSection>
 
         {/* ACTION BUTTONS */}
-        <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
+        <div className="flex justify-between gap-3 mt-8 pt-6 border-t border-gray-200">
+          <div className="flex gap-3">
+            {!isEdit && (
+              <button
+                type="button"
+                onClick={() => setStep(0)}
+                className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
+              >
+                {t("common.back") || "Back"}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => navigate(ENC_LIST_PATH)}
+              className="bg-red-500 hover:bg-red-600 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
+            >
+              {t("common.cancel") || "Cancel"}
+            </button>
+          </div>
           <button
             type="submit"
             disabled={loading}
@@ -781,13 +1039,6 @@ export default function CustomerCreationForm() {
             ) : (
               t("common.save") || "Save"
             )}
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate(ENC_LIST_PATH)}
-            className="bg-red-500 hover:bg-red-600 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
-          >
-            {t("common.cancel") || "Cancel"}
           </button>
         </div>
       </form>

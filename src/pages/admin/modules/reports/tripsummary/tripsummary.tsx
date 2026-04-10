@@ -28,6 +28,7 @@ interface HistoryRow {
   tripDistance: number;
   position: string;
   duration: number;
+  [key: string]: unknown;
 }
 
 interface TripData {
@@ -455,7 +456,7 @@ export default function TripSummary() {
             />
           </div>
 
-          <button className="btn-go" onClick={fetchSummary} disabled={loading}>
+          <button className="btn-go" onClick={() => fetchSummary()} disabled={loading}>
             {loading ? t("common.loading") : t("common.go")}
           </button>
         </div>

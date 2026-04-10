@@ -12,6 +12,7 @@ import { FilterMatchMode } from "primereact/api";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type TripExceptionLogRecord = {
   id: number;
@@ -20,6 +21,12 @@ type TripExceptionLogRecord = {
   remarks?: string | null;
   detected_by: string;
   created_at?: string | null;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
 };
 
 type TableFilters = {
@@ -32,6 +39,33 @@ type TableFilters = {
 
 const normalizeList = (payload: any): any[] =>
   Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
+
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
+const filterByCompanyProject = (
+  rows: any[],
+  companyId: string,
+  projectId: string
+) => {
+  const hasContextFields = rows.some((item) => {
+    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
+    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    return Boolean(rowCompanyId || rowProjectId);
+  });
+
+  if (!hasContextFields) {
+    return rows;
+  }
+
+  return rows.filter((item) => {
+    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
+    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    const companyMatches = !companyId || rowCompanyId === companyId;
+    const projectMatches = !projectId || rowProjectId === projectId;
+    return companyMatches && projectMatches;
+  });
+};
 
 const buildLookup = (items: any[], key: string, label: string, fallbackKey?: string) =>
   items.reduce<Record<string, string>>((acc, item) => {
@@ -59,6 +93,15 @@ export default function TripExceptionLogList() {
   const [loading, setLoading] = useState(true);
 
   const [tripLookup, setTripLookup] = useState<Record<string, string>>({});
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   // const [filters, setFilters] = useState<any>({
@@ -76,17 +119,45 @@ export default function TripExceptionLogList() {
   const ENC_NEW_PATH = `/${encTransportMaster}/${encTripExceptionLog}/new`;
 
   const fetchRecords = async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
       const [logRes, tripRes] = await Promise.all([
-        tripExceptionLogApi.list(),
-        tripInstanceApi.list(),
+        tripExceptionLogApi.list({ params }),
+        tripInstanceApi.list({ params }),
       ]);
 
-      setRecords(normalizeList(logRes));
+      const logRows = filterByCompanyProject(
+        normalizeList(logRes),
+        companyUniqueId,
+        projectId
+      );
+      const tripRows = filterByCompanyProject(
+        normalizeList(tripRes),
+        companyUniqueId,
+        projectId
+      );
+
+      setRecords(logRows as TripExceptionLogRecord[]);
       setTripLookup(
         buildLookup(
-          normalizeList(tripRes),
+          tripRows,
           "unique_id",
           "trip_no",
           "unique_id"
@@ -101,7 +172,7 @@ export default function TripExceptionLogList() {
 
   useEffect(() => {
     fetchRecords();
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -121,12 +192,47 @@ export default function TripExceptionLogList() {
           </p>
         </div>
 
-        <Button
-          label={t("admin.trip_exception_log.create_button")}
-          icon="pi pi-plus"
-          className="p-button-success p-button-sm"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("admin.trip_exception_log.create_button")}
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <div className="flex justify-end">
@@ -152,7 +258,14 @@ export default function TripExceptionLogList() {
         rows={10}
         loading={loading}
         filters={filters}
-        globalFilterFields={["trip_instance_id", "exception_type", "detected_by", "remarks"]}
+        globalFilterFields={[
+          "trip_instance_id",
+          "exception_type",
+          "detected_by",
+          "remarks",
+          "company_name",
+          "project_name",
+        ]}
         header={header}
         stripedRows
         showGridlines

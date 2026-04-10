@@ -344,7 +344,7 @@ const fetchCollectionAlerts = async (dateKey: string): Promise<AlertItem[]> => {
         .map((row: Record<string, any>) =>
           extractCustomerId(row, String(row.id ?? row.unique_id ?? ""))
         )
-        .filter((id) => id)
+        .filter((id: string) => Boolean(id))
     );
 
     const missed = customers.filter((customer) => {

@@ -217,7 +217,7 @@
 // }
 
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
@@ -232,6 +232,7 @@ import { FilterMatchMode } from "primereact/api";
 import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 export type ZonePropertyLoadTrackerApiRecord = {
   unique_id: string;
@@ -258,6 +259,12 @@ export type ZonePropertyLoadTrackerApiRecord = {
 
   current_weight_kg: number;
   last_updated: string;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
 };
 
 type TableFilters = {
@@ -269,12 +276,26 @@ type TableFilters = {
   current_weight_kg: { value: string | null; matchMode: FilterMatchMode };
 };
 
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.data)
-      ? payload.data
-      : payload?.results ?? [];
+const normalizeList = (payload: unknown): ZonePropertyLoadTrackerApiRecord[] => {
+  if (Array.isArray(payload)) {
+    return payload as ZonePropertyLoadTrackerApiRecord[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const maybePayload = payload as { data?: unknown; results?: unknown };
+    if (Array.isArray(maybePayload.data)) {
+      return maybePayload.data as ZonePropertyLoadTrackerApiRecord[];
+    }
+    if (Array.isArray(maybePayload.results)) {
+      return maybePayload.results as ZonePropertyLoadTrackerApiRecord[];
+    }
+  }
+
+  return [];
+};
+
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
 
 export default function ZonePropertyLoadTrackerList() {
   const { t } = useTranslation();
@@ -284,6 +305,15 @@ export default function ZonePropertyLoadTrackerList() {
 
   const [records, setRecords] = useState<ZonePropertyLoadTrackerApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
@@ -300,21 +330,61 @@ export default function ZonePropertyLoadTrackerList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encTransportMaster}/${encZonePropertyLoadTracker}/${id}/edit`;
 
-  const fetchRecords = async () => {
+  const fetchRecords = useCallback(async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const trackerRes = await zonePropertyLoadTrackerApi.list();
-      setRecords(normalizeList(trackerRes));
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const trackerRes = await zonePropertyLoadTrackerApi.list({ params });
+      const rows = normalizeList(trackerRes);
+
+      const hasContextFields = rows.some((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        return Boolean(rowCompanyId || rowProjectId);
+      });
+
+      if (!hasContextFields) {
+        setRecords(rows);
+        return;
+      }
+
+      const filtered = rows.filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+
+        return companyMatches && projectMatches;
+      });
+
+      setRecords(filtered);
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
       setLoading(false);
     }
-  };
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t, zonePropertyLoadTrackerApi]);
 
   useEffect(() => {
     fetchRecords();
-  }, []);
+  }, [fetchRecords]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);
@@ -341,12 +411,47 @@ export default function ZonePropertyLoadTrackerList() {
           </p>
         </div>
 
-        <Button
-          label={t("admin.zone_property_load_tracker.create_button")}
-          icon="pi pi-plus"
-          className="p-button-success p-button-sm"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("admin.zone_property_load_tracker.create_button")}
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <div className="flex justify-end">
@@ -390,6 +495,8 @@ export default function ZonePropertyLoadTrackerList() {
           "vehicle_details.vehicle_no",
           "property_details.property_name",
           "sub_property_details.sub_property_name",
+          "company_name",
+          "project_name",
         ]}
         header={header}
         stripedRows

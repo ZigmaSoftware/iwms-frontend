@@ -1,26 +1,23 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
 import Swal from "sweetalert2";
-import ReactDOM from "react-dom/client";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
-import QRCode from "react-qr-code";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
+import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
-
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type Customer = {
   unique_id: string;
@@ -41,6 +38,12 @@ type Customer = {
   id_proof_type: string;
   id_no: string;
   is_active: boolean;
+  qr_code?: string;
+  apartment_name?: string;
+  block_no?: string;
+  flat_no?: string;
+  company_id?: string | null;
+  project_id?: string | null;
 };
 
 type TableFilters = {
@@ -55,18 +58,11 @@ type TableFilters = {
 
 const customerApi = adminApi.customerCreations;
 
-
-export default function CustomerCreationList() {
+export default function CustomerCreationListPage() {
   const { t } = useTranslation();
-    const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-
-  // const [filters, setFilters] = useState<any>({
-  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  //   customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-  // });
-
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -75,59 +71,157 @@ export default function CustomerCreationList() {
     zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     state_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-  }); 
+  });
 
   const navigate = useNavigate();
   const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
 
-  const ENC_NEW_PATH = `/${encCustomerMaster}/${encCustomerCreation}/new`;
-  const ENC_EDIT_PATH = (unique_id: string) =>
-    `/${encCustomerMaster}/${encCustomerCreation}/${unique_id}/edit`;
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
-  const fetchCustomers = async () => {
-     try {
-      const res = await customerApi.list();
-      setCustomers(res as Customer[]);
+  const ENC_NEW_PATH = `/${encCustomerMaster}/${encCustomerCreation}/new`;
+  const ENC_EDIT_PATH = (id: string) =>
+    `/${encCustomerMaster}/${encCustomerCreation}/${id}/edit`;
+
+  const fetchCustomers = useCallback(async () => {
+    if (!companyUniqueId) return;
+
+    try {
+      setLoading(true);
+
+      const res = await customerApi.list({
+        params: {
+          company_id: companyUniqueId,
+          project_id: projectId,
+        },
+      });
+
+      setCustomers(res);
+    } catch (err) {
+      console.error(err);
+      setCustomers([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [companyUniqueId, projectId]);
 
   useEffect(() => {
     fetchCustomers();
-  }, []);
-
-  const handleDelete = async (unique_id: string) => {
-    const confirm = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    await customerApi.remove(unique_id);
-
-    Swal.fire({
-      icon: "success",
-      title: t("common.deleted_success"),
-      timer: 1500,
-      showConfirmButton: false,
-    });
-
-    fetchCustomers();
-  };
+  }, [fetchCustomers]);
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
-  const onGlobalFilterChange = (e: any) => {
-    const updated = { ...filters };
-    updated.global.value = e.target.value;
-    setFilters(updated);
-    setGlobalFilterValue(e.target.value);
+  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFilters((prev) => ({
+      ...prev,
+      global: { value, matchMode: FilterMatchMode.CONTAINS },
+    }));
+    setGlobalFilterValue(value);
+  };
+
+  // ✅ DOWNLOAD TEMPLATE
+  const downloadTemplate = () => {
+    const headers = [
+      "customer_name",
+      "contact_no",
+      "id_proof_type",
+      "id_no",
+      "building_no",
+      "street",
+      "area",
+      "pincode",
+      "ward_name",
+      "zone_name",
+      "city_name",
+      "district_name",
+      "state_name",
+      "country_name",
+      "property_name",
+      "sub_property_name",
+      "apartment_name",
+      "block_no",
+      "flat_no",
+    ];
+
+    const exampleRow = [
+      "John Doe",
+      "9876543210",
+      "Aadhaar",
+      "1234-5678-9012",
+      "12",
+      "Main Street",
+      "Anna Nagar",
+      "600040",
+      "Ward 10",
+      "North Zone",
+      "Chennai",
+      "Chennai",
+      "Tamil Nadu",
+      "India",
+      "Residential",
+      "Flat",
+      "Sunrise Apt",
+      "A",
+      "101",
+    ];
+
+    const csvContent = [headers, exampleRow]
+      .map((row) => row.join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "customer_upload_template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // ✅ BULK UPLOAD
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("company_id", companyUniqueId || "");
+    formData.append("project_id", projectId || "");
+
+    try {
+      const res = await customerApi.action("bulk-upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      Swal.fire({
+        title: "Upload Completed",
+        html: `<b>Success:</b> ${res.success_count} <br/> <b>Errors:</b> ${res.errors.length}`,
+        icon: "success",
+      });
+
+      fetchCustomers();
+    } catch (err) {
+      console.error(err);
+      Swal.fire("Error", "Upload failed", "error");
+    }
+
+    // Reset input so same file can be re-uploaded if needed
+    event.target.value = "";
   };
 
   const header = (
@@ -140,44 +234,42 @@ export default function CustomerCreationList() {
           placeholder={t("admin.customer_creation.search_placeholder")}
           className="p-inputtext-sm !border-0 !shadow-none"
         />
+        <input
+          id="csvUpload"
+          type="file"
+          accept=".csv"
+          hidden
+          onChange={handleFileUpload}
+        />
       </div>
     </div>
   );
 
-  const buildCustomerQrPayload = (c: Customer) => ({
-    id: c.unique_id,
-    name: c.customer_name,
-    mobile: c.contact_no,
-    address: `${c.building_no}, ${c.street}, ${c.area}, ${c.pincode}`,
-    ward: c.ward_name,
-    zone: c.zone_name,
-    city: c.city_name,
-    state: c.state_name,
-  });
-
-  const openQrPopup = (payload: any) => {
+  const openQrPopup = (qrUrl: string) => {
     Swal.fire({
       title: t("admin.customer_creation.qr_title"),
-      html: `<div id="customer-qr-holder" class="flex justify-center"></div>`,
+      html: `<div class="flex justify-center">
+              <img src="${qrUrl}" style="width:200px;height:200px;" />
+            </div>`,
       width: 350,
-      didOpen: () => {
-        const div = document.getElementById("customer-qr-holder");
-        if (div) {
-          const root = ReactDOM.createRoot(div);
-          root.render(<QRCode value={JSON.stringify(payload)} size={200} />);
-        }
-      },
     });
   };
 
-  const qrTemplate = (c: Customer) => {
-    const payload = buildCustomerQrPayload(c);
+  const qrTemplate = (customer: Customer) => {
+    if (!customer.qr_code) {
+      return <span className="text-gray-400 text-xs">No QR</span>;
+    }
+
     return (
       <button
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
-        onClick={() => openQrPopup(payload)}
+        onClick={() => openQrPopup(customer.qr_code!)}
       >
-        <QRCode value={JSON.stringify(payload)} size={45} />
+        <img
+          src={customer.qr_code}
+          alt="QR"
+          className="w-12 h-12 object-contain"
+        />
       </button>
     );
   };
@@ -195,142 +287,433 @@ export default function CustomerCreationList() {
     return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
   };
 
-  const actionTemplate = (c: Customer) => (
+  const actionTemplate = (customer: Customer) => (
     <div className="flex gap-3 justify-center">
-      
-        <button
-          title={t("common.edit")}
-          onClick={() => navigate(ENC_EDIT_PATH(c.unique_id))}
-          className="text-blue-600 hover:text-blue-800"
-        >
-          <PencilIcon className="size-5" />
-        </button>
-     {/* <button
-        title="Delete"
-
-          onClick={() => handleDelete(c.unique_id)}
-          className="text-red-600 hover:text-red-800"
-        >
-          <TrashBinIcon className="size-5" />
-        </button>*/}
-      
+      <button
+        title={t("common.edit")}
+        onClick={() => navigate(ENC_EDIT_PATH(customer.unique_id))}
+        className="text-blue-600 hover:text-blue-800"
+      >
+        <PencilIcon className="size-5" />
+      </button>
     </div>
   );
 
-  const indexTemplate = (_: Customer, options: any) => options.rowIndex + 1;
+  const indexTemplate = (_: Customer, options: { rowIndex: number }) =>
+    options.rowIndex + 1;
 
   return (
     <div className="p-3">
-    
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-1">
-              {t("admin.customer_creation.title")}
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {t("admin.customer_creation.subtitle")}
-            </p>
-          </div>
-
-          
-            <Button
-              label={t("admin.customer_creation.add")}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
-          
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 mb-1">
+            {t("admin.customer_creation.title")}
+          </h1>
+          <p className="text-gray-500 text-sm">
+            {t("admin.customer_creation.subtitle")}
+          </p>
         </div>
 
-        <DataTable
-          value={customers}
-          dataKey="unique_id"
-          paginator
-          rows={10}
-          rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={loading}
-          filters={filters}
-          globalFilterFields={[
-            "customer_name",
-            "contact_no",
-            "ward_name",
-            "zone_name",
-            "city_name",
-          ]}
-          header={header}
-          emptyMessage={t("admin.customer_creation.empty_message")}
-          stripedRows
-          showGridlines
-          className="p-datatable-sm"
-        >
-          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", {
+                item: t("admin.nav.company"),
+              })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
 
-          <Column
-            field="customer_name"
-            header={t("admin.customer_creation.customer")}
-            body={(row: Customer) => cap(row.customer_name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-          <Column field="contact_no" header={t("common.mobile")} 
-          sortable 
-          filter  
-          showFilterMatchModes={false}
-          />
-          <Column
-            field="ward_name"
-            header={t("common.ward")}
-            body={(row: Customer) => cap(row.ward_name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-          <Column
-            field="zone_name"
-            header={t("common.zone")}
-            body={(row: Customer) => cap(row.zone_name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-          <Column
-            field="city_name"
-            header={t("common.city")}
-            body={(row: Customer) => cap(row.city_name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-          <Column
-            field="state_name"
-            header={t("common.state")}
-            body={(row: Customer) => cap(row.state_name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", {
+                item: t("admin.nav.project"),
+              })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("admin.customer_creation.add")}
+            icon="pi pi-plus"
+            className="p-button-success"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
 
-          <Column header={t("admin.customer_creation.qr_label")} body={qrTemplate} style={{ width: "100px" }} />
+          {/* ✅ DOWNLOAD TEMPLATE BUTTON */}
+          <Button
+            label="Download Template"
+            icon="pi pi-download"
+            className="p-button-secondary"
+            onClick={downloadTemplate}
+          />
 
-          
-            <Column
-              field="is_active"
-              header={t("common.status")}
-              body={statusTemplate}
-              style={{ width: "120px" }}
-            />
-          
+          {/* ✅ UPLOAD CSV BUTTON */}
+          <Button
+            label="Upload CSV"
+            icon="pi pi-upload"
+            className="p-button-info"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => document.getElementById("csvUpload")?.click()}
+          />
+        </div>
+      </div>
 
-          
-            <Column
-              header={t("common.actions")}
-              body={actionTemplate}
-              style={{ width: "140px", textAlign: "center" }}
-            />
-          
-        </DataTable>
+      <DataTable
+        value={customers}
+        dataKey="unique_id"
+        paginator
+        rows={10}
+        rowsPerPageOptions={[5, 10, 25, 50]}
+        loading={loading}
+        filters={filters}
+        globalFilterFields={[
+          "customer_name",
+          "contact_no",
+          "apartment_name",
+          "block_no",
+          "flat_no",
+          "ward_name",
+          "zone_name",
+          "city_name",
+        ]}
+        header={header}
+        emptyMessage={t("admin.customer_creation.empty_message")}
+        stripedRows
+        showGridlines
+        className="p-datatable-sm"
+      >
+        <Column
+          header={t("common.s_no")}
+          body={indexTemplate}
+          style={{ width: "80px" }}
+        />
+        <Column
+          field="customer_name"
+          header={t("admin.customer_creation.customer")}
+          sortable
+        />
+        <Column field="contact_no" header={t("common.mobile")} sortable />
 
+        {/* ✅ Apartment */}
+        <Column
+          field="apartment_name"
+          header="Apartment"
+          body={(row: Customer) =>
+            row.apartment_name && row.apartment_name.trim() !== ""
+              ? cap(row.apartment_name)
+              : "-"
+          }
+        />
+
+        {/* ✅ Unit */}
+        <Column
+          header="Unit"
+          body={(row: Customer) =>
+            row.block_no && row.flat_no
+              ? `${row.block_no}-${row.flat_no}`
+              : "-"
+          }
+        />
+
+        <Column field="ward_name" header={t("common.ward")} sortable />
+        <Column field="zone_name" header={t("common.zone")} sortable />
+        <Column field="city_name" header={t("common.city")} sortable />
+        <Column field="state_name" header={t("common.state")} sortable />
+
+        <Column
+          header={t("admin.customer_creation.qr_label")}
+          body={qrTemplate}
+          style={{ width: "100px" }}
+        />
+
+        <Column
+          field="is_active"
+          header={t("common.status")}
+          body={statusTemplate}
+        />
+
+        <Column
+          header={t("common.actions")}
+          body={actionTemplate}
+          style={{ textAlign: "center" }}
+        />
+      </DataTable>
     </div>
   );
 }
+
+
+
+// import { useCallback, useEffect, useState } from "react";
+// import { useNavigate } from "react-router-dom";
+// import { adminApi } from "@/helpers/admin/registry";
+// import Swal from "sweetalert2";
+
+// import { DataTable } from "@/components/common/SafeDataTable";
+// import { Column } from "primereact/column";
+// import { Button } from "primereact/button";
+// import { InputText } from "primereact/inputtext";
+// import { FilterMatchMode } from "primereact/api";
+
+// import "primereact/resources/themes/lara-light-blue/theme.css";
+// import "primereact/resources/primereact.min.css";
+// import "primeicons/primeicons.css";
+
+// import { PencilIcon } from "@/icons";
+// import { getEncryptedRoute } from "@/utils/routeCache";
+// import { Switch } from "@/components/ui/switch";
+// import { useTranslation } from "react-i18next";
+// import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+
+// type Customer = {
+//   unique_id: string;
+//   customer_name: string;
+//   contact_no: string;
+//   building_no: string;
+//   street: string;
+//   area: string;
+//   pincode: string;
+//   ward_name: string;
+//   zone_name: string;
+//   city_name: string;
+//   district_name: string;
+//   state_name: string;
+//   country_name: string;
+//   property_name: string;
+//   sub_property_name: string;
+//   id_proof_type: string;
+//   id_no: string;
+//   is_active: boolean;
+
+//   qr_code?: string;
+
+//   apartment_name?: string;
+//   block_no?: string;
+//   flat_no?: string;
+
+//   company_id?: string | null;
+//   project_id?: string | null;
+// };
+
+// const customerApi = adminApi.customerCreations;
+
+// export default function CustomerCreationListPage() {
+//   const { t } = useTranslation();
+//   const [customers, setCustomers] = useState<Customer[]>([]);
+//   const [loading, setLoading] = useState(true);
+//   const [globalFilterValue, setGlobalFilterValue] = useState("");
+
+//   const navigate = useNavigate();
+//   const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
+
+//   const {
+//     companyUniqueId,
+//     projectId,
+//     projects,
+//     companies,
+//     isSuperAdmin,
+//     setProjectId,
+//     onCompanyChange,
+//   } = useCompanyProjectSelection({ isEdit: false });
+
+//   const fetchCustomers = useCallback(async () => {
+//     if (!companyUniqueId) return;
+
+//     try {
+//       setLoading(true);
+
+//       const res = await customerApi.list({
+//         params: {
+//           company_id: companyUniqueId,
+//           project_id: projectId,
+//         },
+//       });
+
+//       setCustomers(res);
+//     } catch (err) {
+//       console.error(err);
+//       setCustomers([]);
+//     } finally {
+//       setLoading(false);
+//     }
+//   }, [companyUniqueId, projectId]);
+
+//   useEffect(() => {
+//     fetchCustomers();
+//   }, [fetchCustomers]);
+
+//   const cap = (str?: string) =>
+//     str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
+
+//   // ✅ BULK UPLOAD
+//   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+//     const file = event.target.files?.[0];
+//     if (!file) return;
+
+//     const formData = new FormData();
+//     formData.append("file", file);
+//     formData.append("company_id", companyUniqueId || "");
+//     formData.append("project_id", projectId || "");
+
+//     try {
+//       const res = await customerApi.action("bulk-upload", formData, {
+//         headers: {
+//           "Content-Type": "multipart/form-data",
+//         },
+//       });
+
+//       Swal.fire({
+//         title: "Upload Completed",
+//         html: `<b>Success:</b> ${res.success_count} <br/> <b>Errors:</b> ${res.errors.length}`,
+//         icon: "success",
+//       });
+
+//       fetchCustomers();
+//     } catch (err) {
+//       console.error(err);
+//       Swal.fire("Error", "Upload failed", "error");
+//     }
+//   };
+
+//   const qrTemplate = (customer: Customer) => {
+//     if (!customer.qr_code) {
+//       return <span className="text-gray-400 text-xs">No QR</span>;
+//     }
+
+//     return (
+//       <img
+//         src={customer.qr_code}
+//         alt="QR"
+//         className="w-12 h-12 object-contain border rounded"
+//         onError={(e) => {
+//           e.currentTarget.style.display = "none";
+//         }}
+//       />
+//     );
+//   };
+
+//   return (
+//     <div className="p-3">
+//       <div className="flex justify-between items-center mb-6">
+//         <h1 className="text-2xl font-bold">Customer Creation</h1>
+
+//         <div className="flex gap-2">
+//           <select
+//             value={companyUniqueId || ""}
+//             onChange={(e) => onCompanyChange(e.target.value)}
+//             className="border px-2 py-1"
+//           >
+//             <option value="">Select Company</option>
+//             {companies.map((c) => (
+//               <option key={c.value} value={c.value}>
+//                 {c.label}
+//               </option>
+//             ))}
+//           </select>
+
+//           <select
+//             value={projectId || ""}
+//             onChange={(e) => setProjectId(e.target.value)}
+//             className="border px-2 py-1"
+//           >
+//             <option value="">Select Project</option>
+//             {projects.map((p) => (
+//               <option key={p.value} value={p.value}>
+//                 {p.label}
+//               </option>
+//             ))}
+//           </select>
+
+//           <Button
+//             label="Upload CSV"
+//             icon="pi pi-upload"
+//             onClick={() => document.getElementById("csvUpload")?.click()}
+//           />
+
+//           <input
+//             id="csvUpload"
+//             type="file"
+//             hidden
+//             accept=".csv"
+//             onChange={handleFileUpload}
+//           />
+
+//           <Button
+//             label="Add Customer"
+//             icon="pi pi-plus"
+//             onClick={() =>
+//               navigate(`/${encCustomerMaster}/${encCustomerCreation}/new`)
+//             }
+//           />
+//         </div>
+//       </div>
+
+//       <DataTable value={customers} loading={loading} paginator rows={10}>
+//         <Column field="customer_name" header="Customer" />
+//         <Column field="contact_no" header="Mobile" />
+
+//         {/* ✅ Apartment FIX */}
+//         <Column
+//           header="Apartment"
+//           body={(row: Customer) =>
+//             row.apartment_name ? cap(row.apartment_name) : "-"
+//           }
+//         />
+
+//         {/* ✅ Unit FIX */}
+//         <Column
+//           header="Unit"
+//           body={(row: Customer) =>
+//             row.block_no || row.flat_no
+//               ? `${row.block_no || ""}-${row.flat_no || ""}`
+//               : "-"
+//           }
+//         />
+
+//         <Column field="ward_name" header="Ward" />
+//         <Column field="zone_name" header="Zone" />
+//         <Column field="city_name" header="City" />
+//         <Column field="state_name" header="State" />
+
+//         {/* ✅ QR FIX */}
+//         <Column header="QR" body={qrTemplate} />
+
+//         <Column
+//           header="Status"
+//           body={(row: Customer) => (
+//             <Switch checked={row.is_active} />
+//           )}
+//         />
+
+//         <Column
+//           header="Actions"
+//           body={(row: Customer) => (
+//             <button>
+//               <PencilIcon />
+//             </button>
+//           )}
+//         />
+//       </DataTable>
+//     </div>
+//   );
+// }

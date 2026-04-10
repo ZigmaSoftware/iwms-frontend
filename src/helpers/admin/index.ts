@@ -88,6 +88,7 @@ export const loginApi = adminApi.loginUser;
    CUSTOMERS
 ========================= */
 export const customerCreationApi = adminApi.customerCreations;
+export const householdPickupEventApi = adminApi.householdPickupEvents;
 export const wasteCollectionApi = adminApi.wasteCollections;
 export const panchayatWiseCollectionApi = adminApi.panchayatWiseCollections;
 export const wardWiseCollectionApi = adminApi.wardWiseCollections;

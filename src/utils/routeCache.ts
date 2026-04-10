@@ -12,6 +12,7 @@ export type EncryptedRoutes = {
   encCountries: string;
   encBins: string;
   encCustomerCreation: string;
+  encApartmentList: string;
   encCustomerMaster: string;
   encDistricts: string;
   encFeedback: string;
@@ -102,6 +103,7 @@ const plainRoutes: EncryptedRoutes = {
   encCountries: "countries",
   encBins: "bins",
   encCustomerCreation: "customer-creation",
+  encApartmentList: "apartment-list",
   encCustomerMaster: "customer-master",
   encSuperAdminMaster: "superadmin-masters",
   encCompanyCreation: "company-creation",

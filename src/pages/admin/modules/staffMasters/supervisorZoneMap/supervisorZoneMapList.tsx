@@ -249,11 +249,18 @@ import { FilterMatchMode } from "primereact/api";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type SupervisorZoneMapRecord = {
   id: number;
   unique_id: string;
   supervisor_id: string;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
   employee_name?: string;
   district_id?: string | null;
   city_id?: string | null;
@@ -284,6 +291,33 @@ const normalizeList = (payload: any): any[] =>
     ? payload.data
     : payload?.results ?? [];
 
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
+const filterByCompanyProject = (
+  items: any[],
+  companyId: string,
+  projectId: string
+) => {
+  const hasContextFields = items.some((item) => {
+    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
+    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    return Boolean(rowCompanyId || rowProjectId);
+  });
+
+  if (!hasContextFields) {
+    return items;
+  }
+
+  return items.filter((item) => {
+    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
+    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    const companyMatches = !companyId || rowCompanyId === companyId;
+    const projectMatches = !projectId || rowProjectId === projectId;
+    return companyMatches && projectMatches;
+  });
+};
+
 const buildLookup = (items: any[], key: string, label: string) =>
   items.reduce<Record<string, string>>((acc, item) => {
     const lookupKey = item?.[key];
@@ -296,6 +330,15 @@ const buildLookup = (items: any[], key: string, label: string) =>
 export default function SupervisorZoneMapList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const supervisorZoneMapApi = adminApi.supervisorZoneMap;
   const districtApi = adminApi.districts;
@@ -326,30 +369,73 @@ export default function SupervisorZoneMapList() {
     `/${encStaffMasters}/${encSupervisorZoneMap}/${id}/edit`;
 
   const fetchRecords = async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
       const [mapRes, districtRes, cityRes, zoneRes, userRes] = await Promise.all([
-        supervisorZoneMapApi.list(),
-        districtApi.list(),
-        cityApi.list(),
-        zoneApi.list(),
-        userCreationApi.list(),
+        supervisorZoneMapApi.list({ params }),
+        districtApi.list({ params }),
+        cityApi.list({ params }),
+        zoneApi.list({ params }),
+        userCreationApi.list({ params }),
       ]);
 
-      const users = normalizeList(userRes).filter(
+      const mapRows = filterByCompanyProject(
+        normalizeList(mapRes),
+        companyUniqueId,
+        projectId
+      );
+      const districtRows = filterByCompanyProject(
+        normalizeList(districtRes),
+        companyUniqueId,
+        projectId
+      );
+      const cityRows = filterByCompanyProject(
+        normalizeList(cityRes),
+        companyUniqueId,
+        projectId
+      );
+      const zoneRows = filterByCompanyProject(
+        normalizeList(zoneRes),
+        companyUniqueId,
+        projectId
+      );
+      const userRows = filterByCompanyProject(
+        normalizeList(userRes),
+        companyUniqueId,
+        projectId
+      );
+
+      const users = userRows.filter(
         (u: any) =>
           u?.user_type_name?.toLowerCase() === "staff" &&
           String(u?.staffusertype_name ?? "").trim().toLowerCase() === "supervisor"
       );
 
       // Build lookups locally first so we can enrich records immediately
-      const dLookup = buildLookup(normalizeList(districtRes), "unique_id", "name");
-      const cLookup = buildLookup(normalizeList(cityRes), "unique_id", "name");
-      const zLookup = buildLookup(normalizeList(zoneRes), "unique_id", "zone_name");
+      const dLookup = buildLookup(districtRows, "unique_id", "name");
+      const cLookup = buildLookup(cityRows, "unique_id", "name");
+      const zLookup = buildLookup(zoneRows, "unique_id", "zone_name");
       const sLookup = buildLookup(normalizeList(users), "unique_id", "employee_name");
 
       // Enrich each record with resolved name fields for column filtering
-      const enriched = normalizeList(mapRes).map((rec: any) => ({
+      const enriched = mapRows.map((rec: any) => ({
         ...rec,
         _supervisor_name: sLookup[rec.supervisor_id] ?? rec.supervisor_id ?? "",
         _district_name: rec.district_id
@@ -377,7 +463,7 @@ export default function SupervisorZoneMapList() {
 
   useEffect(() => {
     fetchRecords();
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);
@@ -451,12 +537,47 @@ export default function SupervisorZoneMapList() {
           </p>
         </div>
 
-        <Button
-          label={t("admin.supervisor_zone_map.create_button")}
-          icon="pi pi-plus"
-          className="p-button-success p-button-sm"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("admin.supervisor_zone_map.create_button")}
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <div className="flex justify-end mb-4">
@@ -485,6 +606,8 @@ export default function SupervisorZoneMapList() {
           "_district_name",
           "_city_name",
           "_zone_names",
+          "company_name",
+          "project_name",
         ]}
         stripedRows
         showGridlines

@@ -269,6 +269,7 @@ import { PencilIcon } from "@/icons";
 import { staffCreationApi, staffTemplateApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 /* ================= TYPES ================= */
 
@@ -276,6 +277,12 @@ type StaffTemplate = {
   id: number;
   unique_id: string;
   display_code?: string;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
 
   driver_id: string;
   driver_name: string;
@@ -306,6 +313,15 @@ type TableFilters = {
 export default function StaffTemplateList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const [templates, setTemplates] = useState<StaffTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -324,17 +340,58 @@ export default function StaffTemplateList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encStaffMasters}/${encStaffTemplate}/${id}/edit`;
 
+  const normalizeId = (value: unknown): string =>
+    value === null || value === undefined ? "" : String(value).trim();
+
   /* ================= FETCH ================= */
 
   const fetchTemplates = async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setTemplates([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setTemplates([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const payload: any = await staffTemplateApi.list();
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const payload: any = await staffTemplateApi.list({ params });
       const data =
         Array.isArray(payload) ? payload :
         Array.isArray(payload?.data) ? payload.data :
         payload?.data?.results ?? [];
-      setTemplates(data);
+      const rows = data as StaffTemplate[];
+
+      const hasContextFields = rows.some((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        return Boolean(rowCompanyId || rowProjectId);
+      });
+
+      if (!hasContextFields) {
+        setTemplates(rows);
+        return;
+      }
+
+      const filtered = rows.filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+        return companyMatches && projectMatches;
+      });
+
+      setTemplates(filtered);
     } catch {
       Swal.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
@@ -344,7 +401,7 @@ export default function StaffTemplateList() {
 
   useEffect(() => {
     fetchTemplates();
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   /* ================= FILTERS ================= */
 
@@ -413,12 +470,47 @@ export default function StaffTemplateList() {
           </p>
         </div>
 
-        <Button
-          label={t("admin.staff_template.create_button")}
-          icon="pi pi-plus"
-          className="p-button-success p-button-sm"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("admin.staff_template.create_button")}
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <div className="flex justify-end">
@@ -453,6 +545,8 @@ export default function StaffTemplateList() {
           "operator_name",
           "status",
           "approval_status",
+          "company_name",
+          "project_name",
         ]}
         header={header}
         stripedRows

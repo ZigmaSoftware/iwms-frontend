@@ -5,13 +5,14 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
-import { Dropdown } from "primereact/dropdown";
 import { FilterMatchMode } from "primereact/api";
+import type { DataTableFilterMeta } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { districtApi } from "@/helpers/admin";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type DistrictRecord = {
   unique_id: string;
@@ -19,6 +20,12 @@ type DistrictRecord = {
   stateName: string;
   name: string;
   is_active: boolean;
+  company_id?: string;
+  company_unique_id?: string;
+  company_name?: string;
+  project_id?: string;
+  project_unique_id?: string;
+  project_name?: string;
 };
 
 type ErrorWithResponse = {
@@ -42,18 +49,30 @@ const extractErrorMessage = (error: unknown) => {
   return "Something went wrong while processing the request.";
 };
 
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
 export default function DistrictListPage() {
   const { t } = useTranslation();
   const [districts, setDistricts] = useState<DistrictRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  const [filters, setFilters] = useState<DataTableFilterMeta>({
     global:      { value: null, matchMode: FilterMatchMode.CONTAINS },
     countryName: { value: null, matchMode: FilterMatchMode.CONTAINS },
     stateName:   { value: null, matchMode: FilterMatchMode.CONTAINS },
     name:        { value: null, matchMode: FilterMatchMode.CONTAINS },
     is_active:   { value: null, matchMode: FilterMatchMode.EQUALS },
   });
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const navigate = useNavigate();
   const { encMasters, encDistricts } = getEncryptedRoute();
@@ -61,39 +80,73 @@ export default function DistrictListPage() {
   const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encDistricts}/${id}/edit`;
 
   const fetchDistricts = useCallback(async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setDistricts([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setDistricts([]);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const res = await districtApi.list();
-      const data = res as any[];
-      const mapped: DistrictRecord[] = data.map((d: any) => ({
-        unique_id:   d.unique_id,
-        countryName: d.country_name,
-        stateName:   d.state_name,
-        name:        d.name,
-        is_active:   d.is_active,
+      setLoading(true);
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const res = await districtApi.list({ params });
+      const rows = Array.isArray(res) ? (res as Record<string, unknown>[]) : [];
+      const mapped: DistrictRecord[] = rows.map((d) => ({
+        unique_id: String(d.unique_id ?? ""),
+        countryName: String(d.country_name ?? ""),
+        stateName: String(d.state_name ?? ""),
+        name: String(d.name ?? ""),
+        is_active: Boolean(d.is_active),
+        company_id: d.company_id ? String(d.company_id) : undefined,
+        company_unique_id: d.company_unique_id
+          ? String(d.company_unique_id)
+          : undefined,
+        company_name: d.company_name ? String(d.company_name) : undefined,
+        project_id: d.project_id ? String(d.project_id) : undefined,
+        project_unique_id: d.project_unique_id
+          ? String(d.project_unique_id)
+          : undefined,
+        project_name: d.project_name ? String(d.project_name) : undefined,
       }));
-      mapped.sort((a, b) => a.name.localeCompare(b.name));
-      setDistricts(mapped);
+      const filtered = mapped.filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+
+        return companyMatches && projectMatches;
+      });
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+      setDistricts(filtered);
     } catch (error) {
       Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(error) });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
 
   useEffect(() => { fetchDistricts(); }, [fetchDistricts]);
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
-  const statusOptions = [
-    { label: t("common.all") ?? "All",          value: null },
-    { label: t("common.active") ?? "Active",     value: true },
-    { label: t("common.inactive") ?? "Inactive", value: false },
-  ];
-
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setFilters((prev: any) => ({ ...prev, global: { ...prev.global, value } }));
+    setFilters((prev) => ({
+      ...prev,
+      global: { value, matchMode: FilterMatchMode.CONTAINS },
+    }));
     setGlobalFilterValue(value);
   };
 
@@ -111,26 +164,18 @@ export default function DistrictListPage() {
     </div>
   );
 
-  // Text filter popup content
-  const textFilterElement = (options: any) => (
+  type TextFilterOptions = {
+    value?: string | null;
+    filterApplyCallback: (value: string | null) => void;
+  };
+
+  const textFilterElement = (options: TextFilterOptions) => (
     <InputText
       value={options.value ?? ""}
       onChange={(e) => options.filterApplyCallback(e.target.value)}
       placeholder="Search..."
       className="p-inputtext-sm w-full"
       autoFocus
-    />
-  );
-
-  // Status filter popup content
-  const statusFilterElement = (options: any) => (
-    <Dropdown
-      value={options.value}
-      options={statusOptions}
-      onChange={(e) => options.filterApplyCallback(e.value)}
-      placeholder={t("common.all") ?? "All"}
-      className="p-inputtext-sm w-full"
-      showClear={options.value !== null && options.value !== undefined}
     />
   );
 
@@ -157,7 +202,8 @@ export default function DistrictListPage() {
     </div>
   );
 
-  const indexTemplate = (_: DistrictRecord, { rowIndex }: any) => rowIndex + 1;
+  const indexTemplate = (_: DistrictRecord, { rowIndex }: { rowIndex: number }) =>
+    rowIndex + 1;
 
   return (
     <div className="p-3">
@@ -170,12 +216,47 @@ export default function DistrictListPage() {
             {t("common.manage_item_records", { item: t("admin.nav.district") })}
           </p>
         </div>
-        <Button
-          label={t("common.add_item", { item: t("admin.nav.district") })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.district") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <DataTable
@@ -192,7 +273,7 @@ export default function DistrictListPage() {
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.district") })}
-        globalFilterFields={["name", "countryName", "stateName"]}
+        globalFilterFields={["name", "countryName", "stateName", "company_name", "project_name"]}
         className="p-datatable-sm"
       >
         <Column
