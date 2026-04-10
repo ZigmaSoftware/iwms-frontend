@@ -797,6 +797,7 @@ const hiResource = {
           "staff_template_audit": "स्टाफ टेम्पलेट ऑडिट",
           "customer_masters": "कस्टमर मास्टर्स",
           "customer_creation": "कस्टमर निर्माण",
+          "apartment_list": "अपार्टमेंट सूची",
           "customer_tag": "कस्टमर टैग",
           "household_pickup_event": "हाउसहोल्ड पिकअप इवेंट",
           "transport_masters": "ट्रांसपोर्ट मास्टर्स",

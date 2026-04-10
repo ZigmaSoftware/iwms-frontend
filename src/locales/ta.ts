@@ -797,6 +797,7 @@ const taResource = {
           "staff_template_audit": "பணியாளர் டெம்ப்ளேட் ஆய்வு",
           "customer_masters": "வாடிக்கையாளர் மாஸ்டர்கள்",
           "customer_creation": "வாடிக்கையாளர் உருவாக்கம்",
+          "apartment_list": "அபார்ட்மென்ட் பட்டியல்",
           "customer_tag": "வாடிக்கையாளர் டேக்",
           "household_pickup_event": "வீட்டு சேகரிப்பு பதிவு",
           "transport_masters": "போக்குவரத்து மாஸ்டர்கள்",
