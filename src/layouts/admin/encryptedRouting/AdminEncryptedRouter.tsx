@@ -47,6 +47,7 @@ import UserTypeForm from "@/pages/admin/modules/admin/userType/user-typeForm";
 // Customer Master
 import CustomerCreationList from "@/pages/admin/modules/customerMasters/customerCreations/customerCreationListPage";
 import CustomerCreationForm from "@/pages/admin/modules/customerMasters/customerCreations/customerCreationForm";
+import ApartmentListPage from "@/pages/admin/modules/customerMasters/customerCreations/apartmentListpage";
 import HouseholdPickupEventList from "@/pages/admin/modules/customerMasters/householdPickupEvent/householdPickupEventList";
 import HouseholdPickupEventForm from "@/pages/admin/modules/customerMasters/householdPickupEvent/householdPickupEventForm";
 
@@ -198,6 +199,7 @@ const ROUTES: RouteMap = {
   },
   "customer-master": {
     "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },
+    "apartment-list": { list: ApartmentListPage },
     "household-pickup-event": { list: HouseholdPickupEventList, form: HouseholdPickupEventForm },
   },
   "vehicle-tracking": {

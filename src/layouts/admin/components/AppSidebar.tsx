@@ -796,6 +796,7 @@ const {
   encUserCreation,
   encCustomerMaster,
   encCustomerCreation,
+  encApartmentList,
   encReport,
   encMonthlyDistance,
   encTripSummary,
@@ -1191,6 +1192,12 @@ const customerMasters: NavItem[] = [
       {
         nameKey: "admin.nav.customer_creation",
         path: `/${encCustomerMaster}/${encCustomerCreation}`,
+        module: "customers",
+        screen: "customercreations",
+      },
+      {
+        nameKey: "admin.nav.apartment_list",
+        path: `/${encCustomerMaster}/${encApartmentList}`,
         module: "customers",
         screen: "customercreations",
       },
