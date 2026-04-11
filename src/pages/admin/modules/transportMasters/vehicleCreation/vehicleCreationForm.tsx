@@ -32,8 +32,13 @@ type FuelTypeOption = {
   is_active?: boolean;
 };
 
-type Company = { unique_id: string; name: string };
-type Project = { unique_id: string; name: string; company_unique_id?: string };
+type Company = { unique_id: string; name: string; is_active?: boolean };
+type Project = {
+  unique_id: string;
+  name: string;
+  company_unique_id: string;
+  is_active?: boolean;
+};
 
 export default function VehicleCreationForm() {
   const { t } = useTranslation();
@@ -96,20 +101,20 @@ export default function VehicleCreationForm() {
     );
   };
 
-  // Fetch companies & projects on mount
+  // ─── Fetch companies & projects on mount ────────────────────────────────────
   useEffect(() => {
     companyApi
       .listPaginated(1, 100)
-      .then((data: any) => setCompanies(data.results))
+      .then((data: any) => setCompanies(data?.results ?? data ?? []))
       .catch(() => console.error("Failed to load companies"));
 
     projectApi
       .listPaginated(1, 100)
-      .then((data: any) => setProjects(data.results))
+      .then((data: any) => setProjects(data?.results ?? data ?? []))
       .catch(() => console.error("Failed to load projects"));
   }, []);
 
-  // For ADD mode — load vehicle types & fuel types normally
+  // ─── ADD mode: load vehicle types & fuel types ──────────────────────────────
   useEffect(() => {
     if (isEdit) return;
     Promise.all([vehicleTypeApi.list(), fuelTypeApi.list()]).then(
@@ -120,53 +125,52 @@ export default function VehicleCreationForm() {
     );
   }, [isEdit]);
 
-  // For EDIT mode — load everything together so dropdowns pre-select correctly
+  // ─── EDIT mode: load everything together so dropdowns pre-select correctly ──
   useEffect(() => {
     if (!isEdit) return;
 
     vehicleCreationApi
       .get(id as string)
       .then((res: any) => {
-        // Load vehicle types & fuel types FIRST, then set form values
-        Promise.all([
-          vehicleTypeApi.list(),
-          fuelTypeApi.list(),
-        ]).then(([vehicleRes, fuelRes]) => {
-          setVehicleTypes(vehicleRes);
-          setFuelTypes(fuelRes);
+        Promise.all([vehicleTypeApi.list(), fuelTypeApi.list()]).then(
+          ([vehicleRes, fuelRes]) => {
+            setVehicleTypes(vehicleRes);
+            setFuelTypes(fuelRes);
 
-          // Set form AFTER options are loaded — dropdowns will pre-select correctly
-          setForm({
-            vehicleNo: res.vehicle_no ?? "",
-            vehicleTypeId: res.vehicle_type_id ?? "",   // ← direct string, no String() wrapper
-            fuelTypeId: res.fuel_type_id ?? "",          // ← direct string, no String() wrapper
-            capacity: res.capacity ?? "",
-            mileagePerLiter: res.mileage_per_liter ?? "",
-            serviceRecord: res.service_record ?? "",
-            vehicleInsurance: res.vehicle_insurance ?? "",
-            insuranceExpiryDate: res.insurance_expiry_date ?? "",
-            vehicleCondition: res.vehicle_condition ?? "NEW",
-            fuelTankCapacity: res.fuel_tank_capacity ?? "",
-            isActive: String(res.is_active ?? true),
-          });
+            setForm({
+              vehicleNo: res.vehicle_no ?? "",
+              vehicleTypeId: res.vehicle_type_id ?? "",
+              fuelTypeId: res.fuel_type_id ?? "",
+              capacity: res.capacity ?? "",
+              mileagePerLiter: res.mileage_per_liter ?? "",
+              serviceRecord: res.service_record ?? "",
+              vehicleInsurance: res.vehicle_insurance ?? "",
+              insuranceExpiryDate: res.insurance_expiry_date ?? "",
+              vehicleCondition: res.vehicle_condition ?? "NEW",
+              fuelTankCapacity: res.fuel_tank_capacity ?? "",
+              isActive: String(res.is_active ?? true),
+            });
 
-          setSelectedCompany(res.company_id || "");
-          setSelectedProject(res.project_id || "");
+            // Set company first so filteredProjects memo recalculates,
+            // then set project so it falls within the filtered list.
+            setSelectedCompany(res.company_id || "");
+            setSelectedProject(res.project_id || "");
 
-          setExistingRcFile(res.rc_upload ?? null);
-          setExistingInsuranceFile(res.vehicle_insurance_file ?? null);
+            setExistingRcFile(res.rc_upload ?? null);
+            setExistingInsuranceFile(res.vehicle_insurance_file ?? null);
 
-          if (res.rc_upload) {
-            setRcPreviewUrl(res.rc_upload);
-            setIsRcPreviewImage(isImageUrl(res.rc_upload));
+            if (res.rc_upload) {
+              setRcPreviewUrl(res.rc_upload);
+              setIsRcPreviewImage(isImageUrl(res.rc_upload));
+            }
+            if (res.vehicle_insurance_file) {
+              setInsurancePreviewUrl(res.vehicle_insurance_file);
+              setIsInsurancePreviewImage(isImageUrl(res.vehicle_insurance_file));
+            }
+            setRemoveRcFile(false);
+            setRemoveInsuranceFile(false);
           }
-          if (res.vehicle_insurance_file) {
-            setInsurancePreviewUrl(res.vehicle_insurance_file);
-            setIsInsurancePreviewImage(isImageUrl(res.vehicle_insurance_file));
-          }
-          setRemoveRcFile(false);
-          setRemoveInsuranceFile(false);
-        });
+        );
       })
       .catch((err) => {
         console.error("Failed to load vehicle:", err);
@@ -178,26 +182,31 @@ export default function VehicleCreationForm() {
       });
   }, [id, isEdit, t]);
 
+  // Cleanup blob URLs on unmount
   useEffect(() => {
     return () => {
       if (rcPreviewUrl.startsWith("blob:")) URL.revokeObjectURL(rcPreviewUrl);
-      if (insurancePreviewUrl.startsWith("blob:")) URL.revokeObjectURL(insurancePreviewUrl);
+      if (insurancePreviewUrl.startsWith("blob:"))
+        URL.revokeObjectURL(insurancePreviewUrl);
     };
   }, [rcPreviewUrl, insurancePreviewUrl]);
 
+  // ─── Dropdown options ────────────────────────────────────────────────────────
   const vehicleTypeOptions = useMemo(
     () =>
-      filterActiveRecords(vehicleTypes, form.vehicleTypeId ? [form.vehicleTypeId] : []).map(
-        (item) => ({ value: resolveId(item), label: item.vehicleType })
-      ),
+      filterActiveRecords(
+        vehicleTypes,
+        form.vehicleTypeId ? [form.vehicleTypeId] : []
+      ).map((item) => ({ value: resolveId(item), label: item.vehicleType })),
     [vehicleTypes, form.vehicleTypeId]
   );
 
   const fuelTypeOptions = useMemo(
     () =>
-      filterActiveRecords(fuelTypes, form.fuelTypeId ? [form.fuelTypeId] : []).map(
-        (item) => ({ value: resolveId(item), label: item.fuel_type })
-      ),
+      filterActiveRecords(
+        fuelTypes,
+        form.fuelTypeId ? [form.fuelTypeId] : []
+      ).map((item) => ({ value: resolveId(item), label: item.fuel_type })),
     [fuelTypes, form.fuelTypeId]
   );
 
@@ -206,16 +215,30 @@ export default function VehicleCreationForm() {
     { value: "SECOND_HAND", label: t("admin.vehicle_creation.condition_second_hand") },
   ];
 
+  /**
+   * FIX: Filter projects by the currently selected company.
+   * Returns an empty array when no company is selected so the
+   * project dropdown shows a meaningful "select company first" state.
+   */
+  const filteredProjects = useMemo<Project[]>(() => {
+    if (!selectedCompany) return [];
+    return projects.filter(
+      (p) => String(p.company_unique_id) === String(selectedCompany)
+    );
+  }, [projects, selectedCompany]);
+
+  // ─── File helpers ────────────────────────────────────────────────────────────
   const handleFileChange = (
     file: File | null,
     setFile: (file: File | null) => void,
     setPreviewUrl: (url: string) => void,
     setIsPreviewImage: (value: boolean) => void,
     existingUrl: string | null,
-    currentPreviewUrl: string,
+    currentPreviewUrl: string
   ) => {
     if (file) {
-      if (currentPreviewUrl.startsWith("blob:")) URL.revokeObjectURL(currentPreviewUrl);
+      if (currentPreviewUrl.startsWith("blob:"))
+        URL.revokeObjectURL(currentPreviewUrl);
       setFile(file);
       const objectUrl = URL.createObjectURL(file);
       setIsPreviewImage(file.type.startsWith("image/"));
@@ -242,12 +265,19 @@ export default function VehicleCreationForm() {
     inputId?: string;
   }) => {
     const {
-      previewUrl, setPreviewUrl, setFile,
-      setIsPreviewImage, setExistingFile, setRemoveFlag, inputId,
+      previewUrl,
+      setPreviewUrl,
+      setFile,
+      setIsPreviewImage,
+      setExistingFile,
+      setRemoveFlag,
+      inputId,
     } = options;
     if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
     if (inputId) {
-      const input = document.getElementById(inputId) as HTMLInputElement | null;
+      const input = document.getElementById(
+        inputId
+      ) as HTMLInputElement | null;
       if (input) input.value = "";
     }
     setFile(null);
@@ -266,24 +296,31 @@ export default function VehicleCreationForm() {
     previewUrl: string,
     file: File | null,
     onPreview: () => void,
-    onRemove: () => void,
+    onRemove: () => void
   ) => {
     if (!previewUrl) return null;
     const label = file?.name ?? extractFileName(previewUrl);
     return (
       <div className="flex gap-2 mt-2">
-        <button type="button" onClick={onPreview}
-          className="bg-blue-600 text-white px-3 py-1 rounded text-sm">
+        <button
+          type="button"
+          onClick={onPreview}
+          className="bg-blue-600 text-white px-3 py-1 rounded text-sm"
+        >
           {t("admin.vehicle_creation.preview_label")} ({label})
         </button>
-        <button type="button" onClick={onRemove}
-          className="bg-red-500 text-white px-3 py-1 rounded text-sm">
+        <button
+          type="button"
+          onClick={onRemove}
+          className="bg-red-500 text-white px-3 py-1 rounded text-sm"
+        >
           {t("common.remove")}
         </button>
       </div>
     );
   };
 
+  // ─── Submit ──────────────────────────────────────────────────────────────────
   const buildPayload = () => ({
     vehicle_no: form.vehicleNo.trim(),
     vehicle_type_id: form.vehicleTypeId || null,
@@ -347,7 +384,8 @@ export default function VehicleCreationForm() {
           formBody.append(key, String(value));
         });
         if (rcFile) formBody.append("rc_upload", rcFile);
-        if (insuranceFile) formBody.append("vehicle_insurance_file", insuranceFile);
+        if (insuranceFile)
+          formBody.append("vehicle_insurance_file", insuranceFile);
 
         const multipartConfig = {
           headers: { "Content-Type": "multipart/form-data" },
@@ -392,6 +430,7 @@ export default function VehicleCreationForm() {
     }
   };
 
+  // ─── Render ──────────────────────────────────────────────────────────────────
   return (
     <ComponentCard
       title={
@@ -435,7 +474,7 @@ export default function VehicleCreationForm() {
             />
           </div>
 
-          {/* Company Dropdown */}
+          {/* ── Company Dropdown ── */}
           <div>
             <Label htmlFor="company">
               Company <span className="text-red-500">*</span>
@@ -445,14 +484,15 @@ export default function VehicleCreationForm() {
               value={selectedCompany}
               onChange={(e) => {
                 setSelectedCompany(e.target.value);
+                // Reset project whenever company changes
                 setSelectedProject("");
               }}
               required
-              className={`w-full px-3 py-2 border ${
+              className={`w-full px-3 py-2 border rounded-sm focus:outline-none focus:ring-2 ${
                 !selectedCompany
                   ? "border-red-400 focus:ring-red-200"
                   : "border-green-400 focus:ring-green-200"
-              } rounded-sm focus:outline-none focus:ring-2`}
+              }`}
             >
               <option value="">-- Select Company --</option>
               {companies.map((c) => (
@@ -463,7 +503,7 @@ export default function VehicleCreationForm() {
             </select>
           </div>
 
-          {/* Project Dropdown */}
+          {/* ── Project Dropdown (filtered by selectedCompany via filteredProjects memo) ── */}
           <div>
             <Label htmlFor="project">
               Project <span className="text-red-500">*</span>
@@ -473,25 +513,30 @@ export default function VehicleCreationForm() {
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
               required
-              className={`w-full px-3 py-2 border ${
+              disabled={!selectedCompany}          // prevent selection before company is chosen
+              className={`w-full px-3 py-2 border rounded-sm focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                 !selectedProject
                   ? "border-red-400 focus:ring-red-200"
                   : "border-green-400 focus:ring-green-200"
-              } rounded-sm focus:outline-none focus:ring-2`}
+              }`}
             >
-              <option value="">-- Select Project --</option>
-              {projects
-                .filter((p: any) =>
-                  selectedCompany
-                    ? p.company_unique_id === selectedCompany
-                    : true
-                )
-                .map((p) => (
-                  <option key={p.unique_id} value={p.unique_id}>
-                    {p.name}
-                  </option>
-                ))}
+              <option value="">
+                {selectedCompany
+                  ? "-- Select Project --"
+                  : "-- Select a company first --"}
+              </option>
+              {/* FIX: use filteredProjects (memoised, filtered by selectedCompany) */}
+              {filteredProjects.map((p) => (
+                <option key={p.unique_id} value={p.unique_id}>
+                  {p.name}
+                </option>
+              ))}
             </select>
+            {selectedCompany && filteredProjects.length === 0 && (
+              <p className="text-xs text-amber-600 mt-1">
+                No projects found for the selected company.
+              </p>
+            )}
           </div>
 
           {/* Vehicle Type */}
@@ -565,7 +610,9 @@ export default function VehicleCreationForm() {
               id="fuelTankCapacity"
               value={form.fuelTankCapacity}
               onChange={(e) => update("fuelTankCapacity", e.target.value)}
-              placeholder={t("admin.vehicle_creation.fuel_tank_capacity_placeholder")}
+              placeholder={t(
+                "admin.vehicle_creation.fuel_tank_capacity_placeholder"
+              )}
               className="input-validate w-full"
             />
           </div>
@@ -596,7 +643,9 @@ export default function VehicleCreationForm() {
               id="serviceRecord"
               value={form.serviceRecord}
               onChange={(e) => update("serviceRecord", e.target.value)}
-              placeholder={t("admin.vehicle_creation.service_record_placeholder")}
+              placeholder={t(
+                "admin.vehicle_creation.service_record_placeholder"
+              )}
               className="input-validate w-full"
             />
           </div>
@@ -610,7 +659,9 @@ export default function VehicleCreationForm() {
               id="vehicleInsurance"
               value={form.vehicleInsurance}
               onChange={(e) => update("vehicleInsurance", e.target.value)}
-              placeholder={t("admin.vehicle_creation.vehicle_insurance_placeholder")}
+              placeholder={t(
+                "admin.vehicle_creation.vehicle_insurance_placeholder"
+              )}
               className="input-validate w-full"
             />
           </div>
@@ -634,35 +685,53 @@ export default function VehicleCreationForm() {
             <Label htmlFor="rcUpload">
               {t("admin.vehicle_creation.rc_upload")}
             </Label>
-            <input id="rcUpload" type="file" hidden
+            <input
+              id="rcUpload"
+              type="file"
+              hidden
               onChange={(e) => {
                 setRemoveRcFile(false);
                 handleFileChange(
-                  e.target.files?.[0] ?? null, setRcFile,
-                  setRcPreviewUrl, setIsRcPreviewImage,
-                  existingRcFile, rcPreviewUrl
+                  e.target.files?.[0] ?? null,
+                  setRcFile,
+                  setRcPreviewUrl,
+                  setIsRcPreviewImage,
+                  existingRcFile,
+                  rcPreviewUrl
                 );
               }}
             />
-            <div className="border rounded p-4 cursor-pointer bg-gray-50"
-              onClick={() => document.getElementById("rcUpload")?.click()}>
+            <div
+              className="border rounded p-4 cursor-pointer bg-gray-50"
+              onClick={() => document.getElementById("rcUpload")?.click()}
+            >
               {rcPreviewUrl ? (
-                <img src={isRcPreviewImage ? rcPreviewUrl : FILE_ICON}
+                <img
+                  src={isRcPreviewImage ? rcPreviewUrl : FILE_ICON}
                   alt={t("admin.vehicle_creation.rc_upload")}
-                  className="w-full h-24 object-contain" />
+                  className="w-full h-24 object-contain"
+                />
               ) : (
-                <img src={FILE_ICON} className="w-12 h-12 mx-auto opacity-60" />
+                <img
+                  src={FILE_ICON}
+                  className="w-12 h-12 mx-auto opacity-60"
+                />
               )}
             </div>
             {renderFileActions(
-              rcPreviewUrl, rcFile,
+              rcPreviewUrl,
+              rcFile,
               () => window.open(rcPreviewUrl, "_blank", "noopener,noreferrer"),
-              () => clearPreview({
-                previewUrl: rcPreviewUrl, setPreviewUrl: setRcPreviewUrl,
-                setFile: setRcFile, setIsPreviewImage: setIsRcPreviewImage,
-                setExistingFile: setExistingRcFile, setRemoveFlag: setRemoveRcFile,
-                inputId: "rcUpload",
-              })
+              () =>
+                clearPreview({
+                  previewUrl: rcPreviewUrl,
+                  setPreviewUrl: setRcPreviewUrl,
+                  setFile: setRcFile,
+                  setIsPreviewImage: setIsRcPreviewImage,
+                  setExistingFile: setExistingRcFile,
+                  setRemoveFlag: setRemoveRcFile,
+                  inputId: "rcUpload",
+                })
             )}
           </div>
 
@@ -671,49 +740,84 @@ export default function VehicleCreationForm() {
             <Label htmlFor="insuranceFile">
               {t("admin.vehicle_creation.vehicle_insurance_file")}
             </Label>
-            <input id="insuranceFile" type="file" hidden
+            <input
+              id="insuranceFile"
+              type="file"
+              hidden
               onChange={(e) => {
                 setRemoveInsuranceFile(false);
                 handleFileChange(
-                  e.target.files?.[0] ?? null, setInsuranceFile,
-                  setInsurancePreviewUrl, setIsInsurancePreviewImage,
-                  existingInsuranceFile, insurancePreviewUrl
+                  e.target.files?.[0] ?? null,
+                  setInsuranceFile,
+                  setInsurancePreviewUrl,
+                  setIsInsurancePreviewImage,
+                  existingInsuranceFile,
+                  insurancePreviewUrl
                 );
               }}
             />
-            <div className="border rounded p-4 cursor-pointer bg-gray-50"
-              onClick={() => document.getElementById("insuranceFile")?.click()}>
+            <div
+              className="border rounded p-4 cursor-pointer bg-gray-50"
+              onClick={() =>
+                document.getElementById("insuranceFile")?.click()
+              }
+            >
               {insurancePreviewUrl ? (
-                <img src={isInsurancePreviewImage ? insurancePreviewUrl : FILE_ICON}
+                <img
+                  src={isInsurancePreviewImage ? insurancePreviewUrl : FILE_ICON}
                   alt={t("admin.vehicle_creation.vehicle_insurance_file")}
-                  className="w-full h-24 object-contain" />
+                  className="w-full h-24 object-contain"
+                />
               ) : (
-                <img src={FILE_ICON} className="w-12 h-12 mx-auto opacity-60" />
+                <img
+                  src={FILE_ICON}
+                  className="w-12 h-12 mx-auto opacity-60"
+                />
               )}
             </div>
             {renderFileActions(
-              insurancePreviewUrl, insuranceFile,
-              () => window.open(insurancePreviewUrl, "_blank", "noopener,noreferrer"),
-              () => clearPreview({
-                previewUrl: insurancePreviewUrl, setPreviewUrl: setInsurancePreviewUrl,
-                setFile: setInsuranceFile, setIsPreviewImage: setIsInsurancePreviewImage,
-                setExistingFile: setExistingInsuranceFile, setRemoveFlag: setRemoveInsuranceFile,
-                inputId: "insuranceFile",
-              })
+              insurancePreviewUrl,
+              insuranceFile,
+              () =>
+                window.open(
+                  insurancePreviewUrl,
+                  "_blank",
+                  "noopener,noreferrer"
+                ),
+              () =>
+                clearPreview({
+                  previewUrl: insurancePreviewUrl,
+                  setPreviewUrl: setInsurancePreviewUrl,
+                  setFile: setInsuranceFile,
+                  setIsPreviewImage: setIsInsurancePreviewImage,
+                  setExistingFile: setExistingInsuranceFile,
+                  setRemoveFlag: setRemoveInsuranceFile,
+                  inputId: "insuranceFile",
+                })
             )}
           </div>
         </div>
 
         {/* Buttons */}
         <div className="flex justify-end gap-3 mt-6">
-          <button type="submit" disabled={loading}
-            className="bg-green-custom text-white px-4 py-2 rounded disabled:opacity-50 transition-colors">
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-green-custom text-white px-4 py-2 rounded disabled:opacity-50 transition-colors"
+          >
             {loading
-              ? isEdit ? t("common.updating") : t("common.saving")
-              : isEdit ? t("common.update") : t("common.save")}
+              ? isEdit
+                ? t("common.updating")
+                : t("common.saving")
+              : isEdit
+              ? t("common.update")
+              : t("common.save")}
           </button>
-          <button type="button" onClick={() => navigate(ENC_LIST_PATH)}
-            className="bg-red-400 text-white px-4 py-2 rounded hover:bg-red-500">
+          <button
+            type="button"
+            onClick={() => navigate(ENC_LIST_PATH)}
+            className="bg-red-400 text-white px-4 py-2 rounded hover:bg-red-500"
+          >
             {t("common.cancel")}
           </button>
         </div>
