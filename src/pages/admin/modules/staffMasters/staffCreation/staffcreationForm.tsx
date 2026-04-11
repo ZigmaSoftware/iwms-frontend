@@ -2,19 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
-import { desktopApi } from "@/api";
+import { api } from "@/api";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
+import PasswordInput from "@/components/form/input/PasswordInput";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { staffCreationApi } from "@/helpers/admin";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useTranslation } from "react-i18next";
 import {
-    countryApi,
-    stateApi,
-    districtApi,
-    cityApi,
+  countryApi,
+  stateApi,
+  districtApi,
+  cityApi,
+  staffUserTypeApi,
 } from "@/helpers/admin/index";
 
 type Section = "official" | "personal";
@@ -109,6 +112,7 @@ const initialFormData = {
   designation: "",
   department_id: "",
   designation_id: "",
+
   grade: "",
   site_name: "",
   biometric_id: "",
@@ -117,6 +121,10 @@ const initialFormData = {
   employee_known: "",
   salary_type: "",
   active_status: "1",
+  staffusertype_id: "",
+  username: "",       // ← username field
+  password: "",
+  office_email: "",
   marital_status: "",
   dob: "",
   blood_group: "",
@@ -141,6 +149,7 @@ const initialFormData = {
   permanent_pincode: "",
   contact_mobile: "",
   contact_email: "",
+  driving_licence_no: "",
   // emergency_contact: "",
   // emergency_mobile: "",
 };
@@ -158,16 +167,28 @@ export default function StaffCreationForm() {
   const [stateOptions, setStateOptions] = useState<{ value: string; label: string }[]>([]);
   const [districtOptions, setDistrictOptions] = useState<{ value: string; label: string }[]>([]);
   const [cityOptions, setCityOptions] = useState<{ value: string; label: string }[]>([]);
-
+  const [staffUserTypeOptions, setStaffUserTypeOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
+  const [licenceFile, setLicenceFile] = useState<File | null>(null);
+  const [licencePreview, setLicencePreview] = useState("");
+  const licenceInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
 
+  const {
+    companyUniqueId,
+    loggedInCompanyUniqueId,
+    isSuperAdmin,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({ isEdit });
+
   const { encStaffMasters, encStaffCreation } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encStaffMasters}/${encStaffCreation}`;
   const backendOrigin =
-    desktopApi.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "";
+    api.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "";
 
   const gradeOptions = getGradeOptions(t);
   const siteOptions = getSiteOptions(t);
@@ -180,6 +201,80 @@ export default function StaffCreationForm() {
     { value: "1", label: t("common.active") },
     { value: "0", label: t("common.inactive") },
   ];
+
+  const selectedUserType = staffUserTypeOptions.find(
+    (opt) => opt.value === formData.staffusertype_id
+  );
+
+  const isDriverSelected =
+    !!formData.driving_licence_no ||
+    !!selectedUserType?.label?.toLowerCase().includes("driver");
+
+  const handleLicenceUpload = (file: File | null) => {
+    if (!file) return;
+
+    const allowedTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "application/pdf",
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Invalid File",
+        text: "Only JPG, JPEG, PNG, PDF allowed",
+      });
+      return;
+    }
+
+    setLicenceFile(file);
+
+    const fileUrl = URL.createObjectURL(file);
+    setLicencePreview(fileUrl);
+  };
+
+  useEffect(() => {
+    if (!isDriverSelected && !isEdit) {
+      setLicenceFile(null);
+      setLicencePreview("");
+      setFormData((prev) => ({
+        ...prev,
+        driving_licence_no: "",
+      }));
+    }
+  }, [isDriverSelected]);
+
+  useEffect(() => {
+    const loadStaffUserTypes = async () => {
+      try {
+        console.log("Loading staff user types...");
+        const res: any = await staffUserTypeApi.list();
+        console.log("Staff user types response:", res);
+
+        const data = Array.isArray(res)
+          ? res
+          : Array.isArray(res?.data)
+            ? res.data
+            : res?.data?.results ?? [];
+
+        console.log("Staff user types data:", data);
+
+        const options = data.map((item: any) => ({
+          value: item.unique_id,
+          label: item.name,
+        }));
+
+        console.log("Staff user types options:", options);
+        setStaffUserTypeOptions(options);
+      } catch (err) {
+        console.error("Failed to load staff user types", err);
+      }
+    };
+
+    loadStaffUserTypes();
+  }, []);
 
   useEffect(() => {
     const loadLocationOptions = async () => {
@@ -211,58 +306,81 @@ export default function StaffCreationForm() {
       .get(id)
       .then((staff) => {
         setFormData((prev) => ({
-  ...prev,
+          ...prev,
 
-  // Office details
-  employee_name: staff.employee_name ?? "",
-  doj: staff.doj ?? "",
-  department: staff.department ?? "",
-  designation: staff.designation ?? "",
-  department_id: staff.department_id ?? "",
-  designation_id: staff.designation_id ?? "",
-  grade: staff.grade ?? "",
-  site_name: staff.site_name ?? "",
-  biometric_id: staff.biometric_id ?? "",
-  staff_head: staff.staff_head ?? "",
-  staff_head_id: staff.staff_head_id ?? "",
-  employee_known: staff.employee_known ?? "",
-  salary_type: staff.salary_type ?? "",
-  active_status: staff.active_status ? "1" : "0",
+          // Office details
+          employee_name: staff.employee_name ?? "",
+          doj: staff.doj ?? "",
+          department: staff.department ?? "",
+          designation: staff.designation ?? "",
+          department_id: staff.department_id ?? "",
+          designation_id: staff.designation_id ?? "",
+          grade: staff.grade ?? "",
+          site_name: staff.site_name ?? "",
+          biometric_id: staff.biometric_id ?? "",
+          staff_head: staff.staff_head ?? "",
+          staff_head_id: staff.staff_head_id ?? "",
+          employee_known: staff.employee_known ?? "",
+          salary_type: staff.salary_type ?? "",
+          active_status: staff.active_status ? "1" : "0",
 
-  // Personal details (FLAT — NOT nested)
-  marital_status: staff.marital_status ?? "",
-  dob: staff.dob ?? "",
-  blood_group: staff.blood_group ?? "",
-  gender: staff.gender ?? "",
-  physically_challenged: staff.physically_challenged ?? "",
-  extra_curricular: staff.extra_curricular ?? "",
+          // Auth
+          username: staff.username ?? "",                                          // ← populate on edit
+          password: staff.password ?? staff.user_password ?? staff.staff_password ?? "",
 
-  // JSON Address — Present
-  present_country: staff.present_address?.country ?? "",
-  present_state: staff.present_address?.state ?? "",
-  present_district: staff.present_address?.district ?? "",
-  present_city: staff.present_address?.city ?? "",
-  present_building_no: staff.present_address?.building_no ?? "",
-  present_street: staff.present_address?.street ?? "",
-  present_area: staff.present_address?.area ?? "",
-  present_pincode: staff.present_address?.pincode ?? "",
+          // Personal details (FLAT — NOT nested)
+          marital_status:
+            staff.marital_status ?? staff.personal_details?.marital_status ?? "",
+          dob: staff.dob ?? staff.personal_details?.dob ?? "",
+          blood_group:
+            staff.blood_group ?? staff.personal_details?.blood_group ?? "",
+          gender: staff.gender ?? staff.personal_details?.gender ?? "",
+          physically_challenged:
+            staff.physically_challenged ??
+            staff.personal_details?.physically_challenged ??
+            "",
+          extra_curricular:
+            staff.extra_curricular ?? staff.personal_details?.extra_curricular ?? "",
 
-  // JSON Address — Permanent
-  permanent_country: staff.permanent_address?.country ?? "",
-  permanent_state: staff.permanent_address?.state ?? "",
-  permanent_district: staff.permanent_address?.district ?? "",
-  permanent_city: staff.permanent_address?.city ?? "",
-  permanent_building_no: staff.permanent_address?.building_no ?? "",
-  permanent_street: staff.permanent_address?.street ?? "",
-  permanent_area: staff.permanent_address?.area ?? "",
-  permanent_pincode: staff.permanent_address?.pincode ?? "",
+          present_country: staff.present_address?.country ?? "",
+          present_state: staff.present_address?.state ?? "",
+          present_district: staff.present_address?.district ?? "",
+          present_city: staff.present_address?.city ?? "",
+          present_building_no: staff.present_address?.building_no ?? "",
+          present_street: staff.present_address?.street ?? "",
+          present_area: staff.present_address?.area ?? "",
+          present_pincode: staff.present_address?.pincode ?? "",
 
-  // Contact details (FLAT — NOT nested)
-  contact_mobile: staff.contact_mobile ?? "",
-  contact_email: staff.contact_email ?? "",
-}));
+          // JSON Address — Permanent
+          permanent_country: staff.permanent_address?.country ?? "",
+          permanent_state: staff.permanent_address?.state ?? "",
+          permanent_district: staff.permanent_address?.district ?? "",
+          permanent_city: staff.permanent_address?.city ?? "",
+          permanent_building_no: staff.permanent_address?.building_no ?? "",
+          permanent_street: staff.permanent_address?.street ?? "",
+          permanent_area: staff.permanent_address?.area ?? "",
+          permanent_pincode: staff.permanent_address?.pincode ?? "",
 
-console.log("Fetched staff data:", staff);
+          // DRIVER and USER TYPE details
+          staffusertype_id: staff.staffusertype_id ?? "",
+          driving_licence_no: staff.driving_licence_no ?? "",
+
+          // Contact details (FLAT — NOT nested)
+          contact_mobile: staff.contact_mobile ?? "",
+          contact_email: staff.contact_email ?? "",
+        }));
+
+        if (staff.driving_licence_file) {
+          setLicencePreview(
+            staff.driving_licence_file.startsWith("http")
+              ? staff.driving_licence_file
+              : `${backendOrigin}${staff.driving_licence_file}`
+          );
+        }
+
+        applyCompanyProjectFromRecord(staff);
+
+        console.log("Fetched staff data:", staff);
         if (staff.photo) {
           setPhotoPreview(
             staff.photo.startsWith("http")
@@ -271,7 +389,6 @@ console.log("Fetched staff data:", staff);
           );
         }
       })
-      
       .catch((error) => {
         console.error("Failed to load staff", error);
         Swal.fire({
@@ -357,6 +474,18 @@ console.log("Fetched staff data:", staff);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+
+    if (!companyUniqueId) {
+      Swal.fire(
+        "Error",
+        !loggedInCompanyUniqueId && !isSuperAdmin
+          ? "Company is not mapped to this login. Only super admin can choose a company."
+          : "Company is required",
+        "error"
+      );
+      return;
+    }
+
     if (photoFile && !photoFile.type.startsWith("image/")) {
       Swal.fire({
         icon: "warning",
@@ -365,84 +494,104 @@ console.log("Fetched staff data:", staff);
       });
       return;
     }
+
+    // ✅ DRIVER VALIDATION
+    if (isDriverSelected && !licenceFile && !isEdit) {
+      Swal.fire({
+        icon: "error",
+        title: "Licence Required",
+        text: "Driver must upload driving licence",
+      });
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-    const payload: Record<string, any> = {
-  employee_name: formData.employee_name,
-  doj: formData.doj || null,
-  department: formData.department,
-  designation: formData.designation,
-  department_id: formData.department_id,
-  designation_id: formData.designation_id,
-  grade: formData.grade,
-  site_name: formData.site_name,
-  biometric_id: formData.biometric_id,
-  staff_head: formData.staff_head,
-  staff_head_id: formData.staff_head_id,
-  employee_known: formData.employee_known,
-  salary_type: formData.salary_type,
-  active_status: formData.active_status === "1",
+      const payload: Record<string, any> = {
+        employee_name: formData.employee_name,
+        doj: formData.doj || null,
+        department: formData.department,
+        designation: formData.designation,
+        department_id: formData.department_id,
+        designation_id: formData.designation_id,
+        grade: formData.grade,
+        site_name: formData.site_name,
+        biometric_id: formData.biometric_id,
+        staff_head: formData.staff_head,
+        staff_head_id: formData.staff_head_id,
+        employee_known: formData.employee_known,
+        salary_type: formData.salary_type,
+        active_status: formData.active_status === "1",
+        company_id: companyUniqueId,
+        staffusertype_id: formData.staffusertype_id || null,
+        username: formData.username || null,     // ← username in payload
 
-  // Personal flat fields
-  marital_status: formData.marital_status,
-  dob: formData.dob || null,
-  blood_group: formData.blood_group,
-  gender: formData.gender,
-  physically_challenged: formData.physically_challenged,
-  extra_curricular: formData.extra_curricular,
-  contact_mobile: formData.contact_mobile,
-  contact_email: formData.contact_email,
-  
-  
-};
+        // Personal
+        marital_status: formData.marital_status,
+        dob: formData.dob || null,
+        blood_group: formData.blood_group,
+        gender: formData.gender,
+        physically_challenged: formData.physically_challenged,
+        extra_curricular: formData.extra_curricular,
+        contact_mobile: formData.contact_mobile,
+        contact_email: formData.contact_email,
+      };
 
+      // ✅ Add password if provided
+      console.log("Form password:", formData.password);
+      console.log("Is password truthy?", Boolean(formData.password));
+      console.log("Payload before password:", payload);
+      if (formData.password) {
+        payload.password = formData.password;
+        console.log("Password added to payload:", payload.password);
+      } else {
+        console.log("No password provided, skipping...");
+      }
+      console.log("Payload after password:", payload);
+
+      // ✅ ADD DRIVER FIELD HERE (Correct Placement)
+      if (isDriverSelected) {
+        payload.driving_licence_no = formData.driving_licence_no || "";
+      }
 
       const presentPayload = buildAddressPayload("present");
       const permanentPayload = buildAddressPayload("permanent");
 
-      if (presentPayload) {
-        payload.present_address = presentPayload;
-      }
-      if (permanentPayload) {
-        payload.permanent_address = permanentPayload;
-      }
-
-      // const contactPayload = {
-      //   mobile_no: formData.contact_mobile,
-      //   email_id: formData.contact_email,
-      //   // emergency_contact: formData.emergency_contact,
-      //   // emergency_mobile: formData.emergency_mobile,
-      // };
-
-      // if (Object.values(contactPayload).some((value) => Boolean(value))) {
-      //   payload.contact_details = contactPayload;
-      // }
+      if (presentPayload) payload.present_address = presentPayload;
+      if (permanentPayload) payload.permanent_address = permanentPayload;
 
       const formBody = new FormData();
+
+      // Debug: Log all payload entries
+      console.log("All payload entries:", Object.entries(payload));
+
       Object.entries(payload).forEach(([key, value]) => {
         if (value === undefined || value === null) return;
-        if (value instanceof Blob) {
-          formBody.append(key, value);
-        } else if (typeof value === "object") {
+
+        if (typeof value === "object") {
           formBody.append(key, JSON.stringify(value));
         } else {
           formBody.append(key, value);
         }
       });
 
+      // ✅ FILE APPENDS
       if (photoFile) {
         formBody.append("photo", photoFile);
+      }
+
+      if (licenceFile) {
+        formBody.append("driving_licence_file", licenceFile);
       }
 
       let response: any;
       const multipartConfig = {
         headers: { "Content-Type": "multipart/form-data" },
       };
+
       if (isEdit) {
-        if (!id) {
-          throw new Error("Missing staff id");
-        }
+        if (!id) throw new Error("Missing staff id");
         response = await staffCreationApi.update(id, formBody, multipartConfig);
       } else {
         response = await staffCreationApi.create(formBody, multipartConfig);
@@ -518,6 +667,119 @@ console.log("Fetched staff data:", staff);
           onChange={handleInputChange}
         />
       </div>
+      <div>
+        <Label htmlFor="staffusertype_id">
+          {t("admin.staff_creation.staff_user_type")}
+        </Label>
+        <Select
+          id="staffusertype_id"
+          value={formData.staffusertype_id}
+          onChange={(value) => handleSelectChange("staffusertype_id", value)}
+          options={staffUserTypeOptions}
+          placeholder={t("admin.staff_creation.staff_user_type_placeholder")}
+        />
+      </div>
+
+      {/* ── Username ── */}
+      <div>
+        <Label htmlFor="username">
+          {t("admin.staff_creation.username")}
+        </Label>
+        <Input
+          id="username"
+          value={formData.username}
+          onChange={handleInputChange}
+          placeholder={t("admin.staff_creation.username_placeholder")}
+        />
+      </div>
+
+      {/* ── Password ── */}
+      <div>
+        <PasswordInput
+          id="password"
+          label={t("admin.staff_creation.password")}
+          value={formData.password}
+          onChange={handleInputChange}
+          placeholder={t("admin.staff_creation.password_placeholder")}
+        />
+      </div>
+
+      {isDriverSelected && (
+        <>
+          <div>
+            <Label htmlFor="driving_licence_no">{t("admin.staff_creation.driving_licence_no")}</Label>
+            <Input
+              id="driving_licence_no"
+              value={formData.driving_licence_no}
+              onChange={handleInputChange}
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <Label htmlFor="driving_licence">{t("admin.staff_creation.driving_licence_upload")}</Label>
+            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => licenceInputRef.current?.click()}
+                  className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                >
+                  {t("admin.staff_creation.driving_licence_choose")}
+                </button>
+                <span className="text-sm text-gray-500">
+                  {licenceFile?.name || t("admin.staff_creation.driving_licence_no_file")}
+                </span>
+              </div>
+              <input
+                ref={licenceInputRef}
+                type="file"
+                id="driving_licence"
+                accept=".jpg,.jpeg,.png,.pdf"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  handleLicenceUpload(file);
+                  e.target.value = "";
+                }}
+              />
+              {licencePreview ? (
+                licencePreview.toLowerCase().endsWith(".pdf") ? (
+                  <a
+                    href={licencePreview}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm mt-2 inline-block text-blue-600 hover:underline"
+                  >
+                    Open Licence PDF
+                  </a>
+                ) : (
+                  <a
+                    href={licencePreview}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 block"
+                  >
+                    <img
+                      src={licencePreview}
+                      alt="Licence preview"
+                      className="h-32 w-32 border rounded"
+                    />
+                  </a>
+                )
+              ) : licenceFile?.type === "application/pdf" ? (
+                <a
+                  href={URL.createObjectURL(licenceFile)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm mt-2 inline-block text-blue-600 hover:underline"
+                >
+                  PDF: {licenceFile.name}
+                </a>
+              ) : null}
+            </div>
+          </div>
+        </>
+      )}
       <div>
         <Label htmlFor="department_id">{t("admin.staff_creation.department_id")}</Label>
         <Input
@@ -1007,8 +1269,8 @@ console.log("Fetched staff data:", staff);
                   ? t("common.updating")
                   : t("common.saving")
                 : isEdit
-                ? t("common.update")
-                : t("common.save")}
+                  ? t("common.update")
+                  : t("common.save")}
             </button>
             <button
               type="button"

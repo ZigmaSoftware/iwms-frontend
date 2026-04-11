@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
+import { LayoutDashboard } from "lucide-react";
 
 import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
-import NotificationDropdown from "@/components/header/NotificationDropdown";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useSidebar } from "@/contexts/SideBarContext";
@@ -124,7 +124,6 @@ const AppHeader: React.FC = () => {
                     isDark ? "bg-blue-500/30" : "bg-blue-400/30"
                   )}
                 />
-
                 <motion.div
                   animate={{ rotate: isMobileOpen ? 90 : 0 }}
                   transition={{ duration: 0.3 }}
@@ -228,14 +227,17 @@ const AppHeader: React.FC = () => {
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleDashboardView}
+              title={t("common.dashboard_view")}
+              aria-label={t("common.dashboard_view")}
               className={cn(
-                "rainbow-border rounded-xl px-4 py-2 text-sm font-semibold shadow transition-all",
+                "rainbow-border flex h-11 w-11 items-center justify-center rounded-xl text-sm font-semibold shadow transition-all",
                 isDark
                   ? "border border-white/20 bg-white/5 text-white hover:bg-white/10"
                   : "border border-gray-200 bg-white text-blue-700 hover:bg-gray-50"
               )}
             >
-              {t("common.dashboard_view")}
+              <LayoutDashboard className="h-4 w-4" />
+              <span className="sr-only">{t("common.dashboard_view")}</span>
             </motion.button>
 
             <LanguageSwitcher
@@ -250,7 +252,7 @@ const AppHeader: React.FC = () => {
             />
 
             {/* Theme Toggle */}
-            <ThemeToggleButton />
+            <ThemeToggleButton showLabel={false} />
 
             <UserDropdown />
           </motion.div>

@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -12,6 +13,7 @@ import { FilterMatchMode } from "primereact/api";
 import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 export type BinLoadLogApiRecord = {
   unique_id: string;
@@ -46,6 +48,22 @@ export type BinLoadLogApiRecord = {
   event_time: string;   // ISO datetime
   processed: boolean;
   created_at: string;   // ISO datetime
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
+};
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  zone_id?: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_id?: { value: string | null; matchMode: FilterMatchMode };
+  property_id?: { value: string | null; matchMode: FilterMatchMode };
+  sub_property_id?: { value: string | null; matchMode: FilterMatchMode };
+  source_type?: { value: string | null; matchMode: FilterMatchMode };
+  processed?: { value: string | null; matchMode: FilterMatchMode };
 };
 
 
@@ -60,6 +78,9 @@ const buildLookup = (items: any[], key: string, label: string) =>
     }
     return acc;
   }, {});
+
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
 
 export default function BinLoadLogList() {
   const { t } = useTranslation();
@@ -78,10 +99,29 @@ export default function BinLoadLogList() {
   const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>({});
   const [propertyLookup, setPropertyLookup] = useState<Record<string, string>>({});
   const [subPropertyLookup, setSubPropertyLookup] = useState<Record<string, string>>({});
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    zone_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    vehicle_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    property_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    sub_property_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    source_type: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    processed: { value: null, matchMode: FilterMatchMode.EQUALS },
   });
 
   const { encTransportMaster, encBinLoadLog } = getEncryptedRoute();
@@ -90,11 +130,50 @@ export default function BinLoadLogList() {
     `/${encTransportMaster}/${encBinLoadLog}/${id}/edit`;
 
   const fetchRecords = async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const binLoadRes = await binLoadLogApi.list()
-      console.log(binLoadRes);
-      setRecords(normalizeList(binLoadRes));
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const binLoadRes = await binLoadLogApi.list({ params });
+      const rows = normalizeList(binLoadRes) as BinLoadLogApiRecord[];
+
+      const hasContextFields = rows.some((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        return Boolean(rowCompanyId || rowProjectId);
+      });
+
+      if (!hasContextFields) {
+        setRecords(rows);
+        return;
+      }
+
+      const filtered = rows.filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+
+        return companyMatches && projectMatches;
+      });
+
+      setRecords(filtered);
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
@@ -104,7 +183,7 @@ export default function BinLoadLogList() {
 
   useEffect(() => {
     fetchRecords();
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -124,12 +203,47 @@ export default function BinLoadLogList() {
           </p>
         </div>
 
-        <Button
-          label={t("admin.bin_load_log.create_button")}
-          icon="pi pi-plus"
-          className="p-button-success p-button-sm"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("admin.bin_load_log.create_button")}
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <div className="flex justify-end">
@@ -166,6 +280,8 @@ export default function BinLoadLogList() {
           "property_id",
           "sub_property_id",
           "source_type",
+          "company_name",
+          "project_name",
         ]}
         header={header}
         stripedRows
@@ -175,32 +291,48 @@ export default function BinLoadLogList() {
       >
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
         <Column
+        field = "zone_id"
           header={t("admin.bin_load_log.zone")}
           body={(row: BinLoadLogApiRecord) => zoneLookup[row.zone_details.name] ?? row.zone_details.name}
+          filter
+          showFilterMatchModes={false}
         />
         <Column
+        field = "vehicle_id"
           header={t("admin.bin_load_log.vehicle")}
           body={(row: BinLoadLogApiRecord) => vehicleLookup[row.vehicle_details.vehicle_no] ?? row.vehicle_details.vehicle_no}
+          filter
+          showFilterMatchModes={false}
+
         />
         <Column
+          field="property_id"
           header={t("admin.bin_load_log.property")}
           body={(row: BinLoadLogApiRecord) => propertyLookup[row.property_details.property_name] ?? row.property_details.property_name}
+          filter
+          showFilterMatchModes={false}
         />
         <Column
+        field = "sub_property_id"
           header={t("admin.bin_load_log.sub_property")}
           body={(row: BinLoadLogApiRecord) =>
             subPropertyLookup[row.sub_property_details.sub_property_name] ?? row.sub_property_details.sub_property_name
           }
+          filter
+          showFilterMatchModes={false}
         />
         <Column field="weight_kg" header={t("admin.bin_load_log.weight_kg")} />
-        <Column field="source_type" header={t("admin.bin_load_log.source_type")} />
+        <Column field="source_type" header={t("admin.bin_load_log.source_type")} filter showFilterMatchModes={false} />
         <Column
           header={t("admin.bin_load_log.event_time")}
           body={(row: BinLoadLogApiRecord) => resolveEventTime(row.event_time)}
         />
         <Column
+        field="processed"
           header={t("admin.bin_load_log.processed")}
           body={(row: BinLoadLogApiRecord) => (row.processed ? t("common.active") : t("common.inactive"))}
+          filter
+          showFilterMatchModes={false}
         />
      
       </DataTable>

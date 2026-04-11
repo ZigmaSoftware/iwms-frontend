@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -17,35 +17,130 @@ import { useTranslation } from "react-i18next";
 
 import { encryptSegment } from "@/utils/routeCrypto";
 
-const ENC_LIST_PATH = `/${encryptSegment("admins")}/${encryptSegment(
-  "userscreenpermissions"
-)}`;
-
 import {
   staffUserTypeApi,
   mainScreenApi,
   userScreenApi,
   userScreenActionApi,
-  userScreenPermissionApi
+  userScreenPermissionApi,
 } from "@/helpers/admin";
 
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+
+const ENC_LIST_PATH = `/${encryptSegment("admins")}/${encryptSegment(
+  "userscreenpermissions"
+)}`;
+
+/* -----------------------------------------------------------
+   TYPES
+----------------------------------------------------------- */
 
 type Option = {
   value: string;
   label: string;
   userTypeId?: string;
-  alreadyAssigned?: boolean;
+};
+
+type PermissionScreen = {
+  userscreen_id: string;
+  userscreen_name?: string;
+  actions: string[];
+};
+
+type PermissionResponse = {
+  screens: PermissionScreen[];
+  description?: string;
+};
+
+type ScreenMatrixRow = {
+  userscreen_id: string;
+  userscreen_name: string;
+  actions: string[];
+};
+
+type ApiUserScreen = {
+  unique_id?: string;
+  userscreen_name?: string;
+  mainscreen_id?: string;
+  order_no?: number;
+  is_active?: boolean;
+  is_deleted?: boolean;
+  [key: string]: unknown;
+};
+
+const toId = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+};
+
+const toOrder = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+};
+
+const uniqueIds = (values: unknown[]): string[] => {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  values.forEach((value) => {
+    const id = toId(value);
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    normalized.push(id);
+  });
+
+  return normalized;
+};
+
+const buildByStaffFormatPath = (
+  companyId: string,
+  staffTypeId: string,
+  mainScreenId: string
+) =>
+  `by-staff-format/?company_id=${encodeURIComponent(
+    companyId
+  )}&staffusertype_id=${encodeURIComponent(
+    staffTypeId
+  )}&mainscreen_id=${encodeURIComponent(mainScreenId)}`;
+
+const firstErrorMessage = (value: unknown): string | undefined => {
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    return value[0];
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  return undefined;
+};
+
+/* -----------------------------------------------------------
+   HELPER — extract HTTP status from axios-style errors
+----------------------------------------------------------- */
+const getErrorStatus = (err: unknown): number | null => {
+  return (
+    (err as { response?: { status?: number } })?.response?.status ?? null
+  );
 };
 
 export default function UserScreenPermissionForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-
-  // Only staffTypeId in route now
+  const [searchParams] = useSearchParams();
   const params = useParams();
+
   const staffTypeId = params.id;
+  const companyIdFromQuery = searchParams.get("company_unique_id") ?? "";
+  const mainScreenIdFromQuery = searchParams.get("mainscreen_id") ?? "";
 
   const isEdit = Boolean(staffTypeId);
+
+  const {
+    companyUniqueId,
+    companies,
+    isSuperAdmin,
+    loggedInCompanyUniqueId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit });
 
   const [staffUserTypeId, setStaffUserTypeId] = useState("");
   const [mainScreenId, setMainScreenId] = useState("");
@@ -54,58 +149,79 @@ export default function UserScreenPermissionForm() {
 
   const [staffUserTypes, setStaffUserTypes] = useState<Option[]>([]);
   const [mainScreens, setMainScreens] = useState<Option[]>([]);
-  const [allUserScreens, setAllUserScreens] = useState<any[]>([]);
+  const [allUserScreens, setAllUserScreens] = useState<ApiUserScreen[]>([]);
   const [actions, setActions] = useState<Option[]>([]);
 
-  const [screenMatrix, setScreenMatrix] = useState<
-    { userscreen_id: string; userscreen_name: string; actions: string[] }[]
-  >([]);
+  const [screenMatrix, setScreenMatrix] = useState<ScreenMatrixRow[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
 
+  const isEditContextLocked =
+    isEdit && Boolean(companyIdFromQuery) && Boolean(mainScreenIdFromQuery);
+  const isCompanyLocked =
+    Boolean(loggedInCompanyUniqueId) ||
+    Boolean(companyIdFromQuery) ||
+    isEditContextLocked;
+  const selectedCompanyLabel =
+    companies.find((company) => company.value === companyUniqueId)?.label ||
+    companyUniqueId;
+  const companyOptions =
+    isCompanyLocked && companyUniqueId
+      ? [{ value: companyUniqueId, label: selectedCompanyLabel }]
+      : companies;
+
   /* -----------------------------------------------------------
      LOAD DROPDOWNS
   ----------------------------------------------------------- */
+
   useEffect(() => {
     const load = async () => {
       try {
         setLoadingData(true);
 
-        const [sut, ms, us, ac, perms] = await Promise.all([
+        const [sut, ms, us, ac] = await Promise.all([
           staffUserTypeApi.list(),
           mainScreenApi.list(),
           userScreenApi.list(),
           userScreenActionApi.list(),
-          userScreenPermissionApi.list(),
         ]);
-
-        const usedStaffTypes = new Set(
-          perms.map((p: any) => p.staffusertype_id)
-        );
 
         setStaffUserTypes(
           sut.map((x: any) => ({
-            value: x.unique_id,
-            label: x.name,
-            userTypeId: x.usertype_id,
-            alreadyAssigned: usedStaffTypes.has(x.unique_id), // <-- store flag
+            value: toId(x.unique_id),
+            label: String(x.name ?? ""),
+            userTypeId: toId(x.usertype_id ?? x.usertype?.unique_id),
           }))
         );
 
         setMainScreens(
           ms.map((x: any) => ({
-            value: x.unique_id,
-            label: x.mainscreen_name,
+            value: toId(x.unique_id),
+            label: String(x.mainscreen_name ?? ""),
           }))
         );
 
-        setAllUserScreens(us);
+        setAllUserScreens(Array.isArray(us) ? us : []);
 
         setActions(
-          ac.map((x: any) => ({ value: x.unique_id, label: x.action_name }))
+          ac.map((x: any) => ({
+            value: toId(x.unique_id),
+            label: String(x.action_name ?? ""),
+          }))
         );
-      } catch {
+      } catch (err) {
+        // ✅ Access denied on dropdown load
+        if (getErrorStatus(err) === 403) {
+          Swal.fire({
+            icon: "error",
+            title: t("common.access_denied"),
+            text: t("common.no_permission"),
+            confirmButtonText: t("common.ok"),
+          }).then(() => navigate(ENC_LIST_PATH));
+          return;
+        }
+
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       } finally {
         setLoadingData(false);
@@ -113,80 +229,152 @@ export default function UserScreenPermissionForm() {
     };
 
     load();
-  }, []);
+  }, [t]);
 
   /* -----------------------------------------------------------
-     EDIT MODE — Prefill only StaffUserType
+     PREFILL COMPANY
   ----------------------------------------------------------- */
+
+  useEffect(() => {
+    if (!companyIdFromQuery || loggedInCompanyUniqueId) return;
+    if (companyUniqueId === companyIdFromQuery) return;
+    onCompanyChange(companyIdFromQuery);
+  }, [
+    companyIdFromQuery,
+    companyUniqueId,
+    loggedInCompanyUniqueId,
+    onCompanyChange,
+  ]);
+
+  /* -----------------------------------------------------------
+     EDIT MODE
+  ----------------------------------------------------------- */
+
   useEffect(() => {
     if (!isEdit || !staffTypeId) return;
-
     setStaffUserTypeId(staffTypeId);
-    setMainScreenId(""); // User must select manually
-    setScreenMatrix([]); // Reset table
-  }, [isEdit, staffTypeId]);
+    setMainScreenId(mainScreenIdFromQuery);
+    setScreenMatrix([]);
+  }, [isEdit, staffTypeId, mainScreenIdFromQuery]);
 
   /* -----------------------------------------------------------
-     LOAD PERMISSIONS AFTER USER SELECTS MAIN SCREEN
+     LOAD PERMISSIONS
   ----------------------------------------------------------- */
+
   useEffect(() => {
-    if (!staffUserTypeId || !mainScreenId) return;
+    if (!companyUniqueId || !staffUserTypeId || !mainScreenId) return;
 
     const loadPermissions = async () => {
       try {
-        let formatted: any = null;
+        let formatted: PermissionResponse = {
+          screens: [],
+          description: "",
+        };
 
-        // TRY TO LOAD PERMISSIONS
         try {
           formatted = await userScreenPermissionApi.get(
-            `by-staff-format/?staffusertype_id=${staffUserTypeId}&mainscreen_id=${mainScreenId}`
+            buildByStaffFormatPath(companyUniqueId, staffUserTypeId, mainScreenId)
           );
         } catch (err) {
-          // backend returns 404 → treat as no permissions
+          // ✅ Access denied on permission matrix load
+          if (getErrorStatus(err) === 403) {
+            Swal.fire({
+              icon: "error",
+              title: t("common.access_denied"),
+              text: t("common.no_permission"),
+              confirmButtonText: t("common.ok"),
+            }).then(() => navigate(ENC_LIST_PATH));
+            return;
+          }
+
+          // Any other error → treat as empty permissions (no matrix)
           formatted = { screens: [], description: "" };
         }
 
-        // ---- ALWAYS LOAD ALL USER SCREENS FOR THIS MAIN SCREEN ----
-        const fullScreens = allUserScreens.filter(
-          (u: any) => u.mainscreen_id === mainScreenId
-        );
+        const actionsByScreen = new Map<string, PermissionScreen>();
+        formatted.screens.forEach((scr: PermissionScreen) => {
+          const screenId = toId(scr.userscreen_id);
+          if (!screenId) return;
 
-        // map DB permissions
-        const dbMap = new Map<string, { actions?: string[] }>(
-          (formatted.screens || []).map((s: any) => [s.userscreen_id, s])
-        );
+          actionsByScreen.set(screenId, {
+            userscreen_id: screenId,
+            userscreen_name: String(scr.userscreen_name ?? "").trim(),
+            actions: uniqueIds(scr.actions ?? []),
+          });
+        });
 
-        // Merge full list + permissions
-        const matrix = fullScreens.map((scr: any) => ({
-          userscreen_id: scr.unique_id,
-          userscreen_name: scr.userscreen_name,
-          actions: dbMap.get(scr.unique_id)?.actions || [], // prefill or empty
-        }));
+        const selectedMainScreens = allUserScreens
+          .filter((screen) => !Boolean(screen.is_deleted))
+          .filter((screen) => toId(screen.mainscreen_id) === mainScreenId)
+          .sort((a, b) => toOrder(a.order_no) - toOrder(b.order_no));
+
+        const matrix: ScreenMatrixRow[] = [];
+
+        selectedMainScreens.forEach((screen) => {
+          const screenId = toId(screen.unique_id);
+          if (!screenId) return;
+
+          const existing = actionsByScreen.get(screenId);
+          matrix.push({
+            userscreen_id: screenId,
+            userscreen_name: String(
+              screen.userscreen_name ?? existing?.userscreen_name ?? screenId
+            ).trim(),
+            actions: uniqueIds(existing?.actions ?? []),
+          });
+        });
+
+        actionsByScreen.forEach((existing, screenId) => {
+          if (matrix.some((row) => row.userscreen_id === screenId)) return;
+
+          matrix.push({
+            userscreen_id: screenId,
+            userscreen_name: String(existing.userscreen_name ?? screenId).trim(),
+            actions: uniqueIds(existing.actions ?? []),
+          });
+        });
 
         setDescription(formatted.description || "");
         setScreenMatrix(matrix);
       } catch (err) {
         console.error("Permission Load Failed:", err);
-        Swal.fire(t("common.error"), t("admin.user_screen_permission.load_matrix_failed"), "error");
+
+        // ✅ Access denied on outer try
+        if (getErrorStatus(err) === 403) {
+          Swal.fire({
+            icon: "error",
+            title: t("common.access_denied"),
+            text: t("common.no_permission"),
+            confirmButtonText: t("common.ok"),
+          }).then(() => navigate(ENC_LIST_PATH));
+          return;
+        }
+
+        Swal.fire(
+          t("common.error"),
+          t("admin.user_screen_permission.load_matrix_failed"),
+          "error"
+        );
       }
     };
 
     loadPermissions();
-  }, [staffUserTypeId, mainScreenId, allUserScreens]);
+  }, [companyUniqueId, staffUserTypeId, mainScreenId, allUserScreens, t]);
 
   /* -----------------------------------------------------------
-     AUTO SET USER TYPE
+     AUTO USER TYPE
   ----------------------------------------------------------- */
+
   useEffect(() => {
     if (!staffUserTypeId || staffUserTypes.length === 0) return;
-
     const sut = staffUserTypes.find((s) => s.value === staffUserTypeId);
     setUserTypeId(sut?.userTypeId || "");
   }, [staffUserTypeId, staffUserTypes]);
 
   /* -----------------------------------------------------------
-     LIST TOGGLE FUNCTIONS
+     TOGGLE ACTIONS
   ----------------------------------------------------------- */
+
   const handleActionToggle = (
     screenId: string,
     actionId: string,
@@ -198,7 +386,7 @@ export default function UserScreenPermissionForm() {
           ? {
               ...row,
               actions: checked
-                ? [...row.actions, actionId]
+                ? uniqueIds([...row.actions, actionId])
                 : row.actions.filter((a) => a !== actionId),
             }
           : row
@@ -217,45 +405,101 @@ export default function UserScreenPermissionForm() {
     );
   };
 
+  const handleMainScreenChange = (nextMainScreenId: string) => {
+    if (nextMainScreenId === mainScreenId) return;
+    setDescription("");
+    setScreenMatrix([]);
+    setMainScreenId(nextMainScreenId);
+  };
+
   /* -----------------------------------------------------------
      SUBMIT
   ----------------------------------------------------------- */
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!staffUserTypeId || !mainScreenId) {
+    if (!companyUniqueId || !staffUserTypeId || !mainScreenId || !userTypeId) {
+      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+      return;
+    }
+
+    if (screenMatrix.length === 0) {
       Swal.fire(
         t("common.warning"),
-        t("admin.user_screen_permission.missing_fields"),
+        t("admin.user_screen_permission.no_screens"),
         "warning"
       );
       return;
     }
 
+    const validActionIds = new Set(
+      actions.map((item) => toId(item.value)).filter(Boolean)
+    );
+
+    const normalizedScreens = screenMatrix
+      .map((screen) => ({
+        userscreen_id: toId(screen.userscreen_id),
+        actions: uniqueIds(screen.actions).filter(
+          (actionId) =>
+            validActionIds.size === 0 || validActionIds.has(actionId)
+        ),
+      }))
+      .filter((screen) => Boolean(screen.userscreen_id));
+
     const payload = {
+      company_id: companyUniqueId,
       staffusertype_id: staffUserTypeId,
       mainscreen_id: mainScreenId,
-      screens: screenMatrix,
       description: description.trim(),
       usertype_id: userTypeId,
+      screens: normalizedScreens,
     };
 
-    try {
-      setLoading(true);
+    setLoading(true);
 
-      await userScreenPermissionApi.action(
-        `bulk-sync-multi/${staffUserTypeId}`,
-        payload
-      );
+    try {
+      if (isEdit) {
+        await userScreenPermissionApi.action(
+          `update-by-staffusertype/${staffUserTypeId}`,
+          payload
+        );
+        Swal.fire(t("common.success"), t("common.updated_success"), "success");
+      } else {
+        await userScreenPermissionApi.action(
+          `bulk-sync-multi/${staffUserTypeId}`,
+          payload
+        );
+        Swal.fire(t("common.success"), t("common.added_success"), "success");
+      }
+
+      navigate(ENC_LIST_PATH);
+    } catch (err: unknown) {
+      // ✅ Access denied on save/update
+      if (getErrorStatus(err) === 403) {
+        Swal.fire({
+          icon: "error",
+          title: t("common.access_denied"),
+          text: t("common.no_permission"),
+          confirmButtonText: t("common.ok"),
+        });
+        return;
+      }
+
+      const errorData =
+        (err as { response?: { data?: Record<string, unknown> } })?.response
+          ?.data ?? {};
 
       Swal.fire(
-        t("common.success"),
-        t("admin.user_screen_permission.save_success"),
-        "success"
+        t("common.save_failed"),
+        firstErrorMessage(errorData.detail) ||
+          firstErrorMessage(errorData.company_id) ||
+          firstErrorMessage(errorData.staffusertype_id) ||
+          firstErrorMessage(errorData.mainscreen_id) ||
+          firstErrorMessage(errorData.screens) ||
+          t("common.save_failed_desc"),
+        "error"
       );
-      navigate(ENC_LIST_PATH);
-    } catch {
-      Swal.fire(t("common.error"), t("common.save_failed_desc"), "error");
     } finally {
       setLoading(false);
     }
@@ -264,6 +508,7 @@ export default function UserScreenPermissionForm() {
   /* -----------------------------------------------------------
      RENDER
   ----------------------------------------------------------- */
+
   if (loadingData) {
     return (
       <ComponentCard title={t("common.loading")}>
@@ -287,30 +532,47 @@ export default function UserScreenPermissionForm() {
       }
     >
       <form onSubmit={handleSubmit}>
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-3 gap-6">
+          <div>
+            <Label>{t("admin.nav.company")} *</Label>
+            <Select
+              value={companyUniqueId}
+              onValueChange={(value) => {
+                onCompanyChange(value);
+                setMainScreenId("");
+                setScreenMatrix([]);
+                setDescription("");
+                if (!isEdit) setStaffUserTypeId("");
+              }}
+              disabled={
+                isCompanyLocked ||
+                (!isSuperAdmin && !loggedInCompanyUniqueId) ||
+                companyOptions.length === 0
+              }
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={t("common.select_item_placeholder", {
+                    item: t("admin.nav.company"),
+                  })}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {companyOptions.map((company) => (
+                  <SelectItem key={company.value} value={company.value}>
+                    {company.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div>
             <Label>{t("admin.nav.staff_user_type")} *</Label>
-
             <Select
               value={staffUserTypeId}
-              onValueChange={(v) => {
-                const selected = staffUserTypes.find((o) => o.value === v);
-
-                if (selected?.alreadyAssigned && !isEdit) {
-                  Swal.fire(
-                    t("admin.user_screen_permission.permission_exists_title"),
-                    t("admin.user_screen_permission.permission_exists_body"),
-                    "info"
-                  );
-                  navigate(
-                    `/${encryptSegment("admins")}/${encryptSegment("userscreenpermissions")}/${v}/edit`
-                  );
-                  return;
-                }
-
-                setStaffUserTypeId(v);
-              }}
-              disabled={isEdit}
+              onValueChange={setStaffUserTypeId}
+              disabled={isEdit || !companyUniqueId}
             >
               <SelectTrigger>
                 <SelectValue
@@ -319,7 +581,6 @@ export default function UserScreenPermissionForm() {
                   })}
                 />
               </SelectTrigger>
-
               <SelectContent>
                 {staffUserTypes.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
@@ -332,7 +593,11 @@ export default function UserScreenPermissionForm() {
 
           <div>
             <Label>{t("admin.nav.main_screen")} *</Label>
-            <Select value={mainScreenId} onValueChange={setMainScreenId}>
+            <Select
+              value={mainScreenId}
+              onValueChange={handleMainScreenChange}
+              disabled={!companyUniqueId}
+            >
               <SelectTrigger>
                 <SelectValue
                   placeholder={t("common.select_item_placeholder", {
@@ -366,7 +631,6 @@ export default function UserScreenPermissionForm() {
                   <th className="px-4 py-3 text-center text-sm font-semibold">
                     {t("admin.user_screen_permission.all")}
                   </th>
-
                   {actions.map((act) => (
                     <th
                       key={act.value}
@@ -377,11 +641,9 @@ export default function UserScreenPermissionForm() {
                   ))}
                 </tr>
               </thead>
-
               <tbody>
                 {screenMatrix.map((row, i) => {
                   const allChecked = row.actions.length === actions.length;
-
                   return (
                     <tr
                       key={row.userscreen_id}
@@ -391,7 +653,6 @@ export default function UserScreenPermissionForm() {
                       <td className="px-4 py-3 text-sm font-medium">
                         {row.userscreen_name}
                       </td>
-
                       <td className="px-4 py-3 text-center">
                         <input
                           type="checkbox"
@@ -402,7 +663,6 @@ export default function UserScreenPermissionForm() {
                           className="w-4 h-4 cursor-pointer"
                         />
                       </td>
-
                       {actions.map((act) => (
                         <td key={act.value} className="px-4 py-3 text-center">
                           <input
@@ -447,7 +707,9 @@ export default function UserScreenPermissionForm() {
         <div className="flex justify-end gap-3 mt-6">
           <Button
             type="submit"
-            disabled={loading || !staffUserTypeId || !mainScreenId}
+            disabled={
+              loading || !companyUniqueId || !staffUserTypeId || !mainScreenId
+            }
           >
             {loading
               ? t("common.saving")

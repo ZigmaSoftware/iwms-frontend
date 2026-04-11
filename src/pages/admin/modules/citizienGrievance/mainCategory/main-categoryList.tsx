@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
-import { mobileApi } from "@/api";
+import { mainCategoryApi } from "@/helpers/admin";
+import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
@@ -23,6 +25,10 @@ type MainCategory = {
   main_categoryName: string;
   is_active: boolean;
 };
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  main_categoryName?: { value: string | null; matchMode: FilterMatchMode };
+};
 
 export default function MainComplaintCategoryList() {
   const { t } = useTranslation();
@@ -32,20 +38,28 @@ export default function MainComplaintCategoryList() {
 
   const navigate = useNavigate();
   const { encCitizenGrivence, encMainComplaintCategory } = getEncryptedRoute();
+  
+  const companyUniqueId = getCurrentCompanyUniqueId() ?? "";
 
   const ENC_NEW_PATH = `/${encCitizenGrivence}/${encMainComplaintCategory}/new`;
   const ENC_EDIT_PATH = (id: string) =>
     `/${encCitizenGrivence}/${encMainComplaintCategory}/${id}/edit`;
 
-  const [filters, setFilters] = useState({
+  // const [filters, setFilters] = useState({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  //   main_categoryName: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  // });
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     main_categoryName: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const fetchData = async () => {
     try {
-      const res = await mobileApi.get("main-category/");
-      setRecords(res.data);
+      const res = await mainCategoryApi.list({
+        params: { company_id: companyUniqueId }
+      });
+      setRecords(res);
     } finally {
       setLoading(false);
     }
@@ -53,7 +67,7 @@ export default function MainComplaintCategoryList() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [companyUniqueId]);
 
   const handleDelete = async (id: string) => {
     const confirm = await Swal.fire({
@@ -68,7 +82,7 @@ export default function MainComplaintCategoryList() {
 
     if (!confirm.isConfirmed) return;
 
-    await mobileApi.delete(`main-category/${id}/`);
+    await mainCategoryApi.remove(id);
     Swal.fire({
       icon: "success",
       title: t("admin.citizen_grievance.main_category.deleted"),
@@ -80,7 +94,7 @@ export default function MainComplaintCategoryList() {
 
   const statusTemplate = (row: MainCategory) => {
     const updateStatus = async (value: boolean) => {
-      await mobileApi.patch(`main-category/${row.unique_id}/`, {
+      await mainCategoryApi.update(row.unique_id, {
         is_active: value,
       });
       fetchData();
@@ -180,6 +194,8 @@ export default function MainComplaintCategoryList() {
             field="main_categoryName"
             header={t("admin.citizen_grievance.main_category.columns.main_category")}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
 
           <Column

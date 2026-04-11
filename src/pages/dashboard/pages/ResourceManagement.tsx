@@ -6,15 +6,75 @@ import { Search, Mail, Phone, Sparkles } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useEffect, useMemo, useState } from "react";
-import { userCreationApi } from "@/helpers/admin";
+import { staffCreationApi } from "@/helpers/admin";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 const normalizeList = (payload: any) => {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.results)) return payload.results;
   if (Array.isArray(payload?.data?.results)) return payload.data.results;
   if (payload && typeof payload === "object") return Object.values(payload);
   return [];
+};
+
+type ResourceEmployee = {
+  id: string;
+  name: string;
+  role: string;
+  zone: string;
+  status: string;
+  phone: string;
+  email: string;
+  vehicle: string;
+  joinDate: string;
+  ward: string;
+};
+
+const formatDate = (value?: string | null) => {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toISOString().split("T")[0];
+};
+
+const mapRecord = (record: any, t: TFunction): ResourceEmployee => {
+  const notAvailable = t("common.not_available");
+  const name = record.employee_name ?? record.staff_name ?? notAvailable;
+  const roleLabel =
+    record.designation ??
+    record.department ??
+    record.staffusertype_name ??
+    record.user_type_name ??
+    "staff";
+  const role = roleLabel.toString().toLowerCase();
+  const zone =
+    record.zone_name ??
+    record.site_name ??
+    record.department ??
+    record.project_name ??
+    notAvailable;
+  const vehicle =
+    record.vehicle_name ??
+    record.grade ??
+    record.salary_type ??
+    record.staff_vehicle ??
+    notAvailable;
+  const joinDate = formatDate(record.doj ?? record.staff_doj ?? record.created_at);
+
+  return {
+    id: record.unique_id ?? record.emp_id ?? record.id?.toString() ?? "-",
+    name: name.toString(),
+    role,
+    zone,
+    status: record.is_active || record.active_status ? "active" : "inactive",
+    phone: record.staff_contact_mobile ?? record.contact_mobile ?? notAvailable,
+    email: record.staff_contact_email ?? record.contact_email ?? notAvailable,
+    vehicle,
+    joinDate,
+    ward: record.department ?? notAvailable,
+  };
 };
 
 export default function ResourceManagement() {
@@ -45,30 +105,21 @@ export default function ResourceManagement() {
     return status;
   };
 
-  // Fetch staff users only
   useEffect(() => {
     const fetchStaff = async () => {
       try {
-        const res = await userCreationApi.list();
-        const all = normalizeList(res);
-        const staffOnly = all.filter(
-          (u: any) =>
-            u?.user_type_name?.toLowerCase() === "staff" ||
-            u?.staffusertype_name?.toLowerCase() === "staff"
-        );
+        const res = await staffCreationApi.list();
+        console.log(res);
+        const records = normalizeList(res);
+        const staffOnly = records.filter(
+          (record: any) =>
+            (record.user_type_name?.toLowerCase() === "staff") ||
+            (record.staffusertype_name?.toLowerCase() === "staff") ||
+            (record.designation?.toLowerCase() === "driver") ||
+            (record.designation?.toLowerCase() === "operator")
+        );  
 
-        const mapped = staffOnly.map((u: any) => ({
-          id: u.unique_id ?? u.id ?? "-",
-          name: u.staff_name ?? u.customer_name ?? "Unknown",
-          role: u.staffusertype_name ?? u.user_type_name ?? "Staff",
-          zone: u.zone_name ?? u.customer_zone ?? "-",
-          status: u.is_active ? "active" : "inactive",
-          phone: u.staff_contact_mobile ?? "-",
-          email: u.staff_contact_email ?? "-",
-          vehicle: u.vehicle_name ?? "-",
-          joinDate: u.staff_doj ?? u.created_at ?? "-",
-        }));
-
+        const mapped = staffOnly.map((record: any) => mapRecord(record, t));
         setEmployees(mapped);
       } catch (err) {
         console.error("Failed to load staff", err);
@@ -76,7 +127,7 @@ export default function ResourceManagement() {
     };
 
     fetchStaff();
-  }, []);
+  }, [t]);
 
   // CLEAN LABEL OPTIONS
   const roleOptions = useMemo(

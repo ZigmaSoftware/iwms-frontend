@@ -14,14 +14,13 @@ import {
 } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
 
-
 import { continentApi } from "@/helpers/admin";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-import { encryptSegment } from "@/utils/routeCrypto";
+import { getEncryptedRoute } from "@/utils/routeCache";
 
 
-const encMasters = encryptSegment("masters");
-const encContinents = encryptSegment("continents");
+const { encMasters, encContinents } = getEncryptedRoute();
 
 const ENC_LIST_PATH = `/${encMasters}/${encContinents}`;
 
@@ -33,6 +32,17 @@ function ContinentForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    loggedInCompanyUniqueId,
+    setProjectId,
+    onCompanyChange,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({ isEdit });
 
   // Fetch existing data if editing
   useEffect(() => {
@@ -40,8 +50,11 @@ function ContinentForm() {
       continentApi
         .get(id as string)
         .then((record) => {
-          setName(record.name);
-          setIsActive(record.is_active);
+          setName(String(record.name ?? ""));
+          setIsActive(Boolean(record.is_active));
+          applyCompanyProjectFromRecord(
+            record as unknown as Record<string, unknown>
+          );
         })
         .catch((err) => {
           console.error("Error fetching continent:", err);
@@ -52,7 +65,7 @@ function ContinentForm() {
           });
         });
     }
-  }, [id, isEdit]);
+  }, [applyCompanyProjectFromRecord, id, isEdit, t]);
 
   // Handle save
   const handleSubmit = async (e: React.FormEvent) => {
@@ -68,10 +81,32 @@ function ContinentForm() {
       });
       return; // Stop here if validation fails
     }
+
+    // if (!companyUniqueId) {
+    //   Swal.fire(
+    //     "Error",
+    //     !loggedInCompanyUniqueId && !isSuperAdmin
+    //       ? "Company is not mapped to this login. Only super admin can choose a company."
+    //       : "Company is required",
+    //     "error"
+    //   );
+    //   return;
+    // }
+
+    // if (!projectId) {
+    //   Swal.fire("Error", "Project is required", "error");
+    //   return;
+    // }
+
     setLoading(true);
 
     try {
-      const payload = { name, is_active: isActive };
+      const payload = {
+        name,
+        is_active: isActive,
+        // company_unique_id: companyUniqueId,
+        // project_id: projectId,
+      };
 
       if (isEdit) {
         await continentApi.update(id as string, payload);
@@ -92,10 +127,10 @@ function ContinentForm() {
       }
 
       navigate(ENC_LIST_PATH);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to save:", error);
 
-      const data = error.response?.data;
+      const data = (error as { response?: { data?: unknown } }).response?.data;
       let message = t("common.save_failed_desc");
 
       if (typeof data === "object" && data !== null) {
@@ -126,6 +161,72 @@ function ContinentForm() {
     >
       <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* <div>
+            <Label>Company *</Label>
+            <Select
+              value={companyUniqueId}
+              onValueChange={onCompanyChange}
+              disabled={
+                Boolean(loggedInCompanyUniqueId) ||
+                (!isSuperAdmin && !loggedInCompanyUniqueId) ||
+                companies.length === 0
+              }
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={
+                    loggedInCompanyUniqueId
+                      ? "Company from logged-in profile"
+                      : isSuperAdmin
+                        ? "Select Company"
+                        : "Only super admin can select company"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((company) => (
+                  <SelectItem key={company.value} value={company.value}>
+                    {company.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!loggedInCompanyUniqueId && !isSuperAdmin && (
+              <p className="mt-1 text-xs text-red-500">
+                Company is not mapped to this login. Only super admin can view
+                all companies.
+              </p>
+            )}
+            {isSuperAdmin && !loggedInCompanyUniqueId && companies.length === 0 && (
+              <p className="mt-1 text-xs text-red-500">No companies found.</p>
+            )}
+          </div>
+
+          <div>
+            <Label>Project *</Label>
+            <Select
+              value={projectId}
+              onValueChange={setProjectId}
+              disabled={!companyUniqueId || projects.length === 0}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select Project" />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.value} value={project.value}>
+                    {project.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {companyUniqueId && projects.length === 0 && (
+              <p className="mt-1 text-xs text-red-500">
+                No projects found for this company.
+              </p>
+            )}
+          </div> */}
+
           {/* Continent Name */}
           <div>
             <Label htmlFor="continentName">

@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -12,7 +13,8 @@ import { FilterMatchMode } from "primereact/api";
 import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { desktopApi } from "@/api";
+import { api } from "@/api";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type TripAttendanceRecord = {
   id: number;
@@ -25,10 +27,52 @@ type TripAttendanceRecord = {
   photo?: string | null;
   source: string;
   created_at?: string | null;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
+};
+
+type  TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  trip_instance_id?: { value: string | null; matchMode: FilterMatchMode };
+  staff_id?: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_id?: { value: string | null; matchMode: FilterMatchMode };
+  source?: { value: string | null; matchMode: FilterMatchMode };
+  attendance_time?: { value: string | null; matchMode: FilterMatchMode };
 };
 
 const normalizeList = (payload: any): any[] =>
   Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
+
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
+const filterByCompanyProject = (
+  rows: any[],
+  companyId: string,
+  projectId: string
+) => {
+  const hasContextFields = rows.some((item) => {
+    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
+    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    return Boolean(rowCompanyId || rowProjectId);
+  });
+
+  if (!hasContextFields) {
+    return rows;
+  }
+
+  return rows.filter((item) => {
+    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
+    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    const companyMatches = !companyId || rowCompanyId === companyId;
+    const projectMatches = !projectId || rowProjectId === projectId;
+    return companyMatches && projectMatches;
+  });
+};
 
 const buildLookup = (items: any[], key: string, label: string, fallbackKey?: string) =>
   items.reduce<Record<string, string>>((acc, item) => {
@@ -48,7 +92,7 @@ export default function TripAttendanceList() {
 
   const tripAttendanceApi = adminApi.tripAttendances;
   const tripInstanceApi = adminApi.tripInstances;
-  const userApi = adminApi.usercreations;
+  const userApi = adminApi.usersCreation;
   const vehicleApi = adminApi.vehicleCreations;
 
   const [records, setRecords] = useState<TripAttendanceRecord[]>([]);
@@ -57,10 +101,28 @@ export default function TripAttendanceList() {
   const [tripLookup, setTripLookup] = useState<Record<string, string>>({});
   const [staffLookup, setStaffLookup] = useState<Record<string, string>>({});
   const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>({});
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  // });/
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    trip_instance_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    staff_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    vehicle_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    source: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    attendance_time: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const { encTransportMaster, encTripAttendance } = getEncryptedRoute();
@@ -68,31 +130,69 @@ export default function TripAttendanceList() {
   const ENC_EDIT_PATH = (id: number) => `/${encTransportMaster}/${encTripAttendance}/${id}/edit`;
 
   const backendOrigin = useMemo(
-    () => desktopApi.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "",
+    () => api.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "",
     []
   );
 
   const fetchRecords = async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
       const [attendanceRes, tripRes, userRes, vehicleRes] = await Promise.all([
-        tripAttendanceApi.list(),
-        tripInstanceApi.list(),
-        userApi.list(),
-        vehicleApi.list(),
+        tripAttendanceApi.list({ params }),
+        tripInstanceApi.list({ params }),
+        userApi.list({ params }),
+        vehicleApi.list({ params }),
       ]);
 
-      setRecords(normalizeList(attendanceRes));
+      const attendanceRows = filterByCompanyProject(
+        normalizeList(attendanceRes),
+        companyUniqueId,
+        projectId
+      );
+      const tripRows = filterByCompanyProject(
+        normalizeList(tripRes),
+        companyUniqueId,
+        projectId
+      );
+      const userRows = filterByCompanyProject(
+        normalizeList(userRes),
+        companyUniqueId,
+        projectId
+      );
+      const vehicleRows = filterByCompanyProject(
+        normalizeList(vehicleRes),
+        companyUniqueId,
+        projectId
+      );
+
+      setRecords(attendanceRows as TripAttendanceRecord[]);
       setTripLookup(
         buildLookup(
-          normalizeList(tripRes),
+          tripRows,
           "unique_id",
           "trip_no",
           "unique_id"
         )
       );
-      setStaffLookup(buildLookup(normalizeList(userRes), "unique_id", "staff_name", "unique_id"));
-      setVehicleLookup(buildLookup(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
+      setStaffLookup(buildLookup(userRows, "unique_id", "staff_name", "unique_id"));
+      setVehicleLookup(buildLookup(vehicleRows, "unique_id", "vehicle_no"));
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
@@ -102,7 +202,7 @@ export default function TripAttendanceList() {
 
   useEffect(() => {
     fetchRecords();
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -138,12 +238,47 @@ export default function TripAttendanceList() {
           </p>
         </div>
 
-        <Button
-          label={t("admin.trip_attendance.create_button")}
-          icon="pi pi-plus"
-          className="p-button-success p-button-sm"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("admin.trip_attendance.create_button")}
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <div className="flex justify-end">
@@ -186,6 +321,8 @@ export default function TripAttendanceList() {
           "staff_id",
           "vehicle_id",
           "source",
+          "company_name",
+          "project_name",
         ]}
         header={header}
         stripedRows
@@ -199,28 +336,39 @@ export default function TripAttendanceList() {
           body={(row: TripAttendanceRecord) =>
             tripLookup[row.trip_instance_id] ?? row.trip_instance_id
           }
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           header={t("admin.trip_attendance.staff")}
           body={(row: TripAttendanceRecord) => staffLookup[row.staff_id] ?? row.staff_id}
+          filter
+          showFilterMatchModes={false}
+
         />
         <Column
           header={t("admin.trip_attendance.vehicle")}
           body={(row: TripAttendanceRecord) =>
             vehicleLookup[row.vehicle_id] ?? row.vehicle_id
           }
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           header={t("admin.trip_attendance.attendance_time")}
           body={(row: TripAttendanceRecord) => formatDateTime(row.attendance_time)}
+          filter
+          showFilterMatchModes={false}
         />
         <Column field="latitude" header={t("admin.trip_attendance.latitude")} />
         <Column field="longitude" header={t("admin.trip_attendance.longitude")} />
-        <Column header={t("admin.trip_attendance.source")} body={(row) => resolveSource(row.source)} />
+        <Column header={t("admin.trip_attendance.source")} body={(row) => resolveSource(row.source)} filter showFilterMatchModes={false} />
         <Column header={t("admin.trip_attendance.photo")} body={(row) => resolvePhotoLink(row.photo)} />
         <Column
           header={t("common.created_at")}
           body={(row: TripAttendanceRecord) => formatDateTime(row.created_at)}
+          filter
+          showFilterMatchModes={false}
         />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
       </DataTable>

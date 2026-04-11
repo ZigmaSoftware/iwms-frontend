@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
-import { mobileApi } from "@/api";
+import { subCategoryApi } from "@/helpers/admin";
+import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
@@ -19,19 +21,34 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  name?: { value: string | null; matchMode: FilterMatchMode };
+  mainCategory_name?: { value: string | null; matchMode: FilterMatchMode };
+};
+
 export default function SubComplaintCategoryList() {
   const { t } = useTranslation();
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
+  // const [filters, setFilters] = useState({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  //   name: { value: null, matchMode: FilterMatchMode.STARTS_WITH }
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH }
-  });
+    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    mainCategory_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH }
+  }); 
 
   const navigate = useNavigate();
   const { encCitizenGrivence, encSubComplaintCategory } = getEncryptedRoute();
+
+  const companyUniqueId = getCurrentCompanyUniqueId() ?? "";
 
   const NEW_PATH = `/${encCitizenGrivence}/${encSubComplaintCategory}/new`;
   const EDIT_PATH = (id: string) =>
@@ -39,9 +56,10 @@ export default function SubComplaintCategoryList() {
 
   const fetchData = async () => {
     try {
-      const res = await mobileApi.get("sub-category/");
-      const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
-      setRecords(list);
+      const res = await subCategoryApi.list({
+        params: { company_id: companyUniqueId }
+      });
+      setRecords(res);
     } catch (err) {
       console.error("Error loading sub categories:", err);
     } finally {
@@ -51,7 +69,7 @@ export default function SubComplaintCategoryList() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [companyUniqueId]);
 
   const handleDelete = async (id: string) => {
     const confirmation = await Swal.fire({
@@ -65,7 +83,7 @@ export default function SubComplaintCategoryList() {
 
     if (!confirmation.isConfirmed) return;
 
-    await mobileApi.delete(`sub-category/${id}/`);
+    await subCategoryApi.remove(id);
 
     Swal.fire({
       icon: "success",
@@ -79,7 +97,7 @@ export default function SubComplaintCategoryList() {
 
   const statusTemplate = (row: any) => {
     const updateStatus = async (value: boolean) => {
-      await mobileApi.patch(`sub-category/${row.unique_id}/`, {
+      await subCategoryApi.update(row.unique_id, {
         is_active: value,
       });
       fetchData();
@@ -179,11 +197,15 @@ export default function SubComplaintCategoryList() {
             field="name"
             header={t("admin.citizen_grievance.sub_category.columns.sub_category")}
             sortable
+            filter  
+            showFilterMatchModes={false}
           />
           <Column
             field="mainCategory_name"
             header={t("admin.citizen_grievance.sub_category.columns.main_category")}
             sortable
+            filter  
+            showFilterMatchModes={false}
           />
           <Column
             field="is_active"

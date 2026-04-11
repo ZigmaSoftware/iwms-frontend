@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
@@ -17,6 +18,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { adminApi } from "@/helpers/admin/registry";
 import { useTranslation } from "react-i18next";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type VehicleCreationRecord = {
   unique_id: string;
@@ -35,6 +37,23 @@ type VehicleCreationRecord = {
   rc_upload?: string | null;
   vehicle_insurance_file?: string | null;
   is_active: boolean;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
+};
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_no?: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_type_name?: { value: string | null; matchMode: FilterMatchMode };
+  fuel_type_name?: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_condition?: { value: string | null; matchMode: FilterMatchMode };
+  insurance_expiry_date?: { value: string | null; matchMode: FilterMatchMode };
+  rc_upload?: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_insurance_file?: { value: string | null; matchMode: FilterMatchMode };
 };
 
 const vehicleCreationApi = adminApi.vehicleCreations;
@@ -63,12 +82,24 @@ const formatDate = (value?: string | null) => {
   return String(value).split("T")[0];
 };
 
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
 export default function VehicleCreationListPage() {
   const { t } = useTranslation();
   const [vehicles, setVehicles] = useState<VehicleCreationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalImage, setModalImage] = useState<string | null>(null);
   const navigate = useNavigate();
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encTransportMaster}/${encVehicleCreation}/new`;
@@ -76,17 +107,68 @@ export default function VehicleCreationListPage() {
     `/${encTransportMaster}/${encVehicleCreation}/${id}/edit`;
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  // const [filters, setFilters] = useState<any>({
+  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  //   vehicle_no: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  // });
+
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     vehicle_no: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    vehicle_type_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    fuel_type_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    vehicle_condition: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    insurance_expiry_date: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    rc_upload: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    vehicle_insurance_file: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
+
 
   const resolveId = (row: VehicleCreationRecord) => row.unique_id;
 
   const fetchVehicles = async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setVehicles([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setVehicles([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     try {
-      const res = await vehicleCreationApi.list();
-      setVehicles(normalizeVehicleCreations(res));
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const res = await vehicleCreationApi.list({ params });
+      const rows = normalizeVehicleCreations(res);
+
+      const hasContextFields = rows.some((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        return Boolean(rowCompanyId || rowProjectId);
+      });
+
+      if (!hasContextFields) {
+        setVehicles(rows);
+        return;
+      }
+
+      const filtered = rows.filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+        return companyMatches && projectMatches;
+      });
+
+      setVehicles(filtered);
     } catch (error) {
       console.error("Failed to fetch vehicles:", error);
       Swal.fire({
@@ -101,7 +183,7 @@ export default function VehicleCreationListPage() {
 
   useEffect(() => {
     fetchVehicles();
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const handleDelete = async (id: string) => {
     const confirmDelete = await Swal.fire({
@@ -255,12 +337,47 @@ export default function VehicleCreationListPage() {
           </p>
         </div>
 
-        <Button
-          label={t("admin.vehicle_creation.add")}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("admin.vehicle_creation.add")}
+            icon="pi pi-plus"
+            className="p-button-success"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <DataTable
@@ -270,7 +387,13 @@ export default function VehicleCreationListPage() {
         rows={10}
         loading={loading}
         filters={filters}
-        globalFilterFields={["vehicle_no", "vehicle_type_name", "fuel_type_name"]}
+        globalFilterFields={[
+          "vehicle_no",
+          "vehicle_type_name",
+          "fuel_type_name",
+          "company_name",
+          "project_name",
+        ]}
         rowsPerPageOptions={[5, 10, 25, 50]}
         header={header}
         stripedRows
@@ -284,9 +407,9 @@ export default function VehicleCreationListPage() {
           style={{ width: "80px" }}
         />
 
-        <Column field="vehicle_no" header={t("admin.vehicle_creation.vehicle_no")} sortable />
-        <Column field="vehicle_type_name" header={t("admin.vehicle_creation.vehicle_type")} sortable />
-        <Column field="fuel_type_name" header={t("admin.vehicle_creation.fuel_type")} sortable />
+        <Column field="vehicle_no" header={t("admin.vehicle_creation.vehicle_no")} sortable filter showFilterMatchModes={false} />
+        <Column field="vehicle_type_name" header={t("admin.vehicle_creation.vehicle_type")} sortable filter showFilterMatchModes={false} />
+        <Column field="fuel_type_name" header={t("admin.vehicle_creation.fuel_type")} sortable filter showFilterMatchModes={false} />
         <Column field="capacity" header={t("admin.vehicle_creation.capacity")} sortable />
         <Column field="mileage_per_liter" header={t("admin.vehicle_creation.mileage_per_liter")} sortable />
         <Column field="fuel_tank_capacity" header={t("admin.vehicle_creation.fuel_tank_capacity")} sortable />
@@ -294,21 +417,30 @@ export default function VehicleCreationListPage() {
           field="vehicle_condition"
           header={t("admin.vehicle_creation.vehicle_condition")}
           body={(row: VehicleCreationRecord) => conditionLabel(row.vehicle_condition)}
+          sortable
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           field="insurance_expiry_date"
           header={t("admin.vehicle_creation.insurance_expiry_date")}
           body={(row: VehicleCreationRecord) => formatDate(row.insurance_expiry_date)}
+          sortable
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           field="rc_upload"
           header={t("admin.vehicle_creation.rc_upload")}
           body={(row: VehicleCreationRecord) => renderFilePreview(row.rc_upload)}
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           field="vehicle_insurance_file"
           header={t("admin.vehicle_creation.vehicle_insurance_file")}
           body={(row: VehicleCreationRecord) => renderFilePreview(row.vehicle_insurance_file)}
+          
         />
 
         <Column

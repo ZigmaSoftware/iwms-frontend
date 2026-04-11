@@ -2,21 +2,24 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
+import type { DataTableFilterMeta } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
-import { encryptSegment } from "@/utils/routeCrypto";
+import { PencilIcon } from "@/icons";
+import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { cityApi } from "@/helpers/admin";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type CityRecord = {
   unique_id: string;
@@ -25,6 +28,12 @@ type CityRecord = {
   country_name: string;
   state_name: string;
   district_name: string;
+  company_id?: string;
+  company_unique_id?: string;
+  company_name?: string;
+  project_id?: string;
+  project_unique_id?: string;
+  project_name?: string;
 };
 
 type ErrorWithResponse = {
@@ -55,30 +64,72 @@ const extractErrorMessage = (error: unknown) => {
   return "Something went wrong while processing the request.";
 };
 
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
 export default function CityList() {
   const { t } = useTranslation();
   const [cities, setCities] = useState<CityRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
+  const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    country_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    state_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    district_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const navigate = useNavigate();
 
-  const encMasters = encryptSegment("masters");
-  const encCities = encryptSegment("cities");
+  const { encMasters, encCities } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encCities}/new`;
   const ENC_EDIT_PATH = (id: string) =>
     `/${encMasters}/${encCities}/${id}/edit`;
 
   const fetchCities = useCallback(async () => {
-    // setLoading(true);
+    if (isSuperAdmin && companies.length === 0) {
+      setCities([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setCities([]);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const data = (await cityApi.list()) as CityRecord[];
-      setCities(data);
+      setLoading(true);
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const data = (await cityApi.list({ params })) as CityRecord[];
+      const filtered = data.filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+
+        return companyMatches && projectMatches;
+      });
+
+      setCities(filtered);
     } catch (error) {
       Swal.fire({
         icon: "error",
@@ -88,42 +139,22 @@ export default function CityList() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
 
   useEffect(() => {
     fetchCities();
   }, [fetchCities]);
 
-  const handleDelete = async (id: string) => {
-    const confirm = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      confirmButtonText: t("common.confirm_delete_button"),
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    await cityApi.remove(id);
-
-    Swal.fire({
-      icon: "success",
-      title: t("common.deleted_success"),
-      timer: 1500,
-      showConfirmButton: false,
-    });
-
-    fetchCities();
+  const onFilter = (e: DataTableFilterEvent) => {
+    setFilters(e.filters);
   };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setFilters({
-      ...filters,
-      global: { ...filters.global, value },
-    });
+    setFilters((prev) => ({
+      ...prev,
+      global: { value, matchMode: FilterMatchMode.CONTAINS },
+    }));
     setGlobalFilterValue(value);
   };
 
@@ -193,12 +224,47 @@ export default function CityList() {
             </p>
           </div>
 
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.city") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <div className="flex items-center gap-3">
+            <select
+              value={companyUniqueId || ""}
+              onChange={(e) => onCompanyChange(e.target.value)}
+              disabled={!isSuperAdmin || companies.length === 0}
+              className="border rounded px-3 py-2 text-sm"
+            >
+              <option value="" disabled>
+                {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+              </option>
+              {companies.map((company) => (
+                <option key={company.value} value={company.value}>
+                  {company.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={projectId || ""}
+              onChange={(e) => setProjectId(e.target.value)}
+              disabled={!companyUniqueId || projects.length === 0}
+              className="border rounded px-3 py-2 text-sm"
+            >
+              <option value="" disabled>
+                {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+              </option>
+              {projects.map((project) => (
+                <option key={project.value} value={project.value}>
+                  {project.label}
+                </option>
+              ))}
+            </select>
+
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.city") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              disabled={!companyUniqueId || !projectId}
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </div>
         </div>
 
         <DataTable
@@ -209,6 +275,7 @@ export default function CityList() {
           rowsPerPageOptions={[5, 10, 25, 50]}
           loading={loading}
           filters={filters}
+          onFilter={onFilter}
           header={renderHeader()}
           stripedRows
           showGridlines
@@ -220,6 +287,8 @@ export default function CityList() {
             "country_name",
             "state_name",
             "district_name",
+            "company_name",
+            "project_name",
           ]}
           className="p-datatable-sm"
         >
@@ -229,24 +298,32 @@ export default function CityList() {
             header={t("admin.nav.country")}
             body={(r) => cap(r.country_name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
           <Column
             field="state_name"
             header={t("admin.nav.state")}
             body={(r) => cap(r.state_name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
           <Column
             field="district_name"
             header={t("admin.nav.district")}
             body={(r) => cap(r.district_name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
           <Column
             field="name"
             header={t("admin.nav.city")}
             body={(r) => cap(r.name)}
             sortable
+            filter
+            showFilterMatchModes={false}
           />
           <Column header={t("common.status")} body={statusTemplate} />
           <Column header={t("common.actions")} body={actionTemplate} />

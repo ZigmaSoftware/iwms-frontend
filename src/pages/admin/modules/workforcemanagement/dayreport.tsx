@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
@@ -166,9 +166,9 @@ export default function DayReport() {
 
   /* ================= UI ================= */
   return (
-    <div className="p-4">
-      <div className="bg-white p-6 rounded-lg shadow-lg wf-table-card">
-        <div className="flex justify-between items-center mb-4">
+
+    <>
+         <div className="flex justify-between items-center mb-4">
           <div>
             <h1 className="text-2xl font-bold">
               {t("admin.workforce_management.day_report.title")}
@@ -250,7 +250,9 @@ export default function DayReport() {
             body={(r) => r.average_weight_per_trip.toFixed(2)}
           />
         </DataTable>
-      </div>
-    </div>
+    </>
+ 
+   
+    
   );
 }

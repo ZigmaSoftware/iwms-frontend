@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { LifeBuoy, LogOut, Settings, ShieldCheck } from "lucide-react";
-import { DropdownItem } from "../ui/dropdown/DropdownItem";
+import { LogOut } from "lucide-react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
 import { clearAdminViewPreference } from "@/types/roles";
+// import { clearStoredPermissions } from "@/utils/permissions";
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
@@ -37,6 +37,12 @@ export default function UserDropdown() {
     localStorage.removeItem("unique_id");
     localStorage.removeItem("user_name");
     localStorage.removeItem("user_email");
+    localStorage.removeItem("profile");
+    localStorage.removeItem("project_id");
+    localStorage.removeItem("project_unique_id");
+    localStorage.removeItem("current_project_id");
+    localStorage.removeItem("selected_project_id");
+    // clearStoredPermissions();
     clearAdminViewPreference();
     setUser(null);
     navigate("/auth", { replace: true });
@@ -46,7 +52,7 @@ export default function UserDropdown() {
     <div className="relative">
       <button
         onClick={toggleDropdown}
-        className="rainbow-border flex h-11 w-48 items-center justify-between rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-surfaceAlt)]/95 px-2 py-1 text-left text-[var(--admin-text)] shadow-[0_18px_40px_rgba(1,62,126,0.12)] transition hover:shadow-[0_22px_44px_rgba(1,62,126,0.18)]"
+        className="rainbow-border flex h-11 w-56 items-center justify-between rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-surfaceAlt)]/95 px-2 py-1 text-left text-[var(--admin-text)] shadow-[0_18px_40px_rgba(1,62,126,0.12)] transition hover:shadow-[0_22px_44px_rgba(1,62,126,0.18)]"
       >
         <span className="mr-2.5 grid h-8 w-8 place-items-center rounded-2xl bg-gradient-to-br from-[#0f5bd8] to-[#013E7E] text-xs font-semibold uppercase tracking-wide text-white">
           {initials}
@@ -78,7 +84,7 @@ export default function UserDropdown() {
       <Dropdown
         isOpen={isOpen}
         onClose={closeDropdown}
-        className="absolute right-0 mt-[17px] flex w-[280px] flex-col rounded-3xl border border-[var(--admin-border)] bg-[var(--admin-surfaceAlt)]/98 p-4 text-[var(--admin-text)] shadow-[var(--admin-cardShadow)]"
+        className="absolute right-0 mt-[17px] flex w-[320px] flex-col rounded-3xl border border-[var(--admin-border)] bg-[var(--admin-surfaceAlt)]/98 p-4 text-[var(--admin-text)] shadow-[var(--admin-cardShadow)]"
       >
         <div className="rounded-2xl border border-[var(--admin-border)] bg-[var(--admin-surface)]/80 p-3">
           <span className="block text-base font-semibold text-[var(--admin-text)]">{displayName}</span>

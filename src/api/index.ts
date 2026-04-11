@@ -11,24 +11,26 @@ const API_ROOT = IS_PROD
 /* --------------------------------------------------------
    CREATE INSTANCE
 -------------------------------------------------------- */
-const createApi = (type: "desktop" | "mobile"): AxiosInstance => {
+type CreateApiOptions = {
+  tokenStorageKey: string;
+  loginPathIncludes: string[];
+};
+
+const createApi = (opts: CreateApiOptions): AxiosInstance => {
   const api = axios.create({
-    baseURL: `${API_ROOT}/${type}`,
-    withCredentials: type === "mobile",
+    baseURL: API_ROOT, // 👈 no desktop/mobile
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
     },
   });
 
-  /* ----------------------------------------------------
-      AUTH INTERCEPTOR (ATTACHED IMMEDIATELY)
-  ---------------------------------------------------- */
   api.interceptors.request.use((config) => {
-    const token = localStorage.getItem("access_token");
+    const token = localStorage.getItem(opts.tokenStorageKey);
 
-    const isLogin =
-      config.url?.includes("/login/login-user");
+    const isLogin = opts.loginPathIncludes.some((p) =>
+      config.url?.includes(p)
+    );
 
     if (token && !isLogin) {
       config.headers = config.headers ?? {};
@@ -42,7 +44,9 @@ const createApi = (type: "desktop" | "mobile"): AxiosInstance => {
 };
 
 /* --------------------------------------------------------
-   EXPORT SINGLETONS
+   EXPORT SINGLE API
 -------------------------------------------------------- */
-export const desktopApi = createApi("desktop");
-export const mobileApi = createApi("mobile");
+export const api = createApi({
+  tokenStorageKey: "access_token",
+  loginPathIncludes: ["/login"],
+});

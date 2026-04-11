@@ -3,6 +3,7 @@ import { Navigate, useLocation, useParams } from "react-router-dom";
 
 import { decryptSegment } from "@/utils/routeCrypto";
 
+
 // Import your actual page components
 import ContinentList from "@/pages/admin/modules/masters/continent/ContinentListPage";
 import ContinentForm from "@/pages/admin/modules/masters/continent/ContinentForm";
@@ -18,6 +19,20 @@ import ZoneList from "@/pages/admin/modules/masters/zone/ZoneListPage";
 import ZoneForm from "@/pages/admin/modules/masters/zone/ZoneForm";
 import WardList from "@/pages/admin/modules/masters/ward/WardListPage";
 import WardForm from "@/pages/admin/modules/masters/ward/WardForm";
+import CollectionPointListPage from "@/pages/admin/modules/masters/collectionPoint/CollectionPointListPage";
+import CollectionPointForm from "@/pages/admin/modules/masters/collectionPoint/CollectionPointForm";
+import WasteTypeListPage from "@/pages/admin/modules/masters/wasteType/WasteTypeListPage";
+import WasteTypeForm from "@/pages/admin/modules/masters/wasteType/WasteTypeForm";
+
+
+import PanchayatListPage from "@/pages/admin/modules/masters/panchayat/PanchayatListPage";
+import PanchayatForm from "@/pages/admin/modules/masters/panchayat/PanchaytForm";
+import AreaTypeListPage from "@/pages/admin/modules/masters/areaType/AreaTypeListPage";
+import AreaTypeForm from "@/pages/admin/modules/masters/areaType/AreaTypeForm";
+import HierarchyListPage from "@/pages/admin/modules/masters/hierarchy/HierarchyListPage";
+import HierarchyForm from "@/pages/admin/modules/masters/hierarchy/HierarchyForm";
+
+
 import PropertyList from "@/pages/admin/modules/masters/property/PropertyListPage";
 import PropertyForm from "@/pages/admin/modules/masters/property/PropertyForm";
 import SubPropertyList from "@/pages/admin/modules/masters/subproperty/SubPropertyListPage";
@@ -29,13 +44,10 @@ import StaffCreationForm from "@/pages/admin/modules/staffMasters/staffCreation/
 // Admin
 import UserTypeList from "@/pages/admin/modules/admin/userType/user-typeList";
 import UserTypeForm from "@/pages/admin/modules/admin/userType/user-typeForm";
-import UserCreationList from "@/pages/admin/modules/admin/userCreation/user-creationList";
-import UserCreationForm from "@/pages/admin/modules/admin/userCreation/user-creationForm";
 // Customer Master
 import CustomerCreationList from "@/pages/admin/modules/customerMasters/customerCreations/customerCreationListPage";
 import CustomerCreationForm from "@/pages/admin/modules/customerMasters/customerCreations/customerCreationForm";
-import CustomerTagList from "@/pages/admin/modules/customerMasters/customerTag/customerTagList";
-import CustomerTagForm from "@/pages/admin/modules/customerMasters/customerTag/customerTagForm";
+import ApartmentListPage from "@/pages/admin/modules/customerMasters/customerCreations/apartmentListpage";
 import HouseholdPickupEventList from "@/pages/admin/modules/customerMasters/householdPickupEvent/householdPickupEventList";
 import HouseholdPickupEventForm from "@/pages/admin/modules/customerMasters/householdPickupEvent/householdPickupEventForm";
 
@@ -76,7 +88,10 @@ import WorkforceManagement from "@/pages/admin/modules/workforcemanagement/workf
 import DateReport from "@/pages/admin/modules/workforcemanagement/datereport";
 import DayReport from "@/pages/admin/modules/workforcemanagement/dayreport";
 
-import WasteCollectionMonitor from "@/pages/admin/modules/wasteManagementMasters/collectionMonitoring/collectionMonitoring";
+import CollectionMonitoringListPage from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringListPage";
+import CollectionMonitoringForm from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringForm";
+import PanchayatBaseCollectionListPage from "@/pages/admin/modules/wasteManagementMasters/panchayatbasecollection/PanchayatBaseCollectionListPage";
+import WardBaseCollectionListPage from "@/pages/admin/modules/wasteManagementMasters/wardbasecollection/WardBaseCollectionListPage";
 import WasteCollectedDataList from "@/pages/admin/modules/wasteManagementMasters/wasteCollectedData/wasteCollectedDataListPage";
 import WasteCollectedForm from "@/pages/admin/modules/wasteManagementMasters/wasteCollectedData/wasteCollectedDataForm";
 import StaffUserTypeForm from "@/pages/admin/modules/admin/staffUserType/staffUserTypeForm";
@@ -108,6 +123,10 @@ import SupervisorZoneAccessAuditList from "@/pages/admin/modules/staffMasters/su
 import SupervisorZoneAccessAuditForm from "@/pages/admin/modules/staffMasters/supervisorZoneAccessAudit/supervisorZoneAccessAuditForm";
 import UnassignedStaffPoolList from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolList";
 import UnassignedStaffPoolForm from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolForm";
+import CompanyList from "@/pages/admin/modules/superadminMasters/company/companyListPage";
+import CompanyListForm from "@/pages/admin/modules/superadminMasters/company/companyForm";
+import ProjectList from "@/pages/admin/modules/superadminMasters/project/projectListPage";
+import ProjectForm from "@/pages/admin/modules/superadminMasters/project/projectForm";
 
 
 type ModuleComponent = ComponentType | undefined;
@@ -124,13 +143,16 @@ type RouteMap = Record<string, Record<string, RouteConfig>>;
 const ROUTES: RouteMap = {
   admins: {
     "user-type": { list: UserTypeList, form: UserTypeForm },
-    "user-creation": { list: UserCreationList, form: UserCreationForm },
     "staff-user-type": { list: StaffUserTypeList, form: StaffUserTypeForm },
     "mainscreen-type": {list: MainScreenTypeList, form: MainScreenTypeForm},
     "userscreen-action": {list:UserScreenActionList, form: UserScreenActionForm },
     "mainscreens": {list: MainScreenList, form: MainScreenForm},
     "userscreens": {list: UserScreenList, form: UserScreenForm},
     "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm}
+  },
+  "superadmin-masters": {
+    "company-creation": { list: CompanyList, form: CompanyListForm },
+    "project-creation": { list: ProjectList, form: ProjectForm },
   },
   masters: {
     continents: { list: ContinentList, form: ContinentForm },
@@ -141,6 +163,15 @@ const ROUTES: RouteMap = {
     cities: { list: CityList, form: CityForm },
     zones: { list: ZoneList, form: ZoneForm },
     wards: { list: WardList, form: WardForm },
+    "collection-points": { list: CollectionPointListPage, form: CollectionPointForm },
+    "waste-types": { list: WasteTypeListPage, form: WasteTypeForm },
+
+
+    panchayats: { list: PanchayatListPage, form: PanchayatForm },
+    "area-types": { list: AreaTypeListPage, form: AreaTypeForm },
+    hierarchies: { list: HierarchyListPage, form: HierarchyForm },
+
+    
     properties: { list: PropertyList, form: PropertyForm },
     "sub-properties": { list: SubPropertyList, form: SubPropertyForm },
   },
@@ -168,7 +199,7 @@ const ROUTES: RouteMap = {
   },
   "customer-master": {
     "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },
-    "customer-tag": { list: CustomerTagList, form: CustomerTagForm },
+    "apartment-list": { list: ApartmentListPage },
     "household-pickup-event": { list: HouseholdPickupEventList, form: HouseholdPickupEventForm },
   },
   "vehicle-tracking": {
@@ -177,7 +208,9 @@ const ROUTES: RouteMap = {
   },
   "waste-management": {
     "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
-    "collection-monitoring": { component: WasteCollectionMonitor },
+    "collection-monitoring": { list: CollectionMonitoringListPage, form: CollectionMonitoringForm },
+    "panchayat-base-collection": { list: PanchayatBaseCollectionListPage },
+    "ward-base-collection": { list: WardBaseCollectionListPage },
   },
   "workforce-management": {
     "workforce-management": { component: WorkforceManagement },
@@ -227,7 +260,7 @@ export default function AdminEncryptedRouter() {
   }
 
   const mode: "view" | "new" | "edit" = id ? "edit" : location.pathname.endsWith("/new") ? "new" : "view";
-  const Component = resolveComponent(moduleRoutes, mode);
+    const Component = resolveComponent(moduleRoutes, mode);
 
   if (!Component) {
     return <Navigate to="/" replace />;

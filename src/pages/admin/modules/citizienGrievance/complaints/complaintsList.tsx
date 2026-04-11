@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
-import { desktopApi } from "@/api";
+import { api } from "@/api";
 import { PencilIcon } from "@/icons";
 import { FilterMatchMode } from "primereact/api";
 import { Column } from "primereact/column";
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { InputText } from "primereact/inputtext";
 
 const pdfImg = "/images/pdfimage/download.png";
@@ -27,8 +28,10 @@ type Complaint = {
   category?: string;
   details: string;
   priority?: string | null;
-  zone_name: string;
-  ward_name: string;
+  zone_id?: string;
+  zone_name?: string;
+  ward_id?: string;
+  ward_name?: string;
   address: string;
   image_url?: string;
   close_image_url?: string;
@@ -37,6 +40,13 @@ type Complaint = {
   created: string;
   complaint_closed_at?: string | null;
 };
+
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  customer_name?: { value: string | null; matchMode: FilterMatchMode };
+  contact_no?: { value: string | null; matchMode: FilterMatchMode };
+};
+
 
 export default function ComplaintsList() {
   const { t } = useTranslation();
@@ -66,6 +76,7 @@ export default function ComplaintsList() {
     try {
       const res = await complaintApi.list();
       setComplaints(res);
+      console.log("Fetched complaints:", res);
     } catch {
       Swal.fire(
         t("common.error"),
@@ -307,7 +318,7 @@ export default function ComplaintsList() {
           />
           <Column
             header={t("admin.citizen_grievance.complaints.columns.zone_ward")}
-            body={(row: Complaint) => `${row.zone_name}/${row.ward_name}`}
+            body={(row: Complaint) => `${row.zone_name || (row.zone_id ? row.zone_id.split('-').pop() : '-')}/${row.ward_name || (row.ward_id ? row.ward_id.split('-').pop() : '-')}`}
             style={{ minWidth: "140px" }}
           />
           <Column

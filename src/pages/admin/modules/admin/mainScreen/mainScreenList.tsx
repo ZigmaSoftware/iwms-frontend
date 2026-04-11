@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -98,6 +98,8 @@ export default function MainScreenList() {
       await mainScreenApi.update(row.unique_id, {
         mainscreen_name: row.mainscreen_name,
         mainscreentype_id: row.mainscreentype_id,
+        company_id: row.company_id,
+        project_id: row.project_id,
         icon_name: row.icon_name,
         order_no: row.order_no,
         description: row.description,

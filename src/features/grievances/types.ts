@@ -14,7 +14,9 @@ export interface Grievance {
   unique_id: string;
   title?: string;
   category?: string;
+  zone_id?: string;
   zone_name?: string;
+  ward_id?: string;
   ward_name?: string;
   description?: string;
   details?: string;

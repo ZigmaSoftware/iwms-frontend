@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -33,6 +33,32 @@ import {
   mainScreenApi
 } from "@/helpers/admin";
 
+type MainScreenOption = {
+    value: string;
+    label: string;
+    companyId: string;
+    projectId: string;
+    companyName: string;
+    projectName: string;
+};
+
+const toText = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    return String(value).trim();
+};
+
+const firstErrorMessage = (value: unknown): string | undefined => {
+    if (Array.isArray(value) && typeof value[0] === "string") {
+        return value[0];
+    }
+
+    if (typeof value === "string") {
+        return value;
+    }
+
+    return undefined;
+};
+
 
 /* =========================================
     FORM COMPONENT
@@ -46,11 +72,15 @@ export default function UserScreenForm() {
     const [iconName, setIconName] = useState("");
     const [orderNo, setOrderNo] = useState("");
     const [description, setDescription] = useState("");
+    const [fallbackCompanyId, setFallbackCompanyId] = useState("");
+    const [fallbackProjectId, setFallbackProjectId] = useState("");
+    const [fallbackCompanyName, setFallbackCompanyName] = useState("");
+    const [fallbackProjectName, setFallbackProjectName] = useState("");
     const [isActive, setIsActive] = useState(true);
 
     /* MASTER DROPDOWN */
     const [mainScreens, setMainScreens] = useState<
-        { value: string; label: string }[]
+        MainScreenOption[]
     >([]);
 
     /* STATE */
@@ -59,6 +89,22 @@ export default function UserScreenForm() {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
     const isEdit = Boolean(id);
+    const selectedMainScreen = useMemo(
+        () => mainScreens.find((x) => x.value === mainscreenId),
+        [mainScreens, mainscreenId]
+    );
+    const resolvedCompanyId = selectedMainScreen
+        ? selectedMainScreen.companyId
+        : fallbackCompanyId;
+    const resolvedProjectId = selectedMainScreen
+        ? selectedMainScreen.projectId
+        : fallbackProjectId;
+    const resolvedCompanyName = selectedMainScreen
+        ? selectedMainScreen.companyName
+        : fallbackCompanyName;
+    const resolvedProjectName = selectedMainScreen
+        ? selectedMainScreen.projectName
+        : fallbackProjectName;
 
     /* =========================================
         LOAD MAINSCREENS FOR DROPDOWN
@@ -68,14 +114,18 @@ export default function UserScreenForm() {
             try {
                 const res = await mainScreenApi.list();
                 const mapped = res
-                    .filter((x: any) => x.is_active)
-                    .map((x: any) => ({
-                        value: x.unique_id,
-                        label: x.mainscreen_name,
+                    .filter((x: Record<string, unknown>) => Boolean(x.is_active))
+                    .map((x: Record<string, unknown>) => ({
+                        value: toText(x.unique_id),
+                        label: toText(x.mainscreen_name),
+                        companyId: toText(x.company_id),
+                        projectId: toText(x.project_id),
+                        companyName: toText(x.company_name),
+                        projectName: toText(x.project_name),
                     }));
 
                 setMainScreens(mapped);
-            } catch (err) {
+            } catch {
                 Swal.fire(
                     t("common.error"),
                     t("common.load_failed"),
@@ -83,7 +133,7 @@ export default function UserScreenForm() {
                 );
             }
         })();
-    }, []);
+    }, [t]);
 
     /* =========================================
         EDIT MODE — LOAD EXISTING RECORD
@@ -101,8 +151,12 @@ export default function UserScreenForm() {
                 setIconName(data.icon_name ?? "");
                 setOrderNo(String(data.order_no ?? ""));
                 setDescription(data.description ?? "");
+                setFallbackCompanyId(toText(data.company_id));
+                setFallbackProjectId(toText(data.project_id));
+                setFallbackCompanyName(toText(data.company_name));
+                setFallbackProjectName(toText(data.project_name));
                 setIsActive(Boolean(data.is_active));
-            } catch (err) {
+            } catch {
                 Swal.fire(
                     t("common.error"),
                     t("common.load_failed"),
@@ -110,7 +164,7 @@ export default function UserScreenForm() {
                 );
             }
         })();
-    }, [id, isEdit]);
+    }, [id, isEdit, t]);
 
     /* =========================================
         SUBMIT HANDLER
@@ -132,6 +186,8 @@ export default function UserScreenForm() {
         try {
             const payload = {
                 mainscreen_id: mainscreenId,
+                company_id: resolvedCompanyId || null,
+                project_id: resolvedProjectId || null,
                 userscreen_name: userScreenName.trim(),
                 folder_name: folderName.trim(),
                 icon_name: iconName.trim(),
@@ -149,10 +205,17 @@ export default function UserScreenForm() {
             }
 
             navigate(ENC_LIST_PATH);
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const errorData =
+                (err as { response?: { data?: Record<string, unknown> } })?.response
+                    ?.data ?? {};
+
             Swal.fire(
                 t("common.save_failed"),
-                t("common.save_failed_desc"),
+                firstErrorMessage(errorData.detail) ||
+                    firstErrorMessage(errorData.company_id) ||
+                    firstErrorMessage(errorData.project_id) ||
+                    t("common.save_failed_desc"),
                 "error"
             );
         } finally {
@@ -173,6 +236,33 @@ export default function UserScreenForm() {
         >
             <form onSubmit={handleSubmit} noValidate>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Company (from MainScreen) */}
+                    <div>
+                        <Label>{t("admin.nav.company")}</Label>
+                        <Input
+                            value={resolvedCompanyName}
+                            placeholder={t("common.select_item_placeholder", {
+                                item: t("admin.nav.main_screen"),
+                            })}
+                            className="input-validate w-full"
+                            readOnly
+                            disabled
+                        />
+                    </div>
+
+                    {/* Project (from MainScreen) */}
+                    <div>
+                        <Label>{t("admin.nav.project")}</Label>
+                        <Input
+                            value={resolvedProjectName}
+                            placeholder={t("common.select_item_placeholder", {
+                                item: t("admin.nav.main_screen"),
+                            })}
+                            className="input-validate w-full"
+                            readOnly
+                            disabled
+                        />
+                    </div>
 
                     {/* Mainscreen */}
                     <div>

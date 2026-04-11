@@ -5,11 +5,14 @@ export type EncryptedRoutes = {
   encCities: string;
   encCitizenGrivence: string;
   encCollectionMonitoring: string;
+  encPanchayatBaseCollection: string;
+  encWardBaseCollection: string;
   encComplaint: string;
   encContinents: string;
   encCountries: string;
   encBins: string;
   encCustomerCreation: string;
+  encApartmentList: string;
   encCustomerMaster: string;
   encDistricts: string;
   encFeedback: string;
@@ -42,6 +45,8 @@ export type EncryptedRoutes = {
   encWasteCollectedSummary: string;
   encWasteManagementMaster: string;
   encWards: string;
+  encCollectionPoints: string;
+  encWasteTypes: string;
   encDateReport: string;
   encDayReport: string;
   encWorkforceManagement: string;
@@ -75,6 +80,15 @@ export type EncryptedRoutes = {
   encDashboardReports: string;
   encDashboardWeighBridge: string;
   encDashboardBins: string;
+
+  encCompanyCreation: string;
+  encProjectCreation: string;
+  encSuperAdminMaster: string;
+
+
+  encPanchayats: string;
+  encAreaTypes: string;
+  encHierarchies: string;
 };
 
 const plainRoutes: EncryptedRoutes = {
@@ -82,12 +96,18 @@ const plainRoutes: EncryptedRoutes = {
   encCities: "cities",
   encCitizenGrivence: "citizen-grievance",
   encCollectionMonitoring: "collection-monitoring",
+  encPanchayatBaseCollection: "panchayat-base-collection",
+  encWardBaseCollection: "ward-base-collection",
   encComplaint: "complaint",
   encContinents: "continents",
   encCountries: "countries",
   encBins: "bins",
   encCustomerCreation: "customer-creation",
+  encApartmentList: "apartment-list",
   encCustomerMaster: "customer-master",
+  encSuperAdminMaster: "superadmin-masters",
+  encCompanyCreation: "company-creation",
+  encProjectCreation: "project-creation",
   encDistricts: "districts",
   encFeedback: "feedback",
   encFuel: "fuel",
@@ -118,6 +138,8 @@ const plainRoutes: EncryptedRoutes = {
   encWasteCollectedSummary: "waste-collected-summary",
   encWasteManagementMaster: "waste-management",
   encWards: "wards",
+  encCollectionPoints: "collection-points",
+  encWasteTypes: "waste-types",
   encDateReport: "date-report",
   encDayReport: "day-report",
   encWorkforceManagement: "workforce-management",
@@ -142,6 +164,12 @@ const plainRoutes: EncryptedRoutes = {
   encVehicleTripAudit: "vehicle-trip-audit",
   encTripExceptionLog: "trip-exception-log",
 
+  // palakkad
+
+  encPanchayats: "panchayats",
+  encAreaTypes: "area-types",
+  encHierarchies: "hierarchies",
+
   //dashboard
 
   encDashboardLiveMap: "dashboard-map",
@@ -153,6 +181,8 @@ const plainRoutes: EncryptedRoutes = {
   encDashboardReports: "dashboard-reports",
   encDashboardWeighBridge: "dashboard-weighbridge",
   encDashboardBins: "dashboard-bins"
+
+  
 };
 
 const encryptRoutes = (routes: EncryptedRoutes): EncryptedRoutes => {

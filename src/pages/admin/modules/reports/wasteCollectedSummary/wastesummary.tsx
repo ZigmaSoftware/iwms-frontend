@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./wastesummary.css";
-import { desktopApi } from "@/api";
+import { api } from "@/api";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import { customerCreationApi, wasteCollectionApi } from "@/helpers/admin";
@@ -10,7 +10,7 @@ import {
   normalizeCustomerArray,
 } from "@/utils/customerUtils";
 
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";

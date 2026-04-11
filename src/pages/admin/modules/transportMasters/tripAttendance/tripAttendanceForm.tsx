@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { desktopApi } from "@/api";
+import { api } from "@/api";
 
 type SelectOption = { value: string; label: string };
 
@@ -80,8 +80,8 @@ export default function TripAttendanceForm() {
 
   const tripAttendanceApi = adminApi.tripAttendances;
   const tripInstanceApi = adminApi.tripInstances;
-  const staffTemplateApi = adminApi.staffTemplate;
-  const userApi = adminApi.usercreations;
+  const staffTemplateApi = adminApi.staffTemplateCreation;
+  const userApi = adminApi.usersCreation;
   const vehicleApi = adminApi.vehicleCreations;
 
   const [loading, setLoading] = useState(false);
@@ -115,7 +115,7 @@ export default function TripAttendanceForm() {
     ?.record;
 
   const backendOrigin = useMemo(
-    () => desktopApi.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "",
+    () => api.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "",
     []
   );
 

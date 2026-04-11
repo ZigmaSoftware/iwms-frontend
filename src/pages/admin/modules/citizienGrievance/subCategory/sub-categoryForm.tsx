@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
-import { mobileApi } from "@/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,8 @@ import ComponentCard from "@/components/common/ComponentCard";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
+import { subCategoryApi, mainCategoryApi } from "@/helpers/admin";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 const { encCitizenGrivence, encSubComplaintCategory } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encCitizenGrivence}/${encSubComplaintCategory}`;
 
@@ -32,33 +33,56 @@ export default function SubComplaintCategoryForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
 
-  // Load dropdown
+  const {
+    companyUniqueId,
+    loggedInCompanyUniqueId,
+    isSuperAdmin,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({ isEdit });
+
+  // Load dropdown - only show active main categories
   useEffect(() => {
-    mobileApi.get("main-category/").then((res) => {
-      const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
-      setMainList(list);
+    mainCategoryApi.list({ params: { company_id: companyUniqueId } }).then((res) => {
+      const list = Array.isArray(res) ? res : [];
+      // Filter to only show active main categories
+      const activeList = list.filter((item: any) => item.is_active === true);
+      setMainList(activeList);
     });
-  }, []);
+  }, [companyUniqueId]);
 
   // Load edit data
   useEffect(() => {
     if (isEdit) {
-      mobileApi.get(`sub-category/${id}/`).then(res => {
-        const d = res.data.data || res.data;
+      subCategoryApi.get(id as string).then(res => {
+        const d = res?.data || res;
         setName(d.name);
         setMainCategory(String(d.mainCategory));
         setIsActive(d.is_active);
+        applyCompanyProjectFromRecord(d as unknown as Record<string, unknown>);
       });
     }
-  }, [id, isEdit]);
+  }, [id, isEdit, applyCompanyProjectFromRecord]);
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
+
+    if (!companyUniqueId) {
+      Swal.fire(
+        "Error",
+        !loggedInCompanyUniqueId && !isSuperAdmin
+          ? "Company is not mapped to this login. Only super admin can choose a company."
+          : "Company is required",
+        "error"
+      );
+      return;
+    }
+
     setLoading(true);
 
     const payload: Record<string, any> = {
       name,
       is_active: isActive,
+      company_id: companyUniqueId,
     };
 
     if (mainCategory) {
@@ -68,7 +92,7 @@ export default function SubComplaintCategoryForm() {
 
     try {
       if (isEdit) {
-        await mobileApi.patch(`sub-category/${id}/`, payload);
+        await subCategoryApi.update(id as string, payload);
         Swal.fire({
           icon: "success",
           title: t("admin.citizen_grievance.sub_category_form.updated"),
@@ -76,7 +100,7 @@ export default function SubComplaintCategoryForm() {
           showConfirmButton: false,
         });
       } else {
-        await mobileApi.post("sub-category/", payload);
+        await subCategoryApi.create(payload);
         Swal.fire({
           icon: "success",
           title: t("admin.citizen_grievance.sub_category_form.added"),

@@ -7,6 +7,7 @@ export interface BaseEntity {
   is_deleted?: boolean;
   created_at?: string;
   updated_at?: string;
+  [key: string]: unknown;
 }
 
 /* ===========================================================
@@ -14,11 +15,19 @@ export interface BaseEntity {
 =========================================================== */
 export interface MainScreenType extends BaseEntity {
   type_name: string;
+  company_id?: string;
+  project_id?: string;
+  company_name?: string;
+  project_name?: string;
 }
 
 export interface MainScreen extends BaseEntity {
   mainscreentype_id: string;
   mainscreentype_name?: string;
+  company_id?: string;
+  company_name?: string;
+  project_id?: string;
+  project_name?: string;
 
   mainscreen_name: string;
   icon_name: string;
@@ -31,6 +40,10 @@ export interface MainScreen extends BaseEntity {
 =========================================================== */
 export interface UserScreen extends BaseEntity {
   mainscreen_id: string;
+  company_id?: string;
+  company_name?: string;
+  project_id?: string;
+  project_name?: string;
 
   mainscreen_name?: string;
   userscreen_name: string;
@@ -43,6 +56,10 @@ export interface UserScreen extends BaseEntity {
    USER SCREEN ACTIONS (CRUD BUTTON ACCESS)
 =========================================================== */
 export interface UserScreenAction extends BaseEntity {
+  company_id?: string;
+  company_name?: string;
+  project_id?: string;
+  project_name?: string;
   action_name: string;
   variable_name: string;
 }
@@ -52,6 +69,7 @@ export interface UserScreenAction extends BaseEntity {
 =========================================================== */
 export interface UserType extends BaseEntity {
   name: string;
+  [key: string]: any;
 }
 
 /* ===========================================================
@@ -74,6 +92,8 @@ export interface StaffUserType extends BaseEntity {
   mainscreen_id?: string | null;
 
   screens?: PermissionScreen[];
+
+  [key: string]: any;
 }
 
 /* ===========================================================

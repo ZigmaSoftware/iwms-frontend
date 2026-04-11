@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import ReactDOM from "react-dom/client";
 import QRCode from "react-qr-code";
@@ -18,16 +19,27 @@ import { Switch } from "@/components/ui/switch";
 import { encryptSegment } from "@/utils/routeCrypto";
 import { binApi } from "@/helpers/admin";
 import { PencilIcon } from "@/icons";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 /* ================= TYPES ================= */
 
 type Bin = {
   unique_id: string;
   bin_name: string;
-  capacity_liters: number;
+  bin_capacity: number;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
+  panchayat_name?: string;
+  panchayat?: string;
   ward_name: string;
   ward?: string;
   bin_type?: string;
+  waste_type_name?: string;
+  wastetype_name?: string;
   waste_type?: string;
   bin_status?: string;
   latitude?: number | string;
@@ -35,9 +47,29 @@ type Bin = {
   is_active: boolean;
 };
 
+type QrPayload = {
+  id: string;
+  name: string;
+  ward: string;
+  bin_capacity: number;
+  bin_type?: string;
+  waste_type?: string;
+  bin_status?: string;
+  is_active: boolean;
+  status: "active" | "inactive";
+  latitude?: number | string;
+  longitude?: number | string;
+};
+
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
   bin_name: { value: string | null; matchMode: FilterMatchMode };
+  bin_capacity: { value: string | null; matchMode: FilterMatchMode };
+  ward_name: { value: string | null; matchMode: FilterMatchMode };
+  panchayat_name: { value: string | null; matchMode: FilterMatchMode };
+  waste_type_name: { value: string | null; matchMode: FilterMatchMode };
+  company_name?: { value: string | null; matchMode: FilterMatchMode };
+  project_name?: { value: string | null; matchMode: FilterMatchMode };
 };
 
 /* ================= ROUTES ================= */
@@ -49,40 +81,97 @@ const ENC_NEW_PATH = `/${encMasters}/${encBins}/new`;
 const ENC_EDIT_PATH = (id: string) =>
   `/${encMasters}/${encBins}/${id}/edit`;
 
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
+
 /* ================= COMPONENT ================= */
 
 export default function BinList() {
   const { t } = useTranslation();
   const [bins, setBins] = useState<Bin[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     bin_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    bin_capacity: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    waste_type_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
-  const isEdit = Boolean(id);
 
   /* ================= DATA FETCH ================= */
 
   const fetchBins = useCallback(async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setBins([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!companyUniqueId) {
+      setBins([]);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const data = await binApi.list();
-      console.log(data);
-      setBins(data);
+      setLoading(true);
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const data = await binApi.list({ params });
+      const rows = Array.isArray(data) ? (data as Bin[]) : [];
+
+      const hasContextFields = rows.some((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        return Boolean(rowCompanyId || rowProjectId);
+      });
+
+      if (!hasContextFields) {
+        setBins(rows);
+        return;
+      }
+
+      const filtered = rows.filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+        return companyMatches && projectMatches;
+      });
+
+      setBins(filtered);
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+      setBins([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
 
   useEffect(() => {
     fetchBins();
   }, [fetchBins]);
+
+  const onFilter = (e: DataTableFilterEvent) => {
+    setFilters(e.filters as TableFilters);
+  };
 
   /* ================= FILTER ================= */
 
@@ -90,10 +179,10 @@ export default function BinList() {
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const value = e.target.value;
-    setFilters({
-      ...filters,
+    setFilters((prev) => ({
+      ...prev,
       global: { value, matchMode: FilterMatchMode.CONTAINS },
-    });
+    }));
     setGlobalFilterValue(value);
   };
 
@@ -104,7 +193,7 @@ export default function BinList() {
       try {
         await binApi.update(row.unique_id, {
           bin_name: row.bin_name,
-          capacity_liters: row.capacity_liters,
+          bin_capacity: row.bin_capacity,
           is_active: checked,
         });
         fetchBins();
@@ -135,7 +224,7 @@ export default function BinList() {
     </div>
   );
 
-  const indexTemplate = (_: any, options: any) =>
+  const indexTemplate = (_: Bin, options: { rowIndex: number }) =>
     options.rowIndex + 1;
 
   /* ================= HEADER SEARCH ================= */
@@ -156,13 +245,13 @@ export default function BinList() {
     </div>
   );
 
-  const buildBinQrPayload = (bin: Bin) => ({
+  const buildBinQrPayload = (bin: Bin): QrPayload => ({
     id: bin.unique_id,
     name: bin.bin_name,
     ward: bin.ward_name || bin.ward || "",
-    capacity_liters: bin.capacity_liters,
+    bin_capacity: bin.bin_capacity,
     bin_type: bin.bin_type,
-    waste_type: bin.waste_type,
+    waste_type: bin.waste_type_name ?? bin.wastetype_name ?? bin.waste_type,
     bin_status: bin.bin_status,
     is_active: bin.is_active,
     status: bin.is_active ? "active" : "inactive",
@@ -170,7 +259,7 @@ export default function BinList() {
     longitude: bin.longitude,
   });
 
-  const openQrPopup = (payload: any) => {
+  const openQrPopup = (payload: QrPayload) => {
     Swal.fire({
       title: t("admin.bin.qr_title"),
       html: `<div id="bin-qr-holder" class="flex justify-center"></div>`,
@@ -200,6 +289,12 @@ export default function BinList() {
 
   /* ================= RENDER ================= */
 
+  const wasteTypeTemplate = (row: Bin) =>
+    row.waste_type_name ?? row.wastetype_name ?? row.waste_type ?? "-";
+
+  const cap = (str?: string) =>
+    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
+
   return (
     <div className="p-3">
       {/* Header */}
@@ -213,12 +308,47 @@ export default function BinList() {
           </p>
         </div>
 
-        <Button
-          label={t("common.add_item", { item: t("admin.nav.bin_creation") })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.bin_creation") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       {/* Table */}
@@ -229,7 +359,18 @@ export default function BinList() {
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
         filters={filters}
-        globalFilterFields={["bin_name"]}
+        onFilter={onFilter}
+        globalFilterFields={[
+          "bin_name",
+          "panchayat_name",
+          "panchayat",
+          "ward_name",
+          "waste_type_name",
+          "wastetype_name",
+          "waste_type",
+          "company_name",
+          "project_name",
+        ]}
         header={header}
         stripedRows
         showGridlines
@@ -246,34 +387,66 @@ export default function BinList() {
           field="bin_name"
           header={t("common.item_name", { item: t("admin.nav.bin_master") })}
           sortable
+          filter
+          showFilterMatchModes={false}
+          body={(row: Bin) => cap(row.bin_name)}
           style={{ minWidth: "200px" }}
         />
 
         <Column
-          field="capacity_liters"
-          header={t("common.capacity_liters")}
+          field="bin_capacity"
+          header={t("common.bin_capacity")}
           sortable
+          filter
+          showFilterMatchModes={false}
           style={{ minWidth: "150px" }}
         />
         <Column
           field="ward_name"
           header={t("admin.nav.ward")}
-          body={(row: Bin) => row.ward_name || row.ward || "-"}
+          body={(row: Bin) => cap(row.ward_name || row.ward || "-")}
           sortable
+          filter
+          showFilterMatchModes={false}
           style={{ minWidth: "120px" }}
         />
-
-        <Column header={t("admin.bin.qr_label")} body={qrTemplate} style={{ width: "100px" }} />
+        <Column
+          field="panchayat_name"
+          header={t("admin.nav.panchayat")}
+          body={(row: Bin) => cap(row.panchayat_name || row.panchayat || "-")}
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: "140px" }}
+        />
+        <Column
+          field="waste_type_name"
+          header={t("common.waste_type")}
+          body= {(row: Bin) => cap(wasteTypeTemplate(row))}
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: "160px" }}
+        />
 
         <Column
+          field="qr_code"
+          header={t("admin.bin.qr_label")}
+          body={(row: Bin) => qrTemplate(row)}
+          style={{ width: "100px", textAlign: "center" }}
+        />
+
+        <Column
+          field="is_active"
           header={t("common.status")}
-          body={statusBodyTemplate}
+          body={(row: Bin) => statusBodyTemplate(row)}
           style={{ width: "150px", textAlign: "center" }}
         />
 
         <Column
+          field="actions"
           header={t("common.actions")}
-          body={actionBodyTemplate}
+          body={(row: Bin) => actionBodyTemplate(row)}
           style={{ width: "150px", textAlign: "center" }}
         />
       </DataTable>
