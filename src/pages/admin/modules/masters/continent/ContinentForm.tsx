@@ -14,102 +14,190 @@ import {
 } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
 
-import { continentApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-
+import {
+  type ContinentPayload,
+  useContinentQuery,
+  useCreateContinentMutation,
+  useUpdateContinentMutation,
+} from "@/tanstack/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
-
 
 const { encMasters, encContinents } = getEncryptedRoute();
 
 const ENC_LIST_PATH = `/${encMasters}/${encContinents}`;
 
-function ContinentForm() {
+type ContinentEditorProps = {
+  initialPayload: ContinentPayload;
+  isEdit: boolean;
+  isSubmitting: boolean;
+  onCancel: () => void;
+  onSubmit: (payload: ContinentPayload) => Promise<void>;
+};
+
+const extractErrorMessage = (error: unknown, fallback: string) => {
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+
+  if (typeof data === "string") {
+    return data;
+  }
+
+  if (Array.isArray(data)) {
+    return data.join(", ");
+  }
+
+  if (data && typeof data === "object") {
+    return Object.entries(data as Record<string, unknown>)
+      .map(([key, value]) =>
+        `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
+      )
+      .join("\n");
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+};
+
+function ContinentEditor({
+  initialPayload,
+  isEdit,
+  isSubmitting,
+  onCancel,
+  onSubmit,
+}: ContinentEditorProps) {
   const { t } = useTranslation();
-  const [name, setName] = useState("");
-  const [isActive, setIsActive] = useState(true); // default active on create
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
-  const { id } = useParams();
-  const isEdit = Boolean(id);
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  const [name, setName] = useState(initialPayload.name);
+  const [isActive, setIsActive] = useState(initialPayload.is_active);
 
-  // Fetch existing data if editing
-  useEffect(() => {
-    if (isEdit) {
-      continentApi
-        .get(id as string)
-        .then((record) => {
-          setName(String(record.name ?? ""));
-          setIsActive(Boolean(record.is_active));
-          applyCompanyProjectFromRecord(
-            record as unknown as Record<string, unknown>
-          );
-        })
-        .catch((err) => {
-          console.error("Error fetching continent:", err);
-          Swal.fire({
-            icon: "error",
-            title: t("common.error"),
-            text: err.response?.data?.detail || t("common.load_failed"),
-          });
-        });
-    }
-  }, [applyCompanyProjectFromRecord, id, isEdit, t]);
-
-  // Handle save
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedName = name.trim();
 
-    // 🔹 Basic validation BEFORE enabling loading or API call
-    if (!name) {
+    if (!trimmedName) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
         text: t("common.missing_fields"),
         confirmButtonColor: "#3085d6",
       });
-      return; // Stop here if validation fails
+      return;
     }
 
-    // if (!companyUniqueId) {
-    //   Swal.fire(
-    //     "Error",
-    //     !loggedInCompanyUniqueId && !isSuperAdmin
-    //       ? "Company is not mapped to this login. Only super admin can choose a company."
-    //       : "Company is required",
-    //     "error"
-    //   );
-    //   return;
-    // }
+    await onSubmit({
+      name: trimmedName,
+      is_active: isActive,
+    });
+  };
 
-    // if (!projectId) {
-    //   Swal.fire("Error", "Project is required", "error");
-    //   return;
-    // }
+  return (
+    <form onSubmit={handleSubmit} noValidate>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div>
+          <Label htmlFor="continentName">
+            {t("common.item_name", { item: t("admin.nav.continent") })}{" "}
+            <span className="text-red-500">*</span>
+          </Label>
+          <Input
+            id="continentName"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t("common.enter_item_name", {
+              item: t("admin.nav.continent"),
+            })}
+            className="input-validate w-full"
+            disabled={isSubmitting}
+            required
+          />
+        </div>
 
-    setLoading(true);
+        <div>
+          <Label htmlFor="isActive">
+            {t("common.status")} <span className="text-red-500">*</span>
+          </Label>
+          <Select
+            value={isActive ? "true" : "false"}
+            onValueChange={(value) => setIsActive(value === "true")}
+            disabled={isSubmitting}
+          >
+            <SelectTrigger className="input-validate w-full" id="isActive">
+              <SelectValue placeholder={t("common.select_status")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="true">{t("common.active")}</SelectItem>
+              <SelectItem value="false">{t("common.inactive")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
+      <div className="mt-6 flex justify-end gap-3">
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting
+            ? isEdit
+              ? t("common.updating")
+              : t("common.saving")
+            : isEdit
+              ? t("common.update")
+              : t("common.save")}
+        </Button>
+        <Button type="button" variant="destructive" onClick={onCancel}>
+          {t("common.cancel")}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function ContinentForm() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { id } = useParams();
+  const isEdit = Boolean(id);
+  const { applyCompanyProjectFromRecord } = useCompanyProjectSelection({
+    isEdit,
+  });
+  const continentQuery = useContinentQuery(id);
+  const createContinentMutation = useCreateContinentMutation();
+  const updateContinentMutation = useUpdateContinentMutation();
+  const isSubmitting =
+    createContinentMutation.isPending || updateContinentMutation.isPending;
+  const title = isEdit
+    ? t("common.edit_item", { item: t("admin.nav.continent") })
+    : t("common.add_item", { item: t("admin.nav.continent") });
+
+  useEffect(() => {
+    if (!continentQuery.data) {
+      return;
+    }
+
+    applyCompanyProjectFromRecord(
+      continentQuery.data as unknown as Record<string, unknown>
+    );
+  }, [applyCompanyProjectFromRecord, continentQuery.data]);
+
+  useEffect(() => {
+    if (!continentQuery.isError) {
+      return;
+    }
+
+    Swal.fire({
+      icon: "error",
+      title: t("common.error"),
+      text: extractErrorMessage(continentQuery.error, t("common.load_failed")),
+    });
+  }, [continentQuery.error, continentQuery.isError, t]);
+
+  const submitContinent = async (payload: ContinentPayload) => {
     try {
-      const payload = {
-        name,
-        is_active: isActive,
-        // company_unique_id: companyUniqueId,
-        // project_id: projectId,
-      };
-
       if (isEdit) {
-        await continentApi.update(id as string, payload);
+        await updateContinentMutation.mutateAsync({
+          id: id as string,
+          payload,
+        });
         Swal.fire({
           icon: "success",
           title: t("common.updated_success"),
@@ -117,7 +205,7 @@ function ContinentForm() {
           showConfirmButton: false,
         });
       } else {
-        await continentApi.create(payload);
+        await createContinentMutation.mutateAsync(payload);
         Swal.fire({
           icon: "success",
           title: t("common.added_success"),
@@ -127,161 +215,47 @@ function ContinentForm() {
       }
 
       navigate(ENC_LIST_PATH);
-    } catch (error: unknown) {
-      console.error("Failed to save:", error);
-
-      const data = (error as { response?: { data?: unknown } }).response?.data;
-      let message = t("common.save_failed_desc");
-
-      if (typeof data === "object" && data !== null) {
-        message = Object.entries(data)
-          .map(([key, val]) => `${key}: ${(val as string[]).join(", ")}`)
-          .join("\n");
-      } else if (typeof data === "string") {
-        message = data;
-      }
-
+    } catch (error) {
       Swal.fire({
         icon: "error",
         title: t("common.save_failed"),
-        text: message,
+        text: extractErrorMessage(error, t("common.save_failed_desc")),
       });
-    } finally {
-      setLoading(false);
     }
   };
 
-  return (
-    <ComponentCard
-      title={
-        isEdit
-          ? t("common.edit_item", { item: t("admin.nav.continent") })
-          : t("common.add_item", { item: t("admin.nav.continent") })
+  if (isEdit && continentQuery.isPending && !continentQuery.data) {
+    return (
+      <ComponentCard title={title}>
+        <div className="p-6 text-sm text-gray-500">{t("common.loading")}</div>
+      </ComponentCard>
+    );
+  }
+
+  const initialPayload: ContinentPayload = continentQuery.data
+    ? {
+        name: String(continentQuery.data.name ?? ""),
+        is_active: Boolean(continentQuery.data.is_active),
       }
-    >
-      <form onSubmit={handleSubmit} noValidate>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* <div>
-            <Label>Company *</Label>
-            <Select
-              value={companyUniqueId}
-              onValueChange={onCompanyChange}
-              disabled={
-                Boolean(loggedInCompanyUniqueId) ||
-                (!isSuperAdmin && !loggedInCompanyUniqueId) ||
-                companies.length === 0
-              }
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={
-                    loggedInCompanyUniqueId
-                      ? "Company from logged-in profile"
-                      : isSuperAdmin
-                        ? "Select Company"
-                        : "Only super admin can select company"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {companies.map((company) => (
-                  <SelectItem key={company.value} value={company.value}>
-                    {company.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!loggedInCompanyUniqueId && !isSuperAdmin && (
-              <p className="mt-1 text-xs text-red-500">
-                Company is not mapped to this login. Only super admin can view
-                all companies.
-              </p>
-            )}
-            {isSuperAdmin && !loggedInCompanyUniqueId && companies.length === 0 && (
-              <p className="mt-1 text-xs text-red-500">No companies found.</p>
-            )}
-          </div>
+    : {
+        name: "",
+        is_active: true,
+      };
 
-          <div>
-            <Label>Project *</Label>
-            <Select
-              value={projectId}
-              onValueChange={setProjectId}
-              disabled={!companyUniqueId || projects.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select Project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.value} value={project.value}>
-                    {project.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {companyUniqueId && projects.length === 0 && (
-              <p className="mt-1 text-xs text-red-500">
-                No projects found for this company.
-              </p>
-            )}
-          </div> */}
+  const formKey = isEdit
+    ? String(continentQuery.data?.unique_id ?? id)
+    : "new-continent";
 
-          {/* Continent Name */}
-          <div>
-            <Label htmlFor="continentName">
-              {t("common.item_name", { item: t("admin.nav.continent") })}{" "}
-              <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="continentName"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t("common.enter_item_name", {
-                item: t("admin.nav.continent"),
-              })}
-              className="input-validate w-full"
-              required
-            />
-          </div>
-
-          {/* Active Status */}
-          <div>
-            <Label htmlFor="isActive">
-              {t("common.status")} <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={isActive ? "true" : "false"}
-              onValueChange={(val) => setIsActive(val === "true")}
-            >
-              <SelectTrigger className="input-validate w-full" id="isActive">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Buttons */}
-        <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={loading}>
-            {loading
-              ? isEdit
-                ? t("common.updating")
-                : t("common.saving")
-              : isEdit
-                ? t("common.update")
-                : t("common.save")}
-          </Button>
-          <Button type="button" variant="destructive" onClick={() => navigate(ENC_LIST_PATH)}>
-            {t("common.cancel")}
-          </Button>
-        </div>
-      </form>
+  return (
+    <ComponentCard title={title}>
+      <ContinentEditor
+        key={formKey}
+        initialPayload={initialPayload}
+        isEdit={isEdit}
+        isSubmitting={isSubmitting}
+        onCancel={() => navigate(ENC_LIST_PATH)}
+        onSubmit={submitContinent}
+      />
     </ComponentCard>
   );
 }
