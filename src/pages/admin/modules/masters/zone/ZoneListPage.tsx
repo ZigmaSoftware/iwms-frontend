@@ -18,7 +18,7 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { zoneApi } from "@/helpers/admin";
+import { useZonesQuery, useUpdateZoneMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 // ===========================
@@ -75,8 +75,10 @@ const normalizeId = (value: unknown): string =>
 // ===========================
 export default function ZoneList() {
   const { t } = useTranslation();
-  const [zones, setZones] = useState<ZoneRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const zonesQuery = useZonesQuery();
+  const updateZoneMutation = useUpdateZoneMutation();
+  const allZones = zonesQuery.data ?? [];
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -102,55 +104,26 @@ export default function ZoneList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encMasters}/${encZones}/${id}/edit`;
 
-  // ===========================
-  //   Load Data
-  // ===========================
-  const fetchZones = useCallback(async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setZones([]);
-      setLoading(false);
-      return;
-    }
-
-    if (!companyUniqueId) {
-      setZones([]);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
-
-      const data = (await zoneApi.list({ params })) as ZoneRecord[];
-      const filtered = data.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-
-        return companyMatches && projectMatches;
-      });
-
-      setZones(filtered);
-    } catch (error) {
-      Swal.fire({
-        icon: "error",
-        title: t("common.error"),
-        text: extractErrorMessage(error),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
-
   useEffect(() => {
-    fetchZones();
-  }, [fetchZones]);
+    if (!zonesQuery.isError) return;
+    Swal.fire({ icon: "error", title: t("common.error"), text: String((zonesQuery.error as any)?.response?.data ?? zonesQuery.error) });
+  }, [zonesQuery.error, zonesQuery.isError, t]);
+
+  const zones = ((): ZoneRecord[] => {
+    if (isSuperAdmin && companies.length === 0) return [];
+    if (!companyUniqueId) return [];
+
+    const rows = Array.isArray(allZones) ? (allZones as any[]) : [];
+    const filtered = rows.filter((row) => {
+      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+      const projectMatches = !projectId || rowProjectId === projectId;
+      return companyMatches && projectMatches;
+    });
+
+    return filtered as ZoneRecord[];
+  })();
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);
@@ -195,18 +168,22 @@ export default function ZoneList() {
   // ===========================
   //   Toggle Status
   // ===========================
-  const statusTemplate = (row: ZoneRecord) => {
-    const updateStatus = async (value: boolean) => {
-      try {
-        await zoneApi.update(row.unique_id, { is_active: value });
-        fetchZones();
-      } catch (error) {
-        console.error("Status update failed:", error);
-      }
-    };
+  const updateStatus = async (row: ZoneRecord, checked: boolean) => {
+    const id = String(row.unique_id);
+    setPendingStatusId(id);
 
-    return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
+    try {
+      await updateZoneMutation.mutateAsync({ id: row.unique_id, payload: { name: row.zone_name, is_active: checked } });
+    } catch (error) {
+      console.error("Status update failed:", error);
+    } finally {
+      setPendingStatusId(null);
+    }
   };
+
+  const statusTemplate = (row: ZoneRecord) => (
+    <Switch checked={row.is_active} disabled={updateZoneMutation.isPending && pendingStatusId === String(row.unique_id)} onCheckedChange={(checked) => void updateStatus(row, checked)} />
+  );
 
   // ===========================
   //   Actions
@@ -296,7 +273,7 @@ export default function ZoneList() {
           paginator
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={loading}
+          loading={zonesQuery.isPending && zones.length === 0}
           filters={filters}
           onFilter={onFilter}
           header={renderHeader()}

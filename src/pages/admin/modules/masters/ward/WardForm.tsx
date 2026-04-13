@@ -17,8 +17,18 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 
-import { continentApi, countryApi, stateApi, districtApi, cityApi, zoneApi, wardApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import {
+  useContinentsQuery,
+  useCountriesQuery,
+  useStatesQuery,
+  useDistrictsQuery,
+  useCitiesQuery,
+  useZonesQuery,
+  useWardQuery,
+  useCreateWardMutation,
+  useUpdateWardMutation,
+} from "@/tanstack/admin";
 
 
 /* ------------------------------
@@ -136,8 +146,6 @@ export default function WardForm() {
   const [allZones, setAllZones] = useState<ZoneMeta[]>([]);
   const [filteredZones, setFilteredZones] = useState<SelectOption[]>([]);
 
-  const [loading, setLoading] = useState(false);
-
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
@@ -162,103 +170,66 @@ export default function WardForm() {
   /* ==========================================================
       LOAD MASTER DATA
   ========================================================== */
-  useEffect(() => {
-    continentApi
-      .list()
-      .then((res: any) =>
-        setContinents(
-          res
-            .filter((x: any) => x.is_active)
-            .map((x: any) => ({
-              value: String(x.unique_id),
-              label: x.name,
-            }))
-        )
-      )
-      .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
-
-      console.log(continents);
-  }, []);
+  const continentsQuery = useContinentsQuery();
+  const countriesQuery = useCountriesQuery();
+  const statesQuery = useStatesQuery();
+  const districtsQuery = useDistrictsQuery();
+  const citiesQuery = useCitiesQuery();
+  const zonesQuery = useZonesQuery();
 
   useEffect(() => {
-    countryApi
-      .list()
-      .then((res: any) =>
-        setAllCountries(
-          res.map((c: any) => ({
-            id: String(c.unique_id),
-            name: c.name,
-            continentId: normalizeNullable(c.continent_id ?? c.continent),
-            isActive: Boolean(c.is_active),
-          }))
-        )
-      )
-      .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
-  }, []);
+    if (continentsQuery.isError) {
+      Swal.fire(t("common.error"), String(continentsQuery.error), "error");
+      return;
+    }
+    const res = continentsQuery.data ?? [];
+    setContinents(res.filter((x: any) => x.is_active).map((x: any) => ({ value: String(x.unique_id), label: x.name })));
+  }, [continentsQuery.data, continentsQuery.isError]);
 
   useEffect(() => {
-    stateApi
-      .list()
-      .then((res: any) =>
-        setAllStates(
-          res.map((s: any) => ({
-            id: String(s.unique_id),
-            name: s.name,
-            countryId: normalizeNullable(s.country_id ?? s.country),
-            isActive: Boolean(s.is_active),
-          }))
-        )
-      )
-      .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
-  }, []);
+    if (countriesQuery.isError) {
+      Swal.fire(t("common.error"), String(countriesQuery.error), "error");
+      return;
+    }
+    const res = countriesQuery.data ?? [];
+    setAllCountries(res.map((c: any) => ({ id: String(c.unique_id), name: c.name, continentId: normalizeNullable(c.continent_id ?? c.continent), isActive: Boolean(c.is_active) })));
+  }, [countriesQuery.data, countriesQuery.isError]);
 
   useEffect(() => {
-    districtApi
-      .list()
-      .then((res: any) =>
-        setAllDistricts(
-          res.map((d: any) => ({
-            id: String(d.unique_id),
-            name: d.name,
-            stateId: normalizeNullable(d.state_id ?? d.state),
-            isActive: Boolean(d.is_active),
-          }))
-        )
-      )
-      .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
-  }, []);
+    if (statesQuery.isError) {
+      Swal.fire(t("common.error"), String(statesQuery.error), "error");
+      return;
+    }
+    const res = statesQuery.data ?? [];
+    setAllStates(res.map((s: any) => ({ id: String(s.unique_id), name: s.name, countryId: normalizeNullable(s.country_id ?? s.country), isActive: Boolean(s.is_active) })));
+  }, [statesQuery.data, statesQuery.isError]);
 
   useEffect(() => {
-    cityApi
-      .list()
-      .then((res: any) =>
-        setAllCities(
-          res.map((c: any) => ({
-            id: String(c.unique_id),
-            name: c.name,
-            districtId: normalizeNullable(c.district_id ?? c.district),
-            isActive: Boolean(c.is_active),
-          }))
-        )
-      )
-      .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
-  }, []);
+    if (districtsQuery.isError) {
+      Swal.fire(t("common.error"), String(districtsQuery.error), "error");
+      return;
+    }
+    const res = districtsQuery.data ?? [];
+    setAllDistricts(res.map((d: any) => ({ id: String(d.unique_id), name: d.name, stateId: normalizeNullable(d.state_id ?? d.state), isActive: Boolean(d.is_active) })));
+  }, [districtsQuery.data, districtsQuery.isError]);
 
   useEffect(() => {
-    zoneApi
-      .list()
-      .then((res: any) =>
-        setAllZones(
-          res.map((z: any) => ({
-            id: String(z.unique_id),
-            name: z.zone_name,
-            cityId: normalizeNullable(z.city_id ?? z.city),
-            isActive: Boolean(z.is_active),
-          }))
-        )
-      )
-      .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
-  }, []);
+    if (citiesQuery.isError) {
+      Swal.fire(t("common.error"), String(citiesQuery.error), "error");
+      return;
+    }
+    const res = citiesQuery.data ?? [];
+    setAllCities(res.map((c: any) => ({ id: String(c.unique_id), name: c.name, districtId: normalizeNullable(c.district_id ?? c.district), isActive: Boolean(c.is_active) })));
+  }, [citiesQuery.data, citiesQuery.isError]);
+
+  useEffect(() => {
+    if (zonesQuery.isError) {
+      Swal.fire(t("common.error"), String(zonesQuery.error), "error");
+      return;
+    }
+    const res = zonesQuery.data ?? [];
+    setAllZones(res.map((z: any) => ({ id: String(z.unique_id), name: z.zone_name, cityId: normalizeNullable(z.city_id ?? z.city), isActive: Boolean(z.is_active) })));
+  }, [zonesQuery.data, zonesQuery.isError]);
 
   /* ==========================================================
         FILTER CHAINS
@@ -356,33 +327,31 @@ export default function WardForm() {
   /* ==========================================================
         EDIT MODE
   ========================================================== */
+  const wardQuery = useWardQuery(id);
+
   useEffect(() => {
-    if (!isEdit || !id) return;
+    if (!wardQuery.data) return;
+    const data = wardQuery.data;
 
-    wardApi
-      .get(id)
-      .then((data: WardRecord) => {
-        setWardName(data.name ?? "");
-        setIsActive(Boolean(data.is_active));
-        setDescription(data.description ?? "");
+    setWardName(data.name ?? "");
+    setIsActive(Boolean(data.is_active));
+    setDescription(data.description ?? "");
 
-        const cont = normalizeNullable(data.continent_id);
-        const ctr = normalizeNullable(data.country_id);
-        const ste = normalizeNullable(data.state_id);
-        const dis = normalizeNullable(data.district_id);
-        const cty = normalizeNullable(data.city_id);
-        const zne = normalizeNullable(data.zone_id);
+    const cont = normalizeNullable(data.continent_id);
+    const ctr = normalizeNullable(data.country_id);
+    const ste = normalizeNullable(data.state_id);
+    const dis = normalizeNullable(data.district_id);
+    const cty = normalizeNullable(data.city_id);
+    const zne = normalizeNullable(data.zone_id);
 
-        cont && setPendingContinent(cont);
-        ctr && setPendingCountry(ctr);
-        ste && setPendingState(ste);
-        dis && setPendingDistrict(dis);
-        cty && setPendingCity(cty);
-        zne && setPendingZone(zne);
-        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-      })
-      .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
-  }, [applyCompanyProjectFromRecord, id, isEdit]);
+    cont && setPendingContinent(cont);
+    ctr && setPendingCountry(ctr);
+    ste && setPendingState(ste);
+    dis && setPendingDistrict(dis);
+    cty && setPendingCity(cty);
+    zne && setPendingZone(zne);
+    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+  }, [wardQuery.data, applyCompanyProjectFromRecord]);
 
   /* ==========================================================
         AUTO-INFER CHAINS
@@ -453,10 +422,14 @@ export default function WardForm() {
     }
   }, [pendingZone, filteredZones]);
 
-  /* ==========================================================
-        FORM SUBMIT
-  ========================================================== */
-  const handleSubmit = async (e: FormEvent) => {
+    /* ==========================================================
+      FORM SUBMIT
+    ========================================================== */
+    const createWardMutation = useCreateWardMutation();
+    const updateWardMutation = useUpdateWardMutation();
+    const isSubmitting = createWardMutation.isPending || updateWardMutation.isPending;
+
+    const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     if (!continentId || !countryId || !stateId || !wardName.trim()) {
@@ -480,8 +453,6 @@ export default function WardForm() {
       return;
     }
 
-    setLoading(true);
-
     try {
       const payload = {
         ward_name: wardName.trim(),
@@ -498,18 +469,16 @@ export default function WardForm() {
       };
 
       if (isEdit && id) {
-        await wardApi.update(id, payload);
+        await updateWardMutation.mutateAsync({ id, payload });
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await wardApi.create(payload);
+        await createWardMutation.mutateAsync(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
       navigate(ENC_LIST_PATH);
     } catch (err) {
       Swal.fire(t("common.save_failed"), extractErr(err), "error");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -827,8 +796,8 @@ export default function WardForm() {
 
         {/* BUTTONS */}
         <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={loading}>
-            {loading
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting
               ? isEdit
                 ? t("common.updating")
                 : t("common.saving")

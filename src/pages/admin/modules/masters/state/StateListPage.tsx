@@ -273,7 +273,7 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { stateApi } from "@/helpers/admin";
+import { type StateRecord, useStatesQuery, useUpdateStateMutation } from "@/tanstack/admin";
 
 type StateRecord = {
   unique_id: string;
@@ -286,8 +286,10 @@ type StateRecord = {
 export default function StateList() {
   const { t } = useTranslation();
 
-  const [states, setStates] = useState<StateRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const statesQuery = useStatesQuery();
+  const updateStateMutation = useUpdateStateMutation();
+  const states = statesQuery.data ?? [];
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
@@ -306,20 +308,10 @@ export default function StateList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encMasters}/${encStates}/${id}/edit`;
 
-  const fetchStates = useCallback(async () => {
-    try {
-      const data = await stateApi.list();
-      setStates(data);
-    } catch {
-      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
   useEffect(() => {
-    fetchStates();
-  }, [fetchStates]);
+    if (!statesQuery.isError) return;
+    Swal.fire(t("common.error"), (statesQuery.error as any) ? String((statesQuery.error as any).response?.data ?? statesQuery.error) : t("common.fetch_failed"), "error");
+  }, [statesQuery.error, statesQuery.isError, t]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);
@@ -355,21 +347,23 @@ export default function StateList() {
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
-  const statusTemplate = (row: StateRecord) => {
-    const updateStatus = async (checked: boolean) => {
-      try {
-        await stateApi.update(row.unique_id, { is_active: checked });
-        fetchStates();
-      } catch {
-        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
-      }
-    };
+  const updateStatus = async (row: StateRecord, checked: boolean) => {
+    const stateId = String(row.unique_id);
+    setPendingStatusId(stateId);
 
+    try {
+      await updateStateMutation.mutateAsync({ id: row.unique_id, payload: { name: row.name, is_active: checked } });
+    } catch (error) {
+      Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+    } finally {
+      setPendingStatusId(null);
+    }
+  };
+
+  const statusTemplate = (row: StateRecord) => {
+    const stateId = String(row.unique_id);
     return (
-      <Switch
-        checked={row.is_active}
-        onCheckedChange={updateStatus}
-      />
+      <Switch checked={row.is_active} disabled={updateStateMutation.isPending && pendingStatusId === stateId} onCheckedChange={(checked) => void updateStatus(row, checked)} />
     );
   };
 
@@ -418,7 +412,7 @@ export default function StateList() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={loading}
+        loading={statesQuery.isPending && states.length === 0}
         filters={filters}
         onFilter={onFilter}
         header={header}
