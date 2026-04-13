@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -85,6 +85,34 @@ const formatDate = (value?: string | null) => {
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
+const VEHICLE_BULK_TEMPLATE_HEADERS = [
+  "vehicle_no",
+  "vehicle_type",
+  "fuel_type",
+  "capacity",
+  "mileage_per_liter",
+  "service_record",
+  "vehicle_insurance",
+  "insurance_expiry_date",
+  "vehicle_condition",
+  "fuel_tank_capacity",
+  "is_active",
+];
+
+const VEHICLE_BULK_EXAMPLE_ROW = [
+  "KA01AB1234",
+  "Compactor",
+  "Diesel",
+  "7500",
+  "5.4",
+  "Service at 2024-11-30",
+  "ICICI Lombard",
+  "2026-05-31",
+  "NEW",
+  "400",
+  "true",
+];
+
 export default function VehicleCreationListPage() {
   const { t } = useTranslation();
   const [vehicles, setVehicles] = useState<VehicleCreationRecord[]>([]);
@@ -123,6 +151,88 @@ export default function VehicleCreationListPage() {
     vehicle_insurance_file: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const downloadTemplateLabel = t("admin.vehicle_creation.download_template", {
+    defaultValue: "Download Template",
+  });
+
+  const uploadCsvLabel = t("admin.vehicle_creation.upload_csv", {
+    defaultValue: "Upload CSV",
+  });
+
+  const downloadVehicleTemplate = () => {
+    const csvContent = [VEHICLE_BULK_TEMPLATE_HEADERS, VEHICLE_BULK_EXAMPLE_ROW]
+      .map((row) => row.join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "vehicle_bulk_template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleVehicleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    if (companyUniqueId) {
+      formData.append("company_id_input", companyUniqueId);
+    }
+    if (projectId) {
+      formData.append("project_id_input", projectId);
+    }
+
+    try {
+      const res = await vehicleCreationApi.action("bulk-upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      const errors = Array.isArray(res.errors) ? res.errors : [];
+      const errorPreview =
+        errors.length > 0
+          ? `<hr/><div class="text-left text-xs mt-2">${errors
+              .slice(0, 3)
+              .map((entry) => {
+                const detail =
+                  typeof entry.error === "string"
+                    ? entry.error
+                    : JSON.stringify(entry.error);
+                return `Row ${entry.row}: ${detail}`;
+              })
+              .join("<br/>")}</div>`
+          : "";
+
+      Swal.fire({
+        icon: "success",
+        title: "Upload Completed",
+        html: `<b>Success:</b> ${res.success_count}<br/><b>Errors:</b> ${errors.length}${errorPreview}`,
+      });
+
+      fetchVehicles();
+    } catch (err) {
+      console.error("Vehicle bulk upload failed:", err);
+      Swal.fire("Error", "Upload failed", "error");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const openVehicleFilePicker = () => {
+    fileInputRef.current?.click();
+  };
 
   const resolveId = (row: VehicleCreationRecord) => row.unique_id;
 
@@ -312,7 +422,7 @@ export default function VehicleCreationListPage() {
   );
 
   const header = (
-    <div className="flex justify-end items-center">
+    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
         <i className="pi pi-search text-gray-500" />
         <InputText
@@ -320,6 +430,28 @@ export default function VehicleCreationListPage() {
           onChange={onGlobalFilterChange}
           placeholder={t("admin.vehicle_creation.search_placeholder")}
           className="p-inputtext-sm !border-0 !shadow-none"
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          label={downloadTemplateLabel}
+          icon="pi pi-download"
+          severity="secondary"
+          className="p-button-sm"
+          onClick={downloadVehicleTemplate}
+        />
+        <Button
+          label={uploadCsvLabel}
+          icon="pi pi-upload"
+          className="p-button-sm"
+          onClick={openVehicleFilePicker}
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv"
+          hidden
+          onChange={handleVehicleFileUpload}
         />
       </div>
     </div>
