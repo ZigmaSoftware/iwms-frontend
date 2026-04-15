@@ -7,14 +7,32 @@ import { enterpriseQuery } from "../enterpriseQuery";
 export type ZoneRecord = {
   unique_id: string | number;
   name: string;
+  zone_name?: string | null;
+  description?: string | null;
   is_active: boolean;
   city_id?: string | number;
+  district_id?: string | number | null;
+  state_id?: string | number | null;
+  country_id?: string | number | null;
+  continent_id?: string | number | null;
+  company_id?: string | number | null;
+  company_unique_id?: string | number | null;
+  project_id?: string | number | null;
+  project_unique_id?: string | number | null;
 };
 
 export type ZonePayload = {
-  name: string;
+  name?: string;
+  zone_name?: string;
+  description?: string | null;
   is_active: boolean;
   city_id?: string | number;
+  district_id?: string | number | null;
+  state_id?: string | number | null;
+  country_id?: string | number | null;
+  continent_id?: string | number | null;
+  company_id?: string | number | null;
+  project_id?: string | number | null;
 };
 
 const normalizeZoneId = (id: string | number) => String(id);

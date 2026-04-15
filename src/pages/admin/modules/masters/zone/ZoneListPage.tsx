@@ -101,7 +101,7 @@ export default function ZoneList() {
   const { encMasters, encZones } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encZones}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
+  const ENC_EDIT_PATH = (id: string | number) =>
     `/${encMasters}/${encZones}/${id}/edit`;
 
   useEffect(() => {

@@ -9,12 +9,28 @@ export type CityRecord = {
   name: string;
   is_active: boolean;
   state_id?: string | number;
+  district_id?: string | number | null;
+  state?: string | number | null;
+  district?: string | number | null;
+  country_id?: string | number | null;
+  country?: string | number | null;
+  continent_id?: string | number | null;
+  continent?: string | number | null;
+  company_id?: string | number | null;
+  company_unique_id?: string | number | null;
+  project_id?: string | number | null;
+  project_unique_id?: string | number | null;
 };
 
 export type CityPayload = {
   name: string;
   is_active: boolean;
   state_id?: string | number;
+  district_id?: string | number | null;
+  country_id?: string | number | null;
+  continent_id?: string | number | null;
+  company_id?: string | number | null;
+  project_id?: string | number | null;
 };
 
 const normalizeCityId = (id: string | number) => String(id);

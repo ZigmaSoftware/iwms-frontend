@@ -275,13 +275,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { type StateRecord, useStatesQuery, useUpdateStateMutation } from "@/tanstack/admin";
 
-type StateRecord = {
-  unique_id: string;
-  name: string;
-  country_name: string;
-  label: string;
-  is_active: boolean;
-};
 
 export default function StateList() {
   const { t } = useTranslation();
@@ -305,7 +298,7 @@ export default function StateList() {
   const { encMasters, encStates } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encStates}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
+  const ENC_EDIT_PATH = (id: string | number) =>
     `/${encMasters}/${encStates}/${id}/edit`;
 
   useEffect(() => {

@@ -5,3 +5,6 @@ export * from "./masters/district";
 export * from "./masters/city";
 export * from "./masters/zone";
 export * from "./masters/ward";
+export * from "./masters/panchayat";
+export * from "./masters/areaType";
+export * from "./masters/hierarchy";

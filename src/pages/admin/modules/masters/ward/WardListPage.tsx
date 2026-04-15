@@ -98,7 +98,7 @@ export default function WardList() {
   const { encMasters, encWards } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encWards}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
+  const ENC_EDIT_PATH = (id: string | number) =>
     `/${encMasters}/${encWards}/${id}/edit`;
 
   useEffect(() => {

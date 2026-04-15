@@ -21,20 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { type CityRecord, useCitiesQuery, useUpdateCityMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-type CityRecord = {
-  unique_id: string;
-  name: string;
-  is_active: boolean;
-  country_name: string;
-  state_name: string;
-  district_name: string;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
-};
+
 
 type ErrorWithResponse = {
   response?: {
@@ -97,7 +84,7 @@ export default function CityList() {
   const { encMasters, encCities } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encCities}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
+  const ENC_EDIT_PATH = (id: string | number) =>
     `/${encMasters}/${encCities}/${id}/edit`;
 
   useEffect(() => {

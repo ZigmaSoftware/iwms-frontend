@@ -11,13 +11,15 @@ export type StateRecord = {
   is_active: boolean;
   country_id: string | number;
   continent_id: string | number;
+  country?: string | number | null;
+  continent?: string | number | null;
 };
 
 export type StatePayload = {
   name: string;
   label?: string;
-  country_id: string | number;
-  continent_id: string | number;
+  country_id?: string | number;
+  continent_id?: string | number;
   is_active: boolean;
 };
 

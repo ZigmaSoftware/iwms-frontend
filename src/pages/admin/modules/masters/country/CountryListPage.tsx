@@ -279,14 +279,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { type CountryRecord, useCountriesQuery, useUpdateCountryMutation } from "@/tanstack/admin";
 
-type CountryRecord = {
-  unique_id: string;
-  name: string;
-  continent_name: string;
-  mob_code: string;
-  currency: string;
-  is_active: boolean;
-};
 
 export default function CountryList() {
   const { t } = useTranslation();
@@ -311,7 +303,7 @@ export default function CountryList() {
   const { encMasters, encCountries } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encCountries}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
+  const ENC_EDIT_PATH = (id: string | number) =>
     `/${encMasters}/${encCountries}/${id}/edit`;
 
   useEffect(() => {

@@ -79,7 +79,7 @@ export default function DistrictListPage() {
   const navigate = useNavigate();
   const { encMasters, encDistricts } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encMasters}/${encDistricts}/new`;
-  const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encDistricts}/${id}/edit`;
+  const ENC_EDIT_PATH = (id: string | number) => `/${encMasters}/${encDistricts}/${id}/edit`;
 
   useEffect(() => {
     if (!districtsQuery.isError) return;

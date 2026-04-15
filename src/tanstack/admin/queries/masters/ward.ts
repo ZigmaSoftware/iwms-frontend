@@ -7,14 +7,34 @@ import { enterpriseQuery } from "../enterpriseQuery";
 export type WardRecord = {
   unique_id: string | number;
   name: string;
+  ward_name?: string | null;
+  description?: string | null;
   is_active: boolean;
-  zone_id?: string | number;
+  zone_id?: string | number | null;
+  city_id?: string | number | null;
+  district_id?: string | number | null;
+  state_id?: string | number | null;
+  country_id?: string | number | null;
+  continent_id?: string | number | null;
+  company_id?: string | number | null;
+  company_unique_id?: string | number | null;
+  project_id?: string | number | null;
+  project_unique_id?: string | number | null;
 };
 
 export type WardPayload = {
-  name: string;
+  name?: string;
+  ward_name?: string;
+  description?: string | null;
   is_active: boolean;
-  zone_id?: string | number;
+  zone_id?: string | number | null;
+  city_id?: string | number | null;
+  district_id?: string | number | null;
+  state_id?: string | number | null;
+  country_id?: string | number | null;
+  continent_id?: string | number | null;
+  company_id?: string | number | null;
+  project_id?: string | number | null;
 };
 
 const listWards = () => wardApi.list() as Promise<WardRecord[]>;
