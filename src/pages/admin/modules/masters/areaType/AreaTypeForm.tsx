@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import ComponentCard from "@/components/common/ComponentCard";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { areaTypeApi } from "@/helpers/admin";
+import { areaTypeApi, stateApi, districtApi, cityApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 const { encMasters, encAreaTypes } = getEncryptedRoute();
@@ -28,6 +28,45 @@ type ApiError = {
   };
 };
 
+type SelectOption = { value: string; label: string };
+
+type StateMeta = {
+  id: string;
+  name: string;
+  isActive: boolean;
+};
+
+type DistrictMeta = {
+  id: string;
+  name: string;
+  stateId: string | null;
+  isActive: boolean;
+};
+
+type CityMeta = {
+  id: string;
+  name: string;
+  districtId: string | null;
+  isActive: boolean;
+};
+
+type AreaTypeRecord = {
+  name?: string;
+  area_type_name?: string;
+  is_active?: boolean;
+  company_unique_id?: string | number | null;
+  company_id?: string | number | null;
+  project_id?: string | number | null;
+  state_id?: string | number | null;
+  district_id?: string | number | null;
+  city_id?: string | number | null;
+};
+
+const normalizeNullable = (v: any): string | null => {
+  if (v === undefined || v === null) return null;
+  return String(v);
+};
+
 export default function AreaTypeForm() {
   const { t } = useTranslation();
   const [name, setName] = useState("");
@@ -36,6 +75,27 @@ export default function AreaTypeForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+
+  /* FORM FIELDS - NEW */
+  const [stateId, setStateId] = useState("");
+  const [districtId, setDistrictId] = useState("");
+  const [cityId, setCityId] = useState("");
+
+  /* PENDING CHAINS FOR EDIT SUPPORT */
+  const [pendingState, setPendingState] = useState("");
+  const [pendingDistrict, setPendingDistrict] = useState("");
+  const [pendingCity, setPendingCity] = useState("");
+
+  /* MASTER DATA */
+  const [allStates, setAllStates] = useState<StateMeta[]>([]);
+  const [filteredStates, setFilteredStates] = useState<SelectOption[]>([]);
+
+  const [allDistricts, setAllDistricts] = useState<DistrictMeta[]>([]);
+  const [filteredDistricts, setFilteredDistricts] = useState<SelectOption[]>([]);
+
+  const [allCities, setAllCities] = useState<CityMeta[]>([]);
+  const [filteredCities, setFilteredCities] = useState<SelectOption[]>([]);
+
   const {
     companyUniqueId,
     projectId,
@@ -48,25 +108,171 @@ export default function AreaTypeForm() {
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit });
 
+  const extractErr = (e: any): string => {
+    if (e?.response?.data) return String(e.response.data);
+    if (e?.message) return e.message;
+    return t("common.unexpected_error");
+  };
+
+  /* ==========================================================
+      LOAD MASTER DATA
+  ========================================================== */
   useEffect(() => {
-    if (!isEdit) return;
+    stateApi
+      .list()
+      .then((res: any) =>
+        setAllStates(
+          res.map((s: any) => ({
+            id: String(s.unique_id),
+            name: s.name,
+            isActive: Boolean(s.is_active),
+          }))
+        )
+      )
+      .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
+  }, [t]);
+
+  useEffect(() => {
+    districtApi
+      .list()
+      .then((res: any) =>
+        setAllDistricts(
+          res.map((d: any) => ({
+            id: String(d.unique_id),
+            name: d.name,
+            stateId: normalizeNullable(d.state_id ?? d.state),
+            isActive: Boolean(d.is_active),
+          }))
+        )
+      )
+      .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
+  }, [t]);
+
+  useEffect(() => {
+    cityApi
+      .list()
+      .then((res: any) =>
+        setAllCities(
+          res.map((c: any) => ({
+            id: String(c.unique_id),
+            name: c.name,
+            districtId: normalizeNullable(c.district_id ?? c.district),
+            isActive: Boolean(c.is_active),
+          }))
+        )
+      )
+      .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
+  }, [t]);
+
+  /* ==========================================================
+        FILTER CHAINS
+  ========================================================== */
+  useEffect(() => {
+    const filt = allStates
+      .filter((s) => s.isActive)
+      .map((s) => ({ value: s.id, label: s.name }));
+
+    if (pendingState && !filt.some((o) => o.value === pendingState)) {
+      const found = allStates.find((s) => s.id === pendingState);
+      if (found) filt.push({ value: found.id, label: found.name });
+    }
+
+    setFilteredStates(filt);
+  }, [allStates, pendingState]);
+
+  useEffect(() => {
+    if (!stateId) {
+      setFilteredDistricts([]);
+      return;
+    }
+
+    const filt = allDistricts
+      .filter((d) => d.isActive && d.stateId === stateId)
+      .map((d) => ({ value: d.id, label: d.name }));
+
+    if (pendingDistrict && !filt.some((o) => o.value === pendingDistrict)) {
+      const found = allDistricts.find((d) => d.id === pendingDistrict);
+      if (found) filt.push({ value: found.id, label: found.name });
+    }
+
+    setFilteredDistricts(filt);
+  }, [stateId, allDistricts, pendingDistrict]);
+
+  useEffect(() => {
+    if (!districtId) {
+      setFilteredCities([]);
+      return;
+    }
+
+    const filt = allCities
+      .filter((c) => c.isActive && c.districtId === districtId)
+      .map((c) => ({ value: c.id, label: c.name }));
+
+    if (pendingCity && !filt.some((o) => o.value === pendingCity)) {
+      const found = allCities.find((c) => c.id === pendingCity);
+      if (found) filt.push({ value: found.id, label: found.name });
+    }
+
+    setFilteredCities(filt);
+  }, [districtId, allCities, pendingCity]);
+
+  /* ==========================================================
+        AUTO-INFER CHAINS
+  ========================================================== */
+  useEffect(() => {
+    if (
+      pendingState &&
+      filteredStates.length > 0 &&
+      filteredStates.some((o) => o.value === pendingState)
+    ) {
+      setStateId(pendingState);
+      setPendingState("");
+    }
+  }, [pendingState, filteredStates]);
+
+  useEffect(() => {
+    if (
+      pendingDistrict &&
+      filteredDistricts.length > 0 &&
+      filteredDistricts.some((o) => o.value === pendingDistrict)
+    ) {
+      setDistrictId(pendingDistrict);
+      setPendingDistrict("");
+    }
+  }, [pendingDistrict, filteredDistricts]);
+
+  useEffect(() => {
+    if (
+      pendingCity &&
+      filteredCities.length > 0 &&
+      filteredCities.some((o) => o.value === pendingCity)
+    ) {
+      setCityId(pendingCity);
+      setPendingCity("");
+    }
+  }, [pendingCity, filteredCities]);
+
+  /* ==========================================================
+      EDIT MODE
+  ========================================================== */
+  useEffect(() => {
+    if (!isEdit || !id) return;
 
     areaTypeApi
       .get(id as string)
       .then((res: unknown) => {
-        const record = (res ?? {}) as {
-          name?: string;
-          area_type_name?: string;
-          is_active?: boolean;
-          company_unique_id?: string | number | null;
-          company_id?: string | number | null;
-          company?: { unique_id?: string | number | null };
-          project_id?: string | number | null;
-          project_unique_id?: string | number | null;
-          project?: { unique_id?: string | number | null };
-        };
+        const record = (res ?? {}) as AreaTypeRecord;
         setName(record.name ?? record.area_type_name ?? "");
         setIsActive(Boolean(record.is_active));
+
+        const ste = normalizeNullable(record.state_id);
+        const dis = normalizeNullable(record.district_id);
+        const cty = normalizeNullable(record.city_id);
+
+        ste && setPendingState(ste);
+        dis && setPendingDistrict(dis);
+        cty && setPendingCity(cty);
+
         applyCompanyProjectFromRecord(
           record as unknown as Record<string, unknown>
         );
@@ -95,6 +301,15 @@ export default function AreaTypeForm() {
       return;
     }
 
+    if (!stateId || !districtId || !cityId) {
+      Swal.fire({
+        icon: "warning",
+        title: t("common.warning"),
+        text: "State, District, and City are required",
+      });
+      return;
+    }
+
     if (!companyUniqueId) {
       Swal.fire(
         "Error",
@@ -118,6 +333,9 @@ export default function AreaTypeForm() {
         is_active: isActive,
         company_id: companyUniqueId,
         project_id: projectId,
+        state_id: stateId,
+        district_id: districtId,
+        city_id: cityId,
       };
       if (isEdit) {
         await areaTypeApi.update(id as string, basePayload);
@@ -226,8 +444,78 @@ export default function AreaTypeForm() {
               </p>
             )}
           </div>
+          <div>
+            <Label htmlFor="state">
+              State <span className="text-red-500">*</span>
+            </Label>
+            <Select value={stateId} onValueChange={setStateId}>
+              <SelectTrigger id="state">
+                <SelectValue placeholder="Select State" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredStates.map((state) => (
+                  <SelectItem key={state.value} value={state.value}>
+                    {state.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           <div>
+            <Label htmlFor="district">
+              District <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={districtId}
+              onValueChange={setDistrictId}
+              disabled={!stateId || filteredDistricts.length === 0}
+            >
+              <SelectTrigger id="district">
+                <SelectValue placeholder="Select District" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredDistricts.map((district) => (
+                  <SelectItem key={district.value} value={district.value}>
+                    {district.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {stateId && filteredDistricts.length === 0 && (
+              <p className="mt-1 text-xs text-red-500">
+                No districts found for this state.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="city">
+              City <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={cityId}
+              onValueChange={setCityId}
+              disabled={!districtId || filteredCities.length === 0}
+            >
+              <SelectTrigger id="city">
+                <SelectValue placeholder="Select City" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredCities.map((city) => (
+                  <SelectItem key={city.value} value={city.value}>
+                    {city.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {districtId && filteredCities.length === 0 && (
+              <p className="mt-1 text-xs text-red-500">
+                No cities found for this district.
+              </p>
+            )}
+          </div>
+            <div>
             <Label htmlFor="name">
               {t("common.item_name", { item: t("admin.nav.area_type") })}{" "}
               <span className="text-red-500">*</span>
@@ -243,7 +531,6 @@ export default function AreaTypeForm() {
               required
             />
           </div>
-
           <div>
             <Label htmlFor="isActive">
               {t("common.status")} <span className="text-red-500">*</span>
