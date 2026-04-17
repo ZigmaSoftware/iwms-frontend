@@ -98,8 +98,8 @@ export const adminEndpoints = {
      CUSTOMERS
   ========================= */
 
-   panchayatWiseCollections: "collections/panchayat-collection",
-   wardWiseCollections: "collections/ward-collection",
+   panchayatWiseCollections: "collections/panchayat-wise",
+   wardWiseCollections: "collections/ward-wise",
 
   /* =========================
      GRIEVANCES

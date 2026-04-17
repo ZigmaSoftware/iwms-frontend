@@ -205,7 +205,7 @@ export default function VehicleCreationListPage() {
         errors.length > 0
           ? `<hr/><div class="text-left text-xs mt-2">${errors
               .slice(0, 3)
-              .map((entry) => {
+              .map((entry : { row: number; error: string | Record<string, unknown> }) => {
                 const detail =
                   typeof entry.error === "string"
                     ? entry.error
