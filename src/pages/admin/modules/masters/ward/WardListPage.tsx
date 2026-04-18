@@ -18,7 +18,7 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { wardApi } from "@/helpers/admin";
+import { useWardsQuery, useUpdateWardMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type WardRecord = {
@@ -71,8 +71,10 @@ const extractErrorMessage = (error: unknown, fallbackMessage: string) => {
 
 export default function WardList() {
   const { t } = useTranslation();
-  const [wards, setWards] = useState<WardRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const wardsQuery = useWardsQuery();
+  const updateWardMutation = useUpdateWardMutation();
+  const allWards = wardsQuery.data ?? [];
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -96,58 +98,31 @@ export default function WardList() {
   const { encMasters, encWards } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encWards}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
+  const ENC_EDIT_PATH = (id: string | number) =>
     `/${encMasters}/${encWards}/${id}/edit`;
 
-  // ===========================
-  //   Load Data
-  // ===========================
-  const fetchWards = useCallback(async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setWards([]);
-      setLoading(false);
-      return;
-    }
-
-    if (!companyUniqueId) {
-      setWards([]);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
-
-      const data = (await wardApi.list({ params })) as WardRecord[];
-      const filtered = data.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-
-        return companyMatches && projectMatches;
-      });
-
-      setWards(filtered);
-    } catch (error) {
-      Swal.fire({
-        icon: "error",
-        title: t("common.error"),
-        text: extractErrorMessage(error, t("common.request_failed")),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
-
   useEffect(() => {
-    fetchWards();
-  }, [fetchWards]);
+    if (!wardsQuery.isError) return;
+    Swal.fire({ icon: "error", title: t("common.error"), text: String((wardsQuery.error as any)?.response?.data ?? wardsQuery.error) });
+  }, [wardsQuery.error, wardsQuery.isError, t]);
+
+  const wards = ((): WardRecord[] => {
+    if (isSuperAdmin && companies.length === 0) return [];
+    if (!companyUniqueId) return [];
+
+    const rows = Array.isArray(allWards) ? (allWards as any[]) : [];
+    const filtered = rows.filter((row) => {
+      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+
+      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+      const projectMatches = !projectId || rowProjectId === projectId;
+
+      return companyMatches && projectMatches;
+    });
+
+    return filtered as WardRecord[];
+  })();
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);
@@ -190,18 +165,33 @@ export default function WardList() {
   // ===========================
   //   Toggle Status
   // ===========================
-  const statusTemplate = (row: WardRecord) => {
-    const updateStatus = async (value: boolean) => {
-      try {
-        await wardApi.update(row.unique_id, { is_active: value });
-        fetchWards();
-      } catch (err) {
-        console.error("Status update failed:", err);
-      }
-    };
+  const updateStatus = async (row: WardRecord, checked: boolean) => {
+    const id = String(row.unique_id);
 
-    return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
+    setPendingStatusId(id);
+
+    try {
+      await updateWardMutation.mutateAsync({ id: row.unique_id, payload: { is_active: checked } });
+    } catch (error) {
+      Swal.fire(
+        t("common.error"),
+        extractErrorMessage(error, t("common.update_status_failed")),
+        "error"
+      );
+    } finally {
+      setPendingStatusId(null);
+    }
   };
+
+  const statusTemplate = (row: WardRecord) => (
+    <Switch
+      checked={row.is_active}
+      disabled={updateWardMutation.isPending && pendingStatusId === String(row.unique_id)}
+      onCheckedChange={(checked) => {
+        void updateStatus(row, checked);
+      }}
+    />
+  );
 
   // ===========================
   //   Actions
@@ -292,7 +282,7 @@ export default function WardList() {
           paginator
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={loading}
+          loading={wardsQuery.isPending && wards.length === 0}
           filters={filters}
           onFilter={onFilter}
           header={renderHeader()}

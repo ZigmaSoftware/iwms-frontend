@@ -15,14 +15,50 @@ const ACTION_ALIASES: Record<string, string[]> = {
 };
 
 const MODULE_ALIASES: Record<string, string[]> = {
-  "customer-master": ["customers"],
-  customers: ["customer-master"],
-  "staff-masters": ["user-creation"],
-  "user-creation": ["staff-masters"],
-  "common-masters": ["masters"],  
-  "masters": ["common-masters"],
+  admins: ["screen-managements", "role-assigns"],
+  "screen-managements": ["admins"],
+  "role-assigns": ["admins"],
+  "customer-master": ["customer-masters", "customers"],
+  "customer-masters": ["customer-master", "customers"],
+  customers: ["customer-master", "customer-masters"],
+  "staff-masters": ["user-creations", "process-items", "audits", "user-creation"],
+  "user-creations": ["staff-masters", "user-creation"],
+  "process-items": ["staff-masters"],
+  audits: ["staff-masters"],
+  "user-creation": ["staff-masters", "user-creations"],
+  "transport-master": ["transport-masters"],
+  "transport-masters": ["transport-master"],
+  "citizen-grievance": ["grivences", "grievance"],
+  grivences: ["citizen-grievance", "grievance"],
+  grievance: ["citizen-grievance", "grivences"],
+  "superadmin-masters": ["superadmin"],
+  superadmin: ["superadmin-masters"],
+  "common-masters": ["masters"],
+  "waste-types": ["masters"],
+  assets: ["masters"],
+  masters: ["common-masters", "waste-types", "assets"],
+  "waste-management": ["collections"],
+  collections: ["waste-management"],
 };
 
+const SCREEN_ALIASES: Record<string, string[]> = {
+  complaint: ["complaints"],
+  "main-complaint-category": ["main-category"],
+  "sub-complaint-category": ["sub-category"],
+  feedback: ["feedbacks"],
+  fuel: ["fuels"],
+  panchayats: ["panchayat"],
+  "area-types": ["areatypes"],
+  hierarchies: ["hierarchy"],
+  "collection-points": ["collection-point"],
+  "sub-properties": ["subproperties"],
+  "staff-user-type": ["staffusertypes"],
+  "mainscreen-type": ["mainscreentype"],
+  userscreenpermissions: ["companywisescreenpermissions"],
+  "company-creation": ["company"],
+  "project-creation": ["project"],
+  "customer-creation": ["customercreations"],
+};
 export const PERMISSIONS_STORAGE_KEY = "permissions";
 
 const isRecord = (value: unknown): value is UnknownRecord =>
@@ -167,13 +203,18 @@ const resolveScreenActions = (
     return moduleEntry[screenName];
   }
 
+  const aliasCandidates = [
+    screenName,
+    ...(SCREEN_ALIASES[screenName] ?? []),
+    ...(SCREEN_ALIASES[normalizeKey(screenName)] ?? []),
+  ];
+
   const screenKey = Object.keys(moduleEntry).find((key) =>
-    keysMatch(key, screenName),
+    aliasCandidates.some((candidate) => keysMatch(key, candidate)),
   );
 
   return screenKey ? moduleEntry[screenKey] : undefined;
 };
-
 export const hasPermission = (
   moduleName: string,
   screenName: string,
@@ -319,3 +360,6 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
     return {};
   }
 };
+
+
+

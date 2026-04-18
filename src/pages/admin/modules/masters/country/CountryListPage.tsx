@@ -277,22 +277,16 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { countryApi } from "@/helpers/admin";
+import { type CountryRecord, useCountriesQuery, useUpdateCountryMutation } from "@/tanstack/admin";
 
-type CountryRecord = {
-  unique_id: string;
-  name: string;
-  continent_name: string;
-  mob_code: string;
-  currency: string;
-  is_active: boolean;
-};
 
 export default function CountryList() {
   const { t } = useTranslation();
 
-  const [countries, setCountries] = useState<CountryRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const countriesQuery = useCountriesQuery();
+  const updateCountryMutation = useUpdateCountryMutation();
+  const countries = countriesQuery.data ?? [];
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
@@ -309,23 +303,18 @@ export default function CountryList() {
   const { encMasters, encCountries } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encCountries}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
+  const ENC_EDIT_PATH = (id: string | number) =>
     `/${encMasters}/${encCountries}/${id}/edit`;
 
-  const fetchCountries = useCallback(async () => {
-    try {
-      const data = await countryApi.list();
-      setCountries(data);
-    } catch (error) {
-      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
   useEffect(() => {
-    fetchCountries();
-  }, [fetchCountries]);
+    if (!countriesQuery.isError) return;
+
+    Swal.fire(
+      t("common.error"),
+      (countriesQuery.error as any) ? String((countriesQuery.error as any).response?.data ?? countriesQuery.error) : t("common.fetch_failed"),
+      "error"
+    );
+  }, [countriesQuery.error, countriesQuery.isError, t]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);
@@ -344,20 +333,26 @@ export default function CountryList() {
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
-  const statusTemplate = (row: CountryRecord) => {
-    const updateStatus = async (checked: boolean) => {
-      try {
-        await countryApi.update(row.unique_id, { is_active: checked });
-        fetchCountries();
-      } catch {
-        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
-      }
-    };
+  const updateStatus = async (row: CountryRecord, checked: boolean) => {
+    const countryId = String(row.unique_id);
+    setPendingStatusId(countryId);
 
+    try {
+      await updateCountryMutation.mutateAsync({ id: row.unique_id, payload: { name: row.name, is_active: checked } });
+    } catch (error) {
+      Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+    } finally {
+      setPendingStatusId(null);
+    }
+  };
+
+  const statusTemplate = (row: CountryRecord) => {
+    const countryId = String(row.unique_id);
     return (
       <Switch
         checked={row.is_active}
-        onCheckedChange={updateStatus}
+        disabled={updateCountryMutation.isPending && pendingStatusId === countryId}
+        onCheckedChange={(checked) => void updateStatus(row, checked)}
       />
     );
   };
@@ -424,7 +419,7 @@ export default function CountryList() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={loading}
+        loading={countriesQuery.isPending && countries.length === 0}
         filters={filters}
         onFilter={onFilter}
         header={header}

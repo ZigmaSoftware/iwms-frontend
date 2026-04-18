@@ -24,7 +24,7 @@ export const adminEndpoints = {
   zones: "masters/zones",
   wards: "masters/wards",
   
-  wasteTypes: "waste-bluetooth/types",
+  wasteTypes: "assets/waste-types",
   panchayats: "masters/panchayat",
   areatypes: "masters/areatypes",
   hierarchies: "masters/hierarchy",
@@ -138,3 +138,4 @@ export const getAdminEndpointPath = (
   const path = adminEndpoints[entity];
   return path.startsWith("/") ? path : `/${path}`;
 };
+

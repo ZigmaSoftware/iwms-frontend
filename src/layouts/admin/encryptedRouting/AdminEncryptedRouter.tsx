@@ -230,6 +230,65 @@ const ROUTES: RouteMap = {
   },
 };
 
+const MASTER_ALIASES: Record<string, string[]> = {
+  "screen-managements": ["admins"],
+  "role-assigns": ["admins"],
+  "customer-masters": ["customer-master"],
+  "transport-masters": ["transport-master"],
+  "user-creations": ["staff-masters"],
+  "process-items": ["staff-masters"],
+  audits: ["staff-masters"],
+  grivences: ["citizen-grievance"],
+  superadmin: ["superadmin-masters"],
+  "common-masters": ["masters"],
+  "waste-types": ["masters"],
+  assets: ["masters"],
+  collections: ["waste-management"],
+};
+
+const MODULE_ALIASES: Record<string, string[]> = {
+  complaint: ["complaints"],
+  "main-complaint-category": ["main-category"],
+  "sub-complaint-category": ["sub-category"],
+  feedback: ["feedbacks"],
+  fuel: ["fuels"],
+  panchayats: ["panchayat"],
+  "area-types": ["areatypes"],
+  hierarchies: ["hierarchy"],
+  "collection-points": ["collection-point"],
+  "sub-properties": ["subproperties"],
+  "staff-user-type": ["staffusertypes"],
+  "mainscreen-type": ["mainscreentype"],
+  userscreenpermissions: ["companywisescreenpermissions"],
+  "company-creation": ["company"],
+  "project-creation": ["project"],
+  "customer-creation": ["customercreations"],
+};
+
+const resolveRouteConfig = (
+  master: string,
+  moduleName: string,
+): RouteConfig | undefined => {
+  const masterCandidates = [master, ...(MASTER_ALIASES[master] ?? [])];
+  const moduleCandidates = [moduleName, ...(MODULE_ALIASES[moduleName] ?? [])];
+
+  for (const masterCandidate of masterCandidates) {
+    const routeGroup = ROUTES[masterCandidate];
+    if (!routeGroup) {
+      continue;
+    }
+
+    for (const moduleCandidate of moduleCandidates) {
+      const routeConfig = routeGroup[moduleCandidate];
+      if (routeConfig) {
+        return routeConfig;
+      }
+    }
+  }
+
+  return undefined;
+};
+
 const resolveComponent = (config: RouteConfig | undefined, mode: "view" | "new" | "edit"): ModuleComponent => {
   if (!config) return undefined;
 
@@ -254,7 +313,7 @@ export default function AdminEncryptedRouter() {
     return <Navigate to="/" replace />;
   }
 
-  const moduleRoutes = ROUTES[master]?.[moduleName];
+  const moduleRoutes = resolveRouteConfig(master, moduleName);
   if (!moduleRoutes) {
     return <Navigate to="/" replace />;
   }
@@ -268,3 +327,4 @@ export default function AdminEncryptedRouter() {
 
   return <Component />;
 }
+

@@ -25,6 +25,8 @@ import {
   projectApi,
   companyApi,
 } from "@/helpers/admin";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { usePanchayatQuery, useCreatePanchayatMutation, useUpdatePanchayatMutation, useAreaTypesQuery, useHierarchiesQuery } from "@/tanstack/admin";
 import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
 import { USER_ROLE_STORAGE_KEY, normalizeRole } from "@/types/roles";
 
@@ -59,6 +61,8 @@ export default function PanchayatForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
+
+  const { applyCompanyProjectFromRecord } = useCompanyProjectSelection({ isEdit });
 
   const [panchayatName, setPanchayatName] = useState("");
   const [companyUniqueId, setCompanyUniqueId] = useState(
@@ -144,25 +148,25 @@ export default function PanchayatForm() {
         }))
       )
     );
-
-    areaTypeApi.list().then((res: any) =>
-      setAreaTypes(
-        res.map((x: any) => ({
-          value: x.unique_id,
-          label: x.name,
-        }))
-      )
-    );
-
-    hierarchyApi.list().then((res: any) =>
-      setHierarchies(
-        res.map((x: any) => ({
-          value: x.unique_id,
-          label: x.level_name,
-        }))
-      )
-    );
   }, []);
+
+  const areaTypesQuery = useAreaTypesQuery();
+  const hierarchiesQuery = useHierarchiesQuery();
+
+  const createPanchayatMutation = useCreatePanchayatMutation();
+  const updatePanchayatMutation = useUpdatePanchayatMutation();
+
+  useEffect(() => {
+    const res: any = areaTypesQuery.data ?? [];
+    const list = Array.isArray(res) ? res : (res?.results ?? []);
+    setAreaTypes(list.map((x: any) => ({ value: x.unique_id, label: x.name })));
+  }, [areaTypesQuery.data]);
+
+  useEffect(() => {
+    const res: any = hierarchiesQuery.data ?? [];
+    const list = Array.isArray(res) ? res : (res?.results ?? []);
+    setHierarchies(list.map((x: any) => ({ value: x.unique_id, label: x.level_name })));
+  }, [hierarchiesQuery.data]);
 
   useEffect(() => {
     if (loggedInCompanyUniqueId || !isSuperAdmin) {
@@ -249,32 +253,28 @@ export default function PanchayatForm() {
   /* =============================
       EDIT MODE
   ==============================*/
-  useEffect(() => {
-    if (!isEdit || !id) return;
+  const panchayatQuery = usePanchayatQuery(id);
 
-    panchayatApi.get(id).then((data: any) => {
-      setPanchayatName(data.panchayat_name ?? "");
-      const recordCompanyId =
-        data.company_unique_id ?? data.company_id ?? data.company?.unique_id;
-      if (recordCompanyId && !loggedInCompanyUniqueId) {
-        setCompanyUniqueId(toStringId(recordCompanyId));
-      }
-      setProjectId(
-        toStringId(
-          data.project_id ?? data.project_unique_id ?? data.project?.unique_id
-        )
-      );
-      setStateId(toStringId(data.state_id));
-      setDistrictId(toStringId(data.district_id));
-      setCityId(toStringId(data.city_id));
-      setAreaTypeId(toStringId(data.area_type_id));
-      setHierarchyId(toStringId(data.hierarchy_id));
-      setLatitude(data.latitude ?? "");
-      setLongitude(data.longitude ?? "");
-      setGeofencingType(data.geofencing_type ?? "polygon");
-      setIsActive(Boolean(data.is_active));
-    });
-  }, [id, isEdit, loggedInCompanyUniqueId]);
+  useEffect(() => {
+    if (!panchayatQuery.data) return;
+    const data = panchayatQuery.data as any;
+    setPanchayatName(data.panchayat_name ?? "");
+    const recordCompanyId = data.company_unique_id ?? data.company_id ?? data.company?.unique_id;
+    if (recordCompanyId && !loggedInCompanyUniqueId) {
+      setCompanyUniqueId(toStringId(recordCompanyId));
+    }
+    setProjectId(toStringId(data.project_id ?? data.project_unique_id ?? data.project?.unique_id));
+    setStateId(toStringId(data.state_id));
+    setDistrictId(toStringId(data.district_id));
+    setCityId(toStringId(data.city_id));
+    setAreaTypeId(toStringId(data.area_type_id));
+    setHierarchyId(toStringId(data.hierarchy_id));
+    setLatitude(data.latitude ?? "");
+    setLongitude(data.longitude ?? "");
+    setGeofencingType(data.geofencing_type ?? "polygon");
+    setIsActive(Boolean(data.is_active));
+    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+  }, [panchayatQuery.data, loggedInCompanyUniqueId, applyCompanyProjectFromRecord]);
 
   /* =============================
       SUBMIT
@@ -315,10 +315,10 @@ export default function PanchayatForm() {
 
     try {
       if (isEdit && id) {
-        await panchayatApi.update(id, basePayload);
+        await updatePanchayatMutation.mutateAsync({ id, payload: basePayload });
         Swal.fire("Success", "Updated successfully", "success");
       } else {
-        await panchayatApi.create(basePayload);
+        await createPanchayatMutation.mutateAsync(basePayload);
         Swal.fire("Success", "Created successfully", "success");
       }
 
@@ -535,7 +535,7 @@ export default function PanchayatForm() {
         </div>
 
         <div className="md:col-span-2 flex justify-end gap-3">
-          <Button type="submit">{isEdit ? "Update" : "Save"}</Button>
+          <Button type="submit" disabled={createPanchayatMutation.isPending || updatePanchayatMutation.isPending}>{isEdit ? "Update" : "Save"}</Button>
           <Button
             type="button"
             variant="destructive"

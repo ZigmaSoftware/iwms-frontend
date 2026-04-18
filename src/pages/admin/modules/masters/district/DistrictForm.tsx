@@ -16,8 +16,15 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 
 
-import { continentApi, countryApi, stateApi, districtApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import {
+  useContinentsQuery,
+  useCountriesQuery,
+  useStatesQuery,
+  useDistrictQuery,
+  useCreateDistrictMutation,
+  useUpdateDistrictMutation,
+} from "@/tanstack/admin";
 
 
 type SelectOption = { value: string; label: string };
@@ -70,7 +77,6 @@ export default function DistrictForm() {
   const [allStates, setAllStates] = useState<StateMeta[]>([]);
   const [filteredStates, setFilteredStates] = useState<SelectOption[]>([]);
   const [isActive, setIsActive] = useState(true);
-  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -87,48 +93,43 @@ export default function DistrictForm() {
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit });
 
-  /* ------------------------------
-     Load all dropdown master data once
-  ------------------------------ */
-  useEffect(() => {
-    (async () => {
-      const cs = await continentApi.list();
-      setContinents(
-        cs.filter((c: any) => c.is_active).map((c: any) => ({
-          value: String(c.unique_id),
-          label: c.name,
-        }))
-      );
-    })();
-  }, []);
+  const continentsQuery = useContinentsQuery();
+  const countriesQuery = useCountriesQuery();
+  const statesQuery = useStatesQuery();
 
   useEffect(() => {
-    (async () => {
-      const c = await countryApi.list();
-      setAllCountries(
-        c.map((x: any) => ({
-          id: String(x.unique_id),
-          name: x.name,
-          continentId: normalize(x.continent_id ?? x.continent),
-          isActive: Boolean(x.is_active),
-        }))
-      );
-    })();
-  }, []);
+    if (continentsQuery.isError) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: String(continentsQuery.error) });
+      return;
+    }
+
+    const data = continentsQuery.data ?? [];
+    setContinents(data.filter((c) => c.is_active).map((c) => ({ value: String(c.unique_id), label: c.name })));
+  }, [continentsQuery.data, continentsQuery.isError]);
 
   useEffect(() => {
-    (async () => {
-      const s = await stateApi.list();
-      setAllStates(
-        s.map((x: any) => ({
-          id: String(x.unique_id),
-          name: x.name,
-          countryId: normalize(x.country_id ?? x.country),
-          isActive: Boolean(x.is_active),
-        }))
-      );
-    })();
-  }, []);
+    if (countriesQuery.isError) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: String(countriesQuery.error) });
+      return;
+    }
+
+    const data = countriesQuery.data ?? [];
+    setAllCountries(
+      data.map((x) => ({ id: String(x.unique_id), name: x.name, continentId: normalize(x.continent_id ?? x.continent), isActive: Boolean(x.is_active) }))
+    );
+  }, [countriesQuery.data, countriesQuery.isError]);
+
+  useEffect(() => {
+    if (statesQuery.isError) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: String(statesQuery.error) });
+      return;
+    }
+
+    const data = statesQuery.data ?? [];
+    setAllStates(
+      data.map((x) => ({ id: String(x.unique_id), name: x.name, countryId: normalize(x.country_id ?? x.country), isActive: Boolean(x.is_active) }))
+    );
+  }, [statesQuery.data, statesQuery.isError]);
 
   /* ------------------------------
      Filter Countries on Continent change
@@ -193,28 +194,24 @@ export default function DistrictForm() {
     setFilteredStates(filtered);
   }, [countryId, allStates, pendingStateId]);
 
-  /* ------------------------------
-     Edit Mode — fetch district & populate
-  ------------------------------ */
+  const districtQuery = useDistrictQuery(id);
+
   useEffect(() => {
-    if (!isEdit || !id) return;
+    if (!districtQuery.data) return;
+    const data = districtQuery.data;
 
-    (async () => {
-      const data: DistrictRecord = await districtApi.get(id);
+    setDistrictName(data.name ?? "");
+    setIsActive(Boolean(data.is_active));
 
-      setDistrictName(data.name ?? "");
-      setIsActive(Boolean(data.is_active));
+    const cont = normalize(data.continent_id);
+    const ctr = normalize(data.country_id);
+    const ste = normalize(data.state_id);
 
-      const cont = normalize(data.continent_id);
-      const ctr = normalize(data.country_id);
-      const ste = normalize(data.state_id);
-
-      setContinentId(cont ?? "");
-      setPendingCountryId(ctr ?? "");
-      setPendingStateId(ste ?? "");
-      applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-    })();
-  }, [applyCompanyProjectFromRecord, id, isEdit]);
+    setContinentId(cont ?? "");
+    setPendingCountryId(ctr ?? "");
+    setPendingStateId(ste ?? "");
+    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+  }, [districtQuery.data, applyCompanyProjectFromRecord]);
 
   /* ------------------------------
      Auto-resolve missing continent from pending country
@@ -257,6 +254,10 @@ export default function DistrictForm() {
   /* ------------------------------
      Submit
   ------------------------------ */
+  const createDistrictMutation = useCreateDistrictMutation();
+  const updateDistrictMutation = useUpdateDistrictMutation();
+  const isSubmitting = createDistrictMutation.isPending || updateDistrictMutation.isPending;
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -285,8 +286,6 @@ export default function DistrictForm() {
       return;
     }
 
-    setLoading(true);
-
     try {
       const payload = {
         name: districtName.trim(),
@@ -299,22 +298,16 @@ export default function DistrictForm() {
       };
 
       if (isEdit && id) {
-        await districtApi.update(id, payload);
+        await updateDistrictMutation.mutateAsync({ id, payload });
         Swal.fire({ icon: "success", title: t("common.updated_success") });
       } else {
-        await districtApi.create(payload);
+        await createDistrictMutation.mutateAsync(payload);
         Swal.fire({ icon: "success", title: t("common.added_success") });
       }
 
       navigate(ENC_LIST_PATH);
     } catch (err: any) {
-      Swal.fire({
-        icon: "error",
-        title: t("common.save_failed"),
-        text: err?.response?.data || t("common.unexpected_error"),
-      });
-    } finally {
-      setLoading(false);
+      Swal.fire({ icon: "error", title: t("common.save_failed"), text: err?.response?.data || t("common.unexpected_error") });
     }
   };
 
@@ -542,8 +535,8 @@ export default function DistrictForm() {
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={loading}>
-            {loading
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting
               ? isEdit
                 ? t("common.updating")
                 : t("common.saving")

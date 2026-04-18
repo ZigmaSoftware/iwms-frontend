@@ -9,9 +9,10 @@ import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import Swal from "sweetalert2";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
-import { panchayatApi } from "@/helpers/admin";
+import { usePanchayatsQuery, useUpdatePanchayatMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type PanchayatRecord = {
@@ -34,8 +35,10 @@ const normalizeId = (value: unknown): string =>
 
 export default function PanchayatListPage() {
   const { t } = useTranslation();
-  const [data, setData] = useState<PanchayatRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const panchayatsQuery = usePanchayatsQuery();
+  const updatePanchayatMutation = useUpdatePanchayatMutation();
+  const allPanchayats = panchayatsQuery.data ?? [];
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -69,51 +72,32 @@ export default function PanchayatListPage() {
   const { encMasters, encPanchayats } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encPanchayats}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
+  const ENC_EDIT_PATH = (id: string | number) =>
     `/${encMasters}/${encPanchayats}/${id}/edit`;
 
-  const fetchData = useCallback(async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setData([]);
-      setLoading(false);
-      return;
-    }
-
-    if (!companyUniqueId) {
-      setData([]);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
-
-      const list = await panchayatApi.list({ params });
-      const rows = Array.isArray(list) ? (list as PanchayatRecord[]) : [];
-
-      const filtered = rows.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-
-        return companyMatches && projectMatches;
-      });
-
-      setData(filtered);
-    } finally {
-      setLoading(false);
-    }
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
-
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (panchayatsQuery.isError) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: String(panchayatsQuery.error) });
+    }
+  }, [panchayatsQuery.error, panchayatsQuery.isError, t]);
+
+  const data = ((): PanchayatRecord[] => {
+    if (isSuperAdmin && companies.length === 0) return [];
+    if (!companyUniqueId) return [];
+
+    const rows = Array.isArray(allPanchayats) ? (allPanchayats as any[]) : [];
+    const filtered = rows.filter((row) => {
+      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+
+      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+      const projectMatches = !projectId || rowProjectId === projectId;
+
+      return companyMatches && projectMatches;
+    });
+
+    return filtered as PanchayatRecord[];
+  })();
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);
@@ -161,18 +145,23 @@ export default function PanchayatListPage() {
 
   const statusTemplate = (row: PanchayatRecord) => {
     const updateStatus = async (value: boolean) => {
+      const id = String(row.unique_id);
+      setPendingStatusId(id);
+
       try {
-        await panchayatApi.update(row.unique_id, { is_active: value });
-        fetchData();
+        await updatePanchayatMutation.mutateAsync({ id: row.unique_id, payload: { is_active: value } });
       } catch (error) {
         console.error("Failed to update panchayat status", error);
+      } finally {
+        setPendingStatusId(null);
       }
     };
 
     return (
       <Switch
         checked={Boolean(row.is_active)}
-        onCheckedChange={updateStatus}
+        disabled={updatePanchayatMutation.isPending && pendingStatusId === String(row.unique_id)}
+        onCheckedChange={(checked) => void updateStatus(checked)}
       />
     );
   };
@@ -244,7 +233,7 @@ export default function PanchayatListPage() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={loading}
+        loading={panchayatsQuery.isPending && data.length === 0}
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}
