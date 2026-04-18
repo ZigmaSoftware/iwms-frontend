@@ -8,3 +8,6 @@ export * from "./masters/ward";
 export * from "./masters/panchayat";
 export * from "./masters/areaType";
 export * from "./masters/hierarchy";
+export * from "./masters/bin";
+export * from "./masters/collectionPoint";
+export * from "./masters/wasteType";
