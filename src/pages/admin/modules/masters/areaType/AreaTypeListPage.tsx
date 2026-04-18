@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -11,29 +11,48 @@ import type { DataTableFilterMeta } from "primereact/datatable";
 import { Switch } from "@/components/ui/switch";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { areaTypeApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-
-type AreaTypeRecord = {
-  unique_id: string;
-  name: string;
-  is_active: boolean;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
-};
+import {
+  type AreaTypePayload,
+  type AreaTypeRecord,
+  useAreaTypesQuery,
+  useUpdateAreaTypeMutation,
+} from "@/tanstack/admin";
+import Swal from "sweetalert2";
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
+const extractErrorMessage = (error: unknown, fallback: string) => {
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+
+  if (typeof data === "string") {
+    return data;
+  }
+
+  if (Array.isArray(data)) {
+    return data.join(", ");
+  }
+
+  if (data && typeof data === "object") {
+    return Object.entries(data as Record<string, unknown>)
+      .map(([key, value]) =>
+        `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
+      )
+      .join("\n");
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+};
+
 export default function AreaTypeListPage() {
   const { t } = useTranslation();
-  const [records, setRecords] = useState<AreaTypeRecord[]>([]);
-  const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -47,52 +66,35 @@ export default function AreaTypeListPage() {
     setProjectId,
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false });
+  const areaTypesQuery = useAreaTypesQuery();
+  const updateAreaTypeMutation = useUpdateAreaTypeMutation();
   const navigate = useNavigate();
   const { encMasters, encAreaTypes } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encAreaTypes}/new`;
   const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encAreaTypes}/${id}/edit`;
 
-  const fetchRecords = useCallback(async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
+  const records = (areaTypesQuery.data ?? []).filter((row) => {
+    const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+    const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
 
-    if (!companyUniqueId) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
+    const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+    const projectMatches = !projectId || rowProjectId === projectId;
 
-    try {
-      setLoading(true);
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
-
-      const list = (await areaTypeApi.list({ params })) as AreaTypeRecord[];
-      const filtered = list.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-
-        return companyMatches && projectMatches;
-      });
-
-      setRecords(filtered);
-    } finally {
-      setLoading(false);
-    }
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+    return companyMatches && projectMatches;
+  });
 
   useEffect(() => {
-    fetchRecords();
-  }, [fetchRecords]);
+    if (!areaTypesQuery.isError) {
+      return;
+    }
+
+    Swal.fire(
+      t("common.error"),
+      extractErrorMessage(areaTypesQuery.error, t("common.fetch_failed")),
+      "error"
+    );
+  }, [areaTypesQuery.error, areaTypesQuery.isError, t]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);
@@ -125,17 +127,49 @@ export default function AreaTypeListPage() {
 
   const statusTemplate = (row: AreaTypeRecord) => {
     const updateStatus = async (value: boolean) => {
+      const areaTypeId = String(row.unique_id);
+      setPendingStatusId(areaTypeId);
+
       try {
-        await areaTypeApi.update(row.unique_id, {
-          name: row.name,
+        const payload: AreaTypePayload = {
+          name: row.name ?? row.area_type_name ?? "",
           is_active: value,
+          state_id: String(row.state_id ?? ""),
+          district_id: String(row.district_id ?? ""),
+          city_id: String(row.city_id ?? ""),
+          company_id: String(
+            row.company_id ?? row.company_unique_id ?? companyUniqueId ?? ""
+          ),
+          project_id: String(
+            row.project_id ?? row.project_unique_id ?? projectId ?? ""
+          ),
+        };
+
+        await updateAreaTypeMutation.mutateAsync({
+          id: row.unique_id,
+          payload,
         });
-        fetchRecords();
       } catch (error) {
-        console.error("Failed to update area type status", error);
+        Swal.fire(
+          t("common.error"),
+          extractErrorMessage(error, t("common.update_status_failed")),
+          "error"
+        );
+      } finally {
+        setPendingStatusId(null);
       }
     };
-    return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
+
+    return (
+      <Switch
+        checked={Boolean(row.is_active)}
+        disabled={
+          updateAreaTypeMutation.isPending &&
+          pendingStatusId === String(row.unique_id)
+        }
+        onCheckedChange={updateStatus}
+      />
+    );
   };
 
   const actionTemplate = (row: AreaTypeRecord) => (
@@ -143,7 +177,7 @@ export default function AreaTypeListPage() {
       <button
         title={t("common.edit")}
         className="text-blue-600 hover:text-blue-800"
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onClick={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
       >
         <PencilIcon className="size-5" />
       </button>
@@ -221,7 +255,7 @@ export default function AreaTypeListPage() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={loading}
+        loading={areaTypesQuery.isPending && records.length === 0}
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}
@@ -244,7 +278,7 @@ export default function AreaTypeListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(row) => cap(row.name)}
+          body={(row: AreaTypeRecord) => cap(row.name ?? row.area_type_name)}
         />
         <Column
           header={t("common.status")}

@@ -7,16 +7,23 @@ import { enterpriseQuery } from "../enterpriseQuery";
 export type HierarchyRecord = {
   unique_id: string | number;
   level_name?: string;
+  area_type?: string | number | null;
+  area_type_id?: string | number | null;
   is_active?: boolean;
   company_id?: string | number | null;
+  company_unique_id?: string | number | null;
   project_id?: string | number | null;
+  project_unique_id?: string | number | null;
+  company_name?: string;
+  project_name?: string;
 };
 
 export type HierarchyPayload = {
-  level_name?: string;
-  is_active?: boolean;
-  company_id?: string | number | null;
-  project_id?: string | number | null;
+  level_name: string;
+  area_type: string | number;
+  is_active: boolean;
+  company_id: string | number;
+  project_id: string | number;
 };
 
 const normalizeId = (id: string | number) => String(id);
@@ -29,7 +36,7 @@ const updateHierarchy = (id: string | number, payload: HierarchyPayload) => hier
 const replaceInList = (items: HierarchyRecord[] | undefined, item: HierarchyRecord) => {
   if (!items) return items;
   const id = normalizeId(item.unique_id);
-  return items.map((r) => (normalizeId(r.unique_id) === id ? item : r));
+  return items.map((record) => (normalizeId(record.unique_id) === id ? item : record));
 };
 
 export const hierarchyQueryKeys = {
@@ -38,11 +45,18 @@ export const hierarchyQueryKeys = {
 };
 
 export function useHierarchiesQuery() {
-  return enterpriseQuery<HierarchyRecord[]>({ queryKey: hierarchyQueryKeys.all, queryFn: listHierarchies });
+  return enterpriseQuery<HierarchyRecord[]>({
+    queryKey: hierarchyQueryKeys.all,
+    queryFn: listHierarchies,
+  });
 }
 
 export function useHierarchyQuery(id: string | number | null | undefined) {
-  return enterpriseQuery<HierarchyRecord>({ queryKey: hierarchyQueryKeys.detail(id ?? "new"), queryFn: () => getHierarchy(id as string | number), enabled: Boolean(id) });
+  return enterpriseQuery<HierarchyRecord>({
+    queryKey: hierarchyQueryKeys.detail(id ?? "new"),
+    queryFn: () => getHierarchy(id as string | number),
+    enabled: Boolean(id),
+  });
 }
 
 export function useCreateHierarchyMutation() {
@@ -59,7 +73,8 @@ export function useCreateHierarchyMutation() {
 export function useUpdateHierarchyMutation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string | number; payload: HierarchyPayload }) => updateHierarchy(id, payload),
+    mutationFn: ({ id, payload }: { id: string | number; payload: HierarchyPayload }) =>
+      updateHierarchy(id, payload),
     onSuccess: async (data, vars) => {
       qc.setQueryData(hierarchyQueryKeys.detail(vars.id), data);
       qc.setQueryData<HierarchyRecord[]>(hierarchyQueryKeys.all, (cur) => replaceInList(cur, data));

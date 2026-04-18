@@ -14,8 +14,14 @@ import {
 } from "@/components/ui/select";
 import ComponentCard from "@/components/common/ComponentCard";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { hierarchyApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import {
+  type HierarchyPayload,
+  useHierarchyQuery,
+  useCreateHierarchyMutation,
+  useUpdateHierarchyMutation,
+  useAreaTypesQuery,
+} from "@/tanstack/admin";
 
 const { encMasters, encHierarchies } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encHierarchies}`;
@@ -32,10 +38,17 @@ export default function HierarchyForm() {
   const { t } = useTranslation();
   const [name, setName] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [areaTypeId, setAreaTypeId] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const hierarchyQuery = useHierarchyQuery(id);
+  const createHierarchyMutation = useCreateHierarchyMutation();
+  const updateHierarchyMutation = useUpdateHierarchyMutation();
+  const areaTypesQuery = useAreaTypesQuery();
+  const isSubmitting =
+    createHierarchyMutation.isPending || updateHierarchyMutation.isPending;
   const {
     companyUniqueId,
     projectId,
@@ -49,38 +62,38 @@ export default function HierarchyForm() {
   } = useCompanyProjectSelection({ isEdit });
 
   useEffect(() => {
-    if (!isEdit) return;
+    if (!hierarchyQuery.data) return;
 
-    hierarchyApi
-      .get(id as string)
-      .then((res: unknown) => {
-        const record = (res ?? {}) as {
-          level_name?: string;
-          is_active?: boolean;
-          company_unique_id?: string | number | null;
-          company_id?: string | number | null;
-          company?: { unique_id?: string | number | null };
-          project_id?: string | number | null;
-          project_unique_id?: string | number | null;
-          project?: { unique_id?: string | number | null };
-        };
-        setName(record.level_name ?? "");
-        setIsActive(Boolean(record.is_active));
-        applyCompanyProjectFromRecord(
-          record as unknown as Record<string, unknown>
-        );
-      })
-      .catch((err: unknown) => {
-        const message =
-          (err as ApiError)?.response?.data?.detail || t("common.load_failed");
-        console.error("Error fetching hierarchy:", err);
-        Swal.fire({
-          icon: "error",
-          title: t("common.error"),
-          text: message,
-        });
-      });
-  }, [applyCompanyProjectFromRecord, id, isEdit, t]);
+    const record = hierarchyQuery.data;
+    setName(record.level_name ?? "");
+    setIsActive(Boolean(record.is_active));
+    if (record.area_type ?? record.area_type_id) {
+      setAreaTypeId(String(record.area_type ?? record.area_type_id));
+    }
+    applyCompanyProjectFromRecord(
+      record as unknown as Record<string, unknown>
+    );
+  }, [applyCompanyProjectFromRecord, hierarchyQuery.data]);
+
+  useEffect(() => {
+    if (!hierarchyQuery.isError) return;
+
+    const message =
+      (hierarchyQuery.error as ApiError)?.response?.data?.detail ||
+      t("common.load_failed");
+    Swal.fire({
+      icon: "error",
+      title: t("common.error"),
+      text: message,
+    });
+  }, [hierarchyQuery.error, hierarchyQuery.isError, t]);
+
+  const areaTypes = (areaTypesQuery.data ?? [])
+    .filter((record) => record && record.is_active !== false)
+    .map((record) => ({
+      value: String(record.unique_id),
+      label: record.name ?? record.area_type_name ?? String(record.unique_id),
+    }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,16 +123,29 @@ export default function HierarchyForm() {
       return;
     }
 
-    setLoading(true);
+    if (!areaTypeId) {
+      Swal.fire({
+        icon: "warning",
+        title: t("common.warning"),
+        text: "Area Type is required",
+      });
+      return;
+    }
+
     try {
-      const basePayload = {
+      setLoading(true);
+      const basePayload: HierarchyPayload = {
         level_name: name.trim(),
+        area_type: areaTypeId,
         is_active: isActive,
         company_id: companyUniqueId,
         project_id: projectId,
       };
       if (isEdit) {
-        await hierarchyApi.update(id as string, basePayload);
+        await updateHierarchyMutation.mutateAsync({
+          id: id as string,
+          payload: basePayload,
+        });
         Swal.fire({
           icon: "success",
           title: t("common.updated_success"),
@@ -127,7 +153,7 @@ export default function HierarchyForm() {
           showConfirmButton: false,
         });
       } else {
-        await hierarchyApi.create(basePayload);
+        await createHierarchyMutation.mutateAsync(basePayload);
         Swal.fire({
           icon: "success",
           title: t("common.added_success"),
@@ -140,7 +166,6 @@ export default function HierarchyForm() {
       const message =
         (error as ApiError)?.response?.data?.detail ||
         t("common.save_failed_desc");
-      console.error("Failed to save hierarchy:", error);
       Swal.fire({
         icon: "error",
         title: t("common.save_failed"),
@@ -151,6 +176,16 @@ export default function HierarchyForm() {
     }
   };
 
+  if (isEdit && hierarchyQuery.isPending && !hierarchyQuery.data) {
+    return (
+      <ComponentCard
+        title={t("common.edit_item", { item: t("admin.nav.hierarchy") })}
+      >
+        <div className="p-6 text-sm text-gray-500">{t("common.loading")}</div>
+      </ComponentCard>
+    );
+  }
+
   return (
     <ComponentCard
       title={
@@ -160,111 +195,134 @@ export default function HierarchyForm() {
       }
     >
       <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6">
-          <div>
-            <Label>Company *</Label>
-            <Select
-              value={companyUniqueId}
-              onValueChange={onCompanyChange}
-              disabled={
-                Boolean(loggedInCompanyUniqueId) ||
-                (!isSuperAdmin && !loggedInCompanyUniqueId) ||
-                companies.length === 0
-              }
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={
-                    loggedInCompanyUniqueId
-                      ? "Company from logged-in profile"
-                      : isSuperAdmin
-                        ? "Select Company"
-                        : "Only super admin can select company"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {companies.map((company) => (
-                  <SelectItem key={company.value} value={company.value}>
-                    {company.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!loggedInCompanyUniqueId && !isSuperAdmin && (
-              <p className="mt-1 text-xs text-red-500">
-                Company is not mapped to this login. Only super admin can view
-                all companies.
-              </p>
-            )}
-            {isSuperAdmin && !loggedInCompanyUniqueId && companies.length === 0 && (
-              <p className="mt-1 text-xs text-red-500">No companies found.</p>
-            )}
-          </div>
-
-          <div>
-            <Label>Project *</Label>
-            <Select
-              value={projectId}
-              onValueChange={setProjectId}
-              disabled={!companyUniqueId || projects.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select Project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.value} value={project.value}>
-                    {project.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {companyUniqueId && projects.length === 0 && (
-              <p className="mt-1 text-xs text-red-500">
-                No projects found for this company.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <Label htmlFor="name">
-              {t("common.item_name", { item: t("admin.nav.hierarchy") })}{" "}
-              <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t("common.enter_item_name", {
-                item: t("admin.nav.hierarchy"),
-              })}
-              required
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="isActive">
-              {t("common.status")} <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={isActive ? "true" : "false"}
-              onValueChange={(value) => setIsActive(value === "true")}
-            >
-              <SelectTrigger id="isActive">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        <div className="md:col-span-2 flex justify-end gap-3">
-          <Button
-            type="submit"
-            disabled={loading}
+        <div>
+          <Label>Company *</Label>
+          <Select
+            value={companyUniqueId}
+            onValueChange={onCompanyChange}
+            disabled={
+              Boolean(loggedInCompanyUniqueId) ||
+              (!isSuperAdmin && !loggedInCompanyUniqueId) ||
+              companies.length === 0
+            }
           >
+            <SelectTrigger>
+              <SelectValue
+                placeholder={
+                  loggedInCompanyUniqueId
+                    ? "Company from logged-in profile"
+                    : isSuperAdmin
+                      ? "Select Company"
+                      : "Only super admin can select company"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {companies.map((company) => (
+                <SelectItem key={company.value} value={company.value}>
+                  {company.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {!loggedInCompanyUniqueId && !isSuperAdmin && (
+            <p className="mt-1 text-xs text-red-500">
+              Company is not mapped to this login. Only super admin can view
+              all companies.
+            </p>
+          )}
+          {isSuperAdmin && !loggedInCompanyUniqueId && companies.length === 0 && (
+            <p className="mt-1 text-xs text-red-500">No companies found.</p>
+          )}
+        </div>
+
+        <div>
+          <Label>Project *</Label>
+          <Select
+            value={projectId}
+            onValueChange={setProjectId}
+            disabled={!companyUniqueId || projects.length === 0}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select Project" />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((project) => (
+                <SelectItem key={project.value} value={project.value}>
+                  {project.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {companyUniqueId && projects.length === 0 && (
+            <p className="mt-1 text-xs text-red-500">
+              No projects found for this company.
+            </p>
+          )}
+        </div>
+
+        <div>
+          <Label htmlFor="areaType">
+            Area Type <span className="text-red-500">*</span>
+          </Label>
+          <Select
+            value={areaTypeId}
+            onValueChange={setAreaTypeId}
+            disabled={areaTypes.length === 0}
+          >
+            <SelectTrigger id="areaType">
+              <SelectValue placeholder="Select Area Type" />
+            </SelectTrigger>
+            <SelectContent>
+              {areaTypes.map((a) => (
+                <SelectItem key={a.value} value={a.value}>
+                  {a.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {areaTypes.length === 0 && (
+            <p className="mt-1 text-xs text-red-500">No area types found.</p>
+          )}
+        </div>
+
+        <div>
+          <Label htmlFor="name">
+            {t("common.item_name", { item: t("admin.nav.hierarchy") })}{" "}
+            <span className="text-red-500">*</span>
+          </Label>
+          <Input
+            id="name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t("common.enter_item_name", {
+              item: t("admin.nav.hierarchy"),
+            })}
+            required
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="isActive">
+            {t("common.status")} <span className="text-red-500">*</span>
+          </Label>
+          <Select
+            value={isActive ? "true" : "false"}
+            onValueChange={(value) => setIsActive(value === "true")}
+          >
+            <SelectTrigger id="isActive">
+              <SelectValue placeholder={t("common.select_status")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="true">{t("common.active")}</SelectItem>
+              <SelectItem value="false">{t("common.inactive")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="md:col-span-2 flex justify-end gap-3">
+          <Button type="submit" disabled={loading || isSubmitting}>
             {loading
               ? isEdit
                 ? t("common.updating")
