@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -18,23 +18,10 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { cityApi } from "@/helpers/admin";
+import { type CityRecord, useCitiesQuery, useUpdateCityMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-type CityRecord = {
-  unique_id: string;
-  name: string;
-  is_active: boolean;
-  country_name: string;
-  state_name: string;
-  district_name: string;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
-};
+
 
 type ErrorWithResponse = {
   response?: {
@@ -69,8 +56,10 @@ const normalizeId = (value: unknown): string =>
 
 export default function CityList() {
   const { t } = useTranslation();
-  const [cities, setCities] = useState<CityRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const citiesQuery = useCitiesQuery();
+  const updateCityMutation = useUpdateCityMutation();
+  const allCities = citiesQuery.data ?? [];
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -95,55 +84,28 @@ export default function CityList() {
   const { encMasters, encCities } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encMasters}/${encCities}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
+  const ENC_EDIT_PATH = (id: string | number) =>
     `/${encMasters}/${encCities}/${id}/edit`;
 
-  const fetchCities = useCallback(async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setCities([]);
-      setLoading(false);
-      return;
-    }
-
-    if (!companyUniqueId) {
-      setCities([]);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
-
-      const data = (await cityApi.list({ params })) as CityRecord[];
-      const filtered = data.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-
-        return companyMatches && projectMatches;
-      });
-
-      setCities(filtered);
-    } catch (error) {
-      Swal.fire({
-        icon: "error",
-        title: t("common.error"),
-        text: extractErrorMessage(error),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
-
   useEffect(() => {
-    fetchCities();
-  }, [fetchCities]);
+    if (!citiesQuery.isError) return;
+    Swal.fire({ icon: "error", title: t("common.error"), text: String((citiesQuery.error as any)?.response?.data ?? citiesQuery.error) });
+  }, [citiesQuery.error, citiesQuery.isError, t]);
+
+  const cities = useMemo(() => {
+    if (isSuperAdmin && companies.length === 0) return [];
+    if (!companyUniqueId) return [];
+
+    return allCities.filter((row) => {
+      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+
+      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+      const projectMatches = !projectId || rowProjectId === projectId;
+
+      return companyMatches && projectMatches;
+    });
+  }, [allCities, companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);
@@ -177,18 +139,22 @@ export default function CityList() {
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
-  const statusTemplate = (city: CityRecord) => {
-    const updateStatus = async (value: boolean) => {
-      try {
-        await cityApi.update(city.unique_id, { is_active: value });
-        fetchCities();
-      } catch (error) {
-        console.error("Status update failed:", error);
-      }
-    };
+  const updateStatus = async (city: CityRecord, checked: boolean) => {
+    const cityId = String(city.unique_id);
+    setPendingStatusId(cityId);
 
-    return <Switch checked={city.is_active} onCheckedChange={updateStatus} />;
+    try {
+      await updateCityMutation.mutateAsync({ id: city.unique_id, payload: { name: city.name, is_active: checked } });
+    } catch (error) {
+      console.error("Status update failed:", error);
+    } finally {
+      setPendingStatusId(null);
+    }
   };
+
+  const statusTemplate = (city: CityRecord) => (
+    <Switch checked={city.is_active} disabled={updateCityMutation.isPending && pendingStatusId === String(city.unique_id)} onCheckedChange={(checked) => void updateStatus(city, checked)} />
+  );
 
   const actionTemplate = (city: CityRecord) => (
     <div className="flex gap-3">
@@ -273,7 +239,7 @@ export default function CityList() {
           paginator
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={loading}
+          loading={citiesQuery.isPending && cities.length === 0}
           filters={filters}
           onFilter={onFilter}
           header={renderHeader()}

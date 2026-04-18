@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { districtApi } from "@/helpers/admin";
+import { useDistrictsQuery, useUpdateDistrictMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type DistrictRecord = {
@@ -54,8 +54,10 @@ const normalizeId = (value: unknown): string =>
 
 export default function DistrictListPage() {
   const { t } = useTranslation();
-  const [districts, setDistricts] = useState<DistrictRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const districtsQuery = useDistrictsQuery();
+  const updateDistrictMutation = useUpdateDistrictMutation();
+  const allDistricts = districtsQuery.data ?? [];
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global:      { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -77,66 +79,45 @@ export default function DistrictListPage() {
   const navigate = useNavigate();
   const { encMasters, encDistricts } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encMasters}/${encDistricts}/new`;
-  const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encDistricts}/${id}/edit`;
+  const ENC_EDIT_PATH = (id: string | number) => `/${encMasters}/${encDistricts}/${id}/edit`;
 
-  const fetchDistricts = useCallback(async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setDistricts([]);
-      setLoading(false);
-      return;
-    }
+  useEffect(() => {
+    if (!districtsQuery.isError) return;
+    Swal.fire({ icon: "error", title: t("common.error"), text: String((districtsQuery.error as any)?.response?.data ?? districtsQuery.error) });
+  }, [districtsQuery.error, districtsQuery.isError, t]);
 
-    if (!companyUniqueId) {
-      setDistricts([]);
-      setLoading(false);
-      return;
-    }
+  const districts = ((): DistrictRecord[] => {
+    if (isSuperAdmin && companies.length === 0) return [];
+    if (!companyUniqueId) return [];
 
-    try {
-      setLoading(true);
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
+    const rows = Array.isArray(allDistricts) ? (allDistricts as any[]) : [];
+    const mapped: DistrictRecord[] = rows.map((d) => ({
+      unique_id: String(d.unique_id ?? ""),
+      countryName: String(d.country_name ?? ""),
+      stateName: String(d.state_name ?? ""),
+      name: String(d.name ?? ""),
+      is_active: Boolean(d.is_active),
+      company_id: d.company_id ? String(d.company_id) : undefined,
+      company_unique_id: d.company_unique_id ? String(d.company_unique_id) : undefined,
+      company_name: d.company_name ? String(d.company_name) : undefined,
+      project_id: d.project_id ? String(d.project_id) : undefined,
+      project_unique_id: d.project_unique_id ? String(d.project_unique_id) : undefined,
+      project_name: d.project_name ? String(d.project_name) : undefined,
+    }));
 
-      const res = await districtApi.list({ params });
-      const rows = Array.isArray(res) ? (res as Record<string, unknown>[]) : [];
-      const mapped: DistrictRecord[] = rows.map((d) => ({
-        unique_id: String(d.unique_id ?? ""),
-        countryName: String(d.country_name ?? ""),
-        stateName: String(d.state_name ?? ""),
-        name: String(d.name ?? ""),
-        is_active: Boolean(d.is_active),
-        company_id: d.company_id ? String(d.company_id) : undefined,
-        company_unique_id: d.company_unique_id
-          ? String(d.company_unique_id)
-          : undefined,
-        company_name: d.company_name ? String(d.company_name) : undefined,
-        project_id: d.project_id ? String(d.project_id) : undefined,
-        project_unique_id: d.project_unique_id
-          ? String(d.project_unique_id)
-          : undefined,
-        project_name: d.project_name ? String(d.project_name) : undefined,
-      }));
-      const filtered = mapped.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+    const filtered = mapped.filter((row) => {
+      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
 
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
+      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+      const projectMatches = !projectId || rowProjectId === projectId;
 
-        return companyMatches && projectMatches;
-      });
-      filtered.sort((a, b) => a.name.localeCompare(b.name));
-      setDistricts(filtered);
-    } catch (error) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(error) });
-    } finally {
-      setLoading(false);
-    }
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
+      return companyMatches && projectMatches;
+    });
 
-  useEffect(() => { fetchDistricts(); }, [fetchDistricts]);
+    filtered.sort((a, b) => a.name.localeCompare(b.name));
+    return filtered;
+  })();
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -179,17 +160,23 @@ export default function DistrictListPage() {
     />
   );
 
-  const statusTemplate = (row: DistrictRecord) => {
-    const updateStatus = async (value: boolean) => {
-      try {
-        await districtApi.update(row.unique_id, { is_active: value });
-        fetchDistricts();
-      } catch (e) {
-        console.error("Toggle update failed:", e);
-      }
-    };
-    return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
+  const updateStatus = async (row: DistrictRecord, checked: boolean) => {
+    const id = String(row.unique_id);
+    setPendingStatusId(id);
+
+    try {
+      await updateDistrictMutation.mutateAsync({ id: row.unique_id, payload: { name: row.name, is_active: checked } });
+    } catch (e) {
+      console.error("Toggle update failed:", e);
+    } finally {
+      setPendingStatusId(null);
+    }
   };
+
+  const statusTemplate = (row: DistrictRecord) => (
+    <Switch checked={row.is_active} disabled={updateDistrictMutation.isPending && pendingStatusId === String(row.unique_id)} onCheckedChange={(checked) => void updateStatus(row, checked)} />
+  );
+  
 
   const actionTemplate = (row: DistrictRecord) => (
     <div className="flex gap-3 justify-center">
@@ -262,7 +249,7 @@ export default function DistrictListPage() {
       <DataTable
         value={districts}
         dataKey="unique_id"
-        loading={loading}
+        loading={districtsQuery.isPending && districts.length === 0}
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}

@@ -17,8 +17,17 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 
-import { continentApi, countryApi, stateApi, districtApi, cityApi, zoneApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import {
+  useContinentsQuery,
+  useCountriesQuery,
+  useStatesQuery,
+  useDistrictsQuery,
+  useCitiesQuery,
+  useZoneQuery,
+  useCreateZoneMutation,
+  useUpdateZoneMutation,
+} from "@/tanstack/admin";
 
 
 
@@ -124,8 +133,6 @@ export default function ZoneForm() {
   const [allCities, setAllCities] = useState<CityMeta[]>([]);
   const [filteredCities, setFilteredCities] = useState<SelectOption[]>([]);
 
-  const [loading, setLoading] = useState(false);
-
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
@@ -150,85 +157,56 @@ export default function ZoneForm() {
   /* ==========================================================
       LOAD MASTER DATA
   ========================================================== */
-  useEffect(() => {
-    continentApi
-      .list()
-      .then((res: any) =>
-        setContinents(
-          res
-            .filter((x: any) => x.is_active)
-            .map((x: any) => ({
-              value: String(x.unique_id),
-              label: x.name,
-            }))
-        )
-      )
-      .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
-  }, []);
+  const continentsQuery = useContinentsQuery();
+  const countriesQuery = useCountriesQuery();
+  const statesQuery = useStatesQuery();
+  const districtsQuery = useDistrictsQuery();
+  const citiesQuery = useCitiesQuery();
 
   useEffect(() => {
-    countryApi
-      .list()
-      .then((res: any) =>
-        setAllCountries(
-          res.map((c: any) => ({
-            id: String(c.unique_id),
-            name: c.name,
-            continentId: normalizeNullable(c.continent_id ?? c.continent),
-            isActive: Boolean(c.is_active),
-          }))
-        )
-      )
-      .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
-  }, []);
+    if (continentsQuery.isError) {
+      Swal.fire(t("common.error"), String(continentsQuery.error), "error");
+      return;
+    }
+    const res = continentsQuery.data ?? [];
+    setContinents(res.filter((x: any) => x.is_active).map((x: any) => ({ value: String(x.unique_id), label: x.name })));
+  }, [continentsQuery.data, continentsQuery.isError]);
 
   useEffect(() => {
-    stateApi
-      .list()
-      .then((res: any) =>
-        setAllStates(
-          res.map((s: any) => ({
-            id: String(s.unique_id),
-            name: s.name,
-            countryId: normalizeNullable(s.country_id ?? s.country),
-            isActive: Boolean(s.is_active),
-          }))
-        )
-      )
-      .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
-  }, []);
+    if (countriesQuery.isError) {
+      Swal.fire(t("common.error"), String(countriesQuery.error), "error");
+      return;
+    }
+    const res = countriesQuery.data ?? [];
+    setAllCountries(res.map((c: any) => ({ id: String(c.unique_id), name: c.name, continentId: normalizeNullable(c.continent_id ?? c.continent), isActive: Boolean(c.is_active) })));
+  }, [countriesQuery.data, countriesQuery.isError]);
 
   useEffect(() => {
-    districtApi
-      .list()
-      .then((res: any) =>
-        setAllDistricts(
-          res.map((d: any) => ({
-            id: String(d.unique_id),
-            name: d.name,
-            stateId: normalizeNullable(d.state_id ?? d.state),
-            isActive: Boolean(d.is_active),
-          }))
-        )
-      )
-      .catch((err) => Swal.fire(t("common.error"), extractErr(err), "error"));
-  }, []);
+    if (statesQuery.isError) {
+      Swal.fire(t("common.error"), String(statesQuery.error), "error");
+      return;
+    }
+    const res = statesQuery.data ?? [];
+    setAllStates(res.map((s: any) => ({ id: String(s.unique_id), name: s.name, countryId: normalizeNullable(s.country_id ?? s.country), isActive: Boolean(s.is_active) })));
+  }, [statesQuery.data, statesQuery.isError]);
 
   useEffect(() => {
-    cityApi
-      .list()
-      .then((res: any) =>
-        setAllCities(
-          res.map((c: any) => ({
-            id: String(c.unique_id),
-            name: c.name,
-            districtId: normalizeNullable(c.district_id ?? c.district),
-            isActive: Boolean(c.is_active),
-          }))
-        )
-      )
-      .catch((err) => Swal.fire("Error", extractErr(err), "error"));
-  }, []);
+    if (districtsQuery.isError) {
+      Swal.fire(t("common.error"), String(districtsQuery.error), "error");
+      return;
+    }
+    const res = districtsQuery.data ?? [];
+    setAllDistricts(res.map((d: any) => ({ id: String(d.unique_id), name: d.name, stateId: normalizeNullable(d.state_id ?? d.state), isActive: Boolean(d.is_active) })));
+  }, [districtsQuery.data, districtsQuery.isError]);
+
+  useEffect(() => {
+    if (citiesQuery.isError) {
+      Swal.fire("Error", String(citiesQuery.error), "error");
+      return;
+    }
+    const res = citiesQuery.data ?? [];
+    setAllCities(res.map((c: any) => ({ id: String(c.unique_id), name: c.name, districtId: normalizeNullable(c.district_id ?? c.district), isActive: Boolean(c.is_active) })));
+  }, [citiesQuery.data, citiesQuery.isError]);
 
   /* ==========================================================
         FILTER CHAINS
@@ -308,35 +286,29 @@ export default function ZoneForm() {
   /* ==========================================================
         EDIT MODE
   ========================================================== */
+  const zoneQuery = useZoneQuery(id);
+
   useEffect(() => {
-    if (!isEdit || !id) return;
+    if (!zoneQuery.data) return;
+    const data = zoneQuery.data;
 
-    zoneApi
-      .get(id)
-      .then((data: ZoneRecord) => {
-        setZoneName(data.zone_name ?? "");
-        setIsActive(Boolean(data.is_active));
-        setDescription(data.description ?? "");
+    setZoneName(data.zone_name ?? "");
+    setIsActive(Boolean(data.is_active));
+    setDescription(data.description ?? "");
 
-        const cont = normalizeNullable(data.continent_id);
-        const ctr = normalizeNullable(data.country_id);
-        const ste = normalizeNullable(data.state_id);
-        const dis = normalizeNullable(data.district_id);
-        const cty = normalizeNullable(data.city_id);
-        console.log(cont, ctr, ste, dis, cty);
+    const cont = normalizeNullable(data.continent_id);
+    const ctr = normalizeNullable(data.country_id);
+    const ste = normalizeNullable(data.state_id);
+    const dis = normalizeNullable(data.district_id);
+    const cty = normalizeNullable(data.city_id);
 
-        cont && setPendingContinent(cont);
-        ctr && setPendingCountry(ctr);
-        ste && setPendingState(ste);
-        dis && setPendingDistrict(dis);
-        cty && setPendingCity(cty);
-        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-
-      })
-      .catch((err) =>
-        Swal.fire(t("common.error"), extractErr(err), "error")
-      );
-  }, [applyCompanyProjectFromRecord, id, isEdit]);
+    cont && setPendingContinent(cont);
+    ctr && setPendingCountry(ctr);
+    ste && setPendingState(ste);
+    dis && setPendingDistrict(dis);
+    cty && setPendingCity(cty);
+    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+  }, [zoneQuery.data, applyCompanyProjectFromRecord]);
 
   /* ==========================================================
         AUTO-INFER CHAINS
@@ -405,6 +377,10 @@ export default function ZoneForm() {
     console.log("allStates loaded:", allStates.length);
   }, [allStates]);
 
+  const createZoneMutation = useCreateZoneMutation();
+  const updateZoneMutation = useUpdateZoneMutation();
+  const isSubmitting = createZoneMutation.isPending || updateZoneMutation.isPending;
+
   /* ==========================================================
         FORM SUBMIT
   ========================================================== */
@@ -432,8 +408,6 @@ export default function ZoneForm() {
       return;
     }
 
-    setLoading(true);
-
     try {
       const payload = {
         zone_name: zoneName.trim(),
@@ -449,18 +423,16 @@ export default function ZoneForm() {
       };
 
       if (isEdit && id) {
-        await zoneApi.update(id, payload);
+        await updateZoneMutation.mutateAsync({ id, payload });
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await zoneApi.create(payload);
+        await createZoneMutation.mutateAsync(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
       navigate(ENC_LIST_PATH);
     } catch (err) {
       Swal.fire(t("common.save_failed"), extractErr(err), "error");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -741,8 +713,8 @@ export default function ZoneForm() {
 
         {/* BUTTONS */}
         <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={loading}>
-            {loading
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting
               ? isEdit
                 ? t("common.updating")
                 : t("common.saving")

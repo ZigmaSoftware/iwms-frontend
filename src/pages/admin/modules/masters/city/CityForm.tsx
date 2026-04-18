@@ -17,8 +17,16 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 
-import { continentApi, countryApi, stateApi, districtApi, cityApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import {
+  useContinentsQuery,
+  useCountriesQuery,
+  useStatesQuery,
+  useDistrictsQuery,
+  useCityQuery,
+  useCreateCityMutation,
+  useUpdateCityMutation,
+} from "@/tanstack/admin";
 
 /* ------------------------------
     TYPES
@@ -113,7 +121,6 @@ export default function CityForm() {
   const [filteredDistricts, setFilteredDistricts] = useState<SelectOption[]>([]);
 
   const [isActive, setIsActive] = useState(true);
-  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -133,74 +140,53 @@ export default function CityForm() {
   /* ==========================================================
       LOAD MASTER DATA
   ========================================================== */
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await continentApi.list();
-        setContinents(
-          res
-            .filter((x: any) => x.is_active)
-            .map((x: any) => ({
-              value: String(x.unique_id),
-              label: x.name,
-            }))
-        );
-      } catch (err) {
-        Swal.fire(t("common.error"), extractError(err), "error");
-      }
-    })();
-  }, []);
+  const continentsQuery = useContinentsQuery();
+  const countriesQuery = useCountriesQuery();
+  const statesQuery = useStatesQuery();
+  const districtsQuery = useDistrictsQuery();
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await countryApi.list();
-        const mapped = res.map((c: any) => ({
-          id: String(c.unique_id),
-          name: c.name,
-          continentId: normalizeNullable(c.continent_id ?? c.continent),
-          isActive: Boolean(c.is_active),
-        }));
-        setAllCountries(mapped);
-      } catch (err) {
-        Swal.fire(t("common.error"), extractError(err), "error");
-      }
-    })();
-  }, []);
+    if (continentsQuery.isError) {
+      Swal.fire(t("common.error"), String(continentsQuery.error), "error");
+      return;
+    }
+
+    const res = continentsQuery.data ?? [];
+    setContinents(res.filter((x: any) => x.is_active).map((x: any) => ({ value: String(x.unique_id), label: x.name })));
+  }, [continentsQuery.data, continentsQuery.isError]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await stateApi.list();
-        const mapped = res.map((s: any) => ({
-          id: String(s.unique_id),
-          name: s.name,
-          countryId: normalizeNullable(s.country_id ?? s.country),
-          isActive: Boolean(s.is_active),
-        }));
-        setAllStates(mapped);
-      } catch (err) {
-        Swal.fire(t("common.error"), extractError(err), "error");
-      }
-    })();
-  }, []);
+    if (countriesQuery.isError) {
+      Swal.fire(t("common.error"), String(countriesQuery.error), "error");
+      return;
+    }
+
+    const res = countriesQuery.data ?? [];
+    const mapped = res.map((c: any) => ({ id: String(c.unique_id), name: c.name, continentId: normalizeNullable(c.continent_id ?? c.continent), isActive: Boolean(c.is_active) }));
+    setAllCountries(mapped);
+  }, [countriesQuery.data, countriesQuery.isError]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await districtApi.list();
-        const mapped = res.map((d: any) => ({
-          id: String(d.unique_id),
-          name: d.name,
-          stateId: normalizeNullable(d.state_id ?? d.state),
-          isActive: Boolean(d.is_active),
-        }));
-        setAllDistricts(mapped);
-      } catch (err) {
-        Swal.fire(t("common.error"), extractError(err), "error");
-      }
-    })();
-  }, []);
+    if (statesQuery.isError) {
+      Swal.fire(t("common.error"), String(statesQuery.error), "error");
+      return;
+    }
+
+    const res = statesQuery.data ?? [];
+    const mapped = res.map((s: any) => ({ id: String(s.unique_id), name: s.name, countryId: normalizeNullable(s.country_id ?? s.country), isActive: Boolean(s.is_active) }));
+    setAllStates(mapped);
+  }, [statesQuery.data, statesQuery.isError]);
+
+  useEffect(() => {
+    if (districtsQuery.isError) {
+      Swal.fire(t("common.error"), String(districtsQuery.error), "error");
+      return;
+    }
+
+    const res = districtsQuery.data ?? [];
+    const mapped = res.map((d: any) => ({ id: String(d.unique_id), name: d.name, stateId: normalizeNullable(d.state_id ?? d.state), isActive: Boolean(d.is_active) }));
+    setAllDistricts(mapped);
+  }, [districtsQuery.data, districtsQuery.isError]);
 
   /* ==========================================================
       FILTER COUNTRIES BASED ON SELECTED CONTINENT
@@ -358,35 +344,34 @@ export default function CityForm() {
   /* ==========================================================
       EDIT MODE — LOAD EXISTING CITY
   ========================================================== */
+  const cityQuery = useCityQuery(id);
+
   useEffect(() => {
-    if (!isEdit || !id) return;
+    if (!cityQuery.data) return;
+    const data = cityQuery.data;
 
-    (async () => {
-      try {
-        const data: CityRecord = await cityApi.get(id);
+    setCityName(data.name ?? "");
+    setIsActive(Boolean(data.is_active));
 
-        setCityName(data.name ?? "");
-        setIsActive(Boolean(data.is_active));
+    const cont = normalizeNullable(data.continent_id ?? data.continent);
+    const ctr = normalizeNullable(data.country_id ?? data.country);
+    const ste = normalizeNullable(data.state_id ?? data.state);
+    const dis = normalizeNullable(data.district_id ?? data.district);
 
-        const cont = normalizeNullable(data.continent_id ?? data.continent);
-        const ctr = normalizeNullable(data.country_id ?? data.country);
-        const ste = normalizeNullable(data.state_id ?? data.state);
-        const dis = normalizeNullable(data.district_id ?? data.district);
-
-        setContinentId(cont ?? "");
-        setPendingCountryId(ctr ?? "");
-        setPendingStateId(ste ?? "");
-        setPendingDistrictId(dis ?? "");
-        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-      } catch (err) {
-        Swal.fire(t("common.error"), extractError(err), "error");
-      }
-    })();
-  }, [applyCompanyProjectFromRecord, id, isEdit]);
+    setContinentId(cont ?? "");
+    setPendingCountryId(ctr ?? "");
+    setPendingStateId(ste ?? "");
+    setPendingDistrictId(dis ?? "");
+    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+  }, [cityQuery.data, applyCompanyProjectFromRecord]);
 
   /* ==========================================================
       SUBMIT
   ========================================================== */
+  const createCityMutation = useCreateCityMutation();
+  const updateCityMutation = useUpdateCityMutation();
+  const isSubmitting = createCityMutation.isPending || updateCityMutation.isPending;
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -411,8 +396,6 @@ export default function CityForm() {
       return;
     }
 
-    setLoading(true);
-
     try {
       const payload = {
         name: cityName.trim(),
@@ -426,18 +409,16 @@ export default function CityForm() {
       };
 
       if (isEdit && id) {
-        await cityApi.update(id, payload);
+        await updateCityMutation.mutateAsync({ id, payload });
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await cityApi.create(payload);
+        await createCityMutation.mutateAsync(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
       navigate(ENC_LIST_PATH);
     } catch (err) {
       Swal.fire(t("common.save_failed"), extractError(err), "error");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -712,8 +693,8 @@ export default function CityForm() {
 
         {/* Actions */}
         <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={loading}>
-            {loading
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting
               ? isEdit
                 ? t("common.updating")
                 : t("common.saving")

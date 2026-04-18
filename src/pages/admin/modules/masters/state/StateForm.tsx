@@ -15,8 +15,14 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 
-import { continentApi, countryApi, stateApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import {
+  useContinentsQuery,
+  useCountriesQuery,
+  useStateQuery,
+  useCreateStateMutation,
+  useUpdateStateMutation,
+} from "@/tanstack/admin";
 
 
 const { encMasters, encStates } = getEncryptedRoute();
@@ -75,8 +81,6 @@ function StateForm() {
   const [allCountries, setAllCountries] = useState<CountryMeta[]>([]);
   const [filteredCountries, setFilteredCountries] = useState<SelectOption[]>([]);
 
-  const [loading, setLoading] = useState(false);
-
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
@@ -130,70 +134,40 @@ function StateForm() {
     return t("common.request_failed");
   };
 
-  useEffect(() => {
-    const fetchContinents = async () => {
-      try {
-        const res = (await continentApi.list()) as {
-          unique_id: string | number;
-          name: string;
-          is_active: boolean;
-        }[];
-
-        const activeContinents = res
-          .filter((continent) => continent.is_active)
-          .map((continent) => ({
-            value: String(continent.unique_id),
-            label: continent.name,
-          }));
-
-
-        setContinents(activeContinents);
-      } catch (error) {
-        console.error("Error fetching continents:", error);
-        Swal.fire({
-          icon: "error",
-          title: t("common.error"),
-          text: extractErrorMessage(error),
-        });
-      }
-    };
-
-    void fetchContinents();
-  }, []);
+  const continentsQuery = useContinentsQuery();
 
   useEffect(() => {
-    const fetchCountries = async () => {
-      try {
-        const data = (await countryApi.list()) as {
-          unique_id: string | number;
-          name: string;
-          continent_id?: string | number | null;
-          continent?: string | number | null;
-          is_active: boolean;
-        }[];
+    if (continentsQuery.isError) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(continentsQuery.error) });
+      return;
+    }
 
-        const normalized: CountryMeta[] = data.map((country) => ({
-          id: String(country.unique_id),
-          name: country.name,
-          continentId: normalizeNullableId(
-            country.continent_id ?? country.continent
-          ),
-          isActive: Boolean(country.is_active),
-        }));
+    const res = continentsQuery.data ?? [];
+    const activeContinents = res
+      .filter((continent) => continent.is_active)
+      .map((continent) => ({ value: String(continent.unique_id), label: continent.name }));
 
-        setAllCountries(normalized);
-      } catch (error) {
-        console.error("Error fetching countries:", error);
-        Swal.fire({
-          icon: "error",
-          title: t("common.error"),
-          text: extractErrorMessage(error),
-        });
-      }
-    };
+    setContinents(activeContinents);
+  }, [continentsQuery.data, continentsQuery.isError]);
 
-    void fetchCountries();
-  }, []);
+  const countriesQuery = useCountriesQuery();
+
+  useEffect(() => {
+    if (countriesQuery.isError) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(countriesQuery.error) });
+      return;
+    }
+
+    const data = countriesQuery.data ?? [];
+    const normalized: CountryMeta[] = data.map((country) => ({
+      id: String(country.unique_id),
+      name: country.name,
+      continentId: normalizeNullableId(country.continent_id ?? country.continent),
+      isActive: Boolean(country.is_active),
+    }));
+
+    setAllCountries(normalized);
+  }, [countriesQuery.data, countriesQuery.isError]);
 
   useEffect(() => {
     if (!continentId) {
@@ -220,37 +194,23 @@ function StateForm() {
   }, [continentId, allCountries, pendingCountryId]);
 
   // EDIT MODE → FETCH DATA
+  const stateQuery = useStateQuery(id);
+
   useEffect(() => {
-    if (!isEdit || !id) return;
-    if (allCountries.length === 0) return;
+    if (!stateQuery.data) return;
+    const data = stateQuery.data;
 
-    const fetchState = async () => {
-      try {
-        const data = (await stateApi.get(id)) as StateRecord;
+    setName(data.name ?? "");
+    setLabel(data.label ?? "");
+    setIsActive(Boolean(data.is_active));
 
-        setName(data.name ?? "");
-        setLabel(data.label ?? "");
-        setIsActive(Boolean(data.is_active));
+    const cId = String(data.country_id);
+    const contId = String(data.continent_id);
 
-        const cId = String(data.country_id);
-        const contId = String(data.continent_id);
-
-        // Set first
-        setContinentId(contId);
-        setPendingCountryId(cId);
-        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-
-      } catch (error) {
-        Swal.fire({
-          icon: "error",
-          title: t("common.error"),
-          text: extractErrorMessage(error),
-        });
-      }
-    };
-
-    fetchState();
-  }, [allCountries, applyCompanyProjectFromRecord, id, isEdit]);
+    setContinentId(contId);
+    setPendingCountryId(cId);
+    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+  }, [stateQuery.data, applyCompanyProjectFromRecord]);
 
 
   // NEW IMPORTANT EFFECT → Set country AFTER filtering
@@ -264,6 +224,10 @@ function StateForm() {
 
     if (exists) setCountryId(pendingCountryId);
   }, [filteredCountries, pendingCountryId]);
+
+  const createStateMutation = useCreateStateMutation();
+  const updateStateMutation = useUpdateStateMutation();
+  const isSubmitting = createStateMutation.isPending || updateStateMutation.isPending;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -293,38 +257,29 @@ function StateForm() {
     //   return;
     // }
 
-    setLoading(true);
-
     const payload = {
       name: name.trim(),
       label: label.trim(),
       country_id: countryId,
       continent_id: continentId,
       is_active: isActive,
-      // company_unique_id: companyUniqueId,
-      // project_id: projectId,
     };
-    console.log(payload)
 
     try {
       if (isEdit && id) {
-        await stateApi.update(id, payload);
+        await updateStateMutation.mutateAsync({ id, payload });
         Swal.fire({ icon: "success", title: t("common.updated_success") });
       } else {
-        await stateApi.create(payload);
+        await createStateMutation.mutateAsync(payload);
         Swal.fire({ icon: "success", title: t("common.added_success") });
       }
 
       navigate(ENC_LIST_PATH);
     } catch (error) {
       console.error("Failed to save state:", error);
-      Swal.fire({
-        icon: "error",
-        title: t("common.save_failed"),
-        text: extractErrorMessage(error),
-      });
+      Swal.fire({ icon: "error", title: t("common.save_failed"), text: extractErrorMessage(error) });
     } finally {
-      setLoading(false);
+      // mutation hooks provide loading state
     }
   };
 
@@ -504,8 +459,8 @@ function StateForm() {
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={loading}>
-            {loading
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting
               ? t("common.saving")
               : isEdit
               ? t("common.update")
