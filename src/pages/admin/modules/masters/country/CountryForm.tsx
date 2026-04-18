@@ -15,8 +15,14 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 
-import { continentApi, countryApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import {
+  type CountryPayload,
+  useCountryQuery,
+  useCreateCountryMutation,
+  useUpdateCountryMutation,
+  useContinentsQuery,
+} from "@/tanstack/admin";
 
 
 const { encMasters, encCountries } = getEncryptedRoute();
@@ -66,7 +72,6 @@ function CountryForm() {
   const [continentId, setContinentId] = useState("");
   const [continents, setContinents] = useState<SelectOption[]>([]);
   const [isActive, setIsActive] = useState(true);
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
@@ -115,62 +120,41 @@ function CountryForm() {
     return t("common.request_failed");
   };
 
-  useEffect(() => {
-    const fetchContinents = async () => {
-      try {
-        const data = (await continentApi.list()) as ContinentRecord[];
-        const active = data
-          .filter((continent) => continent.is_active)
-          .map<SelectOption>((continent) => ({
-            value: String(continent.unique_id),
-            label: continent.name,
-          }));
-
-        setContinents(active);
-      } catch (error) {
-        console.error("Error fetching continents:", error);
-        Swal.fire({
-          icon: "error",
-          title: t("common.error"),
-          text: extractErrorMessage(error),
-        });
-      }
-    };
-
-    void fetchContinents();
-  }, []);
+  const continentsQuery = useContinentsQuery();
 
   useEffect(() => {
-    if (!isEdit || !id) {
+    if (continentsQuery.isError) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(continentsQuery.error) });
       return;
     }
 
-    const fetchCountry = async () => {
-      try {
-        const data = (await countryApi.get(id)) as CountryRecord;
+    const data = continentsQuery.data ?? [];
+    const active = data
+      .filter((continent) => continent.is_active)
+      .map<SelectOption>((continent) => ({ value: String(continent.unique_id), label: continent.name }));
 
-        setName(data.name ?? "");
-        setIsActive(Boolean(data.is_active));
-        setMobCode(data.mob_code ?? "");
-        setCurrency(data.currency ?? "");
+    setContinents(active);
+  }, [continentsQuery.data, continentsQuery.isError]);
 
-        const resolvedContinentId = normalizeNullableId(
-          data.continent_id ?? data.continent
-        );
-        setContinentId(resolvedContinentId ?? "");
-        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-      } catch (error) {
-        console.error("Error fetching country:", error);
-        Swal.fire({
-          icon: "error",
-          title: t("common.error"),
-          text: extractErrorMessage(error),
-        });
-      }
-    };
+  const countryQuery = useCountryQuery(id);
 
-    void fetchCountry();
-  }, [applyCompanyProjectFromRecord, id, isEdit]);
+  const createCountryMutation = useCreateCountryMutation();
+  const updateCountryMutation = useUpdateCountryMutation();
+  const isSubmitting = createCountryMutation.isPending || updateCountryMutation.isPending;
+
+  useEffect(() => {
+    if (!countryQuery.data) return;
+    const data = countryQuery.data;
+
+    setName(data.name ?? "");
+    setIsActive(Boolean(data.is_active));
+    setMobCode(data.mob_code ?? "");
+    setCurrency(data.currency ?? "");
+
+    const resolvedContinentId = normalizeNullableId(data.continent_id ?? data.continent);
+    setContinentId(resolvedContinentId ?? "");
+    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+  }, [countryQuery.data, applyCompanyProjectFromRecord]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -201,47 +185,31 @@ function CountryForm() {
     //   return;
     // }
 
-    setLoading(true);
+    // mutations are declared at component top-level
 
     try {
-      const payload = {
+      const payload: CountryPayload = {
         name: name.trim(),
         continent_id: continentId,
         is_active: isActive,
         mob_code: mobCode.trim(),
         currency: currency.trim(),
-        // company_unique_id: companyUniqueId,
-        // project_id: projectId,
       };
 
       if (isEdit && id) {
-        await countryApi.update(id, payload);
-        Swal.fire({
-          icon: "success",
-          title: t("common.updated_success"),
-          timer: 1500,
-          showConfirmButton: false,
-        });
+        await updateCountryMutation.mutateAsync({ id, payload });
+        Swal.fire({ icon: "success", title: t("common.updated_success"), timer: 1500, showConfirmButton: false });
       } else {
-        await countryApi.create(payload);
-        Swal.fire({
-          icon: "success",
-          title: t("common.added_success"),
-          timer: 1500,
-          showConfirmButton: false,
-        });
+        await createCountryMutation.mutateAsync(payload);
+        Swal.fire({ icon: "success", title: t("common.added_success"), timer: 1500, showConfirmButton: false });
       }
 
       navigate(ENC_LIST_PATH);
     } catch (error) {
       console.error("Failed to save:", error);
-      Swal.fire({
-        icon: "error",
-        title: t("common.save_failed"),
-        text: extractErrorMessage(error),
-      });
+      Swal.fire({ icon: "error", title: t("common.save_failed"), text: extractErrorMessage(error) });
     } finally {
-      setLoading(false);
+      // no-op: mutation hook loading state drives UI
     }
   };
 
@@ -419,8 +387,8 @@ function CountryForm() {
 
         {/*  Buttons */}
         <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={loading}>
-            {loading
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting
               ? isEdit
                 ? t("common.updating")
                 : t("common.saving")
