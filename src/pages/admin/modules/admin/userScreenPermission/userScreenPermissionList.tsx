@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -33,6 +33,7 @@ export default function UserScreenPermissionList() {
   const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const fetchRequestRef = useRef(0);
+  const pendingRequestRef = useRef<Map<string, boolean>>(new Map());
 
   const {
     companyUniqueId,
@@ -79,7 +80,7 @@ export default function UserScreenPermissionList() {
      FETCH DATA
   ----------------------------------------------------------- */
 
-  const fetchAllCompanyPermissions = async (selectedCompanyId: string) => {
+  const fetchAllCompanyPermissions = useCallback(async (selectedCompanyId: string) => {
     const limit = 200;
     const maxRounds = 30;
     const seen = new Set<string>();
@@ -120,22 +121,29 @@ export default function UserScreenPermissionList() {
     }
 
     return rows;
-  };
+  }, []);
 
-  const fetchRecords = async () => {
+  const fetchRecords = useCallback(async () => {
     if (!companyUniqueId) {
       setRecords([]);
       setLoading(false);
       return;
     }
 
+    // Prevent duplicate requests for the same company
+    if (pendingRequestRef.current.has(companyUniqueId)) {
+      return;
+    }
+
     const requestId = ++fetchRequestRef.current;
+    pendingRequestRef.current.set(companyUniqueId, true);
 
     try {
       setLoading(true);
 
       const data = await fetchAllCompanyPermissions(companyUniqueId);
 
+      // Discard if a newer request has come in
       if (requestId !== fetchRequestRef.current) {
         return;
       }
@@ -206,22 +214,21 @@ export default function UserScreenPermissionList() {
       if (requestId === fetchRequestRef.current) {
         setLoading(false);
       }
+      pendingRequestRef.current.delete(companyUniqueId);
     }
-  };
+  }, [companyUniqueId, fetchAllCompanyPermissions, companies, t]);
 
   useEffect(() => {
-    if (isSuperAdmin && companies.length === 0) {
-      return;
-    }
+    if (!companyUniqueId) return;
 
     fetchRecords();
-  }, [companyUniqueId, companies.length, isSuperAdmin]);
+  }, [companyUniqueId, fetchRecords]);
 
   /* -----------------------------------------------------------
      DELETE RECORD
   ----------------------------------------------------------- */
 
-  const handleDelete = async (row: any) => {
+  const handleDelete = useCallback(async (row: any) => {
     const confirmDelete = await Swal.fire({
       title: t("common.confirm_title"),
       text: t("admin.user_screen_permission.confirm_delete"),
@@ -256,7 +263,7 @@ export default function UserScreenPermissionList() {
         "error"
       );
     }
-  };
+  }, [t, fetchRecords]);
 
   /* -----------------------------------------------------------
      ACTION BUTTONS

@@ -13,10 +13,13 @@ import {
 } from "@/components/ui/select";
 
 import {
-  userTypeApi,
-  staffUserTypeApi,
-  roleTypesApi,
-} from "@/helpers/admin";
+  type RoleTypeOption,
+  useCreateStaffUserTypeMutation,
+  useRoleTypeChoicesQuery,
+  useStaffUserTypeQuery,
+  useUpdateStaffUserTypeMutation,
+  useUserTypesQuery,
+} from "@/tanstack/admin";
 
 const { encAdmins, encStaffUserType } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encAdmins}/${encStaffUserType}`;
@@ -27,106 +30,12 @@ type UserType = {
   is_active: boolean;
 };
 
-type RoleTypeOption = {
-  value: string;
-  label: string;
-};
-
 const prettifyRoleLabel = (value: string) =>
   value
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase());
-
-const toRoleOption = (item: unknown): RoleTypeOption | null => {
-  if (typeof item === "string") {
-    const value = item.trim();
-    if (!value) return null;
-    return { value, label: prettifyRoleLabel(value) };
-  }
-
-  if (!item || typeof item !== "object") return null;
-
-  const record = item as Record<string, unknown>;
-  const rawValue =
-    record.value ??
-    record.key ??
-    record.id ??
-    record.unique_id ??
-    record.name ??
-    record.code;
-
-  if (typeof rawValue !== "string" && typeof rawValue !== "number") {
-    return null;
-  }
-
-  const value = String(rawValue).trim();
-  if (!value) return null;
-
-  const rawLabel =
-    record.label ??
-    record.display_name ??
-    record.title ??
-    record.name;
-
-  const label =
-    typeof rawLabel === "string" && rawLabel.trim()
-      ? rawLabel
-      : prettifyRoleLabel(value);
-
-  return { value, label };
-};
-
-const normalizeRoleTypes = (raw: unknown): RoleTypeOption[] => {
-  const payload =
-    raw && typeof raw === "object" && "data" in (raw as Record<string, unknown>)
-      ? (raw as Record<string, unknown>).data
-      : raw;
-
-  let source: unknown[] = [];
-
-  if (Array.isArray(payload)) {
-    source = payload;
-  } else if (payload && typeof payload === "object") {
-    const record = payload as Record<string, unknown>;
-    const arrayKeys = ["results", "choices", "role_choices", "items", "data"];
-
-    for (const key of arrayKeys) {
-      if (Array.isArray(record[key])) {
-        source = record[key] as unknown[];
-        break;
-      }
-    }
-
-    if (source.length === 0) {
-      const entries = Object.entries(record).filter(
-        ([key]) =>
-          !["count", "next", "previous", "detail", "message"].includes(key)
-      );
-
-      if (
-        entries.length > 0 &&
-        entries.every(([, value]) => typeof value === "string")
-      ) {
-        source = entries.map(([value, label]) => ({ value, label }));
-      }
-    }
-  }
-
-  const parsed = source
-    .map((item) => toRoleOption(item))
-    .filter((item): item is RoleTypeOption => Boolean(item));
-
-  const unique = new Map<string, RoleTypeOption>();
-  for (const option of parsed) {
-    if (!unique.has(option.value)) {
-      unique.set(option.value, option);
-    }
-  }
-
-  return Array.from(unique.values());
-};
 
 export default function StaffUserTypeForm() {
   const { t } = useTranslation();
@@ -135,112 +44,87 @@ export default function StaffUserTypeForm() {
   const [roleTypes, setRoleTypes] = useState<RoleTypeOption[]>([]);
   const [selectedUserType, setSelectedUserType] = useState("");
   const [isActive, setIsActive] = useState(true);
-  const [loading, setLoading] = useState(false);
   const [pageReady, setPageReady] = useState(false);
 
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
 
-  /* =========================
-     LOAD USER TYPES FIRST
-  ========================= */
-  const fetchUserTypes = async () => {
-    try {
-      const res = await userTypeApi.list();
-      const list = Array.isArray(res)
-        ? res
-        : (res as any)?.results ?? [];
+  const userTypesQuery = useUserTypesQuery();
+  const roleTypeChoicesQuery = useRoleTypeChoicesQuery();
+  const staffUserTypeQuery = useStaffUserTypeQuery(isEdit ? (id as string) : null);
 
-      setUserTypes(list);
-      return list;
-    } catch (error) {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      throw error;
-    }
-  };
-
-  const fetchRoleTypes = async () => {
-    try {
-      const res = await roleTypesApi.list();
-      const list = normalizeRoleTypes(res);
-      setRoleTypes(list);
-      return list;
-    } catch (error) {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      throw error;
-    }
-  };
-
-  /* =========================
-     LOAD EDIT DATA
-  ========================= */
-  const fetchEditData = async (
-    usertypes: UserType[],
-    availableRoleTypes: RoleTypeOption[]
-  ) => {
-    try {
-      const res = await staffUserTypeApi.get(id as string);
-      const data = (res as any)?.data ?? res;
-
-      const roleValue = String(data.name ?? "").trim();
-      setName(roleValue);
-      setIsActive(Boolean(data.is_active));
-
-      if (
-        roleValue &&
-        !availableRoleTypes.some((role) => role.value === roleValue)
-      ) {
-        setRoleTypes((prev) => [
-          ...prev,
-          {
-            value: roleValue,
-            label: prettifyRoleLabel(roleValue),
-          },
-        ]);
-      }
-
-      // ensure selected value exists in dropdown
-      const validUserType =
-        usertypes.find((u) => u.unique_id === data.usertype_id)
-          ?.unique_id ?? "";
-
-      setSelectedUserType(validUserType);
-    } catch (error) {
-      console.error("Edit Load Failed:", error);
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      navigate(ENC_LIST_PATH);
-    }
-  };
+  const createStaffUserTypeMutation = useCreateStaffUserTypeMutation();
+  const updateStaffUserTypeMutation = useUpdateStaffUserTypeMutation();
+  const loading =
+    createStaffUserTypeMutation.isPending || updateStaffUserTypeMutation.isPending;
 
   /* =========================
      INIT
   ========================= */
   useEffect(() => {
-    (async () => {
-      try {
-        const [userTypeList, roleTypeList] = await Promise.all([
-          fetchUserTypes(),
-          fetchRoleTypes(),
+    if (pageReady) return;
+
+    if (userTypesQuery.isError || roleTypeChoicesQuery.isError || staffUserTypeQuery.isError) {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      navigate(ENC_LIST_PATH);
+      return;
+    }
+
+    if (userTypesQuery.isPending || roleTypeChoicesQuery.isPending) return;
+    if (isEdit && staffUserTypeQuery.isPending) return;
+
+    const ut = (userTypesQuery.data ?? []) as unknown as UserType[];
+    const roles = roleTypeChoicesQuery.data ?? [];
+
+    setUserTypes(ut);
+    setRoleTypes(roles);
+
+    if (isEdit) {
+      const data = staffUserTypeQuery.data as any;
+      if (!data) return;
+
+      const roleValue = String(data.name ?? "").trim();
+      setName(roleValue);
+      setIsActive(Boolean(data.is_active));
+
+      if (roleValue && !roles.some((role) => role.value === roleValue)) {
+        setRoleTypes((prev) => [
+          ...prev,
+          { value: roleValue, label: prettifyRoleLabel(roleValue) },
         ]);
-
-        if (isEdit) {
-          await fetchEditData(userTypeList, roleTypeList);
-        } else {
-          if (userTypeList.length > 0) {
-            setSelectedUserType(userTypeList[0].unique_id);
-          }
-          if (roleTypeList.length > 0) {
-            setName(roleTypeList[0].value);
-          }
-        }
-
-        setPageReady(true);
-      } catch {
-        /* handled */
       }
-    })();
-  }, [id]);
+
+      const validUserType =
+        ut.find((u) => String(u.unique_id) === String(data.usertype_id))?.unique_id ?? "";
+      setSelectedUserType(validUserType);
+    } else {
+      if (!selectedUserType && ut.length > 0) {
+        setSelectedUserType(ut[0].unique_id);
+      }
+      if (!name && roles.length > 0) {
+        setName(roles[0].value);
+      }
+    }
+
+    setPageReady(true);
+  }, [
+    isEdit,
+    name,
+    navigate,
+    pageReady,
+    roleTypeChoicesQuery.data,
+    roleTypeChoicesQuery.isError,
+    roleTypeChoicesQuery.isPending,
+    selectedUserType,
+    staffUserTypeQuery.data,
+    staffUserTypeQuery.isError,
+    staffUserTypeQuery.isPending,
+    t,
+    userTypesQuery.data,
+    userTypesQuery.isError,
+    userTypesQuery.isPending,
+  ]);
 
   /* =========================
      SUBMIT
@@ -253,8 +137,6 @@ export default function StaffUserTypeForm() {
       return;
     }
 
-    setLoading(true);
-
     const payload = {
       usertype_id: selectedUserType,
       name,
@@ -263,10 +145,13 @@ export default function StaffUserTypeForm() {
 
     try {
       if (isEdit) {
-        await staffUserTypeApi.update(id as string, payload);
+        await updateStaffUserTypeMutation.mutateAsync({
+          id: id as string,
+          payload,
+        });
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await staffUserTypeApi.create(payload);
+        await createStaffUserTypeMutation.mutateAsync(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
@@ -279,8 +164,6 @@ export default function StaffUserTypeForm() {
           t("common.invalid_data"),
         "error"
       );
-    } finally {
-      setLoading(false);
     }
   };
 

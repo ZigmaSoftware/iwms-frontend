@@ -5,8 +5,12 @@ import { useTranslation } from "react-i18next";
 
 import { Input } from "@/components/ui/input";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { userTypeApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import {
+  useCreateUserTypeMutation,
+  useUpdateUserTypeMutation,
+  useUserTypeQuery,
+} from "@/tanstack/admin";
 
 const { encAdmins, encUserType } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encAdmins}/${encUserType}`;
@@ -15,7 +19,6 @@ export default function UserTypeForm() {
   const { t } = useTranslation();
   const [name, setName] = useState("");
   const [isActive, setIsActive] = useState(true);
-  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
   const { id } = useParams();
@@ -32,32 +35,41 @@ export default function UserTypeForm() {
   /* -----------------------------------------------------------
      LOAD RECORD FOR EDIT
   ----------------------------------------------------------- */
+  const userTypeQuery = useUserTypeQuery(userTypeId);
+
   useEffect(() => {
     if (!isEdit) return;
 
-    const loadData = async () => {
-      try {
-        const res = await userTypeApi.get(userTypeId as string);
-        const data = res?.data || res;
+    if (userTypeQuery.isError) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: t("common.load_failed"),
+      });
+      return;
+    }
 
-        setName(data.name);
-        setIsActive(data.is_active);
-        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-      } catch {
-        Swal.fire({
-          icon: "error",
-          title: t("common.error"),
-          text: t("common.load_failed"),
-        });
-      }
-    };
+    if (!userTypeQuery.data) return;
+    const data = userTypeQuery.data;
 
-    loadData();
-  }, [isEdit, userTypeId, applyCompanyProjectFromRecord, t]);
+    setName(String((data as any).name ?? ""));
+    setIsActive(Boolean((data as any).is_active));
+    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+  }, [
+    applyCompanyProjectFromRecord,
+    isEdit,
+    t,
+    userTypeQuery.data,
+    userTypeQuery.isError,
+  ]);
 
   /* -----------------------------------------------------------
      SUBMIT HANDLER
   ----------------------------------------------------------- */
+  const createUserTypeMutation = useCreateUserTypeMutation();
+  const updateUserTypeMutation = useUpdateUserTypeMutation();
+  const loading = createUserTypeMutation.isPending || updateUserTypeMutation.isPending;
+
   const handleSubmit = async (e: any) => {
     e.preventDefault();
 
@@ -72,8 +84,6 @@ export default function UserTypeForm() {
       return;
     }
 
-    setLoading(true);
-
     const payload = {
       name,
       is_active: isActive,
@@ -83,7 +93,10 @@ export default function UserTypeForm() {
     try {
       if (isEdit) {
         // UPDATE
-        await userTypeApi.update(userTypeId as string, payload);
+        await updateUserTypeMutation.mutateAsync({
+          id: userTypeId as string,
+          payload,
+        });
         Swal.fire({
           icon: "success",
           title: t("common.updated_success"),
@@ -92,7 +105,7 @@ export default function UserTypeForm() {
         });
       } else {
         // CREATE
-        await userTypeApi.create(payload);
+        await createUserTypeMutation.mutateAsync(payload);
         Swal.fire({
           icon: "success",
           title: t("common.added_success"),
@@ -113,8 +126,6 @@ export default function UserTypeForm() {
         title: t("common.save_failed"),
         text: message,
       });
-    } finally {
-      setLoading(false);
     }
   };
 

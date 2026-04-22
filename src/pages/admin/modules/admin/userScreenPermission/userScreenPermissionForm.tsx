@@ -35,6 +35,26 @@ const ENC_LIST_PATH = `/${encryptSegment("admins")}/${encryptSegment(
    TYPES
 ----------------------------------------------------------- */
 
+type StaffUserType = {
+  unique_id?: unknown;
+  name?: unknown;
+  usertype_id?: unknown;
+  usertype?: { unique_id?: unknown };
+  [key: string]: unknown;
+};
+
+type MainScreen = {
+  unique_id?: unknown;
+  mainscreen_name?: unknown;
+  [key: string]: unknown;
+};
+
+type UserScreenAction = {
+  unique_id?: unknown;
+  action_name?: unknown;
+  [key: string]: unknown;
+};
+
 type Option = {
   value: string;
   label: string;
@@ -188,7 +208,7 @@ export default function UserScreenPermissionForm() {
         ]);
 
         setStaffUserTypes(
-          sut.map((x: any) => ({
+          sut.map((x: StaffUserType) => ({
             value: toId(x.unique_id),
             label: String(x.name ?? ""),
             userTypeId: toId(x.usertype_id ?? x.usertype?.unique_id),
@@ -196,7 +216,7 @@ export default function UserScreenPermissionForm() {
         );
 
         setMainScreens(
-          ms.map((x: any) => ({
+          ms.map((x: MainScreen) => ({
             value: toId(x.unique_id),
             label: String(x.mainscreen_name ?? ""),
           }))
@@ -205,7 +225,7 @@ export default function UserScreenPermissionForm() {
         setAllUserScreens(Array.isArray(us) ? us : []);
 
         setActions(
-          ac.map((x: any) => ({
+          ac.map((x: UserScreenAction) => ({
             value: toId(x.unique_id),
             label: String(x.action_name ?? ""),
           }))
@@ -229,7 +249,7 @@ export default function UserScreenPermissionForm() {
     };
 
     load();
-  }, [t]);
+  }, [t, navigate]);
 
   /* -----------------------------------------------------------
      PREFILL COMPANY
@@ -304,7 +324,7 @@ export default function UserScreenPermissionForm() {
         });
 
         const selectedMainScreens = allUserScreens
-          .filter((screen) => !Boolean(screen.is_deleted))
+          .filter((screen) => !screen.is_deleted)
           .filter((screen) => toId(screen.mainscreen_id) === mainScreenId)
           .sort((a, b) => toOrder(a.order_no) - toOrder(b.order_no));
 
@@ -359,7 +379,7 @@ export default function UserScreenPermissionForm() {
     };
 
     loadPermissions();
-  }, [companyUniqueId, staffUserTypeId, mainScreenId, allUserScreens, t]);
+  }, [companyUniqueId, staffUserTypeId, mainScreenId, allUserScreens, t, navigate]);
 
   /* -----------------------------------------------------------
      AUTO USER TYPE
