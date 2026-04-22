@@ -13,19 +13,20 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
+import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 
-
 import type { UserType } from "../types/admin.types"; 
 
-import { userTypeApi } from "@/helpers/admin";
+import { useUpdateUserTypeMutation, useUserTypesQuery } from "@/tanstack/admin";
 
 export default function UserTypePage() {
   const { t } = useTranslation();
-  const [userTypes, setUserTypes] = useState<UserType[]>([]);
-  const [loading, setLoading] = useState(true);
+  const userTypesQuery = useUserTypesQuery();
+  const updateUserTypeMutation = useUpdateUserTypeMutation();
+  const userTypes = userTypesQuery.data ?? [];
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState({
@@ -40,50 +41,10 @@ export default function UserTypePage() {
   const ENC_EDIT_PATH = (unique_id: string) =>
     `/${encAdmins}/${encUserType}/${unique_id}/edit`;
 
-  const fetchUserTypes = async () => {
-    try {
-      const res = await userTypeApi.list();
-      const payload: any = res;
-      const data = Array.isArray(payload)
-        ? payload
-        : Array.isArray(payload.data)
-          ? payload.data
-          : (payload.data?.results ?? []);
-      console.log(data);
-      setUserTypes(data);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchUserTypes();
-  }, []);
-
-  const handleDelete = async (unique_id: string) => {
-    const confirmDelete = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: t("common.confirm_delete_button"),
-    });
-
-    if (!confirmDelete.isConfirmed) return;
-
-    await userTypeApi.remove(unique_id);
-
-    Swal.fire({
-      icon: "success",
-      title: t("common.deleted_success"),
-      timer: 1500,
-      showConfirmButton: false,
-    });
-
-    fetchUserTypes();
-  };
+    if (!userTypesQuery.isError) return;
+    Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+  }, [t, userTypesQuery.isError]);
 
   const onGlobalFilterChange = (e: any) => {
     const value = e.target.value;
@@ -116,17 +77,31 @@ export default function UserTypePage() {
     </div>
   );
 
-  const statusTemplate = (row: UserType) => {
-    const updateStatus = async (value: boolean) => {
-      await userTypeApi.update(row.unique_id, {
-        name: row.name, // correct field name
-        is_active: value,
+  const updateStatus = async (row: UserType, checked: boolean) => {
+    const id = String(row.unique_id);
+    setPendingStatusId(id);
+
+    try {
+      await updateUserTypeMutation.mutateAsync({
+        id: row.unique_id,
+        payload: { name: row.name, is_active: checked },
       });
+    } catch {
+      Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+    } finally {
+      setPendingStatusId(null);
+    }
+  };
 
-      fetchUserTypes();
-    };
-
-    return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
+  const statusTemplate = (row: UserType) => {
+    const id = String(row.unique_id);
+    return (
+      <Switch
+        checked={row.is_active}
+        disabled={updateUserTypeMutation.isPending && pendingStatusId === id}
+        onCheckedChange={(checked) => void updateStatus(row, checked)}
+      />
+    );
   };
 
   const header = (
@@ -172,7 +147,7 @@ export default function UserTypePage() {
           value={userTypes}
           paginator
           rows={10}
-          loading={loading}
+          loading={userTypesQuery.isPending && userTypes.length === 0}
           filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
           globalFilterFields={["name"]}
