@@ -8,6 +8,7 @@ import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
+import { Button } from "primereact/button";
 
 import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
@@ -145,6 +146,7 @@ export default function TripInstanceList() {
   });
 
   const { encTransportMaster, encTripInstance } = getEncryptedRoute();
+  const ENC_NEW_PATH = `/${encTransportMaster}/${encTripInstance}/new`;
   const ENC_EDIT_PATH = (id: number) => `/${encTransportMaster}/${encTripInstance}/${id}/edit`;
 
   const fetchRecords = async () => {
@@ -300,6 +302,15 @@ export default function TripInstanceList() {
               </option>
             ))}
           </select>
+
+          <Button
+          label={t("admin.trip_instance.title_add")}
+          icon="pi pi-plus"
+          className="p-button-success p-button-sm"
+          disabled={!companyUniqueId || !projectId}
+          onClick={() => navigate(ENC_NEW_PATH)}
+        />
+
         </div>
       </div>
 

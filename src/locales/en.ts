@@ -981,6 +981,7 @@ const enResource = {
           "status": "Status"
         },
         "trip_instance": {
+          "title_add": "Add Trip Instance",
           "title_edit": "Edit Trip Instance",
           "subtitle": "Manage trip status and load details.",
           "list_title": "Trip Instances",
