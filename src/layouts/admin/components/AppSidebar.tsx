@@ -1112,7 +1112,7 @@ const roleAssignsItems: NavItem[] = [
         nameKey: "admin.nav.staff_user_type",
         path: `/${encAdmins}/${encStaffUserType}`,
         module: "role-assigns",
-        screen: "staffusertypes",
+        screen: "staff-user-type",
       },
     ],
   },

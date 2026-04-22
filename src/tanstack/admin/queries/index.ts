@@ -8,3 +8,7 @@ export * from "./masters/ward";
 export * from "./masters/panchayat";
 export * from "./masters/areaType";
 export * from "./masters/hierarchy";
+
+export * from "./roleAssigns/userType";
+export * from "./roleAssigns/staffUserType";
+export * from "./roleAssigns/roleTypes";

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -13,18 +13,19 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
+import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 
 import type { StaffUserType } from "../types/admin.types"; 
-import { staffUserTypeApi } from "@/helpers/admin";
+import { useStaffUserTypesQuery, useUpdateStaffUserTypeMutation } from "@/tanstack/admin";
 
 
 export default function StaffUserTypeList() {
   const { t } = useTranslation();
-  const [records, setRecords] = useState<StaffUserType[]>([]);
-  const [loading, setLoading] = useState(true);
+  const staffUserTypesQuery = useStaffUserTypesQuery();
+  const updateStaffUserTypeMutation = useUpdateStaffUserTypeMutation();
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
   const [filters, setFilters] = useState<any>({
@@ -40,103 +41,54 @@ export default function StaffUserTypeList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encAdmins}/${encStaffUserType}/${id}/edit`;
 
-  /* -----------------------------------------------------------
-     FETCH DATA
-  ----------------------------------------------------------- */
-  const fetchRecords = async () => {
-    try {
-      const res: any[] | { results: any[] } = await staffUserTypeApi.list();
-const list = Array.isArray(res) ? res : (res as any)?.results ?? [];
-
-      const normalized = list.map((item: any) => ({
-  ...item,
-
-  // backend might return foreign key as string
-  usertype_id:
-    item.usertype_id ??
-    item.usertype?.unique_id ??
-    null,
-
-  // backend might return name nested or flat
-  usertype_name:
-    item.usertype_name ??
-    item.usertype?.name ??
-    t("common.unknown"),
-}));
-
-      setRecords(normalized);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchRecords();
-  }, []);
+    if (!staffUserTypesQuery.isError) return;
+    Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+  }, [staffUserTypesQuery.isError, t]);
 
-  /* -----------------------------------------------------------
-     DELETE RECORD
-  ----------------------------------------------------------- */
-  const handleDelete = async (unique_id: string) => {
-    const confirmDelete = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
-
-    await staffUserTypeApi.remove(unique_id);
-
-    Swal.fire({
-      icon: "success",
-      title: t("common.deleted_success"),
-      timer: 1500,
-      showConfirmButton: false,
-    });
-
-    fetchRecords();
-  };
+  const records = useMemo(() => {
+    const list = staffUserTypesQuery.data ?? [];
+    return list.map((item: any) => ({
+      ...item,
+      usertype_id: item.usertype_id ?? item.usertype?.unique_id ?? null,
+      usertype_name: item.usertype_name ?? item.usertype?.name ?? t("common.unknown"),
+    }));
+  }, [staffUserTypesQuery.data, t]);
 
   /* -----------------------------------------------------------
      STATUS SWITCH
   ----------------------------------------------------------- */
-  const statusTemplate = (row: StaffUserType) => {
-  const updateStatus = async (value: boolean) => {
-    console.log("=== STATUS TOGGLE TRIGGERED ===");
-    console.log("Row Data:", row);
-    console.log("New Status:", value);
-
-    const payload = {
-      usertype_id: row.usertype_id,   // required for backend
-      name: row.name,
-      is_active: value,
-    };
-
-    console.log("Payload Sent to API:", payload);
+  const updateStatus = async (row: StaffUserType, checked: boolean) => {
+    const id = String(row.unique_id);
+    setPendingStatusId(id);
 
     try {
-      // const response = await api.put(
-      //   `staffusertypes/${row.unique_id}/`,
-      //   payload
-      // );
-      const response = await staffUserTypeApi.update(row.unique_id
-        , payload);
-
-
-      console.log("API Response:", response.data);
-
-      fetchRecords();
+      await updateStaffUserTypeMutation.mutateAsync({
+        id: row.unique_id,
+        payload: {
+          usertype_id: row.usertype_id as string,
+          name: row.name,
+          is_active: checked,
+        },
+      });
     } catch (error: any) {
-      console.error("Update Status Error:", error.response?.data || error);
+      console.error("Update Status Error:", error?.response?.data || error);
       Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+    } finally {
+      setPendingStatusId(null);
     }
   };
 
-  return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
-};
+  const statusTemplate = (row: StaffUserType) => {
+    const id = String(row.unique_id);
+    return (
+      <Switch
+        checked={row.is_active}
+        disabled={updateStaffUserTypeMutation.isPending && pendingStatusId === id}
+        onCheckedChange={(checked) => void updateStatus(row, checked)}
+      />
+    );
+  };
 
 
   /* -----------------------------------------------------------
@@ -227,7 +179,7 @@ const list = Array.isArray(res) ? res : (res as any)?.results ?? [];
           value={records}
           paginator
           rows={10}
-          loading={loading}
+          loading={staffUserTypesQuery.isPending && records.length === 0}
           filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
           globalFilterFields={["name", "usertype_name"]}
@@ -272,5 +224,3 @@ const list = Array.isArray(res) ? res : (res as any)?.results ?? [];
     </div>
   );
 }
-
-
