@@ -378,6 +378,11 @@
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { staffCreationApi } from "@/helpers/admin";
+import {
+  useStaffCreationList,
+  useUpdateStaff,
+  useDeleteStaff,
+} from "@/tanstack/admin/queries/masters/staffCreation";
 import Swal from "sweetalert2";
 import ReactDOM from "react-dom/client";
 
@@ -479,72 +484,75 @@ export default function StaffCreationList() {
     "project_name",
   ];
 
-  const fetchStaffs = async (params = filterParams) => {
-    if (isSuperAdmin && companies.length === 0) {
-      setStaffs([]);
-      setLoading(false);
-      return;
-    }
+  const updateMutation = useUpdateStaff();
+  const deleteMutation = useDeleteStaff();
 
-    if (!companyUniqueId) {
-      setStaffs([]);
-      setLoading(false);
-      return;
-    }
+  const requestParams = {
+    salary_type: filterParams.salary_type,
+    active_status: filterParams.active_status,
+    site_name: filterParams.site_name,
+    employee_name: filterParams.employee_name,
+    company_id: companyUniqueId,
+    ...(projectId ? { project_id: projectId } : {}),
+  };
 
-    try {
-      setLoading(true);
-      const requestParams: Record<string, string> = {
-        salary_type: params.salary_type,
-        active_status: params.active_status,
-        site_name: params.site_name,
-        employee_name: params.employee_name,
-        company_id: companyUniqueId,
-      };
-      if (projectId) {
-        requestParams.project_id = projectId;
-      }
+  const { data: rawData, isLoading } = useStaffCreationList(requestParams.company_id ? requestParams : undefined);
 
-      const payload: any = await staffCreationApi.list({ params: requestParams });
-      const data = Array.isArray(payload)
-        ? payload
-        : Array.isArray(payload?.data)
-          ? payload.data
-          : payload?.data?.results ?? [];
-      const rows = data as Staff[];
-
-      const hasContextFields = rows.some((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        return Boolean(rowCompanyId || rowProjectId);
-      });
-
-      if (!hasContextFields) {
-        setStaffs(rows);
+  useEffect(() => {
+    const load = async () => {
+      if (isSuperAdmin && companies.length === 0) {
+        setStaffs([]);
+        setLoading(false);
         return;
       }
 
-      const filtered = rows.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+      if (!companyUniqueId) {
+        setStaffs([]);
+        setLoading(false);
+        return;
+      }
 
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
+      try {
+        setLoading(true);
+        const payload: any = rawData ?? [];
+        const data = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : payload?.data?.results ?? [];
+        const rows = data as Staff[];
 
-        return companyMatches && projectMatches;
-      });
+        const hasContextFields = rows.some((row) => {
+          const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+          const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+          return Boolean(rowCompanyId || rowProjectId);
+        });
 
-      setStaffs(filtered);
-    } catch (err) {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
-    } finally {
-      setLoading(false);
-    }
-  };
+        if (!hasContextFields) {
+          setStaffs(rows);
+          return;
+        }
 
-  useEffect(() => {
-    fetchStaffs(filterParams);
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+        const filtered = rows.filter((row) => {
+          const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+          const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+
+          const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+          const projectMatches = !projectId || rowProjectId === projectId;
+
+          return companyMatches && projectMatches;
+        });
+
+        setStaffs(filtered);
+      } catch (err) {
+        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [rawData, companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const applyFilter = () => fetchStaffs(filterParams);
 
@@ -578,9 +586,8 @@ export default function StaffCreationList() {
     if (!confirm.isConfirmed) return;
 
     try {
-      await staffCreationApi.remove(id);
+      await deleteMutation.mutateAsync(id);
       Swal.fire(t("common.deleted_success"), t("common.record_removed"), "success");
-      fetchStaffs(filterParams);
     } catch (err) {
       Swal.fire(t("common.error"), t("admin.staff_creation.delete_failed"), "error");
     }
@@ -592,11 +599,7 @@ export default function StaffCreationList() {
         const formData = new FormData();
         formData.append("active_status", String(value));
 
-        await staffCreationApi.update(row.unique_id, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-
-        fetchStaffs(filterParams);
+        await updateMutation.mutateAsync({ id: row.unique_id, payload: formData });
       } catch (err) {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -11,10 +11,13 @@ import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
-import { wasteTypeApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import {
+  useWasteTypesQuery,
+  useUpdateWasteTypeMutation,
+} from "@/tanstack/admin";
 
 type WasteTypeRecord = {
   unique_id: string;
@@ -28,35 +31,30 @@ type WasteTypeRecord = {
   is_active: boolean;
 };
 
-const toRecordList = (value: unknown): WasteTypeRecord[] => {
-  if (Array.isArray(value)) {
-    return value as WasteTypeRecord[];
-  }
-
-  if (value && typeof value === "object") {
-    const results = (value as { results?: unknown }).results;
-    if (Array.isArray(results)) {
-      return results as WasteTypeRecord[];
-    }
-  }
-
-  return [];
-};
-
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
 export default function WasteTypeListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [rows, setRows] = useState<WasteTypeRecord[]>([]);
-  const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    waste_type_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    company_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    project_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    global: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    waste_type_name: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    company_name: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    project_name: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
   });
   const {
     companyUniqueId,
@@ -70,52 +68,34 @@ export default function WasteTypeListPage() {
 
   const { encMasters, encWasteTypes } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encMasters}/${encWasteTypes}/new`;
-  const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encWasteTypes}/${id}/edit`;
+  const ENC_EDIT_PATH = (id: string) =>
+    `/${encMasters}/${encWasteTypes}/${id}/edit`;
 
-  const fetchRows = useCallback(async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setRows([]);
-      setLoading(false);
-      return;
-    }
+  const wasteTypesQuery = useWasteTypesQuery(
+    companyUniqueId
+      ? { company_id: companyUniqueId, project_id: projectId || undefined }
+      : null,
+  );
+  const updateWasteTypeMutation = useUpdateWasteTypeMutation();
 
-    if (!companyUniqueId) {
-      setRows([]);
-      setLoading(false);
-      return;
-    }
+  const rows = (() => {
+    if (isSuperAdmin && companies.length === 0) return [] as WasteTypeRecord[];
+    if (!companyUniqueId) return [] as WasteTypeRecord[];
 
-    setLoading(true);
-    try {
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
+    const list = Array.isArray(wasteTypesQuery.data)
+      ? (wasteTypesQuery.data as WasteTypeRecord[])
+      : [];
+    return list.filter((row) => {
+      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
 
-      const data = await wasteTypeApi.list({ params });
-      const list = toRecordList(data);
+      const companyMatches =
+        !companyUniqueId || rowCompanyId === companyUniqueId;
+      const projectMatches = !projectId || rowProjectId === projectId;
 
-      const filtered = list.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-
-        return companyMatches && projectMatches;
-      });
-
-      setRows(filtered);
-    } catch {
-      setRows([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
-
-  useEffect(() => {
-    fetchRows();
-  }, [fetchRows]);
+      return companyMatches && projectMatches;
+    });
+  })();
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);
@@ -146,8 +126,10 @@ export default function WasteTypeListPage() {
     </div>
   );
 
-  const indexTemplate = (_: WasteTypeRecord, { rowIndex }: { rowIndex: number }) =>
-    rowIndex + 1;
+  const indexTemplate = (
+    _: WasteTypeRecord,
+    { rowIndex }: { rowIndex: number },
+  ) => rowIndex + 1;
 
   const actionTemplate = (row: WasteTypeRecord) => (
     <div className="flex gap-3 justify-center">
@@ -164,14 +146,18 @@ export default function WasteTypeListPage() {
   const statusTemplate = (row: WasteTypeRecord) => {
     const updateStatus = async (value: boolean) => {
       try {
-        await wasteTypeApi.update(row.unique_id, { is_active: value });
-        fetchRows();
+        await updateWasteTypeMutation.mutateAsync({
+          id: row.unique_id,
+          payload: { is_active: value },
+        });
       } catch (error) {
         console.error("Failed to update waste type status", error);
       }
     };
 
-    return <Switch checked={Boolean(row.is_active)} onCheckedChange={updateStatus} />;
+    return (
+      <Switch checked={Boolean(row.is_active)} onCheckedChange={updateStatus} />
+    );
   };
 
   const cap = (str?: string) =>
@@ -196,7 +182,9 @@ export default function WasteTypeListPage() {
             className="border rounded px-3 py-2 text-sm"
           >
             <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+              {t("common.select_item_placeholder", {
+                item: t("admin.nav.company"),
+              })}
             </option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
@@ -212,7 +200,9 @@ export default function WasteTypeListPage() {
             className="border rounded px-3 py-2 text-sm"
           >
             <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+              {t("common.select_item_placeholder", {
+                item: t("admin.nav.project"),
+              })}
             </option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
@@ -237,7 +227,7 @@ export default function WasteTypeListPage() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={loading}
+        loading={wasteTypesQuery.isPending || wasteTypesQuery.isFetching}
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}
@@ -252,9 +242,15 @@ export default function WasteTypeListPage() {
           "project_id",
           "project_name",
         ]}
-        emptyMessage={t("common.no_items_found", { item: t("common.waste_type") })}
+        emptyMessage={t("common.no_items_found", {
+          item: t("common.waste_type"),
+        })}
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+        <Column
+          header={t("common.s_no")}
+          body={indexTemplate}
+          style={{ width: "80px" }}
+        />
         {/* <Column
           field="unique_id"
           header="Unique ID"
@@ -285,7 +281,11 @@ export default function WasteTypeListPage() {
           showFilterMatchModes={false}
           body={(row: WasteTypeRecord) => cap(row.project_name)}
         />
-        <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />
+        <Column
+          header={t("common.status")}
+          body={statusTemplate}
+          style={{ width: "140px" }}
+        />
         <Column
           header={t("common.actions")}
           body={actionTemplate}

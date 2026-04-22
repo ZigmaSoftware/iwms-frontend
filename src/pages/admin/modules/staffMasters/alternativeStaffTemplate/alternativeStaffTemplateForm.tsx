@@ -240,13 +240,13 @@ export default function AlternativeStaffTemplateForm() {
 
     setDriverOptions(
       scopedStaff
-        .filter((staff) => getStaffRole(staff) === "driver")
+        .filter((staff) => getStaffRole(staff) === "company driver")
         .map((staff) => toStaffOption(staff))
     );
 
     setOperatorOptions(
       scopedStaff
-        .filter((staff) => getStaffRole(staff) === "operator")
+        .filter((staff) => getStaffRole(staff) === "company operator")
         .map((staff) => toStaffOption(staff))
     );
   }, [selectedCompanyId, selectedProjectId, staffRecords]);
@@ -425,6 +425,8 @@ export default function AlternativeStaffTemplateForm() {
       extra_operator: formData.extra_operator,
       change_reason: formData.change_reason,
       change_remarks: formData.change_remarks || null,
+      company_id: selectedCompanyId || undefined,
+      project_id: selectedProjectId || undefined,
     };
 
     setLoading(true);

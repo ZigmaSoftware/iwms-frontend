@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -10,34 +10,14 @@ import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
-import { collectionPointApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-
-type CollectionPointRecord = {
-  unique_id: string;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
-  state_id?: string;
-  state_name?: string;
-  district_id?: string;
-  district_name?: string;
-  city_id?: string;
-  city_name?: string;
-  panchayat_id?: string | null;
-  panchayat_name?: string | null;
-  ward_id?: string | null;
-  ward_name?: string | null;
-  cp_name?: string;
-  latitude?: string | null;
-  longitude?: string | null;
-  is_active: boolean;
-};
+import {
+  useCollectionPointsQuery,
+  useUpdateCollectionPointMutation,
+  type CollectionPointRecord,
+} from "@/tanstack/admin";
 
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
@@ -51,23 +31,8 @@ type TableFilters = {
   ward_name: { value: string | null; matchMode: FilterMatchMode };
 };
 
-const toRecordList = (value: unknown): CollectionPointRecord[] => {
-  if (Array.isArray(value)) {
-    return value as CollectionPointRecord[];
-  }
-  if (value && typeof value === "object") {
-    const results = (value as { results?: unknown }).results;
-    if (Array.isArray(results)) {
-      return results as CollectionPointRecord[];
-    }
-  }
-  return [];
-};
-
 const toDisplay = (value: unknown): string =>
-  value === null || value === undefined || String(value).trim() === ""
-    ? "-"
-    : String(value);
+  value === null || value === undefined || String(value).trim() === "" ? "-" : String(value);
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -75,8 +40,7 @@ const normalizeId = (value: unknown): string =>
 export default function CollectionPointListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [rows, setRows] = useState<CollectionPointRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -101,62 +65,31 @@ export default function CollectionPointListPage() {
 
   const { encMasters, encCollectionPoints } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encMasters}/${encCollectionPoints}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encMasters}/${encCollectionPoints}/${id}/edit`;
+  const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encCollectionPoints}/${id}/edit`;
 
-  const fetchRows = useCallback(async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setRows([]);
-      setLoading(false);
-      return;
-    }
-
-    if (!companyUniqueId) {
-      setRows([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
-
-      const data = await collectionPointApi.list({ params });
-      const records = toRecordList(data);
-
-      const hasContextFields = records.some((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        return Boolean(rowCompanyId || rowProjectId);
-      });
-
-      if (!hasContextFields) {
-        setRows(records);
-        return;
-      }
-
-      const filtered = records.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-        return companyMatches && projectMatches;
-      });
-
-      setRows(filtered);
-    } catch {
-      setRows([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+  const collectionPointsQuery = useCollectionPointsQuery(
+    companyUniqueId ? { company_id: companyUniqueId, project_id: projectId || undefined } : null
+  );
+  const updateCollectionPointMutation = useUpdateCollectionPointMutation();
 
   useEffect(() => {
-    fetchRows();
-  }, [fetchRows]);
+    if (!collectionPointsQuery.isError) return;
+    console.error("Failed to fetch collection points", collectionPointsQuery.error);
+  }, [collectionPointsQuery.error, collectionPointsQuery.isError]);
+
+  const rows = (() => {
+    if (isSuperAdmin && companies.length === 0) return [] as CollectionPointRecord[];
+    if (!companyUniqueId) return [] as CollectionPointRecord[];
+
+    const records = Array.isArray(collectionPointsQuery.data) ? collectionPointsQuery.data : [];
+    return records.filter((row) => {
+      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+      const projectMatches = !projectId || rowProjectId === projectId;
+      return companyMatches && projectMatches;
+    });
+  })();
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);
@@ -178,22 +111,19 @@ export default function CollectionPointListPage() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
-            item: t("admin.nav.collection_point"),
-          })}
+          placeholder={t("common.search_item_placeholder", { item: t("admin.nav.collection_point") })}
           className="p-inputtext-sm !border-0 !shadow-none !outline-none"
         />
       </div>
     </div>
   );
 
-  const indexTemplate = (_: CollectionPointRecord, { rowIndex }: { rowIndex: number }) =>
-    rowIndex + 1;
+  const indexTemplate = (_: CollectionPointRecord, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
   const actionTemplate = (row: CollectionPointRecord) => (
     <div className="flex gap-3 justify-center">
       <button
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onClick={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
         className="text-blue-600 hover:text-blue-800"
         title={t("common.edit")}
       >
@@ -205,35 +135,37 @@ export default function CollectionPointListPage() {
   const statusTemplate = (row: CollectionPointRecord) => {
     const updateStatus = async (value: boolean) => {
       try {
-        await collectionPointApi.update(row.unique_id, { is_active: value });
-        fetchRows();
+        setPendingStatusId(String(row.unique_id));
+        await updateCollectionPointMutation.mutateAsync({
+          id: row.unique_id,
+          payload: { is_active: value },
+        });
       } catch (error) {
         console.error("Failed to update collection point status", error);
+      } finally {
+        setPendingStatusId(null);
       }
     };
 
     return (
       <Switch
         checked={Boolean(row.is_active)}
+        disabled={updateCollectionPointMutation.isPending && pendingStatusId === String(row.unique_id)}
         onCheckedChange={updateStatus}
       />
     );
   };
 
-  const cap = (str?: string) =>
+  const cap = (str?: string | null) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
   return (
     <div className="p-3">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            {t("admin.nav.collection_point")}
-          </h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-1">{t("admin.nav.collection_point")}</h1>
           <p className="text-sm text-gray-500">
-            {t("common.manage_item_records", {
-              item: t("admin.nav.collection_point"),
-            })}
+            {t("common.manage_item_records", { item: t("admin.nav.collection_point") })}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -285,7 +217,7 @@ export default function CollectionPointListPage() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={loading}
+        loading={collectionPointsQuery.isPending || collectionPointsQuery.isFetching}
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}
@@ -310,24 +242,16 @@ export default function CollectionPointListPage() {
           "ward_id",
           "ward_name",
         ]}
-        emptyMessage={t("common.no_items_found", {
-          item: t("admin.nav.collection_point"),
-        })}
+        emptyMessage={t("common.no_items_found", { item: t("admin.nav.collection_point") })}
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
-        {/* <Column
-          field="unique_id"
-          header="Unique ID"
-          sortable
-          body={(row: CollectionPointRecord) => toDisplay(row.unique_id)}
-        /> */}
         <Column
           field="cp_name"
           header={t("admin.nav.collection_point")}
           sortable
           filter
           showFilterMatchModes={false}
-          body={(row: CollectionPointRecord) => cap(row.cp_name)}
+          body={(row: CollectionPointRecord) => cap(row.cp_name ?? row.collection_point_name ?? null)}
         />
         <Column
           field="company_name"
@@ -335,7 +259,7 @@ export default function CollectionPointListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(row: CollectionPointRecord) => cap(row.company_name)}
+          body={(row: CollectionPointRecord) => cap(row.company_name ?? null)}
         />
         <Column
           field="project_name"
@@ -343,7 +267,7 @@ export default function CollectionPointListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(row: CollectionPointRecord) => cap(row.project_name)}
+          body={(row: CollectionPointRecord) => cap(row.project_name ?? null)}
         />
         <Column
           field="state_name"
@@ -351,7 +275,7 @@ export default function CollectionPointListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(row: CollectionPointRecord) => cap(row.state_name)}
+          body={(row: CollectionPointRecord) => cap(row.state_name ?? null)}
         />
         <Column
           field="district_name"
@@ -359,7 +283,7 @@ export default function CollectionPointListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(row: CollectionPointRecord) => cap(row.district_name)}
+          body={(row: CollectionPointRecord) => cap(row.district_name ?? null)}
         />
         <Column
           field="city_name"
@@ -367,7 +291,7 @@ export default function CollectionPointListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(row: CollectionPointRecord) => cap(row.city_name)}
+          body={(row: CollectionPointRecord) => cap(row.city_name ?? null)}
         />
         <Column
           field="panchayat_name"
@@ -385,26 +309,10 @@ export default function CollectionPointListPage() {
           showFilterMatchModes={false}
           body={(row: CollectionPointRecord) => toDisplay(row.ward_name)}
         />
-        <Column
-          field="latitude"
-          header="Latitude"
-          body={(row: CollectionPointRecord) => toDisplay(row.latitude)}
-        />
-        <Column
-          field="longitude"
-          header="Longitude"
-          body={(row: CollectionPointRecord) => toDisplay(row.longitude)}
-        />
-        <Column
-          header={t("common.status")}
-          body={statusTemplate}
-          style={{ width: "140px" }}
-        />
-        <Column
-          header={t("common.actions")}
-          body={actionTemplate}
-          style={{ width: "150px", textAlign: "center" }}
-        />
+        <Column field="latitude" header="Latitude" body={(row: CollectionPointRecord) => toDisplay(row.latitude)} />
+        <Column field="longitude" header="Longitude" body={(row: CollectionPointRecord) => toDisplay(row.longitude)} />
+        <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />
+        <Column header={t("common.actions")} body={actionTemplate} style={{ width: "150px", textAlign: "center" }} />
       </DataTable>
     </div>
   );

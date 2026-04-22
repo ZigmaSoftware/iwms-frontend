@@ -1,12 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
-import { api } from "@/api";
+
 import { PencilIcon } from "@/icons";
 import { FilterMatchMode } from "primereact/api";
 import { Column } from "primereact/column";
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { InputText } from "primereact/inputtext";
 
 const pdfImg = "/images/pdfimage/download.png";
@@ -15,7 +13,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
-import { complaintApi } from "@/helpers/admin";
+import { useComplaintsList } from "@/tanstack/admin/queries/masters/complaint";
 import { useTranslation } from "react-i18next";
 
 type Complaint = {
@@ -50,8 +48,7 @@ type TableFilters = {
 
 export default function ComplaintsList() {
   const { t } = useTranslation();
-  const [complaints, setComplaints] = useState<Complaint[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: complaints = [], isLoading: loading } = useComplaintsList();
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<any>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -72,25 +69,7 @@ export default function ComplaintsList() {
   
   
 
-  const fetchData = async () => {
-    try {
-      const res = await complaintApi.list();
-      setComplaints(res);
-      console.log("Fetched complaints:", res);
-    } catch {
-      Swal.fire(
-        t("common.error"),
-        t("admin.citizen_grievance.complaints.error_load"),
-        "error"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
+  // Data is loaded via `useComplaintsList` tanstack hook
 
   // ==========================================================
   // DATE FORMATTER → DD-MM-YYYY HH:MM AM/PM

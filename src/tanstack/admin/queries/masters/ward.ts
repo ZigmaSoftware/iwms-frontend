@@ -11,9 +11,15 @@ export type WardRecord = {
   description?: string | null;
   is_active: boolean;
   zone_id?: string | number | null;
+  zone?: string | number | null;
   city_id?: string | number | null;
+  city?: string | number | null;
   district_id?: string | number | null;
+  district?: string | number | null;
   state_id?: string | number | null;
+  state?: string | number | null;
+  panchayat_id?: string | number | null;
+  panchayat?: string | number | null;
   country_id?: string | number | null;
   continent_id?: string | number | null;
   company_id?: string | number | null;
