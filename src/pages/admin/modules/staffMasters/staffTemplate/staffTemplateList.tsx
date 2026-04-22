@@ -267,6 +267,10 @@ import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
 import { staffCreationApi, staffTemplateApi } from "@/helpers/admin";
+import {
+  useStaffTemplateList,
+  useUpdateStaffTemplate,
+} from "@/tanstack/admin/queries/masters/staffTemplate";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
@@ -345,63 +349,64 @@ export default function StaffTemplateList() {
 
   /* ================= FETCH ================= */
 
-  const fetchTemplates = async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setTemplates([]);
-      setLoading(false);
-      return;
-    }
+  const updateMutation = useUpdateStaffTemplate();
 
-    if (!companyUniqueId) {
-      setTemplates([]);
-      setLoading(false);
-      return;
-    }
+  const requestParams = companyUniqueId ? { company_id: companyUniqueId, ...(projectId ? { project_id: projectId } : {}) } : undefined;
 
-    setLoading(true);
-    try {
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
+  const { data: rawData, isLoading: isQueryLoading } = useStaffTemplateList(requestParams as any);
 
-      const payload: any = await staffTemplateApi.list({ params });
-      const data =
-        Array.isArray(payload) ? payload :
-        Array.isArray(payload?.data) ? payload.data :
-        payload?.data?.results ?? [];
-      const rows = data as StaffTemplate[];
-
-      const hasContextFields = rows.some((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        return Boolean(rowCompanyId || rowProjectId);
-      });
-
-      if (!hasContextFields) {
-        setTemplates(rows);
+  useEffect(() => {
+    const load = () => {
+      if (isSuperAdmin && companies.length === 0) {
+        setTemplates([]);
+        setLoading(false);
         return;
       }
 
-      const filtered = rows.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-        return companyMatches && projectMatches;
-      });
+      if (!companyUniqueId) {
+        setTemplates([]);
+        setLoading(false);
+        return;
+      }
 
-      setTemplates(filtered);
-    } catch {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
-    } finally {
-      setLoading(false);
-    }
-  };
+      setLoading(true);
+      try {
+        const payload: any = rawData ?? [];
+        const data =
+          Array.isArray(payload) ? payload :
+          Array.isArray(payload?.data) ? payload.data :
+          payload?.data?.results ?? [];
+        const rows = data as StaffTemplate[];
 
-  useEffect(() => {
-    fetchTemplates();
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+        const hasContextFields = rows.some((row) => {
+          const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+          const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+          return Boolean(rowCompanyId || rowProjectId);
+        });
+
+        if (!hasContextFields) {
+          setTemplates(rows);
+          return;
+        }
+
+        const filtered = rows.filter((row) => {
+          const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+          const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+          const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+          const projectMatches = !projectId || rowProjectId === projectId;
+          return companyMatches && projectMatches;
+        });
+
+        setTemplates(filtered);
+      } catch {
+        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [rawData, companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   /* ================= FILTERS ================= */
 
@@ -423,10 +428,7 @@ export default function StaffTemplateList() {
   const statusBodyTemplate = (row: StaffTemplate) => {
     const updateStatus = async (checked: boolean) => {
       try {
-        await staffTemplateApi.update(row.unique_id, {
-          status: checked ? "ACTIVE" : "INACTIVE",
-        });
-        fetchTemplates();
+        await updateMutation.mutateAsync({ id: row.unique_id, payload: { status: checked ? "ACTIVE" : "INACTIVE" } });
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       }

@@ -22,15 +22,14 @@ import {
   normalizeCustomerArray,
 } from "@/utils/customerUtils";
 
-import { api } from "@/api";
 import {
   customerCreationApi,
   zoneApi,
   wardApi,
-  complaintApi,
   mainCategoryApi,
   subCategoryApi,
 } from "@/helpers/admin";
+import { useCreateComplaint } from "@/tanstack/admin/queries/masters/complaint";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
@@ -101,6 +100,8 @@ export default function ComplaintAddForm() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [isPreviewImage, setIsPreviewImage] = useState(false);
+
+  const createMutation = useCreateComplaint();
 
   /* ---------------- INIT LOAD ---------------- */
   useEffect(() => {
@@ -337,9 +338,7 @@ export default function ComplaintAddForm() {
     if (file) fd.append("image", file);
 
     try {
-      await complaintApi.create(fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      await createMutation.mutateAsync(fd);
       Swal.fire(
         t("admin.citizen_grievance.complaints_form.saved_title"),
         t("admin.citizen_grievance.complaints_form.saved_message"),

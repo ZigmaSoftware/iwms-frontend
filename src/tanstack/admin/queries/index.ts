@@ -8,7 +8,12 @@ export * from "./masters/ward";
 export * from "./masters/panchayat";
 export * from "./masters/areaType";
 export * from "./masters/hierarchy";
-
-export * from "./roleAssigns/userType";
-export * from "./roleAssigns/staffUserType";
-export * from "./roleAssigns/roleTypes";
+export * from "./masters/bin";
+export * from "./masters/collectionPoint";
+export * from "./masters/wasteType";
+export * from "./masters/vehicleType";
+export * from "./masters/vehicleCreation";
+export * from "./masters/tripDefinition";
+export * from "./masters/fuel";
+export * from "./masters/mainCategory";
+export * from "./masters/subCategory";

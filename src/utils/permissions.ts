@@ -318,7 +318,7 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
     const token = localStorage.getItem("access_token");
     
     if (!token) {
-      console.warn("[Permissions API] ⚠️ No access token found");
+      // console.warn("[Permissions API] ⚠️ No access token found");
       return {};
     }
 
@@ -330,7 +330,7 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
 
     const url = `${apiBaseUrl}/${adminEndpoints.userpermission}/`;
     
-    console.log(`[Permissions API] 📡 Fetching from: ${url}`);
+    // console.log(`[Permissions API] 📡 Fetching from: ${url}`);
 
     const response = await fetch(url, {
       method: "GET",
@@ -349,7 +349,7 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
     const data = (await response.json()) as PermissionsAPIResponse;
     
     const permissions = sanitizePermissions(data);
-    console.log("[Permissions API] ✅ Permissions processed:", permissions);
+    // console.log("[Permissions API] ✅ Permissions processed:", permissions);
 
     // Store as fallback
     setStoredPermissions(permissions);

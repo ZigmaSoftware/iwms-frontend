@@ -11,8 +11,11 @@ import {
   customerCreationApi,
   zoneApi,
   wardApi,
-  complaintApi,
 } from "@/helpers/admin";
+import {
+  useComplaintQuery,
+  useUpdateComplaint,
+} from "@/tanstack/admin/queries/masters/complaint";
 import { useTranslation } from "react-i18next";
 
 const FILE_ICON =
@@ -33,9 +36,20 @@ export default function ComplaintEditForm() {
 
   const [data, setData] = useState<any>(null);
 
+  const { data: complaintData, isLoading: complaintLoading } = useComplaintQuery(
+    id
+  );
+
+  const updateMutation = useUpdateComplaint();
+
   useEffect(() => {
-    load();
-  }, []);
+    if (complaintData) {
+      const c = complaintData?.data || complaintData;
+      setData(c);
+      setStatus(c.status || "PROGRESSING");
+      setRemarks(c.action_remarks || "");
+    }
+  }, [complaintData]);
 
   const { encCitizenGrivence, encComplaint } = getEncryptedRoute();
 
@@ -55,21 +69,7 @@ export default function ComplaintEditForm() {
   const isImageFile = (f: File) =>
     f.type.startsWith("image/") || isImageUrl(f.name || "");
 
- const load = async () => {
-  try {
-    const res = await complaintApi.get(id as string);
-    const c = res?.data || res;
-
-    if (!c) throw new Error("Invalid response");
-
-    setData(c);
-    setStatus(c.status || "PROGRESSING");
-    setRemarks(c.action_remarks || "");
-  } catch (err) {
-    console.error(err);
-    Swal.fire("Error", "Failed to load complaint", "error");
-  }
-};
+// load replaced by `useComplaintQuery` above
 
   const upload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -102,9 +102,7 @@ export default function ComplaintEditForm() {
     if (closeFile) fd.append("close_image", closeFile);
 
     try {
-      await complaintApi.update(id || "", fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      await updateMutation.mutateAsync({ id: id || "", payload: fd });
       Swal.fire(
         t("admin.citizen_grievance.complaints_edit.updated_title"),
         t("admin.citizen_grievance.complaints_edit.updated_message"),

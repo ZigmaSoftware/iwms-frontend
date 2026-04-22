@@ -11,7 +11,6 @@ import { adminApi } from "./registry";
 export const companyApi = adminApi.companies;
 export const projectApi = adminApi.projects;
 
-
 /* =========================
    COMMON MASTERS
 ========================= */
@@ -50,8 +49,7 @@ export const mainScreenTypeApi = adminApi.mainScreenTypes;
 export const mainScreenApi = adminApi.mainScreens;
 export const userScreenApi = adminApi.userScreens;
 export const userScreenActionApi = adminApi.userScreenActions;
-export const userScreenPermissionApi =
-  adminApi.companyWiseScreenPermissions;
+export const userScreenPermissionApi = adminApi.companyWiseScreenPermissions;
 
 /* =========================
    ROLE ASSIGNMENT
@@ -66,18 +64,15 @@ export const roleTypesApi = adminApi.roleTypes;
 export const userCreationApi = adminApi.usersCreation;
 export const staffCreationApi = adminApi.staffCreation;
 export const staffTemplateApi = adminApi.staffTemplateCreation;
-export const alternativeStaffTemplateApi =
-  adminApi.alternativeStaffTemplate;
+export const alternativeStaffTemplateApi = adminApi.alternativeStaffTemplate;
 export const supervisorZoneMapApi = adminApi.supervisorZoneMap;
-export const unassignedStaffPoolApi =
-  adminApi.unassignedStaffPool;
+export const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
 
 /* =========================
    PROCESS
 ========================= */
 export const routePlanApi = adminApi.routePlans;
-export const zonePropertyLoadTrackerApi =
-  adminApi.zonePropertyLoadTrackers;
+export const zonePropertyLoadTrackerApi = adminApi.zonePropertyLoadTrackers;
 
 /* =========================
    AUTHENTICATION
@@ -88,7 +83,7 @@ export const loginApi = adminApi.loginUser;
    CUSTOMERS
 ========================= */
 export const customerCreationApi = adminApi.customerCreations;
-export const householdPickupEventApi = adminApi.householdPickupEvents;
+// NOTE: householdPickupEvents removed — not defined in adminEndpoints
 export const wasteCollectionApi = adminApi.wasteCollections;
 export const panchayatWiseCollectionApi = adminApi.panchayatWiseCollections;
 export const wardWiseCollectionApi = adminApi.wardWiseCollections;
@@ -114,15 +109,11 @@ export const fuelApi = adminApi.fuels;
 /* =========================
    AUDITS
 ========================= */
-export const vehicleTripAuditApi =
-  adminApi.vehicleTripAudits;
-export const tripExceptionLogApi =
-  adminApi.tripExceptionLogs;
+export const vehicleTripAuditApi = adminApi.vehicleTripAudits;
+export const tripExceptionLogApi = adminApi.tripExceptionLogs;
 export const binLoadLogApi = adminApi.binLoadLogs;
-export const supervisorZoneAccessAuditApi =
-  adminApi.supervisorZoneAccessAudits;
-export const staffTemplateAuditLogApi =
-  adminApi.staffTemplateAuditLogs;
+export const supervisorZoneAccessAuditApi = adminApi.supervisorZoneAccessAudits;
+export const staffTemplateAuditLogApi = adminApi.staffTemplateAuditLogs;
 
 /* =========================
    UTILITIES
