@@ -303,13 +303,13 @@ export default function StaffTemplateForm() {
 
     setDriverOptions(
       scopedStaff
-        .filter((staff) => getStaffRole(staff) === "driver")
+        .filter((staff) => getStaffRole(staff) === "company driver")
         .map((staff) => toStaffOption(staff))
     );
 
     setOperatorOptions(
       scopedStaff
-        .filter((staff) => getStaffRole(staff) === "operator")
+        .filter((staff) => getStaffRole(staff) === "company operator")
         .map((staff) => toStaffOption(staff))
     );
   }, [selectedCompanyId, selectedProjectId, staffRecords]);

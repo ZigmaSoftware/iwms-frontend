@@ -14,24 +14,37 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
+import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { subPropertiesApi } from "@/helpers/admin";
+import {
+  useSubPropertiesQuery,
+  useUpdateSubPropertyMutation,
+  // SubPropertyRecord,
+} from "@/tanstack";
+import type { SubPropertyRecord } from "@/tanstack/admin/queries/masters/subProperty";
 
-type SubProperty = {
-  unique_id: string;
-  sub_property_name: string;
-  property_name?: string;
-  is_active: boolean;
-  property_id?: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
+const extractErrorMessage = (error: unknown, fallback: string) => {
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+
+  if (typeof data === "string") {
+    return data;
+  }
+
+  if (Array.isArray(data)) {
+    return data.join(", ");
+  }
+
+  if (data && typeof data === "object") {
+    return Object.entries(data as Record<string, unknown>)
+      .map(([key, value]) =>
+        `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
+      )
+      .join("\n");
+  }
+
+  return fallback;
 };
 
 const normalizeId = (value: unknown): string =>
@@ -39,10 +52,8 @@ const normalizeId = (value: unknown): string =>
 
 export default function SubPropertyList() {
   const { t } = useTranslation();
-  const [subProperties, setSubProperties] = useState<SubProperty[]>([]);
-  const [loading, setLoading] = useState(true);
-
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     property_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -65,90 +76,67 @@ export default function SubPropertyList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encMasters}/${encSubProperties}/${id}/edit`;
 
-  /* ================= Fetch ================= */
-  const fetchSubProperties = async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setSubProperties([]);
-      setLoading(false);
+  const subPropertiesQuery = useSubPropertiesQuery();
+  const updateSubPropertyMutation = useUpdateSubPropertyMutation();
+
+  // Handle fetch error
+  useEffect(() => {
+    if (!subPropertiesQuery.isError) {
       return;
+    }
+
+    Swal.fire(
+      t("common.error"),
+      extractErrorMessage(subPropertiesQuery.error, t("common.fetch_failed")),
+      "error"
+    );
+  }, [subPropertiesQuery.error, subPropertiesQuery.isError, t]);
+
+  // Calculate filtered subproperties based on company and project
+  const filteredSubProperties = (() => {
+    if (!subPropertiesQuery.data) {
+      return [];
+    }
+
+    const subProperties = subPropertiesQuery.data;
+
+    if (isSuperAdmin && companies.length === 0) {
+      return [];
     }
 
     if (!companyUniqueId) {
-      setSubProperties([]);
-      setLoading(false);
-      return;
+      return [];
     }
 
-    setLoading(true);
-    try {
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
+    const hasContextFields = subProperties.some((subProperty) => {
+      const rowCompanyId = normalizeId(
+        subProperty.company_id || subProperty.company_unique_id
+      );
+      const rowProjectId = normalizeId(
+        subProperty.project_id || subProperty.project_unique_id
+      );
+      return Boolean(rowCompanyId || rowProjectId);
+    });
 
-      const res = await subPropertiesApi.list({ params });
-      const rows = Array.isArray(res) ? res : [];
-
-      const hasContextFields = rows.some((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        return Boolean(rowCompanyId || rowProjectId);
-      });
-
-      if (!hasContextFields) {
-        setSubProperties(rows);
-        return;
-      }
-
-      const filtered = rows.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-        return companyMatches && projectMatches;
-      });
-
-      setSubProperties(filtered);
-    } catch {
-      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-      setSubProperties([]);
-    } finally {
-      setLoading(false);
+    if (!hasContextFields) {
+      return subProperties;
     }
-  };
 
-  useEffect(() => {
-    fetchSubProperties();
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+    return subProperties.filter((subProperty) => {
+      const rowCompanyId = normalizeId(
+        subProperty.company_id || subProperty.company_unique_id
+      );
+      const rowProjectId = normalizeId(
+        subProperty.project_id || subProperty.project_unique_id
+      );
+      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+      const projectMatches = !projectId || rowProjectId === projectId;
+      return companyMatches && projectMatches;
+    });
+  })();
 
   const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as any);
-  };
-
-  /* ================= Delete ================= */
-  const handleDelete = async (id: string) => {
-    const confirm = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: t("common.confirm_delete_button"),
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    await subPropertiesApi.remove(id);
-
-    Swal.fire({
-      icon: "success",
-      title: t("common.deleted_success"),
-      timer: 1500,
-      showConfirmButton: false,
-    });
-
-    fetchSubProperties();
+    setFilters(e.filters);
   };
 
   /* ================= Search ================= */
@@ -177,43 +165,45 @@ export default function SubPropertyList() {
     </div>
   );
 
-  const cap = (s?: string) =>
+  const cap = (s?: string | null) =>
     s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : "";
 
-  /* ================= Toggle ================= */
-  const statusTemplate = (row: SubProperty) => {
+  const statusTemplate = (row: SubPropertyRecord) => {
     const updateStatus = async (value: boolean) => {
-      await subPropertiesApi.update(row.unique_id, {
-        sub_property_name: row.sub_property_name,
-        property_id: row.property_id,
-        is_active: value,
-      });
-      fetchSubProperties();
+      try {
+        await updateSubPropertyMutation.mutateAsync({
+          id: row.unique_id,
+          payload: {
+            sub_property_name: row.sub_property_name,
+            property_id: row.property_id,
+            is_active: value,
+          },
+        });
+      } catch (err) {
+        Swal.fire({
+          icon: "error",
+          title: t("common.error"),
+          text: extractErrorMessage(err, t("common.update_status_failed")),
+        });
+      }
     };
 
     return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
   };
 
-  /* ================= Actions ================= */
-  const actionTemplate = (row: SubProperty) => (
+  const actionTemplate = (row: SubPropertyRecord) => (
     <div className="flex gap-3 justify-center">
       <button
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onClick={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
         className="text-blue-600 hover:text-blue-800"
       >
         <PencilIcon className="size-5" />
       </button>
-
-      {/* <button
-        onClick={() => handleDelete(row.unique_id)}
-        className="text-red-600 hover:text-red-800"
-      >
-        <TrashBinIcon className="size-5" />
-      </button> */}
     </div>
   );
 
-  const indexTemplate = (_: SubProperty, { rowIndex }: any) => rowIndex + 1;
+  const indexTemplate = (_: SubPropertyRecord, { rowIndex }: { rowIndex: number }) =>
+    rowIndex + 1;
 
   /* ================= UI ================= */
   return (
@@ -275,12 +265,12 @@ export default function SubPropertyList() {
         </div>
 
         <DataTable
-          value={subProperties}
+          value={filteredSubProperties}
           dataKey="unique_id"
           paginator
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={loading}
+          loading={subPropertiesQuery.isLoading}
           filters={filters}
           onFilter={onFilter}
           header={renderHeader()}
@@ -305,7 +295,7 @@ export default function SubPropertyList() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row) => cap(row.property_name)}
+            body={(row: SubPropertyRecord) => cap(row.property_name)}
           />
 
           <Column
@@ -314,7 +304,7 @@ export default function SubPropertyList() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row) => cap(row.sub_property_name)}
+            body={(row: SubPropertyRecord) => cap(row.sub_property_name)}
           />
 
           <Column

@@ -12,6 +12,31 @@ const projectApi = adminApi.projects;
 type Company = { unique_id: string; name: string };
 type Project = { unique_id: string; name: string; company_unique_id?: string };
 
+interface PaginatedResponse<T> {
+  results: T[];
+}
+
+interface VehicleTypeResponse {
+  vehicleType: string;
+  description?: string;
+  is_active: boolean;
+  company_id?: string;
+  project_id?: string;
+}
+
+interface ApiError {
+  response?: {
+    data?: {
+      vehicleType?: string[];
+      company_id_input?: string[];
+      project_id_input?: string[];
+      detail?: string;
+      [key: string]: unknown;
+    };
+  };
+  message?: string;
+}
+
 export default function VehicleTypeCreationForm() {
   const { t } = useTranslation();
   const [vehicleType, setVehicleType] = useState("");
@@ -34,12 +59,12 @@ export default function VehicleTypeCreationForm() {
   useEffect(() => {
     companyApi
       .listPaginated(1, 100)
-      .then((data: any) => setCompanies(data.results))
+      .then((data: PaginatedResponse<Company>) => setCompanies(data.results))
       .catch(() => console.error("Failed to load companies"));
 
     projectApi
       .listPaginated(1, 100)
-      .then((data: any) => setProjects(data.results))
+      .then((data: PaginatedResponse<Project>) => setProjects(data.results))
       .catch(() => console.error("Failed to load projects"));
   }, []);
 
@@ -50,7 +75,7 @@ export default function VehicleTypeCreationForm() {
     if (isEdit) {
       vehicleTypeApi
         .get(id as string)
-        .then((res: any) => {
+        .then((res: VehicleTypeResponse) => {
           setVehicleType(res.vehicleType);
           setDescription(res.description || "");
           setIsActive(res.is_active);
@@ -65,7 +90,7 @@ export default function VehicleTypeCreationForm() {
           });
         });
     }
-  }, [id, isEdit]);
+  }, [id, isEdit, t]);
 
   // Submit logic
   const handleSubmit = async (e: React.FormEvent) => {
@@ -134,13 +159,13 @@ export default function VehicleTypeCreationForm() {
         });
       }
       navigate(ENC_LIST_PATH);
-    } catch (error: any) {
+    } catch (error: unknown) {
       const responseMessage =
-        error?.response?.data?.vehicleType?.[0] ??
-        error?.response?.data?.company_id_input?.[0] ??
-        error?.response?.data?.project_id_input?.[0] ??
-        error?.response?.data?.detail ??
-        error?.message ??
+        (error as ApiError)?.response?.data?.vehicleType?.[0] as string ??
+        (error as ApiError)?.response?.data?.company_id_input?.[0] as string ??
+        (error as ApiError)?.response?.data?.project_id_input?.[0] as string ??
+        (error as ApiError)?.response?.data?.detail as string ??
+        (error as ApiError)?.message ??
         "Unable to save vehicle type.";
       Swal.fire({
         icon: "error",
@@ -248,7 +273,7 @@ export default function VehicleTypeCreationForm() {
               >
                 <option value="">-- Select Project --</option>
                 {projects
-                  .filter((p: any) =>
+                  .filter((p) =>
                     selectedCompany
                       ? p.company_unique_id === selectedCompany
                       : true

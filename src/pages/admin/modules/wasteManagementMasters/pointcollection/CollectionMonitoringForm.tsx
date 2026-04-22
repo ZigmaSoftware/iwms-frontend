@@ -596,7 +596,7 @@ import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
 
 import { adminApi } from "@/helpers/admin/registry";
-import { binApi, collectionPointApi, panchayatApi, wasteTypeApi, wardApi, zoneApi } from "@/helpers/admin";
+import { binApi, collectionPointApi, panchayatApi, wasteTypeApi, wardApi, zoneApi, tripDefinitionApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
@@ -638,6 +638,7 @@ function CollectionMonitoringForm() {
   const [panchayatOptions, setPanchayatOptions] = useState<SelectOption[]>([]);
   const [zoneOptions, setZoneOptions] = useState<SelectOption[]>([]);
   const [wardRecords, setWardRecords] = useState<WardOption[]>([]);
+  const [tripDefinitionOptions, setTripDefinitionOptions] = useState<SelectOption[]>([]);
 
   const [loading, setLoading] = useState(false);
   const isPanchayatSelected = Boolean(panchayatId);
@@ -731,8 +732,9 @@ function CollectionMonitoringForm() {
       panchayatApi.list(),
       zoneApi.list(),
       wardApi.list(),
+      tripDefinitionApi.list(),
     ])
-      .then(([binRes, wasteTypeRes, cpRes, panchayatRes, zoneRes, wardRes]) => {
+      .then(([binRes, wasteTypeRes, cpRes, panchayatRes, zoneRes, wardRes, tripDefRes]) => {
         const bins = toRecordList(binRes)
           .filter((x) => x.is_active !== false)
           .map((x) => ({
@@ -791,12 +793,21 @@ function CollectionMonitoringForm() {
           }))
           .filter((x) => x.value && x.label);
 
+        const tripDefinitions = toRecordList(tripDefRes)
+          .filter((x) => x.is_active !== false)
+          .map((x) => ({
+            value: normalizeIdValue(x.unique_id ?? x.trip_definition_id ?? x.id),
+            label: toText(x.trip_code ?? x.unique_id ?? x.id),
+          }))
+          .filter((x) => x.value && x.label);
+
         setBinRecords(bins);
         setWasteTypeOptions(wasteTypes);
         setCollectionPoints(cps);
         setPanchayatOptions(panchayats);
         setZoneOptions(zones);
         setWardRecords(wards);
+        setTripDefinitionOptions(tripDefinitions);
 
         if (!isEdit) {
           if (bins.length > 0) setBinId((prev) => prev || bins[0].value);
@@ -811,6 +822,7 @@ function CollectionMonitoringForm() {
         setPanchayatOptions([]);
         setZoneOptions([]);
         setWardRecords([]);
+        setTripDefinitionOptions([]);
       });
   }, [isEdit]);
 
@@ -1062,10 +1074,16 @@ function CollectionMonitoringForm() {
 
           <div>
             <Label>Trip ID</Label>
-            <Input
-              value={tripId}
-              onChange={(e) => setTripId(e.target.value)}
-              placeholder="TRIP-XXXXXXXXXXXX"
+            <Select
+              value={tripId || NONE_VALUE}
+              onChange={(value) => {
+                const nextTripId = value === NONE_VALUE ? "" : value;
+                setTripId(nextTripId);
+              }}
+              options={[{ value: NONE_VALUE, label: t("common.not_available") }, ...tripDefinitionOptions]}
+              placeholder={t("common.select_item_placeholder", {
+                item: "Trip",
+              })}
             />
           </div>
 

@@ -14,23 +14,37 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
+import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import {
+  usePropertiesQuery,
+  useUpdatePropertyMutation,
+  // PropertyRecord,
+} from "@/tanstack";
+import type{ PropertyRecord } from "@/tanstack/admin/queries/masters/property";
 
-import { propertiesApi } from "@/helpers/admin";
+const extractErrorMessage = (error: unknown, fallback: string) => {
+  const data = (error as { response?: { data?: unknown } }).response?.data;
 
-type Property = {
-  unique_id: string;
-  property_name: string;
-  is_active: boolean;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
+  if (typeof data === "string") {
+    return data;
+  }
+
+  if (Array.isArray(data)) {
+    return data.join(", ");
+  }
+
+  if (data && typeof data === "object") {
+    return Object.entries(data as Record<string, unknown>)
+      .map(([key, value]) =>
+        `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
+      )
+      .join("\n");
+  }
+
+  return fallback;
 };
 
 const normalizeId = (value: unknown): string =>
@@ -38,10 +52,8 @@ const normalizeId = (value: unknown): string =>
 
 export default function PropertyList() {
   const { t } = useTranslation();
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [loading, setLoading] = useState(true);
-
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     property_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -64,87 +76,59 @@ export default function PropertyList() {
   const ENC_EDIT_PATH = (unique_id: string) =>
     `/${encMasters}/${encProperties}/${unique_id}/edit`;
 
-  const fetchProperties = async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setProperties([]);
-      setLoading(false);
+  const propertiesQuery = usePropertiesQuery();
+  const updatePropertyMutation = useUpdatePropertyMutation();
+
+  // Handle fetch error
+  useEffect(() => {
+    if (!propertiesQuery.isError) {
       return;
+    }
+
+    Swal.fire(
+      t("common.error"),
+      extractErrorMessage(propertiesQuery.error, t("common.fetch_failed")),
+      "error"
+    );
+  }, [propertiesQuery.error, propertiesQuery.isError, t]);
+
+  // Calculate filtered properties based on company and project
+  const filteredProperties = (() => {
+    if (!propertiesQuery.data) {
+      return [];
+    }
+
+    const properties = propertiesQuery.data;
+
+    if (isSuperAdmin && companies.length === 0) {
+      return [];
     }
 
     if (!companyUniqueId) {
-      setProperties([]);
-      setLoading(false);
-      return;
+      return [];
     }
 
-    setLoading(true);
-    try {
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
+    const hasContextFields = properties.some((property) => {
+      const rowCompanyId = normalizeId(property.company_id || property.company_unique_id);
+      const rowProjectId = normalizeId(property.project_id || property.project_unique_id);
+      return Boolean(rowCompanyId || rowProjectId);
+    });
 
-      const res = await propertiesApi.list({ params });
-      const rows = Array.isArray(res) ? res : [];
-
-      const hasContextFields = rows.some((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        return Boolean(rowCompanyId || rowProjectId);
-      });
-
-      if (!hasContextFields) {
-        setProperties(rows);
-        return;
-      }
-
-      const filtered = rows.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-        return companyMatches && projectMatches;
-      });
-
-      setProperties(filtered);
-    } catch {
-      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-      setProperties([]);
-    } finally {
-      setLoading(false);
+    if (!hasContextFields) {
+      return properties;
     }
-  };
 
-  useEffect(() => {
-    fetchProperties();
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+    return properties.filter((property) => {
+      const rowCompanyId = normalizeId(property.company_id || property.company_unique_id);
+      const rowProjectId = normalizeId(property.project_id || property.project_unique_id);
+      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+      const projectMatches = !projectId || rowProjectId === projectId;
+      return companyMatches && projectMatches;
+    });
+  })();
 
   const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as any);
-  };
-
-  const handleDelete = async (unique_id: string) => {
-    const confirm = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      confirmButtonText: t("common.confirm_delete_button"),
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    await propertiesApi.remove(unique_id);
-
-    Swal.fire({
-      icon: "success",
-      title: t("common.deleted_success"),
-      timer: 1500,
-      showConfirmButton: false,
-    });
-
-    fetchProperties();
+    setFilters(e.filters);
   };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -174,27 +158,32 @@ export default function PropertyList() {
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
-
-  const statusTemplate = (row: Property) => {
+  const statusTemplate = (row: PropertyRecord) => {
     const updateStatus = async (value: boolean) => {
       try {
-        await propertiesApi.update(row.unique_id, {
-          property_name: row.property_name,
-          is_active: value,
+        await updatePropertyMutation.mutateAsync({
+          id: row.unique_id,
+          payload: {
+            property_name: row.property_name,
+            is_active: value,
+          },
         });
-        fetchProperties();
       } catch (err) {
-        console.error("Status update failed:", err);
+        Swal.fire({
+          icon: "error",
+          title: t("common.error"),
+          text: extractErrorMessage(err, t("common.update_status_failed")),
+        });
       }
     };
 
     return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
   };
 
-  const actionTemplate = (row: Property) => (
+  const actionTemplate = (row: PropertyRecord) => (
     <div className="flex gap-3 justify-center">
       <button
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onClick={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
         className="text-blue-600 hover:text-blue-800"
       >
         <PencilIcon className="size-5" />
@@ -209,7 +198,7 @@ export default function PropertyList() {
     </div>
   );
 
-  const indexTemplate = (_: Property, { rowIndex }: { rowIndex: number }) =>
+  const indexTemplate = (_: PropertyRecord, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
   return (
@@ -269,12 +258,12 @@ export default function PropertyList() {
         </div>
 
         <DataTable
-          value={properties}
+          value={filteredProperties}
           dataKey="unique_id"
           paginator
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={loading}
+          loading={propertiesQuery.isLoading}
           filters={filters}
           onFilter={onFilter}
           header={renderHeader()}
@@ -294,7 +283,7 @@ export default function PropertyList() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: Property) => cap(row.property_name)}
+            body={(row: PropertyRecord) => cap(row.property_name)}
           />
 
           <Column

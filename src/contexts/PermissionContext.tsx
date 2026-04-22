@@ -38,7 +38,7 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
    */
   const fetchAndUpdatePermissions = useCallback(async () => {
     try {
-      console.log("[PermissionContext] 📡 Fetching permissions from API...");
+      // console.log("[PermissionContext] 📡 Fetching permissions from API...");
       const apiPermissions = await fetchPermissionsFromAPI();
       
       if (!isMountedRef.current) return;
@@ -46,17 +46,17 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
       if (apiPermissions && Object.keys(apiPermissions).length > 0) {
         setPermissions(apiPermissions);
         setIsEmptyPermissions(false);
-        console.log("[PermissionContext] ✅ Permissions updated from API");
+        // console.log("[PermissionContext] ✅ Permissions updated from API");
       } else {
         const storedPerms = getStoredPermissions();
         setPermissions(storedPerms);
         setIsEmptyPermissions(Object.keys(storedPerms).length === 0);
-        console.log(
-          `[PermissionContext] ℹ️ Using stored permissions (isEmpty: ${Object.keys(storedPerms).length === 0})`
-        );
+        // console.log(
+        //   `[PermissionContext] ℹ️ Using stored permissions (isEmpty: ${Object.keys(storedPerms).length === 0})`
+        // );
       }
     } catch (error) {
-      console.error("[PermissionContext] ❌ Failed to fetch permissions:", error);
+      // console.error("[PermissionContext] ❌ Failed to fetch permissions:", error);
       if (isMountedRef.current) {
         const storedPerms = getStoredPermissions();
         setPermissions(storedPerms);
@@ -71,7 +71,7 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const initializePermissions = async () => {
       try {
-        console.log("[PermissionContext] 🚀 Initializing permissions");
+        // console.log("[PermissionContext] 🚀 Initializing permissions");
         setIsLoading(true);
         await fetchAndUpdatePermissions();
       } finally {
@@ -89,18 +89,18 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
    * All users poll - no role-based exceptions
    */
   useEffect(() => {
-    console.log("[PermissionContext] ⏱️ Starting permission polling (10s interval)");
+    // console.log("[PermissionContext] ⏱️ Starting permission polling (10s interval)");
 
     pollingIntervalRef.current = setInterval(() => {
       if (isMountedRef.current) {
-        console.log("[PermissionContext] 🔄 Polling permissions...");
+        // console.log("[PermissionContext] 🔄 Polling permissions...");
         fetchAndUpdatePermissions();
       }
     }, 10000); // 10 seconds
 
     return () => {
       if (pollingIntervalRef.current) {
-        console.log("[PermissionContext] ⏱️ Stopping permission polling");
+        // console.log("[PermissionContext] ⏱️ Stopping permission polling");
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
@@ -117,7 +117,7 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
-      console.log("[PermissionContext] 🧹 Cleanup: component unmounted");
+      // console.log("[PermissionContext] 🧹 Cleanup: component unmounted");
     };
   }, []);
 
@@ -126,7 +126,7 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
    */
   const handleStorageChange = useCallback(() => {
     const updated = getStoredPermissions();
-    console.log("[PermissionContext] 📤 Storage sync - updating permissions");
+    // console.log("[PermissionContext] 📤 Storage sync - updating permissions");
     setPermissions(updated);
     setIsEmptyPermissions(Object.keys(updated).length === 0);
   }, []);
@@ -140,7 +140,7 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
    * 🔹 Allow explicit permission updates (useful for same-tab updates)
    */
   const updatePermissions = useCallback((newPermissions: PermissionsMap) => {
-    console.log("[PermissionContext] 🔄 Explicit permission update");
+    // console.log("[PermissionContext] 🔄 Explicit permission update");
     setPermissions(newPermissions);
     setIsEmptyPermissions(Object.keys(newPermissions).length === 0);
   }, []);
@@ -161,9 +161,9 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
 
     // Check permission against the stored permissions map
     const result = checkPermission(moduleName, screenName, action, permissions);
-    console.log(
-      `[PermissionContext] hasPermission(${moduleName}/${screenName}/${action}): ${result}`
-    );
+    // console.log(
+    //   `[PermissionContext] hasPermission(${moduleName}/${screenName}/${action}): ${result}`
+    // );
     return result;
   };
 
