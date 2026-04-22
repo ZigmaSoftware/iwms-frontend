@@ -7,7 +7,14 @@ import { enterpriseQuery } from "../enterpriseQuery";
 export type PanchayatRecord = {
   unique_id: string | number;
   panchayat_name?: string;
+  name?: string;
   is_active?: boolean;
+  state_id?: string | number | null;
+  state?: string | number | null;
+  district_id?: string | number | null;
+  district?: string | number | null;
+  city_id?: string | number | null;
+  city?: string | number | null;
   company_id?: string | number | null;
   project_id?: string | number | null;
 };

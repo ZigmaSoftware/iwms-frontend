@@ -22,7 +22,7 @@ import {
   useSubPropertiesQuery,
   useUpdateSubPropertyMutation,
   // SubPropertyRecord,
-} from "@/tanstack";
+} from "@/tanstack/admin/queries/masters/subProperty";
 import type { SubPropertyRecord } from "@/tanstack/admin/queries/masters/subProperty";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {

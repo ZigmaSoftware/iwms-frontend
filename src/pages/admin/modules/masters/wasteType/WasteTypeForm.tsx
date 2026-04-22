@@ -15,9 +15,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { wasteTypeApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import {
+  useWasteTypeQuery,
+  useCreateWasteTypeMutation,
+  useUpdateWasteTypeMutation,
+} from "@/tanstack/admin";
 
 const { encMasters, encWasteTypes } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encWasteTypes}`;
@@ -43,6 +47,12 @@ export default function WasteTypeForm() {
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit });
 
+  const wasteTypeQuery = useWasteTypeQuery(id);
+  const createWasteTypeMutation = useCreateWasteTypeMutation();
+  const updateWasteTypeMutation = useUpdateWasteTypeMutation();
+  const isSubmitting =
+    createWasteTypeMutation.isPending || updateWasteTypeMutation.isPending;
+
   const extractErr = useCallback(
     (error: unknown): string => {
       const err = error as { response?: { data?: unknown }; message?: string };
@@ -54,7 +64,7 @@ export default function WasteTypeForm() {
           .map(([key, value]) =>
             Array.isArray(value)
               ? `${key}: ${value.join(", ")}`
-              : `${key}: ${String(value)}`
+              : `${key}: ${String(value)}`,
           )
           .join("\n");
       }
@@ -62,7 +72,7 @@ export default function WasteTypeForm() {
       if (err.message) return err.message;
       return t("common.unexpected_error");
     },
-    [t]
+    [t],
   );
 
   const [wasteTypeName, setWasteTypeName] = useState("");
@@ -70,22 +80,21 @@ export default function WasteTypeForm() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!isEdit || !id) return;
+    if (!isEdit || !wasteTypeQuery.data) return;
 
-    wasteTypeApi
-      .get(id)
-      .then((response) => {
-        const data = (response ?? {}) as Record<string, unknown>;
-        setWasteTypeName(
-          toStringOrEmpty(data.waste_type_name ?? data.name ?? data.property_name)
-        );
-        setIsActive(Boolean(data.is_active));
-        applyCompanyProjectFromRecord(data);
-      })
-      .catch((error) => {
-        Swal.fire(t("common.error"), extractErr(error), "error");
-      });
-  }, [applyCompanyProjectFromRecord, extractErr, id, isEdit, t]);
+    const data = wasteTypeQuery.data as Record<string, unknown>;
+    setWasteTypeName(
+      toStringOrEmpty(data.waste_type_name ?? data.name ?? data.property_name),
+    );
+    setIsActive(Boolean(data.is_active));
+    applyCompanyProjectFromRecord(data);
+  }, [applyCompanyProjectFromRecord, isEdit, wasteTypeQuery.data]);
+
+  useEffect(() => {
+    if (!isEdit || !wasteTypeQuery.isError) return;
+
+    Swal.fire(t("common.error"), extractErr(wasteTypeQuery.error), "error");
+  }, [extractErr, isEdit, wasteTypeQuery.error, wasteTypeQuery.isError, t]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -94,14 +103,16 @@ export default function WasteTypeForm() {
     if (!companyUniqueId) missingFields.push(t("admin.nav.company"));
     if (!projectId) missingFields.push(t("admin.nav.project"));
     if (!wasteTypeName.trim()) {
-      missingFields.push(t("common.item_name", { item: t("common.waste_type") }));
+      missingFields.push(
+        t("common.item_name", { item: t("common.waste_type") }),
+      );
     }
 
     if (missingFields.length > 0) {
       Swal.fire(
         t("common.warning"),
         t("admin.bin.missing_fields", { fields: missingFields.join(", ") }),
-        "warning"
+        "warning",
       );
       return;
     }
@@ -116,10 +127,10 @@ export default function WasteTypeForm() {
 
     try {
       if (isEdit && id) {
-        await wasteTypeApi.update(id, payload);
+        await updateWasteTypeMutation.mutateAsync({ id, payload });
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await wasteTypeApi.create(payload);
+        await createWasteTypeMutation.mutateAsync(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
@@ -139,7 +150,11 @@ export default function WasteTypeForm() {
           : t("common.add_item", { item: t("common.waste_type") })
       }
     >
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6" noValidate>
+      <form
+        onSubmit={handleSubmit}
+        className="grid grid-cols-1 md:grid-cols-2 gap-6"
+        noValidate
+      >
         <div>
           <Label>{t("admin.nav.company")} *</Label>
           <Select
@@ -191,11 +206,15 @@ export default function WasteTypeForm() {
         </div>
 
         <div>
-          <Label>{t("common.item_name", { item: t("common.waste_type") })} *</Label>
+          <Label>
+            {t("common.item_name", { item: t("common.waste_type") })} *
+          </Label>
           <Input
             value={wasteTypeName}
             onChange={(e) => setWasteTypeName(e.target.value)}
-            placeholder={t("common.enter_item_name", { item: t("common.waste_type") })}
+            placeholder={t("common.enter_item_name", {
+              item: t("common.waste_type"),
+            })}
             required
           />
         </div>
@@ -217,8 +236,8 @@ export default function WasteTypeForm() {
         </div>
 
         <div className="md:col-span-2 flex justify-end gap-3">
-          <Button type="submit" disabled={loading}>
-            {loading
+          <Button type="submit" disabled={loading || isSubmitting}>
+            {loading || isSubmitting
               ? isEdit
                 ? t("common.updating")
                 : t("common.saving")
@@ -226,7 +245,11 @@ export default function WasteTypeForm() {
                 ? t("common.update")
                 : t("common.save")}
           </Button>
-          <Button type="button" variant="destructive" onClick={() => navigate(ENC_LIST_PATH)}>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => navigate(ENC_LIST_PATH)}
+          >
             {t("common.cancel")}
           </Button>
         </div>

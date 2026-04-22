@@ -15,6 +15,12 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import {
+  useTripDefinitionsQuery,
+  useUpdateTripDefinitionMutation,
+} from "@/tanstack/admin";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type TripDefinitionRecord = {
   unique_id: string;
@@ -31,7 +37,6 @@ type TripDefinitionRecord = {
   approval_status: string;
   status: string;
   created_at: string;
-  // Enriched name fields for filtering
   _routeplan_name?: string;
   _staff_template_name?: string;
   _property_name?: string;
@@ -56,6 +61,8 @@ type TableFilters = {
   status: { value: string | null; matchMode: FilterMatchMode };
 };
 
+// ─── Helpers (unchanged from original) ───────────────────────────────────────
+
 const normalizeList = (payload: any): any[] =>
   Array.isArray(payload)
     ? payload
@@ -72,18 +79,24 @@ const filterByCompanyProject = (
   projectId: string
 ) => {
   const hasContextFields = rows.some((item) => {
-    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
-    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    const rowCompanyId = normalizeId(
+      item?.company_id ?? item?.company_unique_id
+    );
+    const rowProjectId = normalizeId(
+      item?.project_id ?? item?.project_unique_id
+    );
     return Boolean(rowCompanyId || rowProjectId);
   });
 
-  if (!hasContextFields) {
-    return rows;
-  }
+  if (!hasContextFields) return rows;
 
   return rows.filter((item) => {
-    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
-    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    const rowCompanyId = normalizeId(
+      item?.company_id ?? item?.company_unique_id
+    );
+    const rowProjectId = normalizeId(
+      item?.project_id ?? item?.project_unique_id
+    );
     const companyMatches = !companyId || rowCompanyId === companyId;
     const projectMatches = !projectId || rowProjectId === projectId;
     return companyMatches && projectMatches;
@@ -95,12 +108,17 @@ const buildLookup = (
   keyField: string,
   valueField: string
 ): Record<string, string> =>
-  items.reduce((acc, item) => {
-    if (item[keyField] !== undefined && item[keyField] !== null) {
-      acc[String(item[keyField])] = String(item[valueField] ?? item[keyField]);
-    }
-    return acc;
-  }, {} as Record<string, string>);
+  items.reduce(
+    (acc, item) => {
+      if (item[keyField] !== undefined && item[keyField] !== null) {
+        acc[String(item[keyField])] = String(
+          item[valueField] ?? item[keyField]
+        );
+      }
+      return acc;
+    },
+    {} as Record<string, string>
+  );
 
 const extractErrorMessage = (error: any): string | null => {
   const data = error?.response?.data;
@@ -116,21 +134,19 @@ const extractErrorMessage = (error: any): string | null => {
   return null;
 };
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function TripDefinitionList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const tripDefinitionApi = adminApi.tripDefinitions;
+  // Lookup-only APIs (property/subProperty for enrichment)
   const routePlanApi = adminApi.routePlans;
   const staffTemplateApi = adminApi.staffTemplateCreation;
   const propertyApi = adminApi.properties;
   const subPropertyApi = adminApi.subProperties;
 
-  const [records, setRecords] = useState<TripDefinitionRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const [propertyLookup, setPropertyLookup] = useState<Record<string, string>>({});
-  const [subPropertyLookup, setSubPropertyLookup] = useState<Record<string, string>>({});
+  // ── Company / project selection ───────────────────────────────────────────
   const {
     companyUniqueId,
     projectId,
@@ -141,6 +157,29 @@ export default function TripDefinitionList() {
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false });
 
+  // ── Routes ────────────────────────────────────────────────────────────────
+  const { encTransportMaster, encTripDefinition } = getEncryptedRoute();
+  const ENC_NEW_PATH = `/${encTransportMaster}/${encTripDefinition}/new`;
+  const ENC_EDIT_PATH = (id: string) =>
+    `/${encTransportMaster}/${encTripDefinition}/${id}/edit`;
+
+  // ── TanStack ──────────────────────────────────────────────────────────────
+  const tripDefinitionsQuery = useTripDefinitionsQuery(
+    companyUniqueId
+      ? { company_id: companyUniqueId, project_id: projectId || undefined }
+      : null
+  );
+  const updateMutation = useUpdateTripDefinitionMutation();
+
+  // ── Local lookup state (property/sub-property names for display) ──────────
+  const [propertyLookup, setPropertyLookup] = useState<
+    Record<string, string>
+  >({});
+  const [subPropertyLookup, setSubPropertyLookup] = useState<
+    Record<string, string>
+  >({});
+
+  // ── Filter state ──────────────────────────────────────────────────────────
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -153,100 +192,101 @@ export default function TripDefinitionList() {
     status: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  const { encTransportMaster, encTripDefinition } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encTransportMaster}/${encTripDefinition}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encTransportMaster}/${encTripDefinition}/${id}/edit`;
-
-  const fetchRecords = async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
-    if (!companyUniqueId) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
-
-      const [tripRes, , , propertyRes, subPropertyRes] = await Promise.all([
-        tripDefinitionApi.list({ params }),
-        routePlanApi.list({ params }),
-        staffTemplateApi.list({ params }),
-        propertyApi.list({ params }),
-        subPropertyApi.list({ params }),
-      ]);
-
-      const tripRows = filterByCompanyProject(
-        normalizeList(tripRes),
-        companyUniqueId,
-        projectId
-      );
-      const propertyRows = filterByCompanyProject(
-        normalizeList(propertyRes),
-        companyUniqueId,
-        projectId
-      );
-      const subPropertyRows = filterByCompanyProject(
-        normalizeList(subPropertyRes),
-        companyUniqueId,
-        projectId
-      );
-
-      // Build lookups locally first so we can enrich records immediately
-      const pLookup = buildLookup(
-        propertyRows,
-        "unique_id",
-        "property_name"
-      );
-      const spLookup = buildLookup(
-        subPropertyRows,
-        "unique_id",
-        "sub_property_name"
-      );
-
-      // Enrich each record with resolved name fields for column filtering
-      const enriched = tripRows.map((rec: any) => ({
-        ...rec,
-        _routeplan_name: rec.routeplan?.display_code ?? rec.routeplan_id ?? "",
-        _staff_template_name:
-          rec.staff_template?.display_code ?? rec.staff_template_id ?? "",
-        _property_name:
-          rec.property?.property_name ??
-          pLookup[rec.property_id ?? rec.property?.unique_id ?? ""] ??
-          rec.property_id ??
-          "",
-        _sub_property_name:
-          rec.sub_property?.sub_property_name ??
-          spLookup[rec.sub_property_id ?? rec.sub_property?.unique_id ?? ""] ??
-          rec.sub_property_id ??
-          "",
-      }));
-
-      setRecords(enriched);
-      setPropertyLookup(pLookup);
-      setSubPropertyLookup(spLookup);
-    } catch (error: any) {
-      const message = extractErrorMessage(error) ?? t("common.fetch_failed");
-      Swal.fire(t("common.error"), message, "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // ── Fetch lookup data for property/sub-property name enrichment ───────────
+  // These are lightweight lookup-only calls — kept outside TanStack cache
+  // because they only serve column display, not the main list data.
   useEffect(() => {
-    fetchRecords();
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+    if (!companyUniqueId || !projectId) {
+      setPropertyLookup({});
+      setSubPropertyLookup({});
+      return;
+    }
 
+    const params: Record<string, string> = {
+      company_id: companyUniqueId,
+      project_id: projectId,
+    };
+
+    Promise.all([
+      routePlanApi.list({ params }),
+      staffTemplateApi.list({ params }),
+      propertyApi.list({ params }),
+      subPropertyApi.list({ params }),
+    ])
+      .then(([, , propertyRes, subPropertyRes]) => {
+        const propertyRows = filterByCompanyProject(
+          normalizeList(propertyRes),
+          companyUniqueId,
+          projectId
+        );
+        const subPropertyRows = filterByCompanyProject(
+          normalizeList(subPropertyRes),
+          companyUniqueId,
+          projectId
+        );
+
+        setPropertyLookup(
+          buildLookup(propertyRows, "unique_id", "property_name")
+        );
+        setSubPropertyLookup(
+          buildLookup(subPropertyRows, "unique_id", "sub_property_name")
+        );
+      })
+      .catch((error: any) => {
+        const message =
+          extractErrorMessage(error) ?? t("common.fetch_failed");
+        Swal.fire(t("common.error"), message, "error");
+      });
+  }, [companyUniqueId, projectId, t]);
+
+  // ── Derived rows: apply client-side company/project filter + enrichment ───
+  const rows = (() => {
+    if (isSuperAdmin && companies.length === 0)
+      return [] as TripDefinitionRecord[];
+    if (!companyUniqueId) return [] as TripDefinitionRecord[];
+
+    const list = Array.isArray(tripDefinitionsQuery.data)
+      ? (tripDefinitionsQuery.data as TripDefinitionRecord[])
+      : [];
+
+    const filtered = list.filter((row) => {
+      const rowCompanyId = normalizeId(
+        row.company_id || row.company_unique_id
+      );
+      const rowProjectId = normalizeId(
+        row.project_id || row.project_unique_id
+      );
+      const companyMatches =
+        !companyUniqueId || rowCompanyId === companyUniqueId;
+      const projectMatches = !projectId || rowProjectId === projectId;
+      return companyMatches && projectMatches;
+    });
+
+    // Enrich with searchable name fields
+    return filtered.map((rec) => ({
+      ...rec,
+      _routeplan_name:
+        rec.routeplan?.display_code ?? rec.routeplan_id ?? "",
+      _staff_template_name:
+        rec.staff_template?.display_code ?? rec.staff_template_id ?? "",
+      _property_name:
+        rec.property?.property_name ??
+        propertyLookup[
+          rec.property_id ?? rec.property?.unique_id ?? ""
+        ] ??
+        rec.property_id ??
+        "",
+      _sub_property_name:
+        rec.sub_property?.sub_property_name ??
+        subPropertyLookup[
+          rec.sub_property_id ?? rec.sub_property?.unique_id ?? ""
+        ] ??
+        rec.sub_property_id ??
+        "",
+    }));
+  })();
+
+  // ── Filter handlers ───────────────────────────────────────────────────────
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);
   };
@@ -260,13 +300,14 @@ export default function TripDefinitionList() {
     }));
   };
 
+  // ── Status toggle — uses TanStack mutation (no manual refetch needed) ─────
   const statusBodyTemplate = (row: TripDefinitionRecord) => {
     const updateStatus = async (checked: boolean) => {
       try {
-        await tripDefinitionApi.update(row.unique_id, {
-          status: checked ? "ACTIVE" : "INACTIVE",
+        await updateMutation.mutateAsync({
+          id: row.unique_id,
+          payload: { status: checked ? "ACTIVE" : "INACTIVE" },
         });
-        fetchRecords();
       } catch (error: any) {
         const message =
           extractErrorMessage(error) ?? t("common.update_status_failed");
@@ -275,10 +316,14 @@ export default function TripDefinitionList() {
     };
 
     return (
-      <Switch checked={row.status === "ACTIVE"} onCheckedChange={updateStatus} />
+      <Switch
+        checked={row.status === "ACTIVE"}
+        onCheckedChange={updateStatus}
+      />
     );
   };
 
+  // ── Table header ──────────────────────────────────────────────────────────
   const header = (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -299,7 +344,9 @@ export default function TripDefinitionList() {
             className="border rounded px-3 py-2 text-sm"
           >
             <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+              {t("common.select_item_placeholder", {
+                item: t("admin.nav.company"),
+              })}
             </option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
@@ -315,7 +362,9 @@ export default function TripDefinitionList() {
             className="border rounded px-3 py-2 text-sm"
           >
             <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+              {t("common.select_item_placeholder", {
+                item: t("admin.nav.project"),
+              })}
             </option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
@@ -348,6 +397,7 @@ export default function TripDefinitionList() {
     </div>
   );
 
+  // ── Action buttons ────────────────────────────────────────────────────────
   const actionTemplate = (row: TripDefinitionRecord) => (
     <div className="flex justify-center">
       <button
@@ -362,14 +412,17 @@ export default function TripDefinitionList() {
     </div>
   );
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="p-3">
       <DataTable
-        value={records}
+        value={rows}
         dataKey="unique_id"
         paginator
         rows={10}
-        loading={loading}
+        loading={
+          tripDefinitionsQuery.isPending || tripDefinitionsQuery.isFetching
+        }
         filters={filters}
         onFilter={onFilter}
         globalFilterFields={[

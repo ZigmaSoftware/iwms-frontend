@@ -22,7 +22,7 @@ import {
   usePropertiesQuery,
   useUpdatePropertyMutation,
   // PropertyRecord,
-} from "@/tanstack";
+} from "@/tanstack/admin/queries/masters/property";
 import type{ PropertyRecord } from "@/tanstack/admin/queries/masters/property";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
