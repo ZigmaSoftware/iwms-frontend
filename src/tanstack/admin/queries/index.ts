@@ -17,3 +17,6 @@ export * from "./masters/tripDefinition";
 export * from "./masters/fuel";
 export * from "./masters/mainCategory";
 export * from "./masters/subCategory";
+export * from "./roleAssigns/userType";
+export * from "./roleAssigns/staffUserType";
+export * from "./roleAssigns/roleTypes";
