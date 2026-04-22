@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -9,56 +9,69 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { filterActiveRecords } from "@/utils/customerUtils";
-import { adminApi } from "@/helpers/admin/registry";
 import { useTranslation } from "react-i18next";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import {
+  useVehicleCreationQuery,
+  useVehicleTypeOptionsQuery,
+  useFuelTypeOptionsQuery,
+  useCreateVehicleCreationMutation,
+  useUpdateVehicleCreationMutation,
+} from "@/tanstack/admin";
 
-const vehicleTypeApi = adminApi.vehicleTypes;
-const fuelTypeApi = adminApi.fuels;
-const vehicleCreationApi = adminApi.vehicleCreations;
-const companyApi = adminApi.companies;
-const projectApi = adminApi.projects;
-
+const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
+const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleCreation}`;
 const FILE_ICON = "/images/pdfimage/download.png";
 
-type VehicleTypeOption = {
-  unique_id: string;
-  vehicleType: string;
-  is_active?: boolean;
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const toStr = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value);
+
+const isImageUrl = (url?: string | null) => {
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  return (
+    lower.endsWith(".jpg") ||
+    lower.endsWith(".jpeg") ||
+    lower.endsWith(".png") ||
+    lower.endsWith(".webp")
+  );
 };
 
-type FuelTypeOption = {
-  unique_id: string;
-  fuel_type: string;
-  is_active?: boolean;
-};
+const resolveId = (item: { unique_id?: string; id?: string | number }) =>
+  String(item?.unique_id ?? item?.id ?? "");
 
-type Company = { unique_id: string; name: string; is_active?: boolean };
-type Project = {
-  unique_id: string;
-  name: string;
-  company_unique_id: string;
-  is_active?: boolean;
-};
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function VehicleCreationForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
 
-  const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleCreation}`;
+  // ── Company / Project (same hook used across all forms) ───────────────────
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    loggedInCompanyUniqueId,
+    setProjectId,
+    onCompanyChange,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({ isEdit });
 
-  const [loading, setLoading] = useState(false);
+  // ── TanStack queries ──────────────────────────────────────────────────────
+  const vehicleCreationQuery = useVehicleCreationQuery(id);
+  const vehicleTypeOptionsQuery = useVehicleTypeOptionsQuery();
+  const fuelTypeOptionsQuery = useFuelTypeOptionsQuery();
+  const createMutation = useCreateVehicleCreationMutation();
+  const updateMutation = useUpdateVehicleCreationMutation();
+  const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
-  const [vehicleTypes, setVehicleTypes] = useState<VehicleTypeOption[]>([]);
-  const [fuelTypes, setFuelTypes] = useState<FuelTypeOption[]>([]);
-
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedCompany, setSelectedCompany] = useState("");
-  const [selectedProject, setSelectedProject] = useState("");
-
+  // ── Form state ────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
     vehicleNo: "",
     vehicleTypeId: "",
@@ -77,8 +90,8 @@ export default function VehicleCreationForm() {
   const [insuranceFile, setInsuranceFile] = useState<File | null>(null);
   const [existingRcFile, setExistingRcFile] = useState<string | null>(null);
   const [existingInsuranceFile, setExistingInsuranceFile] = useState<string | null>(null);
-  const [rcPreviewUrl, setRcPreviewUrl] = useState<string>("");
-  const [insurancePreviewUrl, setInsurancePreviewUrl] = useState<string>("");
+  const [rcPreviewUrl, setRcPreviewUrl] = useState("");
+  const [insurancePreviewUrl, setInsurancePreviewUrl] = useState("");
   const [isRcPreviewImage, setIsRcPreviewImage] = useState(false);
   const [isInsurancePreviewImage, setIsInsurancePreviewImage] = useState(false);
   const [removeRcFile, setRemoveRcFile] = useState(false);
@@ -87,102 +100,56 @@ export default function VehicleCreationForm() {
   const update = (key: string, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const resolveId = (item: { unique_id?: string; id?: string | number }) =>
-    String(item?.unique_id ?? item?.id ?? "");
-
-  const isImageUrl = (url?: string | null) => {
-    if (!url) return false;
-    const lower = url.toLowerCase();
-    return (
-      lower.endsWith(".jpg") ||
-      lower.endsWith(".jpeg") ||
-      lower.endsWith(".png") ||
-      lower.endsWith(".webp")
-    );
-  };
-
-  // ─── Fetch companies & projects on mount ────────────────────────────────────
+  // ── Populate form in edit mode ─────────────────────────────────────────────
   useEffect(() => {
-    companyApi
-      .listPaginated(1, 100)
-      .then((data: any) => setCompanies(data?.results ?? data ?? []))
-      .catch(() => console.error("Failed to load companies"));
+    if (!isEdit || !vehicleCreationQuery.data) return;
 
-    projectApi
-      .listPaginated(1, 100)
-      .then((data: any) => setProjects(data?.results ?? data ?? []))
-      .catch(() => console.error("Failed to load projects"));
-  }, []);
+    const res = vehicleCreationQuery.data as Record<string, unknown>;
+    setForm({
+      vehicleNo: toStr(res.vehicle_no),
+      vehicleTypeId: toStr(res.vehicle_type_id),
+      fuelTypeId: toStr(res.fuel_type_id),
+      capacity: toStr(res.capacity),
+      mileagePerLiter: toStr(res.mileage_per_liter),
+      serviceRecord: toStr(res.service_record),
+      vehicleInsurance: toStr(res.vehicle_insurance),
+      insuranceExpiryDate: toStr(res.insurance_expiry_date),
+      vehicleCondition: toStr(res.vehicle_condition) || "NEW",
+      fuelTankCapacity: toStr(res.fuel_tank_capacity),
+      isActive: String(res.is_active ?? true),
+    });
 
-  // ─── ADD mode: load vehicle types & fuel types ──────────────────────────────
+    applyCompanyProjectFromRecord(res);
+
+    const rcUrl = toStr(res.rc_upload) || null;
+    const insUrl = toStr(res.vehicle_insurance_file) || null;
+
+    setExistingRcFile(rcUrl);
+    setExistingInsuranceFile(insUrl);
+
+    if (rcUrl) {
+      setRcPreviewUrl(rcUrl);
+      setIsRcPreviewImage(isImageUrl(rcUrl));
+    }
+    if (insUrl) {
+      setInsurancePreviewUrl(insUrl);
+      setIsInsurancePreviewImage(isImageUrl(insUrl));
+    }
+    setRemoveRcFile(false);
+    setRemoveInsuranceFile(false);
+  }, [applyCompanyProjectFromRecord, isEdit, vehicleCreationQuery.data]);
+
+  // ── Show error if fetch fails ──────────────────────────────────────────────
   useEffect(() => {
-    if (isEdit) return;
-    Promise.all([vehicleTypeApi.list(), fuelTypeApi.list()]).then(
-      ([vehicleRes, fuelRes]) => {
-        setVehicleTypes(vehicleRes);
-        setFuelTypes(fuelRes);
-      }
-    );
-  }, [isEdit]);
+    if (!isEdit || !vehicleCreationQuery.isError) return;
+    Swal.fire({
+      icon: "error",
+      title: t("common.load_failed"),
+      text: t("common.request_failed"),
+    });
+  }, [isEdit, vehicleCreationQuery.isError, t]);
 
-  // ─── EDIT mode: load everything together so dropdowns pre-select correctly ──
-  useEffect(() => {
-    if (!isEdit) return;
-
-    vehicleCreationApi
-      .get(id as string)
-      .then((res: any) => {
-        Promise.all([vehicleTypeApi.list(), fuelTypeApi.list()]).then(
-          ([vehicleRes, fuelRes]) => {
-            setVehicleTypes(vehicleRes);
-            setFuelTypes(fuelRes);
-
-            setForm({
-              vehicleNo: res.vehicle_no ?? "",
-              vehicleTypeId: res.vehicle_type_id ?? "",
-              fuelTypeId: res.fuel_type_id ?? "",
-              capacity: res.capacity ?? "",
-              mileagePerLiter: res.mileage_per_liter ?? "",
-              serviceRecord: res.service_record ?? "",
-              vehicleInsurance: res.vehicle_insurance ?? "",
-              insuranceExpiryDate: res.insurance_expiry_date ?? "",
-              vehicleCondition: res.vehicle_condition ?? "NEW",
-              fuelTankCapacity: res.fuel_tank_capacity ?? "",
-              isActive: String(res.is_active ?? true),
-            });
-
-            // Set company first so filteredProjects memo recalculates,
-            // then set project so it falls within the filtered list.
-            setSelectedCompany(res.company_id || "");
-            setSelectedProject(res.project_id || "");
-
-            setExistingRcFile(res.rc_upload ?? null);
-            setExistingInsuranceFile(res.vehicle_insurance_file ?? null);
-
-            if (res.rc_upload) {
-              setRcPreviewUrl(res.rc_upload);
-              setIsRcPreviewImage(isImageUrl(res.rc_upload));
-            }
-            if (res.vehicle_insurance_file) {
-              setInsurancePreviewUrl(res.vehicle_insurance_file);
-              setIsInsurancePreviewImage(isImageUrl(res.vehicle_insurance_file));
-            }
-            setRemoveRcFile(false);
-            setRemoveInsuranceFile(false);
-          }
-        );
-      })
-      .catch((err) => {
-        console.error("Failed to load vehicle:", err);
-        Swal.fire({
-          icon: "error",
-          title: t("common.load_failed"),
-          text: t("common.request_failed"),
-        });
-      });
-  }, [id, isEdit, t]);
-
-  // Cleanup blob URLs on unmount
+  // ── Cleanup blob URLs on unmount ───────────────────────────────────────────
   useEffect(() => {
     return () => {
       if (rcPreviewUrl.startsWith("blob:")) URL.revokeObjectURL(rcPreviewUrl);
@@ -191,48 +158,53 @@ export default function VehicleCreationForm() {
     };
   }, [rcPreviewUrl, insurancePreviewUrl]);
 
-  // ─── Dropdown options ────────────────────────────────────────────────────────
-  const vehicleTypeOptions = useMemo(
-    () =>
-      filterActiveRecords(
-        vehicleTypes,
-        form.vehicleTypeId ? [form.vehicleTypeId] : []
-      ).map((item) => ({ value: resolveId(item), label: item.vehicleType })),
-    [vehicleTypes, form.vehicleTypeId]
+  // ── Error extractor ────────────────────────────────────────────────────────
+  const extractErr = useCallback(
+    (error: unknown): string => {
+      const err = error as { response?: { data?: unknown }; message?: string };
+      const data = err.response?.data;
+      if (typeof data === "string") return data;
+      if (data && typeof data === "object") {
+        return Object.entries(data as Record<string, unknown>)
+          .map(([key, value]) =>
+            Array.isArray(value)
+              ? `${key}: ${value.join(", ")}`
+              : `${key}: ${String(value)}`
+          )
+          .join("\n");
+      }
+      if (err.message) return err.message;
+      return t("common.request_failed");
+    },
+    [t]
   );
 
-  const fuelTypeOptions = useMemo(
-    () =>
-      filterActiveRecords(
-        fuelTypes,
-        form.fuelTypeId ? [form.fuelTypeId] : []
-      ).map((item) => ({ value: resolveId(item), label: item.fuel_type })),
-    [fuelTypes, form.fuelTypeId]
-  );
+  // ── Dropdown options ───────────────────────────────────────────────────────
+  const vehicleTypeOptions = useMemo(() => {
+    const list = vehicleTypeOptionsQuery.data ?? [];
+    return filterActiveRecords(list, form.vehicleTypeId ? [form.vehicleTypeId] : []).map(
+      (item) => ({ value: resolveId(item), label: item.vehicleType })
+    );
+  }, [vehicleTypeOptionsQuery.data, form.vehicleTypeId]);
+
+  const fuelTypeOptions = useMemo(() => {
+    const list = fuelTypeOptionsQuery.data ?? [];
+    return filterActiveRecords(list, form.fuelTypeId ? [form.fuelTypeId] : []).map(
+      (item) => ({ value: resolveId(item), label: item.fuel_type })
+    );
+  }, [fuelTypeOptionsQuery.data, form.fuelTypeId]);
 
   const conditionOptions = [
     { value: "NEW", label: t("admin.vehicle_creation.condition_new") },
     { value: "SECOND_HAND", label: t("admin.vehicle_creation.condition_second_hand") },
   ];
 
-  /**
-   * FIX: Filter projects by the currently selected company.
-   * Returns an empty array when no company is selected so the
-   * project dropdown shows a meaningful "select company first" state.
-   */
-  const filteredProjects = useMemo<Project[]>(() => {
-    if (!selectedCompany) return [];
-    return projects.filter(
-      (p) => String(p.company_unique_id) === String(selectedCompany)
-    );
-  }, [projects, selectedCompany]);
-
-  // ─── File helpers ────────────────────────────────────────────────────────────
+  // ── File helpers ───────────────────────────────────────────────────────────
   const handleFileChange = (
     file: File | null,
-    setFile: (file: File | null) => void,
+    setFile: (f: File | null) => void,
     setPreviewUrl: (url: string) => void,
-    setIsPreviewImage: (value: boolean) => void,
+    setIsPreviewImage: (v: boolean) => void,
     existingUrl: string | null,
     currentPreviewUrl: string
   ) => {
@@ -240,9 +212,8 @@ export default function VehicleCreationForm() {
       if (currentPreviewUrl.startsWith("blob:"))
         URL.revokeObjectURL(currentPreviewUrl);
       setFile(file);
-      const objectUrl = URL.createObjectURL(file);
+      setPreviewUrl(URL.createObjectURL(file));
       setIsPreviewImage(file.type.startsWith("image/"));
-      setPreviewUrl(objectUrl);
       return;
     }
     setFile(null);
@@ -258,10 +229,10 @@ export default function VehicleCreationForm() {
   const clearPreview = (options: {
     previewUrl: string;
     setPreviewUrl: (url: string) => void;
-    setFile: (file: File | null) => void;
-    setIsPreviewImage: (value: boolean) => void;
-    setExistingFile?: (value: string | null) => void;
-    setRemoveFlag?: (value: boolean) => void;
+    setFile: (f: File | null) => void;
+    setIsPreviewImage: (v: boolean) => void;
+    setExistingFile?: (v: string | null) => void;
+    setRemoveFlag?: (v: boolean) => void;
     inputId?: string;
   }) => {
     const {
@@ -275,9 +246,7 @@ export default function VehicleCreationForm() {
     } = options;
     if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
     if (inputId) {
-      const input = document.getElementById(
-        inputId
-      ) as HTMLInputElement | null;
+      const input = document.getElementById(inputId) as HTMLInputElement | null;
       if (input) input.value = "";
     }
     setFile(null);
@@ -320,117 +289,84 @@ export default function VehicleCreationForm() {
     );
   };
 
-  // ─── Submit ──────────────────────────────────────────────────────────────────
-  const buildPayload = () => ({
-    vehicle_no: form.vehicleNo.trim(),
-    vehicle_type_id: form.vehicleTypeId || null,
-    fuel_type_id: form.fuelTypeId || null,
-    capacity: form.capacity || null,
-    mileage_per_liter: form.mileagePerLiter || null,
-    service_record: form.serviceRecord || null,
-    vehicle_insurance: form.vehicleInsurance || null,
-    insurance_expiry_date: form.insuranceExpiryDate || null,
-    vehicle_condition: form.vehicleCondition,
-    fuel_tank_capacity: form.fuelTankCapacity || null,
-    is_active: form.isActive === "true",
-    company_id_input: selectedCompany,
-    project_id_input: selectedProject || null,
-  });
-
+  // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.vehicleNo.trim()) {
-      Swal.fire({
-        icon: "warning",
-        title: t("admin.vehicle_creation.missing_fields_title"),
-        text: t("admin.vehicle_creation.missing_fields_desc"),
-      });
+    const missingFields: string[] = [];
+    if (!form.vehicleNo.trim())
+      missingFields.push(t("admin.vehicle_creation.vehicle_no"));
+    if (!companyUniqueId) missingFields.push(t("admin.nav.company"));
+    if (!projectId) missingFields.push(t("admin.nav.project"));
+
+    if (missingFields.length > 0) {
+      Swal.fire(
+        t("common.warning"),
+        `${t("common.please_fill")}: ${missingFields.join(", ")}`,
+        "warning"
+      );
       return;
     }
 
-    if (!selectedCompany) {
-      Swal.fire({
-        icon: "warning",
-        title: "Company Required",
-        text: "Please select a company.",
-      });
-      return;
-    }
-
-    if (!selectedProject) {
-      Swal.fire({
-        icon: "warning",
-        title: "Project Required",
-        text: "Please select a project.",
-      });
-      return;
-    }
-
-    setLoading(true);
-    const payload = buildPayload();
-    const removalPayload = {
-      ...payload,
-      ...(removeRcFile ? { rc_upload: null } : {}),
-      ...(removeInsuranceFile ? { vehicle_insurance_file: null } : {}),
+    const basePayload = {
+      vehicle_no: form.vehicleNo.trim(),
+      vehicle_type_id: form.vehicleTypeId || null,
+      fuel_type_id: form.fuelTypeId || null,
+      capacity: form.capacity || null,
+      mileage_per_liter: form.mileagePerLiter || null,
+      service_record: form.serviceRecord || null,
+      vehicle_insurance: form.vehicleInsurance || null,
+      insurance_expiry_date: form.insuranceExpiryDate || null,
+      vehicle_condition: form.vehicleCondition,
+      fuel_tank_capacity: form.fuelTankCapacity || null,
+      is_active: form.isActive === "true",
+      company_id_input: companyUniqueId,
+      project_id_input: projectId || null,
     };
+
     const hasFiles = Boolean(rcFile || insuranceFile);
 
     try {
       if (hasFiles) {
+        // Build FormData for file uploads
         const formBody = new FormData();
-        Object.entries(payload).forEach(([key, value]) => {
+        Object.entries(basePayload).forEach(([key, value]) => {
           if (value === undefined || value === null || value === "") return;
           formBody.append(key, String(value));
         });
         if (rcFile) formBody.append("rc_upload", rcFile);
-        if (insuranceFile)
-          formBody.append("vehicle_insurance_file", insuranceFile);
+        if (insuranceFile) formBody.append("vehicle_insurance_file", insuranceFile);
 
-        const multipartConfig = {
-          headers: { "Content-Type": "multipart/form-data" },
-        };
-
-        if (isEdit) {
-          await vehicleCreationApi.update(id as string, formBody, multipartConfig);
+        if (isEdit && id) {
+          await updateMutation.mutateAsync({ id, payload: formBody });
         } else {
-          await vehicleCreationApi.create(formBody, multipartConfig);
+          await createMutation.mutateAsync(formBody);
         }
-      } else if (isEdit) {
-        await vehicleCreationApi.update(id as string, removalPayload);
+      } else if (isEdit && id) {
+        // JSON update — include file removal flags if needed
+        const removalPayload = {
+          ...basePayload,
+          ...(removeRcFile ? { rc_upload: null } : {}),
+          ...(removeInsuranceFile ? { vehicle_insurance_file: null } : {}),
+        };
+        await updateMutation.mutateAsync({ id, payload: removalPayload });
       } else {
-        await vehicleCreationApi.create(payload);
+        await createMutation.mutateAsync(basePayload);
       }
 
       Swal.fire({
         icon: "success",
-        title: t("admin.vehicle_creation.save_success"),
+        title: isEdit ? t("common.updated_success") : t("admin.vehicle_creation.save_success"),
         timer: 1500,
         showConfirmButton: false,
       });
       navigate(ENC_LIST_PATH);
-    } catch (error: any) {
-      console.error("Failed to save vehicle:", error);
-      const data = error?.response?.data;
-      let message = t("common.request_failed");
-      if (typeof data === "object" && data !== null) {
-        message = Object.entries(data)
-          .map(([key, val]) => `${key}: ${(val as string[]).join(", ")}`)
-          .join("\n");
-      } else if (typeof data === "string") {
-        message = data;
-      }
-      Swal.fire({
-        icon: "error",
-        title: t("common.save_failed"),
-        text: message,
-      });
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      Swal.fire(t("common.save_failed"), extractErr(error), "error");
     }
   };
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <ComponentCard
       title={
@@ -474,67 +410,73 @@ export default function VehicleCreationForm() {
             />
           </div>
 
-          {/* ── Company Dropdown ── */}
+          {/* Company */}
           <div>
             <Label htmlFor="company">
-              Company <span className="text-red-500">*</span>
+              {t("admin.nav.company")}{" "}
+              <span className="text-red-500">*</span>
             </Label>
             <select
               id="company"
-              value={selectedCompany}
-              onChange={(e) => {
-                setSelectedCompany(e.target.value);
-                // Reset project whenever company changes
-                setSelectedProject("");
-              }}
-              required
-              className={`w-full px-3 py-2 border rounded-sm focus:outline-none focus:ring-2 ${
-                !selectedCompany
-                  ? "border-red-400 focus:ring-red-200"
-                  : "border-green-400 focus:ring-green-200"
-              }`}
-            >
-              <option value="">-- Select Company --</option>
-              {companies.map((c) => (
-                <option key={c.unique_id} value={c.unique_id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* ── Project Dropdown (filtered by selectedCompany via filteredProjects memo) ── */}
-          <div>
-            <Label htmlFor="project">
-              Project <span className="text-red-500">*</span>
-            </Label>
-            <select
-              id="project"
-              value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
-              required
-              disabled={!selectedCompany}          // prevent selection before company is chosen
+              value={companyUniqueId}
+              onChange={(e) => onCompanyChange(e.target.value)}
+              disabled={
+                Boolean(loggedInCompanyUniqueId) ||
+                (!isSuperAdmin && !loggedInCompanyUniqueId) ||
+                companies.length === 0
+              }
               className={`w-full px-3 py-2 border rounded-sm focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                !selectedProject
+                !companyUniqueId
                   ? "border-red-400 focus:ring-red-200"
                   : "border-green-400 focus:ring-green-200"
               }`}
             >
               <option value="">
-                {selectedCompany
-                  ? "-- Select Project --"
-                  : "-- Select a company first --"}
+                {loggedInCompanyUniqueId
+                  ? t("common.company_from_profile")
+                  : t("common.select_item_placeholder", { item: t("admin.nav.company") })}
               </option>
-              {/* FIX: use filteredProjects (memoised, filtered by selectedCompany) */}
-              {filteredProjects.map((p) => (
-                <option key={p.unique_id} value={p.unique_id}>
-                  {p.name}
+              {companies.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
                 </option>
               ))}
             </select>
-            {selectedCompany && filteredProjects.length === 0 && (
+          </div>
+
+          {/* Project */}
+          <div>
+            <Label htmlFor="project">
+              {t("admin.nav.project")}{" "}
+              <span className="text-red-500">*</span>
+            </Label>
+            <select
+              id="project"
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              disabled={!companyUniqueId || projects.length === 0}
+              className={`w-full px-3 py-2 border rounded-sm focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                !projectId
+                  ? "border-red-400 focus:ring-red-200"
+                  : "border-green-400 focus:ring-green-200"
+              }`}
+            >
+              <option value="">
+                {companyUniqueId
+                  ? t("common.select_item_placeholder", { item: t("admin.nav.project") })
+                  : t("common.select_company_first", { defaultValue: "Select a company first" })}
+              </option>
+              {projects.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            {companyUniqueId && projects.length === 0 && (
               <p className="text-xs text-amber-600 mt-1">
-                No projects found for the selected company.
+                {t("common.no_projects_found", {
+                  defaultValue: "No projects found for the selected company.",
+                })}
               </p>
             )}
           </div>
@@ -587,7 +529,7 @@ export default function VehicleCreationForm() {
             />
           </div>
 
-          {/* Mileage */}
+          {/* Mileage Per Liter */}
           <div>
             <Label htmlFor="mileagePerLiter">
               {t("admin.vehicle_creation.mileage_per_liter")}
@@ -610,9 +552,7 @@ export default function VehicleCreationForm() {
               id="fuelTankCapacity"
               value={form.fuelTankCapacity}
               onChange={(e) => update("fuelTankCapacity", e.target.value)}
-              placeholder={t(
-                "admin.vehicle_creation.fuel_tank_capacity_placeholder"
-              )}
+              placeholder={t("admin.vehicle_creation.fuel_tank_capacity_placeholder")}
               className="input-validate w-full"
             />
           </div>
@@ -643,9 +583,7 @@ export default function VehicleCreationForm() {
               id="serviceRecord"
               value={form.serviceRecord}
               onChange={(e) => update("serviceRecord", e.target.value)}
-              placeholder={t(
-                "admin.vehicle_creation.service_record_placeholder"
-              )}
+              placeholder={t("admin.vehicle_creation.service_record_placeholder")}
               className="input-validate w-full"
             />
           </div>
@@ -659,9 +597,7 @@ export default function VehicleCreationForm() {
               id="vehicleInsurance"
               value={form.vehicleInsurance}
               onChange={(e) => update("vehicleInsurance", e.target.value)}
-              placeholder={t(
-                "admin.vehicle_creation.vehicle_insurance_placeholder"
-              )}
+              placeholder={t("admin.vehicle_creation.vehicle_insurance_placeholder")}
               className="input-validate w-full"
             />
           </div>
@@ -712,10 +648,7 @@ export default function VehicleCreationForm() {
                   className="w-full h-24 object-contain"
                 />
               ) : (
-                <img
-                  src={FILE_ICON}
-                  className="w-12 h-12 mx-auto opacity-60"
-                />
+                <img src={FILE_ICON} className="w-12 h-12 mx-auto opacity-60" />
               )}
             </div>
             {renderFileActions(
@@ -758,9 +691,7 @@ export default function VehicleCreationForm() {
             />
             <div
               className="border rounded p-4 cursor-pointer bg-gray-50"
-              onClick={() =>
-                document.getElementById("insuranceFile")?.click()
-              }
+              onClick={() => document.getElementById("insuranceFile")?.click()}
             >
               {insurancePreviewUrl ? (
                 <img
@@ -769,21 +700,14 @@ export default function VehicleCreationForm() {
                   className="w-full h-24 object-contain"
                 />
               ) : (
-                <img
-                  src={FILE_ICON}
-                  className="w-12 h-12 mx-auto opacity-60"
-                />
+                <img src={FILE_ICON} className="w-12 h-12 mx-auto opacity-60" />
               )}
             </div>
             {renderFileActions(
               insurancePreviewUrl,
               insuranceFile,
               () =>
-                window.open(
-                  insurancePreviewUrl,
-                  "_blank",
-                  "noopener,noreferrer"
-                ),
+                window.open(insurancePreviewUrl, "_blank", "noopener,noreferrer"),
               () =>
                 clearPreview({
                   previewUrl: insurancePreviewUrl,
@@ -802,16 +726,16 @@ export default function VehicleCreationForm() {
         <div className="flex justify-end gap-3 mt-6">
           <button
             type="submit"
-            disabled={loading}
+            disabled={isSubmitting}
             className="bg-green-custom text-white px-4 py-2 rounded disabled:opacity-50 transition-colors"
           >
-            {loading
+            {isSubmitting
               ? isEdit
                 ? t("common.updating")
                 : t("common.saving")
               : isEdit
-              ? t("common.update")
-              : t("common.save")}
+                ? t("common.update")
+                : t("common.save")}
           </button>
           <button
             type="button"

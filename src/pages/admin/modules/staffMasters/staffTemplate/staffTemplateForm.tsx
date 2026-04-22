@@ -10,6 +10,10 @@ import Select from "@/components/form/Select";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { staffCreationApi, staffTemplateApi } from "@/helpers/admin";
+import {
+  useCreateStaffTemplate,
+  useUpdateStaffTemplate,
+} from "@/tanstack/admin/queries/masters/staffTemplate";
 
 /* ================= TYPES ================= */
 
@@ -303,13 +307,13 @@ export default function StaffTemplateForm() {
 
     setDriverOptions(
       scopedStaff
-        .filter((staff) => getStaffRole(staff) === "driver")
+        .filter((staff) => getStaffRole(staff) === "company driver")
         .map((staff) => toStaffOption(staff))
     );
 
     setOperatorOptions(
       scopedStaff
-        .filter((staff) => getStaffRole(staff) === "operator")
+        .filter((staff) => getStaffRole(staff) === "company operator")
         .map((staff) => toStaffOption(staff))
     );
   }, [selectedCompanyId, selectedProjectId, staffRecords]);
@@ -465,6 +469,9 @@ export default function StaffTemplateForm() {
     }));
   };
 
+  const createMutation = useCreateStaffTemplate();
+  const updateMutation = useUpdateStaffTemplate();
+
   /* ================= SUBMIT ================= */
 
   const handleSubmit = async (e: FormEvent) => {
@@ -502,9 +509,9 @@ export default function StaffTemplateForm() {
       };
 
       if (isEdit && id) {
-        await staffTemplateApi.update(id, payload);
+        await updateMutation.mutateAsync({ id, payload });
       } else {
-        await staffTemplateApi.create(payload);
+        await createMutation.mutateAsync(payload);
       }
 
       Swal.fire(
