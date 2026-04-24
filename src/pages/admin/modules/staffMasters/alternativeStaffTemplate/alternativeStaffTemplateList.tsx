@@ -216,7 +216,7 @@ import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
-import { alternativeStaffTemplateApi } from "@/helpers/admin";
+import { useAlternativeStaffTemplateList } from "@/tanstack/admin/queries/masters/alternativeStaffTemplate";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
@@ -284,6 +284,15 @@ export default function AlternativeStaffTemplateList() {
   const ENC_EDIT_PATH = (id: number) =>
     `/${encStaffMasters}/${encAlternativeStaffTemplate}/${id}/edit`;
 
+  const params =
+    companyUniqueId
+      ? {
+          company_id: companyUniqueId,
+          ...(projectId ? { project_id: projectId } : {}),
+        }
+      : undefined;
+  const recordsQuery = useAlternativeStaffTemplateList(params);
+
   const normalizeId = (value: unknown): string =>
     value === null || value === undefined ? "" : String(value).trim();
 
@@ -302,12 +311,7 @@ export default function AlternativeStaffTemplateList() {
 
     setLoading(true);
     try {
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
-
-      const payload: any = await alternativeStaffTemplateApi.list({ params });
+      const payload: any = recordsQuery.data;
       const data =
         Array.isArray(payload)
           ? payload
@@ -345,7 +349,7 @@ export default function AlternativeStaffTemplateList() {
 
   useEffect(() => {
     fetchRecords();
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, recordsQuery.data]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setDatatableFilters(e.filters as TableFilters);

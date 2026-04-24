@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { tripDefinitionApi } from "@/helpers/admin";
@@ -96,17 +97,9 @@ const replaceInList = (
 // ─── Query keys ───────────────────────────────────────────────────────────────
 
 export const tripDefinitionQueryKeys = {
-  all: ["transport", "tripDefinitions"] as const,
-  list: (filters?: TripDefinitionListFilters | null) =>
-    [
-      "transport",
-      "tripDefinitions",
-      "list",
-      String(filters?.company_id ?? ""),
-      String(filters?.project_id ?? ""),
-    ] as const,
+  all: ["transport masters", "trip definition"] as const,
   detail: (id: string | number) =>
-    ["transport", "tripDefinitions", normalizeTripDefinitionId(id)] as const,
+    ["transport masters", "trip definition", normalizeTripDefinitionId(id)] as const,
 };
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
@@ -114,11 +107,35 @@ export const tripDefinitionQueryKeys = {
 export function useTripDefinitionsQuery(
   filters?: TripDefinitionListFilters | null
 ) {
-  return enterpriseQuery<TripDefinitionRecord[]>({
-    queryKey: tripDefinitionQueryKeys.list(filters),
+  const query = enterpriseQuery<TripDefinitionRecord[]>({
+    queryKey: tripDefinitionQueryKeys.all,
     queryFn: () => listTripDefinitions(filters ?? undefined),
     enabled: filters !== null,
   });
+
+  const filterSignature = useMemo(
+    () =>
+      JSON.stringify({
+        company_id: filters?.company_id ?? "",
+        project_id: filters?.project_id ?? "",
+      }),
+    [filters?.company_id, filters?.project_id]
+  );
+  const previousFilterSignatureRef = useRef(filterSignature);
+
+  useEffect(() => {
+    if (previousFilterSignatureRef.current === filterSignature) {
+      return;
+    }
+
+    previousFilterSignatureRef.current = filterSignature;
+
+    if (filters !== null) {
+      void query.refetch();
+    }
+  }, [filterSignature, filters, query.refetch]);
+
+  return query;
 }
 
 export function useTripDefinitionQuery(

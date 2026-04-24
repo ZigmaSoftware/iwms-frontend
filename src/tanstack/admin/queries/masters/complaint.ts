@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   customerCreationApi,
@@ -12,6 +13,8 @@ import {
   filterActiveRecords,
   normalizeCustomerArray,
 } from "@/utils/customerUtils";
+import { useZonesQuery } from "./zone";
+import { useWardsQuery } from "./ward";
 
 /* ================= HELPERS ================= */
 
@@ -25,33 +28,18 @@ const listFromResponse = (payload: any) => {
 /* ================= QUERY KEYS ================= */
 
 export const complaintKeys = {
-  all: ["complaints"] as const,
-  lists: () => [...complaintKeys.all, "list"] as const,
-  list: (filters?: Record<string, any>) =>
-    [...complaintKeys.lists(), filters] as const,
-
-  detail: (id: string | number) => [...complaintKeys.all, "detail", String(id)] as const,
-
-  customers: () => ["complaint-customers"] as const,
-
-  mainCategories: (companyId: string) =>
-    ["complaint-main-categories", companyId] as const,
-
-  allSubCategories: (companyId: string) =>
-    ["complaint-all-sub-categories", companyId] as const,
-
-  zones: (customerId: string) =>
-    ["complaint-zones", customerId] as const,
-
-  wards: (zoneId: string) =>
-    ["complaint-wards", zoneId] as const,
+  all: ["citizen grievances", "complaints"] as const,
+  detail: (id: string | number) => [...complaintKeys.all, String(id)] as const,
+  customers: ["customer masters", "customers"] as const,
+  mainCategories: ["citizen grievances", "main_categories"] as const,
+  allSubCategories: ["citizen grievances", "sub_categories"] as const,
 };
 
 /* ================= LIST QUERY ================= */
 
 export const useComplaintsList = () =>
   useQuery({
-    queryKey: complaintKeys.lists(),
+    queryKey: complaintKeys.all,
     queryFn: () => complaintApi.list(),
   });
 
@@ -59,7 +47,7 @@ export const useComplaintsList = () =>
 
 export const useComplaintCustomers = () =>
   useQuery({
-    queryKey: complaintKeys.customers(),
+    queryKey: complaintKeys.customers,
     queryFn: async () => {
       const res = await customerCreationApi.list();
       const normalized = normalizeCustomerArray(res);
@@ -67,9 +55,9 @@ export const useComplaintCustomers = () =>
     },
   });
 
-export const useComplaintMainCategories = (companyId: string) =>
-  useQuery({
-    queryKey: complaintKeys.mainCategories(companyId),
+export const useComplaintMainCategories = (companyId: string) => {
+  const query = useQuery({
+    queryKey: complaintKeys.mainCategories,
     queryFn: async () => {
       const res = await mainCategoryApi.list({
         params: { company_id: companyId },
@@ -80,9 +68,26 @@ export const useComplaintMainCategories = (companyId: string) =>
     enabled: !!companyId,
   });
 
-export const useComplaintAllSubCategories = (companyId: string) =>
-  useQuery({
-    queryKey: complaintKeys.allSubCategories(companyId),
+  const previousCompanyIdRef = useRef(companyId);
+
+  useEffect(() => {
+    if (previousCompanyIdRef.current === companyId) {
+      return;
+    }
+
+    previousCompanyIdRef.current = companyId;
+
+    if (companyId) {
+      void query.refetch();
+    }
+  }, [companyId, query.refetch]);
+
+  return query;
+};
+
+export const useComplaintAllSubCategories = (companyId: string) => {
+  const query = useQuery({
+    queryKey: complaintKeys.allSubCategories,
     queryFn: async () => {
       const res = await subCategoryApi.list({
         params: { company_id: companyId },
@@ -93,39 +98,26 @@ export const useComplaintAllSubCategories = (companyId: string) =>
     enabled: !!companyId,
   });
 
-export const useComplaintZones = (customerId: string) =>
-  useQuery({
-    queryKey: complaintKeys.zones(customerId),
-    queryFn: async () => {
-      console.log("=== Loading Zones ===");
-      console.log("Customer ID:", customerId);
-      const res = await zoneApi.list({ params: { customer_id: customerId } });
-      console.log("Zone API raw response:", res);
-      const normalized = listFromResponse(res);
-      console.log("Normalized zones:", normalized);
-      const filtered = filterActiveRecords(normalized);
-      console.log("Filtered active zones:", filtered);
-      return filtered;
-    },
-    enabled: !!customerId,
-  });
+  const previousCompanyIdRef = useRef(companyId);
 
-export const useComplaintWards = (zoneId: string) =>
-  useQuery({
-    queryKey: complaintKeys.wards(zoneId),
-    queryFn: async () => {
-      console.log("=== Loading Wards ===");
-      console.log("Zone ID:", zoneId);
-      const res = await wardApi.list({ params: { zone_id: zoneId } });
-      console.log("Ward API raw response:", res);
-      const normalized = listFromResponse(res);
-      console.log("Normalized wards:", normalized);
-      const filtered = filterActiveRecords(normalized);
-      console.log("Filtered active wards:", filtered);
-      return filtered;
-    },
-    enabled: !!zoneId,
-  });
+  useEffect(() => {
+    if (previousCompanyIdRef.current === companyId) {
+      return;
+    }
+
+    previousCompanyIdRef.current = companyId;
+
+    if (companyId) {
+      void query.refetch();
+    }
+  }, [companyId, query.refetch]);
+
+  return query;
+};
+
+export const useComplaintZones = (customerId: string) => useZonesQuery(customerId);
+
+export const useComplaintWards = (zoneId: string) => useWardsQuery(zoneId);
 
 /* ================= DETAIL + MUTATIONS ================= */
 
@@ -166,11 +158,11 @@ export function useUpdateComplaint() {
       updateComplaint(id, payload),
     onSuccess: async (complaint, variables) => {
       queryClient.setQueryData(complaintKeys.detail(variables.id), complaint);
-      queryClient.setQueryData<any[]>(complaintKeys.lists(), (current) =>
+      queryClient.setQueryData<any[]>(complaintKeys.all, (current) =>
         replaceComplaintInList(current, complaint)
       );
 
-      await queryClient.invalidateQueries({ queryKey: complaintKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: complaintKeys.all });
     },
   });
 }
@@ -186,7 +178,7 @@ export const useCreateComplaint = () => {
         headers: { "Content-Type": "multipart/form-data" },
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: complaintKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: complaintKeys.all });
     },
   });
 };

@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -10,6 +11,11 @@ import Select, { type SelectOption } from "@/components/form/Select";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
+import {
+  useCreateRoutePlanMutation,
+  useRoutePlanQuery,
+  useUpdateRoutePlanMutation,
+} from "@/tanstack/admin/queries/masters/routePlan";
 
 // Helper to extract ID from a value that could be a string, number, or object
 const extractId = (value: any): string => {
@@ -28,7 +34,6 @@ export default function RoutePlanForm() {
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
 
-  const routePlanApi = adminApi.routePlans;
   const districtApi = adminApi.districts;
   const cityApi = adminApi.cities;
   const zoneApi = adminApi.zones;
@@ -55,6 +60,10 @@ export default function RoutePlanForm() {
   const { encStaffMasters, encRoutePlans } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encStaffMasters}/${encRoutePlans}`;
 
+  const routePlanQuery = useRoutePlanQuery(id);
+  const createMutation = useCreateRoutePlanMutation();
+  const updateMutation = useUpdateRoutePlanMutation();
+
   const normalizeList = (payload: any): any[] =>
     Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
 
@@ -80,12 +89,77 @@ export default function RoutePlanForm() {
       }))
       .filter((option) => option.value !== undefined && option.value !== null);
 
-  // Fetch route plan data for editing
-  const fetchRoutePlan = useCallback(async () => {
-    if (!id) return;
-    
-    try {
-      const res: any = await routePlanApi.get(id);
+  const districtsQuery = useQuery({
+    queryKey: ["masters", "districts"],
+    queryFn: () => districtApi.list(),
+  });
+  const citiesQuery = useQuery({
+    queryKey: ["masters", "cities"],
+    queryFn: () => cityApi.list(),
+  });
+  const zonesQuery = useQuery({
+    queryKey: ["masters", "zone"],
+    queryFn: () => zoneApi.list(),
+  });
+  const vehiclesQuery = useQuery({
+    queryKey: ["transport masters", "vehicle creation"],
+    queryFn: () => vehicleApi.list(),
+  });
+  const usersQuery = useQuery({
+    queryKey: ["masters", "users"],
+    queryFn: () => userApi.list(),
+  });
+
+  // Load dropdown options first
+  useEffect(() => {
+    setFetching(
+      districtsQuery.isLoading ||
+        citiesQuery.isLoading ||
+        zonesQuery.isLoading ||
+        vehiclesQuery.isLoading ||
+        usersQuery.isLoading
+    );
+
+    if (
+      districtsQuery.isError ||
+      citiesQuery.isError ||
+      zonesQuery.isError ||
+      vehiclesQuery.isError ||
+      usersQuery.isError
+    ) {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      return;
+    }
+
+    setDistricts(toOptions(normalizeList(districtsQuery.data), "unique_id", "name"));
+    setCities(toOptions(normalizeList(citiesQuery.data), "unique_id", "name"));
+    setZones(toOptions(normalizeList(zonesQuery.data), "unique_id", "name"));
+    setVehicles(toOptions(normalizeList(vehiclesQuery.data), "unique_id", "vehicle_no"));
+    setSupervisors(toSupervisorOptions(normalizeList(usersQuery.data)));
+    setOptionsLoaded(true);
+  }, [
+    citiesQuery.data,
+    citiesQuery.isError,
+    citiesQuery.isLoading,
+    districtsQuery.data,
+    districtsQuery.isError,
+    districtsQuery.isLoading,
+    t,
+    usersQuery.data,
+    usersQuery.isError,
+    usersQuery.isLoading,
+    vehiclesQuery.data,
+    vehiclesQuery.isError,
+    vehiclesQuery.isLoading,
+    zonesQuery.data,
+    zonesQuery.isError,
+    zonesQuery.isLoading,
+  ]);
+
+  // Fetch route plan data after options are loaded (for edit mode)
+  useEffect(() => {
+    if (optionsLoaded && isEdit && routePlanQuery.data) {
+      const res: any = routePlanQuery.data;
       setForm({
         district_id: extractId(res?.district_id),
         city_id: extractId(res?.city_id),
@@ -93,41 +167,8 @@ export default function RoutePlanForm() {
         vehicle_id: extractId(res?.vehicle_id),
         supervisor_id: extractId(res?.supervisor_id),
       });
-    } catch {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
     }
-  }, [id, routePlanApi, t]);
-
-  // Load dropdown options first
-  useEffect(() => {
-    setFetching(true);
-    Promise.all([
-      districtApi.list(),
-      cityApi.list(),
-      zoneApi.list(),
-      vehicleApi.list(),
-      userApi.list(),
-    ])
-      .then(([districtRes, cityRes, zoneRes, vehicleRes, userRes]) => {
-        setDistricts(toOptions(normalizeList(districtRes), "unique_id", "name"));
-        setCities(toOptions(normalizeList(cityRes), "unique_id", "name"));
-        setZones(toOptions(normalizeList(zoneRes), "unique_id", "name"));
-        setVehicles(toOptions(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
-        setSupervisors(toSupervisorOptions(normalizeList(userRes)));
-        setOptionsLoaded(true);
-      })
-      .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      })
-      .finally(() => setFetching(false));
-  }, [cityApi, districtApi, userApi, t, vehicleApi, zoneApi]);
-
-  // Fetch route plan data after options are loaded (for edit mode)
-  useEffect(() => {
-    if (optionsLoaded && isEdit) {
-      fetchRoutePlan();
-    }
-  }, [optionsLoaded, isEdit, fetchRoutePlan]);
+  }, [isEdit, optionsLoaded, routePlanQuery.data]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -148,9 +189,9 @@ export default function RoutePlanForm() {
     setSubmitting(true);
     try {
       if (isEdit && id) {
-        await routePlanApi.update(id, payload);
+        await updateMutation.mutateAsync({ id, payload });
       } else {
-        await routePlanApi.create(payload);
+        await createMutation.mutateAsync(payload);
       }
       Swal.fire(
         t("common.success"),

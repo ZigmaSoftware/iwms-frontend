@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { wasteTypeApi } from "@/helpers/admin";
@@ -65,25 +66,41 @@ const replaceInList = (
 };
 
 export const wasteTypeQueryKeys = {
-  all: ["masters", "wasteTypes"] as const,
-  list: (filters?: WasteTypeListFilters | null) =>
-    [
-      "masters",
-      "wasteTypes",
-      "list",
-      String(filters?.company_id ?? ""),
-      String(filters?.project_id ?? ""),
-    ] as const,
+  all: ["assets", "waste type"] as const,
   detail: (id: string | number) =>
-    ["masters", "wasteTypes", normalizeWasteTypeId(id)] as const,
+    ["assets", "waste type", normalizeWasteTypeId(id)] as const,
 };
 
 export function useWasteTypesQuery(filters?: WasteTypeListFilters | null) {
-  return enterpriseQuery<WasteTypeRecord[]>({
-    queryKey: wasteTypeQueryKeys.list(filters),
+  const query = enterpriseQuery<WasteTypeRecord[]>({
+    queryKey: wasteTypeQueryKeys.all,
     queryFn: () => listWasteTypes(filters ?? undefined),
     enabled: filters !== null,
   });
+
+  const filterSignature = useMemo(
+    () =>
+      JSON.stringify({
+        company_id: filters?.company_id ?? "",
+        project_id: filters?.project_id ?? "",
+      }),
+    [filters?.company_id, filters?.project_id]
+  );
+  const previousFilterSignatureRef = useRef(filterSignature);
+
+  useEffect(() => {
+    if (previousFilterSignatureRef.current === filterSignature) {
+      return;
+    }
+
+    previousFilterSignatureRef.current = filterSignature;
+
+    if (filters !== null) {
+      void query.refetch();
+    }
+  }, [filterSignature, filters, query.refetch]);
+
+  return query;
 }
 
 export function useWasteTypeQuery(id: string | number | null | undefined) {

@@ -87,8 +87,8 @@ import { PencilIcon, TrashBinIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { usePermission } from "@/contexts/PermissionContext";
-import { routePlanApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useRoutePlansList } from "@/tanstack/admin/queries/masters/routePlan";
 
 // TODO: Replace with actual API import when available
 // import { routePlansApi } from "@/helpers/admin";
@@ -172,6 +172,10 @@ export default function RoutePlanList() {
   const ENC_NEW_PATH = `/${encStaffMasters}/${encRoutePlans}/new`;
   const ENC_EDIT_PATH = (id: string) =>
     `/${encStaffMasters}/${encRoutePlans}/${id}/edit`;
+  const apiFilters = companyUniqueId
+    ? { company_id: companyUniqueId, project_id: projectId ?? undefined }
+    : null;
+  const routePlansQuery = useRoutePlansList(apiFilters);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   // const [filters, setFilters] = useState<any>({
@@ -204,12 +208,7 @@ export default function RoutePlanList() {
 
     try {
       setLoading(true);
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
-
-      const res = await routePlanApi.list({ params });
+      const res = routePlansQuery.data;
       const rows = normalize(res);
 
       const hasContextFields = rows.some((row) => {
@@ -239,7 +238,7 @@ export default function RoutePlanList() {
     } finally {
       setLoading(false);
     }
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, routePlansQuery.data, t]);
 
   useEffect(() => {
     if (canView) {

@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -12,35 +13,33 @@ import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
+import {
+  type VehicleTripAuditRecord,
+  useVehicleTripAuditsQuery,
+} from "@/tanstack/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-type VehicleTripAuditRecord = {
-  id: number;
-  trip_instance_id: string;
-  vehicle_id: string;
-  gps_lat: number[];
-  gps_lon: number[];
-  avg_speed: number;
-  idle_seconds: number;
-  captured_at: string;
-  created_at?: string | null;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-};
+const tripInstanceQueryKey = ["masters", "trip_instances"] as const;
+const vehicleCreationQueryKey = ["masters", "vehicle_creations"] as const;
 
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
-  trip_instance_id?: { value: string | null; matchMode: FilterMatchMode };
-  vehicle_id?: { value: string | null; matchMode: FilterMatchMode };
+  trip_instance_id: { value: string | null; matchMode: FilterMatchMode };
+  vehicle_id: { value: string | null; matchMode: FilterMatchMode };
+};
+
+type TripInstanceRecord = {
+  unique_id: string;
+  trip_no?: string;
 };
 
 const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
+  Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : payload?.results ?? [];
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -69,11 +68,18 @@ const filterByCompanyProject = (
   });
 };
 
-const buildLookup = (items: any[], key: string, label: string, fallbackKey?: string) =>
+const buildLookup = (
+  items: any[],
+  key: string,
+  label: string,
+  fallbackKey?: string
+) =>
   items.reduce<Record<string, string>>((acc, item) => {
     const lookupKey = item?.[key];
     if (lookupKey !== undefined && lookupKey !== null) {
-      acc[String(lookupKey)] = String(item?.[label] ?? item?.[fallbackKey ?? ""] ?? lookupKey);
+      acc[String(lookupKey)] = String(
+        item?.[label] ?? item?.[fallbackKey ?? ""] ?? lookupKey
+      );
     }
     return acc;
   }, {});
@@ -81,19 +87,39 @@ const buildLookup = (items: any[], key: string, label: string, fallbackKey?: str
 const formatDateTime = (value?: string | null) =>
   value ? new Date(value).toLocaleString() : "-";
 
+const extractErrorMessage = (error: unknown, fallback: string) => {
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+
+  if (typeof data === "string") {
+    return data;
+  }
+
+  if (Array.isArray(data)) {
+    return data.join(", ");
+  }
+
+  if (data && typeof data === "object") {
+    return Object.entries(data as Record<string, unknown>)
+      .map(([key, value]) =>
+        `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
+      )
+      .join("\n");
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+};
+
 export default function VehicleTripAuditList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const vehicleTripAuditApi = adminApi.vehicleTripAudits;
   const tripInstanceApi = adminApi.tripInstances;
   const vehicleApi = adminApi.vehicleCreations;
 
-  const [records, setRecords] = useState<VehicleTripAuditRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const [tripLookup, setTripLookup] = useState<Record<string, string>>({});
-  const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>({});
   const {
     companyUniqueId,
     projectId,
@@ -105,10 +131,6 @@ export default function VehicleTripAuditList() {
   } = useCompanyProjectSelection({ isEdit: false });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  // const [filters, setFilters] = useState<any>({
-  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  // });
-
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     trip_instance_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -117,75 +139,146 @@ export default function VehicleTripAuditList() {
 
   const { encTransportMaster, encVehicleTripAudit } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encTransportMaster}/${encVehicleTripAudit}/new`;
-  const ENC_EDIT_PATH = (id: number) => `/${encTransportMaster}/${encVehicleTripAudit}/${id}/edit`;
+  const ENC_EDIT_PATH = (id: number) =>
+    `/${encTransportMaster}/${encVehicleTripAudit}/${id}/edit`;
 
-  const fetchRecords = async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
+  const auditsQuery = useVehicleTripAuditsQuery(
+    companyUniqueId
+      ? { company_id: companyUniqueId, project_id: projectId }
+      : null
+  );
 
-    if (!companyUniqueId) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
+  const tripInstancesQuery = useQuery({
+    queryKey: tripInstanceQueryKey,
+    queryFn: () => {
       const params: Record<string, string> = { company_id: companyUniqueId };
       if (projectId) {
         params.project_id = projectId;
       }
+      return tripInstanceApi.list({ params });
+    },
+    enabled: Boolean(companyUniqueId),
+  });
 
-      const [auditRes, tripRes, vehicleRes] = await Promise.all([
-        vehicleTripAuditApi.list({ params }),
-        tripInstanceApi.list({ params }),
-        vehicleApi.list({ params }),
-      ]);
-
-      const auditRows = filterByCompanyProject(
-        normalizeList(auditRes),
-        companyUniqueId,
-        projectId
-      );
-      const tripRows = filterByCompanyProject(
-        normalizeList(tripRes),
-        companyUniqueId,
-        projectId
-      );
-      const vehicleRows = filterByCompanyProject(
-        normalizeList(vehicleRes),
-        companyUniqueId,
-        projectId
-      );
-
-      setRecords(auditRows as VehicleTripAuditRecord[]);
-      setTripLookup(
-        buildLookup(
-          tripRows,
-          "unique_id",
-          "trip_no",
-          "unique_id"
-        )
-      );
-      setVehicleLookup(buildLookup(vehicleRows, "unique_id", "vehicle_no"));
-    } catch {
-      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const vehiclesQuery = useQuery({
+    queryKey: vehicleCreationQueryKey,
+    queryFn: () => {
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+      return vehicleApi.list({ params });
+    },
+    enabled: Boolean(companyUniqueId),
+  });
 
   useEffect(() => {
-    fetchRecords();
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+    if (
+      !auditsQuery.isError &&
+      !tripInstancesQuery.isError &&
+      !vehiclesQuery.isError
+    ) {
+      return;
+    }
+
+    const error =
+      auditsQuery.error ?? tripInstancesQuery.error ?? vehiclesQuery.error;
+
+    Swal.fire(
+      t("common.error"),
+      extractErrorMessage(error, t("common.fetch_failed")),
+      "error"
+    );
+  }, [
+    auditsQuery.error,
+    auditsQuery.isError,
+    t,
+    tripInstancesQuery.error,
+    tripInstancesQuery.isError,
+    vehiclesQuery.error,
+    vehiclesQuery.isError,
+  ]);
+
+  const previousContextRef = useRef(
+    JSON.stringify({
+      companyUniqueId: companyUniqueId ?? "",
+      projectId: projectId ?? "",
+    })
+  );
+
+  useEffect(() => {
+    const nextContext = JSON.stringify({
+      companyUniqueId: companyUniqueId ?? "",
+      projectId: projectId ?? "",
+    });
+
+    if (previousContextRef.current === nextContext) {
+      return;
+    }
+
+    previousContextRef.current = nextContext;
+
+    if (companyUniqueId) {
+      void tripInstancesQuery.refetch();
+      void vehiclesQuery.refetch();
+    }
+  }, [companyUniqueId, projectId, tripInstancesQuery.refetch, vehiclesQuery.refetch]);
+
+  const records = useMemo(
+    () =>
+      filterByCompanyProject(
+        normalizeList(auditsQuery.data ?? []),
+        companyUniqueId,
+        projectId
+      ) as VehicleTripAuditRecord[],
+    [auditsQuery.data, companyUniqueId, projectId]
+  );
+
+  const tripLookup = useMemo(
+    () =>
+      buildLookup(
+        filterByCompanyProject(
+          normalizeList(tripInstancesQuery.data ?? []) as TripInstanceRecord[],
+          companyUniqueId,
+          projectId
+        ),
+        "unique_id",
+        "trip_no",
+        "unique_id"
+      ),
+    [companyUniqueId, projectId, tripInstancesQuery.data]
+  );
+
+  const vehicleLookup = useMemo(
+    () =>
+      buildLookup(
+        filterByCompanyProject(
+          normalizeList(vehiclesQuery.data ?? []),
+          companyUniqueId,
+          projectId
+        ),
+        "unique_id",
+        "vehicle_no"
+      ),
+    [companyUniqueId, projectId, vehiclesQuery.data]
+  );
+
+  const loading =
+    (auditsQuery.isPending && records.length === 0) ||
+    (tripInstancesQuery.isPending && !tripInstancesQuery.data) ||
+    (vehiclesQuery.isPending && !vehiclesQuery.data);
+
+  const onFilter = (e: DataTableFilterEvent) => {
+    setFilters(e.filters as TableFilters);
+  };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
+    const updatedFilters = { ...filters };
+
+    updatedFilters.global.value = value;
+    setFilters(updatedFilters);
     setGlobalFilterValue(value);
-    setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
   };
 
   const header = (
@@ -280,6 +373,7 @@ export default function VehicleTripAuditList() {
         rows={10}
         loading={loading}
         filters={filters}
+        onFilter={onFilter}
         globalFilterFields={[
           "trip_instance_id",
           "vehicle_id",
@@ -292,7 +386,11 @@ export default function VehicleTripAuditList() {
         className="p-datatable-sm"
         emptyMessage={t("admin.vehicle_trip_audit.empty_message")}
       >
-        <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
+        <Column
+          header={t("common.s_no")}
+          body={(_, { rowIndex }) => rowIndex + 1}
+          style={{ width: 70 }}
+        />
         <Column
           header={t("admin.vehicle_trip_audit.trip_instance")}
           body={(row: VehicleTripAuditRecord) =>
@@ -300,7 +398,6 @@ export default function VehicleTripAuditList() {
           }
           filter
           showFilterMatchModes={false}
-
         />
         <Column
           header={t("admin.vehicle_trip_audit.vehicle")}
@@ -309,7 +406,6 @@ export default function VehicleTripAuditList() {
           }
           filter
           showFilterMatchModes={false}
-
         />
         <Column
           header={t("admin.vehicle_trip_audit.gps_lat")}
@@ -329,7 +425,11 @@ export default function VehicleTripAuditList() {
           header={t("common.created_at")}
           body={(row: VehicleTripAuditRecord) => formatDateTime(row.created_at)}
         />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
+        <Column
+          header={t("common.actions")}
+          body={actionTemplate}
+          style={{ width: 120 }}
+        />
       </DataTable>
     </div>
   );

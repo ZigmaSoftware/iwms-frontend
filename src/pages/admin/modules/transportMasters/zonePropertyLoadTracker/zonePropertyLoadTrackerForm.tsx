@@ -10,6 +10,15 @@ import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
 
 import { adminApi } from "@/helpers/admin/registry";
+import {
+  useZonePropertyLoadTrackerQuery,
+  useCreateZonePropertyLoadTracker,
+  useUpdateZonePropertyLoadTracker,
+  usePropertiesList,
+  useSubPropertiesList,
+} from "@/tanstack/admin/queries/masters/zonePropertyLoadTracker";
+import { useZonesList } from "@/tanstack/admin/queries/masters/supervisorZoneMap";
+import { useVehicleCreationsQuery } from "@/tanstack/admin/queries/masters/vehicleCreation";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 type SelectOption = { value: string; label: string };
@@ -40,11 +49,7 @@ export default function ZonePropertyLoadTrackerForm() {
   const location = useLocation();
   const isEdit = Boolean(id);
 
-  const zonePropertyLoadTrackerApi = adminApi.zonePropertyLoadTrackers;
-  const zoneApi = adminApi.zones;
-  const vehicleApi = adminApi.vehicleCreations;
-  const propertyApi = adminApi.properties;
-  const subPropertyApi = adminApi.subProperties;
+  
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -66,71 +71,49 @@ export default function ZonePropertyLoadTrackerForm() {
   const ENC_LIST_PATH = `/${encTransportMaster}/${encZonePropertyLoadTracker}`;
   const stateRecord = (location.state as { record?: Partial<ZonePropertyLoadTrackerFormState> } | null)?.record;
 
-  useEffect(() => {
-    setFetching(true);
-    Promise.all([
-      zoneApi.list(),
-      vehicleApi.list(),
-      propertyApi.list(),
-      subPropertyApi.list(),
-    ])
-      .then(([zoneRes, vehicleRes, propertyRes, subPropertyRes]) => {
-        setZones(toOptions(normalizeList(zoneRes), "unique_id", "name"));
-        setVehicles(toOptions(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
-        setProperties(toOptions(normalizeList(propertyRes), "unique_id", "property_name"));
-        setSubProperties(toOptions(normalizeList(subPropertyRes), "unique_id", "sub_property_name"));
-      })
-      .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      })
-      .finally(() => setFetching(false));
-  }, [propertyApi, subPropertyApi, t, vehicleApi, zoneApi]);
+  // Use TanStack hooks for reference data
+  const zonesQ = useZonesList();
+  const vehiclesQ = useVehicleCreationsQuery(null);
+  const propertiesQ = usePropertiesList();
+  const subPropertiesQ = useSubPropertiesList();
 
   useEffect(() => {
-    if (!isEdit || !stateRecord) return;
+    setFetching(zonesQ.isLoading || vehiclesQ.isLoading || propertiesQ.isLoading || subPropertiesQ.isLoading);
+    setZones(toOptions(normalizeList(zonesQ.data ?? []), "unique_id", "name"));
+    setVehicles(toOptions(normalizeList(vehiclesQ.data ?? []), "unique_id", "vehicle_no"));
+    setProperties(toOptions(normalizeList(propertiesQ.data ?? []), "unique_id", "property_name"));
+    setSubProperties(toOptions(normalizeList(subPropertiesQ.data ?? []), "unique_id", "sub_property_name"));
+  }, [zonesQ.data, vehiclesQ.data, propertiesQ.data, subPropertiesQ.data, zonesQ.isLoading, vehiclesQ.isLoading, propertiesQ.isLoading, subPropertiesQ.isLoading]);
 
-    setFormData({
-      zone_id: stateRecord?.zone_id ?? "",
-      vehicle_id: stateRecord?.vehicle_id ?? "",
-      property_id: stateRecord?.property_id ?? "",
-      sub_property_id: stateRecord?.sub_property_id ?? "",
-      current_weight_kg:
-        stateRecord?.current_weight_kg !== undefined && stateRecord?.current_weight_kg !== null
-          ? String(stateRecord.current_weight_kg)
-          : "",
-    });
-  }, [isEdit, stateRecord]);
-
-  useEffect(() => {
-  if (!isEdit || !id) return;
-
-  zonePropertyLoadTrackerApi
-    .get(id)
-    .then((res: any) => {
-      console.log("ZonePropertyLoadTracker API response:", res);
-
-      console.log("Resolved names:", {
-        zone_name: res?.zone_details?.name,
-        vehicle_no: res?.vehicle_details?.vehicle_no,
-        property_name: res?.property_details?.property_name,
-        sub_property_name: res?.sub_property_details?.sub_property_name,
-      });
+    useEffect(() => {
+      if (!isEdit || !stateRecord) return;
 
       setFormData({
-        zone_id: res?.zone_details?.unique_id ?? "",
-        vehicle_id: res?.vehicle_details?.unique_id ?? "",
-        property_id: res?.property_details?.unique_id ?? "",
-        sub_property_id: res?.sub_property_details?.unique_id ?? "",
+        zone_id: stateRecord?.zone_id ?? "",
+        vehicle_id: stateRecord?.vehicle_id ?? "",
+        property_id: stateRecord?.property_id ?? "",
+        sub_property_id: stateRecord?.sub_property_id ?? "",
         current_weight_kg:
-          res?.current_weight_kg !== undefined && res?.current_weight_kg !== null
-            ? String(res.current_weight_kg)
+          stateRecord?.current_weight_kg !== undefined && stateRecord?.current_weight_kg !== null
+            ? String(stateRecord.current_weight_kg)
             : "",
       });
-    })
-    .catch(() => {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
-    });
-}, [id, isEdit, t, zonePropertyLoadTrackerApi]);
+    }, [isEdit, stateRecord]);
+
+    const { data: trackerData } = useZonePropertyLoadTrackerQuery(id ?? null as any);
+    useEffect(() => {
+      if (!trackerData) return;
+      setFormData({
+        zone_id: trackerData?.zone_details?.unique_id ?? "",
+        vehicle_id: trackerData?.vehicle_details?.unique_id ?? "",
+        property_id: trackerData?.property_details?.unique_id ?? "",
+        sub_property_id: trackerData?.sub_property_details?.unique_id ?? "",
+        current_weight_kg: trackerData?.current_weight_kg !== undefined && trackerData?.current_weight_kg !== null ? String(trackerData.current_weight_kg) : "",
+      });
+    }, [trackerData]);
+
+    const createMutation = useCreateZonePropertyLoadTracker();
+    const updateMutation = useUpdateZonePropertyLoadTracker();
 
 
   const handleSubmit = async (e: FormEvent) => {
@@ -148,32 +131,28 @@ export default function ZonePropertyLoadTrackerForm() {
     }
 
     setLoading(true);
-    try {
-      const payload = {
-        zone_id: formData.zone_id,
-        vehicle_id: formData.vehicle_id,
-        property_id: formData.property_id,
-        sub_property_id: formData.sub_property_id,
-        current_weight_kg: Number(formData.current_weight_kg),
-      };
+      try {
+        const payload = {
+          zone_id: formData.zone_id,
+          vehicle_id: formData.vehicle_id,
+          property_id: formData.property_id,
+          sub_property_id: formData.sub_property_id,
+          current_weight_kg: Number(formData.current_weight_kg),
+        };
 
-      if (isEdit && id) {
-        await zonePropertyLoadTrackerApi.update(id, payload);
-      } else {
-        await zonePropertyLoadTrackerApi.create(payload);
+        if (isEdit && id) {
+          await updateMutation.mutateAsync({ id, payload });
+        } else {
+          await createMutation.mutateAsync(payload);
+        }
+
+        Swal.fire(t("common.success"), isEdit ? t("common.updated_success") : t("common.added_success"), "success");
+        navigate(ENC_LIST_PATH);
+      } catch {
+        Swal.fire(t("common.save_failed"), t("common.save_failed_desc"), "error");
+      } finally {
+        setLoading(false);
       }
-
-      Swal.fire(
-        t("common.success"),
-        isEdit ? t("common.updated_success") : t("common.added_success"),
-        "success"
-      );
-      navigate(ENC_LIST_PATH);
-    } catch {
-      Swal.fire(t("common.save_failed"), t("common.save_failed_desc"), "error");
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (

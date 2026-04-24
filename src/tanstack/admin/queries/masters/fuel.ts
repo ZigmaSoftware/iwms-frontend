@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { fuelApi } from "@/helpers/admin";
@@ -69,27 +70,42 @@ const replaceInList = (
 // ─── Query keys ───────────────────────────────────────────────────────────────
 
 export const fuelQueryKeys = {
-  all: ["transport", "fuels"] as const,
-  list: (filters?: FuelListFilters | null) =>
-    [
-      "transport",
-      "fuels",
-      "list",
-      String(filters?.company_id ?? ""),
-      String(filters?.project_id ?? ""),
-    ] as const,
-  detail: (id: string | number) =>
-    ["transport", "fuels", normalizeFuelId(id)] as const,
+  all: ["transport masters", "fuel"] as const,
+  detail: (id: string | number) => ["transport masters", "fuel", normalizeFuelId(id)] as const,
 };
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
 export function useFuelsQuery(filters?: FuelListFilters | null) {
-  return enterpriseQuery<FuelRecord[]>({
-    queryKey: fuelQueryKeys.list(filters),
+  const query = enterpriseQuery<FuelRecord[]>({
+    queryKey: fuelQueryKeys.all,
     queryFn: () => listFuels(filters ?? undefined),
     enabled: filters !== null,
   });
+
+  const filterSignature = useMemo(
+    () =>
+      JSON.stringify({
+        company_id: filters?.company_id ?? "",
+        project_id: filters?.project_id ?? "",
+      }),
+    [filters?.company_id, filters?.project_id]
+  );
+  const previousFilterSignatureRef = useRef(filterSignature);
+
+  useEffect(() => {
+    if (previousFilterSignatureRef.current === filterSignature) {
+      return;
+    }
+
+    previousFilterSignatureRef.current = filterSignature;
+
+    if (filters !== null) {
+      void query.refetch();
+    }
+  }, [filterSignature, filters, query.refetch]);
+
+  return query;
 }
 
 export function useFuelQuery(id: string | number | null | undefined) {
