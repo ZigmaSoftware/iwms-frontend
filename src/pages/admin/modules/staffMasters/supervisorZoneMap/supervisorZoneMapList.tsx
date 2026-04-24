@@ -247,6 +247,14 @@ import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 
 import { adminApi } from "@/helpers/admin/registry";
+import {
+  useSupervisorZoneMapList,
+  useDistrictsList,
+  useCitiesList,
+  useZonesList,
+  useUsersList,
+  useUpdateSupervisorZoneMap,
+} from "@/tanstack/admin/queries/masters/supervisorZoneMap";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
@@ -340,11 +348,7 @@ export default function SupervisorZoneMapList() {
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false });
 
-  const supervisorZoneMapApi = adminApi.supervisorZoneMap;
-  const districtApi = adminApi.districts;
-  const cityApi = adminApi.cities;
-  const zoneApi = adminApi.zones;
-  const userCreationApi = adminApi.usersCreation;
+  const updateMutation = useUpdateSupervisorZoneMap();
 
   const [records, setRecords] = useState<SupervisorZoneMapRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -368,6 +372,19 @@ export default function SupervisorZoneMapList() {
   const ENC_EDIT_PATH = (id: number) =>
     `/${encStaffMasters}/${encSupervisorZoneMap}/${id}/edit`;
 
+  const params =
+    companyUniqueId
+      ? {
+          company_id: companyUniqueId,
+          ...(projectId ? { project_id: projectId } : {}),
+        }
+      : undefined;
+  const mapQuery = useSupervisorZoneMapList(params);
+  const districtsQuery = useDistrictsList(params);
+  const citiesQuery = useCitiesList(params);
+  const zonesQuery = useZonesList(params);
+  const usersQuery = useUsersList(params);
+
   const fetchRecords = async () => {
     if (isSuperAdmin && companies.length === 0) {
       setRecords([]);
@@ -383,70 +400,28 @@ export default function SupervisorZoneMapList() {
 
     setLoading(true);
     try {
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
-
-      const [mapRes, districtRes, cityRes, zoneRes, userRes] = await Promise.all([
-        supervisorZoneMapApi.list({ params }),
-        districtApi.list({ params }),
-        cityApi.list({ params }),
-        zoneApi.list({ params }),
-        userCreationApi.list({ params }),
-      ]);
-
-      const mapRows = filterByCompanyProject(
-        normalizeList(mapRes),
-        companyUniqueId,
-        projectId
-      );
-      const districtRows = filterByCompanyProject(
-        normalizeList(districtRes),
-        companyUniqueId,
-        projectId
-      );
-      const cityRows = filterByCompanyProject(
-        normalizeList(cityRes),
-        companyUniqueId,
-        projectId
-      );
-      const zoneRows = filterByCompanyProject(
-        normalizeList(zoneRes),
-        companyUniqueId,
-        projectId
-      );
-      const userRows = filterByCompanyProject(
-        normalizeList(userRes),
-        companyUniqueId,
-        projectId
-      );
+      const mapRows = filterByCompanyProject(normalizeList(mapQuery.data), companyUniqueId, projectId);
+      const districtRows = filterByCompanyProject(normalizeList(districtsQuery.data), companyUniqueId, projectId);
+      const cityRows = filterByCompanyProject(normalizeList(citiesQuery.data), companyUniqueId, projectId);
+      const zoneRows = filterByCompanyProject(normalizeList(zonesQuery.data), companyUniqueId, projectId);
+      const userRows = filterByCompanyProject(normalizeList(usersQuery.data), companyUniqueId, projectId);
 
       const users = userRows.filter(
-        (u: any) =>
-          u?.user_type_name?.toLowerCase() === "staff" &&
+        (u: any) => u?.user_type_name?.toLowerCase() === "staff" &&
           String(u?.staffusertype_name ?? "").trim().toLowerCase() === "supervisor"
       );
 
-      // Build lookups locally first so we can enrich records immediately
       const dLookup = buildLookup(districtRows, "unique_id", "name");
       const cLookup = buildLookup(cityRows, "unique_id", "name");
       const zLookup = buildLookup(zoneRows, "unique_id", "zone_name");
       const sLookup = buildLookup(normalizeList(users), "unique_id", "employee_name");
 
-      // Enrich each record with resolved name fields for column filtering
       const enriched = mapRows.map((rec: any) => ({
         ...rec,
         _supervisor_name: sLookup[rec.supervisor_id] ?? rec.supervisor_id ?? "",
-        _district_name: rec.district_id
-          ? (dLookup[String(rec.district_id)] ?? rec.district_id)
-          : "",
-        _city_name: rec.city_id
-          ? (cLookup[String(rec.city_id)] ?? rec.city_id)
-          : "",
-        _zone_names: Array.isArray(rec.zone_ids)
-          ? rec.zone_ids.map((z: string) => zLookup[String(z)] ?? z).join(", ")
-          : "",
+        _district_name: rec.district_id ? (dLookup[String(rec.district_id)] ?? rec.district_id) : "",
+        _city_name: rec.city_id ? (cLookup[String(rec.city_id)] ?? rec.city_id) : "",
+        _zone_names: Array.isArray(rec.zone_ids) ? rec.zone_ids.map((z: string) => zLookup[String(z)] ?? z).join(", ") : "",
       }));
 
       setRecords(enriched);
@@ -463,7 +438,17 @@ export default function SupervisorZoneMapList() {
 
   useEffect(() => {
     fetchRecords();
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+  }, [
+    citiesQuery.data,
+    companyUniqueId,
+    companies.length,
+    districtsQuery.data,
+    isSuperAdmin,
+    mapQuery.data,
+    projectId,
+    usersQuery.data,
+    zonesQuery.data,
+  ]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);
@@ -496,10 +481,7 @@ export default function SupervisorZoneMapList() {
   const statusBodyTemplate = (row: SupervisorZoneMapRecord) => {
     const updateStatus = async (checked: boolean) => {
       try {
-        await supervisorZoneMapApi.update(row.id, {
-          status: checked ? "ACTIVE" : "INACTIVE",
-        });
-        fetchRecords();
+        await updateMutation.mutateAsync({ id: row.id, payload: { status: checked ? "ACTIVE" : "INACTIVE" } });
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       }

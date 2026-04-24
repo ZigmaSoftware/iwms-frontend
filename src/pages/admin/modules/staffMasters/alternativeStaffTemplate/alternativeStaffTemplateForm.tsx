@@ -11,10 +11,17 @@ import InputField from "@/components/form/input/InputField";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import {
-  alternativeStaffTemplateApi,
-  staffCreationApi,
-  staffTemplateApi,
-} from "@/helpers/admin";
+  useAlternativeStaffTemplateQuery,
+  useCreateAlternativeStaffTemplate,
+  useUpdateAlternativeStaffTemplate,
+} from "@/tanstack/admin/queries/masters/alternativeStaffTemplate";
+import {
+  useStaffCreationList,
+} from "@/tanstack/admin/queries/masters/staffCreation";
+import {
+  useStaffTemplateList,
+  useStaffTemplateQuery,
+} from "@/tanstack/admin/queries/masters/staffTemplate";
 
 type Option = { value: string; label: string };
 type StaffRecord = {
@@ -79,6 +86,15 @@ export default function AlternativeStaffTemplateForm() {
 
   const { encStaffMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encStaffMasters}/${encAlternativeStaffTemplate}`;
+
+  const staffTemplatesQuery = useStaffTemplateList();
+  const staffCreationQuery = useStaffCreationList({ active_status: 1 });
+  const alternativeTemplateQuery = useAlternativeStaffTemplateQuery(id);
+  const selectedStaffTemplateQuery = useStaffTemplateQuery(
+    formData.staff_template || null
+  );
+  const createMutation = useCreateAlternativeStaffTemplate();
+  const updateMutation = useUpdateAlternativeStaffTemplate();
 
   const normalizeRole = (value: unknown) =>
     String(value ?? "").trim().toLowerCase();
@@ -180,43 +196,43 @@ export default function AlternativeStaffTemplateForm() {
   --------------------------- */
 
   useEffect(() => {
-    staffTemplateApi.list().then((res: any) => {
-      const data = Array.isArray(res) ? res : res?.data ?? [];
-      setStaffTemplateOptions(
-        data.map((tpl: any) => ({
-          value: String(tpl.unique_id),
-          label: tpl.display_code ?? tpl.unique_id,
-        }))
-      );
+    const templatesPayload: any = staffTemplatesQuery.data;
+    const templateRows = Array.isArray(templatesPayload)
+      ? templatesPayload
+      : templatesPayload?.data ?? [];
+    setStaffTemplateOptions(
+      templateRows.map((tpl: any) => ({
+        value: String(tpl.unique_id),
+        label: tpl.display_code ?? tpl.unique_id,
+      }))
+    );
+
+    const staffPayload: any = staffCreationQuery.data;
+    const data = Array.isArray(staffPayload)
+      ? staffPayload
+      : Array.isArray(staffPayload?.results)
+        ? staffPayload.results
+        : Array.isArray(staffPayload?.data?.results)
+          ? staffPayload.data.results
+          : Array.isArray(staffPayload?.data)
+            ? staffPayload.data
+            : [];
+
+    const staff = data.filter(
+      (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && u.unique_id
+    );
+
+    setStaffRecords(staff);
+
+    const companies = buildCompanyOptions(staff);
+    setCompanyOptions(companies);
+    setSelectedCompanyId((prev) => {
+      if (prev && companies.some((option) => option.value === prev)) {
+        return prev;
+      }
+      return companies[0]?.value ?? "";
     });
-
-    staffCreationApi.list({ params: { active_status: 1 } }).then((res: any) => {
-      const data = Array.isArray(res)
-        ? res
-        : Array.isArray(res?.results)
-          ? res.results
-          : Array.isArray(res?.data?.results)
-            ? res.data.results
-            : Array.isArray(res?.data)
-              ? res.data
-              : [];
-
-      const staff = data.filter(
-        (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && u.unique_id
-      );
-
-      setStaffRecords(staff);
-
-      const companies = buildCompanyOptions(staff);
-      setCompanyOptions(companies);
-      setSelectedCompanyId((prev) => {
-        if (prev && companies.some((option) => option.value === prev)) {
-          return prev;
-        }
-        return companies[0]?.value ?? "";
-      });
-    });
-  }, []);
+  }, [staffCreationQuery.data, staffTemplatesQuery.data]);
 
   useEffect(() => {
     const projects = buildProjectOptions(staffRecords, selectedCompanyId);
@@ -258,44 +274,51 @@ export default function AlternativeStaffTemplateForm() {
     if (!isEdit || !id || staffRecords.length === 0) return;
 
     setLoading(true);
+    const rec: any = alternativeTemplateQuery.data;
+    if (!rec) {
+      return;
+    }
 
-    alternativeStaffTemplateApi
-      .get(id)
-      .then((rec: any) => {
-        templateSelectedByUser.current = false;
+    templateSelectedByUser.current = false;
 
-        setFormData({
-          staff_template: String(rec.staff_template),
-          effective_date: rec.effective_date,
-          driver: String(rec.driver),
-          operator: String(rec.operator),
-          extra_operator: Array.isArray(rec.extra_operator)
-            ? rec.extra_operator.map(String)
-            : [],
-          change_reason: rec.change_reason ?? "",
-          change_remarks: rec.change_remarks ?? "",
-          approval_status: rec.approval_status,
-          display_code: rec.display_code,
-        });
+    setFormData({
+      staff_template: String(rec.staff_template),
+      effective_date: rec.effective_date,
+      driver: String(rec.driver),
+      operator: String(rec.operator),
+      extra_operator: Array.isArray(rec.extra_operator)
+        ? rec.extra_operator.map(String)
+        : [],
+      change_reason: rec.change_reason ?? "",
+      change_remarks: rec.change_remarks ?? "",
+      approval_status: rec.approval_status,
+      display_code: rec.display_code,
+    });
 
-        const matchedStaff =
-          staffRecords.find(
-            (staff) => String(staff.unique_id) === String(rec.driver ?? "")
-          ) ??
-          staffRecords.find(
-            (staff) => String(staff.unique_id) === String(rec.operator ?? "")
-          );
+    const matchedStaff =
+      staffRecords.find(
+        (staff) => String(staff.unique_id) === String(rec.driver ?? "")
+      ) ??
+      staffRecords.find(
+        (staff) => String(staff.unique_id) === String(rec.operator ?? "")
+      );
 
-        if (matchedStaff) {
-          setSelectedCompanyId(getCompanyId(matchedStaff));
-          setSelectedProjectId(getProjectId(matchedStaff));
-        }
-      })
-      .catch(() =>
-        Swal.fire(t("common.error"), t("common.load_failed"), "error")
-      )
-      .finally(() => setLoading(false));
-  }, [id, isEdit, staffRecords, t]);
+    if (matchedStaff) {
+      setSelectedCompanyId(getCompanyId(matchedStaff));
+      setSelectedProjectId(getProjectId(matchedStaff));
+    }
+
+    setLoading(false);
+  }, [alternativeTemplateQuery.data, id, isEdit, staffRecords]);
+
+  useEffect(() => {
+    if (!alternativeTemplateQuery.isError) {
+      return;
+    }
+
+    Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    setLoading(false);
+  }, [alternativeTemplateQuery.isError, t]);
 
   /* ---------------------------
      AUTO FILL FROM TEMPLATE
@@ -303,31 +326,33 @@ export default function AlternativeStaffTemplateForm() {
 
   useEffect(() => {
     if (!templateSelectedByUser.current || !formData.staff_template) return;
+    const tpl: any = selectedStaffTemplateQuery.data;
+    if (!tpl) {
+      return;
+    }
 
-    staffTemplateApi.get(formData.staff_template).then((tpl: any) => {
-      setFormData((p) => ({
-        ...p,
-        driver: tpl.driver_id ?? "",
-        operator: tpl.operator_id ?? "",
-        extra_operator: Array.isArray(tpl.extra_operator_id)
-          ? tpl.extra_operator_id.map(String)
-          : [],
-      }));
+    setFormData((p) => ({
+      ...p,
+      driver: tpl.driver_id ?? "",
+      operator: tpl.operator_id ?? "",
+      extra_operator: Array.isArray(tpl.extra_operator_id)
+        ? tpl.extra_operator_id.map(String)
+        : [],
+    }));
 
-      const matchedStaff =
-        staffRecords.find(
-          (staff) => String(staff.unique_id) === String(tpl.driver_id ?? "")
-        ) ??
-        staffRecords.find(
-          (staff) => String(staff.unique_id) === String(tpl.operator_id ?? "")
-        );
+    const matchedStaff =
+      staffRecords.find(
+        (staff) => String(staff.unique_id) === String(tpl.driver_id ?? "")
+      ) ??
+      staffRecords.find(
+        (staff) => String(staff.unique_id) === String(tpl.operator_id ?? "")
+      );
 
-      if (matchedStaff) {
-        setSelectedCompanyId(getCompanyId(matchedStaff));
-        setSelectedProjectId(getProjectId(matchedStaff));
-      }
-    });
-  }, [formData.staff_template, staffRecords]);
+    if (matchedStaff) {
+      setSelectedCompanyId(getCompanyId(matchedStaff));
+      setSelectedProjectId(getProjectId(matchedStaff));
+    }
+  }, [formData.staff_template, selectedStaffTemplateQuery.data, staffRecords]);
 
   useEffect(() => {
     setFormData((prev) => {
@@ -433,9 +458,9 @@ export default function AlternativeStaffTemplateForm() {
 
     try {
       if (isEdit && id) {
-        await alternativeStaffTemplateApi.update(id, payload);
+        await updateMutation.mutateAsync({ id, payload });
       } else {
-        await alternativeStaffTemplateApi.create(payload);
+        await createMutation.mutateAsync(payload);
       }
 
       Swal.fire("Success", "Saved successfully", "success");

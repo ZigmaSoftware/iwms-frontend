@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { zoneApi } from "@/helpers/admin";
@@ -37,7 +38,8 @@ export type ZonePayload = {
 
 const normalizeZoneId = (id: string | number) => String(id);
 
-const listZones = () => zoneApi.list() as Promise<ZoneRecord[]>;
+const listZones = (customerId?: string) =>
+  zoneApi.list({ params: customerId ? { customer_id: customerId } : undefined }) as Promise<ZoneRecord[]>;
 
 const getZone = (id: string | number) => zoneApi.get(id) as Promise<ZoneRecord>;
 
@@ -52,12 +54,27 @@ const replaceZoneInList = (zones: ZoneRecord[] | undefined, zone: ZoneRecord) =>
 };
 
 export const zoneQueryKeys = {
-  all: ["masters", "zones"] as const,
-  detail: (id: string | number) => ["masters", "zones", normalizeZoneId(id)] as const,
+  all: ["masters", "zone"] as const,
+  detail: (id: string | number) => ["masters", "zone", normalizeZoneId(id)] as const,
 };
 
-export function useZonesQuery() {
-  return enterpriseQuery<ZoneRecord[]>({ queryKey: zoneQueryKeys.all, queryFn: listZones });
+export function useZonesQuery(customerId?: string | null) {
+  const query = enterpriseQuery<ZoneRecord[]>({ queryKey: zoneQueryKeys.all, queryFn: () => listZones(customerId ?? undefined), enabled: customerId !== null });
+  const previousCustomerIdRef = useRef(customerId);
+
+  useEffect(() => {
+    if (previousCustomerIdRef.current === customerId) {
+      return;
+    }
+
+    previousCustomerIdRef.current = customerId;
+
+    if (customerId !== null) {
+      void query.refetch();
+    }
+  }, [customerId, query.refetch]);
+
+  return query;
 }
 
 export function useZoneQuery(id: string | number | null | undefined) {

@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { vehicleTypeApi } from "@/helpers/admin";
@@ -75,27 +76,43 @@ const replaceInList = (
 // ─── Query keys ───────────────────────────────────────────────────────────────
 
 export const vehicleTypeQueryKeys = {
-  all: ["transport", "vehicleTypes"] as const,
-  list: (filters?: VehicleTypeListFilters | null) =>
-    [
-      "transport",
-      "vehicleTypes",
-      "list",
-      String(filters?.company_id ?? ""),
-      String(filters?.project_id ?? ""),
-    ] as const,
+  all: ["transport masters", "vehicle type"] as const,
   detail: (id: string | number) =>
-    ["transport", "vehicleTypes", normalizeVehicleTypeId(id)] as const,
+    ["transport masters", "vehicle type", normalizeVehicleTypeId(id)] as const,
 };
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
 export function useVehicleTypesQuery(filters?: VehicleTypeListFilters | null) {
-  return enterpriseQuery<VehicleTypeRecord[]>({
-    queryKey: vehicleTypeQueryKeys.list(filters),
+  const query = enterpriseQuery<VehicleTypeRecord[]>({
+    queryKey: vehicleTypeQueryKeys.all,
     queryFn: () => listVehicleTypes(filters ?? undefined),
     enabled: filters !== null,
   });
+
+  const filterSignature = useMemo(
+    () =>
+      JSON.stringify({
+        company_id: filters?.company_id ?? "",
+        project_id: filters?.project_id ?? "",
+      }),
+    [filters?.company_id, filters?.project_id]
+  );
+  const previousFilterSignatureRef = useRef(filterSignature);
+
+  useEffect(() => {
+    if (previousFilterSignatureRef.current === filterSignature) {
+      return;
+    }
+
+    previousFilterSignatureRef.current = filterSignature;
+
+    if (filters !== null) {
+      void query.refetch();
+    }
+  }, [filterSignature, filters, query.refetch]);
+
+  return query;
 }
 
 export function useVehicleTypeQuery(id: string | number | null | undefined) {

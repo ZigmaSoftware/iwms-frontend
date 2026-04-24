@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { vehicleCreationApi, vehicleTypeApi, fuelApi } from "@/helpers/admin";
@@ -118,19 +119,11 @@ const replaceInList = (
 // ─── Query keys ───────────────────────────────────────────────────────────────
 
 export const vehicleCreationQueryKeys = {
-  all: ["transport", "vehicleCreations"] as const,
-  list: (filters?: VehicleCreationListFilters | null) =>
-    [
-      "transport",
-      "vehicleCreations",
-      "list",
-      String(filters?.company_id ?? ""),
-      String(filters?.project_id ?? ""),
-    ] as const,
+  all: ["transport masters", "vehicle creation"] as const,
   detail: (id: string | number) =>
-    ["transport", "vehicleCreations", normalizeVehicleCreationId(id)] as const,
-  vehicleTypeOptions: ["transport", "vehicleTypeOptions"] as const,
-  fuelTypeOptions: ["transport", "fuelTypeOptions"] as const,
+    ["transport masters", "vehicle creation", normalizeVehicleCreationId(id)] as const,
+  vehicleTypeOptions: ["transport masters", "vehicle type"] as const,
+  fuelTypeOptions: ["transport masters", "fuel"] as const,
 };
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
@@ -138,11 +131,35 @@ export const vehicleCreationQueryKeys = {
 export function useVehicleCreationsQuery(
   filters?: VehicleCreationListFilters | null
 ) {
-  return enterpriseQuery<VehicleCreationRecord[]>({
-    queryKey: vehicleCreationQueryKeys.list(filters),
+  const query = enterpriseQuery<VehicleCreationRecord[]>({
+    queryKey: vehicleCreationQueryKeys.all,
     queryFn: () => listVehicleCreations(filters ?? undefined),
     enabled: filters !== null,
   });
+
+  const filterSignature = useMemo(
+    () =>
+      JSON.stringify({
+        company_id: filters?.company_id ?? "",
+        project_id: filters?.project_id ?? "",
+      }),
+    [filters?.company_id, filters?.project_id]
+  );
+  const previousFilterSignatureRef = useRef(filterSignature);
+
+  useEffect(() => {
+    if (previousFilterSignatureRef.current === filterSignature) {
+      return;
+    }
+
+    previousFilterSignatureRef.current = filterSignature;
+
+    if (filters !== null) {
+      void query.refetch();
+    }
+  }, [filterSignature, filters, query.refetch]);
+
+  return query;
 }
 
 export function useVehicleCreationQuery(

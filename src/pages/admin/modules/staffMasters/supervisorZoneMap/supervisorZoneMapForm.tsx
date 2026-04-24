@@ -8,6 +8,15 @@ import Label from "@/components/form/Label";
 import Select, { type SelectOption } from "@/components/form/Select";
 
 import { adminApi } from "@/helpers/admin/registry";
+import {
+  useDistrictsList,
+  useCitiesList,
+  useZonesList,
+  useUsersList,
+  useSupervisorZoneMapQuery,
+  useCreateSupervisorZoneMap,
+  useUpdateSupervisorZoneMap,
+} from "@/tanstack/admin/queries/masters/supervisorZoneMap";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 type SupervisorZoneMapPayload = {
@@ -99,53 +108,52 @@ export default function SupervisorZoneMapForm() {
     return t("common.unexpected_error");
   };
 
+  const { data: districtRes } = useDistrictsList();
+  const { data: cityRes } = useCitiesList();
+  const { data: zoneRes } = useZonesList();
+  const { data: userRes } = useUsersList();
+
+  const recordQuery = useSupervisorZoneMapQuery(id);
+  const createMutation = useCreateSupervisorZoneMap();
+  const updateMutation = useUpdateSupervisorZoneMap();
+
   useEffect(() => {
-    setFetching(true);
-    Promise.all([
-      districtApi.list(),
-      cityApi.list(),
-      zoneApi.list(),
-      userCreationApi.list(),
-    ])
-      .then(([districtRes, cityRes, zoneRes, userRes]) => {
-        setDistricts(toOptions(normalizeList(districtRes), "unique_id", "name"));
-        setCities(toOptions(normalizeList(cityRes), "unique_id", "name"));
-        setZones(toOptions(normalizeList(zoneRes), "unique_id", "name"));
+    setFetching(Boolean(!districtRes || !cityRes || !zoneRes || !userRes));
 
-        const staffUsers = normalizeList(userRes).filter(
-          (u: any) => u?.user_type_name?.toLowerCase() === "staff"
-        );
-        const supervisors = staffUsers.filter(
-          (u: any) => String(u?.staffusertype_name ?? "").trim().toLowerCase() === "supervisor"
-        );
-        setSupervisors(toOptions(supervisors, "unique_id", "staff_name"));
-      })
-      .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      })
-      .finally(() => setFetching(false));
+    try {
+      setDistricts(toOptions(normalizeList(districtRes), "unique_id", "name"));
+      setCities(toOptions(normalizeList(cityRes), "unique_id", "name"));
+      setZones(toOptions(normalizeList(zoneRes), "unique_id", "name"));
 
-    if (!id) return;
+      const staffUsers = normalizeList(userRes).filter(
+        (u: any) => u?.user_type_name?.toLowerCase() === "staff"
+      );
+      const supervisorsList = staffUsers.filter(
+        (u: any) => String(u?.staffusertype_name ?? "").trim().toLowerCase() === "supervisor"
+      );
+      setSupervisors(toOptions(supervisorsList, "unique_id", "staff_name"));
+    } catch (err) {
+      // swallow - errors handled by queries
+    } finally {
+      setFetching(false);
+    }
+  }, [cityRes, districtRes, zoneRes, userRes]);
 
-    supervisorZoneMapApi
-      .get(id)
-      .then((res: any) => {
-        setForm({
-          supervisor_id: res?.supervisor_id ?? "",
-          district_id: res?.district_id ? String(res.district_id) : "",
-          city_id: res?.city_id ? String(res.city_id) : "",
-          status: res?.status ?? "ACTIVE",
-        });
+  useEffect(() => {
+    if (!id || !recordQuery.data) return;
+    const res: any = recordQuery.data;
+    setForm({
+      supervisor_id: res?.supervisor_id ?? "",
+      district_id: res?.district_id ? String(res.district_id) : "",
+      city_id: res?.city_id ? String(res.city_id) : "",
+      status: res?.status ?? "ACTIVE",
+    });
 
-        const incomingZones = Array.isArray(res?.zone_ids)
-          ? res.zone_ids.map((zoneId: any) => String(zoneId)).filter(Boolean)
-          : [];
-        setZoneIds(incomingZones);
-      })
-      .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      });
-  }, [cityApi, districtApi, id, supervisorZoneMapApi, t, userCreationApi, zoneApi]);
+    const incomingZones = Array.isArray(res?.zone_ids)
+      ? res.zone_ids.map((zoneId: any) => String(zoneId)).filter(Boolean)
+      : [];
+    setZoneIds(incomingZones);
+  }, [id, recordQuery.data]);
 
   const handleZonePick = (value: string) => {
     if (!value) return;
@@ -176,9 +184,9 @@ export default function SupervisorZoneMapForm() {
     setSubmitting(true);
     try {
       if (isEdit && id) {
-        await supervisorZoneMapApi.update(id, payload);
+        await updateMutation.mutateAsync({ id, payload });
       } else {
-        await supervisorZoneMapApi.create(payload);
+        await createMutation.mutateAsync(payload);
       }
       Swal.fire(
         t("common.success"),

@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { collectionPointApi } from "@/helpers/admin";
@@ -70,18 +71,40 @@ const createCollectionPoint = (payload: CollectionPointPayload) => collectionPoi
 const updateCollectionPoint = (id: string | number, payload: CollectionPointPayload) => collectionPointApi.update(id, payload) as Promise<CollectionPointRecord>;
 
 export const collectionPointQueryKeys = {
-  all: ["masters", "collection-points"] as const,
-  list: (filters?: CollectionPointListFilters | null) =>
-    ["masters", "collection-points", "list", String(filters?.company_id ?? ""), String(filters?.project_id ?? "")] as const,
-  detail: (id: string | number) => ["masters", "collection-points", normalizeCollectionPointId(id)] as const,
+  all: ["assets", "collection point"] as const,
+  detail: (id: string | number) => ["assets", "collection point", normalizeCollectionPointId(id)] as const,
 };
 
 export function useCollectionPointsQuery(filters?: CollectionPointListFilters | null) {
-  return enterpriseQuery<CollectionPointRecord[]>({
-    queryKey: collectionPointQueryKeys.list(filters),
+  const query = enterpriseQuery<CollectionPointRecord[]>({
+    queryKey: collectionPointQueryKeys.all,
     queryFn: () => listCollectionPoints(filters ?? undefined),
     enabled: filters !== null,
   });
+
+  const filterSignature = useMemo(
+    () =>
+      JSON.stringify({
+        company_id: filters?.company_id ?? "",
+        project_id: filters?.project_id ?? "",
+      }),
+    [filters?.company_id, filters?.project_id]
+  );
+  const previousFilterSignatureRef = useRef(filterSignature);
+
+  useEffect(() => {
+    if (previousFilterSignatureRef.current === filterSignature) {
+      return;
+    }
+
+    previousFilterSignatureRef.current = filterSignature;
+
+    if (filters !== null) {
+      void query.refetch();
+    }
+  }, [filterSignature, filters, query.refetch]);
+
+  return query;
 }
 
 export function useCollectionPointQuery(id: string | number | null | undefined) {

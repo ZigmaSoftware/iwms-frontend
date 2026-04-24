@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { wardApi } from "@/helpers/admin";
@@ -43,7 +44,8 @@ export type WardPayload = {
   project_id?: string | number | null;
 };
 
-const listWards = () => wardApi.list() as Promise<WardRecord[]>;
+const listWards = (zoneId?: string) =>
+  wardApi.list({ params: zoneId ? { zone_id: zoneId } : undefined }) as Promise<WardRecord[]>;
 
 const getWard = (id: string | number) => wardApi.get(id) as Promise<WardRecord>;
 
@@ -58,12 +60,27 @@ const replaceWardInList = (wards: WardRecord[] | undefined, ward: WardRecord) =>
 };
 
 export const wardQueryKeys = {
-  all: ["masters", "wards"] as const,
-  detail: (id: string | number) => ["masters", "wards", String(id)] as const,
+  all: ["masters", "ward"] as const,
+  detail: (id: string | number) => ["masters", "ward", String(id)] as const,
 };
 
-export function useWardsQuery() {
-  return enterpriseQuery<WardRecord[]>({ queryKey: wardQueryKeys.all, queryFn: listWards });
+export function useWardsQuery(zoneId?: string | null) {
+  const query = enterpriseQuery<WardRecord[]>({ queryKey: wardQueryKeys.all, queryFn: () => listWards(zoneId ?? undefined), enabled: zoneId !== null });
+  const previousZoneIdRef = useRef(zoneId);
+
+  useEffect(() => {
+    if (previousZoneIdRef.current === zoneId) {
+      return;
+    }
+
+    previousZoneIdRef.current = zoneId;
+
+    if (zoneId !== null) {
+      void query.refetch();
+    }
+  }, [query.refetch, zoneId]);
+
+  return query;
 }
 
 export function useWardQuery(id: string | number | null | undefined) {

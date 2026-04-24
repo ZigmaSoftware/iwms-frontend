@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { mainCategoryApi } from "@/helpers/admin";
@@ -51,18 +52,33 @@ const replaceMainCategoryInList = (
 };
 
 export const mainCategoryQueryKeys = {
-  all: ["grievances", "main-categories"] as const,
-  list: (companyId?: string) =>
-    [...mainCategoryQueryKeys.all, "list", companyId ?? "all"] as const,
+  all: ["citizen grievances", "main_categories"] as const,
   detail: (id: string | number) =>
-    [...mainCategoryQueryKeys.all, "detail", normalizeMainCategoryId(id)] as const,
+    [...mainCategoryQueryKeys.all, normalizeMainCategoryId(id)] as const,
 };
 
 export function useMainCategoriesQuery(companyId?: string) {
-  return enterpriseQuery<MainCategoryRecord[]>({
-    queryKey: mainCategoryQueryKeys.list(companyId),
+  const query = enterpriseQuery<MainCategoryRecord[]>({
+    queryKey: mainCategoryQueryKeys.all,
     queryFn: () => listMainCategories(companyId),
+    enabled: Boolean(companyId),
   });
+
+  const previousCompanyIdRef = useRef(companyId);
+
+  useEffect(() => {
+    if (previousCompanyIdRef.current === companyId) {
+      return;
+    }
+
+    previousCompanyIdRef.current = companyId;
+
+    if (companyId) {
+      void query.refetch();
+    }
+  }, [companyId, query.refetch]);
+
+  return query;
 }
 
 export function useMainCategoryQuery(id: string | number | null | undefined) {
@@ -85,7 +101,7 @@ export function useCreateMainCategoryMutation(companyId?: string) {
       );
 
       await queryClient.invalidateQueries({
-        queryKey: mainCategoryQueryKeys.list(companyId),
+        queryKey: mainCategoryQueryKeys.all,
       });
     },
   });
@@ -108,12 +124,12 @@ export function useUpdateMainCategoryMutation(companyId?: string) {
         record
       );
       queryClient.setQueryData<MainCategoryRecord[]>(
-        mainCategoryQueryKeys.list(companyId),
+        mainCategoryQueryKeys.all,
         (current) => replaceMainCategoryInList(current, record)
       );
 
       await queryClient.invalidateQueries({
-        queryKey: mainCategoryQueryKeys.list(companyId),
+        queryKey: mainCategoryQueryKeys.all,
       });
     },
   });

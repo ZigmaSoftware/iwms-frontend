@@ -231,6 +231,7 @@ import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
+import { useZonePropertyLoadTrackerList, useDeleteZonePropertyLoadTracker } from "@/tanstack/admin/queries/masters/zonePropertyLoadTracker";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
@@ -301,8 +302,6 @@ export default function ZonePropertyLoadTrackerList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const zonePropertyLoadTrackerApi = adminApi.zonePropertyLoadTrackers;
-
   const [records, setRecords] = useState<ZonePropertyLoadTrackerApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const {
@@ -330,61 +329,13 @@ export default function ZonePropertyLoadTrackerList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encTransportMaster}/${encZonePropertyLoadTracker}/${id}/edit`;
 
-  const fetchRecords = useCallback(async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
-    if (!companyUniqueId) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
-
-      const trackerRes = await zonePropertyLoadTrackerApi.list({ params });
-      const rows = normalizeList(trackerRes);
-
-      const hasContextFields = rows.some((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        return Boolean(rowCompanyId || rowProjectId);
-      });
-
-      if (!hasContextFields) {
-        setRecords(rows);
-        return;
-      }
-
-      const filtered = rows.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-
-        return companyMatches && projectMatches;
-      });
-
-      setRecords(filtered);
-    } catch {
-      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t, zonePropertyLoadTrackerApi]);
+  const apiFilters = companyUniqueId ? { company_id: companyUniqueId, project_id: projectId ?? undefined } : null;
+  const trackersQ = useZonePropertyLoadTrackerList(apiFilters);
 
   useEffect(() => {
-    fetchRecords();
-  }, [fetchRecords]);
+    setLoading(trackersQ.isLoading);
+    setRecords(normalizeList(trackersQ.data ?? []));
+  }, [trackersQ.data, trackersQ.isLoading]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);
