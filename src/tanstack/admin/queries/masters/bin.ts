@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { binApi } from "@/helpers/admin";
@@ -78,18 +79,40 @@ const createBin = (payload: BinPayload) => binApi.create(payload) as Promise<Bin
 const updateBin = (id: string | number, payload: BinPayload) => binApi.update(id, payload) as Promise<BinRecord>;
 
 export const binQueryKeys = {
-  all: ["masters", "bins"] as const,
-  list: (filters?: BinListFilters | null) =>
-    ["masters", "bins", "list", String(filters?.company_id ?? ""), String(filters?.project_id ?? "")] as const,
-  detail: (id: string | number) => ["masters", "bins", normalizeBinId(id)] as const,
+  all: ["assets", "bin creation"] as const,
+  detail: (id: string | number) => ["assets", "bin creation", normalizeBinId(id)] as const,
 };
 
 export function useBinsQuery(filters?: BinListFilters | null) {
-  return enterpriseQuery<BinRecord[]>({
-    queryKey: binQueryKeys.list(filters),
+  const query = enterpriseQuery<BinRecord[]>({
+    queryKey: binQueryKeys.all,
     queryFn: () => listBins(filters ?? undefined),
     enabled: filters !== null,
   });
+
+  const filterSignature = useMemo(
+    () =>
+      JSON.stringify({
+        company_id: filters?.company_id ?? "",
+        project_id: filters?.project_id ?? "",
+      }),
+    [filters?.company_id, filters?.project_id]
+  );
+  const previousFilterSignatureRef = useRef(filterSignature);
+
+  useEffect(() => {
+    if (previousFilterSignatureRef.current === filterSignature) {
+      return;
+    }
+
+    previousFilterSignatureRef.current = filterSignature;
+
+    if (filters !== null) {
+      void query.refetch();
+    }
+  }, [filterSignature, filters, query.refetch]);
+
+  return query;
 }
 
 export function useBinQuery(id: string | number | null | undefined) {

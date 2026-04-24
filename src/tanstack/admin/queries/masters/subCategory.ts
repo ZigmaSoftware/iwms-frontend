@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { subCategoryApi } from "@/helpers/admin";
@@ -54,18 +55,33 @@ const replaceSubCategoryInList = (
 };
 
 export const subCategoryQueryKeys = {
-  all: ["grievances", "sub-categories"] as const,
-  list: (companyId?: string) =>
-    [...subCategoryQueryKeys.all, "list", companyId ?? "all"] as const,
+  all: ["citizen grievances", "sub_categories"] as const,
   detail: (id: string | number) =>
-    [...subCategoryQueryKeys.all, "detail", normalizeSubCategoryId(id)] as const,
+    [...subCategoryQueryKeys.all, normalizeSubCategoryId(id)] as const,
 };
 
 export function useSubCategoriesQuery(companyId?: string) {
-  return enterpriseQuery<SubCategoryRecord[]>({
-    queryKey: subCategoryQueryKeys.list(companyId),
+  const query = enterpriseQuery<SubCategoryRecord[]>({
+    queryKey: subCategoryQueryKeys.all,
     queryFn: () => listSubCategories(companyId),
+    enabled: Boolean(companyId),
   });
+
+  const previousCompanyIdRef = useRef(companyId);
+
+  useEffect(() => {
+    if (previousCompanyIdRef.current === companyId) {
+      return;
+    }
+
+    previousCompanyIdRef.current = companyId;
+
+    if (companyId) {
+      void query.refetch();
+    }
+  }, [companyId, query.refetch]);
+
+  return query;
 }
 
 export function useSubCategoryQuery(id: string | number | null | undefined) {
@@ -88,7 +104,7 @@ export function useCreateSubCategoryMutation(companyId?: string) {
       );
 
       await queryClient.invalidateQueries({
-        queryKey: subCategoryQueryKeys.list(companyId),
+        queryKey: subCategoryQueryKeys.all,
       });
     },
   });
@@ -111,12 +127,12 @@ export function useUpdateSubCategoryMutation(companyId?: string) {
         record
       );
       queryClient.setQueryData<SubCategoryRecord[]>(
-        subCategoryQueryKeys.list(companyId),
+        subCategoryQueryKeys.all,
         (current) => replaceSubCategoryInList(current, record)
       );
 
       await queryClient.invalidateQueries({
-        queryKey: subCategoryQueryKeys.list(companyId),
+        queryKey: subCategoryQueryKeys.all,
       });
     },
   });

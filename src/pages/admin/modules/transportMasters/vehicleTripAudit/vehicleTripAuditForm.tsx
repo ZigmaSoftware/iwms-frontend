@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -11,7 +12,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 import { adminApi } from "@/helpers/admin/registry";
+import {
+  type VehicleTripAuditPayload,
+  useVehicleTripAuditQuery,
+  useCreateVehicleTripAuditMutation,
+  useUpdateVehicleTripAuditMutation,
+} from "@/tanstack/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
+
+const tripInstanceQueryKey = ["masters", "trip_instances"] as const;
+const vehicleCreationQueryKey = ["masters", "vehicle_creations"] as const;
 
 type SelectOption = { value: string; label: string };
 
@@ -32,18 +42,43 @@ type TripInstanceRecord = {
   status?: string;
 };
 
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
+type VehicleTripAuditEditorProps = {
+  formData: VehicleTripAuditFormState;
+  tripOptions: SelectOption[];
+  vehicles: SelectOption[];
+  fetching: boolean;
+  isEdit: boolean;
+  isSubmitting: boolean;
+  isVehicleLocked: boolean;
+  onChange: (updates: Partial<VehicleTripAuditFormState>) => void;
+  onCancel: () => void;
+  onSubmit: (e: FormEvent) => Promise<void>;
+};
 
-const toOptions = (items: any[], valueKey: string, labelKey: string, fallbackKey?: string): SelectOption[] =>
+const normalizeList = (payload: any): any[] =>
+  Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : payload?.results ?? [];
+
+const toOptions = (
+  items: any[],
+  valueKey: string,
+  labelKey: string,
+  fallbackKey?: string
+): SelectOption[] =>
   items
     .map((item) => ({
       value: String(item?.[valueKey] ?? ""),
-      label: String(item?.[labelKey] ?? item?.[fallbackKey ?? ""] ?? item?.[valueKey] ?? ""),
+      label: String(
+        item?.[labelKey] ?? item?.[fallbackKey ?? ""] ?? item?.[valueKey] ?? ""
+      ),
     }))
     .filter((option) => option.value);
 
-const toDateTimeLocal = (value?: string | null) => (value ? String(value).slice(0, 16) : "");
+const toDateTimeLocal = (value?: string | null) =>
+  value ? String(value).slice(0, 16) : "";
 
 const formatGpsArray = (value: any): string => {
   if (Array.isArray(value)) {
@@ -92,6 +127,118 @@ const extractErrorMessage = (error: any): string | null => {
   return null;
 };
 
+function VehicleTripAuditEditor({
+  formData,
+  tripOptions,
+  vehicles,
+  fetching,
+  isEdit,
+  isSubmitting,
+  isVehicleLocked,
+  onChange,
+  onCancel,
+  onSubmit,
+}: VehicleTripAuditEditorProps) {
+  const { t } = useTranslation();
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-6">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <div>
+          <Label>{t("admin.vehicle_trip_audit.trip_instance")}</Label>
+          <Select
+            value={formData.trip_instance_id}
+            onChange={(value) => onChange({ trip_instance_id: value })}
+            options={tripOptions}
+            placeholder={t("common.select_option")}
+            disabled={fetching || isEdit}
+            required
+          />
+        </div>
+
+        <div>
+          <Label>{t("admin.vehicle_trip_audit.vehicle")}</Label>
+          <Select
+            value={formData.vehicle_id}
+            onChange={(value) => onChange({ vehicle_id: value })}
+            options={vehicles}
+            placeholder={t("common.select_option")}
+            disabled={fetching || isVehicleLocked}
+            required
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <Label>{t("admin.vehicle_trip_audit.gps_lat")}</Label>
+          <Textarea
+            value={formData.gps_lat}
+            onChange={(e) => onChange({ gps_lat: e.target.value })}
+            placeholder={t("admin.vehicle_trip_audit.gps_placeholder")}
+            rows={3}
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <Label>{t("admin.vehicle_trip_audit.gps_lon")}</Label>
+          <Textarea
+            value={formData.gps_lon}
+            onChange={(e) => onChange({ gps_lon: e.target.value })}
+            placeholder={t("admin.vehicle_trip_audit.gps_placeholder")}
+            rows={3}
+          />
+        </div>
+
+        <div>
+          <Label>{t("admin.vehicle_trip_audit.avg_speed")}</Label>
+          <Input
+            type="number"
+            value={formData.avg_speed}
+            onChange={(e) => onChange({ avg_speed: e.target.value })}
+            placeholder={t("admin.vehicle_trip_audit.avg_speed")}
+          />
+        </div>
+
+        <div>
+          <Label>{t("admin.vehicle_trip_audit.idle_seconds")}</Label>
+          <Input value={formData.idle_seconds} disabled className="bg-gray-100" />
+        </div>
+
+        <div>
+          <Label>{t("admin.vehicle_trip_audit.captured_at")}</Label>
+          <Input
+            type="datetime-local"
+            value={toDateTimeLocal(formData.captured_at)}
+            disabled
+            className="bg-gray-100"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-3">
+        <button
+          type="submit"
+          disabled={isSubmitting || fetching}
+          className="rounded-lg bg-green-custom px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {isSubmitting
+            ? t("common.saving")
+            : isEdit
+              ? t("common.update")
+              : t("common.save")}
+        </button>
+
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600"
+        >
+          {t("common.cancel")}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function VehicleTripAuditForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -99,94 +246,128 @@ export default function VehicleTripAuditForm() {
   const location = useLocation();
   const isEdit = Boolean(id);
 
-  const vehicleTripAuditApi = adminApi.vehicleTripAudits;
+  const vehicleTripAuditQuery = useVehicleTripAuditQuery(id);
+  const createVehicleTripAuditMutation = useCreateVehicleTripAuditMutation();
+  const updateVehicleTripAuditMutation = useUpdateVehicleTripAuditMutation();
+  const isSubmitting =
+    createVehicleTripAuditMutation.isPending ||
+    updateVehicleTripAuditMutation.isPending;
+
   const tripInstanceApi = adminApi.tripInstances;
   const vehicleApi = adminApi.vehicleCreations;
 
-  const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(false);
+  const tripInstancesQuery = useQuery({
+    queryKey: tripInstanceQueryKey,
+    queryFn: () => tripInstanceApi.list(),
+  });
 
-  const [tripInstanceRecords, setTripInstanceRecords] = useState<TripInstanceRecord[]>([]);
-  const [vehicles, setVehicles] = useState<SelectOption[]>([]);
-  const [tripInstanceMeta, setTripInstanceMeta] = useState<Record<string, { vehicle_id?: string; status?: string }>>(
-    {}
+  const vehiclesQuery = useQuery({
+    queryKey: vehicleCreationQueryKey,
+    queryFn: () => vehicleApi.list(),
+  });
+
+  const fetching =
+    tripInstancesQuery.isPending ||
+    vehiclesQuery.isPending;
+
+  const tripInstanceRecords = (normalizeList(
+    tripInstancesQuery.data ?? []
+  ) as TripInstanceRecord[]) ?? [];
+  const vehicles = toOptions(
+    normalizeList(vehiclesQuery.data ?? []),
+    "unique_id",
+    "vehicle_no"
   );
 
-  const [formData, setFormData] = useState<VehicleTripAuditFormState>({
-    trip_instance_id: "",
-    vehicle_id: "",
-    gps_lat: "",
-    gps_lon: "",
-    avg_speed: "",
-    idle_seconds: "",
-    captured_at: "",
-  });
+  const tripInstanceMeta = useMemo(
+    () =>
+      tripInstanceRecords.reduce<
+        Record<string, { vehicle_id?: string; status?: string }>
+      >((acc, trip) => {
+        if (trip?.unique_id) {
+          acc[String(trip.unique_id)] = {
+            vehicle_id: trip.vehicle_id ?? undefined,
+            status: trip.status ?? undefined,
+          };
+        }
+        return acc;
+      }, {}),
+    [tripInstanceRecords]
+  );
 
   const { encTransportMaster, encVehicleTripAudit } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleTripAudit}`;
-  const stateRecord = (location.state as { record?: Partial<VehicleTripAuditFormState> } | null)?.record;
+  const stateRecord = (
+    location.state as { record?: Partial<VehicleTripAuditFormState> } | null
+  )?.record;
 
   useEffect(() => {
-    setFetching(true);
-    Promise.all([tripInstanceApi.list(), vehicleApi.list()])
-      .then(([tripRes, vehicleRes]) => {
-        const trips = normalizeList(tripRes) as TripInstanceRecord[];
-        setTripInstanceRecords(trips);
-        setVehicles(toOptions(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
-        setTripInstanceMeta(
-          trips.reduce<Record<string, { vehicle_id?: string; status?: string }>>((acc, trip) => {
-            if (trip?.unique_id) {
-              acc[String(trip.unique_id)] = {
-                vehicle_id: trip.vehicle_id ?? undefined,
-                status: trip.status ?? undefined,
-              };
-            }
-            return acc;
-          }, {})
-        );
-      })
-      .catch((error) => {
-        const message = extractErrorMessage(error) ?? t("common.load_failed");
-        Swal.fire(t("common.error"), message, "error");
-      })
-      .finally(() => setFetching(false));
-  }, [t, tripInstanceApi, vehicleApi]);
+    if (!vehicleTripAuditQuery.isError && !tripInstancesQuery.isError && !vehiclesQuery.isError) {
+      return;
+    }
+
+    const error =
+      vehicleTripAuditQuery.error ??
+      tripInstancesQuery.error ??
+      vehiclesQuery.error;
+
+    Swal.fire(
+      t("common.error"),
+      extractErrorMessage(error) ?? t("common.load_failed"),
+      "error"
+    );
+  }, [
+    t,
+    tripInstancesQuery.error,
+    tripInstancesQuery.isError,
+    vehicleTripAuditQuery.error,
+    vehicleTripAuditQuery.isError,
+    vehiclesQuery.error,
+    vehiclesQuery.isError,
+  ]);
+
+  const initialFormData: VehicleTripAuditFormState = vehicleTripAuditQuery.data
+    ? {
+        trip_instance_id: vehicleTripAuditQuery.data.trip_instance_id ?? "",
+        vehicle_id: vehicleTripAuditQuery.data.vehicle_id ?? "",
+        gps_lat: formatGpsArray(vehicleTripAuditQuery.data.gps_lat),
+        gps_lon: formatGpsArray(vehicleTripAuditQuery.data.gps_lon),
+        avg_speed:
+          vehicleTripAuditQuery.data.avg_speed !== undefined &&
+          vehicleTripAuditQuery.data.avg_speed !== null
+            ? String(vehicleTripAuditQuery.data.avg_speed)
+            : "",
+        idle_seconds:
+          vehicleTripAuditQuery.data.idle_seconds !== undefined &&
+          vehicleTripAuditQuery.data.idle_seconds !== null
+            ? String(vehicleTripAuditQuery.data.idle_seconds)
+            : "",
+        captured_at: vehicleTripAuditQuery.data.captured_at ?? "",
+      }
+    : {
+        trip_instance_id: stateRecord?.trip_instance_id ?? "",
+        vehicle_id: stateRecord?.vehicle_id ?? "",
+        gps_lat: formatGpsArray(stateRecord?.gps_lat),
+        gps_lon: formatGpsArray(stateRecord?.gps_lon),
+        avg_speed:
+          stateRecord?.avg_speed !== undefined && stateRecord?.avg_speed !== null
+            ? String(stateRecord.avg_speed)
+            : "",
+        idle_seconds:
+          stateRecord?.idle_seconds !== undefined &&
+          stateRecord?.idle_seconds !== null
+            ? String(stateRecord.idle_seconds)
+            : "",
+        captured_at: stateRecord?.captured_at ?? "",
+      };
+
+  const [formData, setFormData] = useState<VehicleTripAuditFormState>(
+    initialFormData
+  );
 
   useEffect(() => {
-    if (!isEdit || !stateRecord) return;
-
-    setFormData({
-      trip_instance_id: stateRecord?.trip_instance_id ?? "",
-      vehicle_id: stateRecord?.vehicle_id ?? "",
-      gps_lat: formatGpsArray(stateRecord?.gps_lat),
-      gps_lon: formatGpsArray(stateRecord?.gps_lon),
-      avg_speed: stateRecord?.avg_speed !== undefined && stateRecord?.avg_speed !== null ? String(stateRecord.avg_speed) : "",
-      idle_seconds: stateRecord?.idle_seconds !== undefined && stateRecord?.idle_seconds !== null ? String(stateRecord.idle_seconds) : "",
-      captured_at: stateRecord?.captured_at ?? "",
-    });
-  }, [isEdit, stateRecord]);
-
-  useEffect(() => {
-    if (!isEdit || !id) return;
-
-    vehicleTripAuditApi
-      .get(id)
-      .then((res: any) => {
-        setFormData({
-          trip_instance_id: res?.trip_instance_id ?? "",
-          vehicle_id: res?.vehicle_id ?? "",
-          gps_lat: formatGpsArray(res?.gps_lat),
-          gps_lon: formatGpsArray(res?.gps_lon),
-          avg_speed: res?.avg_speed !== undefined && res?.avg_speed !== null ? String(res.avg_speed) : "",
-          idle_seconds: res?.idle_seconds !== undefined && res?.idle_seconds !== null ? String(res.idle_seconds) : "",
-          captured_at: res?.captured_at ?? "",
-        });
-      })
-      .catch((error) => {
-        const message = extractErrorMessage(error) ?? t("common.load_failed");
-        Swal.fire(t("common.error"), message, "error");
-      });
-  }, [id, isEdit, t, vehicleTripAuditApi]);
+    setFormData(initialFormData);
+  }, [id, stateRecord, vehicleTripAuditQuery.data]);
 
   const tripOptions = useMemo(() => {
     const list = isEdit
@@ -228,11 +409,19 @@ export default function VehicleTripAuditForm() {
       latValues = parseGpsArray(formData.gps_lat);
       lonValues = parseGpsArray(formData.gps_lon);
     } catch (error: any) {
-      Swal.fire(t("common.warning"), String(error?.message ?? t("common.invalid_data")), "warning");
+      Swal.fire(
+        t("common.warning"),
+        String(error?.message ?? t("common.invalid_data")),
+        "warning"
+      );
       return;
     }
 
-    if (!latValues.length || !lonValues.length || latValues.length !== lonValues.length) {
+    if (
+      !latValues.length ||
+      !lonValues.length ||
+      latValues.length !== lonValues.length
+    ) {
       Swal.fire(t("common.warning"), t("common.invalid_data"), "warning");
       return;
     }
@@ -243,24 +432,23 @@ export default function VehicleTripAuditForm() {
       return;
     }
 
-    setLoading(true);
     try {
       if (isEdit && id) {
-        const payload = {
+        const payload: VehicleTripAuditPayload = {
           gps_lat: latValues,
           gps_lon: lonValues,
           avg_speed: avgSpeed,
         };
-        await vehicleTripAuditApi.update(id, payload);
+        await updateVehicleTripAuditMutation.mutateAsync({ id, payload });
       } else {
-        const payload = {
+        const payload: VehicleTripAuditPayload = {
           trip_instance_id: formData.trip_instance_id,
           vehicle_id: formData.vehicle_id,
           gps_lat: latValues,
           gps_lon: lonValues,
           avg_speed: avgSpeed,
         };
-        await vehicleTripAuditApi.create(payload);
+        await createVehicleTripAuditMutation.mutateAsync(payload);
       }
 
       Swal.fire(
@@ -272,15 +460,19 @@ export default function VehicleTripAuditForm() {
     } catch (error: any) {
       const message = extractErrorMessage(error) ?? t("common.save_failed_desc");
       Swal.fire(t("common.save_failed"), message, "error");
-    } finally {
-      setLoading(false);
     }
   };
 
   const tripMeta = formData.trip_instance_id
     ? tripInstanceMeta[formData.trip_instance_id]
     : undefined;
-  const isVehicleLocked = Boolean(isEdit || (tripMeta?.vehicle_id && formData.trip_instance_id));
+  const isVehicleLocked = Boolean(
+    isEdit || (tripMeta?.vehicle_id && formData.trip_instance_id)
+  );
+
+  const formKey = isEdit
+    ? String(vehicleTripAuditQuery.data?.id ?? id)
+    : "new-vehicle-trip-audit";
 
   return (
     <div className="p-3">
@@ -292,98 +484,24 @@ export default function VehicleTripAuditForm() {
         }
         desc={t("admin.vehicle_trip_audit.subtitle")}
       >
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <div>
-              <Label>{t("admin.vehicle_trip_audit.trip_instance")}</Label>
-              <Select
-                value={formData.trip_instance_id}
-                onChange={(value) =>
-                  setFormData((prev) => ({ ...prev, trip_instance_id: value }))
-                }
-                options={tripOptions}
-                placeholder={t("common.select_option")}
-                disabled={fetching || isEdit}
-                required
-              />
-            </div>
-
-            <div>
-              <Label>{t("admin.vehicle_trip_audit.vehicle")}</Label>
-              <Select
-                value={formData.vehicle_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, vehicle_id: value }))}
-                options={vehicles}
-                placeholder={t("common.select_option")}
-                disabled={fetching || isVehicleLocked}
-                required
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <Label>{t("admin.vehicle_trip_audit.gps_lat")}</Label>
-              <Textarea
-                value={formData.gps_lat}
-                onChange={(e) => setFormData((prev) => ({ ...prev, gps_lat: e.target.value }))}
-                placeholder={t("admin.vehicle_trip_audit.gps_placeholder")}
-                rows={3}
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <Label>{t("admin.vehicle_trip_audit.gps_lon")}</Label>
-              <Textarea
-                value={formData.gps_lon}
-                onChange={(e) => setFormData((prev) => ({ ...prev, gps_lon: e.target.value }))}
-                placeholder={t("admin.vehicle_trip_audit.gps_placeholder")}
-                rows={3}
-              />
-            </div>
-
-            <div>
-              <Label>{t("admin.vehicle_trip_audit.avg_speed")}</Label>
-              <Input
-                type="number"
-                value={formData.avg_speed}
-                onChange={(e) => setFormData((prev) => ({ ...prev, avg_speed: e.target.value }))}
-                placeholder={t("admin.vehicle_trip_audit.avg_speed")}
-              />
-            </div>
-
-            <div>
-              <Label>{t("admin.vehicle_trip_audit.idle_seconds")}</Label>
-              <Input value={formData.idle_seconds} disabled className="bg-gray-100" />
-            </div>
-
-            <div>
-              <Label>{t("admin.vehicle_trip_audit.captured_at")}</Label>
-              <Input
-                type="datetime-local"
-                value={toDateTimeLocal(formData.captured_at)}
-                disabled
-                className="bg-gray-100"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3">
-            <button
-              type="submit"
-              disabled={loading || fetching}
-              className="rounded-lg bg-green-custom px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {loading ? t("common.saving") : isEdit ? t("common.update") : t("common.save")}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate(ENC_LIST_PATH)}
-              className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600"
-            >
-              {t("common.cancel")}
-            </button>
-          </div>
-        </form>
+        <VehicleTripAuditEditor
+          key={formKey}
+          formData={formData}
+          tripOptions={tripOptions}
+          vehicles={vehicles}
+          fetching={fetching}
+          isEdit={isEdit}
+          isSubmitting={isSubmitting}
+          isVehicleLocked={isVehicleLocked}
+          onChange={(updates) =>
+            setFormData((prev) => ({
+              ...prev,
+              ...updates,
+            }))
+          }
+          onCancel={() => navigate(ENC_LIST_PATH)}
+          onSubmit={handleSubmit}
+        />
       </ComponentCard>
     </div>
   );
