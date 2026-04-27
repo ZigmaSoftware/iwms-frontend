@@ -1010,19 +1010,6 @@ function CollectionMonitoringForm() {
           </div>
 
           <div>
-            <Label>
-              {t("common.item_name", { item: t("admin.nav.bin_master") })} *
-            </Label>
-            <Select
-              value={binId}
-              onChange={setBinId}
-              options={binOptions}
-              placeholder={t("common.select_item_placeholder", { item: t("admin.nav.bin_master") })}
-              disabled={binOptions.length === 0}
-            />
-          </div>
-
-          <div>
             <Label>{t("common.waste_type")} *</Label>
             <Select
               value={wasteTypeId}
@@ -1137,6 +1124,18 @@ function CollectionMonitoringForm() {
               options={[{ value: NONE_VALUE, label: t("common.not_available") }, ...wardOptions]}
               placeholder={t("common.select_item_placeholder", { item: t("common.ward") })}
               disabled={isPanchayatSelected}
+            />
+          </div>
+          <div>
+            <Label>
+              {t("common.item_name", { item: t("admin.nav.bin_master") })} *
+            </Label>
+            <Select
+              value={binId}
+              onChange={setBinId}
+              options={binOptions}
+              placeholder={t("common.select_item_placeholder", { item: t("admin.nav.bin_master") })}
+              disabled={binOptions.length === 0}
             />
           </div>
 

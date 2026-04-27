@@ -331,14 +331,6 @@ export default function PanchayatForm() {
   return (
     <ComponentCard title={isEdit ? "Edit Panchayat" : "Add Panchayat"}>
       <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6">
-        <div>
-          <Label>Panchayat Name *</Label>
-          <Input
-            value={panchayatName}
-            onChange={(e) => setPanchayatName(e.target.value)}
-            required
-          />
-        </div>
 
         <div>
           <Label>Company *</Label>
@@ -455,7 +447,7 @@ export default function PanchayatForm() {
           </Select>
         </div>
 
-        <div>
+        {/* <div>
           <Label>Area Type *</Label>
           <Select value={areaTypeId} onValueChange={setAreaTypeId}>
             <SelectTrigger>
@@ -485,6 +477,15 @@ export default function PanchayatForm() {
               ))}
             </SelectContent>
           </Select>
+        </div> */}
+
+        <div>
+          <Label>Panchayat Name *</Label>
+          <Input
+            value={panchayatName}
+            onChange={(e) => setPanchayatName(e.target.value)}
+            required
+          />
         </div>
 
         <div>

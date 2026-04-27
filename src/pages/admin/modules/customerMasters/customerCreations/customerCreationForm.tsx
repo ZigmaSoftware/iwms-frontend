@@ -5,7 +5,6 @@ import Swal from "sweetalert2";
 import {
   cityApi,
   countryApi,
-  customerCreationApi,
   districtApi,
   propertiesApi,
   stateApi,
@@ -16,6 +15,12 @@ import {
   companyApi,
   projectApi,
 } from "@/helpers/admin";
+
+import {
+  useCustomerCreationQuery,
+  useCreateCustomerCreationMutation,
+  useUpdateCustomerCreationMutation,
+} from "@/tanstack/admin";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -30,7 +35,6 @@ import {
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
-import { Password } from "primereact/password";
 
 /* ===============================
    TYPES
@@ -326,6 +330,11 @@ export default function CustomerCreationForm() {
   const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encCustomerMaster}/${encCustomerCreation}`;
 
+  // TanStack Query hooks
+  const customerQuery = useCustomerCreationQuery(isEdit ? id : null);
+  const createMutation = useCreateCustomerCreationMutation();
+  const updateMutation = useUpdateCustomerCreationMutation();
+
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(isEdit ? 1 : 0); // 0 = property selection, 1 = form
   const tOrFallback = (key: string, fallback: string) => {
@@ -436,21 +445,46 @@ export default function CustomerCreationForm() {
      LOAD EXISTING DATA (EDIT MODE)
   ================================ */
   useEffect(() => {
-    if (!isEdit || !id) return;
+    if (!customerQuery.data) return;
 
-    customerCreationApi
-      .get(id)
-      .then((res) => {
-        setFormData((prev) => ({ ...prev, ...res }));
-      })
-      .catch(() =>
-        Swal.fire(
-          t("common.error"),
-          t("admin.customer_creation.load_failed"),
-          "error"
-        )
-      );
-  }, [id, isEdit, t]);
+    const data = customerQuery.data;
+    setFormData((prev) => ({
+      ...prev,
+      customer_name: String(data.customer_name ?? ""),
+      contact_no: String(data.contact_no ?? ""),
+      username: String(data.username ?? ""),
+      email: String(data.email ?? ""),
+      password: "",
+      building_no: String(data.building_no ?? ""),
+      street: String(data.street ?? ""),
+      area: String(data.area ?? ""),
+      pincode: String(data.pincode ?? ""),
+      latitude: String(data.latitude ?? ""),
+      longitude: String(data.longitude ?? ""),
+      sqft: String(data.sqft ?? ""),
+      property_id: String(data.property_id ?? ""),
+      sub_property_id: String(data.sub_property_id ?? ""),
+      id_proof_type: String(data.id_proof_type ?? ""),
+      id_no: String(data.id_no ?? ""),
+      country_id: String(data.country_id ?? ""),
+      state_id: String(data.state_id ?? ""),
+      district_id: String(data.district_id ?? ""),
+      city_id: String(data.city_id ?? ""),
+      zone_id: String(data.zone_id ?? ""),
+      ward_id: String(data.ward_id ?? ""),
+      panchayat_id: String(data.panchayat_id ?? ""),
+      company_id: String(data.company_id ?? ""),
+      project_id: String(data.project_id ?? ""),
+      is_active: Boolean(data.is_active),
+      is_bulkwaste_generator: Boolean(data.is_bulkwaste_generator),
+      apartment_name: String(data.apartment_name ?? ""),
+      block_no: String(data.block_no ?? ""),
+      flat_no: String(data.flat_no ?? ""),
+      villa_no: String(data.villa_no ?? ""),
+      industry_name: String(data.industry_name ?? ""),
+      industry_type: String(data.industry_type ?? ""),
+    }));
+  }, [customerQuery.data]);
 
   /* ===============================
      FILTERS
@@ -612,15 +646,18 @@ export default function CustomerCreationForm() {
       latitude: String(parseFloat(formData.latitude)),
       longitude: String(parseFloat(formData.longitude)),
       sqft: String(parseFloat(formData.sqft)),
-      ...(isEdit && !formData.password ? {Password : undefined} : { }), // Only include password for new records
+      ...(isEdit && !formData.password ? { password: undefined } : {}), // Only include password for new records
     };
 
     try {
       setLoading(true);
       if (isEdit) {
-        await customerCreationApi.update(id as string, payload);
+        await updateMutation.mutateAsync({
+          id: id as string,
+          payload: payload as any,
+        });
       } else {
-        await customerCreationApi.create(payload);
+        await createMutation.mutateAsync(payload as any);
       }
 
       Swal.fire(
