@@ -76,8 +76,18 @@ export default function StaffUserTypeForm() {
 
     const ut = (userTypesQuery.data ?? []) as unknown as UserType[];
     const roles = roleTypeChoicesQuery.data ?? [];
+    console.log(roles);
+    console.log("User Types",ut);
 
-    setUserTypes(ut);
+    const staff = ut.find(
+      (u) => u.name.toLowerCase() === "staff"
+    );
+   
+    if (staff) {
+      setUserTypes([staff]); // only staff in dropdown
+      setSelectedUserType(staff.unique_id); // always select staff
+    }
+ 
     setRoleTypes(roles);
 
     if (isEdit) {
@@ -94,14 +104,7 @@ export default function StaffUserTypeForm() {
           { value: roleValue, label: prettifyRoleLabel(roleValue) },
         ]);
       }
-
-      const validUserType =
-        ut.find((u) => String(u.unique_id) === String(data.usertype_id))?.unique_id ?? "";
-      setSelectedUserType(validUserType);
     } else {
-      if (!selectedUserType && ut.length > 0) {
-        setSelectedUserType(ut[0].unique_id);
-      }
       if (!name && roles.length > 0) {
         setName(roles[0].value);
       }
@@ -199,6 +202,7 @@ export default function StaffUserTypeForm() {
               <Select
                 value={selectedUserType}
                 onValueChange={setSelectedUserType}
+                disabled
               >
                 <SelectTrigger>
                   <SelectValue

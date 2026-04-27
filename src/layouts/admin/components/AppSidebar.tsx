@@ -992,12 +992,12 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "areatypes",
       },
-      {
-        nameKey: "admin.nav.hierarchy",
-        path: `/${encMasters}/${encHierarchies}`,
-        module: "masters",
-        screen: "hierarchies",
-      },
+      // {
+      //   nameKey: "admin.nav.hierarchy",
+      //   path: `/${encMasters}/${encHierarchies}`,
+      //   module: "masters",
+      //   screen: "hierarchies",
+      // },
     ],
   },
 ];

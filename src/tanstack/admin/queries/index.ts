@@ -3,6 +3,7 @@ export * from "./masters/country";
 export * from "./masters/state";
 export * from "./masters/district";
 export * from "./masters/city";
+export * from "./masters/customerCreation";
 export * from "./masters/zone";
 export * from "./masters/ward";
 export * from "./masters/panchayat";

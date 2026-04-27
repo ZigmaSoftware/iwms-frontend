@@ -19,6 +19,8 @@ import {
   districtApi,
   cityApi,
   staffUserTypeApi,
+  companyApi,
+  projectApi,
 } from "@/helpers/admin/index";
 
 type Section = "official" | "personal";
@@ -126,6 +128,8 @@ const initialFormData = {
   username: "",       // ← username field
   password: "",
   office_email: "",
+  company_id: "",
+  project_id: "",
   marital_status: "",
   dob: "",
   blood_group: "",
@@ -174,6 +178,8 @@ export default function StaffCreationForm() {
   const [licenceFile, setLicenceFile] = useState<File | null>(null);
   const [licencePreview, setLicencePreview] = useState("");
   const licenceInputRef = useRef<HTMLInputElement>(null);
+  const [companyOptions, setCompanyOptions] = useState<{ value: string; label: string }[]>([]);
+  const [projectOptions, setProjectOptions] = useState<{ value: string; label: string }[]>([]);
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { id } = useParams<{ id?: string }>();
@@ -212,6 +218,10 @@ export default function StaffCreationForm() {
   const isDriverSelected =
     !!formData.driving_licence_no ||
     !!selectedUserType?.label?.toLowerCase().includes("driver");
+
+  const filteredProjects = projectOptions.filter(
+    (p: any) => !formData.company_id || p.company_id === formData.company_id
+  );
 
   const handleLicenceUpload = (file: File | null) => {
     if (!file) return;
@@ -282,17 +292,39 @@ export default function StaffCreationForm() {
   useEffect(() => {
     const loadLocationOptions = async () => {
       try {
-        const [countries, states, districts, cities] = await Promise.all([
+        const [countries, states, districts, cities, companies, projects] = await Promise.all([
           countryApi.list(),
           stateApi.list(),
           districtApi.list(),
           cityApi.list(),
+          companyApi.list(),
+          projectApi.list(),
         ]);
 
         setCountryOptions(mapLocationOptions(countries));
         setStateOptions(mapLocationOptions(states));
         setDistrictOptions(mapLocationOptions(districts));
         setCityOptions(mapLocationOptions(cities));
+        
+        const normalize = (arr: any[]) =>
+          arr.filter((i) => i?.is_active !== false && i?.is_deleted !== true);
+        
+        const companyList = normalize(companies);
+        const projectList = normalize(projects);
+        
+        setCompanyOptions(
+          companyList.map((c: any) => ({
+            value: String(c?.unique_id ?? c?.id ?? ""),
+            label: c.name,
+          }))
+        );
+        setProjectOptions(
+          projectList.map((p: any) => ({
+            value: String(p?.unique_id ?? p?.id ?? ""),
+            label: p.name,
+            company_id: p.company_unique_id,
+          }))
+        );
       } catch (error) {
         console.error("Failed to load location masters", error);
       }
@@ -367,6 +399,10 @@ export default function StaffCreationForm() {
           // DRIVER and USER TYPE details
           staffusertype_id: staff.staffusertype_id ?? "",
           driving_licence_no: staff.driving_licence_no ?? "",
+
+          // Company and Project
+          company_id: String(staff.company_id ?? ""),
+          project_id: String(staff.project_id ?? ""),
 
           // Contact details (FLAT — NOT nested)
           contact_mobile: staff.contact_mobile ?? "",
@@ -526,7 +562,8 @@ export default function StaffCreationForm() {
         employee_known: formData.employee_known,
         salary_type: formData.salary_type,
         active_status: formData.active_status === "1",
-        company_id: companyUniqueId,
+        company_id: formData.company_id || companyUniqueId,
+        project_id: formData.project_id || null,
         staffusertype_id: formData.staffusertype_id || null,
         username: formData.username || null,     // ← username in payload
 
@@ -631,6 +668,39 @@ export default function StaffCreationForm() {
 
   const renderOfficialSection = () => (
     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+
+      {/* ── Company ── */}
+      <div>
+        <Label htmlFor="company_id">
+          {t("admin.nav.company") || "Company"}
+          <span className="text-red-500 ml-1">*</span>
+        </Label>
+        <Select
+          id="company_id"
+          value={formData.company_id}
+          onChange={(value) => {
+            handleSelectChange("company_id", value);
+            handleSelectChange("project_id", "");
+          }}
+          options={companyOptions}
+          placeholder={t("admin.nav.company_placeholder") || "Select company"}
+        />
+      </div>
+
+      {/* ── Project ── */}
+      <div>
+        <Label htmlFor="project_id">
+          {t("admin.nav.project") || "Project"}
+          <span className="text-red-500 ml-1">*</span>
+        </Label>
+        <Select
+          id="project_id"
+          value={formData.project_id}
+          onChange={(value) => handleSelectChange("project_id", value)}
+          options={filteredProjects}
+          placeholder={t("admin.nav.project_placeholder") || "Select project"}
+        />
+      </div>
       <div>
         <Label htmlFor="employee_name">
           {t("admin.staff_creation.employee_name")}

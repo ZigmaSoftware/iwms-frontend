@@ -9,7 +9,7 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { staffCreationApi, staffTemplateApi } from "@/helpers/admin";
+import { staffCreationApi, staffTemplateApi, companyApi, projectApi } from "@/helpers/admin";
 import {
   useCreateStaffTemplate,
   useUpdateStaffTemplate,
@@ -81,6 +81,7 @@ export default function StaffTemplateForm() {
   const [staffRecords, setStaffRecords] = useState<StaffRecord[]>([]);
   const [companyOptions, setCompanyOptions] = useState<Option[]>([]);
   const [projectOptions, setProjectOptions] = useState<Option[]>([]);
+  const [allProjects, setAllProjects] = useState<any[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [userLookup, setUserLookup] = useState<Record<string, string>>({});
@@ -223,20 +224,24 @@ export default function StaffTemplateForm() {
   /* ================= LOAD STAFF OPTIONS ================= */
 
   useEffect(() => {
-    staffCreationApi
-      .list({ params: { active_status: 1 } })
-      .then((res: any) => {
-        const data = Array.isArray(res)
-          ? res
-          : Array.isArray(res?.results)
-            ? res.results
-            : Array.isArray(res?.data?.results)
-              ? res.data.results
-              : Array.isArray(res?.data)
-                ? res.data
+    Promise.all([
+      staffCreationApi.list({ params: { active_status: 1 } }),
+      companyApi.list(),
+      projectApi.list(),
+    ])
+      .then(([staffRes, companiesRes, projectsRes]) => {
+        // Process staff data
+        const staffData = Array.isArray(staffRes)
+          ? staffRes
+          : Array.isArray(staffRes?.results)
+            ? staffRes.results
+            : Array.isArray(staffRes?.data?.results)
+              ? staffRes.data.results
+              : Array.isArray(staffRes?.data)
+                ? staffRes.data
                 : [];
 
-        const staffOnly = data.filter(
+        const staffOnly = staffData.filter(
           (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && u.unique_id
         );
         const lookup: Record<string, string> = {};
@@ -256,14 +261,54 @@ export default function StaffTemplateForm() {
           .filter((s: StaffRecord) => getStaffRole(s) === "supervisor")
           .map((s: StaffRecord) => toStaffOption(s));
 
-        const companies = buildCompanyOptions(staffOnly);
-        setCompanyOptions(companies);
+        // Process companies from API directly
+        const companiesData = Array.isArray(companiesRes)
+          ? companiesRes
+          : Array.isArray(companiesRes?.data)
+            ? companiesRes.data
+            : [];
+
+        const normalizedCompanies = companiesData
+          .filter((c: any) => c?.is_active !== false && c?.is_deleted !== true)
+          .map((c: any) => ({
+            value: String(c?.unique_id ?? c?.id ?? ""),
+            label: c?.name ?? "",
+          }))
+          .filter((option: Option) => option.value && option.label);
+
+        setCompanyOptions(normalizedCompanies);
         setSelectedCompanyId((prev) => {
-          if (prev && companies.some((option) => option.value === prev)) {
+          if (prev && normalizedCompanies.some((option) => option.value === prev)) {
             return prev;
           }
-          return companies[0]?.value ?? "";
+          return normalizedCompanies[0]?.value ?? "";
         });
+
+        // Process projects from API directly
+        const projectsData = Array.isArray(projectsRes)
+          ? projectsRes
+          : Array.isArray(projectsRes?.data)
+            ? projectsRes.data
+            : [];
+
+        const normalizedProjects = projectsData
+          .filter((p: any) => p?.is_active !== false && p?.is_deleted !== true)
+          .map((p: any) => ({
+            value: String(p?.unique_id ?? p?.id ?? ""),
+            label: p?.name ?? "",
+            company_id: p?.company_unique_id ?? p?.company_id,
+          }))
+          .filter((option: any) => option.value && option.label);
+
+        // Store all projects for filtering
+        setAllProjects(normalizedProjects);
+        const firstCompanyId = normalizedCompanies[0]?.value ?? "";
+        const initialProjects = firstCompanyId
+          ? normalizedProjects.filter(
+              (p: any) => !p.company_id || p.company_id === firstCompanyId
+            )
+          : normalizedProjects;
+        setProjectOptions(initialProjects);
 
         setAdminOptions(admins);
         setSupervisorOptions(supervisors);
@@ -275,8 +320,6 @@ export default function StaffTemplateForm() {
         );
         setFormData((prev) => ({
           ...prev,
-          // created_by: currentUserId,
-          // updated_by: isSupervisor ? currentUserId : prev.updated_by,
           approved_by: isAdmin ? currentUserId : prev.approved_by,
         }));
       })
@@ -286,15 +329,21 @@ export default function StaffTemplateForm() {
   }, [t]);
 
   useEffect(() => {
-    const projects = buildProjectOptions(staffRecords, selectedCompanyId);
-    setProjectOptions(projects);
+    // Filter projects by selected company from all available projects
+    const filteredProjects = selectedCompanyId
+      ? allProjects.filter(
+          (p: any) => !p.company_id || p.company_id === selectedCompanyId
+        )
+      : allProjects;
+
+    setProjectOptions(filteredProjects);
     setSelectedProjectId((prev) => {
-      if (prev && projects.some((option) => option.value === prev)) {
+      if (prev && filteredProjects.some((option) => option.value === prev)) {
         return prev;
       }
-      return projects[0]?.value ?? "";
+      return filteredProjects[0]?.value ?? "";
     });
-  }, [selectedCompanyId, staffRecords]);
+  }, [selectedCompanyId, allProjects]);
 
   useEffect(() => {
     const scopedStaff = staffRecords.filter((staff) => {
@@ -556,28 +605,36 @@ export default function StaffTemplateForm() {
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             {/* COMPANY */}
             <div>
-              <Label>{t("admin.nav.company")}</Label>
+              <Label htmlFor="company_id">
+                {t("admin.nav.company") || "Company"}
+                <span className="text-red-500 ml-1">*</span>
+              </Label>
               <Select
+                id="company_id"
                 value={selectedCompanyId}
                 onChange={(value) => {
                   setSelectedCompanyId(value);
                   setSelectedProjectId("");
                 }}
                 options={companyOptions}
-                placeholder={t("common.select_option")}
+                placeholder={t("admin.nav.company_placeholder") || "Select company"}
                 disabled={fetching}
               />
             </div>
 
             {/* PROJECT */}
             <div>
-              <Label>{t("admin.nav.project")}</Label>
+              <Label htmlFor="project_id">
+                {t("admin.nav.project") || "Project"}
+                <span className="text-red-500 ml-1">*</span>
+              </Label>
               <Select
+                id="project_id"
                 value={selectedProjectId}
                 onChange={(value) => setSelectedProjectId(value)}
                 options={projectOptions}
-                placeholder={t("common.select_option")}
-                disabled={fetching || projectOptions.length === 0}
+                placeholder={t("admin.nav.project_placeholder") || "Select project"}
+                disabled={fetching}
               />
             </div>
 

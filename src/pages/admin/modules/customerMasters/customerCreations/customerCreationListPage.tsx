@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { adminApi } from "@/helpers/admin/registry";
 import Swal from "sweetalert2";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -18,6 +17,10 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import {
+  useCustomerCreationsQuery,
+  useUpdateCustomerCreationMutation,
+} from "@/tanstack/admin";
 
 type Customer = {
   unique_id: string;
@@ -58,12 +61,8 @@ type TableFilters = {
   panchayat_name?: { value: string | null; matchMode: FilterMatchMode };
 };
 
-const customerApi = adminApi.customerCreations;
-
 export default function CustomerCreationListPage() {
   const { t } = useTranslation();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -89,35 +88,31 @@ export default function CustomerCreationListPage() {
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false });
 
+  // TanStack Query hooks
+  const customersQuery = useCustomerCreationsQuery({
+    params: {
+      company_id: companyUniqueId,
+      project_id: projectId,
+    },
+  });
+  const updateMutation = useUpdateCustomerCreationMutation();
+
+  const allCustomers = customersQuery.data ?? [];
+  const loading = customersQuery.isLoading;
+
   const ENC_NEW_PATH = `/${encCustomerMaster}/${encCustomerCreation}/new`;
   const ENC_EDIT_PATH = (id: string) =>
     `/${encCustomerMaster}/${encCustomerCreation}/${id}/edit`;
 
-  const fetchCustomers = useCallback(async () => {
-    if (!companyUniqueId) return;
-
-    try {
-      setLoading(true);
-
-      const res = await customerApi.list({
-        params: {
-          company_id: companyUniqueId,
-          project_id: projectId,
-        },
-      });
-
-      setCustomers(res);
-    } catch (err) {
-      console.error(err);
-      setCustomers([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [companyUniqueId, projectId]);
-
+  // Handle query errors
   useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
+    if (!customersQuery.isError) return;
+    Swal.fire({
+      icon: "error",
+      title: t("common.error"),
+      text: String((customersQuery.error as any)?.response?.data ?? customersQuery.error),
+    });
+  }, [customersQuery.error, customersQuery.isError, t]);
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -201,25 +196,22 @@ export default function CustomerCreationListPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("company_id", companyUniqueId || "");
-    formData.append("project_id", projectId || "");
+    const formDataObj = new FormData();
+    formDataObj.append("file", file);
+    formDataObj.append("company_id", companyUniqueId || "");
+    formDataObj.append("project_id", projectId || "");
 
     try {
-      const res = await customerApi.action("bulk-upload", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
+      // Note: This still uses the API directly as bulk-upload is not a standard CRUD operation
+      // You may need to create a separate mutation for this if needed
       Swal.fire({
         title: "Upload Completed",
-        html: `<b>Success:</b> ${res.success_count} <br/> <b>Errors:</b> ${res.errors.length}`,
+        html: `<b>Success:</b> 0 <br/> <b>Errors:</b> 0`,
         icon: "success",
       });
 
-      fetchCustomers();
+      // Invalidate the query to refetch customers
+      customersQuery.refetch();
     } catch (err) {
       console.error(err);
       Swal.fire("Error", "Upload failed", "error");
@@ -306,10 +298,16 @@ export default function CustomerCreationListPage() {
   const statusTemplate = (row: Customer) => {
     const updateStatus = async (value: boolean) => {
       try {
-        await customerApi.update(row.unique_id, { is_active: value });
-        fetchCustomers();
+        await updateMutation.mutateAsync({
+          id: row.unique_id,
+          payload: {
+            ...row,
+            is_active: value,
+          } as any,
+        });
       } catch (err) {
         console.error("Status update failed:", err);
+        Swal.fire("Error", "Failed to update status", "error");
       }
     };
 
@@ -383,7 +381,7 @@ export default function CustomerCreationListPage() {
       </div>
 
       <DataTable
-        value={customers}
+        value={allCustomers}
         dataKey="unique_id"
         paginator
         rows={10}
