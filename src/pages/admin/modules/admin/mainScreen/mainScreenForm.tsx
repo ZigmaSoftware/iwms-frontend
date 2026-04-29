@@ -447,7 +447,6 @@ export default function MainScreenForm() {
 
   /* FORM FIELDS */
   const [mainscreenName, setMainScreenName] = useState("");
-  const [iconName, setIconName] = useState("");
   const [orderNo, setOrderNo] = useState<number | string>("");
   const [description, setDescription] = useState("");
   const [mainscreenTypeId, setMainScreenTypeId] = useState<string>("");
@@ -520,7 +519,6 @@ export default function MainScreenForm() {
         const data = await mainScreenApi.get(id);
 
         setMainScreenName(data.mainscreen_name ?? "");
-        setIconName(data.icon_name ?? "");
         setOrderNo(data.order_no ?? "");
         setDescription(data.description ?? "");
         setMainScreenTypeId(data.mainscreentype_id ?? "");
@@ -559,8 +557,6 @@ export default function MainScreenForm() {
     try {
       const payload = {
         mainscreen_name: mainscreenName.trim(),
-        icon_name: iconName.trim(),
-        order_no: Number(orderNo) || 0,
         description: description.trim(),
         mainscreentype_id: mainscreenTypeId,
         // ✅ Send resolved values; send null if still empty (API accepts null)
@@ -570,7 +566,10 @@ export default function MainScreenForm() {
       };
 
       if (isEdit && id) {
-        await mainScreenApi.update(id, payload);
+        await mainScreenApi.update(id, {
+          ...payload,
+          order_no: Number(orderNo) || 0,
+        });
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
         await mainScreenApi.create(payload);
@@ -691,27 +690,21 @@ export default function MainScreenForm() {
           </div>
 
           {/* Icon Name */}
-          <div>
-            <Label>{t("common.icon_name")}</Label>
-            <Input
-              value={iconName}
-              onChange={(e) => setIconName(e.target.value)}
-              placeholder={t("common.enter_icon_name")}
-              className="input-validate w-full"
-            />
-          </div>
+          {/* Icon Name removed: backend-controlled */}
 
-          {/* Order No */}
-          <div>
-            <Label>{t("common.order_no")}</Label>
-            <Input
-              type="number"
-              value={orderNo}
-              onChange={(e) => setOrderNo(e.target.value)}
-              placeholder={t("common.order_no_placeholder")}
-              className="input-validate w-full"
-            />
-          </div>
+          {/* Order No (backend-controlled) */}
+          {isEdit ? (
+            <div>
+              <Label>{t("common.order_no")}</Label>
+              <Input
+                type="number"
+                value={orderNo}
+                onChange={(e) => setOrderNo(e.target.value)}
+                placeholder={t("common.order_no_placeholder")}
+                className="input-validate w-full"
+              />
+            </div>
+          ) : null}
 
           {/* Description */}
           <div className="md:col-span-2">
