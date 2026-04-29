@@ -64,7 +64,8 @@ export function useSubCategoriesQuery(companyId?: string) {
   const query = enterpriseQuery<SubCategoryRecord[]>({
     queryKey: subCategoryQueryKeys.all,
     queryFn: () => listSubCategories(companyId),
-    enabled: Boolean(companyId),
+    // enabled: Boolean(companyId),
+    enabled: true,
   });
 
   const previousCompanyIdRef = useRef(companyId);

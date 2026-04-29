@@ -258,7 +258,7 @@ export default function StaffTemplateForm() {
           .map((s: StaffRecord) => toStaffOption(s));
 
         const supervisors: Option[] = staffOnly
-          .filter((s: StaffRecord) => getStaffRole(s) === "supervisor")
+          .filter((s: StaffRecord) => getStaffRole(s) === "company supervisor")
           .map((s: StaffRecord) => toStaffOption(s));
 
         // Process companies from API directly

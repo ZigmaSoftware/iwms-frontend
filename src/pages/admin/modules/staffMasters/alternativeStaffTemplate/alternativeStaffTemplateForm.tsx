@@ -1198,6 +1198,7 @@ export default function AlternativeStaffTemplateForm() {
                 value={formData.staff_template}
                 options={staffTemplateOptions}
                 disabled={isEdit}
+                placeholder={t("common.select_option")}
                 onChange={(v) => {
                   templateSelectedByUser.current = true;
                   setFormData((p) => ({ ...p, staff_template: v }));

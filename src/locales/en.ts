@@ -1151,7 +1151,8 @@ const enResource = {
           "old_zones": "Old Zones",
           "new_zones": "New Zones",
           "remarks": "Remarks",
-          "created_at": "Created At"
+          "created_at": "Created At",
+          "select_district_city_first": "Select district and city first to filter zones."
         },
         "unassigned_staff_pool": {
           "title_add": "Add Unassigned Staff Pool",
