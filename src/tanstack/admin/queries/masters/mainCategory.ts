@@ -61,7 +61,8 @@ export function useMainCategoriesQuery(companyId?: string) {
   const query = enterpriseQuery<MainCategoryRecord[]>({
     queryKey: mainCategoryQueryKeys.all,
     queryFn: () => listMainCategories(companyId),
-    enabled: Boolean(companyId),
+    // enabled: Boolean(companyId),
+    enabled: true,
   });
 
   const previousCompanyIdRef = useRef(companyId);
