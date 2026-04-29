@@ -69,7 +69,6 @@ export default function UserScreenForm() {
     const [mainscreenId, setMainscreenId] = useState("");
     const [userScreenName, setUserScreenName] = useState("");
     const [folderName, setFolderName] = useState("");
-    const [iconName, setIconName] = useState("");
     const [orderNo, setOrderNo] = useState("");
     const [description, setDescription] = useState("");
     const [fallbackCompanyId, setFallbackCompanyId] = useState("");
@@ -148,7 +147,6 @@ export default function UserScreenForm() {
                 setMainscreenId(data.mainscreen_id ?? "");
                 setUserScreenName(data.userscreen_name ?? "");
                 setFolderName(data.folder_name ?? "");
-                setIconName(data.icon_name ?? "");
                 setOrderNo(String(data.order_no ?? ""));
                 setDescription(data.description ?? "");
                 setFallbackCompanyId(toText(data.company_id));
@@ -190,14 +188,15 @@ export default function UserScreenForm() {
                 project_id: resolvedProjectId || null,
                 userscreen_name: userScreenName.trim(),
                 folder_name: folderName.trim(),
-                icon_name: iconName.trim(),
-                order_no: Number(orderNo),
                 description: description.trim(),
                 is_active: isActive,
             };
 
             if (isEdit && id) {
-                await userScreenApi.update(id, payload);
+                await userScreenApi.update(id, {
+                    ...payload,
+                    order_no: Number(orderNo) || 0,
+                });
                 Swal.fire(t("common.success"), t("common.updated_success"), "success");
             } else {
                 await userScreenApi.create(payload);
@@ -320,28 +319,21 @@ export default function UserScreenForm() {
                         />
                     </div>
 
-                    {/* Icon Name */}
-                    <div>
-                        <Label>{t("common.icon_name")}</Label>
-                        <Input
-                            value={iconName}
-                            onChange={(e) => setIconName(e.target.value)}
-                            placeholder={t("common.enter_icon_name")}
-                            className="input-validate w-full"
-                        />
-                    </div>
+                    {/* Icon Name removed: backend-controlled */}
 
-                    {/* Order No */}
-                    <div>
-                        <Label>{t("common.order_no")}</Label>
-                        <Input
-                            type="number"
-                            value={orderNo}
-                            onChange={(e) => setOrderNo(e.target.value)}
-                            placeholder={t("common.order_no_placeholder")}
-                            className="input-validate w-full"
-                        />
-                    </div>
+                    {/* Order No (backend-controlled) */}
+                    {isEdit ? (
+                        <div>
+                            <Label>{t("common.order_no")}</Label>
+                            <Input
+                                type="number"
+                                value={orderNo}
+                                onChange={(e) => setOrderNo(e.target.value)}
+                                placeholder={t("common.order_no_placeholder")}
+                                className="input-validate w-full"
+                            />
+                        </div>
+                    ) : null}
 
                     {/* Description */}
                     <div className="md:col-span-2">
