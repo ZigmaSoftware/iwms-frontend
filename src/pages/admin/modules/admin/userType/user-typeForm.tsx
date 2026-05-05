@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
-
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
@@ -185,21 +185,24 @@ export default function UserTypeForm() {
 
           {/* Buttons */}
           <div className="flex justify-end gap-3">
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-green-600 text-white font-medium px-6 py-2 rounded hover:bg-green-700 transition disabled:opacity-50"
-            >
-              {loading ? t("common.saving") : t("common.save")}
-            </button>
-
-            <button
+            <Button type="submit" disabled={loading} >
+               {loading
+                ? isEdit
+                  ? t("common.updating")
+                  : t("common.saving")
+                : isEdit
+                ? t("common.update")
+                : t("common.save")}
+            </Button>
+          
+            <Button
               type="button"
+              variant="destructive"
               onClick={() => navigate(ENC_LIST_PATH)}
-              className="bg-red-500 text-white font-medium px-6 py-2 rounded hover:bg-red-600 transition"
+              // className="bg-red-500 text-white font-medium px-6 py-2 rounded hover:bg-red-600 transition"
             >
               {t("common.cancel")}
-            </button>
+            </Button>
           </div>
 
         </form>

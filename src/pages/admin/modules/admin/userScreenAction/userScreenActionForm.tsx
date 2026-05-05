@@ -19,8 +19,10 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { encryptSegment } from "@/utils/routeCrypto";
 
 import {
-  userScreenActionApi
-} from "@/helpers/admin";
+  useCreateUserScreenActionMutation,
+  useUpdateUserScreenActionMutation,
+  useUserScreenActionQuery,
+} from "@/tanstack/admin";
 
 const firstErrorMessage = (value: unknown): string | undefined => {
   if (Array.isArray(value) && typeof value[0] === "string") {
@@ -50,11 +52,13 @@ export default function UserScreenActionForm() {
   const [variableName, setVariableName] = useState("");
   const [isActive, setIsActive] = useState(true);
 
-  const [loading, setLoading] = useState(false);
-
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
+  const userScreenActionQuery = useUserScreenActionQuery(isEdit ? id : null);
+  const createMutation = useCreateUserScreenActionMutation();
+  const updateMutation = useUpdateUserScreenActionMutation();
+  const loading = createMutation.isPending || updateMutation.isPending;
   const {
     companyUniqueId,
     projectId,
@@ -71,21 +75,18 @@ export default function UserScreenActionForm() {
       FETCH EDIT DATA
   ========================================================== */
   useEffect(() => {
-    if (!isEdit || !id) return;
+    if (!userScreenActionQuery.data) return;
+    const data = userScreenActionQuery.data;
+    applyCompanyProjectFromRecord(data as Record<string, unknown>);
+    setActionName(data.action_name || "");
+    setVariableName(data.variable_name || "");
+    setIsActive(Boolean(data.is_active));
+  }, [userScreenActionQuery.data, applyCompanyProjectFromRecord]);
 
-    (async () => {
-      try {
-        const data = await userScreenActionApi.get(id);
-
-        applyCompanyProjectFromRecord(data as Record<string, unknown>);
-        setActionName(data.action_name || "");
-        setVariableName(data.variable_name || "");
-        setIsActive(Boolean(data.is_active));
-      } catch {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      }
-    })();
-  }, [id, isEdit, applyCompanyProjectFromRecord, t]);
+  useEffect(() => {
+    if (!userScreenActionQuery.isError) return;
+    Swal.fire(t("common.error"), t("common.load_failed"), "error");
+  }, [userScreenActionQuery.isError, t]);
 
   /* ==========================================================
       SUBMIT HANDLER
@@ -98,8 +99,6 @@ export default function UserScreenActionForm() {
       return;
     }
 
-    setLoading(true);
-
     const payload = {
       company_id: companyUniqueId,
       project_id: projectId,
@@ -110,10 +109,10 @@ export default function UserScreenActionForm() {
 
     try {
       if (isEdit && id) {
-        await userScreenActionApi.update(id, payload);
+        await updateMutation.mutateAsync({ id, payload });
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await userScreenActionApi.create(payload);
+        await createMutation.mutateAsync(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
@@ -132,8 +131,6 @@ export default function UserScreenActionForm() {
         t("common.unexpected_error");
 
       Swal.fire(t("common.save_failed"), message, "error");
-    } finally {
-      setLoading(false);
     }
   };
 

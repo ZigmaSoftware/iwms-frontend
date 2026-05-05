@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -15,7 +15,10 @@ import "primeicons/primeicons.css";
 
 import { PencilIcon, TrashBinIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { userScreenPermissionApi } from "@/helpers/admin";
+import {
+  useDeleteUserScreenPermissionMutation,
+  useUserScreenPermissionsByCompanyQuery,
+} from "@/tanstack/admin";
 
 import type { StaffUserType } from "../types/admin.types";
 
@@ -29,11 +32,7 @@ export default function UserScreenPermissionList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const [records, setRecords] = useState<StaffUserType[]>([]);
-  const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const fetchRequestRef = useRef(0);
-  const pendingRequestRef = useRef<Map<string, boolean>>(new Map());
 
   const {
     companyUniqueId,
@@ -41,6 +40,8 @@ export default function UserScreenPermissionList() {
     onCompanyChange,
     isSuperAdmin,
   } = useCompanyProjectSelection({ isEdit: false });
+  const permissionsQuery = useUserScreenPermissionsByCompanyQuery(companyUniqueId);
+  const deleteMutation = useDeleteUserScreenPermissionMutation();
 
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -76,78 +77,9 @@ export default function UserScreenPermissionList() {
       companyId
     )}&mainscreen_id=${encodeURIComponent(mainScreenId)}`;
 
-  /* -----------------------------------------------------------
-     FETCH DATA
-  ----------------------------------------------------------- */
-
-  const fetchAllCompanyPermissions = useCallback(async (selectedCompanyId: string) => {
-    const limit = 200;
-    const maxRounds = 30;
-    const seen = new Set<string>();
-    const rows: any[] = [];
-
-    for (let round = 0; round < maxRounds; round += 1) {
-      const offset = round * limit;
-      const chunk: any[] = await userScreenPermissionApi.list({
-        params: {
-          company_id: selectedCompanyId,
-          limit,
-          offset,
-        },
-      });
-
-      if (!Array.isArray(chunk) || chunk.length === 0) {
-        break;
-      }
-
-      let newRows = 0;
-
-      chunk.forEach((item: any) => {
-        const key = String(
-          item.unique_id ??
-            `${item.staffusertype_id ?? ""}__${item.mainscreen_id ?? ""}__${item.userscreen_id ?? ""}__${item.userscreenaction_id ?? ""}`
-        );
-
-        if (!seen.has(key)) {
-          seen.add(key);
-          rows.push(item);
-          newRows += 1;
-        }
-      });
-
-      if (chunk.length < limit || newRows === 0) {
-        break;
-      }
-    }
-
-    return rows;
-  }, []);
-
-  const fetchRecords = useCallback(async () => {
-    if (!companyUniqueId) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
-    // Prevent duplicate requests for the same company
-    if (pendingRequestRef.current.has(companyUniqueId)) {
-      return;
-    }
-
-    const requestId = ++fetchRequestRef.current;
-    pendingRequestRef.current.set(companyUniqueId, true);
-
-    try {
-      setLoading(true);
-
-      const data = await fetchAllCompanyPermissions(companyUniqueId);
-
-      // Discard if a newer request has come in
-      if (requestId !== fetchRequestRef.current) {
-        return;
-      }
-
+  const records = useMemo<StaffUserType[]>(() => {
+    if (!companyUniqueId) return [];
+    const data = permissionsQuery.data ?? [];
       const selectedCompanyLabel = (
         companies.find((company) => company.value === companyUniqueId)?.label ?? ""
       )
@@ -202,27 +134,13 @@ export default function UserScreenPermissionList() {
         return acc;
       }, {} as Record<string, any>);
 
-      setRecords(Object.values(groupedObj));
-    } catch (err) {
-      if (requestId !== fetchRequestRef.current) {
-        return;
-      }
-
-      console.error("Fetch failed:", err);
-      setRecords([]);
-    } finally {
-      if (requestId === fetchRequestRef.current) {
-        setLoading(false);
-      }
-      pendingRequestRef.current.delete(companyUniqueId);
-    }
-  }, [companyUniqueId, fetchAllCompanyPermissions, companies, t]);
+      return Object.values(groupedObj);
+  }, [companies, companyUniqueId, permissionsQuery.data, t]);
 
   useEffect(() => {
-    if (!companyUniqueId) return;
-
-    fetchRecords();
-  }, [companyUniqueId, fetchRecords]);
+    if (!permissionsQuery.isError) return;
+    Swal.fire(t("common.error"), t("common.load_failed"), "error");
+  }, [permissionsQuery.isError, t]);
 
   /* -----------------------------------------------------------
      DELETE RECORD
@@ -245,7 +163,7 @@ export default function UserScreenPermissionList() {
           ? `delete-by-staffusertype/${row.unique_id}/?company_id=${row.company_id}&mainscreen_id=${row.mainscreen_id}`
           : `delete-by-staffusertype/${row.unique_id}`;
 
-      await userScreenPermissionApi.remove(deletePath);
+      await deleteMutation.mutateAsync(deletePath);
 
       Swal.fire(
         t("common.deleted_success"),
@@ -253,7 +171,6 @@ export default function UserScreenPermissionList() {
         "success"
       );
 
-      fetchRecords();
     } catch (error) {
       console.error("DELETE ERROR:", error);
 
@@ -263,7 +180,7 @@ export default function UserScreenPermissionList() {
         "error"
       );
     }
-  }, [t, fetchRecords]);
+  }, [t, deleteMutation]);
 
   /* -----------------------------------------------------------
      ACTION BUTTONS
@@ -381,7 +298,7 @@ export default function UserScreenPermissionList() {
         dataKey="composite_key"
         paginator
         rows={10}
-        loading={loading}
+        loading={permissionsQuery.isPending}
         filters={filters}
         rowsPerPageOptions={[5, 10, 25, 50]}
         globalFilterFields={["staffusertype_name", "company_name", "mainscreen_name"]}
@@ -426,4 +343,3 @@ export default function UserScreenPermissionList() {
     </div>
   );
 }
-

@@ -18,16 +18,20 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 
 import {
-  mainScreenTypeApi
-} from "@/helpers/admin";
+  useDeleteMainScreenTypeMutation,
+  useMainScreenTypesQuery,
+  useUpdateMainScreenTypeMutation,
+} from "@/tanstack/admin";
 
 import type { MainScreenType } from "../types/admin.types"; 
 
 
 export default function MainScreenTypeList() {
   const { t } = useTranslation();
-  const [mainScreenTypes, setMainScreenTypes] = useState<MainScreenType[]>([]);
-  const [loading, setLoading] = useState(true);
+  const mainScreenTypesQuery = useMainScreenTypesQuery();
+  const updateMutation = useUpdateMainScreenTypeMutation();
+  const deleteMutation = useDeleteMainScreenTypeMutation();
+  const mainScreenTypes = (mainScreenTypesQuery.data ?? []) as MainScreenType[];
 
   const [globalFilterValue, setGlobalFilterValue] = useState('');
   const [filters, setFilters] = useState({
@@ -41,26 +45,10 @@ export default function MainScreenTypeList() {
   const ENC_NEW_PATH = `/${encAdmins}/${encMainScreenType}/new`;
   const ENC_EDIT_PATH = (unique_id: string) => `/${encAdmins}/${encMainScreenType}/${unique_id}/edit`;
 
-  const extractData = (response: any) => {
-    if (Array.isArray(response)) return response;                 // plain array
-    if (Array.isArray(response?.data)) return response.data;      // axios .data
-    return response?.data?.results ?? [];                         // DRF pagination
-  };
-
-  const fetchMainScreenTypes = async () => {
-    try {
-      const res = await mainScreenTypeApi.list();
-      setMainScreenTypes(extractData(res));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchMainScreenTypes();
-  }, []);
-
-  console.log(mainScreenTypes);
+    if (!mainScreenTypesQuery.isError) return;
+    Swal.fire(t("common.error"), t("common.load_failed"), "error");
+  }, [mainScreenTypesQuery.isError, t]);
 
   const handleDelete = async (unique_id: string) => {
     const confirmDelete = await Swal.fire({
@@ -75,7 +63,7 @@ export default function MainScreenTypeList() {
 
     if (!confirmDelete.isConfirmed) return;
 
-    await mainScreenTypeApi.remove(unique_id);
+    await deleteMutation.mutateAsync(unique_id);
 
     Swal.fire({
       icon: "success",
@@ -84,7 +72,6 @@ export default function MainScreenTypeList() {
       showConfirmButton: false,
     });
 
-    fetchMainScreenTypes();
   };
 
   const onGlobalFilterChange = (e: any) => {
@@ -120,13 +107,10 @@ export default function MainScreenTypeList() {
 
   const statusTemplate = (row: MainScreenType) => {
     const updateStatus = async (value: boolean) => {
-      await mainScreenTypeApi.update(row.unique_id, {
+      await updateMutation.mutateAsync({ id: row.unique_id, payload: {
         type_name: row.type_name,
         is_active: value,
-      });
-
-
-      fetchMainScreenTypes();
+      }});
     };
 
     return (
@@ -183,7 +167,7 @@ export default function MainScreenTypeList() {
           value={mainScreenTypes}
           paginator
           rows={10}
-          loading={loading}
+          loading={mainScreenTypesQuery.isPending}
           filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
           globalFilterFields={["type_name"]}
