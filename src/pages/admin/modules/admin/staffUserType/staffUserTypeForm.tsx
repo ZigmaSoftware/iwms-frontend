@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
-
+import { Button } from "@/components/ui/button";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import {
   Select,
@@ -274,22 +274,25 @@ export default function StaffUserTypeForm() {
           </div>
 
           {/* BUTTONS */}
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-green-600 text-white px-6 py-2 rounded"
-            >
-              {loading ? t("common.saving") : t("common.update")}
-            </button>
+          <div className="flex justify-end gap-3 mt-6">
+            <Button type="submit" disabled={loading}>
+              {loading
+                ? isEdit
+                  ? t("common.updating")
+                  : t("common.saving")
+                : isEdit
+                ? t("common.update")
+                : t("common.save")}
+            </Button>
 
-            <button
+            <Button 
               type="button"
+              variant="destructive"
               onClick={() => navigate(ENC_LIST_PATH)}
-              className="bg-red-600 text-white px-6 py-2 rounded"
+              // className="bg-red-600 text-white px-6 py-2 rounded"
             >
               {t("common.cancel")}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

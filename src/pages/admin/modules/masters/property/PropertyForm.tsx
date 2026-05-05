@@ -12,7 +12,7 @@ import {
   useCreatePropertyMutation,
   useUpdatePropertyMutation,
   type PropertyPayload,
-} from "@/tanstack/admin/queries/masters/property";
+} from "@/tanstack/admin/queries/wastetype/property";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 const { encMasters, encProperties } = getEncryptedRoute();

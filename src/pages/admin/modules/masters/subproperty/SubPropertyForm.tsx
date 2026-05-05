@@ -22,9 +22,9 @@ import {
   useCreateSubPropertyMutation,
   useUpdateSubPropertyMutation,
   type SubPropertyPayload,
-} from "@/tanstack/admin/queries/masters/subProperty";
+} from "@/tanstack/admin/queries/wastetype/subProperty";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { usePropertiesQuery } from "@/tanstack/admin/queries/masters/property";
+import { usePropertiesQuery } from "@/tanstack/admin/queries/wastetype/property";
 
 const { encMasters, encSubProperties } = getEncryptedRoute();
 

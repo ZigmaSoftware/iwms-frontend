@@ -89,15 +89,14 @@ export const adminEndpoints = {
      CUSTOMERS
   ========================= */
   customerCreations: "customer-masters/customercreations",
-  wasteCollections: "customer-masters/point-collection",
-//   wasteCollections: "customer-masters/wastecollections",
+  wasteCollections: "customer-masters/wastecollections",
   
   feedbacks: "customer-masters/feedbacks",
 
   /* =========================
      CUSTOMERS
   ========================= */
-
+   pointCollections: "customer-masters/point-collection",
    panchayatWiseCollections: "collections/panchayat-wise",
    wardWiseCollections: "collections/ward-wise",
 

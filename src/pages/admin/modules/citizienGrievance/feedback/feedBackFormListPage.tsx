@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Swal from "sweetalert2";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -13,40 +14,13 @@ import "primeicons/primeicons.css";
 
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { adminApi } from "@/helpers/admin/registry";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-
-type FeedbackRecord = {
-  unique_id: string;
-  customer: string;
-  customer_id?: string | number;
-  customer_unique_id?: string;
-  customer_name: string;
-  contact_no: string;
-  building_no: string;
-  zone_name: string;
-  city_name: string;
-  street: string;
-  area: string;
-  pincode: string;
-  latitude: string;
-  longitude: string;
-  id_proof_type: string;
-  id_no: string;
-  qr_code: string;
-  is_active_customer: boolean;
-  category: string;
-  feedback_details: string;
-  is_deleted: boolean;
-  is_active: boolean;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-};
+import {
+  useCustomerCreationsQuery,
+  useFeedbacksQuery,
+  type FeedbackRecord,
+} from "@/tanstack/admin";
 
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
@@ -59,33 +33,13 @@ type TableFilters = {
   project_name?: { value: string | null; matchMode: FilterMatchMode };
 };
 
-const feedbackApi = adminApi.feedbacks;
-
-const toFeedbackList = (value: unknown): FeedbackRecord[] => {
-  if (Array.isArray(value)) {
-    return value as FeedbackRecord[];
-  }
-
-  if (value && typeof value === "object") {
-    const payload = value as { data?: unknown; results?: unknown };
-    if (Array.isArray(payload.data)) {
-      return payload.data as FeedbackRecord[];
-    }
-    if (Array.isArray(payload.results)) {
-      return payload.results as FeedbackRecord[];
-    }
-  }
-
-  return [];
-};
-
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
 export default function FeedBackFormList() {
   const { t } = useTranslation();
-  const [feedbacks, setFeedbacks] = useState<FeedbackRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const feedbacksQuery = useFeedbacksQuery();
+  const customersQuery = useCustomerCreationsQuery();
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -113,60 +67,74 @@ export default function FeedBackFormList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encCitizenGrivence}/${encFeedback}/${id}/edit`;
 
-  const fetchFeedbacks = useCallback(async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setFeedbacks([]);
-      setLoading(false);
-      return;
-    }
+  const customerIdsForSelection = useMemo(() => {
+    if (isSuperAdmin && companies.length === 0) return new Set<string>();
+    if (!companyUniqueId) return new Set<string>();
 
-    if (!companyUniqueId) {
-      setFeedbacks([]);
-      setLoading(false);
-      return;
-    }
+    const ids = new Set<string>();
+    (customersQuery.data ?? []).forEach((customer: any) => {
+      const rowCompanyId = normalizeId(customer.company_id || customer.company_unique_id);
+      const rowProjectId = normalizeId(customer.project_id || customer.project_unique_id);
+      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+      const projectMatches = !projectId || rowProjectId === projectId;
 
-    try {
-      setLoading(true);
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
+      if (!companyMatches || !projectMatches) return;
 
-      const data = await feedbackApi.list({ params });
-      const rows = toFeedbackList(data);
-
-      const hasContextFields = rows.some((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        return Boolean(rowCompanyId || rowProjectId);
+      [customer.unique_id, customer.id, customer.customer_id].forEach((value) => {
+        const id = normalizeId(value);
+        if (id) ids.add(id);
       });
+    });
 
-      if (!hasContextFields) {
-        setFeedbacks(rows);
-        return;
-      }
+    return ids;
+  }, [companies.length, companyUniqueId, customersQuery.data, isSuperAdmin, projectId]);
 
-      const filtered = rows.filter((row) => {
+  const feedbacks = useMemo<FeedbackRecord[]>(() => {
+    if (isSuperAdmin && companies.length === 0) return [];
+    if (!companyUniqueId) return [];
+
+    return (feedbacksQuery.data ?? []).filter((row) => {
+      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+      const hasContextFields = Boolean(rowCompanyId || rowProjectId);
+
+      if (hasContextFields) {
         const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
         const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
         const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
         const projectMatches = !projectId || rowProjectId === projectId;
         return companyMatches && projectMatches;
-      });
+      }
 
-      setFeedbacks(filtered);
-    } catch (error) {
-      console.error("Failed to fetch feedbacks", error);
-      setFeedbacks([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+      const feedbackCustomerId = normalizeId(
+        row.customer || row.customer_unique_id || row.customer_id
+      );
+      return Boolean(feedbackCustomerId && customerIdsForSelection.has(feedbackCustomerId));
+    });
+  }, [
+    companies.length,
+    companyUniqueId,
+    customerIdsForSelection,
+    feedbacksQuery.data,
+    isSuperAdmin,
+    projectId,
+  ]);
 
   useEffect(() => {
-    fetchFeedbacks();
-  }, [fetchFeedbacks]);
+    if (!feedbacksQuery.isError && !customersQuery.isError) return;
+    const error = feedbacksQuery.error ?? customersQuery.error;
+    Swal.fire({
+      icon: "error",
+      title: t("common.error"),
+      text: String((error as any)?.response?.data ?? error),
+    });
+  }, [
+    customersQuery.error,
+    customersQuery.isError,
+    feedbacksQuery.error,
+    feedbacksQuery.isError,
+    t,
+  ]);
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -194,7 +162,7 @@ export default function FeedBackFormList() {
   const actionTemplate = (row: FeedbackRecord) => (
     <div className="flex gap-3 justify-center">
       <button
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onClick={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
         className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800"
         title={t("common.edit")}
       >
@@ -208,6 +176,9 @@ export default function FeedBackFormList() {
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
+
+  const loading =
+    (feedbacksQuery.isPending || customersQuery.isPending) && feedbacks.length === 0;
 
   if (loading) {
     return <div className="p-6">{t("admin.citizen_grievance.feedback.loading")}</div>;

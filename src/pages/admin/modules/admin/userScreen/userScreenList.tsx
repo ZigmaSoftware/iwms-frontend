@@ -17,15 +17,19 @@ import { PencilIcon, TrashBinIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import {
-  userScreenApi
-} from "@/helpers/admin";
+  useDeleteUserScreenMutation,
+  useUpdateUserScreenMutation,
+  useUserScreensQuery,
+} from "@/tanstack/admin";
 
 import type { UserScreen } from "../types/admin.types"; 
 
 export default function UserScreenList() {
   const { t } = useTranslation();
-  const [screens, setScreens] = useState<UserScreen[]>([]);
-  const [loading, setLoading] = useState(true);
+  const userScreensQuery = useUserScreensQuery();
+  const updateMutation = useUpdateUserScreenMutation();
+  const deleteMutation = useDeleteUserScreenMutation();
+  const screens = (userScreensQuery.data ?? []) as UserScreen[];
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState({
@@ -40,25 +44,10 @@ export default function UserScreenList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encAdmins}/${encUserScreen}/${id}/edit`;
 
-  const extractData = (response: any) => {
-    if (Array.isArray(response)) return response;
-    if (Array.isArray(response?.data)) return response.data;
-    return response?.data?.results ?? [];
-  };
-
-  const fetchScreens = async () => {
-    try {
-      const res = await userScreenApi.list();
-      console.log(res);
-      setScreens(extractData(res));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchScreens();
-  }, []);
+    if (!userScreensQuery.isError) return;
+    Swal.fire(t("common.error"), t("common.load_failed"), "error");
+  }, [userScreensQuery.isError, t]);
 
   const handleDelete = async (id: string) => {
     const confirmDelete = await Swal.fire({
@@ -73,7 +62,7 @@ export default function UserScreenList() {
 
     if (!confirmDelete.isConfirmed) return;
 
-    await userScreenApi.remove(id);
+    await deleteMutation.mutateAsync(id);
 
     Swal.fire({
       icon: "success",
@@ -82,7 +71,6 @@ export default function UserScreenList() {
       showConfirmButton: false,
     });
 
-    fetchScreens();
   };
 
   const onGlobalFilterChange = (e: any) => {
@@ -98,7 +86,7 @@ export default function UserScreenList() {
 
   const statusTemplate = (row: UserScreen) => {
     const updateStatus = async (value: boolean) => {
-      await userScreenApi.update(row.unique_id, {
+      await updateMutation.mutateAsync({ id: row.unique_id, payload: {
         userscreen_name: row.userscreen_name,
         folder_name: row.folder_name,
         icon_name: row.icon_name,
@@ -107,9 +95,7 @@ export default function UserScreenList() {
         company_id: row.company_id,
         project_id: row.project_id,
         is_active: value,
-      });
-
-      fetchScreens();
+      }});
     };
 
     return (
@@ -182,7 +168,7 @@ export default function UserScreenList() {
           value={screens}
           paginator
           rows={10}
-          loading={loading}
+          loading={userScreensQuery.isPending}
           filters={filters}
           globalFilterFields={[
             "userscreen_name",

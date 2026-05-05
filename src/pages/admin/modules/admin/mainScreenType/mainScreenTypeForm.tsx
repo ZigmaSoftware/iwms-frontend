@@ -28,7 +28,11 @@ const ENC_LIST_PATH = `/${encAdmins}/${encMainScreenType}`;
 /* ------------------------------
     APIS
 ------------------------------ */
-import { mainScreenTypeApi } from "@/helpers/admin";
+import {
+  useCreateMainScreenTypeMutation,
+  useMainScreenTypeQuery,
+  useUpdateMainScreenTypeMutation,
+} from "@/tanstack/admin";
 
 const firstErrorMessage = (value: unknown): string | undefined => {
   if (Array.isArray(value) && typeof value[0] === "string") {
@@ -66,27 +70,26 @@ export default function MainScreenTypeForm() {
   const [typeName, setTypeName] = useState("");
   const [isActive, setIsActive] = useState(true);
 
-  /* STATES */
-  const [loading, setLoading] = useState(false);
+  const mainScreenTypeQuery = useMainScreenTypeQuery(isEdit ? id : null);
+  const createMutation = useCreateMainScreenTypeMutation();
+  const updateMutation = useUpdateMainScreenTypeMutation();
+  const loading = createMutation.isPending || updateMutation.isPending;
 
   /* ==========================================================
       EDIT MODE — LOAD RECORD
   ========================================================== */
   useEffect(() => {
-    if (!isEdit || !id) return;
+    if (!mainScreenTypeQuery.data) return;
+    const data = mainScreenTypeQuery.data;
+    applyCompanyProjectFromRecord(data as Record<string, unknown>);
+    setTypeName(data.type_name ?? "");
+    setIsActive(Boolean(data.is_active));
+  }, [mainScreenTypeQuery.data, applyCompanyProjectFromRecord]);
 
-    (async () => {
-      try {
-        const data = await mainScreenTypeApi.get(id);
-
-        applyCompanyProjectFromRecord(data as Record<string, unknown>);
-        setTypeName(data.type_name ?? "");
-        setIsActive(Boolean(data.is_active));
-      } catch {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      }
-    })();
-  }, [id, isEdit, applyCompanyProjectFromRecord, t]);
+  useEffect(() => {
+    if (!mainScreenTypeQuery.isError) return;
+    Swal.fire(t("common.error"), t("common.load_failed"), "error");
+  }, [mainScreenTypeQuery.isError, t]);
 
   /* ==========================================================
       SUBMIT HANDLER
@@ -99,8 +102,6 @@ export default function MainScreenTypeForm() {
       return;
     }
 
-    setLoading(true);
-
     try {
       const payload = {
         company_id: companyUniqueId,
@@ -110,10 +111,10 @@ export default function MainScreenTypeForm() {
       };
 
       if (isEdit && id) {
-        await mainScreenTypeApi.update(id, payload);
+        await updateMutation.mutateAsync({ id, payload });
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await mainScreenTypeApi.create(payload);
+        await createMutation.mutateAsync(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
@@ -131,8 +132,6 @@ export default function MainScreenTypeForm() {
         t("common.save_failed_desc");
 
       Swal.fire(t("common.save_failed"), message, "error");
-    } finally {
-      setLoading(false);
     }
   };
 

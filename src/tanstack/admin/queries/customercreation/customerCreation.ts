@@ -49,7 +49,9 @@ export type CustomerCreationRecord = {
   property_name?: string;
   sub_property_name?: string;
   company_unique_id?: string | number | null;
+  company_name?: string | null;
   project_unique_id?: string | number | null;
+  project_name?: string | null;
 };
 
 export type CustomerCreationPayload = {
@@ -88,15 +90,24 @@ export type CustomerCreationPayload = {
   industry_type?: string;
 };
 
+export type CustomerCreationUploadResponse = {
+  success?: number;
+  errors?: number;
+  message?: string;
+  [key: string]: unknown;
+};
+
 const normalizeCustomerCreationId = (id: string | number) => String(id);
 
-const listCustomerCreations = (params?: any) => customerCreationApi.list(params) as Promise<CustomerCreationRecord[]>;
+const listCustomerCreations = () => customerCreationApi.list() as Promise<CustomerCreationRecord[]>;
 
 const getCustomerCreation = (id: string | number) => customerCreationApi.get(id) as Promise<CustomerCreationRecord>;
 
 const createCustomerCreation = (payload: CustomerCreationPayload) => customerCreationApi.create(payload) as Promise<CustomerCreationRecord>;
 
 const updateCustomerCreation = (id: string | number, payload: CustomerCreationPayload) => customerCreationApi.update(id, payload) as Promise<CustomerCreationRecord>;
+
+const uploadCustomerCreations = (payload: FormData) => customerCreationApi.upload<CustomerCreationUploadResponse>(payload);
 
 const replaceCustomerCreationInList = (
   customerCreations: CustomerCreationRecord[] | undefined,
@@ -113,15 +124,13 @@ const replaceCustomerCreationInList = (
 
 export const customerCreationQueryKeys = {
   all: ["customer masters", "customerCreations"] as const,
-  list: (filters?: { company_id?: string | null; project_id?: string | null }) =>
-    ["customer masters", "customerCreations", filters] as const,
   detail: (id: string | number) => ["customer masters", "customerCreations", normalizeCustomerCreationId(id)] as const,
 };
 
-export function useCustomerCreationsQuery(params?: any) {
+export function useCustomerCreationsQuery() {
   return enterpriseQuery<CustomerCreationRecord[]>({
-    queryKey: customerCreationQueryKeys.list(params?.params),
-    queryFn: () => listCustomerCreations(params),
+    queryKey: customerCreationQueryKeys.all,
+    queryFn: () => listCustomerCreations(),
   });
 }
 
@@ -152,7 +161,22 @@ export function useUpdateCustomerCreationMutation() {
     mutationFn: ({ id, payload }: { id: string | number; payload: CustomerCreationPayload }) => updateCustomerCreation(id, payload),
     onSuccess: async (customerCreation, variables) => {
       queryClient.setQueryData(customerCreationQueryKeys.detail(variables.id), customerCreation);
+      queryClient.setQueriesData<CustomerCreationRecord[]>(
+        { queryKey: customerCreationQueryKeys.all },
+        (current) => replaceCustomerCreationInList(current, customerCreation)
+      );
       await queryClient.invalidateQueries({ queryKey: ["customer masters", "customerCreations"] });
+    },
+  });
+}
+
+export function useUploadCustomerCreationsMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: uploadCustomerCreations,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: customerCreationQueryKeys.all });
     },
   });
 }

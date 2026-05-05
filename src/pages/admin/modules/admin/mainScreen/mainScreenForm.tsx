@@ -413,7 +413,12 @@ const ENC_LIST_PATH = `/${encAdmins}/${encMainScreens}`;
 /* ------------------------------
     APIs
 ------------------------------ */
-import { mainScreenTypeApi, mainScreenApi } from "@/helpers/admin";
+import {
+  useCreateMainScreenMutation,
+  useMainScreenQuery,
+  useMainScreenTypesQuery,
+  useUpdateMainScreenMutation,
+} from "@/tanstack/admin";
 
 type MainScreenTypeOption = {
   value: string;
@@ -457,17 +462,30 @@ export default function MainScreenForm() {
   const [fallbackCompanyName, setFallbackCompanyName] = useState("");
   const [fallbackProjectName, setFallbackProjectName] = useState("");
 
-  /* DROPDOWN DATA */
-  const [mainScreenTypes, setMainScreenTypes] = useState<MainScreenTypeOption[]>([]);
-
-  /* STATE */
   const [isActive, setIsActive] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [typesLoaded, setTypesLoaded] = useState(false);
 
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
+  const mainScreenTypesQuery = useMainScreenTypesQuery();
+  const mainScreenQuery = useMainScreenQuery(isEdit ? id : null);
+  const createMutation = useCreateMainScreenMutation();
+  const updateMutation = useUpdateMainScreenMutation();
+  const loading = createMutation.isPending || updateMutation.isPending;
+  const mainScreenTypes = useMemo<MainScreenTypeOption[]>(
+    () =>
+      (mainScreenTypesQuery.data ?? [])
+        .filter((x) => Boolean(x.is_active))
+        .map((x) => ({
+          value: toText(x.unique_id),
+          label: toText(x.type_name),
+          companyId: toText(x.company_id),
+          projectId: toText(x.project_id),
+          companyName: toText(x.company_name),
+          projectName: toText(x.project_name),
+        })),
+    [mainScreenTypesQuery.data]
+  );
 
   // ✅ Prefer values from the selected MainScreen Type; fall back to whatever
   //    came from the record itself (which may be null/empty).
@@ -482,60 +500,27 @@ export default function MainScreenForm() {
   const resolvedProjectName = selectedMainScreenType?.projectName || fallbackProjectName;
 
   /* ==========================================================
-      LOAD MAINSCREEN TYPES
-  ========================================================== */
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await mainScreenTypeApi.list();
-        const mapped = res
-          .filter((x: Record<string, unknown>) => Boolean(x.is_active))
-          .map((x: Record<string, unknown>) => ({
-            value: toText(x.unique_id),
-            label: toText(x.type_name),
-            companyId: toText(x.company_id),
-            projectId: toText(x.project_id),
-            companyName: toText(x.company_name),
-            projectName: toText(x.project_name),
-          }));
-        setMainScreenTypes(mapped);
-      } catch {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      } finally {
-        setTypesLoaded(true);
-      }
-    })();
-  }, [t]);
-
-  /* ==========================================================
       EDIT MODE — LOAD RECORD
       Wait for types to load first so selectedMainScreenType resolves correctly.
   ========================================================== */
   useEffect(() => {
-    if (!isEdit || !id) return;
+    if (!mainScreenQuery.data) return;
+    const data = mainScreenQuery.data;
+    setMainScreenName(data.mainscreen_name ?? "");
+    setOrderNo(data.order_no ?? "");
+    setDescription(data.description ?? "");
+    setMainScreenTypeId(data.mainscreentype_id ?? "");
+    setFallbackCompanyId(toText(data.company_id));
+    setFallbackProjectId(toText(data.project_id));
+    setFallbackCompanyName(toText(data.company_name));
+    setFallbackProjectName(toText(data.project_name));
+    setIsActive(Boolean(data.is_active));
+  }, [mainScreenQuery.data]);
 
-    (async () => {
-      try {
-        const data = await mainScreenApi.get(id);
-
-        setMainScreenName(data.mainscreen_name ?? "");
-        setOrderNo(data.order_no ?? "");
-        setDescription(data.description ?? "");
-        setMainScreenTypeId(data.mainscreentype_id ?? "");
-
-        // ✅ Store whatever company/project the record has (may be null).
-        //    These act as fallback if the MainScreenType doesn't carry them.
-        setFallbackCompanyId(toText(data.company_id));
-        setFallbackProjectId(toText(data.project_id));
-        setFallbackCompanyName(toText(data.company_name));
-        setFallbackProjectName(toText(data.project_name));
-
-        setIsActive(Boolean(data.is_active));
-      } catch {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      }
-    })();
-  }, [isEdit, id, t]);
+  useEffect(() => {
+    if (!mainScreenQuery.isError && !mainScreenTypesQuery.isError) return;
+    Swal.fire(t("common.error"), t("common.load_failed"), "error");
+  }, [mainScreenQuery.isError, mainScreenTypesQuery.isError, t]);
 
   /* ==========================================================
       SUBMIT
@@ -552,8 +537,6 @@ export default function MainScreenForm() {
     // ✅ REMOVED the strict company/project check — they can be null in the API
     //    and are derived from the MainScreenType, not entered by the user directly.
 
-    setLoading(true);
-
     try {
       const payload = {
         mainscreen_name: mainscreenName.trim(),
@@ -566,13 +549,13 @@ export default function MainScreenForm() {
       };
 
       if (isEdit && id) {
-        await mainScreenApi.update(id, {
+        await updateMutation.mutateAsync({ id, payload: {
           ...payload,
           order_no: Number(orderNo) || 0,
-        });
+        }});
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await mainScreenApi.create(payload);
+        await createMutation.mutateAsync(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
@@ -590,8 +573,6 @@ export default function MainScreenForm() {
           t("common.save_failed_desc"),
         "error"
       );
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -653,7 +634,7 @@ export default function MainScreenForm() {
               <SelectContent>
                 {mainScreenTypes.length === 0 ? (
                   <div className="px-3 py-2 text-sm text-muted-foreground">
-                    {typesLoaded
+                    {!mainScreenTypesQuery.isPending
                       ? t("common.no_items_found", {
                           item: t("admin.nav.main_screen_type"),
                         })

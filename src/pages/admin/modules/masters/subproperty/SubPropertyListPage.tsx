@@ -22,8 +22,8 @@ import {
   useSubPropertiesQuery,
   useUpdateSubPropertyMutation,
   // SubPropertyRecord,
-} from "@/tanstack/admin/queries/masters/subProperty";
-import type { SubPropertyRecord } from "@/tanstack/admin/queries/masters/subProperty";
+} from "@/tanstack/admin/queries/wastetype/subProperty";
+import type { SubPropertyRecord } from "@/tanstack/admin/queries/wastetype/subProperty";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
