@@ -53,7 +53,8 @@ export function useUserScreenPermissionFormattedQuery(
       const res = await userScreenPermissionApi.get(
         `by-staff-format/?company_id=${encodeURIComponent(companyId ?? "")}&staffusertype_id=${encodeURIComponent(staffTypeId ?? "")}&mainscreen_id=${encodeURIComponent(mainScreenId ?? "")}`
       );
-      return res.data;
+      // `CrudHelpers.get` already returns the decoded response body.
+      return res;
     },
     enabled: Boolean(companyId && staffTypeId && mainScreenId),
   });
