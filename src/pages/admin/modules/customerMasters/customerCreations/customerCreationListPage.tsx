@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -20,6 +20,7 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import {
   useCustomerCreationsQuery,
   useUpdateCustomerCreationMutation,
+  useUploadCustomerCreationsMutation,
 } from "@/tanstack/admin";
 
 type Customer = {
@@ -47,7 +48,11 @@ type Customer = {
   block_no?: string;
   flat_no?: string;
   company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
   project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
 };
 
 type TableFilters = {
@@ -60,6 +65,9 @@ type TableFilters = {
   state_name?: { value: string | null; matchMode: FilterMatchMode };
   panchayat_name?: { value: string | null; matchMode: FilterMatchMode };
 };
+
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
 
 export default function CustomerCreationListPage() {
   const { t } = useTranslation();
@@ -89,16 +97,29 @@ export default function CustomerCreationListPage() {
   } = useCompanyProjectSelection({ isEdit: false });
 
   // TanStack Query hooks
-  const customersQuery = useCustomerCreationsQuery({
-    params: {
-      company_id: companyUniqueId,
-      project_id: projectId,
-    },
-  });
+  const customersQuery = useCustomerCreationsQuery();
   const updateMutation = useUpdateCustomerCreationMutation();
+  const uploadMutation = useUploadCustomerCreationsMutation();
 
   const allCustomers = customersQuery.data ?? [];
-  const loading = customersQuery.isLoading;
+  const customers = useMemo<Customer[]>(() => {
+    if (isSuperAdmin && companies.length === 0) return [];
+    if (!companyUniqueId) return [];
+
+    return (allCustomers as Customer[])
+      .filter((row) => {
+        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+
+        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+
+        return companyMatches && projectMatches;
+      })
+      .sort((a, b) =>
+        String(a.customer_name ?? "").localeCompare(String(b.customer_name ?? ""))
+      );
+  }, [allCustomers, companies.length, companyUniqueId, isSuperAdmin, projectId]);
 
   const ENC_NEW_PATH = `/${encCustomerMaster}/${encCustomerCreation}/new`;
   const ENC_EDIT_PATH = (id: string) =>
@@ -202,16 +223,18 @@ export default function CustomerCreationListPage() {
     formDataObj.append("project_id", projectId || "");
 
     try {
-      // Note: This still uses the API directly as bulk-upload is not a standard CRUD operation
-      // You may need to create a separate mutation for this if needed
+      const result = await uploadMutation.mutateAsync(formDataObj);
+      const success = Number(result?.success ?? 0);
+      const errors = Number(result?.errors ?? 0);
+      const hasUploadCounts = "success" in (result ?? {}) || "errors" in (result ?? {});
+
       Swal.fire({
-        title: "Upload Completed",
-        html: `<b>Success:</b> 0 <br/> <b>Errors:</b> 0`,
+        title: result?.message || "Upload Completed",
+        html: hasUploadCounts
+          ? `<b>Success:</b> ${success} <br/> <b>Errors:</b> ${errors}`
+          : undefined,
         icon: "success",
       });
-
-      // Invalidate the query to refetch customers
-      customersQuery.refetch();
     } catch (err) {
       console.error(err);
       Swal.fire("Error", "Upload failed", "error");
@@ -243,7 +266,7 @@ export default function CustomerCreationListPage() {
             label="Upload CSV"
             icon="pi pi-upload"
             className="p-button-info"
-            disabled={!companyUniqueId || !projectId}
+            disabled={!companyUniqueId || !projectId || uploadMutation.isPending}
             onClick={() => document.getElementById("csvUpload")?.click()}
           />
       </div>
@@ -311,7 +334,13 @@ export default function CustomerCreationListPage() {
       }
     };
 
-    return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
+    return (
+      <Switch
+        checked={row.is_active}
+        onCheckedChange={updateStatus}
+        disabled={updateMutation.isPending}
+      />
+    );
   };
 
   const actionTemplate = (customer: Customer) => (
@@ -381,12 +410,12 @@ export default function CustomerCreationListPage() {
       </div>
 
       <DataTable
-        value={allCustomers}
+        value={customers}
         dataKey="unique_id"
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={loading}
+        loading={customersQuery.isPending && customers.length === 0}
         filters={filters}
         globalFilterFields={[
           "customer_name",
@@ -397,6 +426,8 @@ export default function CustomerCreationListPage() {
           "ward_name",
           "zone_name",
           "city_name",
+          "company_name",
+          "project_name",
         ]}
         header={header}
         emptyMessage={t("admin.customer_creation.empty_message")}

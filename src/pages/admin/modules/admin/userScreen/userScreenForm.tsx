@@ -29,9 +29,11 @@ const ENC_LIST_PATH = `/${encAdmins}/${encUserScreen}`;
 ----------------------------------------- */
 
 import {
-  userScreenApi,
-  mainScreenApi
-} from "@/helpers/admin";
+  useCreateUserScreenMutation,
+  useMainScreensQuery,
+  useUpdateUserScreenMutation,
+  useUserScreenQuery,
+} from "@/tanstack/admin";
 
 type MainScreenOption = {
     value: string;
@@ -77,17 +79,30 @@ export default function UserScreenForm() {
     const [fallbackProjectName, setFallbackProjectName] = useState("");
     const [isActive, setIsActive] = useState(true);
 
-    /* MASTER DROPDOWN */
-    const [mainScreens, setMainScreens] = useState<
-        MainScreenOption[]
-    >([]);
-
-    /* STATE */
     const [loading, setLoading] = useState(false);
 
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
     const isEdit = Boolean(id);
+    const mainScreensQuery = useMainScreensQuery();
+    const userScreenQuery = useUserScreenQuery(isEdit ? id : null);
+    const createMutation = useCreateUserScreenMutation();
+    const updateMutation = useUpdateUserScreenMutation();
+    const isSubmitting = createMutation.isPending || updateMutation.isPending;
+    const mainScreens = useMemo<MainScreenOption[]>(
+        () =>
+            (mainScreensQuery.data ?? [])
+                .filter((x) => Boolean(x.is_active))
+                .map((x) => ({
+                    value: toText(x.unique_id),
+                    label: toText(x.mainscreen_name),
+                    companyId: toText(x.company_id),
+                    projectId: toText(x.project_id),
+                    companyName: toText(x.company_name),
+                    projectName: toText(x.project_name),
+                })),
+        [mainScreensQuery.data]
+    );
     const selectedMainScreen = useMemo(
         () => mainScreens.find((x) => x.value === mainscreenId),
         [mainScreens, mainscreenId]
@@ -108,61 +123,28 @@ export default function UserScreenForm() {
     /* =========================================
         LOAD MAINSCREENS FOR DROPDOWN
     ========================================= */
-    useEffect(() => {
-        (async () => {
-            try {
-                const res = await mainScreenApi.list();
-                const mapped = res
-                    .filter((x: Record<string, unknown>) => Boolean(x.is_active))
-                    .map((x: Record<string, unknown>) => ({
-                        value: toText(x.unique_id),
-                        label: toText(x.mainscreen_name),
-                        companyId: toText(x.company_id),
-                        projectId: toText(x.project_id),
-                        companyName: toText(x.company_name),
-                        projectName: toText(x.project_name),
-                    }));
-
-                setMainScreens(mapped);
-            } catch {
-                Swal.fire(
-                    t("common.error"),
-                    t("common.load_failed"),
-                    "error"
-                );
-            }
-        })();
-    }, [t]);
-
     /* =========================================
         EDIT MODE — LOAD EXISTING RECORD
     ========================================= */
     useEffect(() => {
-        if (!isEdit || !id) return;
+        if (!userScreenQuery.data) return;
+        const data = userScreenQuery.data;
+        setMainscreenId(data.mainscreen_id ?? "");
+        setUserScreenName(data.userscreen_name ?? "");
+        setFolderName(data.folder_name ?? "");
+        setOrderNo(String(data.order_no ?? ""));
+        setDescription(data.description ?? "");
+        setFallbackCompanyId(toText(data.company_id));
+        setFallbackProjectId(toText(data.project_id));
+        setFallbackCompanyName(toText(data.company_name));
+        setFallbackProjectName(toText(data.project_name));
+        setIsActive(Boolean(data.is_active));
+    }, [userScreenQuery.data]);
 
-        (async () => {
-            try {
-                const data = await userScreenApi.get(id);
-
-                setMainscreenId(data.mainscreen_id ?? "");
-                setUserScreenName(data.userscreen_name ?? "");
-                setFolderName(data.folder_name ?? "");
-                setOrderNo(String(data.order_no ?? ""));
-                setDescription(data.description ?? "");
-                setFallbackCompanyId(toText(data.company_id));
-                setFallbackProjectId(toText(data.project_id));
-                setFallbackCompanyName(toText(data.company_name));
-                setFallbackProjectName(toText(data.project_name));
-                setIsActive(Boolean(data.is_active));
-            } catch {
-                Swal.fire(
-                    t("common.error"),
-                    t("common.load_failed"),
-                    "error"
-                );
-            }
-        })();
-    }, [id, isEdit, t]);
+    useEffect(() => {
+        if (!userScreenQuery.isError && !mainScreensQuery.isError) return;
+        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    }, [mainScreensQuery.isError, userScreenQuery.isError, t]);
 
     /* =========================================
         SUBMIT HANDLER
@@ -179,8 +161,6 @@ export default function UserScreenForm() {
             return;
         }
 
-        setLoading(true);
-
         try {
             const payload = {
                 mainscreen_id: mainscreenId,
@@ -193,13 +173,13 @@ export default function UserScreenForm() {
             };
 
             if (isEdit && id) {
-                await userScreenApi.update(id, {
+                await updateMutation.mutateAsync({ id, payload: {
                     ...payload,
                     order_no: Number(orderNo) || 0,
-                });
+                }});
                 Swal.fire(t("common.success"), t("common.updated_success"), "success");
             } else {
-                await userScreenApi.create(payload);
+                await createMutation.mutateAsync(payload);
                 Swal.fire(t("common.success"), t("common.added_success"), "success");
             }
 
@@ -217,8 +197,6 @@ export default function UserScreenForm() {
                     t("common.save_failed_desc"),
                 "error"
             );
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -371,8 +349,8 @@ export default function UserScreenForm() {
 
                 {/* Buttons */}
                 <div className="flex justify-end gap-3 mt-6">
-                    <Button type="submit" disabled={loading}>
-                        {loading
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting
                             ? isEdit
                                 ? t("common.updating")
                                 : t("common.saving")

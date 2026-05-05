@@ -18,15 +18,19 @@ import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 import {
-  userScreenActionApi
-} from "@/helpers/admin";
+  useDeleteUserScreenActionMutation,
+  useUpdateUserScreenActionMutation,
+  useUserScreenActionsQuery,
+} from "@/tanstack/admin";
 
 import type { UserScreenAction } from "../types/admin.types"; 
 
 export default function UserScreenActionList() {
   const { t } = useTranslation();
-  const [records, setRecords] = useState<UserScreenAction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const userScreenActionsQuery = useUserScreenActionsQuery();
+  const updateMutation = useUpdateUserScreenActionMutation();
+  const deleteMutation = useDeleteUserScreenActionMutation();
+  const records = (userScreenActionsQuery.data ?? []) as UserScreenAction[];
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState({
@@ -42,25 +46,10 @@ export default function UserScreenActionList() {
   const ENC_EDIT_PATH = (unique_id: string) =>
     `/${encAdmins}/${encUserScreenAction}/${unique_id}/edit`;
 
-  const extractData = (response: any) => {
-    if (Array.isArray(response)) return response;
-    if (Array.isArray(response?.data)) return response.data;
-    return response?.data?.results ?? [];
-  };
-
-  const fetchRecords = async () => {
-    try {
-      const res = await userScreenActionApi.list();
-      console.log(res);
-      setRecords(extractData(res));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchRecords();
-  }, []);
+    if (!userScreenActionsQuery.isError) return;
+    Swal.fire(t("common.error"), t("common.load_failed"), "error");
+  }, [userScreenActionsQuery.isError, t]);
 
   const handleDelete = async (unique_id: string) => {
     const confirmDelete = await Swal.fire({
@@ -75,7 +64,7 @@ export default function UserScreenActionList() {
 
     if (!confirmDelete.isConfirmed) return;
 
-    await userScreenActionApi.remove(unique_id);
+    await deleteMutation.mutateAsync(unique_id);
 
     Swal.fire({
       icon: "success",
@@ -84,7 +73,6 @@ export default function UserScreenActionList() {
       showConfirmButton: false,
     });
 
-    fetchRecords();
   };
 
   const onGlobalFilterChange = (e: any) => {
@@ -122,15 +110,13 @@ export default function UserScreenActionList() {
 
   const statusTemplate = (row: UserScreenAction) => {
     const updateStatus = async (value: boolean) => {
-      await userScreenActionApi.update(row.unique_id, {
+      await updateMutation.mutateAsync({ id: row.unique_id, payload: {
         company_id: row.company_id,
         project_id: row.project_id,
         action_name: row.action_name,
         variable_name: row.variable_name,
         is_active: value,
-      });
-
-      fetchRecords();
+      }});
     };
 
     return (
@@ -185,7 +171,7 @@ export default function UserScreenActionList() {
           value={records}
           paginator
           rows={10}
-          loading={loading}
+          loading={userScreenActionsQuery.isPending}
           filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
           globalFilterFields={["action_name", "variable_name"]}

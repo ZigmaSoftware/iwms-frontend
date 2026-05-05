@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
-import { adminApi } from "@/helpers/admin/registry";
+import { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -14,8 +13,10 @@ import "primeicons/primeicons.css";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useTranslation } from "react-i18next";
-
-type RawRow = Record<string, unknown>;
+import {
+  useCustomerCreationsQuery,
+  type CustomerCreationRecord,
+} from "@/tanstack/admin";
 
 type ApartmentRow = {
   apartment_name: string;
@@ -47,98 +48,27 @@ type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
 };
 
-const customerApi = adminApi.customerCreations;
-
 /* ---------------- HELPERS ---------------- */
 
-const toRows = (value: unknown): RawRow[] => {
-  if (Array.isArray(value))
-    return value.filter((item): item is RawRow => Boolean(item && typeof item === "object"));
-  if (value && typeof value === "object") {
-    const p = value as Record<string, unknown>;
-    if (Array.isArray(p.data)) return toRows(p.data);
-    if (Array.isArray(p.results)) return toRows(p.results);
-    if (Array.isArray(p.items)) return toRows(p.items);
-    if (Array.isArray(p.rows)) return toRows(p.rows);
-  }
-  return [];
-};
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
 
-const readStr = (row: RawRow, keys: string[], fb = "") => {
-  for (const k of keys) {
-    const v = row[k];
-    if (v !== null && v !== undefined) {
-      const t = String(v).trim();
-      if (t) return t;
-    }
-  }
-  return fb;
-};
-
-const readNum = (row: RawRow, keys: string[], fb = 0) => {
-  for (const k of keys) {
-    const v = row[k];
-    if (typeof v === "number") return v;
-    if (typeof v === "string") {
-      const n = Number(v);
-      if (!isNaN(n)) return n;
-    }
-  }
-  return fb;
-};
-
-/* ---------------- MAPPERS ---------------- */
-
-const mapApartments = (v: unknown): ApartmentRow[] =>
-  toRows(v)
-    .map((r) => ({
-      apartment_name: readStr(r, ["apartment_name"]),
-      total_users: readNum(r, ["user_count"]),
-      total_blocks: readNum(r, ["block_count"]),
-      total_flats: readNum(r, ["flat_count"]),
-      qr_code: readStr(r, ["qr_code"]),
-    }))
-    .filter((r) => r.apartment_name.length > 0);
-
-const mapBlocks = (v: unknown): BlockRow[] =>
-  toRows(v)
-    .map((r) => ({
-      block: readStr(r, ["block_no"]),
-      flat_count: readNum(r, ["flat_count"]),
-    }))
-    .filter((r) => r.block.length > 0);
-
-const mapFlats = (v: unknown): FlatRow[] =>
-  toRows(v)
-    .map((r) => ({
-      flat_no: readStr(r, ["flat_no"]),
-      user_count: readNum(r, ["user_count"]),
-    }))
-    .filter((r) => r.flat_no.length > 0);
-
-const mapUsers = (v: unknown): UserRow[] =>
-  toRows(v).map((r) => ({
-    customer_name: readStr(r, ["customer_name"]),
-    contact_no: readStr(r, ["contact_no"]),
-    flat_no: readStr(r, ["flat_no"]),
-  }));
+const readCustomerText = (
+  row: CustomerCreationRecord,
+  key: keyof CustomerCreationRecord
+): string => normalizeId(row[key]);
 
 /* ---------------- COMPONENT ---------------- */
 
 export default function ApartmentListPage() {
   const { t } = useTranslation();
+  const customersQuery = useCustomerCreationsQuery();
 
   const [viewLevel, setViewLevel] = useState<ViewLevel>("apartment");
 
-  const [apartments, setApartments] = useState<ApartmentRow[]>([]);
-  const [blocks, setBlocks] = useState<BlockRow[]>([]);
-  const [flats, setFlats] = useState<FlatRow[]>([]);
-  const [users, setUsers] = useState<UserRow[]>([]);
-
   const [selectedApartment, setSelectedApartment] = useState("");
   const [selectedBlock, setSelectedBlock] = useState("");
-
-  const [loading, setLoading] = useState(false);
+  const [selectedFlat, setSelectedFlat] = useState("");
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
@@ -155,83 +85,134 @@ export default function ApartmentListPage() {
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false });
 
-  /* ---- fetchers ---- */
+  const filteredCustomers = useMemo<CustomerCreationRecord[]>(() => {
+    if (isSuperAdmin && companies.length === 0) return [];
+    if (!companyUniqueId) return [];
 
-  const fetchApartments = useCallback(async () => {
-    try {
-      setLoading(true);
-      const params: Record<string, string> = {};
-      if (companyUniqueId) params.company_id = companyUniqueId;
-      if (projectId) params.project_id = projectId;
-      const data = await customerApi.get("apartment-count/", { params });
-      setApartments(mapApartments(data));
-    } catch (err) {
-      console.error("Failed to fetch apartments", err);
-      setApartments([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [companyUniqueId, projectId]);
+    return (customersQuery.data ?? []).filter((row) => {
+      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+      const apartmentName = readCustomerText(row, "apartment_name");
 
-  const fetchBlocks = async (apt: string) => {
-    try {
-      setLoading(true);
-      const data = await customerApi.get("block-count/", {
-        params: { apartment_name: apt, company_id: companyUniqueId },
+      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+      const projectMatches = !projectId || rowProjectId === projectId;
+
+      return Boolean(apartmentName) && companyMatches && projectMatches;
+    });
+  }, [
+    companies.length,
+    companyUniqueId,
+    customersQuery.data,
+    isSuperAdmin,
+    projectId,
+  ]);
+
+  const apartments = useMemo<ApartmentRow[]>(() => {
+    const byApartment = new Map<
+      string,
+      { blocks: Set<string>; flats: Set<string>; users: number; qr_code?: string }
+    >();
+
+    filteredCustomers.forEach((row) => {
+      const apartmentName = readCustomerText(row, "apartment_name");
+      if (!apartmentName) return;
+
+      const blockNo = readCustomerText(row, "block_no");
+      const flatNo = readCustomerText(row, "flat_no");
+      const current =
+        byApartment.get(apartmentName) ??
+        { blocks: new Set<string>(), flats: new Set<string>(), users: 0 };
+
+      if (blockNo) current.blocks.add(blockNo);
+      if (flatNo) current.flats.add(`${blockNo}::${flatNo}`);
+      current.users += 1;
+      current.qr_code = current.qr_code || readCustomerText(row, "qr_code");
+      byApartment.set(apartmentName, current);
+    });
+
+    return Array.from(byApartment.entries())
+      .map(([apartment_name, meta]) => ({
+        apartment_name,
+        total_users: meta.users,
+        total_blocks: meta.blocks.size,
+        total_flats: meta.flats.size,
+        qr_code: meta.qr_code,
+      }))
+      .sort((a, b) => a.apartment_name.localeCompare(b.apartment_name));
+  }, [filteredCustomers]);
+
+  const blocks = useMemo<BlockRow[]>(() => {
+    const byBlock = new Map<string, Set<string>>();
+
+    filteredCustomers
+      .filter((row) => readCustomerText(row, "apartment_name") === selectedApartment)
+      .forEach((row) => {
+        const blockNo = readCustomerText(row, "block_no");
+        if (!blockNo) return;
+
+        const flatNo = readCustomerText(row, "flat_no");
+        const flats = byBlock.get(blockNo) ?? new Set<string>();
+        if (flatNo) flats.add(flatNo);
+        byBlock.set(blockNo, flats);
       });
-      setBlocks(mapBlocks(data));
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const fetchFlats = async (apt: string, blk: string) => {
-    try {
-      setLoading(true);
-      const data = await customerApi.get("flat-count/", {
-        params: { apartment_name: apt, block: blk, company_id: companyUniqueId },
+    return Array.from(byBlock.entries())
+      .map(([block, flatSet]) => ({ block, flat_count: flatSet.size }))
+      .sort((a, b) => a.block.localeCompare(b.block));
+  }, [filteredCustomers, selectedApartment]);
+
+  const flats = useMemo<FlatRow[]>(() => {
+    const byFlat = new Map<string, number>();
+
+    filteredCustomers
+      .filter(
+        (row) =>
+          readCustomerText(row, "apartment_name") === selectedApartment &&
+          readCustomerText(row, "block_no") === selectedBlock
+      )
+      .forEach((row) => {
+        const flatNo = readCustomerText(row, "flat_no");
+        if (!flatNo) return;
+        byFlat.set(flatNo, (byFlat.get(flatNo) ?? 0) + 1);
       });
-      setFlats(mapFlats(data));
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const fetchUsers = async (apt: string, blk: string, flat: string) => {
-    try {
-      setLoading(true);
-      const data = await customerApi.get("property-user-count/", {
-        params: {
-          subproperty: "apartment",
-          apartment_name: apt,
-          block: blk,
-          flat_no: flat,
-          company_id: companyUniqueId,
-        },
-      });
-      const list = Array.isArray(data)
-        ? data.flatMap((g: Record<string, unknown>) =>
-            Array.isArray(g.users) ? g.users : []
-          )
-        : [];
-      setUsers(mapUsers(list));
-    } finally {
-      setLoading(false);
-    }
-  };
+    return Array.from(byFlat.entries())
+      .map(([flat_no, user_count]) => ({ flat_no, user_count }))
+      .sort((a, b) => a.flat_no.localeCompare(b.flat_no));
+  }, [filteredCustomers, selectedApartment, selectedBlock]);
 
-  useEffect(() => {
-    fetchApartments();
-  }, [fetchApartments]);
+  const users = useMemo<UserRow[]>(() => {
+    return filteredCustomers
+      .filter(
+        (row) =>
+          readCustomerText(row, "apartment_name") === selectedApartment &&
+          readCustomerText(row, "block_no") === selectedBlock &&
+          readCustomerText(row, "flat_no") === selectedFlat
+      )
+      .map((row) => ({
+        customer_name: readCustomerText(row, "customer_name"),
+        contact_no: readCustomerText(row, "contact_no"),
+        flat_no: readCustomerText(row, "flat_no"),
+      }))
+      .filter((row) => row.customer_name || row.contact_no || row.flat_no)
+      .sort((a, b) => a.flat_no.localeCompare(b.flat_no));
+  }, [filteredCustomers, selectedApartment, selectedBlock, selectedFlat]);
 
   useEffect(() => {
     setSelectedApartment("");
     setSelectedBlock("");
-    setBlocks([]);
-    setFlats([]);
-    setUsers([]);
+    setSelectedFlat("");
     setViewLevel("apartment");
   }, [companyUniqueId, projectId]);
+
+  useEffect(() => {
+    if (!customersQuery.isError) return;
+    Swal.fire({
+      icon: "error",
+      title: t("common.error"),
+      text: String((customersQuery.error as any)?.response?.data ?? customersQuery.error),
+    });
+  }, [customersQuery.error, customersQuery.isError, t]);
 
   /* ---- filter ---- */
 
@@ -253,20 +234,19 @@ export default function ApartmentListPage() {
 
   const drillToBlock = (apt: ApartmentRow) => {
     setSelectedApartment(apt.apartment_name);
-    fetchBlocks(apt.apartment_name);
     setViewLevel("block");
     resetFilter();
   };
 
   const drillToFlat = (blk: BlockRow) => {
     setSelectedBlock(blk.block);
-    fetchFlats(selectedApartment, blk.block);
+    setSelectedFlat("");
     setViewLevel("flat");
     resetFilter();
   };
 
   const drillToUser = (flat: FlatRow) => {
-    fetchUsers(selectedApartment, selectedBlock, flat.flat_no);
+    setSelectedFlat(flat.flat_no);
     setViewLevel("user");
     resetFilter();
   };
@@ -289,7 +269,7 @@ export default function ApartmentListPage() {
     if (viewLevel === "flat" || viewLevel === "user")
       crumbs.push({ label: `Block ${selectedBlock}`, level: "flat" });
     if (viewLevel === "user")
-      crumbs.push({ label: "Users", level: "user" });
+      crumbs.push({ label: `Flat ${selectedFlat}`, level: "user" });
     return crumbs;
   };
 
@@ -386,7 +366,7 @@ export default function ApartmentListPage() {
     },
     user: {
       title: "Residents",
-      subtitle: `Block ${selectedBlock} · ${selectedApartment}`,
+      subtitle: `Flat ${selectedFlat} · Block ${selectedBlock} · ${selectedApartment}`,
       emptyMessage: "No residents found for this flat.",
     },
   };
@@ -483,7 +463,7 @@ export default function ApartmentListPage() {
           paginator
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={loading}
+          loading={customersQuery.isPending && apartments.length === 0}
           filters={filters}
           globalFilterFields={globalFilterFields.apartment}
           header={tableHeader}
@@ -522,7 +502,7 @@ export default function ApartmentListPage() {
             paginator
             rows={10}
             rowsPerPageOptions={[5, 10, 25, 50]}
-            loading={loading}
+            loading={customersQuery.isPending && blocks.length === 0}
             filters={filters}
             globalFilterFields={globalFilterFields.block}
             header={tableHeader}
@@ -553,7 +533,7 @@ export default function ApartmentListPage() {
             paginator
             rows={10}
             rowsPerPageOptions={[5, 10, 25, 50]}
-            loading={loading}
+            loading={customersQuery.isPending && flats.length === 0}
             filters={filters}
             globalFilterFields={globalFilterFields.flat}
             header={tableHeader}
@@ -584,7 +564,7 @@ export default function ApartmentListPage() {
             paginator
             rows={10}
             rowsPerPageOptions={[5, 10, 25, 50]}
-            loading={loading}
+            loading={customersQuery.isPending && users.length === 0}
             filters={filters}
             globalFilterFields={globalFilterFields.user}
             header={tableHeader}

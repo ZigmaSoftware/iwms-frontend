@@ -3,23 +3,18 @@ import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import {
-  cityApi,
-  countryApi,
-  districtApi,
-  propertiesApi,
-  stateApi,
-  subPropertiesApi,
-  wardApi,
-  zoneApi,
-  panchayatApi,
-  companyApi,
-  projectApi,
-} from "@/helpers/admin";
-
-import {
+  useCitiesQuery,
+  useCountriesQuery,
   useCustomerCreationQuery,
   useCreateCustomerCreationMutation,
+  useDistrictsQuery,
+  usePanchayatsQuery,
+  usePropertiesQuery,
+  useStatesQuery,
+  useSubPropertiesQuery,
   useUpdateCustomerCreationMutation,
+  useWardsQuery,
+  useZonesQuery,
 } from "@/tanstack/admin";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -35,6 +30,7 @@ import {
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 /* ===============================
    TYPES
@@ -245,7 +241,6 @@ const PropertySelectionStep = ({
   onSubPropertyChange,
   onNext,
   t,
-  tOrFallback,
 }: {
   properties: any[];
   subProperties: any[];
@@ -255,10 +250,9 @@ const PropertySelectionStep = ({
   onSubPropertyChange: (v: string) => void;
   onNext: () => void;
   t: any;
-  tOrFallback: (key: string, fallback: string) => string;
 }) => {
   const filteredSubProps = subProperties.filter(
-    (sp: any) => !selectedProperty || sp.property_id === selectedProperty
+    (sp: any) => !selectedProperty || String(sp.property_id ?? sp.property) === selectedProperty
   );
 
   const isStepComplete = selectedProperty && selectedSubProperty;
@@ -334,8 +328,18 @@ export default function CustomerCreationForm() {
   const customerQuery = useCustomerCreationQuery(isEdit ? id : null);
   const createMutation = useCreateCustomerCreationMutation();
   const updateMutation = useUpdateCustomerCreationMutation();
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    loggedInCompanyUniqueId,
+    setProjectId,
+    onCompanyChange,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({ isEdit });
 
-  const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(isEdit ? 1 : 0); // 0 = property selection, 1 = form
   const tOrFallback = (key: string, fallback: string) => {
     const value = t(key);
@@ -390,56 +394,69 @@ export default function CustomerCreationForm() {
   /* ===============================
      DROPDOWNS
   ================================ */
-  const [dropdowns, setDropdowns] = useState<any>({
-    wards: [],
-    zones: [],
-    cities: [],
-    districts: [],
-    states: [],
-    countries: [],
-    properties: [],
-    subProperties: [],
-    panchayats: [],
-    companies: [],
-    projects: [],
-  });
+  const wardsQuery = useWardsQuery();
+  const zonesQuery = useZonesQuery();
+  const citiesQuery = useCitiesQuery();
+  const districtsQuery = useDistrictsQuery();
+  const statesQuery = useStatesQuery();
+  const countriesQuery = useCountriesQuery();
+  const propertiesQuery = usePropertiesQuery();
+  const subPropertiesQuery = useSubPropertiesQuery();
+  const panchayatsQuery = usePanchayatsQuery();
+
+  const dropdowns = useMemo(
+    () => ({
+      wards: normalize(wardsQuery.data ?? []),
+      zones: normalize(zonesQuery.data ?? []),
+      cities: normalize(citiesQuery.data ?? []),
+      districts: normalize(districtsQuery.data ?? []),
+      states: normalize(statesQuery.data ?? []),
+      countries: normalize(countriesQuery.data ?? []),
+      properties: normalize(propertiesQuery.data ?? []),
+      subProperties: normalize(subPropertiesQuery.data ?? []),
+      panchayats: normalize(panchayatsQuery.data ?? []),
+    }),
+    [
+      wardsQuery.data,
+      zonesQuery.data,
+      citiesQuery.data,
+      districtsQuery.data,
+      statesQuery.data,
+      countriesQuery.data,
+      propertiesQuery.data,
+      subPropertiesQuery.data,
+      panchayatsQuery.data,
+    ]
+  );
 
   useEffect(() => {
-    (async () => {
-      try {
-        const data = await Promise.all([
-          wardApi.list(),
-          zoneApi.list(),
-          cityApi.list(),
-          districtApi.list(),
-          stateApi.list(),
-          countryApi.list(),
-          propertiesApi.list(),
-          subPropertiesApi.list(),
-          panchayatApi.list(),
-          companyApi.list(),
-          projectApi.list(),
-        ]);
+    const failedQuery = [
+      wardsQuery,
+      zonesQuery,
+      citiesQuery,
+      districtsQuery,
+      statesQuery,
+      countriesQuery,
+      propertiesQuery,
+      subPropertiesQuery,
+      panchayatsQuery,
+    ].find((query) => query.isError);
 
-        setDropdowns({
-          wards: normalize(data[0]),
-          zones: normalize(data[1]),
-          cities: normalize(data[2]),
-          districts: normalize(data[3]),
-          states: normalize(data[4]),
-          countries: normalize(data[5]),
-          properties: normalize(data[6]),
-          subProperties: normalize(data[7]),
-          panchayats: normalize(data[8]),
-          companies: normalize(data[9]),
-          projects: normalize(data[10]),
-        });
-      } catch (err) {
-        console.error("Failed to fetch dropdowns:", err);
-        Swal.fire("Error", "Failed to load location data", "error");
-      }
-    })();
-  }, []);
+    if (!failedQuery) return;
+
+    console.error("Failed to fetch customer dropdowns:", failedQuery.error);
+    Swal.fire("Error", "Failed to load customer form data", "error");
+  }, [
+    wardsQuery.isError,
+    zonesQuery.isError,
+    citiesQuery.isError,
+    districtsQuery.isError,
+    statesQuery.isError,
+    countriesQuery.isError,
+    propertiesQuery.isError,
+    subPropertiesQuery.isError,
+    panchayatsQuery.isError,
+  ]);
 
   /* ===============================
      LOAD EXISTING DATA (EDIT MODE)
@@ -484,33 +501,34 @@ export default function CustomerCreationForm() {
       industry_name: String(data.industry_name ?? ""),
       industry_type: String(data.industry_type ?? ""),
     }));
-  }, [customerQuery.data]);
+    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+  }, [applyCompanyProjectFromRecord, customerQuery.data]);
 
   /* ===============================
      FILTERS
   ================================ */
   const filteredStates = useMemo(
-    () => dropdowns.states.filter((s: any) => !formData.country_id || s.country_id === formData.country_id),
+    () => dropdowns.states.filter((s: any) => !formData.country_id || String(s.country_id ?? s.country) === formData.country_id),
     [dropdowns.states, formData.country_id]
   );
 
   const filteredDistricts = useMemo(
-    () => dropdowns.districts.filter((d: any) => !formData.state_id || d.state_id === formData.state_id),
+    () => dropdowns.districts.filter((d: any) => !formData.state_id || String(d.state_id ?? d.state) === formData.state_id),
     [dropdowns.districts, formData.state_id]
   );
 
   const filteredCities = useMemo(
-    () => dropdowns.cities.filter((c: any) => !formData.district_id || c.district_id === formData.district_id),
+    () => dropdowns.cities.filter((c: any) => !formData.district_id || String(c.district_id ?? c.district) === formData.district_id),
     [dropdowns.cities, formData.district_id]
   );
 
   const filteredZones = useMemo(
-    () => dropdowns.zones.filter((z: any) => !formData.city_id || z.city_id === formData.city_id),
+    () => dropdowns.zones.filter((z: any) => !formData.city_id || String(z.city_id ?? z.city) === formData.city_id),
     [dropdowns.zones, formData.city_id]
   );
 
   const filteredWards = useMemo(
-    () => dropdowns.wards.filter((w: any) => !formData.zone_id || w.zone_id === formData.zone_id),
+    () => dropdowns.wards.filter((w: any) => !formData.zone_id || String(w.zone_id ?? w.zone) === formData.zone_id),
     [dropdowns.wards, formData.zone_id]
   );
 
@@ -518,18 +536,10 @@ export default function CustomerCreationForm() {
     () =>
       dropdowns.panchayats.filter(
         (p: any) =>
-          (!formData.district_id || p.district_id === formData.district_id) &&
-          (!formData.city_id || p.city_id === formData.city_id)
+          (!formData.district_id || String(p.district_id ?? p.district) === formData.district_id) &&
+          (!formData.city_id || String(p.city_id ?? p.city) === formData.city_id)
       ),
     [dropdowns.panchayats, formData.district_id, formData.city_id]
-  );
-
-  const filteredSubProperties = useMemo(
-    () =>
-      dropdowns.subProperties.filter(
-        (sp: any) => !formData.property_id || sp.property_id === formData.property_id
-      ),
-    [dropdowns.subProperties, formData.property_id]
   );
 
   /* ===============================
@@ -550,13 +560,7 @@ export default function CustomerCreationForm() {
   const zoneOrWardSelected  = Boolean(formData.zone_id || formData.ward_id);
   const panchayatSelected   = Boolean(formData.panchayat_id);
 
-  const filteredProjects = useMemo(
-    () =>
-      dropdowns.projects.filter(
-        (p: any) => !formData.company_id || p.company_unique_id === formData.company_id
-      ),
-    [dropdowns.projects, formData.company_id]
-  );
+  const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
   /* ===============================
      VALIDATION
@@ -567,7 +571,7 @@ export default function CustomerCreationForm() {
       "customer_name", "contact_no", "email", "username",
        "pincode", "latitude", "longitude", "sqft", "id_proof_type", "id_no",
       "country_id", "state_id", "district_id", "city_id",  
-      "property_id", "sub_property_id", "company_id", "project_id",
+      "property_id", "sub_property_id",
       ...(!isEdit ? ["password"] : []),
     ].flat();
 
@@ -577,6 +581,11 @@ export default function CustomerCreationForm() {
         Swal.fire(t("common.warning") || "Warning", `${fieldLabel} is required`, "warning");
         return false;
       }
+    }
+
+    if (!companyUniqueId || !projectId) {
+      Swal.fire(t("common.warning") || "Warning", "Company and project are required", "warning");
+      return false;
     }
 
     // Contact validation (10 digits)
@@ -643,6 +652,8 @@ export default function CustomerCreationForm() {
 
     const payload = {
       ...formData,
+      company_id: companyUniqueId,
+      project_id: projectId,
       latitude: String(parseFloat(formData.latitude)),
       longitude: String(parseFloat(formData.longitude)),
       sqft: String(parseFloat(formData.sqft)),
@@ -650,7 +661,6 @@ export default function CustomerCreationForm() {
     };
 
     try {
-      setLoading(true);
       if (isEdit) {
         await updateMutation.mutateAsync({
           id: id as string,
@@ -669,8 +679,6 @@ export default function CustomerCreationForm() {
     } catch (err) {
       console.error("Submit error:", err);
       Swal.fire(t("common.error") || "Error", t("admin.customer_creation.save_failed") || "Failed to save", "error");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -693,7 +701,6 @@ export default function CustomerCreationForm() {
         onSubPropertyChange={(v: string) => update("sub_property_id", v)}
         onNext={() => setStep(1)}
         t={t}
-        tOrFallback={tOrFallback}
       />
     );
   }
@@ -969,28 +976,23 @@ export default function CustomerCreationForm() {
         <FormSection title={t("admin.customer_creation.company_project_info") || "Company & Project Information"}>
           <ShadcnSelect
             label={t("admin.nav.company") || "Company"}
-            value={formData.company_id}
+            value={companyUniqueId}
             onChange={(v: string) => {
-              update("company_id", v);
-              update("project_id", "");
+              onCompanyChange(v);
             }}
-            options={dropdowns.companies.map((c: any) => ({
-              value: resolveId(c),
-              label: c.name,
-            }))}
+            options={companies}
             placeholder={t("admin.nav.company_placeholder") || "Select company"}
             isRequired={true}
+            disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId)}
           />
           <ShadcnSelect
             label={t("admin.nav.project") || "Project"}
-            value={formData.project_id}
-            onChange={(v: string) => update("project_id", v)}
-            options={filteredProjects.map((p: any) => ({
-              value: resolveId(p),
-              label: p.name,
-            }))}
+            value={projectId}
+            onChange={setProjectId}
+            options={projects}
             placeholder={t("admin.nav.project_placeholder") || "Select project"}
             isRequired={true}
+            disabled={!companyUniqueId || projects.length === 0}
           />
         </FormSection>
 
@@ -1139,10 +1141,10 @@ export default function CustomerCreationForm() {
           </div>
           <button
             type="submit"
-            disabled={loading}
+            disabled={isSubmitting}
             className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-2.5 rounded-md font-medium transition duration-200 flex items-center justify-center min-w-[120px]"
           >
-            {loading ? (
+            {isSubmitting ? (
               <>
                 <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

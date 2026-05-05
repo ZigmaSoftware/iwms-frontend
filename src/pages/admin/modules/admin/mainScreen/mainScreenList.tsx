@@ -16,14 +16,20 @@ import "primeicons/primeicons.css";
 import { PencilIcon, TrashBinIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { mainScreenApi } from "@/helpers/admin";
+import {
+  useDeleteMainScreenMutation,
+  useMainScreensQuery,
+  useUpdateMainScreenMutation,
+} from "@/tanstack/admin";
 
 import type { MainScreen } from "../types/admin.types"; // Correct import
 
 export default function MainScreenList() {
   const { t } = useTranslation();
-  const [records, setRecords] = useState<MainScreen[]>([]);
-  const [loading, setLoading] = useState(true);
+  const mainScreensQuery = useMainScreensQuery();
+  const updateMutation = useUpdateMainScreenMutation();
+  const deleteMutation = useDeleteMainScreenMutation();
+  const records = (mainScreensQuery.data ?? []) as MainScreen[];
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState({
@@ -40,27 +46,10 @@ export default function MainScreenList() {
   /* ------------------------------
       Extract data uniformly
   ------------------------------ */
-  const extractData = (response: any) => {
-    if (Array.isArray(response)) return response;
-    if (Array.isArray(response?.data)) return response.data;
-    return response?.data?.results ?? [];
-  };
-
-  /* ------------------------------
-      FETCH
-  ------------------------------ */
-  const fetchData = async () => {
-    try {
-      const res = await mainScreenApi.list();
-      setRecords(extractData(res));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (!mainScreensQuery.isError) return;
+    Swal.fire(t("common.error"), t("common.load_failed"), "error");
+  }, [mainScreensQuery.isError, t]);
 
   /* ------------------------------
       DELETE
@@ -78,7 +67,7 @@ export default function MainScreenList() {
 
     if (!confirm.isConfirmed) return;
 
-    await mainScreenApi.remove(id);
+    await deleteMutation.mutateAsync(id);
 
     Swal.fire({
       icon: "success",
@@ -87,7 +76,6 @@ export default function MainScreenList() {
       timer: 1200,
     });
 
-    fetchData();
   };
 
   /* ------------------------------
@@ -95,7 +83,7 @@ export default function MainScreenList() {
   ------------------------------ */
   const statusTemplate = (row: MainScreen) => {
     const updateStatus = async (value: boolean) => {
-      await mainScreenApi.update(row.unique_id, {
+      await updateMutation.mutateAsync({ id: row.unique_id, payload: {
         mainscreen_name: row.mainscreen_name,
         mainscreentype_id: row.mainscreentype_id,
         company_id: row.company_id,
@@ -104,9 +92,7 @@ export default function MainScreenList() {
         order_no: row.order_no,
         description: row.description,
         is_active: value,
-      });
-
-      fetchData();
+      }});
     };
 
     return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
@@ -191,7 +177,7 @@ export default function MainScreenList() {
           value={records}
           paginator
           rows={10}
-          loading={loading}
+          loading={mainScreensQuery.isPending}
           filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
           globalFilterFields={[
