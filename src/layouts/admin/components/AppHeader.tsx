@@ -99,7 +99,7 @@ const AppHeader: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
         className={cn(
-          "relative h-[85px] px-4 lg:px-8",
+          "relative h-[var(--admin-header-h)] px-4 lg:px-8",
           scrolled &&
             (isDark
               ? "shadow-2xl shadow-blue-500/10"

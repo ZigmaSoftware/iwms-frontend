@@ -1015,17 +1015,17 @@ const AppSidebar: React.FC = () => {
 
   return (
     <aside
-      className={`mt-10 fixed top-0 left-0 z-50 h-[calc(100vh-2.5rem)] border-r bg-white text-sky-900 transition-all duration-300 ease-out ${
+      className={`fixed left-0 top-[var(--admin-header-h)] z-50 h-[calc(100vh-var(--admin-header-h))] border-r bg-white text-sky-900 transition-all duration-300 ease-out ${
         showFullSidebar ? "w-[300px]" : "w-[140px]"
       } ${isMobileOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
     >
       <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/60 to-transparent opacity-80" />
       <div className="flex h-full flex-col px-4 pb-6 pt-6">
-        {showFullSidebar && (
+        {/* {showFullSidebar && (
           <div className="mb-4 text-xs font-semibold uppercase tracking-[0.4em] text-sky-500">
-            Admin Navigation
+            
           </div>
-        )}
+        )} */}
         <div className="flex-1 overflow-y-auto pr-2 no-scrollbar">
           <nav className="flex flex-col gap-4">
             {sidebarSections.map((section) => (
