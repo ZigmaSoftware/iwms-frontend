@@ -401,7 +401,16 @@ export default function PanchayatForm() {
 
         <div>
           <Label>State *</Label>
-          <Select value={stateId} onValueChange={setStateId}>
+          <Select
+            value={stateId}
+            onValueChange={(value) => {
+              setStateId(value);
+              setDistrictId("");
+              setCityId("");
+              setDistricts([]);
+              setCities([]);
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select State" />
             </SelectTrigger>
@@ -417,7 +426,15 @@ export default function PanchayatForm() {
 
         <div>
           <Label>District *</Label>
-          <Select value={districtId} onValueChange={setDistrictId}>
+          <Select
+            value={districtId}
+            onValueChange={(value) => {
+              setDistrictId(value);
+              setCityId("");
+              setCities([]);
+            }}
+            disabled={!stateId}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select District" />
             </SelectTrigger>
@@ -433,7 +450,7 @@ export default function PanchayatForm() {
 
         <div>
           <Label>City *</Label>
-          <Select value={cityId} onValueChange={setCityId}>
+          <Select value={cityId} onValueChange={setCityId} disabled={!districtId}>
             <SelectTrigger>
               <SelectValue placeholder="Select City" />
             </SelectTrigger>

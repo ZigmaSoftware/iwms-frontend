@@ -788,7 +788,7 @@ const enResource = {
           "hierarchy": "Hierarchy",
 
           
-          "wastetype": "Waste Type",
+          "wastetype": "Property Type",
           "property": "Property",
           "sub_property": "SubProperty",
           "assets": "Assets",
@@ -804,7 +804,7 @@ const enResource = {
           "user_type": "User Type",
           "user_creation": "User Creation",
           "staff_user_type": "Staff User Type",
-          "user_creations": "User Creations",
+          "user_creations": "Staff Creations",
           "staff_creation": "Staff Creation",
           "staff_template": "Staff Template",
           "alternative_staff_template": "Alternative Staff Template",

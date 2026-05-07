@@ -557,8 +557,10 @@ export default function CustomerCreationForm() {
   const isApartment = subName.includes("apartment");
   const isVilla = subName.includes("villa");
   const isIndustry = subName.includes("industry");
-  const zoneOrWardSelected  = Boolean(formData.zone_id || formData.ward_id);
-  const panchayatSelected   = Boolean(formData.panchayat_id);
+  // const zoneOrWardSelected  = Boolean(formData.zone_id || formData.ward_id);
+  // const panchayatSelected   = Boolean(formData.panchayat_id);
+  const isPanchayatSelected = Boolean(formData.panchayat_id);
+  const isZoneOrWardSelected = Boolean(formData.zone_id || formData.ward_id);
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
@@ -1063,44 +1065,69 @@ export default function CustomerCreationForm() {
             }))}
             placeholder={t("common.select_item_placeholder", { item: t("common.city") }) || "Select city"}
           />
+          {/* ── ZONE ── */}
           <ShadcnSelect
             label={t("common.zone") || "Zone"}
-            value={formData.zone_id}
-            disabled = {panchayatSelected}
+            value={formData.zone_id || "__none__"}
+            disabled={isPanchayatSelected}
             onChange={(v: string) => {
-              update("zone_id", v);
+              const next = v === "__none__" ? "" : v;
+              update("zone_id", next);
               update("ward_id", "");
               update("panchayat_id", "");
             }}
-            options={filteredZones.map((z: any) => ({
-              value: resolveId(z),
-              label: z.zone_name || z.name,
-            }))}
+            options={[
+              { value: "__none__", label: t("common.not_available") || "N/A" },
+              ...filteredZones.map((z: any) => ({
+                value: resolveId(z),
+                label: z.zone_name || z.name,
+              })),
+            ]}
             placeholder={t("common.select_item_placeholder", { item: t("common.zone") }) || "Select zone"}
+            isRequired={false}
           />
+
+          {/* ── WARD ── */}
           <ShadcnSelect
             label={t("common.ward") || "Ward"}
-            value={formData.ward_id}
-            disabled={panchayatSelected}
+            value={formData.ward_id || "__none__"}
+            disabled={isPanchayatSelected}
             onChange={(v: string) => {
-              update("ward_id", v);
-              update("panchayat_id", "");
+              const next = v === "__none__" ? "" : v;
+              update("ward_id", next);
+              if (next) update("panchayat_id", "");
             }}
-            options={filteredWards.map((w: any) => ({
-              value: resolveId(w),
-              label: w.ward_name || w.name,
-            }))}
+            options={[
+              { value: "__none__", label: t("common.not_available") || "N/A" },
+              ...filteredWards.map((w: any) => ({
+                value: resolveId(w),
+                label: w.ward_name || w.name,
+              })),
+            ]}
             placeholder={t("common.select_item_placeholder", { item: t("common.ward") }) || "Select ward"}
+            isRequired={false}
           />
+
+          {/* ── PANCHAYAT ── */}
           <ShadcnSelect
             label={t("admin.nav.panchayat") || "Panchayat"}
-            value={formData.panchayat_id}
-            disabled={zoneOrWardSelected}
-            onChange={(v: string) => update("panchayat_id", v)}
-            options={filteredPanchayats.map((p: any) => ({
-              value: resolveId(p),
-              label: p.panchayat_name || p.name,
-            }))}
+            value={formData.panchayat_id || "__none__"}
+            disabled={isZoneOrWardSelected}
+            onChange={(v: string) => {
+              const next = v === "__none__" ? "" : v;
+              update("panchayat_id", next);
+              if (next) {
+                update("zone_id", "");
+                update("ward_id", "");
+              }
+            }}
+            options={[
+              { value: "__none__", label: t("common.not_available") || "N/A" },
+              ...filteredPanchayats.map((p: any) => ({
+                value: resolveId(p),
+                label: p.panchayat_name || p.name,
+              })),
+            ]}
             placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") }) || "Select panchayat"}
             isRequired={false}
           />

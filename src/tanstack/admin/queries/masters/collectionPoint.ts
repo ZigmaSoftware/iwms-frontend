@@ -50,6 +50,16 @@ export type CollectionPointPayload = {
 export type CollectionPointListFilters = {
   company_id?: string | number | null;
   project_id?: string | number | null;
+  district?: string | number | null;
+  district_id?: string | number | null;
+  city?: string | number | null;
+  city_id?: string | number | null;
+  panchayat?: string | number | null;
+  panchayat_id?: string | number | null;
+  zone?: string | number | null;
+  zone_id?: string | number | null;
+  ward?: string | number | null;
+  ward_id?: string | number | null;
 };
 
 const normalizeCollectionPointId = (id: string | number) => String(id);
@@ -72,12 +82,13 @@ const updateCollectionPoint = (id: string | number, payload: CollectionPointPayl
 
 export const collectionPointQueryKeys = {
   all: ["assets", "collection point"] as const,
+  list: (filters?: CollectionPointListFilters | null) => ["assets", "collection point", filters ?? {}] as const,
   detail: (id: string | number) => ["assets", "collection point", normalizeCollectionPointId(id)] as const,
 };
 
 export function useCollectionPointsQuery(filters?: CollectionPointListFilters | null) {
   const query = enterpriseQuery<CollectionPointRecord[]>({
-    queryKey: collectionPointQueryKeys.all,
+    queryKey: collectionPointQueryKeys.list(filters),
     queryFn: () => listCollectionPoints(filters ?? undefined),
     enabled: filters !== null,
   });
@@ -87,8 +98,26 @@ export function useCollectionPointsQuery(filters?: CollectionPointListFilters | 
       JSON.stringify({
         company_id: filters?.company_id ?? "",
         project_id: filters?.project_id ?? "",
+        district: filters?.district ?? filters?.district_id ?? "",
+        city: filters?.city ?? filters?.city_id ?? "",
+        panchayat: filters?.panchayat ?? filters?.panchayat_id ?? "",
+        zone: filters?.zone ?? filters?.zone_id ?? "",
+        ward: filters?.ward ?? filters?.ward_id ?? "",
       }),
-    [filters?.company_id, filters?.project_id]
+    [
+      filters?.city,
+      filters?.city_id,
+      filters?.company_id,
+      filters?.district,
+      filters?.district_id,
+      filters?.panchayat,
+      filters?.panchayat_id,
+      filters?.project_id,
+      filters?.ward,
+      filters?.ward_id,
+      filters?.zone,
+      filters?.zone_id,
+    ]
   );
   const previousFilterSignatureRef = useRef(filterSignature);
 
