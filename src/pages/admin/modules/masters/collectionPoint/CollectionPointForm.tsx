@@ -16,6 +16,15 @@ import {
 } from "@/components/ui/select";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import type { SelectOption } from "@/types";
+import type {
+  UnknownRecord,
+  WardOption,
+  WithCityIdOption,
+  WithDistrictIdOption,
+  WithStateIdOption,
+  ZoneOption,
+} from "./types";
 import {
   useCitiesQuery,
   useCollectionPointQuery,
@@ -27,21 +36,6 @@ import {
   useWardsQuery,
   useZonesQuery,
 } from "@/tanstack/admin";
-
-type SelectOption = { value: string; label: string };
-type WithStateIdOption = SelectOption & { stateId: string };
-type WithDistrictIdOption = SelectOption & {
-  stateId: string;
-  districtId: string;
-};
-type WithCityIdOption = SelectOption & {
-  stateId: string;
-  districtId: string;
-  cityId: string;
-};
-type ZoneOption = WithCityIdOption;
-type WardOption = WithCityIdOption & { panchayatId: string; zoneId: string };
-type UnknownRecord = Record<string, unknown>;
 
 const normalizeIdValue = (value: unknown): string => {
   if (value === null || value === undefined) return "";

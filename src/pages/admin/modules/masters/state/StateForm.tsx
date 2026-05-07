@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
+import type { SelectOption } from "@/types";
+import type { CountryMeta, ErrorWithResponse, StateRecord } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import {
@@ -27,34 +29,6 @@ import {
 
 const { encMasters, encStates } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encStates}`;
-
-type SelectOption = {
-  value: string;
-  label: string;
-};
-
-type CountryMeta = {
-  id: string;
-  name: string;
-  continentId: string | null;
-  isActive: boolean;
-};
-
-type StateRecord = {
-  name: string;
-  label: string;
-  is_active: boolean;
-  country_id: string | number;
-  continent_id: string | number;
-};
-
-
-type ErrorWithResponse = {
-  response?: {
-    data?: unknown;
-  };
-};
-
 
 const normalizeNullableId = (
   value: string | number | null | undefined

@@ -234,6 +234,7 @@ import { adminApi } from "@/helpers/admin/registry";
 import { useZonePropertyLoadTrackerList, useDeleteZonePropertyLoadTracker } from "@/tanstack/admin/queries/masters/zonePropertyLoadTracker";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { normalizeList } from "@/utils/forms";
 
 export type ZonePropertyLoadTrackerApiRecord = {
   unique_id: string;
@@ -275,24 +276,6 @@ type TableFilters = {
   "property_details.property_name": { value: string | null; matchMode: FilterMatchMode };
   "sub_property_details.sub_property_name": { value: string | null; matchMode: FilterMatchMode };
   current_weight_kg: { value: string | null; matchMode: FilterMatchMode };
-};
-
-const normalizeList = (payload: unknown): ZonePropertyLoadTrackerApiRecord[] => {
-  if (Array.isArray(payload)) {
-    return payload as ZonePropertyLoadTrackerApiRecord[];
-  }
-
-  if (payload && typeof payload === "object") {
-    const maybePayload = payload as { data?: unknown; results?: unknown };
-    if (Array.isArray(maybePayload.data)) {
-      return maybePayload.data as ZonePropertyLoadTrackerApiRecord[];
-    }
-    if (Array.isArray(maybePayload.results)) {
-      return maybePayload.results as ZonePropertyLoadTrackerApiRecord[];
-    }
-  }
-
-  return [];
 };
 
 const normalizeId = (value: unknown): string =>

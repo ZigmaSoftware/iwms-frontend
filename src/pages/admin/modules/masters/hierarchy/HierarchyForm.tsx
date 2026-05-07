@@ -22,17 +22,10 @@ import {
   useUpdateHierarchyMutation,
   useAreaTypesQuery,
 } from "@/tanstack/admin";
+import type { ApiError } from "./types";
 
 const { encMasters, encHierarchies } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encHierarchies}`;
-
-type ApiError = {
-  response?: {
-    data?: {
-      detail?: string;
-    };
-  };
-};
 
 export default function HierarchyForm() {
   const { t } = useTranslation();

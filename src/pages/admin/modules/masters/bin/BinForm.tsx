@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
+import type { SelectOption } from "@/types";
 
 import { wasteTypeApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
@@ -28,23 +29,11 @@ import {
   useWardsQuery,
   useZonesQuery,
 } from "@/tanstack/admin";
+import type { BinRecord, CityOption, CollectionPointOption, LocationOption, WardOption } from "./types";
 
 const encMasters = encryptSegment("masters");
 const encBins = encryptSegment("bins");
 const LIST_PATH = `/${encMasters}/${encBins}`;
-
-type SelectOption = { value: string; label: string };
-type CollectionPointOption = SelectOption & {
-  districtId: string;
-  cityId: string;
-  panchayatId: string;
-  wardId: string;
-};
-type CityOption = SelectOption & { districtId: string };
-type LocationOption = SelectOption & { districtId: string; cityId: string };
-type WardOption = LocationOption & { panchayatId: string; zoneId: string };
-
-type BinRecord = Record<string, unknown>;
 
 const toRecordList = (value: unknown): Record<string, unknown>[] => {
   if (Array.isArray(value)) {

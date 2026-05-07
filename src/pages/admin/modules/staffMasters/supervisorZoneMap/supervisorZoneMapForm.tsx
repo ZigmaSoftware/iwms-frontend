@@ -18,6 +18,7 @@ import {
   useUpdateSupervisorZoneMap,
 } from "@/tanstack/admin/queries/masters/supervisorZoneMap";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { normalizeList } from "@/utils/forms";
 
 /* ─────────────────────────── types ──────────────────────────────────────── */
 
@@ -71,13 +72,6 @@ type StaffRecord = {
 };
 
 /* ─────────────────────────── helpers ────────────────────────────────────── */
-
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.data)
-      ? payload.data
-      : payload?.results ?? [];
 
 const normalizeId = (v: unknown) =>
   v !== undefined && v !== null ? String(v) : "";

@@ -11,6 +11,7 @@ import { FilterMatchMode } from "primereact/api";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { normalizeList } from "@/utils/forms";
 
 type SupervisorZoneAccessAuditRecord = {
   unique_id: string;
@@ -33,8 +34,6 @@ type TableFilters = {
   old_zone_ids?: { value: string | null; matchMode: FilterMatchMode };
   new_zone_ids?: { value: string | null; matchMode: FilterMatchMode };
 };
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
 
 const buildLookup = (items: any[], key: string, label: string) =>
   items.reduce<Record<string, string>>((acc, item) => {

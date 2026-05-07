@@ -20,23 +20,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useWardsQuery, useUpdateWardMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-
-type WardRecord = {
-  unique_id: string;
-  ward_name: string;
-  is_active: boolean;
-  zone_name: string;
-  city_name: string;
-  district_name: string;
-  state_name: string;
-  country_name: string;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
-};
+import type { WardListRecord } from "./types";
 
 type ErrorWithResponse = {
   response?: {
@@ -106,7 +90,7 @@ export default function WardList() {
     Swal.fire({ icon: "error", title: t("common.error"), text: String((wardsQuery.error as any)?.response?.data ?? wardsQuery.error) });
   }, [wardsQuery.error, wardsQuery.isError, t]);
 
-  const wards = ((): WardRecord[] => {
+  const wards = ((): WardListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
@@ -121,7 +105,7 @@ export default function WardList() {
       return companyMatches && projectMatches;
     });
 
-    return filtered as WardRecord[];
+    return filtered as WardListRecord[];
   })();
 
   const onFilter = (e: DataTableFilterEvent) => {
@@ -165,7 +149,7 @@ export default function WardList() {
   // ===========================
   //   Toggle Status
   // ===========================
-  const updateStatus = async (row: WardRecord, checked: boolean) => {
+  const updateStatus = async (row: WardListRecord, checked: boolean) => {
     const id = String(row.unique_id);
 
     setPendingStatusId(id);
@@ -183,7 +167,7 @@ export default function WardList() {
     }
   };
 
-  const statusTemplate = (row: WardRecord) => (
+  const statusTemplate = (row: WardListRecord) => (
     <Switch
       checked={row.is_active}
       disabled={updateWardMutation.isPending && pendingStatusId === String(row.unique_id)}
@@ -196,7 +180,7 @@ export default function WardList() {
   // ===========================
   //   Actions
   // ===========================
-  const actionTemplate = (row: WardRecord) => (
+  const actionTemplate = (row: WardListRecord) => (
     <div className="flex gap-3 justify-center">
       <button
         onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
@@ -214,7 +198,7 @@ export default function WardList() {
     </div>
   );
 
-  const indexTemplate = (_: WardRecord, { rowIndex }: { rowIndex: number }) =>
+  const indexTemplate = (_: WardListRecord, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
   // ===========================

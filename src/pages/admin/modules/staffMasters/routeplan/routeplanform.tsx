@@ -11,6 +11,7 @@ import Select, { type SelectOption } from "@/components/form/Select";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
+import { normalizeList } from "@/utils/forms";
 import {
   useCreateRoutePlanMutation,
   useRoutePlanQuery,
@@ -68,9 +69,6 @@ export default function RoutePlanForm() {
   const routePlanQuery = useRoutePlanQuery(id);
   const createMutation = useCreateRoutePlanMutation();
   const updateMutation = useUpdateRoutePlanMutation();
-
-  const normalizeList = (payload: any): any[] =>
-    Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
 
   const toOptions = (items: any[], valueKey: string, labelKey: string): SelectOption[] =>
     items
