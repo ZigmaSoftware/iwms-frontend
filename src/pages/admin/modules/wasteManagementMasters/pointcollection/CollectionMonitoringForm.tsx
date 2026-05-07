@@ -18,35 +18,8 @@ import { binApi, cityApi, collectionPointApi, districtApi, panchayatApi, wasteTy
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
-
-type SelectOption = {
-  value: string;
-  label: string;
-};
-type BinOption = SelectOption & {
-  districtId: string;
-  cityId: string;
-  panchayatId: string;
-  wardId: string;
-  collectionPointId: string;
-};
-type CollectionPointOption = SelectOption & {
-  districtId: string;
-  cityId: string;
-  panchayatId: string;
-  wardId: string;
-};
-type CityOption = SelectOption & {
-  districtId: string;
-};
-type LocationOption = SelectOption & {
-  districtId: string;
-  cityId: string;
-};
-type WardOption = LocationOption & {
-  panchayatId: string;
-  zoneId: string;
-};
+import type { SelectOption } from "@/types";
+import type { BinOption, CityOption, CollectionPointOption, LocationOption, WardOption } from "./types";
 
 const ShadcnSelect = ({
   label,

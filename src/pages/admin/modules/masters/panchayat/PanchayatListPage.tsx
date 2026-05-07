@@ -14,21 +14,7 @@ import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { usePanchayatsQuery, useUpdatePanchayatMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-
-type PanchayatRecord = {
-  unique_id: string;
-  panchayat_name: string;
-  state_name?: string;
-  district_name?: string;
-  city_name?: string;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
-  is_active: boolean;
-};
+import type { PanchayatListRecord } from "./types";
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -81,7 +67,7 @@ export default function PanchayatListPage() {
     }
   }, [panchayatsQuery.error, panchayatsQuery.isError, t]);
 
-  const data = ((): PanchayatRecord[] => {
+  const data = ((): PanchayatListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
@@ -96,7 +82,7 @@ export default function PanchayatListPage() {
       return companyMatches && projectMatches;
     });
 
-    return filtered as PanchayatRecord[];
+    return filtered as PanchayatListRecord[];
   })();
 
   const onFilter = (e: DataTableFilterEvent) => {
@@ -131,7 +117,7 @@ export default function PanchayatListPage() {
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
-  const actionTemplate = (row: PanchayatRecord) => (
+  const actionTemplate = (row: PanchayatListRecord) => (
     <div className="flex gap-3 justify-center">
       <button
         title={t("common.edit")}
@@ -143,7 +129,7 @@ export default function PanchayatListPage() {
     </div>
   );
 
-  const statusTemplate = (row: PanchayatRecord) => {
+  const statusTemplate = (row: PanchayatListRecord) => {
     const updateStatus = async (value: boolean) => {
       const id = String(row.unique_id);
       setPendingStatusId(id);
@@ -167,7 +153,7 @@ export default function PanchayatListPage() {
   };
 
   const indexTemplate = (
-    _: PanchayatRecord,
+    _: PanchayatListRecord,
     { rowIndex }: { rowIndex: number }
   ) => rowIndex + 1;
 
@@ -265,7 +251,7 @@ export default function PanchayatListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(row: PanchayatRecord) => cap(row.panchayat_name)}
+          body={(row: PanchayatListRecord) => cap(row.panchayat_name)}
         />
         <Column
           field="state_name"
@@ -273,7 +259,7 @@ export default function PanchayatListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(row: PanchayatRecord) => cap(row.state_name)}
+          body={(row: PanchayatListRecord) => cap(row.state_name)}
         />
         <Column
           field="district_name"
@@ -281,7 +267,7 @@ export default function PanchayatListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(row: PanchayatRecord) => cap(row.district_name)}
+          body={(row: PanchayatListRecord) => cap(row.district_name)}
         />
         <Column
           field="city_name"
@@ -289,7 +275,7 @@ export default function PanchayatListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(row: PanchayatRecord) => cap(row.city_name)}
+          body={(row: PanchayatListRecord) => cap(row.city_name)}
         />
         <Column
           header={t("common.status")}

@@ -19,6 +19,7 @@ import {
   useUpdateVehicleTripAuditMutation,
 } from "@/tanstack/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { normalizeList } from "@/utils/forms";
 
 const tripInstanceQueryKey = ["masters", "trip_instances"] as const;
 const vehicleCreationQueryKey = ["masters", "vehicle_creations"] as const;
@@ -54,13 +55,6 @@ type VehicleTripAuditEditorProps = {
   onCancel: () => void;
   onSubmit: (e: FormEvent) => Promise<void>;
 };
-
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.data)
-      ? payload.data
-      : payload?.results ?? [];
 
 const toOptions = (
   items: any[],

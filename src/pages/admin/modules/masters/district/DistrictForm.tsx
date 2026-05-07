@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
+import type { SelectOption } from "@/types";
+import type { CountryMeta, DistrictFormRecord, StateMeta } from "./types";
 
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
@@ -26,30 +28,6 @@ import {
   useUpdateDistrictMutation,
 } from "@/tanstack/admin";
 
-
-type SelectOption = { value: string; label: string };
-
-type CountryMeta = {
-  id: string;
-  name: string;
-  continentId: string | null;
-  isActive: boolean;
-};
-
-type StateMeta = {
-  id: string;
-  name: string;
-  countryId: string | null;
-  isActive: boolean;
-};
-
-type DistrictRecord = {
-  name?: string;
-  is_active?: boolean;
-  continent_id?: string | number | null;
-  country_id?: string | number | null;
-  state_id?: string | number | null;
-};
 
 const { encMasters, encDistricts } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encDistricts}`;
@@ -198,7 +176,7 @@ export default function DistrictForm() {
 
   useEffect(() => {
     if (!districtQuery.data) return;
-    const data = districtQuery.data;
+    const data = districtQuery.data as DistrictFormRecord;
 
     setDistrictName(data.name ?? "");
     setIsActive(Boolean(data.is_active));

@@ -18,18 +18,7 @@ import {
   useWasteTypesQuery,
   useUpdateWasteTypeMutation,
 } from "@/tanstack/admin";
-
-type WasteTypeRecord = {
-  unique_id: string;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
-  waste_type_name?: string;
-  is_active: boolean;
-};
+import type { WasteTypeListRecord } from "./types";
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -79,11 +68,11 @@ export default function WasteTypeListPage() {
   const updateWasteTypeMutation = useUpdateWasteTypeMutation();
 
   const rows = (() => {
-    if (isSuperAdmin && companies.length === 0) return [] as WasteTypeRecord[];
-    if (!companyUniqueId) return [] as WasteTypeRecord[];
+    if (isSuperAdmin && companies.length === 0) return [] as WasteTypeListRecord[];
+    if (!companyUniqueId) return [] as WasteTypeListRecord[];
 
     const list = Array.isArray(wasteTypesQuery.data)
-      ? (wasteTypesQuery.data as WasteTypeRecord[])
+      ? (wasteTypesQuery.data as WasteTypeListRecord[])
       : [];
     return list.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
@@ -127,11 +116,11 @@ export default function WasteTypeListPage() {
   );
 
   const indexTemplate = (
-    _: WasteTypeRecord,
+    _: WasteTypeListRecord,
     { rowIndex }: { rowIndex: number },
   ) => rowIndex + 1;
 
-  const actionTemplate = (row: WasteTypeRecord) => (
+  const actionTemplate = (row: WasteTypeListRecord) => (
     <div className="flex gap-3 justify-center">
       <button
         onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
@@ -143,7 +132,7 @@ export default function WasteTypeListPage() {
     </div>
   );
 
-  const statusTemplate = (row: WasteTypeRecord) => {
+  const statusTemplate = (row: WasteTypeListRecord) => {
     const updateStatus = async (value: boolean) => {
       try {
         await updateWasteTypeMutation.mutateAsync({
@@ -255,7 +244,7 @@ export default function WasteTypeListPage() {
           field="unique_id"
           header="Unique ID"
           sortable
-          body={(row: WasteTypeRecord) => toDisplay(row.unique_id)}
+          body={(row: WasteTypeListRecord) => toDisplay(row.unique_id)}
         /> */}
         <Column
           field="waste_type_name"
@@ -263,7 +252,7 @@ export default function WasteTypeListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(row: WasteTypeRecord) => cap(row.waste_type_name)}
+          body={(row: WasteTypeListRecord) => cap(row.waste_type_name)}
         />
         <Column
           field="company_name"
@@ -271,7 +260,7 @@ export default function WasteTypeListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(row: WasteTypeRecord) => cap(row.company_name)}
+          body={(row: WasteTypeListRecord) => cap(row.company_name)}
         />
         <Column
           field="project_name"
@@ -279,7 +268,7 @@ export default function WasteTypeListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(row: WasteTypeRecord) => cap(row.project_name)}
+          body={(row: WasteTypeListRecord) => cap(row.project_name)}
         />
         <Column
           header={t("common.status")}

@@ -12,6 +12,7 @@ import { FilterMatchMode } from "primereact/api";
 import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { normalizeList } from "@/utils/forms";
 
 type HouseholdPickupEventRecord = {
   id: number;
@@ -26,9 +27,6 @@ type HouseholdPickupEventRecord = {
   source: string;
   created_at?: string | null;
 };
-
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
 
 const buildLookup = (items: any[], key: string, label: string) =>
   items.reduce<Record<string, string>>((acc, item) => {

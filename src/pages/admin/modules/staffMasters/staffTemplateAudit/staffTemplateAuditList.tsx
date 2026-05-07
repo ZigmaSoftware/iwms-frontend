@@ -11,6 +11,7 @@ import { FilterMatchMode } from "primereact/api";
 
 import { staffTemplateAuditLogApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { normalizeList } from "@/utils/forms";
 
 type StaffTemplateAuditRecord = {
   id: number;
@@ -32,13 +33,6 @@ type TableFilters = {
   performed_by?: { value: string | null; matchMode: FilterMatchMode };
   performed_role?: { value: string | null; matchMode: FilterMatchMode };
   change_remarks?: { value: string | null; matchMode: FilterMatchMode };
-};
-
-const normalizeList = (payload: any): StaffTemplateAuditRecord[] => {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.results)) return payload.results;
-  return [];
 };
 
 export default function StaffTemplateAuditList() {
@@ -71,7 +65,7 @@ export default function StaffTemplateAuditList() {
     setLoading(true);
     try {
       const payload: any = await staffTemplateAuditLogApi.list();
-      setRecords(normalizeList(payload));
+      setRecords(normalizeList<StaffTemplateAuditRecord>(payload));
     } catch {
       Swal.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {

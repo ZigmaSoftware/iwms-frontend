@@ -14,34 +14,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Swal from "sweetalert2";
 import { vehicleCreationApi } from "@/helpers/admin";
-
-type VehicleStatus = "active" | "maintenance" | "inactive";
-
-type VehicleCard = {
-  vehicleId: string;
-  registration: string;
-  type: string;
-  capacity: string;
-  status: VehicleStatus;
-  driver: string;
-  zone: string;
-  lastMaintenance: string;
-  fuelEfficiency: string;
-};
-
-const normalizeList = (payload: any) => {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.results)) return payload.results;
-  return [];
-};
-
-const formatDate = (value?: string | null) => {
-  if (!value) return "-";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return String(value);
-  return parsed.toISOString().split("T")[0];
-};
+import { formatIsoDate } from "@/utils/forms";
+import type { VehicleCard, VehicleCreationRecord, VehicleStatus } from "./types/Vehicle/types";
 
 const resolveStatus = (raw: any, lastMaintenance: string): VehicleStatus => {
   const isInactive =
@@ -49,30 +23,6 @@ const resolveStatus = (raw: any, lastMaintenance: string): VehicleStatus => {
   if (isInactive) return "inactive";
   if (!lastMaintenance || lastMaintenance === "-") return "maintenance";
   return "active";
-};
-
-type VehicleCreationRecord = {
-  unique_id: string;
-  vehicle_no: string;
-  vehicle_type_id?: string | null;
-  fuel_type_id?: string | null;
-  vehicle_type_name?: string | null;
-  fuel_type_name?: string | null;
-  capacity?: string | null;
-  mileage_per_liter?: string | null;
-  service_record?: string | null;
-  vehicle_insurance?: string | null;
-  insurance_expiry_date?: string | null;
-  vehicle_condition?: "NEW" | "SECOND_HAND" | string | null;
-  fuel_tank_capacity?: string | null;
-  rc_upload?: string | null;
-  vehicle_insurance_file?: string | null;
-  is_active: boolean;
-  driver_name?: string | null;
-  driver_mobile?: string | null;
-  driver_no?: string | null;
-  zone?: string | null;
-  zone_name?: string | null;
 };
 
 
@@ -116,7 +66,7 @@ export default function Vehicle() {
   const mapRecordToVehicleCard = (record: VehicleCreationRecord): VehicleCard => {
     const notAvailable = t("common.not_available");
     const registration = record.vehicle_no ?? notAvailable;
-    const lastMaintenance = formatDate(
+    const lastMaintenance = formatIsoDate(
       record.service_record ?? record.insurance_expiry_date,
     );
     const resolvedZone =

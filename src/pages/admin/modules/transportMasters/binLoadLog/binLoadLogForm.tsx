@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { normalizeList } from "@/utils/forms";
 
 type SelectOption = { value: string; label: string };
 
@@ -29,9 +30,6 @@ const sourceTypeOptions: SelectOption[] = [
   { value: "SENSOR", label: "Sensor" },
   { value: "MANUAL", label: "Manual" },
 ];
-
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
 
 const toOptions = (items: any[], valueKey: string, labelKey: string): SelectOption[] =>
   items

@@ -13,20 +13,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useDistrictsQuery, useUpdateDistrictMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-
-type DistrictRecord = {
-  unique_id: string;
-  countryName: string;
-  stateName: string;
-  name: string;
-  is_active: boolean;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
-};
+import type { DistrictListRecord } from "./types";
 
 type ErrorWithResponse = {
   response?: { data?: unknown };
@@ -86,12 +73,12 @@ export default function DistrictListPage() {
     Swal.fire({ icon: "error", title: t("common.error"), text: String((districtsQuery.error as any)?.response?.data ?? districtsQuery.error) });
   }, [districtsQuery.error, districtsQuery.isError, t]);
 
-  const districts = ((): DistrictRecord[] => {
+  const districts = ((): DistrictListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
     const rows = Array.isArray(allDistricts) ? (allDistricts as any[]) : [];
-    const mapped: DistrictRecord[] = rows.map((d) => ({
+    const mapped: DistrictListRecord[] = rows.map((d) => ({
       unique_id: String(d.unique_id ?? ""),
       countryName: String(d.country_name ?? ""),
       stateName: String(d.state_name ?? ""),
@@ -160,7 +147,7 @@ export default function DistrictListPage() {
     />
   );
 
-  const updateStatus = async (row: DistrictRecord, checked: boolean) => {
+  const updateStatus = async (row: DistrictListRecord, checked: boolean) => {
     const id = String(row.unique_id);
     setPendingStatusId(id);
 
@@ -173,12 +160,12 @@ export default function DistrictListPage() {
     }
   };
 
-  const statusTemplate = (row: DistrictRecord) => (
+  const statusTemplate = (row: DistrictListRecord) => (
     <Switch checked={row.is_active} disabled={updateDistrictMutation.isPending && pendingStatusId === String(row.unique_id)} onCheckedChange={(checked) => void updateStatus(row, checked)} />
   );
   
 
-  const actionTemplate = (row: DistrictRecord) => (
+  const actionTemplate = (row: DistrictListRecord) => (
     <div className="flex gap-3 justify-center">
       <button
         onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
@@ -189,7 +176,7 @@ export default function DistrictListPage() {
     </div>
   );
 
-  const indexTemplate = (_: DistrictRecord, { rowIndex }: { rowIndex: number }) =>
+  const indexTemplate = (_: DistrictListRecord, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
   return (

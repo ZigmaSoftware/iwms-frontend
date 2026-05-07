@@ -29,15 +29,8 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { usePanchayatQuery, useCreatePanchayatMutation, useUpdatePanchayatMutation, useAreaTypesQuery, useHierarchiesQuery } from "@/tanstack/admin";
 import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
 import { USER_ROLE_STORAGE_KEY, normalizeRole } from "@/types/roles";
-
-type Option = { value: string; label: string };
-type LoginProfile = {
-  role?: string;
-  company_name?: string;
-  company?: {
-    name?: string;
-  };
-};
+import type { SelectOption } from "@/types";
+import type { LoginProfile } from "./types";
 
 const toStringId = (value: unknown): string => {
   if (value === null || value === undefined) return "";
@@ -79,13 +72,13 @@ export default function PanchayatForm() {
   const [geofencingType, setGeofencingType] = useState("polygon");
   const [isActive, setIsActive] = useState(true);
 
-  const [apiCompanies, setApiCompanies] = useState<Option[]>([]);
-  const [projects, setProjects] = useState<Option[]>([]);
-  const [states, setStates] = useState<Option[]>([]);
-  const [districts, setDistricts] = useState<Option[]>([]);
-  const [cities, setCities] = useState<Option[]>([]);
-  const [areaTypes, setAreaTypes] = useState<Option[]>([]);
-  const [hierarchies, setHierarchies] = useState<Option[]>([]);
+  const [apiCompanies, setApiCompanies] = useState<SelectOption[]>([]);
+  const [projects, setProjects] = useState<SelectOption[]>([]);
+  const [states, setStates] = useState<SelectOption[]>([]);
+  const [districts, setDistricts] = useState<SelectOption[]>([]);
+  const [cities, setCities] = useState<SelectOption[]>([]);
+  const [areaTypes, setAreaTypes] = useState<SelectOption[]>([]);
+  const [hierarchies, setHierarchies] = useState<SelectOption[]>([]);
 
   const profile = useMemo(() => readLoginProfile(), []);
   const loggedInCompanyUniqueId = useMemo(() => getCurrentCompanyUniqueId(), []);
@@ -110,7 +103,7 @@ export default function PanchayatForm() {
 
     return directName || nestedName || loggedInCompanyUniqueId || "";
   }, [profile, loggedInCompanyUniqueId]);
-  const companies = useMemo<Option[]>(() => {
+  const companies = useMemo<SelectOption[]>(() => {
     if (loggedInCompanyUniqueId) {
       return [
         {
@@ -176,7 +169,7 @@ export default function PanchayatForm() {
     companyApi
       .list()
       .then((res: any) => {
-        const options: Option[] = res.map((x: any) => ({
+        const options: SelectOption[] = res.map((x: any) => ({
           value: toStringId(x.unique_id),
           label: x.name,
         }));
@@ -197,7 +190,7 @@ export default function PanchayatForm() {
       .list({ params: { company_unique_id: companyUniqueId } })
       .then((res: any) => {
         const list = Array.isArray(res) ? res : (res?.results ?? []);
-        const options: Option[] = list.map((x: any) => ({
+        const options: SelectOption[] = list.map((x: any) => ({
           value: x.unique_id,
           label: x.name,
         }));

@@ -25,19 +25,11 @@ import {
 } from "@/tanstack/admin/queries/wastetype/subProperty";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { usePropertiesQuery } from "@/tanstack/admin/queries/wastetype/property";
+import type { SubPropertyEditorProps } from "./types";
 
 const { encMasters, encSubProperties } = getEncryptedRoute();
 
 const ENC_LIST_PATH = `/${encMasters}/${encSubProperties}`;
-
-type SubPropertyEditorProps = {
-  initialPayload: SubPropertyPayload;
-  properties: Array<{ unique_id: string | number; property_name: string; is_active: boolean }>;
-  isEdit: boolean;
-  isSubmitting: boolean;
-  onCancel: () => void;
-  onSubmit: (payload: SubPropertyPayload) => Promise<void>;
-};
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;

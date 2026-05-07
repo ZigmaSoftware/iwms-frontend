@@ -14,18 +14,11 @@ import {
   type PropertyPayload,
 } from "@/tanstack/admin/queries/wastetype/property";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import type { PropertyEditorProps } from "./types";
 
 const { encMasters, encProperties } = getEncryptedRoute();
 
 const ENC_LIST_PATH = `/${encMasters}/${encProperties}`;
-
-type PropertyEditorProps = {
-  initialPayload: PropertyPayload;
-  isEdit: boolean;
-  isSubmitting: boolean;
-  onCancel: () => void;
-  onSubmit: (payload: PropertyPayload) => Promise<void>;
-};
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;

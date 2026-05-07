@@ -20,24 +20,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useZonesQuery, useUpdateZoneMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-
-// ===========================
-//   Types
-// ===========================
-type ZoneRecord = {
-  unique_id: string;
-  zone_name: string;
-  city_name: string;
-  district_name: string;
-  state_name: string;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
-  is_active: boolean;
-};
+import type { ZoneListRecord } from "./types";
 
 type ErrorWithResponse = {
   response?: {
@@ -109,7 +92,7 @@ export default function ZoneList() {
     Swal.fire({ icon: "error", title: t("common.error"), text: String((zonesQuery.error as any)?.response?.data ?? zonesQuery.error) });
   }, [zonesQuery.error, zonesQuery.isError, t]);
 
-  const zones = ((): ZoneRecord[] => {
+  const zones = ((): ZoneListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
@@ -122,7 +105,7 @@ export default function ZoneList() {
       return companyMatches && projectMatches;
     });
 
-    return filtered as ZoneRecord[];
+    return filtered as ZoneListRecord[];
   })();
 
   const onFilter = (e: DataTableFilterEvent) => {
@@ -168,7 +151,7 @@ export default function ZoneList() {
   // ===========================
   //   Toggle Status
   // ===========================
-  const updateStatus = async (row: ZoneRecord, checked: boolean) => {
+  const updateStatus = async (row: ZoneListRecord, checked: boolean) => {
     const id = String(row.unique_id);
     setPendingStatusId(id);
 
@@ -181,14 +164,14 @@ export default function ZoneList() {
     }
   };
 
-  const statusTemplate = (row: ZoneRecord) => (
+  const statusTemplate = (row: ZoneListRecord) => (
     <Switch checked={row.is_active} disabled={updateZoneMutation.isPending && pendingStatusId === String(row.unique_id)} onCheckedChange={(checked) => void updateStatus(row, checked)} />
   );
 
   // ===========================
   //   Actions
   // ===========================
-  const actionTemplate = (row: ZoneRecord) => (
+  const actionTemplate = (row: ZoneListRecord) => (
     <div className="flex gap-3 justify-center">
       <button
         onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
@@ -206,7 +189,7 @@ export default function ZoneList() {
     </div>
   );
 
-  const indexTemplate = (_: ZoneRecord, { rowIndex }: { rowIndex: number }) =>
+  const indexTemplate = (_: ZoneListRecord, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
   // ===========================

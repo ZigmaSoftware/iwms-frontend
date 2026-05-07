@@ -18,6 +18,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import type { SelectOption } from "@/types";
+import type { CityMeta, CountryMeta, DistrictMeta, StateMeta, WardRecord, ZoneMeta } from "./types";
 import {
   useContinentsQuery,
   useCountriesQuery,
@@ -34,63 +36,6 @@ import {
 /* ------------------------------
     TYPES
 ------------------------------ */
-type SelectOption = { value: string; label: string };
-
-type CountryMeta = {
-  id: string;
-  name: string;
-  continentId: string | null;
-  isActive: boolean;
-};
-
-type StateMeta = {
-  id: string;
-  name: string;
-  countryId: string | null;
-  isActive: boolean;
-};
-
-type DistrictMeta = {
-  id: string;
-  name: string;
-  stateId: string | null;
-  isActive: boolean;
-};
-
-type CityMeta = {
-  id: string;
-  name: string;
-  districtId: string | null;
-  isActive: boolean;
-};
-
-type ZoneMeta = {
-  id: string;
-  name: string;
-  cityId: string | null;
-  isActive: boolean;
-};
-
-type WardRecord = {
-  name?: string;
-  is_active?: boolean;
-  description?: string;
-
-  continent_id?: string | number | null;
-  country_id?: string | number | null;
-  state_id?: string | number | null;
-  district_id?: string | number | null;
-  city_id?: string | number | null;
-  zone_id?: string | number | null;
-
-  continent?: string | number | null;
-  country?: string | number | null;
-  state?: string | number | null;
-  district?: string | number | null;
-  city?: string | number | null;
-  zone?: string | number | null;
-};
-
 /* ------------------------------
   UTILITIES
 ------------------------------ */

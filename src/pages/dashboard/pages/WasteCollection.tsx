@@ -59,68 +59,16 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-
-// ---------------------- API Types ----------------------
-type ApiWasteRow = {
-  date?: string;
-  dry_weight?: number;
-  wet_weight?: number;
-  mix_weight?: number;
-  total_net_weight?: number;
-  no_of_household?: number;
-};
-
-type VehicleCollectionSummary = {
-  vehicle: string;
-  trips: number;
-  wet: number;
-  dry: number;
-  mixed: number;
-  total: number;
-};
-
-type VehicleDialogRange = {
-  fromDate: string;
-  toDate: string;
-  label: string;
-  zone?: string | null;
-};
-
-type MonthlyVehicleDialogRange = {
-  fromDate: string;
-  toDate: string;
-  label: string;
-  monthKey: string;
-};
-
-type MonthlyDailyDialogRange = {
-  fromDate: string;
-  toDate: string;
-  label: string;
-  monthKey: string;
-};
-
-type DailyRow = {
-  date: string;
-  zone: string;
-  wet: number;
-  dry: number;
-  mix: number;
-  total: number;
-  target: number;
-  households: number;
-};
-
-type MonthlyStat = {
-  monthKey: string;
-  wet: number;
-  dry: number;
-  mix: number;
-  total: number;
-  avgDaily: number;
-};
-
-type MonthlyFilterMode = "all" | "selected";
+import type {
+  ApiWasteRow,
+  DailyRow,
+  MonthlyDailyDialogRange,
+  MonthlyFilterMode,
+  MonthlyStat,
+  MonthlyVehicleDialogRange,
+  VehicleCollectionSummary,
+  VehicleDialogRange,
+} from "./WasteCollection/types";
 
 // ---------------------- Fallback Samples ----------------------
 const getLocalDateKey = (date = new Date()) =>

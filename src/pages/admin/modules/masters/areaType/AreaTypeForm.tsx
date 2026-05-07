@@ -15,6 +15,8 @@ import {
 import ComponentCard from "@/components/common/ComponentCard";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import type { SelectOption } from "@/types";
+import type { AreaTypeRecord, CityMeta, DistrictMeta, StateMeta } from "./types";
 import {
   type AreaTypePayload,
   useAreaTypeQuery,
@@ -27,40 +29,6 @@ import {
 
 const { encMasters, encAreaTypes } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encAreaTypes}`;
-
-type SelectOption = { value: string; label: string };
-
-type StateMeta = {
-  id: string;
-  name: string;
-  isActive: boolean;
-};
-
-type DistrictMeta = {
-  id: string;
-  name: string;
-  stateId: string | null;
-  isActive: boolean;
-};
-
-type CityMeta = {
-  id: string;
-  name: string;
-  districtId: string | null;
-  isActive: boolean;
-};
-
-type AreaTypeRecord = {
-  name?: string;
-  area_type_name?: string;
-  is_active?: boolean;
-  company_unique_id?: string | number | null;
-  company_id?: string | number | null;
-  project_id?: string | number | null;
-  state_id?: string | number | null;
-  district_id?: string | number | null;
-  city_id?: string | number | null;
-};
 
 const normalizeNullable = (v: unknown): string | null => {
   if (v === undefined || v === null) return null;
@@ -596,4 +564,3 @@ export default function AreaTypeForm() {
     </ComponentCard>
   );
 }
-

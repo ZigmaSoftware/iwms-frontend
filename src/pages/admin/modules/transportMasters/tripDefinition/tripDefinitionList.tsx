@@ -15,6 +15,7 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { normalizeList } from "@/utils/forms";
 import {
   useTripDefinitionsQuery,
   useUpdateTripDefinitionMutation,
@@ -62,13 +63,6 @@ type TableFilters = {
 };
 
 // ─── Helpers (unchanged from original) ───────────────────────────────────────
-
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.data)
-      ? payload.data
-      : payload?.results ?? [];
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();

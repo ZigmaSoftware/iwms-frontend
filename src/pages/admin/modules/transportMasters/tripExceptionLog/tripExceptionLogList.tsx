@@ -13,6 +13,7 @@ import { FilterMatchMode } from "primereact/api";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { normalizeList } from "@/utils/forms";
 
 type TripExceptionLogRecord = {
   id: number;
@@ -36,9 +37,6 @@ type TableFilters = {
   detected_by?: { value: string | null; matchMode: FilterMatchMode };
   remarks?: { value: string | null; matchMode: FilterMatchMode };
 };
-
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();

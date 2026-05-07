@@ -15,6 +15,7 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { api } from "@/api";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { normalizeList } from "@/utils/forms";
 
 type TripAttendanceRecord = {
   id: number;
@@ -43,9 +44,6 @@ type  TableFilters = {
   source?: { value: string | null; matchMode: FilterMatchMode };
   attendance_time?: { value: string | null; matchMode: FilterMatchMode };
 };
-
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();

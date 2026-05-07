@@ -25,7 +25,6 @@ import {
   CheckCircle2,
   Sparkles,
   ShieldAlert,
-  type LucideIcon,
 } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,22 +35,7 @@ import type { Grievance } from "@/features/grievances/types";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
-
-type SummaryFilter = "none" | "priority_high" | "in_progress";
-type SummaryTab = "all" | "new" | "open" | "resolved";
-
-type SummaryCard = {
-  label: string;
-  value: number;
-  subtext: string;
-  gradient: string;
-  border: string;
-  iconColor: string;
-  iconBg: string;
-  Icon: LucideIcon;
-  tab: SummaryTab;
-  filter: SummaryFilter;
-};
+import type { SummaryCard, SummaryFilter, SummaryTab } from "./types/Grievances/types";
 
 export default function Grievances() {
   const { t, i18n } = useTranslation();

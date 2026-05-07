@@ -22,18 +22,11 @@ import {
   useUpdateContinentMutation,
 } from "@/tanstack/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import type { ContinentEditorProps } from "./types";
 
 const { encMasters, encContinents } = getEncryptedRoute();
 
 const ENC_LIST_PATH = `/${encMasters}/${encContinents}`;
-
-type ContinentEditorProps = {
-  initialPayload: ContinentPayload;
-  isEdit: boolean;
-  isSubmitting: boolean;
-  onCancel: () => void;
-  onSubmit: (payload: ContinentPayload) => Promise<void>;
-};
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;

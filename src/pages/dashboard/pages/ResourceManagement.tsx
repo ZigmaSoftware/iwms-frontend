@@ -9,35 +9,8 @@ import { useEffect, useMemo, useState } from "react";
 import { staffCreationApi } from "@/helpers/admin";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-
-const normalizeList = (payload: any) => {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.results)) return payload.results;
-  if (Array.isArray(payload?.data?.results)) return payload.data.results;
-  if (payload && typeof payload === "object") return Object.values(payload);
-  return [];
-};
-
-type ResourceEmployee = {
-  id: string;
-  name: string;
-  role: string;
-  zone: string;
-  status: string;
-  phone: string;
-  email: string;
-  vehicle: string;
-  joinDate: string;
-  ward: string;
-};
-
-const formatDate = (value?: string | null) => {
-  if (!value) return "-";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toISOString().split("T")[0];
-};
+import { formatIsoDate, normalizeList } from "@/utils/forms";
+import type { ResourceEmployee } from "./types/ResourceManagement/types";
 
 const mapRecord = (record: any, t: TFunction): ResourceEmployee => {
   const notAvailable = t("common.not_available");
@@ -61,7 +34,7 @@ const mapRecord = (record: any, t: TFunction): ResourceEmployee => {
     record.salary_type ??
     record.staff_vehicle ??
     notAvailable;
-  const joinDate = formatDate(record.doj ?? record.staff_doj ?? record.created_at);
+  const joinDate = formatIsoDate(record.doj ?? record.staff_doj ?? record.created_at);
 
   return {
     id: record.unique_id ?? record.emp_id ?? record.id?.toString() ?? "-",

@@ -20,6 +20,7 @@ import {
 import { useZonesList } from "@/tanstack/admin/queries/masters/supervisorZoneMap";
 import { useVehicleCreationsQuery } from "@/tanstack/admin/queries/masters/vehicleCreation";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { normalizeList } from "@/utils/forms";
 
 type SelectOption = { value: string; label: string };
 
@@ -30,9 +31,6 @@ type ZonePropertyLoadTrackerFormState = {
   sub_property_id: string;
   current_weight_kg: string;
 };
-
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
 
 const toOptions = (items: any[], valueKey: string, labelKey: string): SelectOption[] =>
   items
