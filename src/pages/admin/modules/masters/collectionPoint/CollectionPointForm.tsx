@@ -39,7 +39,7 @@ type WithCityIdOption = SelectOption & {
   districtId: string;
   cityId: string;
 };
-type ZoneOption = SelectOption;
+type ZoneOption = WithCityIdOption;
 type WardOption = WithCityIdOption & { panchayatId: string; zoneId: string };
 type UnknownRecord = Record<string, unknown>;
 
@@ -148,13 +148,32 @@ export default function CollectionPointForm() {
   const isPanchayatSelected = Boolean(panchayatId);
   const isZoneSelected = Boolean(zoneId);
   const isWardSelected = Boolean(wardId);
+  const tenantFilters = useMemo(
+    () =>
+      companyUniqueId && projectId
+        ? {
+            company_id: companyUniqueId,
+            project_id: projectId,
+          }
+        : null,
+    [companyUniqueId, projectId]
+  );
+
+  const resetLocationFields = useCallback(() => {
+    setStateId("");
+    setDistrictId("");
+    setCityId("");
+    setPanchayatId("");
+    setZoneId("");
+    setWardId("");
+  }, []);
 
   const statesQuery = useStatesQuery();
-  const districtsQuery = useDistrictsQuery();
-  const citiesQuery = useCitiesQuery();
-  const panchayatsQuery = usePanchayatsQuery();
-  const zonesQuery = useZonesQuery();
-  const wardsQuery = useWardsQuery();
+  const districtsQuery = useDistrictsQuery(tenantFilters);
+  const citiesQuery = useCitiesQuery(tenantFilters);
+  const panchayatsQuery = usePanchayatsQuery(tenantFilters);
+  const zonesQuery = useZonesQuery(tenantFilters);
+  const wardsQuery = useWardsQuery(tenantFilters);
   const collectionPointQuery = useCollectionPointQuery(id);
   const createCollectionPointMutation = useCreateCollectionPointMutation();
   const updateCollectionPointMutation = useUpdateCollectionPointMutation();
@@ -189,6 +208,18 @@ export default function CollectionPointForm() {
       .map((option) => ({ value: option.value, label: option.label }));
     return ensureSelectedOption(filtered, panchayatId);
   }, [cityId, districtId, panchayatId, panchayats, stateId]);
+
+  const filteredZoneOptions = useMemo(() => {
+    const filtered = zoneOptions
+      .filter((option) => {
+        if (stateId && option.stateId && option.stateId !== stateId) return false;
+        if (districtId && option.districtId && option.districtId !== districtId) return false;
+        if (cityId && option.cityId && option.cityId !== cityId) return false;
+        return true;
+      })
+      .map((option) => ({ value: option.value, label: option.label }));
+    return ensureSelectedOption(filtered, zoneId);
+  }, [cityId, districtId, stateId, zoneId, zoneOptions]);
 
   const wardOptions = useMemo(() => {
     const filtered = wards
@@ -270,8 +301,8 @@ export default function CollectionPointForm() {
           value: normalizeIdValue(item.unique_id),
           label: toStringOrEmpty(item.panchayat_name ?? item.name ?? item.unique_id),
           stateId: normalizeIdValue(item.state_id),
-          districtId: normalizeIdValue(item.district_id ?? item.district),
-          cityId: normalizeIdValue(item.city_id ?? item.city),
+          districtId: normalizeIdValue(item.district_id),
+          cityId: normalizeIdValue(item.city_id),
         }))
         .filter((item) => item.value && item.label)
     );
@@ -285,6 +316,9 @@ export default function CollectionPointForm() {
         .map((item) => ({
           value: normalizeIdValue(item.unique_id),
           label: toStringOrEmpty(item.zone_name ?? item.name ?? item.unique_id),
+          stateId: normalizeIdValue(item.state_id),
+          districtId: normalizeIdValue(item.district_id),
+          cityId: normalizeIdValue(item.city_id),
         }))
         .filter((item) => item.value && item.label)
     );
@@ -404,7 +438,10 @@ export default function CollectionPointForm() {
           <Label>{t("admin.nav.company")} *</Label>
           <Select
             value={companyUniqueId}
-            onValueChange={onCompanyChange}
+            onValueChange={(value) => {
+              onCompanyChange(value);
+              resetLocationFields();
+            }}
             disabled={
               Boolean(loggedInCompanyUniqueId) ||
               (!isSuperAdmin && !loggedInCompanyUniqueId) ||
@@ -426,7 +463,14 @@ export default function CollectionPointForm() {
 
         <div>
           <Label>{t("admin.nav.project")} *</Label>
-          <Select value={projectId} onValueChange={setProjectId} disabled={!companyUniqueId || projects.length === 0}>
+          <Select
+            value={projectId}
+            onValueChange={(value) => {
+              setProjectId(value);
+              resetLocationFields();
+            }}
+            disabled={!companyUniqueId || projects.length === 0}
+          >
             <SelectTrigger className="input-validate w-full">
               <SelectValue placeholder="Select Project" />
             </SelectTrigger>
@@ -524,7 +568,8 @@ export default function CollectionPointForm() {
             onValueChange={(value) => {
               const next = value === "__none__" ? "" : value;
               setPanchayatId(next);
-              if (next) setWardId("");
+              setZoneId("");
+              setWardId("");
             }}
             disabled={!cityId || isZoneSelected || isWardSelected}
           >
@@ -549,6 +594,7 @@ export default function CollectionPointForm() {
             onValueChange={(value) => {
               const next = value === "__none__" ? "" : value;
               setZoneId(next);
+              setPanchayatId("");
               setWardId("");
             }}
             disabled={!cityId || isPanchayatSelected}
@@ -558,7 +604,7 @@ export default function CollectionPointForm() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
-              {zoneOptions.map((item) => (
+              {filteredZoneOptions.map((item) => (
                 <SelectItem key={item.value} value={item.value}>
                   {item.label}
                 </SelectItem>
@@ -638,5 +684,3 @@ export default function CollectionPointForm() {
     </ComponentCard>
   );
 }
-
-

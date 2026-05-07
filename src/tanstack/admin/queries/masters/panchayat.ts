@@ -34,9 +34,28 @@ export type PanchayatPayload = {
   geofencing_type?: string;
 };
 
+export type PanchayatListFilters = {
+  company_id?: string | number | null;
+  project_id?: string | number | null;
+  district?: string | number | null;
+  district_id?: string | number | null;
+  city?: string | number | null;
+  city_id?: string | number | null;
+  state?: string | number | null;
+  state_id?: string | number | null;
+};
+
 const normalizeId = (id: string | number) => String(id);
 
-const listPanchayats = () => panchayatApi.list() as Promise<PanchayatRecord[]>;
+const compactFilters = (filters?: Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.entries(filters ?? {}).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  );
+
+const listPanchayats = (filters?: PanchayatListFilters) => {
+  const params = compactFilters(filters);
+  return panchayatApi.list(Object.keys(params).length ? { params } : undefined) as Promise<PanchayatRecord[]>;
+};
 
 const getPanchayat = (id: string | number) => panchayatApi.get(id) as Promise<PanchayatRecord>;
 
@@ -52,11 +71,16 @@ const replaceInList = (items: PanchayatRecord[] | undefined, item: PanchayatReco
 
 export const panchayatQueryKeys = {
   all: ["masters", "panchayats"] as const,
+  list: (filters?: PanchayatListFilters | null) => ["masters", "panchayats", filters ?? {}] as const,
   detail: (id: string | number) => ["masters", "panchayats", normalizeId(id)] as const,
 };
 
-export function usePanchayatsQuery() {
-  return enterpriseQuery<PanchayatRecord[]>({ queryKey: panchayatQueryKeys.all, queryFn: listPanchayats });
+export function usePanchayatsQuery(filters?: PanchayatListFilters | null) {
+  return enterpriseQuery<PanchayatRecord[]>({
+    queryKey: panchayatQueryKeys.list(filters),
+    queryFn: () => listPanchayats(filters ?? undefined),
+    enabled: filters !== null,
+  });
 }
 
 export function usePanchayatQuery(id: string | number | null | undefined) {

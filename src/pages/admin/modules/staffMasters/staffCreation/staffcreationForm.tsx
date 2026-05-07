@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -24,6 +24,17 @@ import {
 } from "@/helpers/admin/index";
 
 type Section = "official" | "personal";
+type LocationOption = {
+  value: string;
+  label: string;
+  uniqueId?: string;
+  countryId?: string;
+  countryName?: string;
+  stateId?: string;
+  stateName?: string;
+  districtId?: string;
+  districtName?: string;
+};
 
 const getGradeOptions = (t: (key: string) => string) => [
   { value: "Grade A", label: t("admin.staff_creation.grade_a") },
@@ -74,10 +85,20 @@ const getBloodGroupOptions = () => [
   { value: "O-", label: "O-" },
 ];
 
-const mapLocationOptions = (items: any[]) =>
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value);
+
+const mapLocationOptions = (items: any[]): LocationOption[] =>
   (items ?? [])
     .filter((item) => item?.name && item.is_active !== false)
-    .map((item) => ({ value: item.name, label: item.name }));
+    .map((item) => ({
+      value: item.name,
+      label: item.name,
+      uniqueId: normalizeId(item.unique_id ?? item.id),
+      countryId: normalizeId(item.country_id ?? item.country),
+      stateId: normalizeId(item.state_id ?? item.state),
+      districtId: normalizeId(item.district_id ?? item.district),
+    }));
 
 type ErrorWithResponse = {
   response?: {
@@ -168,10 +189,10 @@ export default function StaffCreationForm() {
   const [fetching, setFetching] = useState(false);
   const [sameAddress, setSameAddress] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const [countryOptions, setCountryOptions] = useState<{ value: string; label: string }[]>([]);
-  const [stateOptions, setStateOptions] = useState<{ value: string; label: string }[]>([]);
-  const [districtOptions, setDistrictOptions] = useState<{ value: string; label: string }[]>([]);
-  const [cityOptions, setCityOptions] = useState<{ value: string; label: string }[]>([]);
+  const [countryOptions, setCountryOptions] = useState<LocationOption[]>([]);
+  const [stateOptions, setStateOptions] = useState<LocationOption[]>([]);
+  const [districtOptions, setDistrictOptions] = useState<LocationOption[]>([]);
+  const [cityOptions, setCityOptions] = useState<LocationOption[]>([]);
   const [staffUserTypeOptions, setStaffUserTypeOptions] = useState<
     { value: string; label: string }[]
   >([]);
@@ -218,6 +239,38 @@ export default function StaffCreationForm() {
   const isDriverSelected =
     !!formData.driving_licence_no ||
     !!selectedUserType?.label?.toLowerCase().includes("driver");
+
+  const presentDistrictOptions = useMemo(
+    () =>
+      districtOptions.filter(
+        (option) => !formData.present_state || !option.stateName || option.stateName === formData.present_state
+      ),
+    [districtOptions, formData.present_state]
+  );
+
+  const presentCityOptions = useMemo(
+    () =>
+      cityOptions.filter(
+        (option) => !formData.present_district || !option.districtName || option.districtName === formData.present_district
+      ),
+    [cityOptions, formData.present_district]
+  );
+
+  const permanentDistrictOptions = useMemo(
+    () =>
+      districtOptions.filter(
+        (option) => !formData.permanent_state || !option.stateName || option.stateName === formData.permanent_state
+      ),
+    [districtOptions, formData.permanent_state]
+  );
+
+  const permanentCityOptions = useMemo(
+    () =>
+      cityOptions.filter(
+        (option) => !formData.permanent_district || !option.districtName || option.districtName === formData.permanent_district
+      ),
+    [cityOptions, formData.permanent_district]
+  );
 
   const filteredProjects = projectOptions.filter(
     (p: any) => !formData.company_id || p.company_id === formData.company_id
@@ -301,10 +354,27 @@ export default function StaffCreationForm() {
           projectApi.list(),
         ]);
 
-        setCountryOptions(mapLocationOptions(countries));
-        setStateOptions(mapLocationOptions(states));
-        setDistrictOptions(mapLocationOptions(districts));
-        setCityOptions(mapLocationOptions(cities));
+        const countryList = mapLocationOptions(countries);
+        const stateList = mapLocationOptions(states).map((state) => ({
+          ...state,
+          countryName: countryList.find((country) => country.uniqueId && country.uniqueId === state.countryId)?.value,
+        }));
+        const districtList = mapLocationOptions(districts).map((district) => ({
+          ...district,
+          countryName: countryList.find((country) => country.uniqueId && country.uniqueId === district.countryId)?.value,
+          stateName: stateList.find((state) => state.uniqueId && state.uniqueId === district.stateId)?.value,
+        }));
+        const cityList = mapLocationOptions(cities).map((city) => ({
+          ...city,
+          countryName: countryList.find((country) => country.uniqueId && country.uniqueId === city.countryId)?.value,
+          stateName: stateList.find((state) => state.uniqueId && state.uniqueId === city.stateId)?.value,
+          districtName: districtList.find((district) => district.uniqueId && district.uniqueId === city.districtId)?.value,
+        }));
+
+        setCountryOptions(countryList);
+        setStateOptions(stateList);
+        setDistrictOptions(districtList);
+        setCityOptions(cityList);
         
         const normalize = (arr: any[]) =>
           arr.filter((i) => i?.is_active !== false && i?.is_deleted !== true);
@@ -479,7 +549,36 @@ export default function StaffCreationForm() {
   };
 
   const handleSelectChange = (field: keyof typeof initialFormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value };
+
+      if (field === "present_country") {
+        next.present_state = "";
+        next.present_district = "";
+        next.present_city = "";
+      }
+      if (field === "present_state") {
+        next.present_district = "";
+        next.present_city = "";
+      }
+      if (field === "present_district") {
+        next.present_city = "";
+      }
+      if (field === "permanent_country") {
+        next.permanent_state = "";
+        next.permanent_district = "";
+        next.permanent_city = "";
+      }
+      if (field === "permanent_state") {
+        next.permanent_district = "";
+        next.permanent_city = "";
+      }
+      if (field === "permanent_district") {
+        next.permanent_city = "";
+      }
+
+      return next;
+    });
   };
 
   const calculateAge = (dobValue: string) => {
@@ -1105,7 +1204,7 @@ export default function StaffCreationForm() {
                 id="present_district"
                 value={formData.present_district}
                 onChange={(value) => handleSelectChange("present_district", value)}
-                options={districtOptions}
+                options={presentDistrictOptions}
                 placeholder={t("common.select_item_placeholder", { item: t("common.district") })}
               />
             </div>
@@ -1115,7 +1214,7 @@ export default function StaffCreationForm() {
                 id="present_city"
                 value={formData.present_city}
                 onChange={(value) => handleSelectChange("present_city", value)}
-                options={cityOptions}
+                options={presentCityOptions}
                 placeholder={t("common.select_item_placeholder", { item: t("common.city") })}
               />
             </div>
@@ -1200,7 +1299,7 @@ export default function StaffCreationForm() {
                 id="permanent_district"
                 value={formData.permanent_district}
                 onChange={(value) => handleSelectChange("permanent_district", value)}
-                options={districtOptions}
+                options={permanentDistrictOptions}
                 placeholder={t("common.select_item_placeholder", { item: t("common.district") })}
               />
             </div>
@@ -1210,7 +1309,7 @@ export default function StaffCreationForm() {
                 id="permanent_city"
                 value={formData.permanent_city}
                 onChange={(value) => handleSelectChange("permanent_city", value)}
-                options={cityOptions}
+                options={permanentCityOptions}
                 placeholder={t("common.select_item_placeholder", { item: t("common.city") })}
               />
             </div>

@@ -36,10 +36,29 @@ export type ZonePayload = {
   project_id?: string | number | null;
 };
 
+export type ZoneListFilters = {
+  company_id?: string | number | null;
+  project_id?: string | number | null;
+  district?: string | number | null;
+  district_id?: string | number | null;
+  city?: string | number | null;
+  city_id?: string | number | null;
+  state?: string | number | null;
+  state_id?: string | number | null;
+  customer_id?: string | number | null;
+};
+
 const normalizeZoneId = (id: string | number) => String(id);
 
-const listZones = (customerId?: string) =>
-  zoneApi.list({ params: customerId ? { customer_id: customerId } : undefined }) as Promise<ZoneRecord[]>;
+const compactFilters = (filters?: Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.entries(filters ?? {}).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  );
+
+const listZones = (filters?: ZoneListFilters) => {
+  const params = compactFilters(filters);
+  return zoneApi.list(Object.keys(params).length ? { params } : undefined) as Promise<ZoneRecord[]>;
+};
 
 const getZone = (id: string | number) => zoneApi.get(id) as Promise<ZoneRecord>;
 
@@ -55,24 +74,34 @@ const replaceZoneInList = (zones: ZoneRecord[] | undefined, zone: ZoneRecord) =>
 
 export const zoneQueryKeys = {
   all: ["masters", "zone"] as const,
+  list: (filters?: ZoneListFilters | string | null) => ["masters", "zone", filters ?? {}] as const,
   detail: (id: string | number) => ["masters", "zone", normalizeZoneId(id)] as const,
 };
 
-export function useZonesQuery(customerId?: string | null) {
-  const query = enterpriseQuery<ZoneRecord[]>({ queryKey: zoneQueryKeys.all, queryFn: () => listZones(customerId ?? undefined), enabled: customerId !== null });
-  const previousCustomerIdRef = useRef(customerId);
+export function useZonesQuery(filtersOrCustomerId?: ZoneListFilters | string | null) {
+  const filters =
+    typeof filtersOrCustomerId === "string"
+      ? { customer_id: filtersOrCustomerId }
+      : filtersOrCustomerId;
+  const query = enterpriseQuery<ZoneRecord[]>({
+    queryKey: zoneQueryKeys.list(filtersOrCustomerId),
+    queryFn: () => listZones(filters ?? undefined),
+    enabled: filtersOrCustomerId !== null,
+  });
+  const filterSignature = JSON.stringify(filters ?? {});
+  const previousFilterSignatureRef = useRef(filterSignature);
 
   useEffect(() => {
-    if (previousCustomerIdRef.current === customerId) {
+    if (previousFilterSignatureRef.current === filterSignature) {
       return;
     }
 
-    previousCustomerIdRef.current = customerId;
+    previousFilterSignatureRef.current = filterSignature;
 
-    if (customerId !== null) {
+    if (filtersOrCustomerId !== null) {
       void query.refetch();
     }
-  }, [customerId, query.refetch]);
+  }, [filterSignature, filtersOrCustomerId, query.refetch]);
 
   return query;
 }

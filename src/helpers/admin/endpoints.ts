@@ -96,7 +96,7 @@ export const adminEndpoints = {
   /* =========================
      CUSTOMERS
   ========================= */
-   pointCollections: "customer-masters/point-collection",
+   pointCollections: "collections/point-collection",
    panchayatWiseCollections: "collections/panchayat-wise",
    wardWiseCollections: "collections/ward-wise",
 

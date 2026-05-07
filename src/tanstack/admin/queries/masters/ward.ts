@@ -44,8 +44,28 @@ export type WardPayload = {
   project_id?: string | number | null;
 };
 
-const listWards = (zoneId?: string) =>
-  wardApi.list({ params: zoneId ? { zone_id: zoneId } : undefined }) as Promise<WardRecord[]>;
+export type WardListFilters = {
+  company_id?: string | number | null;
+  project_id?: string | number | null;
+  zone?: string | number | null;
+  zone_id?: string | number | null;
+  district?: string | number | null;
+  district_id?: string | number | null;
+  city?: string | number | null;
+  city_id?: string | number | null;
+  state?: string | number | null;
+  state_id?: string | number | null;
+};
+
+const compactFilters = (filters?: Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.entries(filters ?? {}).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  );
+
+const listWards = (filters?: WardListFilters) => {
+  const params = compactFilters(filters);
+  return wardApi.list(Object.keys(params).length ? { params } : undefined) as Promise<WardRecord[]>;
+};
 
 const getWard = (id: string | number) => wardApi.get(id) as Promise<WardRecord>;
 
@@ -61,24 +81,34 @@ const replaceWardInList = (wards: WardRecord[] | undefined, ward: WardRecord) =>
 
 export const wardQueryKeys = {
   all: ["masters", "ward"] as const,
+  list: (filters?: WardListFilters | string | null) => ["masters", "ward", filters ?? {}] as const,
   detail: (id: string | number) => ["masters", "ward", String(id)] as const,
 };
 
-export function useWardsQuery(zoneId?: string | null) {
-  const query = enterpriseQuery<WardRecord[]>({ queryKey: wardQueryKeys.all, queryFn: () => listWards(zoneId ?? undefined), enabled: zoneId !== null });
-  const previousZoneIdRef = useRef(zoneId);
+export function useWardsQuery(filtersOrZoneId?: WardListFilters | string | null) {
+  const filters =
+    typeof filtersOrZoneId === "string"
+      ? { zone_id: filtersOrZoneId }
+      : filtersOrZoneId;
+  const query = enterpriseQuery<WardRecord[]>({
+    queryKey: wardQueryKeys.list(filtersOrZoneId),
+    queryFn: () => listWards(filters ?? undefined),
+    enabled: filtersOrZoneId !== null,
+  });
+  const filterSignature = JSON.stringify(filters ?? {});
+  const previousFilterSignatureRef = useRef(filterSignature);
 
   useEffect(() => {
-    if (previousZoneIdRef.current === zoneId) {
+    if (previousFilterSignatureRef.current === filterSignature) {
       return;
     }
 
-    previousZoneIdRef.current = zoneId;
+    previousFilterSignatureRef.current = filterSignature;
 
-    if (zoneId !== null) {
+    if (filtersOrZoneId !== null) {
       void query.refetch();
     }
-  }, [query.refetch, zoneId]);
+  }, [filterSignature, filtersOrZoneId, query.refetch]);
 
   return query;
 }
