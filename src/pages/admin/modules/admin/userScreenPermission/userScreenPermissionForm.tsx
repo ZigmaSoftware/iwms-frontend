@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useMemo, Fragment, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -16,6 +16,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { encryptSegment } from "@/utils/routeCrypto";
+import { api } from "@/api";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import {
@@ -61,10 +62,16 @@ type Option = {
   userTypeId?: string;
 };
 
+/** Shape returned by the by-staff-format endpoint */
 type PermissionScreen = {
   userscreen_id: string;
   userscreen_name?: string;
-  actions: string[];
+  /** API returns actionIds (not actions) */
+  actionIds?: string[];
+  /** Backward-compat alias some callers may use */
+  actions?: string[];
+  /** Saved column permissions */
+  columnIds?: string[];
 };
 
 type PermissionResponse = {
@@ -76,6 +83,7 @@ type ScreenMatrixRow = {
   userscreen_id: string;
   userscreen_name: string;
   actions: string[];
+  columnIds: string[];
 };
 
 type ApiUserScreen = {
@@ -86,6 +94,15 @@ type ApiUserScreen = {
   is_active?: boolean;
   is_deleted?: boolean;
   [key: string]: unknown;
+};
+
+type UserScreenColumnRecord = {
+  unique_id: string;
+  field_name: string;
+  display_name: string;
+  data_type: string;
+  order_no: number;
+  is_required: boolean;
 };
 
 const toId = (value: unknown): string => {
@@ -111,17 +128,6 @@ const uniqueIds = (values: unknown[]): string[] => {
 
   return normalized;
 };
-
-const buildByStaffFormatPath = (
-  companyId: string,
-  staffTypeId: string,
-  mainScreenId: string
-) =>
-  `by-staff-format/?company_id=${encodeURIComponent(
-    companyId
-  )}&staffusertype_id=${encodeURIComponent(
-    staffTypeId
-  )}&mainscreen_id=${encodeURIComponent(mainScreenId)}`;
 
 const firstErrorMessage = (value: unknown): string | undefined => {
   if (Array.isArray(value) && typeof value[0] === "string") {
@@ -162,7 +168,6 @@ export default function UserScreenPermissionForm() {
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit });
 
-  // Seed edit context immediately so queries can fire on first render (no refresh needed).
   const [staffUserTypeId, setStaffUserTypeId] = useState(() =>
     isEdit && staffTypeId ? String(staffTypeId) : ""
   );
@@ -179,15 +184,17 @@ export default function UserScreenPermissionForm() {
 
   const [screenMatrix, setScreenMatrix] = useState<ScreenMatrixRow[]>([]);
 
+  /** Columns available per screen id (fetched from backend, keyed by userscreen_id) */
+  const [screenColumns, setScreenColumns] = useState<
+    Record<string, UserScreenColumnRecord[]>
+  >({});
+
   const [loading, setLoading] = useState(false);
   const staffUserTypesQuery = useStaffUserTypesQuery();
   const mainScreensQuery = useMainScreensQuery();
   const userScreensQuery = useUserScreensQuery();
   const userScreenActionsQuery = useUserScreenActionsQuery();
 
-  // In edit flow, use the URL-provided company id immediately so the
-  // formatted-permission query + checkbox preselect don't wait on
-  // `useCompanyProjectSelection` state synchronization.
   const effectiveCompanyId = companyIdFromQuery || companyUniqueId;
 
   const formattedPermissionQuery = useUserScreenPermissionFormattedQuery(
@@ -290,9 +297,6 @@ export default function UserScreenPermissionForm() {
 
   useEffect(() => {
     if (!companyIdFromQuery) return;
-    // In edit flow we must honor the company coming from the list row/query params,
-    // even if the logged-in context points elsewhere (otherwise formatted permissions
-    // are fetched for the wrong company and checkboxes remain unchecked).
     if (companyUniqueId === companyIdFromQuery) return;
     onCompanyChange(companyIdFromQuery);
   }, [
@@ -308,7 +312,6 @@ export default function UserScreenPermissionForm() {
   useEffect(() => {
     if (!isEdit || !staffTypeId) return;
 
-    // Keep state in sync if user navigates between edit URLs without full reload.
     if (staffUserTypeId !== String(staffTypeId)) {
       setStaffUserTypeId(String(staffTypeId));
       setScreenMatrix([]);
@@ -327,8 +330,6 @@ export default function UserScreenPermissionForm() {
   useEffect(() => {
     if (!effectiveCompanyId || !staffUserTypeId || !mainScreenId) return;
 
-    // If the formatted permission endpoint errors (e.g. no existing permission record),
-    // still build the matrix from `userscreens` so the UI shows screens immediately.
     if (formattedPermissionQuery.isError) {
       const err = formattedPermissionQuery.error;
       if (getErrorStatus(err) === 403) {
@@ -357,14 +358,12 @@ export default function UserScreenPermissionForm() {
           actionsByScreen.set(screenId, {
             userscreen_id: screenId,
             userscreen_name: String(scr.userscreen_name ?? "").trim(),
-            actions: uniqueIds(scr.actions ?? []),
+            // FIX: API returns actionIds, not actions
+            actions: uniqueIds(scr.actionIds ?? scr.actions ?? []),
+            columnIds: uniqueIds(scr.columnIds ?? []),
           });
         });
 
-        // const selectedMainScreens = allUserScreens
-        //   .filter((screen) => !screen.is_deleted)
-        //   .filter((screen) => toId(screen.mainscreen_id) === mainScreenId)
-        //   .sort((a, b) => toOrder(a.order_no) - toOrder(b.order_no));
         const selectedMainScreens = allUserScreens
         .filter((screen) => !screen.is_deleted)
         .filter(
@@ -387,6 +386,7 @@ export default function UserScreenPermissionForm() {
               screen.userscreen_name ?? existing?.userscreen_name ?? screenId
             ).trim(),
             actions: uniqueIds(existing?.actions ?? []),
+            columnIds: uniqueIds(existing?.columnIds ?? []),
           });
         });
 
@@ -397,6 +397,7 @@ export default function UserScreenPermissionForm() {
             userscreen_id: screenId,
             userscreen_name: String(existing.userscreen_name ?? screenId).trim(),
             actions: uniqueIds(existing.actions ?? []),
+            columnIds: uniqueIds(existing.columnIds ?? []),
           });
         });
 
@@ -405,7 +406,6 @@ export default function UserScreenPermissionForm() {
       } catch (err) {
         console.error("Permission Load Failed:", err);
 
-        // ✅ Access denied on outer try
         if (getErrorStatus(err) === 403) {
           Swal.fire({
             icon: "error",
@@ -434,6 +434,47 @@ export default function UserScreenPermissionForm() {
     staffUserTypeId,
     t,
   ]);
+
+  /* -----------------------------------------------------------
+     FETCH COLUMNS FOR EACH SCREEN IN MATRIX
+  ----------------------------------------------------------- */
+
+  /**
+   * Key that only changes when the set of screen IDs changes,
+   * not when actions/columnIds within rows change.
+   */
+  const screenIdsKey = useMemo(
+    () => screenMatrix.map((r) => r.userscreen_id).sort().join(","),
+    [screenMatrix]
+  );
+
+  useEffect(() => {
+    if (!screenIdsKey) {
+      setScreenColumns({});
+      return;
+    }
+
+    const ids = screenIdsKey.split(",").filter(Boolean);
+
+    Promise.all(
+      ids.map(async (id) => {
+        try {
+          const { data } = await api.get<UserScreenColumnRecord[]>(
+            `/permissions/userscreen/${id}/columns/`
+          );
+          return [id, Array.isArray(data) ? data : []] as const;
+        } catch {
+          return [id, [] as UserScreenColumnRecord[]] as const;
+        }
+      })
+    ).then((entries) => {
+      const map: Record<string, UserScreenColumnRecord[]> = {};
+      entries.forEach(([id, cols]) => {
+        map[id] = cols;
+      });
+      setScreenColumns(map);
+    });
+  }, [screenIdsKey]);
 
   /* -----------------------------------------------------------
      AUTO USER TYPE
@@ -479,10 +520,46 @@ export default function UserScreenPermissionForm() {
     );
   };
 
+  /* -----------------------------------------------------------
+     TOGGLE COLUMNS
+  ----------------------------------------------------------- */
+
+  const handleColumnToggle = (
+    screenId: string,
+    columnId: string,
+    checked: boolean
+  ) => {
+    setScreenMatrix((prev) =>
+      prev.map((row) =>
+        row.userscreen_id === screenId
+          ? {
+              ...row,
+              columnIds: checked
+                ? uniqueIds([...row.columnIds, columnId])
+                : row.columnIds.filter((c) => c !== columnId),
+            }
+          : row
+      )
+    );
+  };
+
+  const handleSelectAllColumns = (screenId: string, checked: boolean) => {
+    const cols = screenColumns[screenId] ?? [];
+    const allIds = cols.map((c) => c.unique_id);
+    setScreenMatrix((prev) =>
+      prev.map((row) =>
+        row.userscreen_id === screenId
+          ? { ...row, columnIds: checked ? allIds : [] }
+          : row
+      )
+    );
+  };
+
   const handleMainScreenChange = (nextMainScreenId: string) => {
     if (nextMainScreenId === mainScreenId) return;
     setDescription("");
     setScreenMatrix([]);
+    setScreenColumns({});
     setMainScreenId(nextMainScreenId);
   };
 
@@ -512,13 +589,21 @@ export default function UserScreenPermissionForm() {
     );
 
     const normalizedScreens = screenMatrix
-      .map((screen) => ({
-        userscreen_id: toId(screen.userscreen_id),
-        actions: uniqueIds(screen.actions).filter(
-          (actionId) =>
-            validActionIds.size === 0 || validActionIds.has(actionId)
-        ),
-      }))
+      .map((screen) => {
+        const base: Record<string, unknown> = {
+          userscreen_id: toId(screen.userscreen_id),
+          actions: uniqueIds(screen.actions).filter(
+            (actionId) =>
+              validActionIds.size === 0 || validActionIds.has(actionId)
+          ),
+        };
+        // Only include columnIds when the columns have been fetched for this screen.
+        // Sending undefined means "no change"; sending [] means "clear all column perms".
+        if (screenColumns[screen.userscreen_id] !== undefined) {
+          base.columnIds = screen.columnIds;
+        }
+        return base;
+      })
       .filter((screen) => Boolean(screen.userscreen_id));
 
     const payload = {
@@ -543,7 +628,6 @@ export default function UserScreenPermissionForm() {
 
       navigate(ENC_LIST_PATH);
     } catch (err: unknown) {
-      // ✅ Access denied on save/update
       if (getErrorStatus(err) === 403) {
         Swal.fire({
           icon: "error",
@@ -565,6 +649,7 @@ export default function UserScreenPermissionForm() {
           firstErrorMessage(errorData.staffusertype_id) ||
           firstErrorMessage(errorData.mainscreen_id) ||
           firstErrorMessage(errorData.screens) ||
+          firstErrorMessage((errorData as any).columnIds) ||
           t("common.save_failed_desc"),
         "error"
       );
@@ -609,6 +694,7 @@ export default function UserScreenPermissionForm() {
                 onCompanyChange(value);
                 setMainScreenId("");
                 setScreenMatrix([]);
+                setScreenColumns({});
                 setDescription("");
                 if (!isEdit) setStaffUserTypeId("");
               }}
@@ -711,43 +797,115 @@ export default function UserScreenPermissionForm() {
               </thead>
               <tbody>
                 {screenMatrix.map((row, i) => {
-                  const allChecked = row.actions.length === actions.length;
+                  const allActionsChecked = row.actions.length === actions.length;
+                  const cols = screenColumns[row.userscreen_id];
+                  const allColsChecked =
+                    cols && cols.length > 0
+                      ? row.columnIds.length === cols.length
+                      : false;
+                  const someColsChecked =
+                    cols && cols.length > 0 && row.columnIds.length > 0;
+
                   return (
-                    <tr
-                      key={row.userscreen_id}
-                      className="border-b hover:bg-gray-50"
-                    >
-                      <td className="px-4 py-3 text-sm">{i + 1}</td>
-                      <td className="px-4 py-3 text-sm font-medium">
-                        {row.userscreen_name}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={allChecked}
-                          onChange={(e) =>
-                            handleSelectAll(row.userscreen_id, e.target.checked)
-                          }
-                          className="w-4 h-4 cursor-pointer"
-                        />
-                      </td>
-                      {actions.map((act) => (
-                        <td key={act.value} className="px-4 py-3 text-center">
+                    <Fragment key={row.userscreen_id}>
+                      {/* ── Action row ── */}
+                      <tr className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm">{i + 1}</td>
+                        <td className="px-4 py-3 text-sm font-medium">
+                          {row.userscreen_name}
+                        </td>
+                        <td className="px-4 py-3 text-center">
                           <input
                             type="checkbox"
-                            checked={row.actions.includes(act.value)}
+                            checked={allActionsChecked}
                             onChange={(e) =>
-                              handleActionToggle( 
-                                row.userscreen_id,
-                                act.value,
-                                e.target.checked
-                              )
+                              handleSelectAll(row.userscreen_id, e.target.checked)
                             }
                             className="w-4 h-4 cursor-pointer"
                           />
                         </td>
-                      ))}
-                    </tr>
+                        {actions.map((act) => (
+                          <td key={act.value} className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={row.actions.includes(act.value)}
+                              onChange={(e) =>
+                                handleActionToggle(
+                                  row.userscreen_id,
+                                  act.value,
+                                  e.target.checked
+                                )
+                              }
+                              className="w-4 h-4 cursor-pointer"
+                            />
+                          </td>
+                        ))}
+                      </tr>
+
+                      {/* ── Column permission row (only when columns exist) ── */}
+                      {cols && cols.length > 0 && (
+                        <tr className="border-b bg-slate-50/60">
+                          <td className="px-4 py-2" />
+                          <td className="px-4 py-2">
+                            <span className="text-xs font-semibold text-slate-500 pl-2">
+                              Columns
+                            </span>
+                            {someColsChecked && (
+                              <span className="ml-2 text-xs text-blue-600 font-medium">
+                                ({row.columnIds.length}/{cols.length})
+                              </span>
+                            )}
+                          </td>
+                          {/* "Select all columns" checkbox in the All column */}
+                          <td className="px-4 py-2 text-center">
+                            <input
+                              type="checkbox"
+                              checked={allColsChecked}
+                              onChange={(e) =>
+                                handleSelectAllColumns(
+                                  row.userscreen_id,
+                                  e.target.checked
+                                )
+                              }
+                              className="w-4 h-4 cursor-pointer accent-blue-600"
+                              title="Select all columns"
+                            />
+                          </td>
+                          {/* Column checkboxes span all remaining action columns */}
+                          <td
+                            colSpan={actions.length}
+                            className="px-4 py-2"
+                          >
+                            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                              {cols.map((col) => (
+                                <label
+                                  key={col.unique_id}
+                                  className="flex items-center gap-1.5 text-xs cursor-pointer group"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={row.columnIds.includes(
+                                      col.unique_id
+                                    )}
+                                    onChange={(e) =>
+                                      handleColumnToggle(
+                                        row.userscreen_id,
+                                        col.unique_id,
+                                        e.target.checked
+                                      )
+                                    }
+                                    className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
+                                  />
+                                  <span className="text-gray-700 group-hover:text-gray-900">
+                                    {col.display_name || col.field_name}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
