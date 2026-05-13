@@ -114,6 +114,7 @@ export const tripExceptionLogApi = adminApi.tripExceptionLogs;
 export const binLoadLogApi = adminApi.binLoadLogs;
 export const supervisorZoneAccessAuditApi = adminApi.supervisorZoneAccessAudits;
 export const staffTemplateAuditLogApi = adminApi.staffTemplateAuditLogs;
+export const commonAuditApi = adminApi.commonAudits;
 
 /* =========================
    UTILITIES
