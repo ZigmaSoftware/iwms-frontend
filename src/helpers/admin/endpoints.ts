@@ -52,6 +52,7 @@ export const adminEndpoints = {
   userScreenActions: "screen-managements/userscreen-action",
   companyWiseScreenPermissions:
     "screen-managements/companywisescreenpermissions",
+  columnPermissions: "screen-managements/column-permissions",
 
   /* =========================
      ROLE ASSIGNMENT
@@ -127,6 +128,7 @@ export const adminEndpoints = {
     "audits/supervisor-zone-access-audit",
   staffTemplateAuditLogs:
     "audits/stafftemplate-audit-log",
+  commonAudits: "audits/common-audit",
 } as const;
 
 export type AdminEntity = keyof typeof adminEndpoints;
@@ -137,4 +139,3 @@ export const getAdminEndpointPath = (
   const path = adminEndpoints[entity];
   return path.startsWith("/") ? path : `/${path}`;
 };
-

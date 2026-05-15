@@ -25,6 +25,7 @@ import { decryptSegment } from "@/utils/routeCrypto";
 
 const {
   encMasters,
+  encAudits,
   encContinents,
   encCountries,
   encBins,
@@ -77,6 +78,7 @@ const {
   encStaffTemplate,
   encAlternativeStaffTemplate,
   encStaffTemplateAudit,
+  encCommonAudit,
   encSupervisorZoneMap,
   encSupervisorZoneAccessAudit,
   encTripDefinition,
@@ -548,6 +550,12 @@ const auditItems: NavItem[] = [
     module: "audits",
     screen: "audits",
     subItems: [
+      {
+        nameKey: "admin.nav.common_audit",
+        path: `/${encAudits}/${encCommonAudit}`,
+        module: "audits",
+        screen: "common-audit",
+      },
       {
         nameKey: "admin.nav.vehicle_trip_audit",
         path: `/${encTransportMaster}/${encVehicleTripAudit}`,
