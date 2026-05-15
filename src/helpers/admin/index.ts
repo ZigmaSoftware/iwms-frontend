@@ -50,6 +50,7 @@ export const mainScreenApi = adminApi.mainScreens;
 export const userScreenApi = adminApi.userScreens;
 export const userScreenActionApi = adminApi.userScreenActions;
 export const userScreenPermissionApi = adminApi.companyWiseScreenPermissions;
+export const columnPermissionApi = adminApi.columnPermissions;
 
 /* =========================
    ROLE ASSIGNMENT

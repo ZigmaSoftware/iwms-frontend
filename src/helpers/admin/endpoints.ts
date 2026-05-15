@@ -52,6 +52,7 @@ export const adminEndpoints = {
   userScreenActions: "screen-managements/userscreen-action",
   companyWiseScreenPermissions:
     "screen-managements/companywisescreenpermissions",
+  columnPermissions: "screen-managements/column-permissions",
 
   /* =========================
      ROLE ASSIGNMENT
