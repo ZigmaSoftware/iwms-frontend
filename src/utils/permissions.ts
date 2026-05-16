@@ -4,6 +4,7 @@ import { adminEndpoints } from "@/helpers/admin/endpoints";
 export type PermissionAction = "view" | "add" | "edit" | "delete" | "show" | string;
 export type PermissionsMap = Record<string, Record<string, string[]>>;
 export type PermissionDetailsMap = Record<string, Record<string, unknown>>;
+export type SimpleColumnPermissionsMap = Record<string, Record<string, boolean>>;
 
 export type ColumnPermissionEntry = {
   uniqueId?: string;
@@ -20,6 +21,7 @@ export type ColumnPermissionEntry = {
 export type ColumnPermissionsPayload = {
   grouped: Record<string, Record<string, ColumnPermissionEntry[]>>;
   flat: ColumnPermissionEntry[];
+  simple: SimpleColumnPermissionsMap;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -123,10 +125,20 @@ const sanitizePermissions = (source: unknown): PermissionsMap => {
     return {};
   }
 
-  const root = isRecord(source.permissions) ? source.permissions : source;
+  const payload = isRecord(source.data) ? source.data : source;
+  const root = isRecord(payload.permissions) ? payload.permissions : payload;
   const sanitized: PermissionsMap = {};
 
   Object.entries(root).forEach(([moduleName, screens]) => {
+    if (typeof screens === "boolean") {
+      if (screens) {
+        sanitized[moduleName] = {
+          [moduleName]: ["show", "view"],
+        };
+      }
+      return;
+    }
+
     if (!isRecord(screens)) {
       return;
     }
@@ -134,6 +146,26 @@ const sanitizePermissions = (source: unknown): PermissionsMap => {
     const sanitizedScreens: Record<string, string[]> = {};
 
     Object.entries(screens).forEach(([screenName, actions]) => {
+      if (typeof actions === "boolean") {
+        if (actions) {
+          sanitizedScreens[screenName] = ["show", "view"];
+        }
+        return;
+      }
+
+      if (isRecord(actions)) {
+        const actionList = Object.entries(actions)
+          .filter(([, allowed]) => allowed === true)
+          .map(([action]) => action === "create" ? "add" : action)
+          .map((action) => String(action ?? "").trim().toLowerCase())
+          .filter(Boolean);
+
+        if (actionList.length > 0) {
+          sanitizedScreens[screenName] = Array.from(new Set(["show", ...actionList]));
+        }
+        return;
+      }
+
       if (!Array.isArray(actions)) {
         return;
       }
@@ -160,7 +192,8 @@ const sanitizePermissionDetails = (source: unknown): PermissionDetailsMap => {
     return {};
   }
 
-  const root = isRecord(source.permission_details) ? source.permission_details : source;
+  const payload = isRecord(source.data) ? source.data : source;
+  const root = isRecord(payload.permission_details) ? payload.permission_details : payload;
   const sanitized: PermissionDetailsMap = {};
 
   Object.entries(root).forEach(([moduleName, screens]) => {
@@ -204,16 +237,18 @@ const sanitizeColumnPermissionEntry = (
 
 const sanitizeColumnPermissions = (source: unknown): ColumnPermissionsPayload => {
   if (!isRecord(source)) {
-    return { grouped: {}, flat: [] };
+    return { grouped: {}, flat: [], simple: {} };
   }
 
-  const root = isRecord(source.column_permissions) ? source.column_permissions : source;
+  const payload = isRecord(source.data) ? source.data : source;
+  const root = isRecord(payload.column_permissions) ? payload.column_permissions : payload;
   const flatSource = Array.isArray(root.flat) ? root.flat : [];
   const flat = flatSource
     .map(sanitizeColumnPermissionEntry)
     .filter((entry): entry is ColumnPermissionEntry => Boolean(entry));
 
   const grouped: ColumnPermissionsPayload["grouped"] = {};
+  const simple: SimpleColumnPermissionsMap = {};
   const groupedSource = isRecord(root.grouped) ? root.grouped : {};
 
   Object.entries(groupedSource).forEach(([moduleName, screens]) => {
@@ -237,6 +272,27 @@ const sanitizeColumnPermissions = (source: unknown): ColumnPermissionsPayload =>
     });
   });
 
+  const simpleSource = isRecord(root.simple) ? root.simple : root;
+
+  Object.entries(simpleSource).forEach(([screenName, fields]) => {
+    if (
+      screenName === "grouped" ||
+      screenName === "flat" ||
+      screenName === "simple" ||
+      !isRecord(fields)
+    ) {
+      return;
+    }
+
+    Object.entries(fields).forEach(([fieldName, allowed]) => {
+      if (typeof allowed !== "boolean") {
+        return;
+      }
+      simple[screenName] = simple[screenName] ?? {};
+      simple[screenName][fieldName] = allowed;
+    });
+  });
+
   if (Object.keys(grouped).length === 0) {
     flat.forEach((entry) => {
       const moduleName = String(entry.mainScreenName ?? "").trim();
@@ -250,7 +306,7 @@ const sanitizeColumnPermissions = (source: unknown): ColumnPermissionsPayload =>
     });
   }
 
-  return { grouped, flat };
+  return { grouped, flat, simple };
 };
 
 export const getStoredPermissions = (): PermissionsMap => {
@@ -290,18 +346,18 @@ export const getStoredPermissionDetails = (): PermissionDetailsMap => {
 
 export const getStoredColumnPermissions = (): ColumnPermissionsPayload => {
   if (typeof window === "undefined") {
-    return { grouped: {}, flat: [] };
+    return { grouped: {}, flat: [], simple: {} };
   }
 
   const raw = localStorage.getItem(COLUMN_PERMISSIONS_STORAGE_KEY);
   if (!raw) {
-    return { grouped: {}, flat: [] };
+    return { grouped: {}, flat: [], simple: {} };
   }
 
   try {
     return sanitizeColumnPermissions(JSON.parse(raw));
   } catch {
-    return { grouped: {}, flat: [] };
+    return { grouped: {}, flat: [], simple: {} };
   }
 };
 
@@ -339,7 +395,11 @@ export const setStoredColumnPermissions = (columnPermissions: unknown): void => 
   }
 
   const sanitized = sanitizeColumnPermissions(columnPermissions);
-  if (sanitized.flat.length === 0 && Object.keys(sanitized.grouped).length === 0) {
+  if (
+    sanitized.flat.length === 0 &&
+    Object.keys(sanitized.grouped).length === 0 &&
+    Object.keys(sanitized.simple).length === 0
+  ) {
     localStorage.removeItem(COLUMN_PERMISSIONS_STORAGE_KEY);
     return;
   }
@@ -405,6 +465,27 @@ const isStoredSuperAdmin = (): boolean => {
 
   const role = String(localStorage.getItem("user_role") ?? "").trim().toLowerCase();
   return role === "superadmin" || role === "super_admin";
+};
+
+const resolveSimpleColumnEntry = (
+  columnPermissions: ColumnPermissionsPayload,
+  screenName: string,
+): Record<string, boolean> | undefined => {
+  if (columnPermissions.simple[screenName]) {
+    return columnPermissions.simple[screenName];
+  }
+
+  const aliasCandidates = [
+    screenName,
+    ...(SCREEN_ALIASES[screenName] ?? []),
+    ...(SCREEN_ALIASES[normalizeKey(screenName)] ?? []),
+  ];
+
+  const screenKey = Object.keys(columnPermissions.simple).find((key) =>
+    aliasCandidates.some((candidate) => keysMatch(key, candidate)),
+  );
+
+  return screenKey ? columnPermissions.simple[screenKey] : undefined;
 };
 
 const resolveColumnEntries = (
@@ -495,6 +576,12 @@ export const hasColumnPermission = (
 
   if (isStoredSuperAdmin()) {
     return true;
+  }
+
+  const simpleEntry = resolveSimpleColumnEntry(columnPermissions, screenName);
+  if (simpleEntry) {
+    const fieldKey = Object.keys(simpleEntry).find((key) => keysMatch(key, fieldName));
+    return fieldKey ? simpleEntry[fieldKey] === true : false;
   }
 
   const entries = resolveColumnEntries(columnPermissions, moduleName, screenName);
@@ -640,4 +727,3 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
     return {};
   }
 };
-

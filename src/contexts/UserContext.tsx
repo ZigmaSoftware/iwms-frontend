@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
+import { getStoredAuthUser } from "@/utils/authStorage";
 
 type UserProfile = {
   name: string;
@@ -16,6 +17,14 @@ const USER_EMAIL_KEY = "user_email";
 const UserContext = createContext<UserContextValue | undefined>(undefined);
 
 const getStoredUser = (): UserProfile | null => {
+  const authUser = getStoredAuthUser();
+  if (authUser) {
+    return {
+      name: String(authUser.name ?? authUser.username ?? ""),
+      email: String(authUser.email ?? ""),
+    };
+  }
+
   const name = localStorage.getItem(USER_NAME_KEY);
   const email = localStorage.getItem(USER_EMAIL_KEY);
 
