@@ -17,6 +17,12 @@ import { useTranslation } from "react-i18next";
 
 import { encryptSegment } from "@/utils/routeCrypto";
 import { api } from "@/api";
+import {
+  getColumnPermissions,
+  createColumnPermission,
+  updateColumnPermission,
+  type ColumnPermissionsResponse,
+} from "@/helpers/admin/columnPermissionService";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import {
@@ -187,6 +193,15 @@ export default function UserScreenPermissionForm() {
   /** Columns available per screen id (fetched from backend, keyed by userscreen_id) */
   const [screenColumns, setScreenColumns] = useState<
     Record<string, UserScreenColumnRecord[]>
+  >({});
+
+  /**
+   * Permission IDs from the dedicated column-permission API.
+   * Shape: screenId → columnId → permissionId
+   * Used to update existing records instead of creating duplicates.
+   */
+  const [columnPermissionIds, setColumnPermissionIds] = useState<
+    Record<string, Record<string, string>>
   >({});
 
   const [loading, setLoading] = useState(false);
@@ -386,7 +401,9 @@ export default function UserScreenPermissionForm() {
               screen.userscreen_name ?? existing?.userscreen_name ?? screenId
             ).trim(),
             actions: uniqueIds(existing?.actions ?? []),
-            columnIds: uniqueIds(existing?.columnIds ?? []),
+            // columnIds are loaded from the dedicated column-permission API
+            // in the screenIdsKey effect below — start empty to avoid stale flash.
+            columnIds: [],
           });
         });
 
@@ -397,7 +414,7 @@ export default function UserScreenPermissionForm() {
             userscreen_id: screenId,
             userscreen_name: String(existing.userscreen_name ?? screenId).trim(),
             actions: uniqueIds(existing.actions ?? []),
-            columnIds: uniqueIds(existing.columnIds ?? []),
+            columnIds: [],
           });
         });
 
@@ -451,30 +468,68 @@ export default function UserScreenPermissionForm() {
   useEffect(() => {
     if (!screenIdsKey) {
       setScreenColumns({});
+      setColumnPermissionIds({});
       return;
     }
 
     const ids = screenIdsKey.split(",").filter(Boolean);
 
     Promise.all(
-      ids.map(async (id) => {
-        try {
-          const { data } = await api.get<UserScreenColumnRecord[]>(
-            `/permissions/userscreen/${id}/columns/`
-          );
-          return [id, Array.isArray(data) ? data : []] as const;
-        } catch {
-          return [id, [] as UserScreenColumnRecord[]] as const;
-        }
+      ids.map(async (screenId) => {
+        const [colResult, permResult] = await Promise.allSettled([
+          api.get<UserScreenColumnRecord[]>(
+            `/permissions/userscreen/${screenId}/columns/`
+          ),
+          staffUserTypeId
+            ? getColumnPermissions(screenId, staffUserTypeId, effectiveCompanyId || undefined)
+            : Promise.resolve<ColumnPermissionsResponse>({
+                userscreen_id: screenId,
+                column_permissions: [],
+              }),
+        ]);
+
+        const cols: UserScreenColumnRecord[] =
+          colResult.status === "fulfilled" && Array.isArray(colResult.value.data)
+            ? colResult.value.data
+            : [];
+
+        const permData: ColumnPermissionsResponse =
+          permResult.status === "fulfilled"
+            ? permResult.value
+            : { userscreen_id: screenId, column_permissions: [] };
+
+        // Build permId map and collect active (checked) column IDs
+        const permIds: Record<string, string> = {};
+        const checkedIds: string[] = [];
+        permData.column_permissions.forEach((cp) => {
+          permIds[cp.userscreencolumn_id] = cp.userscreencolumnpermission_id;
+          if (cp.is_active) checkedIds.push(cp.userscreencolumn_id);
+        });
+
+        return { screenId, cols, permIds, checkedIds } as const;
       })
     ).then((entries) => {
-      const map: Record<string, UserScreenColumnRecord[]> = {};
-      entries.forEach(([id, cols]) => {
-        map[id] = cols;
+      const colsMap: Record<string, UserScreenColumnRecord[]> = {};
+      const permIdsMap: Record<string, Record<string, string>> = {};
+
+      entries.forEach(({ screenId, cols, permIds }) => {
+        colsMap[screenId] = cols;
+        permIdsMap[screenId] = permIds;
       });
-      setScreenColumns(map);
+
+      setScreenColumns(colsMap);
+      setColumnPermissionIds(permIdsMap);
+
+      // Replace columnIds in the matrix with data from the dedicated API
+      setScreenMatrix((prev) =>
+        prev.map((row) => {
+          const entry = entries.find((e) => e.screenId === row.userscreen_id);
+          if (!entry) return row;
+          return { ...row, columnIds: entry.checkedIds };
+        })
+      );
     });
-  }, [screenIdsKey]);
+  }, [screenIdsKey, staffUserTypeId, effectiveCompanyId]);
 
   /* -----------------------------------------------------------
      AUTO USER TYPE
@@ -560,6 +615,7 @@ export default function UserScreenPermissionForm() {
     setDescription("");
     setScreenMatrix([]);
     setScreenColumns({});
+    setColumnPermissionIds({});
     setMainScreenId(nextMainScreenId);
   };
 
@@ -588,22 +644,15 @@ export default function UserScreenPermissionForm() {
       actions.map((item) => toId(item.value)).filter(Boolean)
     );
 
+    // Action-only payload — column permissions are handled by the dedicated API below.
     const normalizedScreens = screenMatrix
-      .map((screen) => {
-        const base: Record<string, unknown> = {
-          userscreen_id: toId(screen.userscreen_id),
-          actions: uniqueIds(screen.actions).filter(
-            (actionId) =>
-              validActionIds.size === 0 || validActionIds.has(actionId)
-          ),
-        };
-        // Only include columnIds when the columns have been fetched for this screen.
-        // Sending undefined means "no change"; sending [] means "clear all column perms".
-        if (screenColumns[screen.userscreen_id] !== undefined) {
-          base.columnIds = screen.columnIds;
-        }
-        return base;
-      })
+      .map((screen) => ({
+        userscreen_id: toId(screen.userscreen_id),
+        actions: uniqueIds(screen.actions).filter(
+          (actionId) =>
+            validActionIds.size === 0 || validActionIds.has(actionId)
+        ),
+      }))
       .filter((screen) => Boolean(screen.userscreen_id));
 
     const payload = {
@@ -620,9 +669,46 @@ export default function UserScreenPermissionForm() {
     try {
       if (isEdit) {
         await syncPermissionMutation.mutateAsync({ staffTypeId: staffUserTypeId, payload, isEdit: true });
-        Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
         await syncPermissionMutation.mutateAsync({ staffTypeId: staffUserTypeId, payload, isEdit: false });
+      }
+
+      // Sync column permissions via dedicated API (create or update, no duplicates).
+      const colSyncTasks: Promise<unknown>[] = [];
+      screenMatrix.forEach((screen) => {
+        const availableCols = screenColumns[screen.userscreen_id];
+        if (!availableCols) return; // columns not yet loaded — skip
+
+        const permIds = columnPermissionIds[screen.userscreen_id] ?? {};
+
+        availableCols.forEach((col) => {
+          const permId = permIds[col.unique_id] ?? null;
+          const isChecked = screen.columnIds.includes(col.unique_id);
+
+          if (permId) {
+            // Existing permission record — update in-place
+            colSyncTasks.push(updateColumnPermission(permId, { is_active: isChecked }));
+          } else if (isChecked) {
+            // New selection — create (backend uses get_or_create, safe to call)
+            colSyncTasks.push(
+              createColumnPermission({
+                userscreen_id: screen.userscreen_id,
+                column_id: col.unique_id,
+                staffusertype_id: staffUserTypeId,
+                usertype_id: userTypeId,
+                is_active: true,
+                company_id: effectiveCompanyId,
+              })
+            );
+          }
+        });
+      });
+
+      await Promise.all(colSyncTasks);
+
+      if (isEdit) {
+        Swal.fire(t("common.success"), t("common.updated_success"), "success");
+      } else {
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
@@ -695,6 +781,7 @@ export default function UserScreenPermissionForm() {
                 setMainScreenId("");
                 setScreenMatrix([]);
                 setScreenColumns({});
+                setColumnPermissionIds({});
                 setDescription("");
                 if (!isEdit) setStaffUserTypeId("");
               }}

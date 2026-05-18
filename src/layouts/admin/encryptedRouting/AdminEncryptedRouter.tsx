@@ -121,6 +121,7 @@ import SupervisorZoneMapList from "@/pages/admin/modules/staffMasters/supervisor
 import SupervisorZoneMapForm from "@/pages/admin/modules/staffMasters/supervisorZoneMap/supervisorZoneMapForm";
 import SupervisorZoneAccessAuditList from "@/pages/admin/modules/staffMasters/supervisorZoneAccessAudit/supervisorZoneAccessAuditList";
 import SupervisorZoneAccessAuditForm from "@/pages/admin/modules/staffMasters/supervisorZoneAccessAudit/supervisorZoneAccessAuditForm";
+import CommonAuditList from "@/pages/admin/modules/audits/commonAudit/commonAuditList";
 import UnassignedStaffPoolList from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolList";
 import UnassignedStaffPoolForm from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolForm";
 import CompanyList from "@/pages/admin/modules/superadminMasters/company/companyListPage";
@@ -222,6 +223,9 @@ const ROUTES: RouteMap = {
     "main-complaint-category": { list: MainComplaintCategoryList, form: MainComplaintCategoryForm },
     "sub-complaint-category": { list: SubCategoryComplaintList, form: SubCategoryComplaintForm },
     feedback: { list: FeedBackFormList, form: FeedBackForm },
+  },
+  audits: {
+    "common-audit": { list: CommonAuditList },
   },
   reports: {
     "trip-summary": { component: TripSummary },
@@ -327,4 +331,3 @@ export default function AdminEncryptedRouter() {
 
   return <Component />;
 }
-
