@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -14,27 +14,6 @@ import { Switch } from "@/components/ui/switch";
 import { useDistrictsQuery, useUpdateDistrictMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import type { DistrictListRecord } from "./types";
-
-type ErrorWithResponse = {
-  response?: { data?: unknown };
-};
-
-const extractErrorMessage = (error: unknown) => {
-  if (!error) return "Something went wrong while processing the request.";
-  if (typeof error === "string") return error;
-  const data = (error as ErrorWithResponse)?.response?.data;
-  if (typeof data === "string") return data;
-  if (Array.isArray(data)) return data.join(", ");
-  if (data && typeof data === "object") {
-    return Object.entries(data as Record<string, unknown>)
-      .map(([k, v]) =>
-        Array.isArray(v) ? `${k}: ${v.join(", ")}` : `${k}: ${String(v)}`
-      )
-      .join("\n");
-  }
-  if (error instanceof Error && error.message) return error.message;
-  return "Something went wrong while processing the request.";
-};
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -70,14 +49,15 @@ export default function DistrictListPage() {
 
   useEffect(() => {
     if (!districtsQuery.isError) return;
-    Swal.fire({ icon: "error", title: t("common.error"), text: String((districtsQuery.error as any)?.response?.data ?? districtsQuery.error) });
+    const errorData = (districtsQuery.error as { response?: { data?: unknown } })?.response?.data;
+    Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? districtsQuery.error) });
   }, [districtsQuery.error, districtsQuery.isError, t]);
 
   const districts = ((): DistrictListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
-    const rows = Array.isArray(allDistricts) ? (allDistricts as any[]) : [];
+    const rows = Array.isArray(allDistricts) ? allDistricts : [];
     const mapped: DistrictListRecord[] = rows.map((d) => ({
       unique_id: String(d.unique_id ?? ""),
       countryName: String(d.country_name ?? ""),
@@ -168,7 +148,15 @@ export default function DistrictListPage() {
   const actionTemplate = (row: DistrictListRecord) => (
     <div className="flex gap-3 justify-center">
       <button
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onClick={() =>
+          navigate(ENC_EDIT_PATH(row.unique_id), {
+            state: {
+              district: row,
+              companyUniqueId: row.company_id ?? row.company_unique_id,
+              projectId: row.project_id ?? row.project_unique_id,
+            },
+          })
+        }
         className="text-blue-600 hover:text-blue-800"
       >
         <PencilIcon className="size-5" />
@@ -228,7 +216,14 @@ export default function DistrictListPage() {
             icon="pi pi-plus"
             className="p-button-success"
             disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH)}
+            onClick={() =>
+              navigate(ENC_NEW_PATH, {
+                state: {
+                  companyUniqueId,
+                  projectId,
+                },
+              })
+            }
           />
         </div>
       </div>

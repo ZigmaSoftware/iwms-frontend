@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect, @typescript-eslint/no-explicit-any */
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -17,7 +18,7 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
-import type { CityMeta, CountryMeta, DistrictMeta, StateMeta, ZoneRecord } from "./types";
+import type { CityMeta, CountryMeta, DistrictMeta, StateMeta } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import {
@@ -124,7 +125,7 @@ export default function ZoneForm() {
     }
     const res = continentsQuery.data ?? [];
     setContinents(res.filter((x: any) => x.is_active).map((x: any) => ({ value: String(x.unique_id), label: x.name })));
-  }, [continentsQuery.data, continentsQuery.isError]);
+  }, [continentsQuery.data, continentsQuery.error, continentsQuery.isError, t]);
 
   useEffect(() => {
     if (countriesQuery.isError) {
@@ -133,7 +134,7 @@ export default function ZoneForm() {
     }
     const res = countriesQuery.data ?? [];
     setAllCountries(res.map((c: any) => ({ id: String(c.unique_id), name: c.name, continentId: normalizeNullable(c.continent_id ?? c.continent), isActive: Boolean(c.is_active) })));
-  }, [countriesQuery.data, countriesQuery.isError]);
+  }, [countriesQuery.data, countriesQuery.error, countriesQuery.isError, t]);
 
   useEffect(() => {
     if (statesQuery.isError) {
@@ -142,7 +143,7 @@ export default function ZoneForm() {
     }
     const res = statesQuery.data ?? [];
     setAllStates(res.map((s: any) => ({ id: String(s.unique_id), name: s.name, countryId: normalizeNullable(s.country_id ?? s.country), isActive: Boolean(s.is_active) })));
-  }, [statesQuery.data, statesQuery.isError]);
+  }, [statesQuery.data, statesQuery.error, statesQuery.isError, t]);
 
   useEffect(() => {
     if (districtsQuery.isError) {
@@ -151,7 +152,7 @@ export default function ZoneForm() {
     }
     const res = districtsQuery.data ?? [];
     setAllDistricts(res.map((d: any) => ({ id: String(d.unique_id), name: d.name, stateId: normalizeNullable(d.state_id ?? d.state), isActive: Boolean(d.is_active) })));
-  }, [districtsQuery.data, districtsQuery.isError]);
+  }, [districtsQuery.data, districtsQuery.error, districtsQuery.isError, t]);
 
   useEffect(() => {
     if (citiesQuery.isError) {
@@ -160,7 +161,7 @@ export default function ZoneForm() {
     }
     const res = citiesQuery.data ?? [];
     setAllCities(res.map((c: any) => ({ id: String(c.unique_id), name: c.name, districtId: normalizeNullable(c.district_id ?? c.district), isActive: Boolean(c.is_active) })));
-  }, [citiesQuery.data, citiesQuery.isError]);
+  }, [citiesQuery.data, citiesQuery.error, citiesQuery.isError]);
 
   /* ==========================================================
         FILTER CHAINS
@@ -256,17 +257,76 @@ export default function ZoneForm() {
     const dis = normalizeNullable(data.district_id);
     const cty = normalizeNullable(data.city_id);
 
-    cont && setPendingContinent(cont);
-    ctr && setPendingCountry(ctr);
-    ste && setPendingState(ste);
-    dis && setPendingDistrict(dis);
-    cty && setPendingCity(cty);
+    if (cont) setPendingContinent(cont);
+    if (ctr) setPendingCountry(ctr);
+    if (ste) setPendingState(ste);
+    if (dis) setPendingDistrict(dis);
+    if (cty) setPendingCity(cty);
     applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
   }, [zoneQuery.data, applyCompanyProjectFromRecord]);
+
+  useEffect(() => {
+    if (!zoneQuery.data || projects.length === 0) return;
+    const data = zoneQuery.data as any;
+    const rawProjectId = normalizeNullable(
+      data.project_id ?? data.project_unique_id ?? data.project
+    );
+    const projectName =
+      typeof data.project_name === "string" ? data.project_name.trim().toLowerCase() : "";
+    const resolvedProjectId =
+      rawProjectId && projects.some((project) => project.value === rawProjectId)
+        ? rawProjectId
+        : projects.find((project) => project.label.trim().toLowerCase() === projectName)
+            ?.value;
+
+    if (resolvedProjectId && resolvedProjectId !== projectId) {
+      setProjectId(resolvedProjectId);
+    }
+  }, [zoneQuery.data, projects, projectId, setProjectId]);
 
   /* ==========================================================
         AUTO-INFER CHAINS
   ========================================================== */
+  useEffect(() => {
+    if (!continentId && pendingCountry) {
+      const found = allCountries.find((c) => c.id === pendingCountry);
+      if (found?.continentId) {
+        setContinentId(found.continentId);
+        setPendingContinent(found.continentId);
+      }
+    }
+  }, [pendingCountry, continentId, allCountries]);
+
+  useEffect(() => {
+    if (!countryId && pendingState) {
+      const found = allStates.find((s) => s.id === pendingState);
+      if (found?.countryId) {
+        setCountryId(found.countryId);
+        setPendingCountry(found.countryId);
+      }
+    }
+  }, [pendingState, countryId, allStates]);
+
+  useEffect(() => {
+    if (!stateId && pendingDistrict) {
+      const found = allDistricts.find((d) => d.id === pendingDistrict);
+      if (found?.stateId) {
+        setStateId(found.stateId);
+        setPendingState(found.stateId);
+      }
+    }
+  }, [pendingDistrict, stateId, allDistricts]);
+
+  useEffect(() => {
+    if (!districtId && pendingCity) {
+      const found = allCities.find((c) => c.id === pendingCity);
+      if (found?.districtId) {
+        setDistrictId(found.districtId);
+        setPendingDistrict(found.districtId);
+      }
+    }
+  }, [pendingCity, districtId, allCities]);
+
   useEffect(() => {
     if (
       pendingContinent &&

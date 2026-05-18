@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -23,34 +23,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 
 
-type ErrorWithResponse = {
-  response?: {
-    data?: unknown;
-  };
-};
-
-const extractErrorMessage = (error: unknown) => {
-  if (!error) return "Something went wrong while processing the request.";
-  if (typeof error === "string") return error;
-
-  const data = (error as ErrorWithResponse)?.response?.data;
-
-  if (typeof data === "string") return data;
-  if (Array.isArray(data)) return data.join(", ");
-
-  if (data && typeof data === "object") {
-    return Object.entries(data as Record<string, unknown>)
-      .map(([k, v]) =>
-        Array.isArray(v) ? `${k}: ${v.join(", ")}` : `${k}: ${String(v)}`
-      )
-      .join("\n");
-  }
-
-  if (error instanceof Error && error.message) return error.message;
-
-  return "Something went wrong while processing the request.";
-};
-
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
@@ -58,7 +30,6 @@ export default function CityList() {
   const { t } = useTranslation();
   const citiesQuery = useCitiesQuery();
   const updateCityMutation = useUpdateCityMutation();
-  const allCities = citiesQuery.data ?? [];
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -83,16 +54,25 @@ export default function CityList() {
 
   const { encMasters, encCities } = getEncryptedRoute();
 
-  const ENC_NEW_PATH = `/${encMasters}/${encCities}/new`;
+  const ENC_NEW_PATH = (companyId?: string | null, selectedProjectId?: string | null) => {
+    const params = new URLSearchParams();
+    if (companyId) params.set("company_unique_id", companyId);
+    if (selectedProjectId) params.set("project_id", selectedProjectId);
+    const query = params.toString();
+    return `/${encMasters}/${encCities}/new${query ? `?${query}` : ""}`;
+  };
   const ENC_EDIT_PATH = (id: string | number) =>
     `/${encMasters}/${encCities}/${id}/edit`;
 
   useEffect(() => {
     if (!citiesQuery.isError) return;
-    Swal.fire({ icon: "error", title: t("common.error"), text: String((citiesQuery.error as any)?.response?.data ?? citiesQuery.error) });
+    const errorData = (citiesQuery.error as { response?: { data?: unknown } })?.response?.data;
+    Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? citiesQuery.error) });
   }, [citiesQuery.error, citiesQuery.isError, t]);
 
   const cities = useMemo(() => {
+    const allCities = citiesQuery.data ?? [];
+
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
@@ -105,7 +85,7 @@ export default function CityList() {
 
       return companyMatches && projectMatches;
     });
-  }, [allCities, companyUniqueId, companies.length, isSuperAdmin, projectId]);
+  }, [citiesQuery.data, companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);
@@ -159,7 +139,15 @@ export default function CityList() {
   const actionTemplate = (city: CityRecord) => (
     <div className="flex gap-3">
       <button
-        onClick={() => navigate(ENC_EDIT_PATH(city.unique_id))}
+        onClick={() =>
+          navigate(ENC_EDIT_PATH(city.unique_id), {
+            state: {
+              city,
+              companyUniqueId: city.company_id ?? city.company_unique_id,
+              projectId: city.project_id ?? city.project_unique_id,
+            },
+          })
+        }
         className="text-blue-600 hover:text-blue-800"
       >
         <PencilIcon className="size-5" />
@@ -228,7 +216,14 @@ export default function CityList() {
               icon="pi pi-plus"
               className="p-button-success"
               disabled={!companyUniqueId || !projectId}
-              onClick={() => navigate(ENC_NEW_PATH)}
+              onClick={() =>
+                navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
+                  state: {
+                    companyUniqueId,
+                    projectId,
+                  },
+                })
+              }
             />
           </div>
         </div>

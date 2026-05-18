@@ -19,6 +19,11 @@ import { companyApi } from "@/helpers/admin";
 
 import { encryptSegment } from "@/utils/routeCrypto";
 
+type ApiError = {
+  response?: {
+    data?: unknown;
+  };
+};
 
 const encSuperAdminMasters = encryptSegment("superadmin-masters");
 const encCompanyCreation = encryptSegment("company-creation");
@@ -52,7 +57,7 @@ function CompanyListForm() {
           });
         });
     }
-  }, [id, isEdit]);
+  }, [id, isEdit, t]);
 
   // Handle save
   const handleSubmit = async (e: React.FormEvent) => {
@@ -92,15 +97,18 @@ function CompanyListForm() {
       }
 
       navigate(ENC_LIST_PATH);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to save:", error);
 
-      const data = error.response?.data;
+      const data = (error as ApiError).response?.data;
       let message = t("common.save_failed_desc");
 
       if (typeof data === "object" && data !== null) {
         message = Object.entries(data)
-          .map(([key, val]) => `${key}: ${(val as string[]).join(", ")}`)
+          .map(([key, val]) => {
+            const value = Array.isArray(val) ? val.join(", ") : String(val);
+            return `${key}: ${value}`;
+          })
           .join("\n");
       } else if (typeof data === "string") {
         message = data;
