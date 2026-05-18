@@ -4,6 +4,34 @@ import { adminEndpoints } from "@/helpers/admin/endpoints";
 export type PermissionAction = "view" | "add" | "edit" | "delete" | "show" | string;
 export type PermissionsMap = Record<string, Record<string, string[]>>;
 
+export type PermissionDetailsColumn = {
+  id: string;
+  columnId: string;
+  fieldName: string;
+  displayName: string;
+  dataType: string;
+  dbColumn: string;
+  canView: boolean;
+  isRequired: boolean;
+  orderNo: number;
+};
+
+export type PermissionDetailsScreen = {
+  userScreenId: string;
+  permissions: {
+    show: boolean;
+    view: boolean;
+    add: boolean;
+    edit: boolean;
+    delete: boolean;
+  };
+  columns: PermissionDetailsColumn[];
+};
+
+export type PermissionDetailsMap = Record<string, Record<string, PermissionDetailsScreen>>;
+
+export const PERMISSION_DETAILS_STORAGE_KEY = "permission_details";
+
 type UnknownRecord = Record<string, unknown>;
 
 const ACTION_ALIASES: Record<string, string[]> = {
@@ -174,6 +202,26 @@ export const clearStoredPermissions = (): void => {
   localStorage.removeItem(PERMISSIONS_STORAGE_KEY);
 };
 
+export const getStoredPermissionDetails = (): PermissionDetailsMap => {
+  if (typeof window === "undefined") return {};
+  const raw = localStorage.getItem(PERMISSION_DETAILS_STORAGE_KEY);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as PermissionDetailsMap;
+  } catch {
+    return {};
+  }
+};
+
+export const setStoredPermissionDetails = (details: unknown): void => {
+  if (typeof window === "undefined") return;
+  if (!details || typeof details !== "object") {
+    localStorage.removeItem(PERMISSION_DETAILS_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(PERMISSION_DETAILS_STORAGE_KEY, JSON.stringify(details));
+};
+
 const resolveModuleEntry = (
   permissions: PermissionsMap,
   moduleName: string,
@@ -307,6 +355,7 @@ export const hasRoutePermission = (
 
 type PermissionsAPIResponse = {
   permissions?: PermissionsMap;
+  permission_details?: PermissionDetailsMap;
 };
 
 /**
@@ -347,12 +396,15 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
     }
 
     const data = (await response.json()) as PermissionsAPIResponse;
-    
+
     const permissions = sanitizePermissions(data);
-    // console.log("[Permissions API] ✅ Permissions processed:", permissions);
 
     // Store as fallback
     setStoredPermissions(permissions);
+
+    if (data.permission_details) {
+      setStoredPermissionDetails(data.permission_details);
+    }
 
     return permissions;
   } catch (error) {
