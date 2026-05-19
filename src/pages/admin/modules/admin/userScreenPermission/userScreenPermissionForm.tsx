@@ -109,7 +109,20 @@ type UserScreenColumnRecord = {
   data_type: string;
   order_no: number;
   is_required: boolean;
+  is_primary_key: boolean;
+  is_foreign_key: boolean;
 };
+
+/** Green lock: primary key, foreign key, or any field whose name ends with _id */
+const isLockedColumn = (col: UserScreenColumnRecord): boolean =>
+  col.is_primary_key ||
+  col.is_foreign_key ||
+  col.field_name === "unique_id" ||
+  col.field_name.endsWith("_id");
+
+/** Yellow warning: required but not locked */
+const isWarningColumn = (col: UserScreenColumnRecord): boolean =>
+  col.is_required && !isLockedColumn(col);
 
 const toId = (value: unknown): string => {
   if (value === null || value === undefined) return "";
@@ -582,8 +595,10 @@ export default function UserScreenPermissionForm() {
   const handleColumnToggle = (
     screenId: string,
     columnId: string,
-    checked: boolean
+    checked: boolean,
+    col: UserScreenColumnRecord
   ) => {
+    if (isLockedColumn(col)) return;
     setScreenMatrix((prev) =>
       prev.map((row) =>
         row.userscreen_id === screenId
@@ -601,10 +616,11 @@ export default function UserScreenPermissionForm() {
   const handleSelectAllColumns = (screenId: string, checked: boolean) => {
     const cols = screenColumns[screenId] ?? [];
     const allIds = cols.map((c) => c.unique_id);
+    const lockedIds = cols.filter(isLockedColumn).map((c) => c.unique_id);
     setScreenMatrix((prev) =>
       prev.map((row) =>
         row.userscreen_id === screenId
-          ? { ...row, columnIds: checked ? allIds : [] }
+          ? { ...row, columnIds: checked ? allIds : lockedIds }
           : row
       )
     );
@@ -646,13 +662,24 @@ export default function UserScreenPermissionForm() {
 
     // Action-only payload — column permissions are handled by the dedicated API below.
     const normalizedScreens = screenMatrix
-      .map((screen) => ({
-        userscreen_id: toId(screen.userscreen_id),
-        actions: uniqueIds(screen.actions).filter(
-          (actionId) =>
-            validActionIds.size === 0 || validActionIds.has(actionId)
-        ),
-      }))
+      .map((screen) => {
+        const base: Record<string, unknown> = {
+          userscreen_id: toId(screen.userscreen_id),
+          actions: uniqueIds(screen.actions).filter(
+            (actionId) =>
+              validActionIds.size === 0 || validActionIds.has(actionId)
+          ),
+        };
+        // Only include columnIds when the columns have been fetched for this screen.
+        // Sending undefined means "no change"; sending [] means "clear all column perms".
+        if (screenColumns[screen.userscreen_id] !== undefined) {
+          const lockedIds = screenColumns[screen.userscreen_id]
+            .filter(isLockedColumn)
+            .map((c) => c.unique_id);
+          base.columnIds = uniqueIds([...lockedIds, ...screen.columnIds]);
+        }
+        return base;
+      })
       .filter((screen) => Boolean(screen.userscreen_id));
 
     const payload = {
@@ -857,9 +884,27 @@ export default function UserScreenPermissionForm() {
           </div>
         </div>
 
+        {/* COLUMN LEGEND */}
+        {screenMatrix.length > 0 && (
+          <div className="mt-6 flex flex-wrap gap-4 text-xs text-gray-600">
+            <span className="flex items-center gap-1.5">
+              <input type="checkbox" checked disabled className="w-3.5 h-3.5 accent-green-600" readOnly />
+              <span className="text-gray-500">Key / FK field — always required</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <input type="checkbox" defaultChecked className="w-3.5 h-3.5 accent-amber-500" readOnly />
+              <span className="text-amber-700">⚠ Important field — hide with care</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <input type="checkbox" defaultChecked className="w-3.5 h-3.5 accent-blue-600" readOnly />
+              <span>Optional field</span>
+            </span>
+          </div>
+        )}
+
         {/* PERMISSION TABLE */}
         {screenMatrix.length > 0 && (
-          <div className="mt-6 border rounded-lg overflow-x-auto bg-white">
+          <div className="mt-3 border rounded-lg overflow-x-auto bg-white">
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
@@ -964,30 +1009,83 @@ export default function UserScreenPermissionForm() {
                             className="px-4 py-2"
                           >
                             <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                              {cols.map((col) => (
-                                <label
-                                  key={col.unique_id}
-                                  className="flex items-center gap-1.5 text-xs cursor-pointer group"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={row.columnIds.includes(
-                                      col.unique_id
-                                    )}
-                                    onChange={(e) =>
-                                      handleColumnToggle(
-                                        row.userscreen_id,
-                                        col.unique_id,
-                                        e.target.checked
-                                      )
-                                    }
-                                    className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
-                                  />
-                                  <span className="text-gray-700 group-hover:text-gray-900">
-                                    {col.display_name || col.field_name}
-                                  </span>
-                                </label>
-                              ))}
+                              {cols.map((col) => {
+                                const locked = isLockedColumn(col);
+                                const warning = !locked && isWarningColumn(col);
+                                const checked = locked || row.columnIds.includes(col.unique_id);
+
+                                if (locked) {
+                                  return (
+                                    <label
+                                      key={col.unique_id}
+                                      title="Required key field — always visible"
+                                      className="flex items-center gap-1.5 text-xs cursor-not-allowed"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked
+                                        disabled
+                                        className="w-3.5 h-3.5 accent-green-600"
+                                      />
+                                      <span className="text-gray-400">
+                                        {col.display_name || col.field_name}
+                                      </span>
+                                    </label>
+                                  );
+                                }
+
+                                if (warning) {
+                                  return (
+                                    <label
+                                      key={col.unique_id}
+                                      title="Important field — hiding it may affect functionality"
+                                      className="flex items-center gap-1.5 text-xs cursor-pointer group"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={(e) =>
+                                          handleColumnToggle(
+                                            row.userscreen_id,
+                                            col.unique_id,
+                                            e.target.checked,
+                                            col
+                                          )
+                                        }
+                                        className="w-3.5 h-3.5 cursor-pointer accent-amber-500"
+                                      />
+                                      <span className="text-amber-700 group-hover:text-amber-900">
+                                        {col.display_name || col.field_name}
+                                      </span>
+                                      <span className="text-amber-500 text-[10px] leading-none">⚠</span>
+                                    </label>
+                                  );
+                                }
+
+                                return (
+                                  <label
+                                    key={col.unique_id}
+                                    className="flex items-center gap-1.5 text-xs cursor-pointer group"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={(e) =>
+                                        handleColumnToggle(
+                                          row.userscreen_id,
+                                          col.unique_id,
+                                          e.target.checked,
+                                          col
+                                        )
+                                      }
+                                      className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
+                                    />
+                                    <span className="text-gray-700 group-hover:text-gray-900">
+                                      {col.display_name || col.field_name}
+                                    </span>
+                                  </label>
+                                );
+                              })}
                             </div>
                           </td>
                         </tr>

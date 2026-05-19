@@ -13,7 +13,20 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useDistrictsQuery, useUpdateDistrictMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useScreenColumnPermissions } from "@/hooks/useScreenColumnPermissions";
 import type { DistrictListRecord } from "./types";
+
+/**
+ * Maps each DataTable column to the backend field names that control its visibility.
+ * A column is shown if allowed is null (no restrictions) OR if any of its fieldNames
+ * are present in the allowed set.
+ */
+const DISTRICT_COLUMN_FIELDS: Record<string, string[]> = {
+  countryName: ["country_id"],
+  stateName: ["state_id"],
+  name: ["name"],
+  is_active: ["is_active"],
+};
 
 type ErrorWithResponse = {
   response?: { data?: unknown };
@@ -41,9 +54,18 @@ const normalizeId = (value: unknown): string =>
 
 export default function DistrictListPage() {
   const { t } = useTranslation();
+  const allowedColumns = useScreenColumnPermissions("masters", "districts");
+
+  const showCol = (key: string): boolean => {
+    if (!allowedColumns) return true;
+    return (DISTRICT_COLUMN_FIELDS[key] ?? []).some((f) => allowedColumns.has(f));
+  };
+
   const districtsQuery = useDistrictsQuery();
   const updateDistrictMutation = useUpdateDistrictMutation();
   const allDistricts = districtsQuery.data ?? [];
+  console.log("allDistrict", allDistricts);
+
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -91,6 +113,8 @@ export default function DistrictListPage() {
       project_unique_id: d.project_unique_id ? String(d.project_unique_id) : undefined,
       project_name: d.project_name ? String(d.project_name) : undefined,
     }));
+
+    console.log("mapped",mapped);
 
     const filtered = mapped.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
@@ -255,46 +279,49 @@ export default function DistrictListPage() {
           body={indexTemplate}
           style={{ width: "80px" }}
         />
-        <Column
-          field="countryName"
-          header={t("admin.nav.country")}
-          body={(row) => cap(row.countryName)}
-          sortable
-          filter
-          filterField="countryName"
-          filterElement={textFilterElement}
-          filterPlaceholder="Search country"
-        />
-        <Column
-          field="stateName"
-          header={t("admin.nav.state")}
-          body={(row) => cap(row.stateName)}
-          sortable
-          filter
-          filterField="stateName"
-          filterElement={textFilterElement}
-          filterPlaceholder="Search state"
-        />
-        <Column
-          field="name"
-          header={t("admin.nav.district")}
-          body={(row) => cap(row.name)}
-          sortable
-          filter
-          filterField="name"
-          filterElement={textFilterElement}
-          filterPlaceholder="Search district"
-        />
-        <Column
-          field="is_active"
-          header={t("common.status")}
-          body={statusTemplate}
-          // filter
-          // filterField="is_active"
-          // filterElement={statusFilterElement}
-          // showFilterMatchModes={false}
-          // style={{ width: "140px" }}
-        />
+        {showCol("countryName") && (
+          <Column
+            field="countryName"
+            header={t("admin.nav.country")}
+            body={(row) => cap(row.countryName)}
+            sortable
+            filter
+            filterField="countryName"
+            filterElement={textFilterElement}
+            filterPlaceholder="Search country"
+          />
+        )}
+        {showCol("stateName") && (
+          <Column
+            field="stateName"
+            header={t("admin.nav.state")}
+            body={(row) => cap(row.stateName)}
+            sortable
+            filter
+            filterField="stateName"
+            filterElement={textFilterElement}
+            filterPlaceholder="Search state"
+          />
+        )}
+        {showCol("name") && (
+          <Column
+            field="name"
+            header={t("admin.nav.district")}
+            body={(row) => cap(row.name)}
+            sortable
+            filter
+            filterField="name"
+            filterElement={textFilterElement}
+            filterPlaceholder="Search district"
+          />
+        )}
+        {showCol("is_active") && (
+          <Column
+            field="is_active"
+            header={t("common.status")}
+            body={statusTemplate}
+          />
+        )}
         <Column
           header={t("common.actions")}
           body={actionTemplate}
