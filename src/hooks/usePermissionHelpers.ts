@@ -118,14 +118,16 @@ interface FormFieldPermission {
 
 export function useFormFieldPermissions(
   moduleName: string,
+  screenName: string,
   fieldName: string
 ): FormFieldPermission {
-  const { hasPermission } = usePermission();
+  const { hasColumnPermission } = usePermission();
+  const readable = hasColumnPermission(moduleName, screenName, fieldName);
 
   return {
-    readable: hasPermission(moduleName, fieldName, "view"),
-    editable: hasPermission(moduleName, fieldName, "edit"),
-    deletable: hasPermission(moduleName, fieldName, "delete"),
+    readable,
+    editable: readable,
+    deletable: readable,
   };
 }
 
@@ -140,12 +142,13 @@ interface TableColumn {
 
 export function useTableColumns(
   moduleName: string,
+  screenName: string,
   columns: TableColumn[]
 ): TableColumn[] {
-  const { hasPermission } = usePermission();
+  const { hasColumnPermission } = usePermission();
 
   return columns.filter((column) =>
-    hasPermission(moduleName, column.id, "view")
+    hasColumnPermission(moduleName, screenName, column.accessorKey || column.id)
   );
 }
 
