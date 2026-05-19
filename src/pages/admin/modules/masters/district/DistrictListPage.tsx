@@ -64,6 +64,8 @@ export default function DistrictListPage() {
   const districtsQuery = useDistrictsQuery();
   const updateDistrictMutation = useUpdateDistrictMutation();
   const allDistricts = districtsQuery.data ?? [];
+  console.log("allDistrict", allDistricts);
+
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -111,6 +113,8 @@ export default function DistrictListPage() {
       project_unique_id: d.project_unique_id ? String(d.project_unique_id) : undefined,
       project_name: d.project_name ? String(d.project_name) : undefined,
     }));
+
+    console.log("mapped",mapped);
 
     const filtered = mapped.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
