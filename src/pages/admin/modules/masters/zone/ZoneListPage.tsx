@@ -20,7 +20,14 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useZonesQuery, useUpdateZoneMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useScreenColumnPermissions } from "@/hooks/useScreenColumnPermissions";
 import type { ZoneListRecord } from "./types";
+
+const ZONE_COLUMN_FIELDS: Record<string, string[]> = {
+  city_name: ["city_id"],
+  zone_name: ["zone_name"],
+  is_active: ["is_active"],
+};
 
 type ErrorWithResponse = {
   response?: {
@@ -58,6 +65,13 @@ const normalizeId = (value: unknown): string =>
 // ===========================
 export default function ZoneList() {
   const { t } = useTranslation();
+  const allowedColumns = useScreenColumnPermissions("masters", "zones");
+
+  const showCol = (key: string): boolean => {
+    if (!allowedColumns) return true;
+    return (ZONE_COLUMN_FIELDS[key] ?? []).some((f) => allowedColumns.has(f));
+  };
+
   const zonesQuery = useZonesQuery();
   const updateZoneMutation = useUpdateZoneMutation();
   const allZones = zonesQuery.data ?? [];
@@ -277,25 +291,31 @@ export default function ZoneList() {
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
 
-          <Column
-            field="city_name"
-            header={t("admin.nav.city")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row) => cap(row.city_name)}
-          />
+          {showCol("city_name") && (
+            <Column
+              field="city_name"
+              header={t("admin.nav.city")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row) => cap(row.city_name)}
+            />
+          )}
 
-          <Column
-            field="zone_name"
-            header={t("admin.nav.zone")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row) => cap(row.zone_name)}
-          />
+          {showCol("zone_name") && (
+            <Column
+              field="zone_name"
+              header={t("admin.nav.zone")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row) => cap(row.zone_name)}
+            />
+          )}
 
-          <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />
+          {showCol("is_active") && (
+            <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />
+          )}
 
           <Column
             header={t("common.actions")}
