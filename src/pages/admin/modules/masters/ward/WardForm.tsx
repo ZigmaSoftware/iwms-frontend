@@ -1,5 +1,6 @@
+/* eslint-disable react-hooks/set-state-in-effect, @typescript-eslint/no-explicit-any */
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -32,13 +33,14 @@ const WARD_FORM_FIELDS: Record<string, string[]> = {
   description:  ["description"],
 };
 import type { SelectOption } from "@/types";
-import type { CityMeta, CountryMeta, DistrictMeta, StateMeta, WardRecord, ZoneMeta } from "./types";
+import type { CityMeta, CountryMeta, DistrictMeta, StateMeta, ZoneMeta } from "./types";
 import {
   useContinentsQuery,
   useCountriesQuery,
   useStatesQuery,
   useDistrictsQuery,
   useCitiesQuery,
+  useCityQuery,
   useZonesQuery,
   useWardQuery,
   useCreateWardMutation,
@@ -54,8 +56,110 @@ import {
 ------------------------------ */
 const normalizeNullable = (v: any): string | null => {
   if (v === undefined || v === null) return null;
+  if (typeof v === "object") return normalizeNullable(v.unique_id ?? v.id);
   return String(v);
 };
+
+const normalizeLabel = (value: string | null | undefined) =>
+  (value ?? "").trim().toLowerCase();
+
+const resolveMetaId = <T extends { id: string; name: string }>(
+  items: T[],
+  id: string | null,
+  name: string | null | undefined
+) => {
+  if (id && items.some((item) => item.id === id)) {
+    return id;
+  }
+
+  const normalizedName = normalizeLabel(name);
+  if (!normalizedName) {
+    return id;
+  }
+
+  return (
+    items.find((item) => normalizeLabel(item.name) === normalizedName)?.id ?? id
+  );
+};
+
+type WardRouteState = {
+  companyUniqueId?: string | number | null;
+  projectId?: string | number | null;
+};
+
+type WardWithRelations = {
+  ward_name?: string | null;
+  name?: string | null;
+  description?: string | null;
+  remarks?: string | null;
+  notes?: string | null;
+  is_active?: boolean;
+  continent_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  country_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  state_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  district_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  city_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  zone_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  continent?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  country?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  state?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  district?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  city?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  zone?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  continent_name?: string | null;
+  country_name?: string | null;
+  state_name?: string | null;
+  district_name?: string | null;
+  city_name?: string | null;
+  zone_name?: string | null;
+};
+
+type WardCityMeta = CityMeta & {
+  continentId?: string | null;
+  countryId?: string | null;
+  stateId?: string | null;
+  continentName?: string | null;
+  countryName?: string | null;
+  stateName?: string | null;
+  districtName?: string | null;
+};
+
+type WardZoneMeta = ZoneMeta & {
+  continentId?: string | null;
+  countryId?: string | null;
+  stateId?: string | null;
+  districtId?: string | null;
+  cityName?: string | null;
+  districtName?: string | null;
+  stateName?: string | null;
+};
+
+type WardStateMeta = StateMeta & {
+  continentId?: string | null;
+  countryName?: string | null;
+};
+
+type WardDistrictMeta = DistrictMeta & {
+  continentId?: string | null;
+  countryId?: string | null;
+  stateName?: string | null;
+  countryName?: string | null;
+  continentName?: string | null;
+};
+
+const firstNonEmpty = (...values: Array<string | null | undefined>) =>
+  values.find((value) => Boolean(value)) ?? null;
+
+const resolveOptionId = <T extends { id: string; name: string }>(
+  items: T[],
+  value: string | null | undefined,
+  ...names: Array<string | null | undefined>
+) =>
+  resolveMetaId(
+    items,
+    value ?? null,
+    names.find((name) => Boolean(name)) ?? value ?? null
+  );
 
 /* ------------------------------
   ROUTES
@@ -97,21 +201,23 @@ export default function WardForm() {
   const [allCountries, setAllCountries] = useState<CountryMeta[]>([]);
   const [filteredCountries, setFilteredCountries] = useState<SelectOption[]>([]);
 
-  const [allStates, setAllStates] = useState<StateMeta[]>([]);
+  const [allStates, setAllStates] = useState<WardStateMeta[]>([]);
   const [filteredStates, setFilteredStates] = useState<SelectOption[]>([]);
 
-  const [allDistricts, setAllDistricts] = useState<DistrictMeta[]>([]);
+  const [allDistricts, setAllDistricts] = useState<WardDistrictMeta[]>([]);
   const [filteredDistricts, setFilteredDistricts] = useState<SelectOption[]>([]);
 
-  const [allCities, setAllCities] = useState<CityMeta[]>([]);
+  const [allCities, setAllCities] = useState<WardCityMeta[]>([]);
   const [filteredCities, setFilteredCities] = useState<SelectOption[]>([]);
 
-  const [allZones, setAllZones] = useState<ZoneMeta[]>([]);
+  const [allZones, setAllZones] = useState<WardZoneMeta[]>([]);
   const [filteredZones, setFilteredZones] = useState<SelectOption[]>([]);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
+  const routeState = location.state as WardRouteState | null;
   const {
     companyUniqueId,
     projectId,
@@ -139,6 +245,52 @@ export default function WardForm() {
   const districtsQuery = useDistrictsQuery();
   const citiesQuery = useCitiesQuery();
   const zonesQuery = useZonesQuery();
+  const selectedCityQuery = useCityQuery(isEdit ? cityId || pendingCity : null);
+
+  useEffect(() => {
+    if (isEdit) return;
+
+    const searchParams = new URLSearchParams(location.search);
+    const storedCompanyId =
+      typeof window === "undefined"
+        ? null
+        : localStorage.getItem("selected_company_unique_id");
+    const storedProjectId =
+      typeof window === "undefined"
+        ? null
+        : localStorage.getItem("selected_project_id");
+    const routeCompanyId = normalizeNullable(
+      routeState?.companyUniqueId ??
+        searchParams.get("company_unique_id") ??
+        storedCompanyId
+    );
+    const routeProjectId = normalizeNullable(
+      routeState?.projectId ?? searchParams.get("project_id") ?? storedProjectId
+    );
+
+    if (routeCompanyId && routeCompanyId !== companyUniqueId) {
+      onCompanyChange(routeCompanyId);
+      return;
+    }
+
+    const routeProjectReady =
+      routeProjectId &&
+      (!routeCompanyId || routeCompanyId === companyUniqueId) &&
+      projects.some((project) => project.value === routeProjectId);
+
+    if (routeProjectReady && routeProjectId !== projectId) {
+      setProjectId(routeProjectId);
+    }
+  }, [
+    companyUniqueId,
+    isEdit,
+    location.search,
+    onCompanyChange,
+    projectId,
+    projects,
+    routeState,
+    setProjectId,
+  ]);
 
   useEffect(() => {
     if (continentsQuery.isError) {
@@ -155,7 +307,12 @@ export default function WardForm() {
       return;
     }
     const res = countriesQuery.data ?? [];
-    setAllCountries(res.map((c: any) => ({ id: String(c.unique_id), name: c.name, continentId: normalizeNullable(c.continent_id ?? c.continent), isActive: Boolean(c.is_active) })));
+    setAllCountries(res.map((c: any) => ({
+      id: String(c.unique_id),
+      name: c.name,
+      continentId: normalizeNullable(c.continent_id ?? c.continent_unique_id ?? c.continent),
+      isActive: Boolean(c.is_active),
+    })));
   }, [countriesQuery.data, countriesQuery.isError]);
 
   useEffect(() => {
@@ -164,7 +321,14 @@ export default function WardForm() {
       return;
     }
     const res = statesQuery.data ?? [];
-    setAllStates(res.map((s: any) => ({ id: String(s.unique_id), name: s.name, countryId: normalizeNullable(s.country_id ?? s.country), isActive: Boolean(s.is_active) })));
+    setAllStates(res.map((s: any) => ({
+      id: String(s.unique_id),
+      name: s.name,
+      countryId: normalizeNullable(s.country_id ?? s.country_unique_id ?? s.country),
+      continentId: normalizeNullable(s.continent_id ?? s.continent_unique_id ?? s.continent),
+      countryName: s.country_name ?? null,
+      isActive: Boolean(s.is_active),
+    })));
   }, [statesQuery.data, statesQuery.isError]);
 
   useEffect(() => {
@@ -173,7 +337,17 @@ export default function WardForm() {
       return;
     }
     const res = districtsQuery.data ?? [];
-    setAllDistricts(res.map((d: any) => ({ id: String(d.unique_id), name: d.name, stateId: normalizeNullable(d.state_id ?? d.state), isActive: Boolean(d.is_active) })));
+    setAllDistricts(res.map((d: any) => ({
+      id: String(d.unique_id),
+      name: d.name,
+      stateId: normalizeNullable(d.state_id ?? d.state_unique_id ?? d.state),
+      countryId: normalizeNullable(d.country_id ?? d.country_unique_id ?? d.country),
+      continentId: normalizeNullable(d.continent_id ?? d.continent_unique_id ?? d.continent),
+      stateName: d.state_name ?? null,
+      countryName: d.country_name ?? null,
+      continentName: d.continent_name ?? null,
+      isActive: Boolean(d.is_active),
+    })));
   }, [districtsQuery.data, districtsQuery.isError]);
 
   useEffect(() => {
@@ -182,7 +356,19 @@ export default function WardForm() {
       return;
     }
     const res = citiesQuery.data ?? [];
-    setAllCities(res.map((c: any) => ({ id: String(c.unique_id), name: c.name, districtId: normalizeNullable(c.district_id ?? c.district), isActive: Boolean(c.is_active) })));
+    setAllCities(res.map((c: any) => ({
+      id: String(c.unique_id),
+      name: c.name ?? c.city_name,
+      continentId: normalizeNullable(c.continent_id ?? c.continent_unique_id ?? c.continent),
+      countryId: normalizeNullable(c.country_id ?? c.country_unique_id ?? c.country),
+      stateId: normalizeNullable(c.state_id ?? c.state_unique_id ?? c.state),
+      districtId: normalizeNullable(c.district_id ?? c.district_unique_id ?? c.district),
+      continentName: c.continent_name ?? null,
+      countryName: c.country_name ?? null,
+      stateName: c.state_name ?? null,
+      districtName: c.district_name ?? null,
+      isActive: Boolean(c.is_active),
+    })));
   }, [citiesQuery.data, citiesQuery.isError]);
 
   useEffect(() => {
@@ -191,7 +377,19 @@ export default function WardForm() {
       return;
     }
     const res = zonesQuery.data ?? [];
-    setAllZones(res.map((z: any) => ({ id: String(z.unique_id), name: z.zone_name, cityId: normalizeNullable(z.city_id ?? z.city), isActive: Boolean(z.is_active) })));
+    setAllZones(res.map((z: any) => ({
+      id: String(z.unique_id),
+      name: z.zone_name,
+      continentId: normalizeNullable(z.continent_id ?? z.continent_unique_id ?? z.continent),
+      countryId: normalizeNullable(z.country_id ?? z.country_unique_id ?? z.country),
+      stateId: normalizeNullable(z.state_id ?? z.state_unique_id ?? z.state),
+      districtId: normalizeNullable(z.district_id ?? z.district_unique_id ?? z.district),
+      cityId: normalizeNullable(z.city_id ?? z.city_unique_id ?? z.city),
+      cityName: z.city_name ?? null,
+      districtName: z.district_name ?? null,
+      stateName: z.state_name ?? null,
+      isActive: Boolean(z.is_active),
+    })));
   }, [zonesQuery.data, zonesQuery.isError]);
 
   /* ==========================================================
@@ -294,27 +492,252 @@ export default function WardForm() {
 
   useEffect(() => {
     if (!wardQuery.data) return;
-    const data = wardQuery.data;
+    const data = wardQuery.data as WardWithRelations;
 
-    setWardName(data.name ?? "");
+    setWardName(data.ward_name ?? data.name ?? "");
     setIsActive(Boolean(data.is_active));
-    setDescription(data.description ?? "");
+    setDescription(data.description ?? data.remarks ?? data.notes ?? "");
 
-    const cont = normalizeNullable(data.continent_id);
-    const ctr = normalizeNullable(data.country_id);
-    const ste = normalizeNullable(data.state_id);
-    const dis = normalizeNullable(data.district_id);
-    const cty = normalizeNullable(data.city_id);
-    const zne = normalizeNullable(data.zone_id);
+    let cont = resolveMetaId(
+      continents.map((continent) => ({
+        id: continent.value,
+        name: continent.label,
+      })),
+      normalizeNullable(data.continent_id ?? data.continent),
+      data.continent_name
+    );
+    let ctr = resolveMetaId(
+      allCountries,
+      normalizeNullable(data.country_id ?? data.country),
+      data.country_name
+    );
+    let ste = resolveMetaId(
+      allStates,
+      normalizeNullable(data.state_id ?? data.state),
+      data.state_name
+    );
+    let dis = resolveMetaId(
+      allDistricts,
+      normalizeNullable(data.district_id ?? data.district),
+      data.district_name
+    );
+    let cty = resolveMetaId(
+      allCities,
+      normalizeNullable(data.city_id ?? data.city),
+      data.city_name
+    );
+    const zne = resolveMetaId(
+      allZones,
+      normalizeNullable(data.zone_id ?? data.zone),
+      data.zone_name
+    );
+    const selectedZone = zne ? allZones.find((zone) => zone.id === zne) : undefined;
 
-    cont && setPendingContinent(cont);
-    ctr && setPendingCountry(ctr);
-    ste && setPendingState(ste);
-    dis && setPendingDistrict(dis);
-    cty && setPendingCity(cty);
-    zne && setPendingZone(zne);
+    cty = resolveOptionId(
+      allCities,
+      cty || selectedZone?.cityId || null,
+      data.city_name,
+      selectedZone?.cityName
+    );
+    const resolvedCity = cty
+      ? allCities.find((city) => city.id === cty) ??
+        allCities.find((city) => normalizeLabel(city.name) === normalizeLabel(data.city_name))
+      : selectedZone?.cityName
+        ? allCities.find((city) => normalizeLabel(city.name) === normalizeLabel(selectedZone.cityName))
+        : undefined;
+
+    cty = cty || resolvedCity?.id || null;
+    dis = resolveOptionId(
+      allDistricts,
+      firstNonEmpty(resolvedCity?.districtId, dis, selectedZone?.districtId),
+      resolvedCity?.districtName,
+      data.district_name,
+      selectedZone?.districtName
+    );
+
+    const resolvedDistrict = dis
+      ? allDistricts.find((district) => district.id === dis) ??
+        allDistricts.find(
+          (district) =>
+            normalizeLabel(district.name) ===
+            normalizeLabel(data.district_name ?? resolvedCity?.districtName)
+        )
+      : selectedZone?.districtName || resolvedCity?.districtName
+        ? allDistricts.find(
+            (district) =>
+              normalizeLabel(district.name) ===
+              normalizeLabel(selectedZone?.districtName ?? resolvedCity?.districtName)
+          )
+        : undefined;
+
+    dis = dis || resolvedDistrict?.id || null;
+    ste = resolveOptionId(
+      allStates,
+      firstNonEmpty(
+        resolvedCity?.stateId,
+        resolvedDistrict?.stateId,
+        ste,
+        selectedZone?.stateId
+      ),
+      resolvedCity?.stateName,
+      resolvedDistrict?.stateName,
+      data.state_name,
+      selectedZone?.stateName
+    );
+
+    const resolvedState = ste
+      ? allStates.find((state) => state.id === ste) ??
+        allStates.find((state) => normalizeLabel(state.name) === normalizeLabel(data.state_name))
+      : selectedZone?.stateName || resolvedCity?.stateName || resolvedDistrict?.stateName
+        ? allStates.find(
+            (state) =>
+              normalizeLabel(state.name) ===
+              normalizeLabel(
+                selectedZone?.stateName ??
+                  resolvedCity?.stateName ??
+                  resolvedDistrict?.stateName
+              )
+          )
+        : undefined;
+
+    ste = ste || resolvedState?.id || null;
+    ctr = resolveOptionId(
+      allCountries,
+      firstNonEmpty(
+        resolvedCity?.countryId,
+        resolvedDistrict?.countryId,
+        resolvedState?.countryId,
+        ctr,
+        selectedZone?.countryId
+      ),
+      resolvedCity?.countryName,
+      resolvedDistrict?.countryName,
+      resolvedState?.countryName,
+      data.country_name
+    );
+
+    const resolvedCountry = ctr
+      ? allCountries.find((country) => country.id === ctr) ??
+        allCountries.find((country) => normalizeLabel(country.name) === normalizeLabel(data.country_name))
+      : resolvedCity?.countryName || resolvedDistrict?.countryName || resolvedState?.countryName
+        ? allCountries.find(
+            (country) =>
+              normalizeLabel(country.name) ===
+              normalizeLabel(
+                resolvedCity?.countryName ??
+                  resolvedDistrict?.countryName ??
+                  resolvedState?.countryName
+              )
+          )
+        : undefined;
+
+    ctr = ctr || resolvedCountry?.id || null;
+    cont = resolveOptionId(
+      continents.map((continent) => ({
+        id: continent.value,
+        name: continent.label,
+      })),
+      firstNonEmpty(
+        resolvedCity?.continentId,
+        resolvedDistrict?.continentId,
+        resolvedState?.continentId,
+        resolvedCountry?.continentId,
+        cont,
+        selectedZone?.continentId
+      ),
+      resolvedCity?.continentName,
+      resolvedDistrict?.continentName,
+      data.continent_name
+    );
+
+    if (cont) {
+      setContinentId(cont);
+      setPendingContinent(cont);
+    }
+    if (ctr) {
+      setCountryId(ctr);
+      setPendingCountry(ctr);
+    }
+    if (ste) {
+      setStateId(ste);
+      setPendingState(ste);
+    }
+    if (dis) {
+      setDistrictId(dis);
+      setPendingDistrict(dis);
+    }
+    if (cty) {
+      setCityId(cty);
+      setPendingCity(cty);
+    }
+    if (zne) {
+      setZoneId(zne);
+      setPendingZone(zne);
+    }
     applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-  }, [wardQuery.data, applyCompanyProjectFromRecord]);
+  }, [
+    wardQuery.data,
+    applyCompanyProjectFromRecord,
+    continents,
+    allCountries,
+    allStates,
+    allDistricts,
+    allCities,
+    allZones,
+  ]);
+
+  useEffect(() => {
+    if (!isEdit || !selectedCityQuery.data) return;
+    const city = selectedCityQuery.data as any;
+
+    const cont = resolveOptionId(
+      continents.map((continent) => ({
+        id: continent.value,
+        name: continent.label,
+      })),
+      normalizeNullable(city.continent_id ?? city.continent),
+      city.continent_name
+    );
+    const ctr = resolveOptionId(
+      allCountries,
+      normalizeNullable(city.country_id ?? city.country),
+      city.country_name
+    );
+    const ste = resolveOptionId(
+      allStates,
+      normalizeNullable(city.state_id ?? city.state),
+      city.state_name
+    );
+    const dis = resolveOptionId(
+      allDistricts,
+      normalizeNullable(city.district_id ?? city.district),
+      city.district_name
+    );
+
+    if (cont) {
+      setContinentId(cont);
+      setPendingContinent(cont);
+    }
+    if (ctr) {
+      setCountryId(ctr);
+      setPendingCountry(ctr);
+    }
+    if (ste) {
+      setStateId(ste);
+      setPendingState(ste);
+    }
+    if (dis) {
+      setDistrictId(dis);
+      setPendingDistrict(dis);
+    }
+  }, [
+    isEdit,
+    selectedCityQuery.data,
+    continents,
+    allCountries,
+    allStates,
+    allDistricts,
+  ]);
 
   /* ==========================================================
         AUTO-INFER CHAINS

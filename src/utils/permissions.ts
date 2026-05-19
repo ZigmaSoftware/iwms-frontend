@@ -88,7 +88,6 @@ const SCREEN_ALIASES: Record<string, string[]> = {
   "customer-creation": ["customercreations"],
 };
 export const PERMISSIONS_STORAGE_KEY = "permissions";
-export const PERMISSION_DETAILS_STORAGE_KEY = "permission_details";
 export const COLUMN_PERMISSIONS_STORAGE_KEY = "column_permissions";
 
 const isRecord = (value: unknown): value is UnknownRecord =>
@@ -362,26 +361,6 @@ export const clearStoredPermissions = (): void => {
     return;
   }
   localStorage.removeItem(PERMISSIONS_STORAGE_KEY);
-};
-
-export const getStoredPermissionDetails = (): PermissionDetailsMap => {
-  if (typeof window === "undefined") return {};
-  const raw = localStorage.getItem(PERMISSION_DETAILS_STORAGE_KEY);
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw) as PermissionDetailsMap;
-  } catch {
-    return {};
-  }
-};
-
-export const setStoredPermissionDetails = (details: unknown): void => {
-  if (typeof window === "undefined") return;
-  if (!details || typeof details !== "object") {
-    localStorage.removeItem(PERMISSION_DETAILS_STORAGE_KEY);
-    return;
-  }
-  localStorage.setItem(PERMISSION_DETAILS_STORAGE_KEY, JSON.stringify(details));
 };
 
 const resolveModuleEntry = (

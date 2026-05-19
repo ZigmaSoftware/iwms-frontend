@@ -180,7 +180,7 @@ export default function UnassignedStaffPoolForm() {
         setRole("driver");
       }
     }
-  }, [id, isEdit, t, unassignedStaffPoolApi]);
+  }, [id, isEdit, recordQuery.data]);
 
   const wardOptions = useMemo(() => {
     const filtered = formData.zone_id

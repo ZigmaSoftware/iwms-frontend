@@ -254,7 +254,7 @@
 
 
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -275,6 +275,37 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { type StateRecord, useStatesQuery, useUpdateStateMutation } from "@/tanstack/admin";
 
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  country_name: { value: string | null; matchMode: FilterMatchMode };
+  name: { value: string | null; matchMode: FilterMatchMode };
+  label: { value: string | null; matchMode: FilterMatchMode };
+};
+
+type ErrorWithResponse = {
+  response?: {
+    data?: unknown;
+  };
+};
+
+const extractErrorMessage = (error: unknown, fallback: string) => {
+  const data = (error as ErrorWithResponse).response?.data;
+
+  if (typeof data === "string") return data;
+  if (Array.isArray(data)) return data.join(", ");
+
+  if (data && typeof data === "object") {
+    return Object.entries(data as Record<string, unknown>)
+      .map(([key, value]) =>
+        `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
+      )
+      .join("\n");
+  }
+
+  if (error instanceof Error && error.message) return error.message;
+
+  return fallback;
+};
 
 export default function StateList() {
   const { t } = useTranslation();
@@ -286,7 +317,7 @@ export default function StateList() {
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
-  const [filters, setFilters] = useState<any>({
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     country_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -303,7 +334,11 @@ export default function StateList() {
 
   useEffect(() => {
     if (!statesQuery.isError) return;
-    Swal.fire(t("common.error"), (statesQuery.error as any) ? String((statesQuery.error as any).response?.data ?? statesQuery.error) : t("common.fetch_failed"), "error");
+    Swal.fire(
+      t("common.error"),
+      extractErrorMessage(statesQuery.error, t("common.fetch_failed")),
+      "error"
+    );
   }, [statesQuery.error, statesQuery.isError, t]);
 
   const onFilter = (e: DataTableFilterEvent) => {
@@ -313,7 +348,7 @@ export default function StateList() {
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
 
-    let updated = { ...filters };
+    const updated = { ...filters };
     updated.global.value = value;
 
     setFilters(updated);
@@ -346,7 +381,7 @@ export default function StateList() {
 
     try {
       await updateStateMutation.mutateAsync({ id: row.unique_id, payload: { name: row.name, is_active: checked } });
-    } catch (error) {
+    } catch {
       Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
     } finally {
       setPendingStatusId(null);
@@ -371,7 +406,8 @@ export default function StateList() {
     </div>
   );
 
-  const indexTemplate = (_: any, options: any) => options.rowIndex + 1;
+  const indexTemplate = (_: StateRecord, options: { rowIndex: number }) =>
+    options.rowIndex + 1;
 
   return (
     <div className="p-3">

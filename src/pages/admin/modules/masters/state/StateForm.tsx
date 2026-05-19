@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -15,7 +15,7 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
-import type { CountryMeta, ErrorWithResponse, StateRecord } from "./types";
+import type { CountryMeta, ErrorWithResponse } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import {
@@ -31,13 +31,54 @@ const { encMasters, encStates } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encStates}`;
 
 const normalizeNullableId = (
-  value: string | number | null | undefined
+  value: string | number | { unique_id?: string | number; id?: string | number } | null | undefined
 ): string | null => {
   if (value === null || value === undefined) {
     return null;
   }
 
+  if (typeof value === "object") {
+    return normalizeNullableId(value.unique_id ?? value.id);
+  }
+
   return String(value);
+};
+
+const normalizeLabel = (value: string | null | undefined) =>
+  (value ?? "").trim().toLowerCase();
+
+const resolveOptionValue = (
+  options: SelectOption[],
+  id: string | null,
+  label: string | null | undefined
+) => {
+  if (id && options.some((option) => option.value === id)) {
+    return id;
+  }
+
+  const normalizedLabel = normalizeLabel(label);
+  if (!normalizedLabel) {
+    return id;
+  }
+
+  return (
+    options.find((option) => normalizeLabel(option.label) === normalizedLabel)
+      ?.value ?? id
+  );
+};
+
+type StateWithRelations = {
+  name?: string | null;
+  label?: string | null;
+  is_active?: boolean | number | string | null;
+  country_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  continent_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  country?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  continent?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  country_name?: string | null;
+  continent_name?: string | null;
+  country_unique_id?: string | number | null;
+  continent_unique_id?: string | number | null;
 };
 
 function StateForm() {
@@ -59,18 +100,10 @@ function StateForm() {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
   const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit });
 
-  const extractErrorMessage = (error: unknown) => {
+  const extractErrorMessage = useCallback((error: unknown) => {
     if (!error) {
       return t("common.request_failed");
     }
@@ -106,9 +139,11 @@ function StateForm() {
     }
 
     return t("common.request_failed");
-  };
+  }, [t]);
 
   const continentsQuery = useContinentsQuery();
+  const countriesQuery = useCountriesQuery();
+  const stateQuery = useStateQuery(id);
 
   useEffect(() => {
     if (continentsQuery.isError) {
@@ -116,15 +151,51 @@ function StateForm() {
       return;
     }
 
+    const selectedState = stateQuery.data as StateWithRelations | undefined;
+    const selectedContinentId = normalizeNullableId(
+      selectedState?.continent_id ??
+        selectedState?.continent_unique_id ??
+        selectedState?.continent
+    );
+    const selectedContinentName = selectedState?.continent_name;
     const res = continentsQuery.data ?? [];
     const activeContinents = res
       .filter((continent) => continent.is_active)
       .map((continent) => ({ value: String(continent.unique_id), label: continent.name }));
+    const resolvedContinentId = resolveOptionValue(
+      activeContinents,
+      selectedContinentId,
+      selectedContinentName
+    );
+
+    if (
+      resolvedContinentId &&
+      selectedContinentName &&
+      !activeContinents.some((continent) => continent.value === resolvedContinentId)
+    ) {
+      setContinents([
+        ...activeContinents,
+        { value: resolvedContinentId, label: selectedContinentName },
+      ]);
+      if (continentId !== resolvedContinentId) {
+        setContinentId(resolvedContinentId);
+      }
+      return;
+    }
 
     setContinents(activeContinents);
-  }, [continentsQuery.data, continentsQuery.isError]);
-
-  const countriesQuery = useCountriesQuery();
+    if (resolvedContinentId && continentId !== resolvedContinentId) {
+      setContinentId(resolvedContinentId);
+    }
+  }, [
+    continentId,
+    continentsQuery.data,
+    continentsQuery.error,
+    continentsQuery.isError,
+    extractErrorMessage,
+    stateQuery.data,
+    t,
+  ]);
 
   useEffect(() => {
     if (countriesQuery.isError) {
@@ -141,7 +212,13 @@ function StateForm() {
     }));
 
     setAllCountries(normalized);
-  }, [countriesQuery.data, countriesQuery.isError]);
+  }, [
+    countriesQuery.data,
+    countriesQuery.error,
+    countriesQuery.isError,
+    extractErrorMessage,
+    t,
+  ]);
 
   useEffect(() => {
     if (!continentId) {
@@ -152,6 +229,14 @@ function StateForm() {
       return;
     }
 
+    const selectedState = stateQuery.data as StateWithRelations | undefined;
+    const selectedCountryId = normalizeNullableId(
+      selectedState?.country_id ??
+        selectedState?.country_unique_id ??
+        selectedState?.country
+    );
+    const selectedCountryName = selectedState?.country_name;
+
     const filtered = allCountries
       .filter(
         (country) => country.isActive && country.continentId === continentId
@@ -160,31 +245,54 @@ function StateForm() {
         value: country.id,
         label: country.name,
       }));
+    const resolvedCountryId = resolveOptionValue(
+      filtered,
+      selectedCountryId,
+      selectedCountryName
+    );
+
+    if (
+      resolvedCountryId &&
+      selectedCountryName &&
+      !filtered.some((country) => country.value === resolvedCountryId)
+    ) {
+      filtered.push({ value: resolvedCountryId, label: selectedCountryName });
+    }
 
     setFilteredCountries(filtered);
     setCountryId((prev) =>
-      filtered.some((option) => option.value === prev) ? prev : ""
+      filtered.some((option) => option.value === prev)
+        ? prev
+        : resolvedCountryId ?? ""
     );
-  }, [continentId, allCountries, pendingCountryId]);
+  }, [continentId, allCountries, pendingCountryId, stateQuery.data]);
 
   // EDIT MODE → FETCH DATA
-  const stateQuery = useStateQuery(id);
-
   useEffect(() => {
     if (!stateQuery.data) return;
-    const data = stateQuery.data;
+    const data = stateQuery.data as StateWithRelations;
 
     setName(data.name ?? "");
     setLabel(data.label ?? "");
     setIsActive(Boolean(data.is_active));
 
-    const cId = String(data.country_id);
-    const contId = String(data.continent_id);
+    const cId = normalizeNullableId(
+      data.country_id ?? data.country_unique_id ?? data.country
+    );
+    const contId = normalizeNullableId(
+      data.continent_id ?? data.continent_unique_id ?? data.continent
+    );
 
-    setContinentId(contId);
-    setPendingCountryId(cId);
+    const resolvedContinentId = resolveOptionValue(
+      continents,
+      contId,
+      data.continent_name
+    );
+
+    setContinentId(resolvedContinentId ?? "");
+    setPendingCountryId(cId ?? "");
     applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-  }, [stateQuery.data, applyCompanyProjectFromRecord]);
+  }, [stateQuery.data, applyCompanyProjectFromRecord, continents]);
 
 
   // NEW IMPORTANT EFFECT → Set country AFTER filtering
@@ -196,8 +304,22 @@ function StateForm() {
       (c) => c.value === pendingCountryId
     );
 
-    if (exists) setCountryId(pendingCountryId);
-  }, [filteredCountries, pendingCountryId]);
+    if (exists) {
+      setCountryId(pendingCountryId);
+      return;
+    }
+
+    const selectedState = stateQuery.data as StateWithRelations | undefined;
+    const resolvedCountryId = resolveOptionValue(
+      filteredCountries,
+      pendingCountryId,
+      selectedState?.country_name
+    );
+
+    if (resolvedCountryId) {
+      setCountryId(resolvedCountryId);
+    }
+  }, [filteredCountries, pendingCountryId, stateQuery.data]);
 
   const createStateMutation = useCreateStateMutation();
   const updateStateMutation = useUpdateStateMutation();
