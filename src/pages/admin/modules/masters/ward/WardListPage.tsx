@@ -20,7 +20,15 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useWardsQuery, useUpdateWardMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useScreenColumnPermissions } from "@/hooks/useScreenColumnPermissions";
 import type { WardListRecord } from "./types";
+
+const WARD_COLUMN_FIELDS: Record<string, string[]> = {
+  zone_name: ["zone_id"],
+  city_name: ["city_id"],
+  ward_name: ["ward_name"],
+  is_active: ["is_active"],
+};
 
 type ErrorWithResponse = {
   response?: {
@@ -55,6 +63,13 @@ const extractErrorMessage = (error: unknown, fallbackMessage: string) => {
 
 export default function WardList() {
   const { t } = useTranslation();
+  const allowedColumns = useScreenColumnPermissions("masters", "wards");
+
+  const showCol = (key: string): boolean => {
+    if (!allowedColumns) return true;
+    return (WARD_COLUMN_FIELDS[key] ?? []).some((f) => allowedColumns.has(f));
+  };
+
   const wardsQuery = useWardsQuery();
   const updateWardMutation = useUpdateWardMutation();
   const allWards = wardsQuery.data ?? [];
@@ -328,38 +343,46 @@ export default function WardList() {
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
 
-          <Column
-            field="zone_name"
-            header={t("admin.nav.zone")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row) => cap(row.zone_name)}
-          />
+          {showCol("zone_name") && (
+            <Column
+              field="zone_name"
+              header={t("admin.nav.zone")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row) => cap(row.zone_name)}
+            />
+          )}
 
-          <Column
-            field="city_name"
-            header={t("admin.nav.city")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row) => cap(row.city_name)}
-          />
+          {showCol("city_name") && (
+            <Column
+              field="city_name"
+              header={t("admin.nav.city")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row) => cap(row.city_name)}
+            />
+          )}
 
-          <Column
-            field="ward_name"
-            header={t("admin.nav.ward")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row) => cap(row.ward_name)}
-          />
+          {showCol("ward_name") && (
+            <Column
+              field="ward_name"
+              header={t("admin.nav.ward")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row) => cap(row.ward_name)}
+            />
+          )}
 
-          <Column
-            header={t("common.status")}
-            body={statusTemplate}
-            style={{ width: "140px" }}
-          />
+          {showCol("is_active") && (
+            <Column
+              header={t("common.status")}
+              body={statusTemplate}
+              style={{ width: "140px" }}
+            />
+          )}
 
           <Column
             header={t("common.actions")}

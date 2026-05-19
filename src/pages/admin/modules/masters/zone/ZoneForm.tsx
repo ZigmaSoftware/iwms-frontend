@@ -21,6 +21,18 @@ import type { SelectOption } from "@/types";
 import type { CityMeta, CountryMeta, DistrictMeta, StateMeta } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useScreenColumnPermissions } from "@/hooks/useScreenColumnPermissions";
+
+const ZONE_FORM_FIELDS: Record<string, string[]> = {
+  continent_id: ["continent_id"],
+  country_id:   ["country_id"],
+  state_id:     ["state_id"],
+  district_id:  ["district_id"],
+  city_id:      ["city_id"],
+  zone_name:    ["zone_name"],
+  is_active:    ["is_active"],
+  description:  ["description"],
+};
 import {
   useContinentsQuery,
   useCountriesQuery,
@@ -116,6 +128,11 @@ const ENC_LIST_PATH = `/${encMasters}/${encZones}`;
 ========================================================== */
 export default function ZoneForm() {
   const { t } = useTranslation();
+  const allowedColumns = useScreenColumnPermissions("masters", "zones");
+  const showField = (key: string): boolean => {
+    if (!allowedColumns) return true;
+    return (ZONE_FORM_FIELDS[key] ?? []).some((f) => allowedColumns.has(f));
+  };
   /* FORM FIELDS */
   const [zoneName, setZoneName] = useState("");
   const [continentId, setContinentId] = useState("");
@@ -746,177 +763,93 @@ export default function ZoneForm() {
           </div>
 
           {/* Continent */}
+          {showField("continent_id") && (
           <div>
             <Label>{t("admin.nav.continent")} *</Label>
-            <Select
-              value={continentId}
-              onValueChange={(val) => {
-                setContinentId(val);
-                setCountryId("");
-                setStateId("");
-                setDistrictId("");
-                setCityId("");
-
-                setPendingCountry("");
-                setPendingState("");
-                setPendingDistrict("");
-                setPendingCity("");
-              }}
-            >
+            <Select value={continentId} onValueChange={(val) => { setContinentId(val); setCountryId(""); setStateId(""); setDistrictId(""); setCityId(""); setPendingCountry(""); setPendingState(""); setPendingDistrict(""); setPendingCity(""); }}>
               <SelectTrigger className="input-validate w-full">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.continent"),
-                  })}
-                />
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.continent") })} />
               </SelectTrigger>
               <SelectContent>
-                {continents.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
+                {continents.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
+          )}
 
           {/* Country */}
+          {showField("country_id") && (
           <div>
             <Label>{t("admin.nav.country")} *</Label>
-            <Select
-              value={countryId}
-              onValueChange={(val) => {
-                setCountryId(val);
-                setStateId("");
-                setDistrictId("");
-                setCityId("");
-
-                setPendingState("");
-                setPendingDistrict("");
-                setPendingCity("");
-              }}
-            >
+            <Select value={countryId} onValueChange={(val) => { setCountryId(val); setStateId(""); setDistrictId(""); setCityId(""); setPendingState(""); setPendingDistrict(""); setPendingCity(""); }}>
               <SelectTrigger className="input-validate w-full">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.country"),
-                  })}
-                />
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.country") })} />
               </SelectTrigger>
               <SelectContent>
-                {filteredCountries.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
+                {filteredCountries.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
+          )}
 
           {/* State */}
+          {showField("state_id") && (
           <div>
             <Label>{t("admin.nav.state")} *</Label>
-            <Select
-              value={stateId}
-              onValueChange={(val) => {
-                setStateId(val);
-                setDistrictId("");
-                setCityId("");
-                setPendingDistrict("");
-                setPendingCity("");
-              }}
-            >
+            <Select value={stateId} onValueChange={(val) => { setStateId(val); setDistrictId(""); setCityId(""); setPendingDistrict(""); setPendingCity(""); }}>
               <SelectTrigger className="input-validate w-full">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.state"),
-                  })}
-                />
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.state") })} />
               </SelectTrigger>
               <SelectContent>
-                {filteredStates.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
+                {filteredStates.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
+          )}
 
           {/* District */}
+          {showField("district_id") && (
           <div>
             <Label>{t("admin.nav.district")}</Label>
-            <Select
-              value={districtId}
-              onValueChange={(val) => {
-                setDistrictId(val);
-                setCityId("");
-                setPendingCity("");
-              }}
-            >
+            <Select value={districtId} onValueChange={(val) => { setDistrictId(val); setCityId(""); setPendingCity(""); }}>
               <SelectTrigger className="input-validate w-full">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.district"),
-                  })}
-                />
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.district") })} />
               </SelectTrigger>
               <SelectContent>
-                {filteredDistricts.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
+                {filteredDistricts.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
+          )}
 
           {/* City */}
+          {showField("city_id") && (
           <div>
             <Label>{t("admin.nav.city")} *</Label>
-            <Select
-              value={cityId}
-              onValueChange={(val) => setCityId(val)}
-            >
+            <Select value={cityId} onValueChange={setCityId}>
               <SelectTrigger className="input-validate w-full">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.city"),
-                  })}
-                />
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.city") })} />
               </SelectTrigger>
               <SelectContent>
-                {filteredCities.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
+                {filteredCities.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
+          )}
 
           {/* Zone Name */}
+          {showField("zone_name") && (
           <div>
-            <Label>
-              {t("common.item_name", { item: t("admin.nav.zone") })} *
-            </Label>
-            <Input
-              value={zoneName}
-              onChange={(e) => setZoneName(e.target.value)}
-              placeholder={t("common.enter_item_name", {
-                item: t("admin.nav.zone"),
-              })}
-              required
-            />
+            <Label>{t("common.item_name", { item: t("admin.nav.zone") })} *</Label>
+            <Input value={zoneName} onChange={(e) => setZoneName(e.target.value)} placeholder={t("common.enter_item_name", { item: t("admin.nav.zone") })} required />
           </div>
+          )}
 
           {/* Active Status */}
+          {showField("is_active") && (
           <div>
             <Label>{t("common.status")} *</Label>
-            <Select
-              value={isActive ? "true" : "false"}
-              onValueChange={(v) => setIsActive(v === "true")}
-            >
+            <Select value={isActive ? "true" : "false"} onValueChange={(v) => setIsActive(v === "true")}>
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_status")} />
               </SelectTrigger>
@@ -926,18 +859,15 @@ export default function ZoneForm() {
               </SelectContent>
             </Select>
           </div>
+          )}
 
           {/* Description */}
+          {showField("description") && (
           <div className="md:col-span-2">
             <Label>{t("common.description")}</Label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={t("common.description_optional")}
-              className="w-full border rounded-md p-2 focus:ring focus:ring-green-200 outline-none"
-              rows={3}
-            />
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("common.description_optional")} className="w-full border rounded-md p-2 focus:ring focus:ring-green-200 outline-none" rows={3} />
           </div>
+          )}
 
         </div>
 

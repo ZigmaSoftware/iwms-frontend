@@ -20,6 +20,15 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { type CityRecord, useCitiesQuery, useUpdateCityMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useScreenColumnPermissions } from "@/hooks/useScreenColumnPermissions";
+
+const CITY_COLUMN_FIELDS: Record<string, string[]> = {
+  country_name: ["country_id"],
+  state_name: ["state_id"],
+  district_name: ["district_id"],
+  name: ["name"],
+  is_active: ["is_active"],
+};
 
 
 
@@ -28,6 +37,13 @@ const normalizeId = (value: unknown): string =>
 
 export default function CityList() {
   const { t } = useTranslation();
+  const allowedColumns = useScreenColumnPermissions("masters", "cities");
+
+  const showCol = (key: string): boolean => {
+    if (!allowedColumns) return true;
+    return (CITY_COLUMN_FIELDS[key] ?? []).some((f) => allowedColumns.has(f));
+  };
+
   const citiesQuery = useCitiesQuery();
   const updateCityMutation = useUpdateCityMutation();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
@@ -254,39 +270,49 @@ export default function CityList() {
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
-          <Column
-            field="country_name"
-            header={t("admin.nav.country")}
-            body={(r) => cap(r.country_name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-          <Column
-            field="state_name"
-            header={t("admin.nav.state")}
-            body={(r) => cap(r.state_name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-          <Column
-            field="district_name"
-            header={t("admin.nav.district")}
-            body={(r) => cap(r.district_name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-          <Column
-            field="name"
-            header={t("admin.nav.city")}
-            body={(r) => cap(r.name)}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
-          <Column header={t("common.status")} body={statusTemplate} />
+          {showCol("country_name") && (
+            <Column
+              field="country_name"
+              header={t("admin.nav.country")}
+              body={(r) => cap(r.country_name)}
+              sortable
+              filter
+              showFilterMatchModes={false}
+            />
+          )}
+          {showCol("state_name") && (
+            <Column
+              field="state_name"
+              header={t("admin.nav.state")}
+              body={(r) => cap(r.state_name)}
+              sortable
+              filter
+              showFilterMatchModes={false}
+            />
+          )}
+          {showCol("district_name") && (
+            <Column
+              field="district_name"
+              header={t("admin.nav.district")}
+              body={(r) => cap(r.district_name)}
+              sortable
+              filter
+              showFilterMatchModes={false}
+            />
+          )}
+          {showCol("name") && (
+            <Column
+              field="name"
+              header={t("admin.nav.city")}
+              body={(r) => cap(r.name)}
+              sortable
+              filter
+              showFilterMatchModes={false}
+            />
+          )}
+          {showCol("is_active") && (
+            <Column header={t("common.status")} body={statusTemplate} />
+          )}
           <Column header={t("common.actions")} body={actionTemplate} />
         </DataTable>
 
