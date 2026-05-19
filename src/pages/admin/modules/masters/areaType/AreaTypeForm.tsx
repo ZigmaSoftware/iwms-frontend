@@ -32,7 +32,15 @@ const ENC_LIST_PATH = `/${encMasters}/${encAreaTypes}`;
 
 const normalizeNullable = (v: unknown): string | null => {
   if (v === undefined || v === null) return null;
+  if (typeof v === "object") {
+    const record = v as { unique_id?: unknown; id?: unknown };
+    return normalizeNullable(record.unique_id ?? record.id);
+  }
   return String(v);
+};
+
+type AreaTypeCityMeta = CityMeta & {
+  stateId?: string | null;
 };
 
 export default function AreaTypeForm() {
@@ -66,7 +74,7 @@ export default function AreaTypeForm() {
   const [allDistricts, setAllDistricts] = useState<DistrictMeta[]>([]);
   const [filteredDistricts, setFilteredDistricts] = useState<SelectOption[]>([]);
 
-  const [allCities, setAllCities] = useState<CityMeta[]>([]);
+  const [allCities, setAllCities] = useState<AreaTypeCityMeta[]>([]);
   const [filteredCities, setFilteredCities] = useState<SelectOption[]>([]);
 
   const {
@@ -130,7 +138,8 @@ export default function AreaTypeForm() {
       citiesQuery.data.map((c) => ({
         id: String(c.unique_id),
         name: c.name,
-        districtId: normalizeNullable(c.district_id ?? c.district),
+        stateId: normalizeNullable(c.state_id ?? c.state_unique_id ?? c.state),
+        districtId: normalizeNullable(c.district_id ?? c.district_unique_id ?? c.district),
         isActive: Boolean(c.is_active),
       }))
     );
@@ -244,18 +253,31 @@ export default function AreaTypeForm() {
     setName(record.name ?? record.area_type_name ?? "");
     setIsActive(Boolean(record.is_active));
 
-    const ste = normalizeNullable(record.state_id);
-    const dis = normalizeNullable(record.district_id);
+    let ste = normalizeNullable(record.state_id);
+    let dis = normalizeNullable(record.district_id);
     const cty = normalizeNullable(record.city_id);
+    const selectedCity = cty ? allCities.find((city) => city.id === cty) : undefined;
 
-    ste && setPendingState(ste);
-    dis && setPendingDistrict(dis);
-    cty && setPendingCity(cty);
+    dis = dis || selectedCity?.districtId || null;
+    ste = ste || selectedCity?.stateId || (dis ? allDistricts.find((district) => district.id === dis)?.stateId ?? null : null);
+
+    if (ste) {
+      setStateId(ste);
+      setPendingState(ste);
+    }
+    if (dis) {
+      setDistrictId(dis);
+      setPendingDistrict(dis);
+    }
+    if (cty) {
+      setCityId(cty);
+      setPendingCity(cty);
+    }
 
     applyCompanyProjectFromRecord(
       record as unknown as Record<string, unknown>
     );
-  }, [applyCompanyProjectFromRecord, areaTypeQuery.data]);
+  }, [applyCompanyProjectFromRecord, areaTypeQuery.data, allCities, allDistricts]);
 
   useEffect(() => {
     if (!areaTypeQuery.isError) return;

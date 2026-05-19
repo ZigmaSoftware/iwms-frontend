@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -81,20 +81,52 @@ export default function WardList() {
 
   const { encMasters, encWards } = getEncryptedRoute();
 
-  const ENC_NEW_PATH = `/${encMasters}/${encWards}/new`;
+  const ENC_NEW_PATH = (companyId?: string | null, selectedProjectId?: string | null) => {
+    const params = new URLSearchParams();
+    if (companyId) params.set("company_unique_id", companyId);
+    if (selectedProjectId) params.set("project_id", selectedProjectId);
+    const query = params.toString();
+    return `/${encMasters}/${encWards}/new${query ? `?${query}` : ""}`;
+  };
   const ENC_EDIT_PATH = (id: string | number) =>
     `/${encMasters}/${encWards}/${id}/edit`;
 
   useEffect(() => {
+    if (typeof window === "undefined" || projects.length === 0) return;
+    const storedProjectId = localStorage.getItem("selected_project_id");
+    if (
+      storedProjectId &&
+      storedProjectId !== projectId &&
+      projects.some((project) => project.value === storedProjectId)
+    ) {
+      setProjectId(storedProjectId);
+    }
+  }, [projectId, projects, setProjectId]);
+
+  const onFilterCompanyChange = (value: string) => {
+    localStorage.setItem("selected_company_unique_id", value);
+    localStorage.removeItem("selected_project_id");
+    onCompanyChange(value);
+  };
+
+  const onFilterProjectChange = (value: string) => {
+    localStorage.setItem("selected_project_id", value);
+    setProjectId(value);
+  };
+
+  useEffect(() => {
     if (!wardsQuery.isError) return;
-    Swal.fire({ icon: "error", title: t("common.error"), text: String((wardsQuery.error as any)?.response?.data ?? wardsQuery.error) });
+    const errorData = (wardsQuery.error as ErrorWithResponse)?.response?.data;
+    Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? wardsQuery.error) });
   }, [wardsQuery.error, wardsQuery.isError, t]);
 
   const wards = ((): WardListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
-    const rows = Array.isArray(allWards) ? (allWards as any[]) : [];
+    const rows = Array.isArray(allWards)
+      ? (allWards as unknown as WardListRecord[])
+      : [];
     const filtered = rows.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
@@ -220,7 +252,7 @@ export default function WardList() {
           <div className="flex items-center gap-3">
             <select
               value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
+              onChange={(e) => onFilterCompanyChange(e.target.value)}
               disabled={!isSuperAdmin || companies.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
@@ -236,7 +268,7 @@ export default function WardList() {
 
             <select
               value={projectId || ""}
-              onChange={(e) => setProjectId(e.target.value)}
+              onChange={(e) => onFilterProjectChange(e.target.value)}
               disabled={!companyUniqueId || projects.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
@@ -255,7 +287,14 @@ export default function WardList() {
               icon="pi pi-plus"
               className="p-button-success"
               disabled={!companyUniqueId || !projectId}
-              onClick={() => navigate(ENC_NEW_PATH)}
+              onClick={() =>
+                navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
+                  state: {
+                    companyUniqueId,
+                    projectId,
+                  },
+                })
+              }
             />
           </div>
         </div>

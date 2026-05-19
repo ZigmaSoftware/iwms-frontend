@@ -196,7 +196,12 @@ export default function CityForm() {
         return;
       }
 
-      if (routeProjectId && routeProjectId !== projectId) {
+      const routeProjectReady =
+        routeProjectId &&
+        (!routeCompanyId || routeCompanyId === companyUniqueId) &&
+        projects.some((project) => project.value === routeProjectId);
+
+      if (routeProjectReady && routeProjectId !== projectId) {
         setProjectId(routeProjectId);
       }
 
@@ -232,6 +237,7 @@ export default function CityForm() {
     location.search,
     onCompanyChange,
     projectId,
+    projects,
     routeState,
     setProjectId,
   ]);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -21,34 +21,6 @@ import { Switch } from "@/components/ui/switch";
 import { useZonesQuery, useUpdateZoneMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import type { ZoneListRecord } from "./types";
-
-type ErrorWithResponse = {
-  response?: {
-    data?: unknown;
-  };
-};
-
-const extractErrorMessage = (error: unknown) => {
-  if (!error) return "Something went wrong while processing the request.";
-  if (typeof error === "string") return error;
-
-  const data = (error as ErrorWithResponse)?.response?.data;
-
-  if (typeof data === "string") return data;
-  if (Array.isArray(data)) return data.join(", ");
-
-  if (data && typeof data === "object") {
-    return Object.entries(data as Record<string, unknown>)
-      .map(([k, v]) =>
-        Array.isArray(v) ? `${k}: ${v.join(", ")}` : `${k}: ${String(v)}`
-      )
-      .join("\n");
-  }
-
-  if (error instanceof Error && error.message) return error.message;
-
-  return "Something went wrong while processing the request.";
-};
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -83,20 +55,40 @@ export default function ZoneList() {
 
   const { encMasters, encZones } = getEncryptedRoute();
 
-  const ENC_NEW_PATH = `/${encMasters}/${encZones}/new`;
+  const ENC_NEW_PATH = (companyId?: string | null, selectedProjectId?: string | null) => {
+    const params = new URLSearchParams();
+    if (companyId) params.set("company_unique_id", companyId);
+    if (selectedProjectId) params.set("project_id", selectedProjectId);
+    const query = params.toString();
+    return `/${encMasters}/${encZones}/new${query ? `?${query}` : ""}`;
+  };
   const ENC_EDIT_PATH = (id: string | number) =>
     `/${encMasters}/${encZones}/${id}/edit`;
 
+  const onFilterCompanyChange = (value: string) => {
+    localStorage.setItem("selected_company_unique_id", value);
+    localStorage.removeItem("selected_project_id");
+    onCompanyChange(value);
+  };
+
+  const onFilterProjectChange = (value: string) => {
+    localStorage.setItem("selected_project_id", value);
+    setProjectId(value);
+  };
+
   useEffect(() => {
     if (!zonesQuery.isError) return;
-    Swal.fire({ icon: "error", title: t("common.error"), text: String((zonesQuery.error as any)?.response?.data ?? zonesQuery.error) });
+    const errorData = (zonesQuery.error as { response?: { data?: unknown } })?.response?.data;
+    Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? zonesQuery.error) });
   }, [zonesQuery.error, zonesQuery.isError, t]);
 
   const zones = ((): ZoneListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
-    const rows = Array.isArray(allZones) ? (allZones as any[]) : [];
+    const rows = Array.isArray(allZones)
+      ? (allZones as unknown as ZoneListRecord[])
+      : [];
     const filtered = rows.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
@@ -210,7 +202,7 @@ export default function ZoneList() {
           <div className="flex items-center gap-3">
             <select
               value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
+              onChange={(e) => onFilterCompanyChange(e.target.value)}
               disabled={!isSuperAdmin || companies.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
@@ -226,7 +218,7 @@ export default function ZoneList() {
 
             <select
               value={projectId || ""}
-              onChange={(e) => setProjectId(e.target.value)}
+              onChange={(e) => onFilterProjectChange(e.target.value)}
               disabled={!companyUniqueId || projects.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
@@ -245,7 +237,14 @@ export default function ZoneList() {
               icon="pi pi-plus"
               className="p-button-success"
               disabled={!companyUniqueId || !projectId}
-              onClick={() => navigate(ENC_NEW_PATH)}
+              onClick={() =>
+                navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
+                  state: {
+                    companyUniqueId,
+                    projectId,
+                  },
+                })
+              }
             />
           </div>
         </div>
