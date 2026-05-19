@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -15,7 +15,7 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
-import type { ContinentRecord, CountryRecord, ErrorWithResponse } from "./types";
+import type { ErrorWithResponse } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import {
@@ -32,12 +32,21 @@ const { encMasters, encCountries } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encCountries}`;
 
 const normalizeNullableId = (
-  value: string | number | null | undefined
+  value: string | number | { unique_id?: string | number; id?: string | number } | null | undefined
 ): string | null => {
   if (value === null || value === undefined) {
     return null;
   }
+  if (typeof value === "object") {
+    return normalizeNullableId(value.unique_id ?? value.id);
+  }
   return String(value);
+};
+
+type CountryWithContinent = CountryPayload & {
+  continent?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  continent_name?: string | null;
+  continent_unique_id?: string | number | null;
 };
 
 function CountryForm() {
@@ -52,18 +61,10 @@ function CountryForm() {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
   const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit });
 
-  const extractErrorMessage = (error: unknown) => {
+  const extractErrorMessage = useCallback((error: unknown) => {
     if (!error) return t("common.request_failed");
     if (typeof error === "string") return error;
 
@@ -94,9 +95,10 @@ function CountryForm() {
     }
 
     return t("common.request_failed");
-  };
+  }, [t]);
 
   const continentsQuery = useContinentsQuery();
+  const countryQuery = useCountryQuery(id);
 
   useEffect(() => {
     if (continentsQuery.isError) {
@@ -104,15 +106,39 @@ function CountryForm() {
       return;
     }
 
+    const selectedCountry = countryQuery.data as CountryWithContinent | undefined;
+    const selectedContinentId = normalizeNullableId(
+      selectedCountry?.continent_id ??
+        selectedCountry?.continent_unique_id ??
+        selectedCountry?.continent
+    );
+    const selectedContinentName = selectedCountry?.continent_name;
     const data = continentsQuery.data ?? [];
     const active = data
       .filter((continent) => continent.is_active)
       .map<SelectOption>((continent) => ({ value: String(continent.unique_id), label: continent.name }));
 
-    setContinents(active);
-  }, [continentsQuery.data, continentsQuery.isError]);
+    if (
+      selectedContinentId &&
+      selectedContinentName &&
+      !active.some((continent) => continent.value === selectedContinentId)
+    ) {
+      setContinents([
+        ...active,
+        { value: selectedContinentId, label: selectedContinentName },
+      ]);
+      return;
+    }
 
-  const countryQuery = useCountryQuery(id);
+    setContinents(active);
+  }, [
+    continentsQuery.data,
+    continentsQuery.error,
+    continentsQuery.isError,
+    countryQuery.data,
+    extractErrorMessage,
+    t,
+  ]);
 
   const createCountryMutation = useCreateCountryMutation();
   const updateCountryMutation = useUpdateCountryMutation();
@@ -120,14 +146,16 @@ function CountryForm() {
 
   useEffect(() => {
     if (!countryQuery.data) return;
-    const data = countryQuery.data;
+    const data = countryQuery.data as CountryWithContinent;
 
     setName(data.name ?? "");
     setIsActive(Boolean(data.is_active));
     setMobCode(data.mob_code ?? "");
     setCurrency(data.currency ?? "");
 
-    const resolvedContinentId = normalizeNullableId(data.continent_id ?? data.continent);
+    const resolvedContinentId = normalizeNullableId(
+      data.continent_id ?? data.continent_unique_id ?? data.continent
+    );
     setContinentId(resolvedContinentId ?? "");
     applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
   }, [countryQuery.data, applyCompanyProjectFromRecord]);

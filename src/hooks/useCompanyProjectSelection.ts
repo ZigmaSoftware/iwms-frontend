@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { companyApi, projectApi } from "@/helpers/admin";
 import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
@@ -211,9 +212,13 @@ export const useCompanyProjectSelection = ({
       return;
     }
 
+    let active = true;
+
     projectApi
       .list({ params: { company_unique_id: companyUniqueId } })
       .then((res) => {
+        if (!active) return;
+
         const options: CompanyProjectOption[] = toRecordList(res).map((x) => ({
           value: toStringId(x.unique_id),
           label: String(x.name ?? ""),
@@ -234,9 +239,15 @@ export const useCompanyProjectSelection = ({
         });
       })
       .catch(() => {
+        if (!active) return;
+
         setProjects([]);
         setProjectId("");
       });
+
+    return () => {
+      active = false;
+    };
   }, [companyUniqueId]);
 
   const onCompanyChange = useCallback((value: string) => {

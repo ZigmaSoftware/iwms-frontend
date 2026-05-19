@@ -251,13 +251,10 @@ type TableFilters = {
 
 const encSuperAdminMasters = encryptSegment("superadmin-masters");
 const encCompanyCreation = encryptSegment("company-creation");
-const encProjectCreation = encryptSegment("project-creation");
 
 const ENC_NEW_PATH = `/${encSuperAdminMasters}/${encCompanyCreation}/new`;
 const ENC_EDIT_PATH = (id: string) =>
   `/${encSuperAdminMasters}/${encCompanyCreation}/${id}/edit`;
-const ENC_PROJECT_LIST_PATH = (companyUniqueId: string) =>
-  `/${encSuperAdminMasters}/${encProjectCreation}?company_unique_id=${encodeURIComponent(companyUniqueId)}`;
 
 export default function CompanyList() {
   const { t } = useTranslation();
@@ -273,15 +270,16 @@ export default function CompanyList() {
   const navigate = useNavigate();
 
   const fetchCompanies = useCallback(async () => {
+    setLoading(true);
     try {
       const data = await companyApi.list();
       setCompanies(data);
-    } catch (error) {
+    } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchCompanies();
@@ -301,20 +299,13 @@ export default function CompanyList() {
   const statusBodyTemplate = (row: Company) => {
     const updateStatus = async (checked: boolean) => {
       try {
-        const formData = new FormData();
-        formData.append("is_active", String(checked));
-
-        try {
-          await companyApi.update(row.unique_id, {
-            name: row.name,
-            is_active: checked,
-          });
-        } catch (error) {
-          console.log(error);
-        }
+        await companyApi.update(row.unique_id, {
+          name: row.name,
+          is_active: checked,
+        });
 
         fetchCompanies();
-      } catch (err) {
+      } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       }
     };
@@ -334,7 +325,8 @@ export default function CompanyList() {
     </div>
   );
 
-  const indexTemplate = (_: any, options: any) => options.rowIndex + 1;
+  const indexTemplate = (_row: Company, options: { rowIndex: number }) =>
+    options.rowIndex + 1;
 
   const header = (
     <div className="flex justify-end">
