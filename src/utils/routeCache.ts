@@ -2,6 +2,7 @@ import { encryptSegment } from "./routeCrypto";
 
 export type EncryptedRoutes = {
   encAdmins: string;
+  encAudits: string;
   encCities: string;
   encCitizenGrivence: string;
   encCollectionMonitoring: string;
@@ -82,6 +83,7 @@ export type EncryptedRoutes = {
   encDashboardBins: string;
 
   encCompanyCreation: string;
+  encCommonAudit: string;
   encProjectCreation: string;
   encSuperAdminMaster: string;
 
@@ -93,6 +95,7 @@ export type EncryptedRoutes = {
 
 const plainRoutes: EncryptedRoutes = {
   encAdmins: "admins",
+  encAudits: "audits",
   encCities: "cities",
   encCitizenGrivence: "citizen-grievance",
   encCollectionMonitoring: "collection-monitoring",
@@ -107,6 +110,7 @@ const plainRoutes: EncryptedRoutes = {
   encCustomerMaster: "customer-master",
   encSuperAdminMaster: "superadmin-masters",
   encCompanyCreation: "company-creation",
+  encCommonAudit: "common-audit",
   encProjectCreation: "project-creation",
   encDistricts: "districts",
   encFeedback: "feedback",

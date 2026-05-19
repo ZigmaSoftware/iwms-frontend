@@ -283,7 +283,12 @@ import {
   ADMIN_VIEW_MODE_ADMIN,
   isAdmin,
 } from "@/types/roles";
-import { fetchPermissionsFromAPI, setStoredPermissions } from "@/utils/permissions";
+import {
+  fetchPermissionsFromAPI,
+  getStoredColumnPermissions,
+  setStoredColumnPermissions,
+  setStoredPermissions,
+} from "@/utils/permissions";
 import { Eye, EyeOff } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import BgImg from "../images/bgSignin.png";
@@ -316,6 +321,7 @@ type LoginResponse = {
   username?: string;
   email?: string;
   permissions?: Record<string, any>;
+  column_permissions?: Record<string, any>;
   profile?: Profile;
 };
 
@@ -398,13 +404,14 @@ export default function Auth() {
         ) {
           freshPermissions = loginPermissions;
           setStoredPermissions(freshPermissions);
+          setStoredColumnPermissions(res.data.column_permissions ?? {});
           console.log("[Auth] ℹ️ Falling back to permissions from login response");
         }
 
         // ✅ KEY FIX: push new permissions into PermissionContext React state
         // Without this, the context still holds the previous user's permissions
         // until the page is refreshed (because context only re-reads localStorage on mount).
-        updatePermissions(freshPermissions);
+        updatePermissions(freshPermissions, getStoredColumnPermissions());
 
         console.log("[Auth] ✅ Permissions cached and context updated");
       } catch (permError) {
@@ -416,7 +423,8 @@ export default function Auth() {
         freshPermissions = loginPermissions;
         if (Object.keys(freshPermissions).length > 0) {
           setStoredPermissions(freshPermissions);
-          updatePermissions(freshPermissions);
+          setStoredColumnPermissions(res.data.column_permissions ?? {});
+          updatePermissions(freshPermissions, getStoredColumnPermissions());
         }
       }
 

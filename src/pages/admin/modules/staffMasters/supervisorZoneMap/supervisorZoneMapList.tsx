@@ -363,7 +363,7 @@ export default function SupervisorZoneMapList() {
 
   const { encStaffMasters, encSupervisorZoneMap } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encStaffMasters}/${encSupervisorZoneMap}/new`;
-  const ENC_EDIT_PATH = (id: number) =>
+  const ENC_EDIT_PATH = (id: string) =>
     `/${encStaffMasters}/${encSupervisorZoneMap}/${id}/edit`;
 
   const params =
@@ -493,7 +493,7 @@ export default function SupervisorZoneMapList() {
     <div className="flex justify-center">
       <button
         title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.id))}
+        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
         className="text-blue-600 hover:text-blue-800"
       >
         {t("common.edit")}

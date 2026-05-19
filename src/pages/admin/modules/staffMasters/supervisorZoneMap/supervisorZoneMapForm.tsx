@@ -340,8 +340,8 @@ export default function SupervisorZoneMapForm() {
   useEffect(() => {
     Promise.all([
       staffCreationApi.list({ params: { active_status: 1 } }),
-      companyApi.list(),   // ✅ real company API
-      projectApi.list(),   // ✅ real project API
+      companyApi.list(),   
+      projectApi.list(),  
     ])
       .then(([staffRes, companiesRes, projectsRes]) => {
         /* ── Staff ── */
@@ -409,9 +409,11 @@ export default function SupervisorZoneMapForm() {
     setProjectOptions(filtered);
 
     // Reset project if it no longer belongs to the new company
+    if (!isEdit) {
     setSelectedProjectId((prev) =>
       prev && filtered.some((p) => p.value === prev) ? prev : ""
     );
+  }
   }, [selectedCompanyId, allProjects]);
 
   /* ── 3. Store raw districts, cities, zones ───────────────────────────────── */
@@ -433,9 +435,18 @@ export default function SupervisorZoneMapForm() {
     setSelectedCompanyId(normalizeId(res?.company_id ?? res?.company_unique_id));
     setSelectedProjectId(normalizeId(res?.project_id ?? res?.project_unique_id));
     setForm({
-      supervisor_id: res?.supervisor_id ?? "",
-      district_id: res?.district_id ? String(res.district_id) : "",
-      city_id: res?.city_id ? String(res.city_id) : "",
+      supervisor_id: normalizeId(
+        res?.supervisor_id ?? res?.supervisor_unique_id
+      ),
+
+      district_id: normalizeId(
+        res?.district_unique_id ?? res?.district_id
+      ),
+
+      city_id: normalizeId(
+        res?.city_unique_id ?? res?.city_id
+      ),
+
       status: res?.status ?? "ACTIVE",
     });
     setZoneIds(

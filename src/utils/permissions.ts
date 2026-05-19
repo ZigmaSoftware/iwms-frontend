@@ -88,6 +88,8 @@ const SCREEN_ALIASES: Record<string, string[]> = {
   "customer-creation": ["customercreations"],
 };
 export const PERMISSIONS_STORAGE_KEY = "permissions";
+export const PERMISSION_DETAILS_STORAGE_KEY = "permission_details";
+export const COLUMN_PERMISSIONS_STORAGE_KEY = "column_permissions";
 
 const isRecord = (value: unknown): value is UnknownRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -163,6 +165,104 @@ const sanitizePermissions = (source: unknown): PermissionsMap => {
   return sanitized;
 };
 
+const sanitizePermissionDetails = (source: unknown): PermissionDetailsMap => {
+  if (!isRecord(source)) {
+    return {};
+  }
+
+  const root = isRecord(source.permission_details) ? source.permission_details : source;
+  const sanitized: PermissionDetailsMap = {};
+
+  Object.entries(root).forEach(([moduleName, screens]) => {
+    if (!isRecord(screens)) {
+      return;
+    }
+    sanitized[moduleName] = screens;
+  });
+
+  return sanitized;
+};
+
+const sanitizeColumnPermissionEntry = (
+  entry: unknown
+): ColumnPermissionEntry | null => {
+  if (!isRecord(entry)) {
+    return null;
+  }
+
+  const fieldName = String(entry.fieldName ?? entry.field_name ?? "").trim();
+  const columnId = String(entry.columnId ?? entry.column_id ?? entry.id ?? "").trim();
+  const dbColumn = String(entry.dbColumn ?? entry.db_column ?? "").trim();
+  const displayName = String(entry.displayName ?? entry.display_name ?? "").trim();
+
+  if (!fieldName && !columnId && !dbColumn && !displayName) {
+    return null;
+  }
+
+  return {
+    ...entry,
+    uniqueId: String(entry.uniqueId ?? entry.unique_id ?? "").trim() || undefined,
+    columnId: columnId || undefined,
+    fieldName: fieldName || undefined,
+    displayName: displayName || undefined,
+    dbColumn: dbColumn || undefined,
+    mainScreenName: String(entry.mainScreenName ?? entry.main_screen_name ?? "").trim() || undefined,
+    userScreenName: String(entry.userScreenName ?? entry.user_screen_name ?? "").trim() || undefined,
+    canView: Boolean(entry.canView ?? entry.can_view ?? entry.is_active ?? true),
+  };
+};
+
+const sanitizeColumnPermissions = (source: unknown): ColumnPermissionsPayload => {
+  if (!isRecord(source)) {
+    return { grouped: {}, flat: [] };
+  }
+
+  const root = isRecord(source.column_permissions) ? source.column_permissions : source;
+  const flatSource = Array.isArray(root.flat) ? root.flat : [];
+  const flat = flatSource
+    .map(sanitizeColumnPermissionEntry)
+    .filter((entry): entry is ColumnPermissionEntry => Boolean(entry));
+
+  const grouped: ColumnPermissionsPayload["grouped"] = {};
+  const groupedSource = isRecord(root.grouped) ? root.grouped : {};
+
+  Object.entries(groupedSource).forEach(([moduleName, screens]) => {
+    if (!isRecord(screens)) {
+      return;
+    }
+
+    Object.entries(screens).forEach(([screenName, entries]) => {
+      if (!Array.isArray(entries)) {
+        return;
+      }
+
+      const sanitizedEntries = entries
+        .map(sanitizeColumnPermissionEntry)
+        .filter((entry): entry is ColumnPermissionEntry => Boolean(entry));
+
+      if (sanitizedEntries.length > 0) {
+        grouped[moduleName] = grouped[moduleName] ?? {};
+        grouped[moduleName][screenName] = sanitizedEntries;
+      }
+    });
+  });
+
+  if (Object.keys(grouped).length === 0) {
+    flat.forEach((entry) => {
+      const moduleName = String(entry.mainScreenName ?? "").trim();
+      const screenName = String(entry.userScreenName ?? "").trim();
+      if (!moduleName || !screenName) {
+        return;
+      }
+      grouped[moduleName] = grouped[moduleName] ?? {};
+      grouped[moduleName][screenName] = grouped[moduleName][screenName] ?? [];
+      grouped[moduleName][screenName].push(entry);
+    });
+  }
+
+  return { grouped, flat };
+};
+
 export const getStoredPermissions = (): PermissionsMap => {
   if (typeof window === "undefined") {
     return {};
@@ -181,6 +281,40 @@ export const getStoredPermissions = (): PermissionsMap => {
   }
 };
 
+export const getStoredPermissionDetails = (): PermissionDetailsMap => {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  const raw = localStorage.getItem(PERMISSION_DETAILS_STORAGE_KEY);
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    return sanitizePermissionDetails(JSON.parse(raw));
+  } catch {
+    return {};
+  }
+};
+
+export const getStoredColumnPermissions = (): ColumnPermissionsPayload => {
+  if (typeof window === "undefined") {
+    return { grouped: {}, flat: [] };
+  }
+
+  const raw = localStorage.getItem(COLUMN_PERMISSIONS_STORAGE_KEY);
+  if (!raw) {
+    return { grouped: {}, flat: [] };
+  }
+
+  try {
+    return sanitizeColumnPermissions(JSON.parse(raw));
+  } catch {
+    return { grouped: {}, flat: [] };
+  }
+};
+
 export const setStoredPermissions = (permissions: unknown): void => {
   if (typeof window === "undefined") {
     return;
@@ -193,6 +327,34 @@ export const setStoredPermissions = (permissions: unknown): void => {
   }
 
   localStorage.setItem(PERMISSIONS_STORAGE_KEY, JSON.stringify(sanitized));
+};
+
+export const setStoredPermissionDetails = (permissionDetails: unknown): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const sanitized = sanitizePermissionDetails(permissionDetails);
+  if (Object.keys(sanitized).length === 0) {
+    localStorage.removeItem(PERMISSION_DETAILS_STORAGE_KEY);
+    return;
+  }
+
+  localStorage.setItem(PERMISSION_DETAILS_STORAGE_KEY, JSON.stringify(sanitized));
+};
+
+export const setStoredColumnPermissions = (columnPermissions: unknown): void => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const sanitized = sanitizeColumnPermissions(columnPermissions);
+  if (sanitized.flat.length === 0 && Object.keys(sanitized.grouped).length === 0) {
+    localStorage.removeItem(COLUMN_PERMISSIONS_STORAGE_KEY);
+    return;
+  }
+
+  localStorage.setItem(COLUMN_PERMISSIONS_STORAGE_KEY, JSON.stringify(sanitized));
 };
 
 export const clearStoredPermissions = (): void => {
@@ -263,6 +425,64 @@ const resolveScreenActions = (
 
   return screenKey ? moduleEntry[screenKey] : undefined;
 };
+
+const isStoredSuperAdmin = (): boolean => {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const role = String(localStorage.getItem("user_role") ?? "").trim().toLowerCase();
+  return role === "superadmin" || role === "super_admin";
+};
+
+const resolveColumnEntries = (
+  columnPermissions: ColumnPermissionsPayload,
+  moduleName: string,
+  screenName: string,
+): ColumnPermissionEntry[] => {
+  const moduleEntry = resolveModuleEntry(
+    columnPermissions.grouped as unknown as Record<string, Record<string, string[]>>,
+    moduleName,
+  ) as unknown as Record<string, ColumnPermissionEntry[]> | undefined;
+
+  if (!moduleEntry) {
+    return [];
+  }
+
+  if (Array.isArray(moduleEntry[screenName])) {
+    return moduleEntry[screenName];
+  }
+
+  const aliasCandidates = [
+    screenName,
+    ...(SCREEN_ALIASES[screenName] ?? []),
+    ...(SCREEN_ALIASES[normalizeKey(screenName)] ?? []),
+  ];
+
+  const screenKey = Object.keys(moduleEntry).find((key) =>
+    aliasCandidates.some((candidate) => keysMatch(key, candidate)),
+  );
+
+  return screenKey ? moduleEntry[screenKey] ?? [] : [];
+};
+
+const columnEntryMatches = (
+  entry: ColumnPermissionEntry,
+  fieldName: string,
+): boolean => {
+  const candidates = [
+    entry.fieldName,
+    entry.dbColumn,
+    entry.displayName,
+    entry.columnId,
+    entry.uniqueId,
+  ]
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+
+  return candidates.some((candidate) => keysMatch(candidate, fieldName));
+};
+
 export const hasPermission = (
   moduleName: string,
   screenName: string,
@@ -290,6 +510,40 @@ export const hasPermission = (
 
   return actionList.some((storedAction) => actionMatches(storedAction, action));
 };
+
+export const hasColumnPermission = (
+  moduleName: string,
+  screenName: string,
+  fieldName: string,
+  columnPermissions: ColumnPermissionsPayload = getStoredColumnPermissions(),
+): boolean => {
+  if (!moduleName || !screenName || !fieldName) {
+    return false;
+  }
+
+  if (isStoredSuperAdmin()) {
+    return true;
+  }
+
+  const entries = resolveColumnEntries(columnPermissions, moduleName, screenName);
+  if (entries.length === 0) {
+    return true;
+  }
+
+  const matched = entries.find((entry) => columnEntryMatches(entry, fieldName));
+  return matched ? matched.canView !== false : false;
+};
+
+export const filterVisibleColumns = <TColumn>(
+  moduleName: string,
+  screenName: string,
+  columns: TColumn[],
+  getFieldName: (column: TColumn) => string,
+  columnPermissions: ColumnPermissionsPayload = getStoredColumnPermissions(),
+): TColumn[] =>
+  columns.filter((column) =>
+    hasColumnPermission(moduleName, screenName, getFieldName(column), columnPermissions),
+  );
 
 export const hasSidebarPermission = (
   moduleName: string,
@@ -412,6 +666,4 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
     return {};
   }
 };
-
-
 

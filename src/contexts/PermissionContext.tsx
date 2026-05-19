@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import {
+  getStoredColumnPermissions,
   getStoredPermissions,
   getStoredPermissionDetails,
   hasPermission as checkPermission,
+  type ColumnPermissionsPayload,
   type PermissionsMap,
   type PermissionDetailsMap,
   type PermissionAction,
@@ -13,7 +15,8 @@ type PermissionContextValue = {
   permissions: PermissionsMap;
   permissionDetails: PermissionDetailsMap;
   hasPermission: (moduleName: string, screenName: string, action?: PermissionAction) => boolean;
-  updatePermissions: (permissions: PermissionsMap) => void;
+  hasColumnPermission: (moduleName: string, screenName: string, fieldName: string) => boolean;
+  updatePermissions: (permissions: PermissionsMap, columnPermissions?: ColumnPermissionsPayload) => void;
   isLoading: boolean;
   lastVersion: number | null;
   /**
@@ -51,11 +54,13 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
 
       if (apiPermissions && Object.keys(apiPermissions).length > 0) {
         setPermissions(apiPermissions);
+        setColumnPermissions(getStoredColumnPermissions());
         setIsEmptyPermissions(false);
         setPermissionDetails(getStoredPermissionDetails());
       } else {
         const storedPerms = getStoredPermissions();
         setPermissions(storedPerms);
+        setColumnPermissions(getStoredColumnPermissions());
         setIsEmptyPermissions(Object.keys(storedPerms).length === 0);
         setPermissionDetails(getStoredPermissionDetails());
         // console.log(
@@ -66,6 +71,7 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
       if (isMountedRef.current) {
         const storedPerms = getStoredPermissions();
         setPermissions(storedPerms);
+        setColumnPermissions(getStoredColumnPermissions());
         setIsEmptyPermissions(Object.keys(storedPerms).length === 0);
         setPermissionDetails(getStoredPermissionDetails());
       }
@@ -134,6 +140,7 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
   const handleStorageChange = useCallback(() => {
     const updated = getStoredPermissions();
     setPermissions(updated);
+    setColumnPermissions(getStoredColumnPermissions());
     setIsEmptyPermissions(Object.keys(updated).length === 0);
     setPermissionDetails(getStoredPermissionDetails());
   }, []);
@@ -146,9 +153,13 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
   /**
    * 🔹 Allow explicit permission updates (useful for same-tab updates)
    */
-  const updatePermissions = useCallback((newPermissions: PermissionsMap) => {
+  const updatePermissions = useCallback((
+    newPermissions: PermissionsMap,
+    newColumnPermissions?: ColumnPermissionsPayload
+  ) => {
     // console.log("[PermissionContext] 🔄 Explicit permission update");
     setPermissions(newPermissions);
+    setColumnPermissions(newColumnPermissions ?? getStoredColumnPermissions());
     setIsEmptyPermissions(Object.keys(newPermissions).length === 0);
   }, []);
 
@@ -172,6 +183,19 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
     //   `[PermissionContext] hasPermission(${moduleName}/${screenName}/${action}): ${result}`
     // );
     return result;
+  };
+
+  const hasColumnPermission = (
+    moduleName: string,
+    screenName: string,
+    fieldName: string
+  ): boolean => {
+    return checkColumnPermission(
+      moduleName,
+      screenName,
+      fieldName,
+      columnPermissions
+    );
   };
 
   return (

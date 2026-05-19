@@ -809,6 +809,7 @@ const hiResource = {
           "trip_instance": "ट्रिप इंस्टेंस",
           "trip_attendance": "ट्रिप उपस्थिति",
           "audit_items": "ऑडिट आइटम्स",
+          "common_audit": "Common Audit",
           "vehicle_trip_audit": "वाहन ट्रिप ऑडिट",
           "trip_exception_log": "ट्रिप अपवाद लॉग",
           "zone_property_load_tracker": "ज़ोन प्रॉपर्टी लोड ट्रैकर",
@@ -941,6 +942,22 @@ const hiResource = {
           "performed_role": "Performed Role",
           "change_remarks": "Remarks",
           "performed_at": "Performed At"
+        },
+        "common_audit": {
+          "list_title": "Common Audit",
+          "list_subtitle": "Audit trail across system modules",
+          "search_placeholder": "Search common audits",
+          "empty_message": "No common audit records found",
+          "module_filter": "Filter by module",
+          "module_name": "Module Name",
+          "endpoint_name": "Endpoint Name",
+          "method": "Method",
+          "object_id": "Object ID",
+          "created_by": "Created By",
+          "created_at": "Created At",
+          "detail_title": "Audit Details",
+          "previous_data": "Previous Data",
+          "new_data": "New Data"
         },
         "supervisor_zone_map": {
           "title": "सुपरवाइज़र ज़ोन मैप",

@@ -113,7 +113,10 @@ const replaceCustomerCreationInList = (
   customerCreations: CustomerCreationRecord[] | undefined,
   customerCreation: CustomerCreationRecord
 ) => {
-  if (!customerCreations) return customerCreations;
+  if (!Array.isArray(customerCreations)) {
+    console.log("Expected array but got:", customerCreations);
+    return customerCreations;
+  }
 
   const customerId = normalizeCustomerCreationId(customerCreation.unique_id);
 
@@ -158,14 +161,18 @@ export function useUpdateCustomerCreationMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string | number; payload: CustomerCreationPayload }) => updateCustomerCreation(id, payload),
-    onSuccess: async (customerCreation, variables) => {
-      queryClient.setQueryData(customerCreationQueryKeys.detail(variables.id), customerCreation);
-      queryClient.setQueriesData<CustomerCreationRecord[]>(
-        { queryKey: customerCreationQueryKeys.all },
-        (current) => replaceCustomerCreationInList(current, customerCreation)
-      );
-      await queryClient.invalidateQueries({ queryKey: ["customer masters", "customerCreations"] });
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string | number;
+      payload: CustomerCreationPayload;
+    }) => updateCustomerCreation(id, payload),
+
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: customerCreationQueryKeys.all,
+      });
     },
   });
 }

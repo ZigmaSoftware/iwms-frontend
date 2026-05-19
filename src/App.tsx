@@ -8,6 +8,7 @@ import NotFound from "@/pages/dashboard/pages/NotFound";
 import { HomeDashboard } from "@/pages/dashboard/pages/Dashboard/HomeDashboard";
 import AdminHome from "@/pages/admin/AdminHome";
 import AdminEncryptedRouter from "@/layouts/admin/encryptedRouting/AdminEncryptedRouter";
+import CommonAuditList from "@/pages/admin/modules/audits/commonAudit/commonAuditList";
 import RoutePlanListPage from "@/pages/admin/modules/staffMasters/routeplan/routeplanlist";
 import DashboardEncryptedRouter from "@/layouts/dashboard/encryptedRouting/DashboardEncryptedRouter";
 
@@ -114,6 +115,7 @@ export default function App() {
       <Route path="/dashboard/overview" element={withDashboard(<Dashboard />)} />
       <Route path="/dashboard/:encModule" element={withDashboard(<DashboardEncryptedRouter />)} />
       <Route path="/admin" element={withAdmin(<AdminHome />)} />
+      <Route path="/audits/common-audit" element={withAdmin(<CommonAuditList />)} />
       <Route path="/:encMaster/:encModule" element={withAdmin(<AdminEncryptedRouter />)} />
       <Route path="/:encMaster/:encModule/new" element={withAdmin(<AdminEncryptedRouter />)} />
       <Route path="/:encMaster/:encModule/:id/edit" element={withAdmin(<AdminEncryptedRouter />)} />
