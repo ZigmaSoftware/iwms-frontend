@@ -13,7 +13,7 @@ export function useScreenColumnPermissions(
   mainScreenName: string,
   screenName: string
 ): Set<string> | null {
-  const { permissionDetails } = usePermission();
+  const { permissionDetails, hasColumnPermission } = usePermission();
 
   const mainScreen = permissionDetails?.[mainScreenName];
   if (!mainScreen) return null;
@@ -24,5 +24,11 @@ export function useScreenColumnPermissions(
   const { columns } = screen;
   if (!columns || columns.length === 0) return null;
 
-  return new Set(columns.map((c) => c.fieldName));
+  return new Set(
+    columns
+      .filter((column) =>
+        hasColumnPermission(mainScreenName, screenName, column.fieldName),
+      )
+      .map((column) => column.fieldName),
+  );
 }

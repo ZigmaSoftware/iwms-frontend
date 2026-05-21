@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
   type HierarchyPayload,
   type HierarchyRecord,
@@ -22,6 +23,11 @@ import Swal from "sweetalert2";
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
+
+const HIERARCHY_COLUMN_FIELDS: Record<string, string[]> = {
+  level_name: ["level_name", "name"],
+  is_active: ["is_active"],
+};
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -71,6 +77,11 @@ export default function HierarchyListPage() {
   } = useCompanyProjectSelection({ isEdit: false });
   const hierarchiesQuery = useHierarchiesQuery();
   const updateHierarchyMutation = useUpdateHierarchyMutation();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "masters",
+    "hierarchies",
+    HIERARCHY_COLUMN_FIELDS,
+  );
   const navigate = useNavigate();
   const { encMasters, encHierarchies } = getEncryptedRoute();
 
@@ -134,7 +145,7 @@ export default function HierarchyListPage() {
       setPendingStatusId(hierarchyId);
 
       try {
-        const payload: HierarchyPayload = {
+        const rawPayload = {
           level_name: row.level_name ?? "",
           area_type: String(row.area_type ?? row.area_type_id ?? ""),
           is_active: value,
@@ -145,6 +156,10 @@ export default function HierarchyListPage() {
             row.project_id ?? row.project_unique_id ?? projectId ?? ""
           ),
         };
+        const payload = filterPayload(rawPayload, [
+          "company_id",
+          "project_id",
+        ]) as HierarchyPayload;
 
         await updateHierarchyMutation.mutateAsync({
           id: row.unique_id,
@@ -273,19 +288,23 @@ export default function HierarchyListPage() {
           body={indexTemplate}
           style={{ width: "80px" }}
         />
-        <Column
-          field="level_name"
-          header={t("common.item_name", { item: t("admin.nav.hierarchy") })}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: HierarchyRecord) => cap(row.level_name)}
-        />
-        <Column
-          header={t("common.status")}
-          body={statusTemplate}
-          style={{ width: "140px" }}
-        />
+        {showCol("level_name") && (
+          <Column
+            field="level_name"
+            header={t("common.item_name", { item: t("admin.nav.hierarchy") })}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: HierarchyRecord) => cap(row.level_name)}
+          />
+        )}
+        {showCol("is_active") && (
+          <Column
+            header={t("common.status")}
+            body={statusTemplate}
+            style={{ width: "140px" }}
+          />
+        )}
         <Column
           header={t("common.actions")}
           body={actionTemplate}

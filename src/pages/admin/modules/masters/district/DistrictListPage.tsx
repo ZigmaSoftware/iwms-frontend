@@ -13,7 +13,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useDistrictsQuery, useUpdateDistrictMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useScreenColumnPermissions } from "@/hooks/useScreenColumnPermissions";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { DistrictListRecord } from "./types";
 
 /**
@@ -28,25 +28,11 @@ const DISTRICT_COLUMN_FIELDS: Record<string, string[]> = {
   is_active: ["is_active"],
 };
 
-type ErrorWithResponse = {
-  response?: { data?: unknown };
-};
-
-const extractErrorMessage = (error: unknown) => {
-  if (!error) return "Something went wrong while processing the request.";
-  if (typeof error === "string") return error;
-  const data = (error as ErrorWithResponse)?.response?.data;
-  if (typeof data === "string") return data;
-  if (Array.isArray(data)) return data.join(", ");
-  if (data && typeof data === "object") {
-    return Object.entries(data as Record<string, unknown>)
-      .map(([k, v]) =>
-        Array.isArray(v) ? `${k}: ${v.join(", ")}` : `${k}: ${String(v)}`
-      )
-      .join("\n");
-  }
-  if (error instanceof Error && error.message) return error.message;
-  return "Something went wrong while processing the request.";
+type DistrictApiRow = DistrictListRecord & {
+  country_name?: unknown;
+  state_name?: unknown;
+  company_name?: unknown;
+  project_name?: unknown;
 };
 
 const normalizeId = (value: unknown): string =>
@@ -54,12 +40,11 @@ const normalizeId = (value: unknown): string =>
 
 export default function DistrictListPage() {
   const { t } = useTranslation();
-  const allowedColumns = useScreenColumnPermissions("masters", "districts");
-
-  const showCol = (key: string): boolean => {
-    if (!allowedColumns) return true;
-    return (DISTRICT_COLUMN_FIELDS[key] ?? []).some((f) => allowedColumns.has(f));
-  };
+  const { showColumn: showCol } = useFieldVisibility(
+    "masters",
+    "districts",
+    DISTRICT_COLUMN_FIELDS,
+  );
 
   const districtsQuery = useDistrictsQuery();
   const updateDistrictMutation = useUpdateDistrictMutation();
@@ -100,7 +85,9 @@ export default function DistrictListPage() {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
-    const rows = Array.isArray(allDistricts) ? allDistricts : [];
+    const rows: DistrictApiRow[] = Array.isArray(allDistricts)
+      ? (allDistricts as unknown as DistrictApiRow[])
+      : [];
     const mapped: DistrictListRecord[] = rows.map((d) => ({
       unique_id: String(d.unique_id ?? ""),
       countryName: String(d.country_name ?? ""),

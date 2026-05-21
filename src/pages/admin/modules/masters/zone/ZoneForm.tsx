@@ -21,7 +21,7 @@ import type { SelectOption } from "@/types";
 import type { CityMeta, CountryMeta, DistrictMeta, StateMeta } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useScreenColumnPermissions } from "@/hooks/useScreenColumnPermissions";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 const ZONE_FORM_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],
@@ -128,11 +128,11 @@ const ENC_LIST_PATH = `/${encMasters}/${encZones}`;
 ========================================================== */
 export default function ZoneForm() {
   const { t } = useTranslation();
-  const allowedColumns = useScreenColumnPermissions("masters", "zones");
-  const showField = (key: string): boolean => {
-    if (!allowedColumns) return true;
-    return (ZONE_FORM_FIELDS[key] ?? []).some((f) => allowedColumns.has(f));
-  };
+  const { showField, filterPayload, getMissingRequiredFields } = useFieldVisibility(
+    "masters",
+    "zones",
+    ZONE_FORM_FIELDS,
+  );
   /* FORM FIELDS */
   const [zoneName, setZoneName] = useState("");
   const [continentId, setContinentId] = useState("");
@@ -634,7 +634,19 @@ export default function ZoneForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!continentId || !countryId || !stateId || !cityId || !zoneName.trim()) {
+    const fieldValues: Record<string, unknown> = {
+      continent_id: continentId,
+      country_id: countryId,
+      state_id: stateId,
+      city_id: cityId,
+      zone_name: zoneName.trim(),
+    };
+    const missingFields = getMissingRequiredFields(
+      ["continent_id", "country_id", "state_id", "city_id", "zone_name"],
+      (fieldKey) => fieldValues[fieldKey],
+    );
+
+    if (missingFields.length > 0) {
       Swal.fire(t("common.warning"), t("common.all_fields_required"), "warning");
       return;
     }
@@ -656,7 +668,7 @@ export default function ZoneForm() {
     }
 
     try {
-      const payload = {
+      const rawPayload = {
         zone_name: zoneName.trim(),
         continent_id: continentId,
         country_id: countryId,
@@ -668,6 +680,7 @@ export default function ZoneForm() {
         company_id: companyUniqueId,
         project_id: projectId,
       };
+      const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
       if (isEdit && id) {
         await updateZoneMutation.mutateAsync({ id, payload });

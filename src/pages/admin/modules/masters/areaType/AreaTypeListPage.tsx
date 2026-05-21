@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
   type AreaTypePayload,
   type AreaTypeRecord,
@@ -22,6 +23,11 @@ import Swal from "sweetalert2";
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
+
+const AREA_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
+  name: ["name", "area_type_name"],
+  is_active: ["is_active"],
+};
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -68,6 +74,11 @@ export default function AreaTypeListPage() {
   } = useCompanyProjectSelection({ isEdit: false });
   const areaTypesQuery = useAreaTypesQuery();
   const updateAreaTypeMutation = useUpdateAreaTypeMutation();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "masters",
+    "area-types",
+    AREA_TYPE_COLUMN_FIELDS,
+  );
   const navigate = useNavigate();
   const { encMasters, encAreaTypes } = getEncryptedRoute();
 
@@ -97,7 +108,7 @@ export default function AreaTypeListPage() {
   }, [areaTypesQuery.error, areaTypesQuery.isError, t]);
 
   const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters);
+    setFilters(e.filters as DataTableFilterMeta);
   };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,7 +142,7 @@ export default function AreaTypeListPage() {
       setPendingStatusId(areaTypeId);
 
       try {
-        const payload: AreaTypePayload = {
+        const rawPayload = {
           name: row.name ?? row.area_type_name ?? "",
           is_active: value,
           state_id: String(row.state_id ?? ""),
@@ -144,6 +155,10 @@ export default function AreaTypeListPage() {
             row.project_id ?? row.project_unique_id ?? projectId ?? ""
           ),
         };
+        const payload = filterPayload(rawPayload, [
+          "company_id",
+          "project_id",
+        ]) as AreaTypePayload;
 
         await updateAreaTypeMutation.mutateAsync({
           id: row.unique_id,
@@ -272,19 +287,23 @@ export default function AreaTypeListPage() {
           body={indexTemplate}
           style={{ width: "80px" }}
         />
-        <Column
-          field="name"
-          header={t("common.item_name", { item: t("admin.nav.area_type") })}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: AreaTypeRecord) => cap(row.name ?? row.area_type_name)}
-        />
-        <Column
-          header={t("common.status")}
-          body={statusTemplate}
-          style={{ width: "140px" }}
-        />
+        {showCol("name") && (
+          <Column
+            field="name"
+            header={t("common.item_name", { item: t("admin.nav.area_type") })}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: AreaTypeRecord) => cap(row.name ?? row.area_type_name)}
+          />
+        )}
+        {showCol("is_active") && (
+          <Column
+            header={t("common.status")}
+            body={statusTemplate}
+            style={{ width: "140px" }}
+          />
+        )}
         <Column
           header={t("common.actions")}
           body={actionTemplate}

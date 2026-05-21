@@ -18,6 +18,7 @@ import type { SelectOption } from "@/types";
 import type { ErrorWithResponse } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
   type CountryPayload,
   useCountryQuery,
@@ -30,6 +31,14 @@ import {
 const { encMasters, encCountries } = getEncryptedRoute();
 
 const ENC_LIST_PATH = `/${encMasters}/${encCountries}`;
+
+const COUNTRY_FIELDS: Record<string, string[]> = {
+  continent_id: ["continent_id"],
+  name: ["name"],
+  mob_code: ["mob_code"],
+  currency: ["currency"],
+  is_active: ["is_active"],
+};
 
 const normalizeNullableId = (
   value: string | number | { unique_id?: string | number; id?: string | number } | null | undefined
@@ -51,6 +60,8 @@ type CountryWithContinent = CountryPayload & {
 
 function CountryForm() {
   const { t } = useTranslation();
+  const { showField, filterPayload, getMissingRequiredFields } =
+    useFieldVisibility("masters", "countries", COUNTRY_FIELDS);
   const [name, setName] = useState("");
   const [mobCode, setMobCode] = useState("");
   const [currency, setCurrency] = useState("");
@@ -163,7 +174,15 @@ function CountryForm() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!name.trim() || !continentId) {
+    const fieldValues: Record<string, unknown> = {
+      name: name.trim(),
+      continent_id: continentId,
+    };
+
+    if (
+      getMissingRequiredFields(["name", "continent_id"], (fieldKey) => fieldValues[fieldKey])
+        .length > 0
+    ) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -192,13 +211,14 @@ function CountryForm() {
     // mutations are declared at component top-level
 
     try {
-      const payload: CountryPayload = {
+      const rawPayload = {
         name: name.trim(),
         continent_id: continentId,
         is_active: isActive,
         mob_code: mobCode.trim(),
         currency: currency.trim(),
       };
+      const payload = filterPayload(rawPayload) as CountryPayload;
 
       if (isEdit && id) {
         await updateCountryMutation.mutateAsync({ id, payload });
@@ -293,100 +313,107 @@ function CountryForm() {
             )}
           </div> */}
 
-          {/* Continent Dropdown */}
-          <div>
-            <Label htmlFor="continent">
-              {t("common.item_name", { item: t("admin.nav.continent") })}{" "}
-              <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={continentId || undefined}
-              onValueChange={(val) => setContinentId(val)}
-            >
-              <SelectTrigger className="input-validate w-full" id="continent">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.continent"),
-                  })}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {continents.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {showField("continent_id") && (
+            <div>
+              <Label htmlFor="continent">
+                {t("common.item_name", { item: t("admin.nav.continent") })}{" "}
+                <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={continentId || undefined}
+                onValueChange={(val) => setContinentId(val)}
+              >
+                <SelectTrigger className="input-validate w-full" id="continent">
+                  <SelectValue
+                    placeholder={t("common.select_item_placeholder", {
+                      item: t("admin.nav.continent"),
+                    })}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {continents.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
-          {/*  Country Name */}
-          <div>
-            <Label htmlFor="countryName">
-              {t("common.item_name", { item: t("admin.nav.country") })}{" "}
-              <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="countryName"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t("common.enter_item_name", {
-                item: t("admin.nav.country"),
-              })}
-              className="input-validate w-full"
-              required
-            />
-          </div>
-          {/*  Mobile Code */}
-          <div>
-            <Label htmlFor="mobile_code">
-              {t("common.mobile_code")} <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="mobile_code"
-              type="number"
-              value={mobCode}
-              onChange={(e) => setMobCode(e.target.value)}
-              placeholder={t("common.mobile_code_placeholder")}
-              className="input-validate w-full"
-              required
-            />
-          </div>
-          {/*  Currency Name */}
-          <div>
-            <Label htmlFor="currency">
-              {t("common.currency")} <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="currency"
-              type="text"
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-              placeholder={t("common.currency_placeholder")}
-              className="input-validate w-full"
-              required
-            />
-          </div>
+          {showField("name") && (
+            <div>
+              <Label htmlFor="countryName">
+                {t("common.item_name", { item: t("admin.nav.country") })}{" "}
+                <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="countryName"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t("common.enter_item_name", {
+                  item: t("admin.nav.country"),
+                })}
+                className="input-validate w-full"
+                required
+              />
+            </div>
+          )}
 
-          {/*  Active Status */}
-          <div>
-            <Label htmlFor="isActive">
-              {t("common.status")} <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={isActive ? "true" : "false"}
-              onValueChange={(val) => setIsActive(val === "true")}
-            >
-              <SelectTrigger className="input-validate w-full" id="isActive">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {showField("mob_code") && (
+            <div>
+              <Label htmlFor="mobile_code">
+                {t("common.mobile_code")} <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="mobile_code"
+                type="number"
+                value={mobCode}
+                onChange={(e) => setMobCode(e.target.value)}
+                placeholder={t("common.mobile_code_placeholder")}
+                className="input-validate w-full"
+                required
+              />
+            </div>
+          )}
+
+          {showField("currency") && (
+            <div>
+              <Label htmlFor="currency">
+                {t("common.currency")} <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="currency"
+                type="text"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                placeholder={t("common.currency_placeholder")}
+                className="input-validate w-full"
+                required
+              />
+            </div>
+          )}
+
+          {showField("is_active") && (
+            <div>
+              <Label htmlFor="isActive">
+                {t("common.status")} <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={isActive ? "true" : "false"}
+                onValueChange={(val) => setIsActive(val === "true")}
+              >
+                <SelectTrigger className="input-validate w-full" id="isActive">
+                  <SelectValue placeholder={t("common.select_status")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">{t("common.active")}</SelectItem>
+                  <SelectItem value="false">{t("common.inactive")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         {/*  Buttons */}

@@ -14,11 +14,17 @@ import {
   type PropertyPayload,
 } from "@/tanstack/admin/queries/wastetype/property";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { PropertyEditorProps } from "./types";
 
 const { encMasters, encProperties } = getEncryptedRoute();
 
 const ENC_LIST_PATH = `/${encMasters}/${encProperties}`;
+
+const PROPERTY_FIELDS: Record<string, string[]> = {
+  property_name: ["property_name"],
+  is_active: ["is_active"],
+};
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -50,14 +56,23 @@ function PropertyEditor({
   onSubmit,
 }: PropertyEditorProps) {
   const { t } = useTranslation();
+  const { showField, filterPayload, getMissingRequiredFields } =
+    useFieldVisibility("masters", "properties", PROPERTY_FIELDS);
   const [propertyName, setPropertyName] = useState(initialPayload.property_name);
   const [isActive, setIsActive] = useState(initialPayload.is_active);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = propertyName.trim();
+    const fieldValues: Record<string, unknown> = {
+      property_name: trimmedName,
+      is_active: isActive,
+    };
 
-    if (!trimmedName) {
+    if (
+      getMissingRequiredFields(["property_name"], (fieldKey) => fieldValues[fieldKey])
+        .length > 0
+    ) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -67,53 +82,57 @@ function PropertyEditor({
       return;
     }
 
-    await onSubmit({
+    const rawPayload = {
       property_name: trimmedName,
       is_active: isActive,
-    });
+    };
+
+    await onSubmit(filterPayload(rawPayload) as PropertyPayload);
   };
 
   return (
     <form onSubmit={handleSubmit} noValidate>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/*Property Name */}
-        <div>
-          <Label htmlFor="name">
-            {t("common.item_name", { item: t("admin.nav.property") })}{" "}
-            <span className="text-red-500">*</span>
-          </Label>
-          <Input
-            id="propertyName"
-            type="text"
-            value={propertyName}
-            onChange={(e) => setPropertyName(e.target.value)}
-            placeholder={t("common.enter_item_name", {
-              item: t("admin.nav.property"),
-            })}
-            className="input-validate w-full"
-            disabled={isSubmitting}
-            required
-          />
-        </div>
+        {showField("property_name") && (
+          <div>
+            <Label htmlFor="name">
+              {t("common.item_name", { item: t("admin.nav.property") })}{" "}
+              <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="propertyName"
+              type="text"
+              value={propertyName}
+              onChange={(e) => setPropertyName(e.target.value)}
+              placeholder={t("common.enter_item_name", {
+                item: t("admin.nav.property"),
+              })}
+              className="input-validate w-full"
+              disabled={isSubmitting}
+              required
+            />
+          </div>
+        )}
 
-        {/* Active Status */}
-        <div>
-          <Label htmlFor="isActive">
-            {t("common.status")} <span className="text-red-500">*</span>
-          </Label>
-          <Select
-            id="isActive"
-            value={isActive ? "true" : "false"}
-            onChange={(val) => setIsActive(val === "true")}
-            options={[
-              { value: "true", label: t("common.active") },
-              { value: "false", label: t("common.inactive") },
-            ]}
-            className="input-validate w-full"
-            disabled={isSubmitting}
-            required
-          />
-        </div>
+        {showField("is_active") && (
+          <div>
+            <Label htmlFor="isActive">
+              {t("common.status")} <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              id="isActive"
+              value={isActive ? "true" : "false"}
+              onChange={(val) => setIsActive(val === "true")}
+              options={[
+                { value: "true", label: t("common.active") },
+                { value: "false", label: t("common.inactive") },
+              ]}
+              className="input-validate w-full"
+              disabled={isSubmitting}
+              required
+            />
+          </div>
+        )}
       </div>
 
       {/* Buttons */}

@@ -10,6 +10,7 @@ import { Button } from "primereact/button";
 import { Column } from "primereact/column";
 import { FilterMatchMode } from "primereact/api";
 import { InputText } from "primereact/inputtext";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -29,6 +30,11 @@ const ENC_NEW_PATH = `/${encMasters}/${encContinents}/new`;
 
 const ENC_EDIT_PATH = (id: string) =>
   `/${encMasters}/${encContinents}/${id}/edit`;
+
+const CONTINENT_COLUMN_FIELDS: Record<string, string[]> = {
+  name: ["name"],
+  is_active: ["is_active"],
+};
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -68,6 +74,11 @@ export default function ContinentList() {
   const continentsQuery = useContinentsQuery();
   const updateContinentMutation = useUpdateContinentMutation();
   const continents = continentsQuery.data ?? [];
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "masters",
+    "continents",
+    CONTINENT_COLUMN_FIELDS,
+  );
 
   useEffect(() => {
     if (!continentsQuery.isError) {
@@ -105,10 +116,10 @@ export default function ContinentList() {
     try {
       await updateContinentMutation.mutateAsync({
         id: continent.unique_id,
-        payload: {
+        payload: filterPayload({
           name: continent.name,
           is_active: checked,
-        },
+        }) as { name: string; is_active: boolean },
       });
     } catch (error) {
       Swal.fire(
@@ -215,21 +226,25 @@ export default function ContinentList() {
           style={{ width: "80px" }}
         />
 
-        <Column
-          field="name"
-          header={t("common.item_name", { item: t("admin.nav.continent") })}
-          body={(record: ContinentRecord) => record.name}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: "200px" }}
-        />
+        {showCol("name") && (
+          <Column
+            field="name"
+            header={t("common.item_name", { item: t("admin.nav.continent") })}
+            body={(record: ContinentRecord) => record.name}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            style={{ minWidth: "200px" }}
+          />
+        )}
 
-        <Column
-          header={t("common.status")}
-          body={statusBodyTemplate}
-          style={{ width: "150px", textAlign: "center" }}
-        />
+        {showCol("is_active") && (
+          <Column
+            header={t("common.status")}
+            body={statusBodyTemplate}
+            style={{ width: "150px", textAlign: "center" }}
+          />
+        )}
 
         <Column
           header={t("common.actions")}

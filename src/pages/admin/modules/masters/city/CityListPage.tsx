@@ -20,7 +20,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { type CityRecord, useCitiesQuery, useUpdateCityMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useScreenColumnPermissions } from "@/hooks/useScreenColumnPermissions";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 const CITY_COLUMN_FIELDS: Record<string, string[]> = {
   country_name: ["country_id"],
@@ -37,12 +37,11 @@ const normalizeId = (value: unknown): string =>
 
 export default function CityList() {
   const { t } = useTranslation();
-  const allowedColumns = useScreenColumnPermissions("masters", "cities");
-
-  const showCol = (key: string): boolean => {
-    if (!allowedColumns) return true;
-    return (CITY_COLUMN_FIELDS[key] ?? []).some((f) => allowedColumns.has(f));
-  };
+  const { showColumn: showCol } = useFieldVisibility(
+    "masters",
+    "cities",
+    CITY_COLUMN_FIELDS,
+  );
 
   const citiesQuery = useCitiesQuery();
   const updateCityMutation = useUpdateCityMutation();
