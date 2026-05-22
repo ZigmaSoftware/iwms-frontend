@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { normalizeList } from "@/utils/forms";
 
 type SelectOption = { value: string; label: string };
 
@@ -29,9 +30,6 @@ const sourceTypeOptions: SelectOption[] = [
   { value: "SENSOR", label: "Sensor" },
   { value: "MANUAL", label: "Manual" },
 ];
-
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
 
 const toOptions = (items: any[], valueKey: string, labelKey: string): SelectOption[] =>
   items
@@ -104,10 +102,10 @@ export default function BinLoadLogForm() {
       .get(id)
       .then((res: any) => {
         setFormData({
-          zone_id: res?.zone_id ?? "",
-          vehicle_id: res?.vehicle_id ?? "",
-          property_id: res?.property_id ?? "",
-          sub_property_id: res?.sub_property_id ?? "",
+          zone_id: res?.zone_details?.unique_id ?? res?.zone_id ?? "",
+          vehicle_id: res?.vehicle_details?.unique_id ?? res?.vehicle_id ?? "",
+          property_id: res?.property_details?.unique_id ?? res?.property_id ?? "",
+          sub_property_id: res?.sub_property_details?.unique_id ?? res?.sub_property_id ?? "",
           weight_kg: res?.weight_kg ? String(res.weight_kg) : "",
           source_type: res?.source_type ?? "",
           event_time: toDateTimeLocal(res?.event_time),

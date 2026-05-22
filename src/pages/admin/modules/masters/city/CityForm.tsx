@@ -1,5 +1,6 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -16,8 +17,21 @@ import {
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
+import type { SelectOption } from "@/types";
+import type { CityRecord as QueryCityRecord } from "@/tanstack/admin";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+
+const CITY_FORM_FIELDS: Record<string, string[]> = {
+  continent_id: ["continent_id"],
+  country_id:   ["country_id"],
+  state_id:     ["state_id"],
+  district_id:  ["district_id"],
+  name:         ["name"],
+  is_active:    ["is_active"],
+};
+import type { CityRecord, CountryMeta, DistrictMeta, StateMeta } from "./types";
 import {
   useContinentsQuery,
   useCountriesQuery,
@@ -31,58 +45,80 @@ import {
 /* ------------------------------
     TYPES
 ------------------------------ */
-type SelectOption = { value: string; label: string };
-
-type CountryMeta = {
-  id: string;
-  name: string;
-  continentId: string | null;
-  isActive: boolean;
-};
-
-type StateMeta = {
-  id: string;
-  name: string;
-  countryId: string | null;
-  isActive: boolean;
-};
-
-type DistrictMeta = {
-  id: string;
-  name: string;
-  stateId: string | null;
-  isActive: boolean;
-};
-
-type CityRecord = {
-  name?: string;
-  is_active?: boolean;
-
-  continent_id?: string | number | null;
-  continent?: string | number | null;
-
-  country_id?: string | number | null;
-  country?: string | number | null;
-
-  state_id?: string | number | null;
-  state?: string | number | null;
-
-  district_id?: string | number | null;
-  district?: string | number | null;
-};
 
 /* ------------------------------
     UTILITIES
 ------------------------------ */
-const normalizeNullable = (v: any): string | null => {
+const normalizeNullable = (
+  v:
+    | string
+    | number
+    | { unique_id?: string | number; id?: string | number }
+    | null
+    | undefined
+): string | null => {
   if (v === undefined || v === null) return null;
+  if (typeof v === "object") return normalizeNullable(v.unique_id ?? v.id);
   return String(v);
 };
 
-const extractError = (error: any): string => {
-  if (error?.response?.data) return String(error.response.data);
-  if (error?.message) return error.message;
+const normalizeLabel = (value: string | null | undefined) =>
+  (value ?? "").trim().toLowerCase();
+
+const resolveOptionValue = (
+  options: SelectOption[],
+  id: string | null,
+  label: string | null | undefined
+) => {
+  if (id && options.some((option) => option.value === id)) {
+    return id;
+  }
+
+  const normalizedLabel = normalizeLabel(label);
+  if (!normalizedLabel) {
+    return id;
+  }
+
+  return (
+    options.find((option) => normalizeLabel(option.label) === normalizedLabel)
+      ?.value ?? id
+  );
+};
+
+const extractError = (error: unknown): string => {
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+  if (data) return String(data);
+  if (error instanceof Error && error.message) return error.message;
   return "Unexpected error!";
+};
+
+type CityWithRelations = CityRecord & {
+  company?: { unique_id?: string | number; id?: string | number } | string | number | null;
+  project?: { unique_id?: string | number; id?: string | number } | string | number | null;
+  company_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  project_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  continent_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  country_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  state_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  district_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  company_unique_id?: string | number | null;
+  project_unique_id?: string | number | null;
+  continent_unique_id?: string | number | null;
+  country_unique_id?: string | number | null;
+  state_unique_id?: string | number | null;
+  district_unique_id?: string | number | null;
+  company_name?: string | null;
+  project_name?: string | null;
+  continent_name?: string | null;
+  country_name?: string | null;
+  state_name?: string | null;
+  district_name?: string | null;
+};
+
+type CityRouteState = {
+  city?: Partial<QueryCityRecord & CityWithRelations>;
+  companyUniqueId?: string | number | null;
+  projectId?: string | number | null;
 };
 
 /* ------------------------------
@@ -97,6 +133,11 @@ const ENC_LIST_PATH = `/${encMasters}/${encCities}`;
 ========================================================== */
 export default function CityForm() {
   const { t } = useTranslation();
+  const { showField, filterPayload, getMissingRequiredFields } = useFieldVisibility(
+    "masters",
+    "cities",
+    CITY_FORM_FIELDS,
+  );
   /* FIELD STATES */
   const [cityName, setCityName] = useState("");
   const [continentId, setContinentId] = useState("");
@@ -123,8 +164,11 @@ export default function CityForm() {
   const [isActive, setIsActive] = useState(true);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
+  const routeState = location.state as CityRouteState | null;
+  const routeStateAppliedRef = useRef(false);
   const {
     companyUniqueId,
     projectId,
@@ -144,6 +188,74 @@ export default function CityForm() {
   const countriesQuery = useCountriesQuery();
   const statesQuery = useStatesQuery();
   const districtsQuery = useDistrictsQuery();
+  const cityQuery = useCityQuery(id);
+
+  useEffect(() => {
+    routeStateAppliedRef.current = false;
+  }, [id, location.key]);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const routeCompanyId = normalizeNullable(
+      routeState?.companyUniqueId ?? searchParams.get("company_unique_id")
+    );
+    const routeProjectId = normalizeNullable(
+      routeState?.projectId ?? searchParams.get("project_id")
+    );
+
+    if (!routeCompanyId && !routeProjectId && !routeState?.city?.name) return;
+
+    if (!isEdit) {
+      if (routeCompanyId && routeCompanyId !== companyUniqueId) {
+        onCompanyChange(routeCompanyId);
+        return;
+      }
+
+      const routeProjectReady =
+        routeProjectId &&
+        (!routeCompanyId || routeCompanyId === companyUniqueId) &&
+        projects.some((project) => project.value === routeProjectId);
+
+      if (routeProjectReady && routeProjectId !== projectId) {
+        setProjectId(routeProjectId);
+      }
+
+      return;
+    }
+
+    if (routeStateAppliedRef.current) return;
+
+    let applied = false;
+
+    if (routeCompanyId && routeCompanyId !== companyUniqueId) {
+      onCompanyChange(routeCompanyId);
+      applied = true;
+    }
+
+    if (routeProjectId && routeProjectId !== projectId) {
+      setProjectId(routeProjectId);
+      applied = true;
+    }
+
+    if (!cityQuery.data && routeState?.city?.name) {
+      setCityName(String(routeState.city.name));
+      applied = true;
+    }
+
+    if (applied || routeCompanyId || routeProjectId || routeState?.city?.name) {
+      routeStateAppliedRef.current = true;
+    }
+  }, [
+    cityQuery.data,
+    companyUniqueId,
+    isEdit,
+    location.search,
+    onCompanyChange,
+    projectId,
+    projects,
+    routeState,
+    setProjectId,
+  ]);
 
   useEffect(() => {
     if (continentsQuery.isError) {
@@ -151,9 +263,34 @@ export default function CityForm() {
       return;
     }
 
+    const city = cityQuery.data as CityWithRelations | undefined;
+    const recordContinentId = normalizeNullable(
+      city?.continent_id ?? city?.continent_unique_id ?? city?.continent
+    );
     const res = continentsQuery.data ?? [];
-    setContinents(res.filter((x: any) => x.is_active).map((x: any) => ({ value: String(x.unique_id), label: x.name })));
-  }, [continentsQuery.data, continentsQuery.isError]);
+    const activeContinents = res
+      .filter((x) => x.is_active)
+      .map((x) => ({ value: String(x.unique_id), label: x.name }));
+    const resolvedContinentId = resolveOptionValue(
+      activeContinents,
+      recordContinentId,
+      city?.continent_name
+    );
+
+    if (
+      resolvedContinentId &&
+      city?.continent_name &&
+      !activeContinents.some((x) => x.value === resolvedContinentId)
+    ) {
+      setContinents([
+        ...activeContinents,
+        { value: resolvedContinentId, label: city.continent_name },
+      ]);
+      return;
+    }
+
+    setContinents(activeContinents);
+  }, [continentsQuery.data, continentsQuery.error, continentsQuery.isError, cityQuery.data, t]);
 
   useEffect(() => {
     if (countriesQuery.isError) {
@@ -161,10 +298,28 @@ export default function CityForm() {
       return;
     }
 
+    const city = cityQuery.data as CityWithRelations | undefined;
+    const recordContinentId = normalizeNullable(
+      city?.continent_id ?? city?.continent_unique_id ?? city?.continent
+    );
+    const resolvedContinentId = resolveOptionValue(
+      continents,
+      recordContinentId,
+      city?.continent_name
+    );
     const res = countriesQuery.data ?? [];
-    const mapped = res.map((c: any) => ({ id: String(c.unique_id), name: c.name, continentId: normalizeNullable(c.continent_id ?? c.continent), isActive: Boolean(c.is_active) }));
+    const mapped = res.map((c) => ({
+      id: String(c.unique_id),
+      name: c.name,
+      continentId:
+        normalizeNullable(c.continent_id ?? c.continent) === recordContinentId &&
+        resolvedContinentId
+          ? resolvedContinentId
+          : normalizeNullable(c.continent_id ?? c.continent),
+      isActive: Boolean(c.is_active),
+    }));
     setAllCountries(mapped);
-  }, [countriesQuery.data, countriesQuery.isError]);
+  }, [countriesQuery.data, countriesQuery.error, countriesQuery.isError, cityQuery.data, continents, t]);
 
   useEffect(() => {
     if (statesQuery.isError) {
@@ -173,9 +328,9 @@ export default function CityForm() {
     }
 
     const res = statesQuery.data ?? [];
-    const mapped = res.map((s: any) => ({ id: String(s.unique_id), name: s.name, countryId: normalizeNullable(s.country_id ?? s.country), isActive: Boolean(s.is_active) }));
+    const mapped = res.map((s) => ({ id: String(s.unique_id), name: s.name, countryId: normalizeNullable(s.country_id ?? s.country), isActive: Boolean(s.is_active) }));
     setAllStates(mapped);
-  }, [statesQuery.data, statesQuery.isError]);
+  }, [statesQuery.data, statesQuery.error, statesQuery.isError, t]);
 
   useEffect(() => {
     if (districtsQuery.isError) {
@@ -184,9 +339,12 @@ export default function CityForm() {
     }
 
     const res = districtsQuery.data ?? [];
-    const mapped = res.map((d: any) => ({ id: String(d.unique_id), name: d.name, stateId: normalizeNullable(d.state_id ?? d.state), isActive: Boolean(d.is_active) }));
+    const mapped = res.map((d) => {
+      const district = d as typeof d & { state?: string | number | null };
+      return { id: String(district.unique_id), name: district.name, stateId: normalizeNullable(district.state_id ?? district.state), isActive: Boolean(district.is_active) };
+    });
     setAllDistricts(mapped);
-  }, [districtsQuery.data, districtsQuery.isError]);
+  }, [districtsQuery.data, districtsQuery.error, districtsQuery.isError, t]);
 
   /* ==========================================================
       FILTER COUNTRIES BASED ON SELECTED CONTINENT
@@ -200,19 +358,27 @@ export default function CityForm() {
     const filt = allCountries
       .filter((c) => c.isActive && c.continentId === continentId)
       .map((c) => ({ value: c.id, label: c.name }));
+    const city = cityQuery.data as CityWithRelations | undefined;
+    const resolvedCountryId = resolveOptionValue(
+      filt,
+      pendingCountryId,
+      city?.country_name
+    );
 
     if (
-      pendingCountryId &&
-      !filt.some((o) => o.value === pendingCountryId)
+      resolvedCountryId &&
+      !filt.some((o) => o.value === resolvedCountryId)
     ) {
-      const found = allCountries.find((c) => c.id === pendingCountryId);
+      const found = allCountries.find((c) => c.id === resolvedCountryId);
       if (found) {
         filt.push({ value: found.id, label: found.name });
+      } else if (city?.country_name) {
+        filt.push({ value: resolvedCountryId, label: city.country_name });
       }
     }
 
     setFilteredCountries(filt);
-  }, [continentId, allCountries, pendingCountryId]);
+  }, [continentId, allCountries, pendingCountryId, cityQuery.data]);
 
   /* ==========================================================
       FILTER STATES BASED ON SELECTED COUNTRY
@@ -226,19 +392,27 @@ export default function CityForm() {
     const filt = allStates
       .filter((s) => s.isActive && s.countryId === countryId)
       .map((s) => ({ value: s.id, label: s.name }));
+    const city = cityQuery.data as CityWithRelations | undefined;
+    const resolvedStateId = resolveOptionValue(
+      filt,
+      pendingStateId,
+      city?.state_name
+    );
 
     if (
-      pendingStateId &&
-      !filt.some((o) => o.value === pendingStateId)
+      resolvedStateId &&
+      !filt.some((o) => o.value === resolvedStateId)
     ) {
-      const found = allStates.find((s) => s.id === pendingStateId);
+      const found = allStates.find((s) => s.id === resolvedStateId);
       if (found) {
         filt.push({ value: found.id, label: found.name });
+      } else if (city?.state_name) {
+        filt.push({ value: resolvedStateId, label: city.state_name });
       }
     }
 
     setFilteredStates(filt);
-  }, [countryId, allStates, pendingStateId]);
+  }, [countryId, allStates, pendingStateId, cityQuery.data]);
 
   /* ==========================================================
       FILTER DISTRICTS BY STATE
@@ -252,19 +426,27 @@ export default function CityForm() {
     const filt = allDistricts
       .filter((d) => d.isActive && d.stateId === stateId)
       .map((d) => ({ value: d.id, label: d.name }));
+    const city = cityQuery.data as CityWithRelations | undefined;
+    const resolvedDistrictId = resolveOptionValue(
+      filt,
+      pendingDistrictId,
+      city?.district_name
+    );
 
     if (
-      pendingDistrictId &&
-      !filt.some((o) => o.value === pendingDistrictId)
+      resolvedDistrictId &&
+      !filt.some((o) => o.value === resolvedDistrictId)
     ) {
-      const found = allDistricts.find((d) => d.id === pendingDistrictId);
+      const found = allDistricts.find((d) => d.id === resolvedDistrictId);
       if (found) {
         filt.push({ value: found.id, label: found.name });
+      } else if (city?.district_name) {
+        filt.push({ value: resolvedDistrictId, label: city.district_name });
       }
     }
 
     setFilteredDistricts(filt);
-  }, [stateId, allDistricts, pendingDistrictId]);
+  }, [stateId, allDistricts, pendingDistrictId, cityQuery.data]);
 
   /* ==========================================================
       APPLY PENDING COUNTRY WHEN FILTER READY
@@ -276,8 +458,28 @@ export default function CityForm() {
     ) {
       setCountryId(pendingCountryId);
       setPendingCountryId("");
+      return;
     }
-  }, [filteredCountries, pendingCountryId]);
+
+    if (!pendingCountryId) {
+      return;
+    }
+
+    const city = cityQuery.data as CityWithRelations | undefined;
+    const resolvedCountryId = resolveOptionValue(
+      filteredCountries,
+      pendingCountryId,
+      city?.country_name
+    );
+
+    if (
+      resolvedCountryId &&
+      filteredCountries.some((o) => o.value === resolvedCountryId)
+    ) {
+      setCountryId(resolvedCountryId);
+      setPendingCountryId("");
+    }
+  }, [filteredCountries, pendingCountryId, cityQuery.data]);
 
   /* ==========================================================
       APPLY PENDING STATE WHEN FILTER READY
@@ -289,8 +491,28 @@ export default function CityForm() {
     ) {
       setStateId(pendingStateId);
       setPendingStateId("");
+      return;
     }
-  }, [filteredStates, pendingStateId]);
+
+    if (!pendingStateId) {
+      return;
+    }
+
+    const city = cityQuery.data as CityWithRelations | undefined;
+    const resolvedStateId = resolveOptionValue(
+      filteredStates,
+      pendingStateId,
+      city?.state_name
+    );
+
+    if (
+      resolvedStateId &&
+      filteredStates.some((o) => o.value === resolvedStateId)
+    ) {
+      setStateId(resolvedStateId);
+      setPendingStateId("");
+    }
+  }, [filteredStates, pendingStateId, cityQuery.data]);
 
   /* ==========================================================
       APPLY PENDING DISTRICT WHEN FILTER READY
@@ -302,8 +524,28 @@ export default function CityForm() {
     ) {
       setDistrictId(pendingDistrictId);
       setPendingDistrictId("");
+      return;
     }
-  }, [filteredDistricts, pendingDistrictId]);
+
+    if (!pendingDistrictId) {
+      return;
+    }
+
+    const city = cityQuery.data as CityWithRelations | undefined;
+    const resolvedDistrictId = resolveOptionValue(
+      filteredDistricts,
+      pendingDistrictId,
+      city?.district_name
+    );
+
+    if (
+      resolvedDistrictId &&
+      filteredDistricts.some((o) => o.value === resolvedDistrictId)
+    ) {
+      setDistrictId(resolvedDistrictId);
+      setPendingDistrictId("");
+    }
+  }, [filteredDistricts, pendingDistrictId, cityQuery.data]);
 
   /* ==========================================================
       AUTO-RESOLVE CHAINS
@@ -344,26 +586,73 @@ export default function CityForm() {
   /* ==========================================================
       EDIT MODE — LOAD EXISTING CITY
   ========================================================== */
-  const cityQuery = useCityQuery(id);
-
   useEffect(() => {
     if (!cityQuery.data) return;
-    const data = cityQuery.data;
+    const data = cityQuery.data as CityWithRelations;
 
     setCityName(data.name ?? "");
     setIsActive(Boolean(data.is_active));
 
-    const cont = normalizeNullable(data.continent_id ?? data.continent);
-    const ctr = normalizeNullable(data.country_id ?? data.country);
-    const ste = normalizeNullable(data.state_id ?? data.state);
-    const dis = normalizeNullable(data.district_id ?? data.district);
+    const rawContinentId = normalizeNullable(
+      data.continent_id ?? data.continent_unique_id ?? data.continent
+    );
+    const rawCountryId = normalizeNullable(
+      data.country_id ?? data.country_unique_id ?? data.country
+    );
+    const rawStateId = normalizeNullable(
+      data.state_id ?? data.state_unique_id ?? data.state
+    );
+    const rawDistrictId = normalizeNullable(
+      data.district_id ?? data.district_unique_id ?? data.district
+    );
+    const cont = resolveOptionValue(continents, rawContinentId, data.continent_name);
+    const country = resolveOptionValue(
+      allCountries.map((item) => ({ value: item.id, label: item.name })),
+      rawCountryId,
+      data.country_name
+    );
+    const state = resolveOptionValue(
+      allStates.map((item) => ({ value: item.id, label: item.name })),
+      rawStateId,
+      data.state_name
+    );
+    const district = resolveOptionValue(
+      allDistricts.map((item) => ({ value: item.id, label: item.name })),
+      rawDistrictId,
+      data.district_name
+    );
 
     setContinentId(cont ?? "");
-    setPendingCountryId(ctr ?? "");
-    setPendingStateId(ste ?? "");
-    setPendingDistrictId(dis ?? "");
+    setPendingCountryId(country ?? "");
+    setPendingStateId(state ?? "");
+    setPendingDistrictId(district ?? "");
     applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-  }, [cityQuery.data, applyCompanyProjectFromRecord]);
+  }, [
+    cityQuery.data,
+    applyCompanyProjectFromRecord,
+    continents,
+    allCountries,
+    allStates,
+    allDistricts,
+  ]);
+
+  useEffect(() => {
+    if (!cityQuery.data || projects.length === 0) return;
+
+    const data = cityQuery.data as CityWithRelations;
+    const recordProjectId = normalizeNullable(
+      data.project_id ?? data.project_unique_id ?? data.project
+    );
+    const resolvedProjectId = resolveOptionValue(
+      projects,
+      recordProjectId,
+      data.project_name
+    );
+
+    if (resolvedProjectId && resolvedProjectId !== projectId) {
+      setProjectId(resolvedProjectId);
+    }
+  }, [cityQuery.data, projectId, projects, setProjectId]);
 
   /* ==========================================================
       SUBMIT
@@ -375,7 +664,19 @@ export default function CityForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!continentId || !countryId || !stateId || !districtId || !cityName.trim()) {
+    const fieldValues: Record<string, unknown> = {
+      continent_id: continentId,
+      country_id: countryId,
+      state_id: stateId,
+      district_id: districtId,
+      name: cityName.trim(),
+    };
+    const missingFields = getMissingRequiredFields(
+      ["continent_id", "country_id", "state_id", "district_id", "name"],
+      (fieldKey) => fieldValues[fieldKey],
+    );
+
+    if (missingFields.length > 0) {
       Swal.fire(t("common.warning"), t("common.all_fields_required"), "warning");
       return;
     }
@@ -397,7 +698,7 @@ export default function CityForm() {
     }
 
     try {
-      const payload = {
+      const rawPayload = {
         name: cityName.trim(),
         continent_id: continentId,
         country_id: countryId,
@@ -407,6 +708,7 @@ export default function CityForm() {
         company_id: companyUniqueId,
         project_id: projectId,
       };
+      const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
       if (isEdit && id) {
         await updateCityMutation.mutateAsync({ id, payload });
@@ -502,6 +804,7 @@ export default function CityForm() {
           </div>
 
           {/* Continent */}
+          {showField("continent_id") && (
           <div>
             <Label>{t("admin.nav.continent")} *</Label>
             <Select
@@ -511,7 +814,6 @@ export default function CityForm() {
                 setCountryId("");
                 setStateId("");
                 setDistrictId("");
-
                 setPendingCountryId("");
                 setPendingStateId("");
                 setPendingDistrictId("");
@@ -533,152 +835,78 @@ export default function CityForm() {
               </SelectContent>
             </Select>
           </div>
+          )}
 
           {/* Country */}
+          {showField("country_id") && (
           <div>
             <Label>{t("admin.nav.country")} *</Label>
-            <Select
-              value={countryId}
-              onValueChange={(val) => {
-                setCountryId(val);
-                setStateId("");
-                setDistrictId("");
-
-                setPendingStateId("");
-                setPendingDistrictId("");
-              }}
-              disabled={!continentId}
-            >
+            <Select value={countryId} onValueChange={(val) => { setCountryId(val); setStateId(""); setDistrictId(""); setPendingStateId(""); setPendingDistrictId(""); }} disabled={!continentId}>
               <SelectTrigger className="input-validate w-full">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.country"),
-                  })}
-                />
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.country") })} />
               </SelectTrigger>
               <SelectContent>
                 {filteredCountries.length === 0 ? (
                   <div className="px-3 py-2 text-sm text-muted-foreground">
-                    {continentId
-                      ? t("common.no_items_found", {
-                          item: t("admin.nav.country"),
-                        })
-                      : t("common.select_item_first", {
-                          item: t("admin.nav.continent"),
-                        })}
+                    {continentId ? t("common.no_items_found", { item: t("admin.nav.country") }) : t("common.select_item_first", { item: t("admin.nav.continent") })}
                   </div>
-                ) : (
-                  filteredCountries.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))
-                )}
+                ) : filteredCountries.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
+          )}
 
           {/* State */}
+          {showField("state_id") && (
           <div>
             <Label>{t("admin.nav.state")} *</Label>
-            <Select
-              value={stateId}
-              onValueChange={(val) => {
-                setStateId(val);
-                setDistrictId("");
-                setPendingDistrictId("");
-              }}
-              disabled={!countryId}
-            >
+            <Select value={stateId} onValueChange={(val) => { setStateId(val); setDistrictId(""); setPendingDistrictId(""); }} disabled={!countryId}>
               <SelectTrigger className="input-validate w-full">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.state"),
-                  })}
-                />
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.state") })} />
               </SelectTrigger>
               <SelectContent>
                 {filteredStates.length === 0 ? (
                   <div className="px-3 py-2 text-sm text-muted-foreground">
-                    {countryId
-                      ? t("common.no_items_found", {
-                          item: t("admin.nav.state"),
-                        })
-                      : t("common.select_item_first", {
-                          item: t("admin.nav.country"),
-                        })}
+                    {countryId ? t("common.no_items_found", { item: t("admin.nav.state") }) : t("common.select_item_first", { item: t("admin.nav.country") })}
                   </div>
-                ) : (
-                  filteredStates.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))
-                )}
+                ) : filteredStates.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
+          )}
 
           {/* District */}
+          {showField("district_id") && (
           <div>
             <Label>{t("admin.nav.district")} *</Label>
-            <Select
-              value={districtId}
-              onValueChange={(val) => setDistrictId(val)}
-              disabled={!stateId}
-            >
+            <Select value={districtId} onValueChange={setDistrictId} disabled={!stateId}>
               <SelectTrigger className="input-validate w-full">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.district"),
-                  })}
-                />
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.district") })} />
               </SelectTrigger>
               <SelectContent>
                 {filteredDistricts.length === 0 ? (
                   <div className="px-3 py-2 text-sm text-muted-foreground">
-                    {stateId
-                      ? t("common.no_items_found", {
-                          item: t("admin.nav.district"),
-                        })
-                      : t("common.select_item_first", {
-                          item: t("admin.nav.state"),
-                        })}
+                    {stateId ? t("common.no_items_found", { item: t("admin.nav.district") }) : t("common.select_item_first", { item: t("admin.nav.state") })}
                   </div>
-                ) : (
-                  filteredDistricts.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))
-                )}
+                ) : filteredDistricts.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
+          )}
 
-          {/* City */}
+          {/* City Name */}
+          {showField("name") && (
           <div>
-            <Label>
-              {t("common.item_name", { item: t("admin.nav.city") })} *
-            </Label>
-            <Input
-              value={cityName}
-              onChange={(e) => setCityName(e.target.value)}
-              placeholder={t("common.enter_item_name", {
-                item: t("admin.nav.city"),
-              })}
-              className="input-validate w-full"
-              required
-            />
+            <Label>{t("common.item_name", { item: t("admin.nav.city") })} *</Label>
+            <Input value={cityName} onChange={(e) => setCityName(e.target.value)} placeholder={t("common.enter_item_name", { item: t("admin.nav.city") })} className="input-validate w-full" required />
           </div>
+          )}
 
           {/* Status */}
+          {showField("is_active") && (
           <div>
             <Label>{t("common.status")} *</Label>
-            <Select
-              value={isActive ? "true" : "false"}
-              onValueChange={(v) => setIsActive(v === "true")}
-            >
+            <Select value={isActive ? "true" : "false"} onValueChange={(v) => setIsActive(v === "true")}>
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_status")} />
               </SelectTrigger>
@@ -688,6 +916,7 @@ export default function CityForm() {
               </SelectContent>
             </Select>
           </div>
+          )}
 
         </div>
 

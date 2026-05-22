@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
 
@@ -16,6 +16,7 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type CollectionMonitoringRecord = {
   unique_id: string;
@@ -30,8 +31,10 @@ type CollectionMonitoringRecord = {
   collection_time: string;
   trip_id?: string | null;
   company_id?: string;
+  company_unique_id?: string;
   company_name?: string;
   project_id?: string;
+  project_unique_id?: string;
   project_name?: string;
   panchayat_id?: string | null;
   panchayat_name?: string | null;
@@ -43,6 +46,16 @@ type CollectionMonitoringRecord = {
   is_deleted: boolean;
   is_active: boolean;
 };
+
+type CollectionMonitoringApiResponse =
+  | CollectionMonitoringRecord[]
+  | {
+      collections?: CollectionMonitoringRecord[];
+      results?: CollectionMonitoringRecord[];
+    };
+
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
 
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
@@ -61,6 +74,15 @@ export default function CollectionMonitoringListPage() {
   const [rows, setRows] = useState<CollectionMonitoringRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
 
   const { encWasteManagementMaster, encCollectionMonitoring } =
     getEncryptedRoute();
@@ -69,7 +91,7 @@ export default function CollectionMonitoringListPage() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encWasteManagementMaster}/${encCollectionMonitoring}/${id}/edit`;
 
-  const wasteApi = adminApi.wasteCollections;
+  const pointCollectionApi = adminApi.pointCollections;
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
@@ -82,7 +104,10 @@ export default function CollectionMonitoringListPage() {
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     bin_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     wastetype_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    collection_point_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    collection_point_name: {
+      value: null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
     trip_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     company_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     project_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -90,39 +115,92 @@ export default function CollectionMonitoringListPage() {
     ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
-
   /* ---------------- FETCH DATA ---------------- */
 
-  const fetchRows = async () => {
-  try {
-    const res: any = await wasteApi.list();
-
-    let data: CollectionMonitoringRecord[] = [];
-
-    if (Array.isArray(res)) {
-      data = res;
-    } else if (res && res.collections) {
-      data = res.collections;
-    } else if (res && res.results) {
-      data = res.results;
+  const fetchRows = useCallback(async () => {
+    if (isSuperAdmin && companies.length === 0) {
+      setRows([]);
+      setLoading(false);
+      return;
     }
 
-    setRows(data);
-  } catch (error) {
-    console.error("Failed to fetch collection monitoring data", error);
-    setRows([]);
-  } finally {
-    setLoading(false);
-  }
-};
+    if (!companyUniqueId) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const params: Record<string, string> = { company_id: companyUniqueId };
+      if (projectId) {
+        params.project_id = projectId;
+      }
+
+      const res = (await pointCollectionApi.list({
+        params,
+      })) as CollectionMonitoringApiResponse;
+
+      let data: CollectionMonitoringRecord[] = [];
+
+      if (Array.isArray(res)) {
+        data = res;
+      } else if (res && res.collections) {
+        data = res.collections;
+      } else if (res && res.results) {
+        data = res.results;
+      }
+
+      const hasContextFields = data.some((row) => {
+        const rowCompanyId = normalizeId(
+          row.company_id || row.company_unique_id,
+        );
+        const rowProjectId = normalizeId(
+          row.project_id || row.project_unique_id,
+        );
+        return Boolean(rowCompanyId || rowProjectId);
+      });
+
+      if (!hasContextFields) {
+        setRows(data);
+        return;
+      }
+
+      const filtered = data.filter((row) => {
+        const rowCompanyId = normalizeId(
+          row.company_id || row.company_unique_id,
+        );
+        const rowProjectId = normalizeId(
+          row.project_id || row.project_unique_id,
+        );
+        const companyMatches =
+          !companyUniqueId || rowCompanyId === companyUniqueId;
+        const projectMatches = !projectId || rowProjectId === projectId;
+        return companyMatches && projectMatches;
+      });
+
+      setRows(filtered);
+    } catch (error) {
+      console.error("Failed to fetch collection monitoring data", error);
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    companies.length,
+    companyUniqueId,
+    isSuperAdmin,
+    pointCollectionApi,
+    projectId,
+  ]);
 
   useEffect(() => {
     fetchRows();
-  }, []);
+  }, [fetchRows]);
 
   /* ---------------- FILTER ---------------- */
 
-  const onGlobalFilterChange = (e: any) => {
+  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const updated = { ...filters };
     updated.global.value = e.target.value;
     setFilters(updated);
@@ -160,7 +238,7 @@ export default function CollectionMonitoringListPage() {
   const statusTemplate = (row: CollectionMonitoringRecord) => {
     const updateStatus = async (value: boolean) => {
       try {
-        await wasteApi.update(row.unique_id, { is_active: value });
+        await pointCollectionApi.update(row.unique_id, { is_active: value });
         fetchRows();
       } catch (error) {
         console.error("Status update failed:", error);
@@ -173,7 +251,7 @@ export default function CollectionMonitoringListPage() {
   const collectedTemplate = (row: CollectionMonitoringRecord) => {
     const updateCollected = async (value: boolean) => {
       try {
-        await wasteApi.update(row.unique_id, { is_collected: value });
+        await pointCollectionApi.update(row.unique_id, { is_collected: value });
         fetchRows();
       } catch (error) {
         console.error("Collected status update failed:", error);
@@ -202,8 +280,10 @@ export default function CollectionMonitoringListPage() {
     </div>
   );
 
-  const indexTemplate = (_: CollectionMonitoringRecord, { rowIndex }: any) =>
-    rowIndex + 1;
+  const indexTemplate = (
+    _: CollectionMonitoringRecord,
+    { rowIndex }: { rowIndex: number },
+  ) => rowIndex + 1;
 
   if (loading) {
     return <div className="p-6">{t("common.loading")}</div>;
@@ -224,14 +304,53 @@ export default function CollectionMonitoringListPage() {
           </p>
         </div>
 
-        <Button
-          label={t("common.add_item", {
-            item: t("admin.nav.collection_monitoring"),
-          })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", {
+                item: t("admin.nav.company"),
+              })}
+            </option>
+            {companies.map((company) => (
+              <option key={company.value} value={company.value}>
+                {company.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", {
+                item: t("admin.nav.project"),
+              })}
+            </option>
+            {projects.map((project) => (
+              <option key={project.value} value={project.value}>
+                {project.label}
+              </option>
+            ))}
+          </select>
+
+          <Button
+            label={t("common.add_item", {
+              item: t("admin.nav.collection_monitoring"),
+            })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       {/* DATATABLE */}
@@ -289,9 +408,7 @@ export default function CollectionMonitoringListPage() {
           field="collection_point_name"
           header={t("admin.nav.collection_point")}
           sortable
-          body={(r: CollectionMonitoringRecord) =>
-            cap(r.collection_point_name)
-          }
+          body={(r: CollectionMonitoringRecord) => cap(r.collection_point_name)}
           filter
           showFilterMatchModes={false}
         />
@@ -305,7 +422,12 @@ export default function CollectionMonitoringListPage() {
           }
         />
 
-        <Column field="collection_date" header={t("common.date")} sortable style={{minWidth:"115px"}} />
+        <Column
+          field="collection_date"
+          header={t("common.date")}
+          sortable
+          style={{ minWidth: "115px" }}
+        />
 
         <Column field="collection_time" header="Time" sortable />
 

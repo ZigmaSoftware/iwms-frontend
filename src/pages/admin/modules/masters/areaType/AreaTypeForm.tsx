@@ -15,6 +15,9 @@ import {
 import ComponentCard from "@/components/common/ComponentCard";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import type { SelectOption } from "@/types";
+import type { AreaTypeRecord, CityMeta, DistrictMeta, StateMeta } from "./types";
 import {
   type AreaTypePayload,
   useAreaTypeQuery,
@@ -28,47 +31,43 @@ import {
 const { encMasters, encAreaTypes } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encAreaTypes}`;
 
-type SelectOption = { value: string; label: string };
-
-type StateMeta = {
-  id: string;
-  name: string;
-  isActive: boolean;
-};
-
-type DistrictMeta = {
-  id: string;
-  name: string;
-  stateId: string | null;
-  isActive: boolean;
-};
-
-type CityMeta = {
-  id: string;
-  name: string;
-  districtId: string | null;
-  isActive: boolean;
-};
-
-type AreaTypeRecord = {
-  name?: string;
-  area_type_name?: string;
-  is_active?: boolean;
-  company_unique_id?: string | number | null;
-  company_id?: string | number | null;
-  project_id?: string | number | null;
-  state_id?: string | number | null;
-  district_id?: string | number | null;
-  city_id?: string | number | null;
+const AREA_TYPE_FIELDS: Record<string, string[]> = {
+  state_id: ["state_id", "state"],
+  district_id: ["district_id", "district"],
+  city_id: ["city_id", "city"],
+  name: ["name", "area_type_name"],
+  is_active: ["is_active"],
 };
 
 const normalizeNullable = (v: unknown): string | null => {
   if (v === undefined || v === null) return null;
+  if (typeof v === "object") {
+    const record = v as { unique_id?: unknown; id?: unknown };
+    return normalizeNullable(record.unique_id ?? record.id);
+  }
   return String(v);
+};
+
+type AreaTypeCityMeta = CityMeta & {
+  stateId?: string | null;
+};
+
+type CityRecordWithRelations = {
+  unique_id: string | number;
+  name: string;
+  state_id?: unknown;
+  state_unique_id?: unknown;
+  state?: unknown;
+  district_id?: unknown;
+  district_unique_id?: unknown;
+  district?: unknown;
+  is_active?: boolean;
 };
 
 export default function AreaTypeForm() {
   const { t } = useTranslation();
+  const { showField, filterPayload, getMissingRequiredFields } =
+    useFieldVisibility("masters", "area-types", AREA_TYPE_FIELDS);
   const [name, setName] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -98,7 +97,7 @@ export default function AreaTypeForm() {
   const [allDistricts, setAllDistricts] = useState<DistrictMeta[]>([]);
   const [filteredDistricts, setFilteredDistricts] = useState<SelectOption[]>([]);
 
-  const [allCities, setAllCities] = useState<CityMeta[]>([]);
+  const [allCities, setAllCities] = useState<AreaTypeCityMeta[]>([]);
   const [filteredCities, setFilteredCities] = useState<SelectOption[]>([]);
 
   const {
@@ -159,10 +158,11 @@ export default function AreaTypeForm() {
     if (!citiesQuery.data) return;
 
     setAllCities(
-      citiesQuery.data.map((c) => ({
+      (citiesQuery.data as CityRecordWithRelations[]).map((c) => ({
         id: String(c.unique_id),
         name: c.name,
-        districtId: normalizeNullable(c.district_id ?? c.district),
+        stateId: normalizeNullable(c.state_id ?? c.state_unique_id ?? c.state),
+        districtId: normalizeNullable(c.district_id ?? c.district_unique_id ?? c.district),
         isActive: Boolean(c.is_active),
       }))
     );
@@ -276,18 +276,31 @@ export default function AreaTypeForm() {
     setName(record.name ?? record.area_type_name ?? "");
     setIsActive(Boolean(record.is_active));
 
-    const ste = normalizeNullable(record.state_id);
-    const dis = normalizeNullable(record.district_id);
+    let ste = normalizeNullable(record.state_id);
+    let dis = normalizeNullable(record.district_id);
     const cty = normalizeNullable(record.city_id);
+    const selectedCity = cty ? allCities.find((city) => city.id === cty) : undefined;
 
-    ste && setPendingState(ste);
-    dis && setPendingDistrict(dis);
-    cty && setPendingCity(cty);
+    dis = dis || selectedCity?.districtId || null;
+    ste = ste || selectedCity?.stateId || (dis ? allDistricts.find((district) => district.id === dis)?.stateId ?? null : null);
+
+    if (ste) {
+      setStateId(ste);
+      setPendingState(ste);
+    }
+    if (dis) {
+      setDistrictId(dis);
+      setPendingDistrict(dis);
+    }
+    if (cty) {
+      setCityId(cty);
+      setPendingCity(cty);
+    }
 
     applyCompanyProjectFromRecord(
       record as unknown as Record<string, unknown>
     );
-  }, [applyCompanyProjectFromRecord, areaTypeQuery.data]);
+  }, [applyCompanyProjectFromRecord, areaTypeQuery.data, allCities, allDistricts]);
 
   useEffect(() => {
     if (!areaTypeQuery.isError) return;
@@ -301,8 +314,14 @@ export default function AreaTypeForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const fieldValues: Record<string, unknown> = {
+      name: name.trim(),
+      state_id: stateId,
+      district_id: districtId,
+      city_id: cityId,
+    };
 
-    if (!name.trim()) {
+    if (getMissingRequiredFields(["name"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -311,7 +330,12 @@ export default function AreaTypeForm() {
       return;
     }
 
-    if (!stateId || !districtId || !cityId) {
+    if (
+      getMissingRequiredFields(
+        ["state_id", "district_id", "city_id"],
+        (fieldKey) => fieldValues[fieldKey],
+      ).length > 0
+    ) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -339,7 +363,7 @@ export default function AreaTypeForm() {
     try {
       setLoading(true);
 
-      const basePayload: AreaTypePayload = {
+      const rawPayload = {
         name: name.trim(),
         is_active: isActive,
         company_id: companyUniqueId,
@@ -348,6 +372,10 @@ export default function AreaTypeForm() {
         district_id: districtId,
         city_id: cityId,
       };
+      const basePayload = filterPayload(rawPayload, [
+        "company_id",
+        "project_id",
+      ]) as AreaTypePayload;
 
       if (isEdit) {
         await updateAreaTypeMutation.mutateAsync({
@@ -467,112 +495,122 @@ export default function AreaTypeForm() {
           )}
         </div>
 
-        <div>
-          <Label htmlFor="state">
-            State <span className="text-red-500">*</span>
-          </Label>
-          <Select value={stateId} onValueChange={setStateId}>
-            <SelectTrigger id="state">
-              <SelectValue placeholder="Select State" />
-            </SelectTrigger>
-            <SelectContent>
-              {filteredStates.map((state) => (
-                <SelectItem key={state.value} value={state.value}>
-                  {state.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("state_id") && (
+          <div>
+            <Label htmlFor="state">
+              State <span className="text-red-500">*</span>
+            </Label>
+            <Select value={stateId} onValueChange={setStateId}>
+              <SelectTrigger id="state">
+                <SelectValue placeholder="Select State" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredStates.map((state) => (
+                  <SelectItem key={state.value} value={state.value}>
+                    {state.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label htmlFor="district">
-            District <span className="text-red-500">*</span>
-          </Label>
-          <Select
-            value={districtId}
-            onValueChange={setDistrictId}
-            disabled={!stateId || filteredDistricts.length === 0}
-          >
-            <SelectTrigger id="district">
-              <SelectValue placeholder="Select District" />
-            </SelectTrigger>
-            <SelectContent>
-              {filteredDistricts.map((district) => (
-                <SelectItem key={district.value} value={district.value}>
-                  {district.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {stateId && filteredDistricts.length === 0 && (
-            <p className="mt-1 text-xs text-red-500">
-              No districts found for this state.
-            </p>
-          )}
-        </div>
+        {showField("district_id") && (
+          <div>
+            <Label htmlFor="district">
+              District <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={districtId}
+              onValueChange={setDistrictId}
+              disabled={!stateId || filteredDistricts.length === 0}
+            >
+              <SelectTrigger id="district">
+                <SelectValue placeholder="Select District" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredDistricts.map((district) => (
+                  <SelectItem key={district.value} value={district.value}>
+                    {district.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {stateId && filteredDistricts.length === 0 && (
+              <p className="mt-1 text-xs text-red-500">
+                No districts found for this state.
+              </p>
+            )}
+          </div>
+        )}
 
-        <div>
-          <Label htmlFor="city">
-            City <span className="text-red-500">*</span>
-          </Label>
-          <Select
-            value={cityId}
-            onValueChange={setCityId}
-            disabled={!districtId || filteredCities.length === 0}
-          >
-            <SelectTrigger id="city">
-              <SelectValue placeholder="Select City" />
-            </SelectTrigger>
-            <SelectContent>
-              {filteredCities.map((city) => (
-                <SelectItem key={city.value} value={city.value}>
-                  {city.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {districtId && filteredCities.length === 0 && (
-            <p className="mt-1 text-xs text-red-500">
-              No cities found for this district.
-            </p>
-          )}
-        </div>
+        {showField("city_id") && (
+          <div>
+            <Label htmlFor="city">
+              City <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={cityId}
+              onValueChange={setCityId}
+              disabled={!districtId || filteredCities.length === 0}
+            >
+              <SelectTrigger id="city">
+                <SelectValue placeholder="Select City" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredCities.map((city) => (
+                  <SelectItem key={city.value} value={city.value}>
+                    {city.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {districtId && filteredCities.length === 0 && (
+              <p className="mt-1 text-xs text-red-500">
+                No cities found for this district.
+              </p>
+            )}
+          </div>
+        )}
 
-        <div>
-          <Label htmlFor="name">
-            {t("common.item_name", { item: t("admin.nav.area_type") })}{" "}
-            <span className="text-red-500">*</span>
-          </Label>
-          <Input
-            id="name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={t("common.enter_item_name", {
-              item: t("admin.nav.area_type"),
-            })}
-            required
-          />
-        </div>
+        {showField("name") && (
+          <div>
+            <Label htmlFor="name">
+              {t("common.item_name", { item: t("admin.nav.area_type") })}{" "}
+              <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t("common.enter_item_name", {
+                item: t("admin.nav.area_type"),
+              })}
+              required
+            />
+          </div>
+        )}
 
-        <div>
-          <Label htmlFor="isActive">
-            {t("common.status")} <span className="text-red-500">*</span>
-          </Label>
-          <Select
-            value={isActive ? "true" : "false"}
-            onValueChange={(value) => setIsActive(value === "true")}
-          >
-            <SelectTrigger id="isActive">
-              <SelectValue placeholder={t("common.select_status")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="true">{t("common.active")}</SelectItem>
-              <SelectItem value="false">{t("common.inactive")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("is_active") && (
+          <div>
+            <Label htmlFor="isActive">
+              {t("common.status")} <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={isActive ? "true" : "false"}
+              onValueChange={(value) => setIsActive(value === "true")}
+            >
+              <SelectTrigger id="isActive">
+                <SelectValue placeholder={t("common.select_status")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">{t("common.active")}</SelectItem>
+                <SelectItem value="false">{t("common.inactive")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="md:col-span-2 flex justify-end gap-3">
           <Button type="submit" disabled={loading || isSubmitting}>
@@ -596,4 +634,3 @@ export default function AreaTypeForm() {
     </ComponentCard>
   );
 }
-

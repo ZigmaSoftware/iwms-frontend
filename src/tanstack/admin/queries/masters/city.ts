@@ -33,9 +33,25 @@ export type CityPayload = {
   project_id?: string | number | null;
 };
 
+export type CityListFilters = {
+  company_id?: string | number | null;
+  project_id?: string | number | null;
+  district?: string | number | null;
+  state?: string | number | null;
+  country?: string | number | null;
+};
+
 const normalizeCityId = (id: string | number) => String(id);
 
-const listCities = () => cityApi.list() as Promise<CityRecord[]>;
+const compactFilters = (filters?: Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.entries(filters ?? {}).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  );
+
+const listCities = (filters?: CityListFilters) => {
+  const params = compactFilters(filters);
+  return cityApi.list(Object.keys(params).length ? { params } : undefined) as Promise<CityRecord[]>;
+};
 
 const getCity = (id: string | number) => cityApi.get(id) as Promise<CityRecord>;
 
@@ -53,11 +69,16 @@ const replaceCityInList = (cities: CityRecord[] | undefined, city: CityRecord) =
 
 export const cityQueryKeys = {
   all: ["masters", "cities"] as const,
+  list: (filters?: CityListFilters | null) => ["masters", "cities", filters ?? {}] as const,
   detail: (id: string | number) => ["masters", "cities", normalizeCityId(id)] as const,
 };
 
-export function useCitiesQuery() {
-  return enterpriseQuery<CityRecord[]>({ queryKey: cityQueryKeys.all, queryFn: listCities });
+export function useCitiesQuery(filters?: CityListFilters | null) {
+  return enterpriseQuery<CityRecord[]>({
+    queryKey: cityQueryKeys.list(filters),
+    queryFn: () => listCities(filters ?? undefined),
+    enabled: filters !== null,
+  });
 }
 
 export function useCityQuery(id: string | number | null | undefined) {

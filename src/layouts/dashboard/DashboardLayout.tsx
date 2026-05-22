@@ -15,13 +15,13 @@ import {
   DEFAULT_ROLE,
   ADMIN_VIEW_MODE_ADMIN,
   USER_ROLE_STORAGE_KEY,
-  clearAdminViewPreference,
   isAdmin,
   normalizeRole,
   setAdminViewPreference,
   type DashboardLayoutProps,
   type UserRole,
 } from "@/types/roles";
+import { clearAuthSession } from "@/utils/authStorage";
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate();
@@ -44,12 +44,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const handleSignOut = () => {
     try {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("user_role");
-      localStorage.removeItem("unique_id");
-      localStorage.removeItem("user_name");
-      localStorage.removeItem("user_email");
-      clearAdminViewPreference();
+      clearAuthSession();
       setUser(null);
 
       navigate("/auth", { replace: true });

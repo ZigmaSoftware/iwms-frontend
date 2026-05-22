@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import {
   useWasteTypeQuery,
@@ -29,8 +30,15 @@ const ENC_LIST_PATH = `/${encMasters}/${encWasteTypes}`;
 const toStringOrEmpty = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
+const WASTE_TYPE_FIELDS: Record<string, string[]> = {
+  waste_type_name: ["waste_type_name", "name"],
+  is_active: ["is_active"],
+};
+
 export default function WasteTypeForm() {
   const { t } = useTranslation();
+  const { showField, filterPayload, getMissingRequiredFields } =
+    useFieldVisibility("masters", "waste-types", WASTE_TYPE_FIELDS);
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
@@ -102,7 +110,13 @@ export default function WasteTypeForm() {
     const missingFields: string[] = [];
     if (!companyUniqueId) missingFields.push(t("admin.nav.company"));
     if (!projectId) missingFields.push(t("admin.nav.project"));
-    if (!wasteTypeName.trim()) {
+    if (
+      getMissingRequiredFields(
+        ["waste_type_name"],
+        (fieldKey) =>
+          ({ waste_type_name: wasteTypeName.trim() })[fieldKey as "waste_type_name"],
+      ).length > 0
+    ) {
       missingFields.push(
         t("common.item_name", { item: t("common.waste_type") }),
       );
@@ -118,12 +132,13 @@ export default function WasteTypeForm() {
     }
 
     setLoading(true);
-    const payload = {
+    const rawPayload = {
       company_id: companyUniqueId,
       project_id: projectId,
       waste_type_name: wasteTypeName.trim(),
       is_active: isActive,
     };
+    const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
     try {
       if (isEdit && id) {
@@ -205,35 +220,39 @@ export default function WasteTypeForm() {
           </Select>
         </div>
 
-        <div>
-          <Label>
-            {t("common.item_name", { item: t("common.waste_type") })} *
-          </Label>
-          <Input
-            value={wasteTypeName}
-            onChange={(e) => setWasteTypeName(e.target.value)}
-            placeholder={t("common.enter_item_name", {
-              item: t("common.waste_type"),
-            })}
-            required
-          />
-        </div>
+        {showField("waste_type_name") && (
+          <div>
+            <Label>
+              {t("common.item_name", { item: t("common.waste_type") })} *
+            </Label>
+            <Input
+              value={wasteTypeName}
+              onChange={(e) => setWasteTypeName(e.target.value)}
+              placeholder={t("common.enter_item_name", {
+                item: t("common.waste_type"),
+              })}
+              required
+            />
+          </div>
+        )}
 
-        <div>
-          <Label>{t("common.status")} *</Label>
-          <Select
-            value={isActive ? "true" : "false"}
-            onValueChange={(value) => setIsActive(value === "true")}
-          >
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue placeholder={t("common.select_status")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="true">{t("common.active")}</SelectItem>
-              <SelectItem value="false">{t("common.inactive")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("is_active") && (
+          <div>
+            <Label>{t("common.status")} *</Label>
+            <Select
+              value={isActive ? "true" : "false"}
+              onValueChange={(value) => setIsActive(value === "true")}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_status")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">{t("common.active")}</SelectItem>
+                <SelectItem value="false">{t("common.inactive")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="md:col-span-2 flex justify-end gap-3">
           <Button type="submit" disabled={loading || isSubmitting}>

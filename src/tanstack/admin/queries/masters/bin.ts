@@ -19,6 +19,12 @@ export type BinRecord = {
   project_id?: string | number | null;
   project_unique_id?: string | number | null;
   project_name?: string | null;
+  district_id?: string | number | null;
+  district?: string | number | null;
+  district_name?: string | null;
+  city_id?: string | number | null;
+  city?: string | number | null;
+  city_name?: string | null;
   panchayat_id?: string | number | null;
   panchayat?: string | number | null;
   panchayat_name?: string | null;
@@ -41,6 +47,8 @@ export type BinRecord = {
 export type BinPayload = {
   company_id?: string | number | null;
   project_id?: string | number | null;
+  district_id?: string | number | null;
+  city_id?: string | number | null;
   panchayat_id?: string | number | null;
   zone_id?: string | number | null;
   ward_id?: string | number | null;
@@ -58,6 +66,18 @@ export type BinPayload = {
 export type BinListFilters = {
   company_id?: string | number | null;
   project_id?: string | number | null;
+  district?: string | number | null;
+  district_id?: string | number | null;
+  city?: string | number | null;
+  city_id?: string | number | null;
+  panchayat?: string | number | null;
+  panchayat_id?: string | number | null;
+  zone?: string | number | null;
+  zone_id?: string | number | null;
+  ward?: string | number | null;
+  ward_id?: string | number | null;
+  collection_point?: string | number | null;
+  collection_point_id?: string | number | null;
 };
 
 const normalizeBinId = (id: string | number) => String(id);
@@ -80,12 +100,13 @@ const updateBin = (id: string | number, payload: BinPayload) => binApi.update(id
 
 export const binQueryKeys = {
   all: ["assets", "bin creation"] as const,
+  list: (filters?: BinListFilters | null) => ["assets", "bin creation", filters ?? {}] as const,
   detail: (id: string | number) => ["assets", "bin creation", normalizeBinId(id)] as const,
 };
 
 export function useBinsQuery(filters?: BinListFilters | null) {
   const query = enterpriseQuery<BinRecord[]>({
-    queryKey: binQueryKeys.all,
+    queryKey: binQueryKeys.list(filters),
     queryFn: () => listBins(filters ?? undefined),
     enabled: filters !== null,
   });
@@ -95,8 +116,29 @@ export function useBinsQuery(filters?: BinListFilters | null) {
       JSON.stringify({
         company_id: filters?.company_id ?? "",
         project_id: filters?.project_id ?? "",
+        district: filters?.district ?? filters?.district_id ?? "",
+        city: filters?.city ?? filters?.city_id ?? "",
+        panchayat: filters?.panchayat ?? filters?.panchayat_id ?? "",
+        zone: filters?.zone ?? filters?.zone_id ?? "",
+        ward: filters?.ward ?? filters?.ward_id ?? "",
+        collection_point: filters?.collection_point ?? filters?.collection_point_id ?? "",
       }),
-    [filters?.company_id, filters?.project_id]
+    [
+      filters?.city,
+      filters?.city_id,
+      filters?.collection_point,
+      filters?.collection_point_id,
+      filters?.company_id,
+      filters?.district,
+      filters?.district_id,
+      filters?.panchayat,
+      filters?.panchayat_id,
+      filters?.project_id,
+      filters?.ward,
+      filters?.ward_id,
+      filters?.zone,
+      filters?.zone_id,
+    ]
   );
   const previousFilterSignatureRef = useRef(filterSignature);
 
@@ -146,4 +188,3 @@ export function useUpdateBinMutation() {
     },
   });
 }
-

@@ -15,6 +15,7 @@ import {
 import ComponentCard from "@/components/common/ComponentCard";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
   type HierarchyPayload,
   useHierarchyQuery,
@@ -22,20 +23,21 @@ import {
   useUpdateHierarchyMutation,
   useAreaTypesQuery,
 } from "@/tanstack/admin";
+import type { ApiError } from "./types";
 
 const { encMasters, encHierarchies } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encHierarchies}`;
 
-type ApiError = {
-  response?: {
-    data?: {
-      detail?: string;
-    };
-  };
+const HIERARCHY_FIELDS: Record<string, string[]> = {
+  area_type: ["area_type", "area_type_id"],
+  level_name: ["level_name", "name"],
+  is_active: ["is_active"],
 };
 
 export default function HierarchyForm() {
   const { t } = useTranslation();
+  const { showField, filterPayload, getMissingRequiredFields } =
+    useFieldVisibility("masters", "hierarchies", HIERARCHY_FIELDS);
   const [name, setName] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [areaTypeId, setAreaTypeId] = useState("");
@@ -97,8 +99,15 @@ export default function HierarchyForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const fieldValues: Record<string, unknown> = {
+      level_name: name.trim(),
+      area_type: areaTypeId,
+    };
 
-    if (!name.trim()) {
+    if (
+      getMissingRequiredFields(["level_name"], (fieldKey) => fieldValues[fieldKey])
+        .length > 0
+    ) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -123,7 +132,10 @@ export default function HierarchyForm() {
       return;
     }
 
-    if (!areaTypeId) {
+    if (
+      getMissingRequiredFields(["area_type"], (fieldKey) => fieldValues[fieldKey])
+        .length > 0
+    ) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -134,13 +146,17 @@ export default function HierarchyForm() {
 
     try {
       setLoading(true);
-      const basePayload: HierarchyPayload = {
+      const rawPayload = {
         level_name: name.trim(),
         area_type: areaTypeId,
         is_active: isActive,
         company_id: companyUniqueId,
         project_id: projectId,
       };
+      const basePayload = filterPayload(rawPayload, [
+        "company_id",
+        "project_id",
+      ]) as HierarchyPayload;
       if (isEdit) {
         await updateHierarchyMutation.mutateAsync({
           id: id as string,
@@ -261,65 +277,71 @@ export default function HierarchyForm() {
           )}
         </div>
 
-        <div>
-          <Label htmlFor="areaType">
-            Area Type <span className="text-red-500">*</span>
-          </Label>
-          <Select
-            value={areaTypeId}
-            onValueChange={setAreaTypeId}
-            disabled={areaTypes.length === 0}
-          >
-            <SelectTrigger id="areaType">
-              <SelectValue placeholder="Select Area Type" />
-            </SelectTrigger>
-            <SelectContent>
-              {areaTypes.map((a) => (
-                <SelectItem key={a.value} value={a.value}>
-                  {a.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {areaTypes.length === 0 && (
-            <p className="mt-1 text-xs text-red-500">No area types found.</p>
-          )}
-        </div>
+        {showField("area_type") && (
+          <div>
+            <Label htmlFor="areaType">
+              Area Type <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={areaTypeId}
+              onValueChange={setAreaTypeId}
+              disabled={areaTypes.length === 0}
+            >
+              <SelectTrigger id="areaType">
+                <SelectValue placeholder="Select Area Type" />
+              </SelectTrigger>
+              <SelectContent>
+                {areaTypes.map((a) => (
+                  <SelectItem key={a.value} value={a.value}>
+                    {a.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {areaTypes.length === 0 && (
+              <p className="mt-1 text-xs text-red-500">No area types found.</p>
+            )}
+          </div>
+        )}
 
-        <div>
-          <Label htmlFor="name">
-            {t("common.item_name", { item: t("admin.nav.hierarchy") })}{" "}
-            <span className="text-red-500">*</span>
-          </Label>
-          <Input
-            id="name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={t("common.enter_item_name", {
-              item: t("admin.nav.hierarchy"),
-            })}
-            required
-          />
-        </div>
+        {showField("level_name") && (
+          <div>
+            <Label htmlFor="name">
+              {t("common.item_name", { item: t("admin.nav.hierarchy") })}{" "}
+              <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t("common.enter_item_name", {
+                item: t("admin.nav.hierarchy"),
+              })}
+              required
+            />
+          </div>
+        )}
 
-        <div>
-          <Label htmlFor="isActive">
-            {t("common.status")} <span className="text-red-500">*</span>
-          </Label>
-          <Select
-            value={isActive ? "true" : "false"}
-            onValueChange={(value) => setIsActive(value === "true")}
-          >
-            <SelectTrigger id="isActive">
-              <SelectValue placeholder={t("common.select_status")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="true">{t("common.active")}</SelectItem>
-              <SelectItem value="false">{t("common.inactive")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("is_active") && (
+          <div>
+            <Label htmlFor="isActive">
+              {t("common.status")} <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={isActive ? "true" : "false"}
+              onValueChange={(value) => setIsActive(value === "true")}
+            >
+              <SelectTrigger id="isActive">
+                <SelectValue placeholder={t("common.select_status")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">{t("common.active")}</SelectItem>
+                <SelectItem value="false">{t("common.inactive")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="md:col-span-2 flex justify-end gap-3">
           <Button type="submit" disabled={loading || isSubmitting}>

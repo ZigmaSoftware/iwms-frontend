@@ -11,10 +11,11 @@ import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
-import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { normalizeList } from "@/utils/forms";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 import {
   useUnassignedStaffPoolList,
@@ -24,6 +25,16 @@ import {
   useTripInstancesList,
   useUpdateUnassignedStaffPool,
 } from "@/tanstack/admin/queries/masters/unassignedStaffPool";
+
+const UNASSIGNED_STAFF_POOL_COLUMN_FIELDS: Record<string, string[]> = {
+  operator: ["operator_id", "operator"],
+  driver: ["driver_id", "driver"],
+  zone: ["zone_id", "zone"],
+  ward: ["ward_id", "ward"],
+  status: ["status"],
+  trip_instance: ["trip_instance_id", "trip_instance"],
+  created_at: ["created_at"],
+};
 
 type UnassignedStaffPoolRecord = {
   id: number;
@@ -58,13 +69,6 @@ type TableFilters = {
   _ward_name: { value: string | null; matchMode: FilterMatchMode };
   _trip_instance_name: { value: string | null; matchMode: FilterMatchMode };
 };
-
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.data)
-    ? payload.data
-    : payload?.results ?? [];
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -107,6 +111,11 @@ const buildLookup = (items: any[], key: string, label: string, fallbackKey?: str
 export default function UnassignedStaffPoolList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "staff-masters",
+    "unassigned-staff-pool",
+    UNASSIGNED_STAFF_POOL_COLUMN_FIELDS
+  );
   const {
     companyUniqueId,
     projectId,
@@ -116,12 +125,6 @@ export default function UnassignedStaffPoolList() {
     setProjectId,
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false });
-
-  const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
-  const userApi = adminApi.usersCreation;
-  const zoneApi = adminApi.zones;
-  const wardApi = adminApi.wards;
-  const tripInstanceApi = adminApi.tripInstances;
 
   const listParams: Record<string, string> = { company_id: companyUniqueId };
   if (projectId) listParams.project_id = projectId;
@@ -225,7 +228,10 @@ export default function UnassignedStaffPoolList() {
   const statusBodyTemplate = (row: UnassignedStaffPoolRecord) => {
     const updateStatus = async (checked: boolean) => {
       try {
-        await updateMutation.mutateAsync({ id: row.id, payload: { status: checked ? "AVAILABLE" : "ASSIGNED" } });
+        await updateMutation.mutateAsync({
+          id: row.id,
+          payload: filterPayload({ status: checked ? "AVAILABLE" : "ASSIGNED" }),
+        });
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       }
@@ -334,12 +340,12 @@ export default function UnassignedStaffPoolList() {
         filters={filters}
         onFilter={onFilter}
         globalFilterFields={[
-          "_operator_name",
-          "_driver_name",
-          "_zone_name",
-          "_ward_name",
-          "status",
-          "_trip_instance_name",
+          ...(showCol("operator") ? ["_operator_name"] : []),
+          ...(showCol("driver") ? ["_driver_name"] : []),
+          ...(showCol("zone") ? ["_zone_name"] : []),
+          ...(showCol("ward") ? ["_ward_name"] : []),
+          ...(showCol("status") ? ["status"] : []),
+          ...(showCol("trip_instance") ? ["_trip_instance_name"] : []),
           "company_name",
           "project_name",
         ]}
@@ -355,69 +361,83 @@ export default function UnassignedStaffPoolList() {
           style={{ width: 70 }}
         />
 
-        <Column
-          field="_operator_name"
-          header={t("admin.unassigned_staff_pool.operator")}
-          body={(row: UnassignedStaffPoolRecord) =>
-            row.operator_id ? userLookup[row.operator_id] ?? row.operator_id : "-"
-          }
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("operator") && (
+          <Column
+            field="_operator_name"
+            header={t("admin.unassigned_staff_pool.operator")}
+            body={(row: UnassignedStaffPoolRecord) =>
+              row.operator_id ? userLookup[row.operator_id] ?? row.operator_id : "-"
+            }
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="_driver_name"
-          header={t("admin.unassigned_staff_pool.driver")}
-          body={(row: UnassignedStaffPoolRecord) =>
-            row.driver_id ? userLookup[row.driver_id] ?? row.driver_id : "-"
-          }
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("driver") && (
+          <Column
+            field="_driver_name"
+            header={t("admin.unassigned_staff_pool.driver")}
+            body={(row: UnassignedStaffPoolRecord) =>
+              row.driver_id ? userLookup[row.driver_id] ?? row.driver_id : "-"
+            }
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="_zone_name"
-          header={t("admin.unassigned_staff_pool.zone")}
-          body={(row: UnassignedStaffPoolRecord) =>
-            zoneLookup[row.zone_id] ?? row.zone_id
-          }
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("zone") && (
+          <Column
+            field="_zone_name"
+            header={t("admin.unassigned_staff_pool.zone")}
+            body={(row: UnassignedStaffPoolRecord) =>
+              zoneLookup[row.zone_id] ?? row.zone_id
+            }
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="_ward_name"
-          header={t("admin.unassigned_staff_pool.ward")}
-          body={(row: UnassignedStaffPoolRecord) =>
-            wardLookup[row.ward_id] ?? row.ward_id
-          }
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("ward") && (
+          <Column
+            field="_ward_name"
+            header={t("admin.unassigned_staff_pool.ward")}
+            body={(row: UnassignedStaffPoolRecord) =>
+              wardLookup[row.ward_id] ?? row.ward_id
+            }
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="status"
-          header={t("admin.unassigned_staff_pool.status")}
-          body={statusBodyTemplate}
-          style={{ width: 120 }}
-        />
+        {showCol("status") && (
+          <Column
+            field="status"
+            header={t("admin.unassigned_staff_pool.status")}
+            body={statusBodyTemplate}
+            style={{ width: 120 }}
+          />
+        )}
 
-        <Column
-          field="_trip_instance_name"
-          header={t("admin.unassigned_staff_pool.trip_instance")}
-          body={(row: UnassignedStaffPoolRecord) =>
-            row.trip_instance_id
-              ? tripInstanceLookup[row.trip_instance_id] ?? row.trip_instance_id
-              : "-"
-          }
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("trip_instance") && (
+          <Column
+            field="_trip_instance_name"
+            header={t("admin.unassigned_staff_pool.trip_instance")}
+            body={(row: UnassignedStaffPoolRecord) =>
+              row.trip_instance_id
+                ? tripInstanceLookup[row.trip_instance_id] ?? row.trip_instance_id
+                : "-"
+            }
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          header={t("admin.unassigned_staff_pool.created_at")}
-          body={(row: UnassignedStaffPoolRecord) => resolveDateTime(row.created_at)}
-        />
+        {showCol("created_at") && (
+          <Column
+            header={t("admin.unassigned_staff_pool.created_at")}
+            body={(row: UnassignedStaffPoolRecord) => resolveDateTime(row.created_at)}
+          />
+        )}
 
         <Column
           header={t("common.actions")}

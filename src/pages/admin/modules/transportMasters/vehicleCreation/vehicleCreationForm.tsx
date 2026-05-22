@@ -11,7 +11,9 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { filterActiveRecords } from "@/utils/customerUtils";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
+  type VehicleCreationPayload,
   useVehicleCreationQuery,
   useVehicleTypeOptionsQuery,
   useFuelTypeOptionsQuery,
@@ -22,6 +24,24 @@ import {
 const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleCreation}`;
 const FILE_ICON = "/images/pdfimage/download.png";
+
+const VEHICLE_CREATION_FIELDS: Record<string, string[]> = {
+  vehicle_no: ["vehicle_no", "vehicleNo"],
+  vehicle_type_id: ["vehicle_type_id", "vehicle_type"],
+  fuel_type_id: ["fuel_type_id", "fuel_type"],
+  capacity: ["capacity"],
+  mileage_per_liter: ["mileage_per_liter", "mileage"],
+  service_record: ["service_record"],
+  vehicle_insurance: ["vehicle_insurance"],
+  insurance_expiry_date: ["insurance_expiry_date"],
+  vehicle_condition: ["vehicle_condition"],
+  fuel_tank_capacity: ["fuel_tank_capacity"],
+  is_active: ["is_active", "status", "active_status"],
+  company_id_input: ["company_id_input", "company_id", "company"],
+  project_id_input: ["project_id_input", "project_id", "project"],
+  rc_upload: ["rc_upload"],
+  vehicle_insurance_file: ["vehicle_insurance_file"],
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -49,6 +69,11 @@ export default function VehicleCreationForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
+  const { showField, filterPayload } = useFieldVisibility(
+    "transport-master",
+    "vehicle-creation",
+    VEHICLE_CREATION_FIELDS
+  );
 
   // ── Company / Project (same hook used across all forms) ───────────────────
   const {
@@ -294,10 +319,10 @@ export default function VehicleCreationForm() {
     e.preventDefault();
 
     const missingFields: string[] = [];
-    if (!form.vehicleNo.trim())
+    if (showField("vehicle_no") && !form.vehicleNo.trim())
       missingFields.push(t("admin.vehicle_creation.vehicle_no"));
-    if (!companyUniqueId) missingFields.push(t("admin.nav.company"));
-    if (!projectId) missingFields.push(t("admin.nav.project"));
+    if (showField("company_id_input") && !companyUniqueId) missingFields.push(t("admin.nav.company"));
+    if (showField("project_id_input") && !projectId) missingFields.push(t("admin.nav.project"));
 
     if (missingFields.length > 0) {
       Swal.fire(
@@ -308,7 +333,7 @@ export default function VehicleCreationForm() {
       return;
     }
 
-    const basePayload = {
+    const rawPayload = {
       vehicle_no: form.vehicleNo.trim(),
       vehicle_type_id: form.vehicleTypeId || null,
       fuel_type_id: form.fuelTypeId || null,
@@ -323,8 +348,15 @@ export default function VehicleCreationForm() {
       company_id_input: companyUniqueId,
       project_id_input: projectId || null,
     };
+    const basePayload = filterPayload(rawPayload, [
+      "company_id_input",
+      "project_id_input",
+    ]) as unknown as VehicleCreationPayload;
 
-    const hasFiles = Boolean(rcFile || insuranceFile);
+    const hasFiles = Boolean(
+      (showField("rc_upload") && rcFile) ||
+        (showField("vehicle_insurance_file") && insuranceFile)
+    );
 
     try {
       if (hasFiles) {
@@ -334,8 +366,10 @@ export default function VehicleCreationForm() {
           if (value === undefined || value === null || value === "") return;
           formBody.append(key, String(value));
         });
-        if (rcFile) formBody.append("rc_upload", rcFile);
-        if (insuranceFile) formBody.append("vehicle_insurance_file", insuranceFile);
+        if (showField("rc_upload") && rcFile) formBody.append("rc_upload", rcFile);
+        if (showField("vehicle_insurance_file") && insuranceFile) {
+          formBody.append("vehicle_insurance_file", insuranceFile);
+        }
 
         if (isEdit && id) {
           await updateMutation.mutateAsync({ id, payload: formBody });
@@ -346,8 +380,10 @@ export default function VehicleCreationForm() {
         // JSON update — include file removal flags if needed
         const removalPayload = {
           ...basePayload,
-          ...(removeRcFile ? { rc_upload: null } : {}),
-          ...(removeInsuranceFile ? { vehicle_insurance_file: null } : {}),
+          ...(showField("rc_upload") && removeRcFile ? { rc_upload: null } : {}),
+          ...(showField("vehicle_insurance_file") && removeInsuranceFile
+            ? { vehicle_insurance_file: null }
+            : {}),
         };
         await updateMutation.mutateAsync({ id, payload: removalPayload });
       } else {
@@ -379,6 +415,7 @@ export default function VehicleCreationForm() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
           {/* Vehicle No */}
+          {showField("vehicle_no") && (
           <div>
             <Label htmlFor="vehicleNo">
               {t("admin.vehicle_creation.vehicle_no")}{" "}
@@ -393,8 +430,10 @@ export default function VehicleCreationForm() {
               required
             />
           </div>
+          )}
 
           {/* Status */}
+          {showField("is_active") && (
           <div>
             <Label htmlFor="isActive">{t("common.status")}</Label>
             <Select
@@ -409,8 +448,10 @@ export default function VehicleCreationForm() {
               className="input-validate w-full"
             />
           </div>
+          )}
 
           {/* Company */}
+          {showField("company_id_input") && (
           <div>
             <Label htmlFor="company">
               {t("admin.nav.company")}{" "}
@@ -443,8 +484,10 @@ export default function VehicleCreationForm() {
               ))}
             </select>
           </div>
+          )}
 
           {/* Project */}
+          {showField("project_id_input") && (
           <div>
             <Label htmlFor="project">
               {t("admin.nav.project")}{" "}
@@ -480,8 +523,10 @@ export default function VehicleCreationForm() {
               </p>
             )}
           </div>
+          )}
 
           {/* Vehicle Type */}
+          {showField("vehicle_type_id") && (
           <div>
             <Label htmlFor="vehicleType">
               {t("admin.vehicle_creation.vehicle_type")}
@@ -497,8 +542,10 @@ export default function VehicleCreationForm() {
               className="input-validate w-full"
             />
           </div>
+          )}
 
           {/* Fuel Type */}
+          {showField("fuel_type_id") && (
           <div>
             <Label htmlFor="fuelType">
               {t("admin.vehicle_creation.fuel_type")}
@@ -514,8 +561,10 @@ export default function VehicleCreationForm() {
               className="input-validate w-full"
             />
           </div>
+          )}
 
           {/* Capacity */}
+          {showField("capacity") && (
           <div>
             <Label htmlFor="capacity">
               {t("admin.vehicle_creation.capacity")}
@@ -528,8 +577,10 @@ export default function VehicleCreationForm() {
               className="input-validate w-full"
             />
           </div>
+          )}
 
           {/* Mileage Per Liter */}
+          {showField("mileage_per_liter") && (
           <div>
             <Label htmlFor="mileagePerLiter">
               {t("admin.vehicle_creation.mileage_per_liter")}
@@ -542,8 +593,10 @@ export default function VehicleCreationForm() {
               className="input-validate w-full"
             />
           </div>
+          )}
 
           {/* Fuel Tank Capacity */}
+          {showField("fuel_tank_capacity") && (
           <div>
             <Label htmlFor="fuelTankCapacity">
               {t("admin.vehicle_creation.fuel_tank_capacity")}
@@ -556,8 +609,10 @@ export default function VehicleCreationForm() {
               className="input-validate w-full"
             />
           </div>
+          )}
 
           {/* Vehicle Condition */}
+          {showField("vehicle_condition") && (
           <div>
             <Label htmlFor="vehicleCondition">
               {t("admin.vehicle_creation.vehicle_condition")}
@@ -573,8 +628,10 @@ export default function VehicleCreationForm() {
               className="input-validate w-full"
             />
           </div>
+          )}
 
           {/* Service Record */}
+          {showField("service_record") && (
           <div className="md:col-span-2">
             <Label htmlFor="serviceRecord">
               {t("admin.vehicle_creation.service_record")}
@@ -587,8 +644,10 @@ export default function VehicleCreationForm() {
               className="input-validate w-full"
             />
           </div>
+          )}
 
           {/* Vehicle Insurance */}
+          {showField("vehicle_insurance") && (
           <div>
             <Label htmlFor="vehicleInsurance">
               {t("admin.vehicle_creation.vehicle_insurance")}
@@ -601,8 +660,10 @@ export default function VehicleCreationForm() {
               className="input-validate w-full"
             />
           </div>
+          )}
 
           {/* Insurance Expiry Date */}
+          {showField("insurance_expiry_date") && (
           <div>
             <Label htmlFor="insuranceExpiryDate">
               {t("admin.vehicle_creation.insurance_expiry_date")}
@@ -615,8 +676,10 @@ export default function VehicleCreationForm() {
               className="input-validate w-full"
             />
           </div>
+          )}
 
           {/* RC Upload */}
+          {showField("rc_upload") && (
           <div>
             <Label htmlFor="rcUpload">
               {t("admin.vehicle_creation.rc_upload")}
@@ -667,8 +730,10 @@ export default function VehicleCreationForm() {
                 })
             )}
           </div>
+          )}
 
           {/* Insurance File */}
+          {showField("vehicle_insurance_file") && (
           <div>
             <Label htmlFor="insuranceFile">
               {t("admin.vehicle_creation.vehicle_insurance_file")}
@@ -720,6 +785,7 @@ export default function VehicleCreationForm() {
                 })
             )}
           </div>
+          )}
         </div>
 
         {/* Buttons */}

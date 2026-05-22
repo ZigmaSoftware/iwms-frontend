@@ -13,32 +13,44 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
+import type { SelectOption } from "@/types";
 
 import { wasteTypeApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { encryptSegment } from "@/utils/routeCrypto";
 import {
   useBinQuery,
   useCreateBinMutation,
   useUpdateBinMutation,
   useCollectionPointsQuery,
+  useCitiesQuery,
+  useDistrictsQuery,
   usePanchayatsQuery,
   useWardsQuery,
   useZonesQuery,
 } from "@/tanstack/admin";
+import type { BinRecord, CityOption, CollectionPointOption, LocationOption, WardOption } from "./types";
 
 const encMasters = encryptSegment("masters");
 const encBins = encryptSegment("bins");
 const LIST_PATH = `/${encMasters}/${encBins}`;
 
-type SelectOption = { value: string; label: string };
-type CollectionPointOption = SelectOption & {
-  panchayatId: string;
-  wardId: string;
+const BIN_FIELDS: Record<string, string[]> = {
+  district_id: ["district_id", "district"],
+  city_id: ["city_id", "city"],
+  panchayat_id: ["panchayat_id", "panchayat"],
+  zone_id: ["zone_id", "zone"],
+  ward_id: ["ward_id", "ward"],
+  collection_point_id: ["collection_point_id", "collection_point"],
+  bin_capacity: ["bin_capacity", "capacity_liters"],
+  bin_type: ["bin_type"],
+  wastetype_id: ["wastetype_id", "waste_type_id", "waste_type"],
+  bin_name: ["bin_name", "name"],
+  bin_image: ["bin_image"],
+  bin_qr: ["bin_qr", "qr_code"],
+  is_active: ["is_active"],
 };
-type WardOption = SelectOption & { zoneId: string };
-
-type BinRecord = Record<string, unknown>;
 
 const toRecordList = (value: unknown): Record<string, unknown>[] => {
   if (Array.isArray(value)) {
@@ -88,6 +100,8 @@ const normalizeIdValue = (value: unknown): string => {
 
 export default function BinForm() {
   const { t } = useTranslation();
+  const { showField, filterPayload, getMissingRequiredFields } =
+    useFieldVisibility("masters", "bins", BIN_FIELDS);
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
@@ -126,6 +140,8 @@ export default function BinForm() {
   }, [t]);
 
   const [binName, setBinName] = useState("");
+  const [districtId, setDistrictId] = useState("");
+  const [cityId, setCityId] = useState("");
   const [zoneId, setZoneId] = useState("");
   const [wardId, setWardId] = useState("");
   const [panchayatId, setPanchayatId] = useState("");
@@ -137,9 +153,11 @@ export default function BinForm() {
   const [binQr, setBinQr] = useState("");
   const [isActive, setIsActive] = useState(true);
 
-  const [zones, setZones] = useState<SelectOption[]>([]);
+  const [zones, setZones] = useState<LocationOption[]>([]);
+  const [districts, setDistricts] = useState<SelectOption[]>([]);
+  const [cities, setCities] = useState<CityOption[]>([]);
   const [wardRecords, setWardRecords] = useState<WardOption[]>([]);
-  const [panchayats, setPanchayats] = useState<SelectOption[]>([]);
+  const [panchayats, setPanchayats] = useState<LocationOption[]>([]);
   const [collectionPoints, setCollectionPoints] = useState<CollectionPointOption[]>([]);
   const [wasteTypes, setWasteTypes] = useState<SelectOption[]>([]);
   const [pendingWard, setPendingWard] = useState("");
@@ -150,22 +168,57 @@ export default function BinForm() {
   const isPanchayatSelected = Boolean(panchayatId);
   const isZoneSelected = Boolean(zoneId);
   const isWardSelected = Boolean(wardId);
+  const tenantFilters = useMemo(
+    () =>
+      companyUniqueId && projectId
+        ? {
+            company_id: companyUniqueId,
+            project_id: projectId,
+          }
+        : null,
+    [companyUniqueId, projectId]
+  );
+  const collectionPointFilters = useMemo(
+    () =>
+      companyUniqueId && projectId && (wardId || panchayatId)
+        ? {
+            company_id: companyUniqueId,
+            project_id: projectId,
+            district: districtId || null,
+            city: cityId || null,
+            zone: zoneId || null,
+            ward: wardId || null,
+            panchayat: panchayatId || null,
+          }
+        : null,
+    [cityId, companyUniqueId, districtId, panchayatId, projectId, wardId, zoneId]
+  );
+  const resetLocationFields = useCallback(() => {
+    setDistrictId("");
+    setCityId("");
+    setPanchayatId("");
+    setZoneId("");
+    setWardId("");
+    setCollectionPointId("");
+  }, []);
 
-  const panchayatsQuery = usePanchayatsQuery();
-  const zonesQuery = useZonesQuery();
-  const wardsQuery = useWardsQuery();
-  const collectionPointsQuery = useCollectionPointsQuery();
+  const districtsQuery = useDistrictsQuery(tenantFilters);
+  const citiesQuery = useCitiesQuery(tenantFilters);
+  const panchayatsQuery = usePanchayatsQuery(tenantFilters);
+  const zonesQuery = useZonesQuery(tenantFilters);
+  const wardsQuery = useWardsQuery(tenantFilters);
+  const collectionPointsQuery = useCollectionPointsQuery(collectionPointFilters);
   const binQuery = useBinQuery(id);
   const createBinMutation = useCreateBinMutation();
   const updateBinMutation = useUpdateBinMutation();
   const isSubmitting = createBinMutation.isPending || updateBinMutation.isPending;
 
   useEffect(() => {
-    if (panchayatsQuery.isError || zonesQuery.isError || wardsQuery.isError || collectionPointsQuery.isError) {
-      const error = panchayatsQuery.error ?? zonesQuery.error ?? wardsQuery.error ?? collectionPointsQuery.error;
+    if (districtsQuery.isError || citiesQuery.isError || panchayatsQuery.isError || zonesQuery.isError || wardsQuery.isError || collectionPointsQuery.isError) {
+      const error = districtsQuery.error ?? citiesQuery.error ?? panchayatsQuery.error ?? zonesQuery.error ?? wardsQuery.error ?? collectionPointsQuery.error;
       Swal.fire(t("common.error"), extractErr(error), "error");
     }
-  }, [collectionPointsQuery.error, collectionPointsQuery.isError, extractErr, panchayatsQuery.error, panchayatsQuery.isError, t, wardsQuery.error, wardsQuery.isError, zonesQuery.error, zonesQuery.isError]);
+  }, [citiesQuery.error, citiesQuery.isError, collectionPointsQuery.error, collectionPointsQuery.isError, districtsQuery.error, districtsQuery.isError, extractErr, panchayatsQuery.error, panchayatsQuery.isError, t, wardsQuery.error, wardsQuery.isError, zonesQuery.error, zonesQuery.isError]);
 
   useEffect(() => {
     setLookupsLoading(true);
@@ -191,6 +244,33 @@ export default function BinForm() {
   }, [extractErr, t]);
 
   useEffect(() => {
+    const data = districtsQuery.data ?? [];
+    setDistricts(
+      data
+        .filter((d) => d.is_active !== false)
+        .map((d) => ({
+          value: normalizeIdValue(d.unique_id),
+          label: String(d.name ?? d.unique_id ?? ""),
+        }))
+        .filter((d) => d.value && d.label)
+    );
+  }, [districtsQuery.data]);
+
+  useEffect(() => {
+    const data = citiesQuery.data ?? [];
+    setCities(
+      data
+        .filter((c) => c.is_active !== false)
+        .map((c) => ({
+          value: normalizeIdValue(c.unique_id),
+          label: String(c.name ?? c.unique_id ?? ""),
+          districtId: normalizeIdValue(c.district_id ?? c.district),
+        }))
+        .filter((c) => c.value && c.label)
+    );
+  }, [citiesQuery.data]);
+
+  useEffect(() => {
     const data = panchayatsQuery.data ?? [];
     setPanchayats(
       data
@@ -198,6 +278,8 @@ export default function BinForm() {
         .map((p) => ({
           value: normalizeIdValue(p.unique_id),
           label: String(p.panchayat_name ?? p.name ?? p.unique_id ?? ""),
+          districtId: normalizeIdValue(p.district_id ?? p.district),
+          cityId: normalizeIdValue(p.city_id ?? p.city),
         }))
         .filter((p) => p.value && p.label)
     );
@@ -211,6 +293,8 @@ export default function BinForm() {
         .map((z) => ({
           value: normalizeIdValue(z.unique_id),
           label: String(z.zone_name ?? z.name ?? z.unique_id ?? ""),
+          districtId: normalizeIdValue(z.district_id),
+          cityId: normalizeIdValue(z.city_id),
         }))
         .filter((z) => z.value && z.label)
     );
@@ -224,6 +308,9 @@ export default function BinForm() {
         .map((w) => ({
           value: normalizeIdValue(w.unique_id),
           label: String(w.ward_name ?? w.name ?? w.unique_id ?? ""),
+          districtId: normalizeIdValue(w.district_id ?? w.district),
+          cityId: normalizeIdValue(w.city_id ?? w.city),
+          panchayatId: normalizeIdValue(w.panchayat_id ?? w.panchayat),
           zoneId: normalizeIdValue(w.zone_id ?? w.zone),
         }))
         .filter((w) => w.value && w.label)
@@ -238,6 +325,8 @@ export default function BinForm() {
         .map((cp) => ({
           value: normalizeIdValue(cp.unique_id),
           label: String(cp.cp_name ?? cp.collection_point_name ?? cp.unique_id ?? ""),
+          districtId: normalizeIdValue(cp.district_id),
+          cityId: normalizeIdValue(cp.city_id),
           panchayatId: normalizeIdValue(cp.panchayat_id),
           wardId: normalizeIdValue(cp.ward_id),
         }))
@@ -249,6 +338,9 @@ export default function BinForm() {
     const filtered = wardRecords
       .filter((w) => {
         if (zoneId) return w.zoneId === zoneId;
+        if (panchayatId) return w.panchayatId === panchayatId;
+        if (cityId) return w.cityId === cityId;
+        if (districtId) return w.districtId === districtId;
         return true;
       })
       .map((w) => ({ value: w.value, label: w.label }));
@@ -258,13 +350,45 @@ export default function BinForm() {
 
     const current = wardRecords.find((w) => w.value === wardId);
     return [...filtered, { value: wardId, label: current?.label || wardId }];
-  }, [wardId, wardRecords, zoneId]);
+  }, [cityId, districtId, panchayatId, wardId, wardRecords, zoneId]);
+
+  const panchayatOptions = useMemo(() => {
+    const filtered = panchayats
+      .filter((p) => {
+        if (cityId) return p.cityId === cityId;
+        if (districtId) return p.districtId === districtId;
+        return true;
+      })
+      .map((p) => ({ value: p.value, label: p.label }));
+
+    if (!panchayatId) return filtered;
+    if (filtered.some((p) => p.value === panchayatId)) return filtered;
+    const current = panchayats.find((p) => p.value === panchayatId);
+    return [...filtered, { value: panchayatId, label: current?.label || panchayatId }];
+  }, [cityId, districtId, panchayatId, panchayats]);
+
+  const zoneOptions = useMemo(() => {
+    const filtered = zones
+      .filter((z) => {
+        if (cityId) return z.cityId === cityId;
+        if (districtId) return z.districtId === districtId;
+        return true;
+      })
+      .map((z) => ({ value: z.value, label: z.label }));
+
+    if (!zoneId) return filtered;
+    if (filtered.some((z) => z.value === zoneId)) return filtered;
+    const current = zones.find((z) => z.value === zoneId);
+    return [...filtered, { value: zoneId, label: current?.label || zoneId }];
+  }, [cityId, districtId, zoneId, zones]);
 
   const collectionPointOptions = useMemo(() => {
     const filtered = collectionPoints
       .filter((cp) => {
         if (wardId) return cp.wardId === wardId;
         if (panchayatId) return cp.panchayatId === panchayatId;
+        if (cityId) return cp.cityId === cityId;
+        if (districtId) return cp.districtId === districtId;
         return true;
       })
       .map((cp) => ({ value: cp.value, label: cp.label }));
@@ -274,7 +398,7 @@ export default function BinForm() {
 
     const current = collectionPoints.find((cp) => cp.value === collectionPointId);
     return [...filtered, { value: collectionPointId, label: current?.label || collectionPointId }];
-  }, [collectionPointId, collectionPoints, panchayatId, wardId]);
+  }, [cityId, collectionPointId, collectionPoints, districtId, panchayatId, wardId]);
 
   useEffect(() => {
     if (!binQuery.data) return;
@@ -283,6 +407,8 @@ export default function BinForm() {
     setBinName(toStringOrEmpty(record.bin_name));
     setBinType(toStringOrEmpty(record.bin_type) || "medium");
     setBinCapacity(toNumberOrEmpty(record.bin_capacity ?? record.capacity_liters));
+    setDistrictId(normalizeIdValue(record.district_id ?? record.district));
+    setCityId(normalizeIdValue(record.city_id ?? record.city));
     setCollectionPointId(normalizeIdValue(record.collection_point_id ?? record.collection_point));
     setBinImage(toStringOrEmpty(record.bin_image) || "default.png");
     setBinQr(toStringOrEmpty(record.bin_qr));
@@ -312,7 +438,7 @@ export default function BinForm() {
   useEffect(() => {
     if (!pendingWard || wardRecords.length === 0) return;
     if (!wardRecords.some((w) => w.value === pendingWard)) {
-      setWardRecords((prev) => [...prev, { value: pendingWard, label: pendingWard, zoneId: "" }]);
+      setWardRecords((prev) => [...prev, { value: pendingWard, label: pendingWard, districtId: "", cityId: "", panchayatId: "", zoneId: "" }]);
     }
     setWardId(pendingWard);
     setPendingWard("");
@@ -321,7 +447,7 @@ export default function BinForm() {
   useEffect(() => {
     if (!pendingPanchayat || panchayats.length === 0) return;
     if (!panchayats.some((p) => p.value === pendingPanchayat)) {
-      setPanchayats((prev) => [...prev, { value: pendingPanchayat, label: pendingPanchayat }]);
+      setPanchayats((prev) => [...prev, { value: pendingPanchayat, label: pendingPanchayat, districtId: "", cityId: "" }]);
     }
     setPanchayatId(pendingPanchayat);
     setPendingPanchayat("");
@@ -336,11 +462,37 @@ export default function BinForm() {
     setPendingWasteType("");
   }, [pendingWasteType, wasteTypes]);
 
+  const cityOptions = useMemo(() => {
+    const filtered = cities
+      .filter((city) => {
+        if (districtId) return city.districtId === districtId;
+        return true;
+      })
+      .map((city) => ({ value: city.value, label: city.label }));
+
+    if (!cityId) return filtered;
+    if (filtered.some((city) => city.value === cityId)) return filtered;
+    return [...filtered, { value: cityId, label: cityId }];
+  }, [cities, cityId, districtId]);
+
   useEffect(() => {
     if (!collectionPointId) return;
 
     const selectedCp = collectionPoints.find((cp) => cp.value === collectionPointId);
     if (!selectedCp) return;
+
+    if (districtId && selectedCp.districtId && selectedCp.districtId !== districtId) {
+      setCollectionPointId("");
+      return;
+    }
+
+    if (cityId && selectedCp.cityId && selectedCp.cityId !== cityId) {
+      setCollectionPointId("");
+      return;
+    }
+
+    if (!districtId && selectedCp.districtId) setDistrictId(selectedCp.districtId);
+    if (!cityId && selectedCp.cityId) setCityId(selectedCp.cityId);
 
     if (wardId && selectedCp.wardId !== wardId) {
       setCollectionPointId("");
@@ -350,21 +502,47 @@ export default function BinForm() {
     if (panchayatId && selectedCp.panchayatId && selectedCp.panchayatId !== panchayatId) {
       setCollectionPointId("");
     }
-  }, [collectionPointId, collectionPoints, panchayatId, wardId]);
+  }, [cityId, collectionPointId, collectionPoints, districtId, panchayatId, wardId]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     const missingFields: string[] = [];
-    if (!binName.trim()) missingFields.push("Bin name");
+    const fieldValues: Record<string, unknown> = {
+      bin_name: binName.trim(),
+      district_id: districtId,
+      city_id: cityId,
+      panchayat_id: panchayatId,
+      ward_id: wardId,
+      collection_point_id: collectionPointId,
+      wastetype_id: wasteTypeId,
+      bin_capacity: typeof binCapacity === "number" && binCapacity > 0 ? binCapacity : "",
+    };
+    if (getMissingRequiredFields(["bin_name"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
+      missingFields.push("Bin name");
+    }
     if (!companyUniqueId) missingFields.push(t("admin.nav.company"));
     if (!projectId) missingFields.push(t("admin.nav.project"));
-    if (!panchayatId && !wardId) {
+    if (getMissingRequiredFields(["district_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
+      missingFields.push(t("common.district"));
+    }
+    if (getMissingRequiredFields(["city_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
+      missingFields.push(t("common.city"));
+    }
+    const locationChoiceVisible = showField("panchayat_id") || showField("ward_id");
+    if (locationChoiceVisible && !panchayatId && !wardId) {
       missingFields.push(`${t("admin.nav.panchayat")} / ${t("common.ward")}`);
     }
-    if (!collectionPointId) missingFields.push(t("admin.nav.collection_point"));
-    if (!wasteTypeId) missingFields.push(t("common.waste_type"));
-    if (typeof binCapacity !== "number" || binCapacity <= 0) {
+    if (
+      getMissingRequiredFields(["collection_point_id"], (fieldKey) => fieldValues[fieldKey])
+        .length > 0
+    ) {
+      missingFields.push(t("admin.nav.collection_point"));
+    }
+    if (getMissingRequiredFields(["wastetype_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
+      missingFields.push(t("common.waste_type"));
+    }
+    if (getMissingRequiredFields(["bin_capacity"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
       missingFields.push(t("common.bin_capacity"));
     }
 
@@ -377,9 +555,11 @@ export default function BinForm() {
       return;
     }
 
-    const payload = {
+    const rawPayload = {
       company_id: companyUniqueId,
       project_id: projectId,
+      district_id: districtId,
+      city_id: cityId,
       panchayat_id: panchayatId || null,
       zone_id: zoneId || null,
       ward_id: wardId || null,
@@ -392,6 +572,7 @@ export default function BinForm() {
       wastetype_id: wasteTypeId,
       is_active: isActive,
     };
+    const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
     try {
       if (isEdit && id) {
@@ -421,7 +602,10 @@ export default function BinForm() {
           <Label>{t("admin.nav.company")} *</Label>
           <Select
             value={companyUniqueId}
-            onValueChange={onCompanyChange}
+            onValueChange={(value) => {
+              onCompanyChange(value);
+              resetLocationFields();
+            }}
             disabled={
               Boolean(loggedInCompanyUniqueId) ||
               (!isSuperAdmin && !loggedInCompanyUniqueId) ||
@@ -447,7 +631,14 @@ export default function BinForm() {
 
         <div>
           <Label>{t("admin.nav.project")} *</Label>
-          <Select value={projectId} onValueChange={setProjectId} disabled={!companyUniqueId || projects.length === 0}>
+          <Select
+            value={projectId}
+            onValueChange={(value) => {
+              setProjectId(value);
+              resetLocationFields();
+            }}
+            disabled={!companyUniqueId || projects.length === 0}
+          >
             <SelectTrigger className="input-validate w-full">
               <SelectValue placeholder="Select Project" />
             </SelectTrigger>
@@ -460,173 +651,252 @@ export default function BinForm() {
             </SelectContent>
           </Select>
         </div>
-
-        <div>
-          <Label>{t("common.item_name", { item: t("admin.nav.bin_master") })} *</Label>
-          <Input value={binName} onChange={(e) => setBinName(e.target.value)} required />
-        </div>
-
-        <div>
-          <Label>{t("admin.nav.panchayat")}</Label>
-          <Select
-            value={panchayatId || "__none__"}
-            onValueChange={(value) => {
-              const next = value === "__none__" ? "" : value;
-              setPanchayatId(next);
-              setCollectionPointId("");
-              if (next) setWardId("");
-            }}
-            disabled={isZoneSelected || isWardSelected}
-          >
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue
-                placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") })}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
-              {panchayats.map((p) => (
-                <SelectItem key={p.value} value={p.value}>
-                  {p.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>{t("admin.nav.zone")}</Label>
-          <Select
-            value={zoneId || "__none__"}
-            onValueChange={(value) => {
-              const next = value === "__none__" ? "" : value;
-              setZoneId(next);
-              setWardId("");
-              setCollectionPointId("");
-            }}
-            disabled={isPanchayatSelected}
-          >
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.zone") })} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
-              {zones.map((z) => (
-                <SelectItem key={z.value} value={z.value}>
-                  {z.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>{t("common.ward")}</Label>
-          <Select
-            value={wardId || "__none__"}
-            onValueChange={(value) => {
-              const next = value === "__none__" ? "" : value;
-              setWardId(next);
-              if (next) {
+        {showField("district_id") && (
+          <div>
+            <Label>{t("common.district")} *</Label>
+            <Select
+              value={districtId}
+              onValueChange={(value) => {
+                setDistrictId(value);
+                setCityId("");
                 setPanchayatId("");
+                setZoneId("");
+                setWardId("");
                 setCollectionPointId("");
-              }
-            }}
-            disabled={isPanchayatSelected}
-          >
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.ward") })} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
-              {wardOptions.map((w) => (
-                <SelectItem key={w.value} value={w.value}>
-                  {w.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+              }}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.district") })} />
+              </SelectTrigger>
+              <SelectContent>
+                {districts.map((district) => (
+                  <SelectItem key={district.value} value={district.value}>
+                    {district.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>{t("admin.nav.collection_point")} *</Label>
-          <Select value={collectionPointId} onValueChange={setCollectionPointId} disabled={collectionPointOptions.length === 0}>
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.collection_point") })} />
-            </SelectTrigger>
-            <SelectContent>
-              {collectionPointOptions.map((cp) => (
-                <SelectItem key={cp.value} value={cp.value}>
-                  {cp.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("city_id") && (
+          <div>
+            <Label>{t("common.city")} *</Label>
+            <Select
+              value={cityId}
+              onValueChange={(value) => {
+                setCityId(value);
+                setPanchayatId("");
+                setZoneId("");
+                setWardId("");
+                setCollectionPointId("");
+              }}
+              disabled={!districtId}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.city") })} />
+              </SelectTrigger>
+              <SelectContent>
+                {cityOptions.map((city) => (
+                  <SelectItem key={city.value} value={city.value}>
+                    {city.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>{t("common.bin_capacity")} *</Label>
-          <Input
-            type="number"
-            value={binCapacity}
-            onChange={(e) => setBinCapacity(e.target.value ? Number(e.target.value) : "")}
-            min={1}
-            required
-          />
-        </div>
+        {showField("panchayat_id") && (
+          <div>
+            <Label>{t("admin.nav.panchayat")}</Label>
+            <Select
+              value={panchayatId || "__none__"}
+              onValueChange={(value) => {
+                const next = value === "__none__" ? "" : value;
+                setPanchayatId(next);
+                setZoneId("");
+                setWardId("");
+                setCollectionPointId("");
+              }}
+              disabled={!cityId || isZoneSelected || isWardSelected}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue
+                  placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") })}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
+                {panchayatOptions.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>{t("common.bin_type")}</Label>
-          <Select value={binType} onValueChange={setBinType}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="small">Small</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="large">Large</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("zone_id") && (
+          <div>
+            <Label>{t("admin.nav.zone")}</Label>
+            <Select
+              value={zoneId || "__none__"}
+              onValueChange={(value) => {
+                const next = value === "__none__" ? "" : value;
+                setZoneId(next);
+                setPanchayatId("");
+                setWardId("");
+                setCollectionPointId("");
+              }}
+              disabled={!cityId || isPanchayatSelected}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.zone") })} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
+                {zoneOptions.map((z) => (
+                  <SelectItem key={z.value} value={z.value}>
+                    {z.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>{t("common.waste_type")} *</Label>
-          <Select value={wasteTypeId} onValueChange={setWasteTypeId}>
-            <SelectTrigger>
-              <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.waste_type") })} />
-            </SelectTrigger>
-            <SelectContent>
-              {wasteTypes.map((w) => (
-                <SelectItem key={w.value} value={w.value}>
-                  {w.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("ward_id") && (
+          <div>
+            <Label>{t("common.ward")}</Label>
+            <Select
+              value={wardId || "__none__"}
+              onValueChange={(value) => {
+                const next = value === "__none__" ? "" : value;
+                setWardId(next);
+                if (next) {
+                  setPanchayatId("");
+                  setCollectionPointId("");
+                }
+              }}
+              disabled={!cityId || isPanchayatSelected || (!zoneId && !panchayatId)}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.ward") })} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
+                {wardOptions.map((w) => (
+                  <SelectItem key={w.value} value={w.value}>
+                    {w.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>Bin Image</Label>
-          <Input value={binImage} onChange={(e) => setBinImage(e.target.value)} placeholder="default.png" />
-        </div>
+        {showField("collection_point_id") && (
+          <div>
+            <Label>{t("admin.nav.collection_point")} *</Label>
+            <Select value={collectionPointId} onValueChange={setCollectionPointId} disabled={collectionPointOptions.length === 0}>
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.collection_point") })} />
+              </SelectTrigger>
+              <SelectContent>
+                {collectionPointOptions.map((cp) => (
+                  <SelectItem key={cp.value} value={cp.value}>
+                    {cp.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>Bin QR</Label>
-          <Input value={binQr} onChange={(e) => setBinQr(e.target.value)} placeholder="QR-BIN-001" />
-        </div>
+        {showField("bin_capacity") && (
+          <div>
+            <Label>{t("common.bin_capacity")} *</Label>
+            <Input
+              type="number"
+              value={binCapacity}
+              onChange={(e) => setBinCapacity(e.target.value ? Number(e.target.value) : "")}
+              min={1}
+              required
+            />
+          </div>
+        )}
 
-        <div>
-          <Label>{t("common.status")}</Label>
-          <Select value={isActive ? "true" : "false"} onValueChange={(v) => setIsActive(v === "true")}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="true">{t("common.active")}</SelectItem>
-              <SelectItem value="false">{t("common.inactive")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("bin_type") && (
+          <div>
+            <Label>{t("common.bin_type")}</Label>
+            <Select value={binType} onValueChange={setBinType}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="small">Small</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="large">Large</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {showField("wastetype_id") && (
+          <div>
+            <Label>{t("common.waste_type")} *</Label>
+            <Select value={wasteTypeId} onValueChange={setWasteTypeId}>
+              <SelectTrigger>
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.waste_type") })} />
+              </SelectTrigger>
+              <SelectContent>
+                {wasteTypes.map((w) => (
+                  <SelectItem key={w.value} value={w.value}>
+                    {w.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {showField("bin_name") && (
+          <div>
+            <Label>{t("common.item_name", { item: t("admin.nav.bin_master") })} *</Label>
+            <Input value={binName} onChange={(e) => setBinName(e.target.value)} required />
+          </div>
+        )}
+
+        {showField("bin_image") && (
+          <div>
+            <Label>Bin Image</Label>
+            <Input value={binImage} onChange={(e) => setBinImage(e.target.value)} placeholder="default.png" />
+          </div>
+        )}
+
+        {showField("bin_qr") && (
+          <div>
+            <Label>Bin QR</Label>
+            <Input value={binQr} onChange={(e) => setBinQr(e.target.value)} placeholder="QR-BIN-001" />
+          </div>
+        )}
+
+        {showField("is_active") && (
+          <div>
+            <Label>{t("common.status")}</Label>
+            <Select value={isActive ? "true" : "false"} onValueChange={(v) => setIsActive(v === "true")}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">{t("common.active")}</SelectItem>
+                <SelectItem value="false">{t("common.inactive")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="md:col-span-2 flex justify-end gap-3">
           <Button type="submit" disabled={isSubmitting || lookupsLoading}>
@@ -646,4 +916,3 @@ export default function BinForm() {
     </ComponentCard>
   );
 }
-

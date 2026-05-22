@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -13,40 +13,26 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useDistrictsQuery, useUpdateDistrictMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import type { DistrictListRecord } from "./types";
 
-type DistrictRecord = {
-  unique_id: string;
-  countryName: string;
-  stateName: string;
-  name: string;
-  is_active: boolean;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
+/**
+ * Maps each DataTable column to the backend field names that control its visibility.
+ * A column is shown if allowed is null (no restrictions) OR if any of its fieldNames
+ * are present in the allowed set.
+ */
+const DISTRICT_COLUMN_FIELDS: Record<string, string[]> = {
+  countryName: ["country_id"],
+  stateName: ["state_id"],
+  name: ["name"],
+  is_active: ["is_active"],
 };
 
-type ErrorWithResponse = {
-  response?: { data?: unknown };
-};
-
-const extractErrorMessage = (error: unknown) => {
-  if (!error) return "Something went wrong while processing the request.";
-  if (typeof error === "string") return error;
-  const data = (error as ErrorWithResponse)?.response?.data;
-  if (typeof data === "string") return data;
-  if (Array.isArray(data)) return data.join(", ");
-  if (data && typeof data === "object") {
-    return Object.entries(data as Record<string, unknown>)
-      .map(([k, v]) =>
-        Array.isArray(v) ? `${k}: ${v.join(", ")}` : `${k}: ${String(v)}`
-      )
-      .join("\n");
-  }
-  if (error instanceof Error && error.message) return error.message;
-  return "Something went wrong while processing the request.";
+type DistrictApiRow = DistrictListRecord & {
+  country_name?: unknown;
+  state_name?: unknown;
+  company_name?: unknown;
+  project_name?: unknown;
 };
 
 const normalizeId = (value: unknown): string =>
@@ -54,9 +40,17 @@ const normalizeId = (value: unknown): string =>
 
 export default function DistrictListPage() {
   const { t } = useTranslation();
+  const { showColumn: showCol } = useFieldVisibility(
+    "masters",
+    "districts",
+    DISTRICT_COLUMN_FIELDS,
+  );
+
   const districtsQuery = useDistrictsQuery();
   const updateDistrictMutation = useUpdateDistrictMutation();
   const allDistricts = districtsQuery.data ?? [];
+  console.log("allDistrict", allDistricts);
+
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -83,15 +77,18 @@ export default function DistrictListPage() {
 
   useEffect(() => {
     if (!districtsQuery.isError) return;
-    Swal.fire({ icon: "error", title: t("common.error"), text: String((districtsQuery.error as any)?.response?.data ?? districtsQuery.error) });
+    const errorData = (districtsQuery.error as { response?: { data?: unknown } })?.response?.data;
+    Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? districtsQuery.error) });
   }, [districtsQuery.error, districtsQuery.isError, t]);
 
-  const districts = ((): DistrictRecord[] => {
+  const districts = ((): DistrictListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
-    const rows = Array.isArray(allDistricts) ? (allDistricts as any[]) : [];
-    const mapped: DistrictRecord[] = rows.map((d) => ({
+    const rows: DistrictApiRow[] = Array.isArray(allDistricts)
+      ? (allDistricts as unknown as DistrictApiRow[])
+      : [];
+    const mapped: DistrictListRecord[] = rows.map((d) => ({
       unique_id: String(d.unique_id ?? ""),
       countryName: String(d.country_name ?? ""),
       stateName: String(d.state_name ?? ""),
@@ -104,6 +101,8 @@ export default function DistrictListPage() {
       project_unique_id: d.project_unique_id ? String(d.project_unique_id) : undefined,
       project_name: d.project_name ? String(d.project_name) : undefined,
     }));
+
+    console.log("mapped",mapped);
 
     const filtered = mapped.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
@@ -160,7 +159,7 @@ export default function DistrictListPage() {
     />
   );
 
-  const updateStatus = async (row: DistrictRecord, checked: boolean) => {
+  const updateStatus = async (row: DistrictListRecord, checked: boolean) => {
     const id = String(row.unique_id);
     setPendingStatusId(id);
 
@@ -173,15 +172,23 @@ export default function DistrictListPage() {
     }
   };
 
-  const statusTemplate = (row: DistrictRecord) => (
+  const statusTemplate = (row: DistrictListRecord) => (
     <Switch checked={row.is_active} disabled={updateDistrictMutation.isPending && pendingStatusId === String(row.unique_id)} onCheckedChange={(checked) => void updateStatus(row, checked)} />
   );
   
 
-  const actionTemplate = (row: DistrictRecord) => (
+  const actionTemplate = (row: DistrictListRecord) => (
     <div className="flex gap-3 justify-center">
       <button
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onClick={() =>
+          navigate(ENC_EDIT_PATH(row.unique_id), {
+            state: {
+              district: row,
+              companyUniqueId: row.company_id ?? row.company_unique_id,
+              projectId: row.project_id ?? row.project_unique_id,
+            },
+          })
+        }
         className="text-blue-600 hover:text-blue-800"
       >
         <PencilIcon className="size-5" />
@@ -189,7 +196,7 @@ export default function DistrictListPage() {
     </div>
   );
 
-  const indexTemplate = (_: DistrictRecord, { rowIndex }: { rowIndex: number }) =>
+  const indexTemplate = (_: DistrictListRecord, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
   return (
@@ -241,7 +248,14 @@ export default function DistrictListPage() {
             icon="pi pi-plus"
             className="p-button-success"
             disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH)}
+            onClick={() =>
+              navigate(ENC_NEW_PATH, {
+                state: {
+                  companyUniqueId,
+                  projectId,
+                },
+              })
+            }
           />
         </div>
       </div>
@@ -268,46 +282,49 @@ export default function DistrictListPage() {
           body={indexTemplate}
           style={{ width: "80px" }}
         />
-        <Column
-          field="countryName"
-          header={t("admin.nav.country")}
-          body={(row) => cap(row.countryName)}
-          sortable
-          filter
-          filterField="countryName"
-          filterElement={textFilterElement}
-          filterPlaceholder="Search country"
-        />
-        <Column
-          field="stateName"
-          header={t("admin.nav.state")}
-          body={(row) => cap(row.stateName)}
-          sortable
-          filter
-          filterField="stateName"
-          filterElement={textFilterElement}
-          filterPlaceholder="Search state"
-        />
-        <Column
-          field="name"
-          header={t("admin.nav.district")}
-          body={(row) => cap(row.name)}
-          sortable
-          filter
-          filterField="name"
-          filterElement={textFilterElement}
-          filterPlaceholder="Search district"
-        />
-        <Column
-          field="is_active"
-          header={t("common.status")}
-          body={statusTemplate}
-          // filter
-          // filterField="is_active"
-          // filterElement={statusFilterElement}
-          // showFilterMatchModes={false}
-          // style={{ width: "140px" }}
-        />
+        {showCol("countryName") && (
+          <Column
+            field="countryName"
+            header={t("admin.nav.country")}
+            body={(row) => cap(row.countryName)}
+            sortable
+            filter
+            filterField="countryName"
+            filterElement={textFilterElement}
+            filterPlaceholder="Search country"
+          />
+        )}
+        {showCol("stateName") && (
+          <Column
+            field="stateName"
+            header={t("admin.nav.state")}
+            body={(row) => cap(row.stateName)}
+            sortable
+            filter
+            filterField="stateName"
+            filterElement={textFilterElement}
+            filterPlaceholder="Search state"
+          />
+        )}
+        {showCol("name") && (
+          <Column
+            field="name"
+            header={t("admin.nav.district")}
+            body={(row) => cap(row.name)}
+            sortable
+            filter
+            filterField="name"
+            filterElement={textFilterElement}
+            filterPlaceholder="Search district"
+          />
+        )}
+        {showCol("is_active") && (
+          <Column
+            field="is_active"
+            header={t("common.status")}
+            body={statusTemplate}
+          />
+        )}
         <Column
           header={t("common.actions")}
           body={actionTemplate}

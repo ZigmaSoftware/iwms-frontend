@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -20,51 +20,13 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useZonesQuery, useUpdateZoneMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import type { ZoneListRecord } from "./types";
 
-// ===========================
-//   Types
-// ===========================
-type ZoneRecord = {
-  unique_id: string;
-  zone_name: string;
-  city_name: string;
-  district_name: string;
-  state_name: string;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
-  is_active: boolean;
-};
-
-type ErrorWithResponse = {
-  response?: {
-    data?: unknown;
-  };
-};
-
-const extractErrorMessage = (error: unknown) => {
-  if (!error) return "Something went wrong while processing the request.";
-  if (typeof error === "string") return error;
-
-  const data = (error as ErrorWithResponse)?.response?.data;
-
-  if (typeof data === "string") return data;
-  if (Array.isArray(data)) return data.join(", ");
-
-  if (data && typeof data === "object") {
-    return Object.entries(data as Record<string, unknown>)
-      .map(([k, v]) =>
-        Array.isArray(v) ? `${k}: ${v.join(", ")}` : `${k}: ${String(v)}`
-      )
-      .join("\n");
-  }
-
-  if (error instanceof Error && error.message) return error.message;
-
-  return "Something went wrong while processing the request.";
+const ZONE_COLUMN_FIELDS: Record<string, string[]> = {
+  city_name: ["city_id"],
+  zone_name: ["zone_name"],
+  is_active: ["is_active"],
 };
 
 const normalizeId = (value: unknown): string =>
@@ -75,6 +37,12 @@ const normalizeId = (value: unknown): string =>
 // ===========================
 export default function ZoneList() {
   const { t } = useTranslation();
+  const { showColumn: showCol } = useFieldVisibility(
+    "masters",
+    "zones",
+    ZONE_COLUMN_FIELDS,
+  );
+
   const zonesQuery = useZonesQuery();
   const updateZoneMutation = useUpdateZoneMutation();
   const allZones = zonesQuery.data ?? [];
@@ -100,20 +68,40 @@ export default function ZoneList() {
 
   const { encMasters, encZones } = getEncryptedRoute();
 
-  const ENC_NEW_PATH = `/${encMasters}/${encZones}/new`;
+  const ENC_NEW_PATH = (companyId?: string | null, selectedProjectId?: string | null) => {
+    const params = new URLSearchParams();
+    if (companyId) params.set("company_unique_id", companyId);
+    if (selectedProjectId) params.set("project_id", selectedProjectId);
+    const query = params.toString();
+    return `/${encMasters}/${encZones}/new${query ? `?${query}` : ""}`;
+  };
   const ENC_EDIT_PATH = (id: string | number) =>
     `/${encMasters}/${encZones}/${id}/edit`;
 
+  const onFilterCompanyChange = (value: string) => {
+    localStorage.setItem("selected_company_unique_id", value);
+    localStorage.removeItem("selected_project_id");
+    onCompanyChange(value);
+  };
+
+  const onFilterProjectChange = (value: string) => {
+    localStorage.setItem("selected_project_id", value);
+    setProjectId(value);
+  };
+
   useEffect(() => {
     if (!zonesQuery.isError) return;
-    Swal.fire({ icon: "error", title: t("common.error"), text: String((zonesQuery.error as any)?.response?.data ?? zonesQuery.error) });
+    const errorData = (zonesQuery.error as { response?: { data?: unknown } })?.response?.data;
+    Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? zonesQuery.error) });
   }, [zonesQuery.error, zonesQuery.isError, t]);
 
-  const zones = ((): ZoneRecord[] => {
+  const zones = ((): ZoneListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
-    const rows = Array.isArray(allZones) ? (allZones as any[]) : [];
+    const rows = Array.isArray(allZones)
+      ? (allZones as unknown as ZoneListRecord[])
+      : [];
     const filtered = rows.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
@@ -122,7 +110,7 @@ export default function ZoneList() {
       return companyMatches && projectMatches;
     });
 
-    return filtered as ZoneRecord[];
+    return filtered as ZoneListRecord[];
   })();
 
   const onFilter = (e: DataTableFilterEvent) => {
@@ -168,7 +156,7 @@ export default function ZoneList() {
   // ===========================
   //   Toggle Status
   // ===========================
-  const updateStatus = async (row: ZoneRecord, checked: boolean) => {
+  const updateStatus = async (row: ZoneListRecord, checked: boolean) => {
     const id = String(row.unique_id);
     setPendingStatusId(id);
 
@@ -181,14 +169,14 @@ export default function ZoneList() {
     }
   };
 
-  const statusTemplate = (row: ZoneRecord) => (
+  const statusTemplate = (row: ZoneListRecord) => (
     <Switch checked={row.is_active} disabled={updateZoneMutation.isPending && pendingStatusId === String(row.unique_id)} onCheckedChange={(checked) => void updateStatus(row, checked)} />
   );
 
   // ===========================
   //   Actions
   // ===========================
-  const actionTemplate = (row: ZoneRecord) => (
+  const actionTemplate = (row: ZoneListRecord) => (
     <div className="flex gap-3 justify-center">
       <button
         onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
@@ -206,7 +194,7 @@ export default function ZoneList() {
     </div>
   );
 
-  const indexTemplate = (_: ZoneRecord, { rowIndex }: { rowIndex: number }) =>
+  const indexTemplate = (_: ZoneListRecord, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
   // ===========================
@@ -227,7 +215,7 @@ export default function ZoneList() {
           <div className="flex items-center gap-3">
             <select
               value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
+              onChange={(e) => onFilterCompanyChange(e.target.value)}
               disabled={!isSuperAdmin || companies.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
@@ -243,7 +231,7 @@ export default function ZoneList() {
 
             <select
               value={projectId || ""}
-              onChange={(e) => setProjectId(e.target.value)}
+              onChange={(e) => onFilterProjectChange(e.target.value)}
               disabled={!companyUniqueId || projects.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
@@ -262,7 +250,14 @@ export default function ZoneList() {
               icon="pi pi-plus"
               className="p-button-success"
               disabled={!companyUniqueId || !projectId}
-              onClick={() => navigate(ENC_NEW_PATH)}
+              onClick={() =>
+                navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
+                  state: {
+                    companyUniqueId,
+                    projectId,
+                  },
+                })
+              }
             />
           </div>
         </div>
@@ -294,25 +289,31 @@ export default function ZoneList() {
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
 
-          <Column
-            field="city_name"
-            header={t("admin.nav.city")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row) => cap(row.city_name)}
-          />
+          {showCol("city_name") && (
+            <Column
+              field="city_name"
+              header={t("admin.nav.city")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row) => cap(row.city_name)}
+            />
+          )}
 
-          <Column
-            field="zone_name"
-            header={t("admin.nav.zone")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row) => cap(row.zone_name)}
-          />
+          {showCol("zone_name") && (
+            <Column
+              field="zone_name"
+              header={t("admin.nav.zone")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row) => cap(row.zone_name)}
+            />
+          )}
 
-          <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />
+          {showCol("is_active") && (
+            <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />
+          )}
 
           <Column
             header={t("common.actions")}

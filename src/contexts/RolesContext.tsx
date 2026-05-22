@@ -39,9 +39,9 @@ export const RolesProvider = ({ children }: { children: ReactNode }) => {
       try {
         const roles = await fetchAllRoles();
         setAllRoles(roles);
-        console.log("[RolesContext] ✅ Roles loaded successfully:", roles);
+        console.log("[RolesContext] Roles loaded successfully:", roles);
       } catch (error) {
-        console.error("[RolesContext] ❌ Failed to load roles:", error);
+        console.error("[RolesContext] Failed to load roles:", error);
       } finally {
         setIsLoading(false);
       }

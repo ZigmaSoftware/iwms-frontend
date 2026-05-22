@@ -29,9 +29,25 @@ export type DistrictPayload = {
   project_id?: string | number | null;
 };
 
+export type DistrictListFilters = {
+  company_id?: string | number | null;
+  project_id?: string | number | null;
+  state?: string | number | null;
+  country?: string | number | null;
+  continent?: string | number | null;
+};
+
 const normalizeDistrictId = (id: string | number) => String(id);
 
-const listDistricts = () => districtApi.list() as Promise<DistrictRecord[]>;
+const compactFilters = (filters?: Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.entries(filters ?? {}).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  );
+
+const listDistricts = (filters?: DistrictListFilters) => {
+  const params = compactFilters(filters);
+  return districtApi.list(Object.keys(params).length ? { params } : undefined) as Promise<DistrictRecord[]>;
+};
 
 const getDistrict = (id: string | number) => districtApi.get(id) as Promise<DistrictRecord>;
 
@@ -54,13 +70,15 @@ const replaceDistrictInList = (
 
 export const districtQueryKeys = {
   all: ["masters", "districts"] as const,
+  list: (filters?: DistrictListFilters | null) => ["masters", "districts", filters ?? {}] as const,
   detail: (id: string | number) => ["masters", "districts", normalizeDistrictId(id)] as const,
 };
 
-export function useDistrictsQuery() {
+export function useDistrictsQuery(filters?: DistrictListFilters | null) {
   return enterpriseQuery<DistrictRecord[]>({
-    queryKey: districtQueryKeys.all,
-    queryFn: listDistricts,
+    queryKey: districtQueryKeys.list(filters),
+    queryFn: () => listDistricts(filters ?? undefined),
+    enabled: filters !== null,
   });
 }
 
@@ -96,4 +114,3 @@ export function useUpdateDistrictMutation() {
     },
   });
 }
-

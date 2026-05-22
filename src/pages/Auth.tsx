@@ -273,17 +273,24 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { useUser } from "@/contexts/UserContext";
-import { usePermission } from "@/contexts/PermissionContext"; // ✅ NEW
+import { usePermission } from "@/contexts/PermissionContext";
 import {
   DEFAULT_ROLE,
-  USER_ROLE_STORAGE_KEY,
   normalizeRole,
   setAdminViewPreference,
   clearAdminViewPreference,
   ADMIN_VIEW_MODE_ADMIN,
   isAdmin,
 } from "@/types/roles";
-import { fetchPermissionsFromAPI, setStoredPermissions } from "@/utils/permissions";
+import {
+  getStoredColumnPermissions,
+  getStoredPermissions,
+} from "@/utils/permissions";
+import {
+  persistLoginSession,
+  unwrapLoginPayload,
+  type LoginEnvelope,
+} from "@/utils/authStorage";
 import { Eye, EyeOff } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import BgImg from "../images/bgSignin.png";
@@ -308,16 +315,7 @@ type Profile = {
   };
 };
 
-type LoginResponse = {
-  access_token: string;
-  role: string;
-  unique_id: string;
-  name?: string;
-  username?: string;
-  email?: string;
-  permissions?: Record<string, any>;
-  profile?: Profile;
-};
+type LoginResponse = LoginEnvelope;
 
 /**
  * Check if the permissions object has at least one module
@@ -330,9 +328,11 @@ function hasAnyPermission(permissions: Record<string, any>): boolean {
   if (!permissions || typeof permissions !== "object") return false;
 
   return Object.values(permissions).some((module) => {
+    if (typeof module === "boolean") return module;
     if (!module || typeof module !== "object") return false;
 
     return Object.values(module).some((screenValue) => {
+      if (typeof screenValue === "boolean") return screenValue;
       if (Array.isArray(screenValue)) return screenValue.length > 0;
       if (typeof screenValue === "object" && screenValue !== null) {
         return Object.values(screenValue).some((v) => v === true);
@@ -368,89 +368,34 @@ export default function Auth() {
 
       console.log("[Auth] ✅ Login response received:", res.data);
 
-      const {
-        access_token,
-        role,
-        unique_id,
-        name,
-        username: apiUsername,
-        email,
-        profile,
-      } = res.data;
+      const payload = unwrapLoginPayload(res.data);
+      persistLoginSession(payload);
 
-      const normalizedRole = normalizeRole(role) ?? DEFAULT_ROLE;
-      const loginPermissions = res.data.permissions ?? {};
-
-      // ✅ Store auth
-      localStorage.setItem("access_token", access_token);
-      localStorage.setItem(USER_ROLE_STORAGE_KEY, normalizedRole);
-
-      // ✅ Fetch permissions and immediately sync React state
-      console.log("[Auth] 📡 Fetching permissions immediately after login...");
-      let freshPermissions: Record<string, any> = {};
-      try {
-        freshPermissions = await fetchPermissionsFromAPI();
-
-        // If permission endpoint is missing/empty, fallback to login response permissions.
-        if (
-          !hasAnyPermission(freshPermissions) &&
-          hasAnyPermission(loginPermissions)
-        ) {
-          freshPermissions = loginPermissions;
-          setStoredPermissions(freshPermissions);
-          console.log("[Auth] ℹ️ Falling back to permissions from login response");
-        }
-
-        // ✅ KEY FIX: push new permissions into PermissionContext React state
-        // Without this, the context still holds the previous user's permissions
-        // until the page is refreshed (because context only re-reads localStorage on mount).
-        updatePermissions(freshPermissions);
-
-        console.log("[Auth] ✅ Permissions cached and context updated");
-      } catch (permError) {
-        console.warn(
-          "[Auth] ⚠️ Permissions fetch failed, will retry on app load:",
-          permError
-        );
-        // Fallback: use permissions from login response directly
-        freshPermissions = loginPermissions;
-        if (Object.keys(freshPermissions).length > 0) {
-          setStoredPermissions(freshPermissions);
-          updatePermissions(freshPermissions);
-        }
-      }
-
-      // ✅ Store profile
-      if (profile) {
-        localStorage.setItem("profile", JSON.stringify(profile));
-
-        const projectId =
-          profile.project_id ??
-          profile.project_unique_id ??
-          profile.project?.unique_id;
-
-        if (projectId) {
-          localStorage.setItem("project_id", projectId);
-        } else {
-          localStorage.removeItem("project_id");
-        }
-      }
+      const normalizedRole =
+        normalizeRole(payload.user?.role ?? payload.role ?? null) ?? DEFAULT_ROLE;
+      const freshPermissions = getStoredPermissions();
+      updatePermissions(freshPermissions, getStoredColumnPermissions());
 
       // ✅ Set user context
       setUser({
-        name: name ?? apiUsername ?? username,
-        email: email ?? "",
+        name:
+          payload.user?.name ??
+          payload.user?.username ??
+          payload.name ??
+          payload.username ??
+          username,
+        email: payload.user?.email ?? payload.email ?? "",
       });
 
       // ✅ Check admin access by role name OR by any permission granted by superadmin
       const hasAdminAccess =
         isAdmin(normalizedRole) ||
         hasAnyPermission(freshPermissions) ||
-        hasAnyPermission(loginPermissions);
+        hasAnyPermission((payload.permissions ?? {}) as Record<string, any>);
 
       console.log(
         "[Auth] 🔐 Role:", normalizedRole,
-        "| loginPermissions:", loginPermissions,
+        "| permissions:", freshPermissions,
         "| hasAdminAccess:", hasAdminAccess
       );
 
@@ -464,10 +409,14 @@ export default function Auth() {
     } catch (error: any) {
       console.error("[Auth] ❌ Login failed:", error);
 
+      const errorMessage =
+        error?.response?.data?.detail ||
+        error?.message ||
+        "Invalid credentials";
+
       toast({
         title: t("login.title"),
-        description:
-          error?.response?.data?.detail || "Invalid credentials",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

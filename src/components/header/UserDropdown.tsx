@@ -3,8 +3,7 @@ import { LogOut } from "lucide-react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { clearAdminViewPreference } from "@/types/roles";
-// import { clearStoredPermissions } from "@/utils/permissions";
+import { clearAuthSession } from "@/utils/authStorage";
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
@@ -32,18 +31,7 @@ export default function UserDropdown() {
 
   function handleSignOut() {
     closeDropdown();
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user_role");
-    localStorage.removeItem("unique_id");
-    localStorage.removeItem("user_name");
-    localStorage.removeItem("user_email");
-    localStorage.removeItem("profile");
-    localStorage.removeItem("project_id");
-    localStorage.removeItem("project_unique_id");
-    localStorage.removeItem("current_project_id");
-    localStorage.removeItem("selected_project_id");
-    // clearStoredPermissions();
-    clearAdminViewPreference();
+    clearAuthSession();
     setUser(null);
     navigate("/auth", { replace: true });
   }

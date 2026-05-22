@@ -11,11 +11,17 @@ import Select, { type SelectOption } from "@/components/form/Select";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
+import { normalizeList } from "@/utils/forms";
 import {
   useCreateRoutePlanMutation,
   useRoutePlanQuery,
   useUpdateRoutePlanMutation,
 } from "@/tanstack/admin/queries/masters/routePlan";
+
+type RelatedOption = SelectOption & {
+  districtId?: string;
+  cityId?: string;
+};
 
 // Helper to extract ID from a value that could be a string, number, or object
 const extractId = (value: any): string => {
@@ -41,9 +47,9 @@ export default function RoutePlanForm() {
   const userApi = adminApi.usersCreation;
 
   const [districts, setDistricts] = useState<SelectOption[]>([]);
-  const [cities, setCities] = useState<SelectOption[]>([]);
-  const [zones, setZones] = useState<SelectOption[]>([]);
-  const [vehicles, setVehicles] = useState<SelectOption[]>([]);
+  const [cities, setCities] = useState<RelatedOption[]>([]);
+  const [zones, setZones] = useState<RelatedOption[]>([]);
+  const [vehicles, setVehicles] = useState<RelatedOption[]>([]);
   const [supervisors, setSupervisors] = useState<SelectOption[]>([]);
   const [fetching, setFetching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -64,14 +70,21 @@ export default function RoutePlanForm() {
   const createMutation = useCreateRoutePlanMutation();
   const updateMutation = useUpdateRoutePlanMutation();
 
-  const normalizeList = (payload: any): any[] =>
-    Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
-
   const toOptions = (items: any[], valueKey: string, labelKey: string): SelectOption[] =>
     items
       .map((item) => ({
         value: item?.[valueKey],
         label: item?.[labelKey] ?? item?.[valueKey],
+      }))
+      .filter((option) => option.value !== undefined && option.value !== null);
+
+  const toRelatedOptions = (items: any[], valueKey: string, labelKey: string): RelatedOption[] =>
+    items
+      .map((item) => ({
+        value: item?.[valueKey],
+        label: item?.[labelKey] ?? item?.name ?? item?.[valueKey],
+        districtId: extractId(item?.district_id ?? item?.district),
+        cityId: extractId(item?.city_id ?? item?.city),
       }))
       .filter((option) => option.value !== undefined && option.value !== null);
 
@@ -132,9 +145,9 @@ export default function RoutePlanForm() {
     }
 
     setDistricts(toOptions(normalizeList(districtsQuery.data), "unique_id", "name"));
-    setCities(toOptions(normalizeList(citiesQuery.data), "unique_id", "name"));
-    setZones(toOptions(normalizeList(zonesQuery.data), "unique_id", "name"));
-    setVehicles(toOptions(normalizeList(vehiclesQuery.data), "unique_id", "vehicle_no"));
+    setCities(toRelatedOptions(normalizeList(citiesQuery.data), "unique_id", "name"));
+    setZones(toRelatedOptions(normalizeList(zonesQuery.data), "unique_id", "zone_name"));
+    setVehicles(toRelatedOptions(normalizeList(vehiclesQuery.data), "unique_id", "vehicle_no"));
     setSupervisors(toSupervisorOptions(normalizeList(usersQuery.data)));
     setOptionsLoaded(true);
   }, [
@@ -169,6 +182,20 @@ export default function RoutePlanForm() {
       });
     }
   }, [isEdit, optionsLoaded, routePlanQuery.data]);
+
+  const cityOptions = cities.filter((city) => !form.district_id || !city.districtId || city.districtId === form.district_id);
+
+  const zoneOptions = zones.filter(
+    (zone) =>
+      (!form.district_id || !zone.districtId || zone.districtId === form.district_id) &&
+      (!form.city_id || !zone.cityId || zone.cityId === form.city_id)
+  );
+
+  const vehicleOptions = vehicles.filter(
+    (vehicle) =>
+      (!form.district_id || !vehicle.districtId || vehicle.districtId === form.district_id) &&
+      (!form.city_id || !vehicle.cityId || vehicle.cityId === form.city_id)
+  );
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -215,7 +242,7 @@ export default function RoutePlanForm() {
               <Label>{t("admin.route_plan.district")}</Label>
               <Select
                 value={form.district_id}
-                onChange={(value) => setForm((prev) => ({ ...prev, district_id: value }))}
+                onChange={(value) => setForm((prev) => ({ ...prev, district_id: value, city_id: "", zone_id: "" }))}
                 options={districts}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
@@ -227,10 +254,10 @@ export default function RoutePlanForm() {
               <Label>{t("common.city")}</Label>
               <Select
                 value={form.city_id}
-                onChange={(value) => setForm((prev) => ({ ...prev, city_id: value }))}
-                options={cities}
+                onChange={(value) => setForm((prev) => ({ ...prev, city_id: value, zone_id: "" }))}
+                options={cityOptions}
                 placeholder={t("common.select_option")}
-                disabled={fetching}
+                disabled={fetching || !form.district_id}
                 required
               />
             </div>
@@ -240,9 +267,9 @@ export default function RoutePlanForm() {
               <Select
                 value={form.zone_id}
                 onChange={(value) => setForm((prev) => ({ ...prev, zone_id: value }))}
-                options={zones}
+                options={zoneOptions}
                 placeholder={t("common.select_option")}
-                disabled={fetching}
+                disabled={fetching || !form.city_id}
                 required
               />
             </div>
@@ -252,7 +279,7 @@ export default function RoutePlanForm() {
               <Select
                 value={form.vehicle_id}
                 onChange={(value) => setForm((prev) => ({ ...prev, vehicle_id: value }))}
-                options={vehicles}
+                options={vehicleOptions}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required

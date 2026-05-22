@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -14,29 +14,29 @@ import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { usePanchayatsQuery, useUpdatePanchayatMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-
-type PanchayatRecord = {
-  unique_id: string;
-  panchayat_name: string;
-  state_name?: string;
-  district_name?: string;
-  city_name?: string;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
-  is_active: boolean;
-};
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import type { PanchayatListRecord } from "./types";
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
+
+const PANCHAYAT_COLUMN_FIELDS: Record<string, string[]> = {
+  panchayat_name: ["panchayat_name", "name"],
+  state_name: ["state_id", "state", "state_name"],
+  district_name: ["district_id", "district", "district_name"],
+  city_name: ["city_id", "city", "city_name"],
+  is_active: ["is_active"],
+};
 
 export default function PanchayatListPage() {
   const { t } = useTranslation();
   const panchayatsQuery = usePanchayatsQuery();
   const updatePanchayatMutation = useUpdatePanchayatMutation();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "masters",
+    "panchayats",
+    PANCHAYAT_COLUMN_FIELDS,
+  );
   const allPanchayats = panchayatsQuery.data ?? [];
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -81,11 +81,13 @@ export default function PanchayatListPage() {
     }
   }, [panchayatsQuery.error, panchayatsQuery.isError, t]);
 
-  const data = ((): PanchayatRecord[] => {
+  const data = ((): PanchayatListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
-    const rows = Array.isArray(allPanchayats) ? (allPanchayats as any[]) : [];
+    const rows = Array.isArray(allPanchayats)
+      ? (allPanchayats as PanchayatListRecord[])
+      : [];
     const filtered = rows.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
@@ -96,11 +98,11 @@ export default function PanchayatListPage() {
       return companyMatches && projectMatches;
     });
 
-    return filtered as PanchayatRecord[];
+    return filtered as PanchayatListRecord[];
   })();
 
   const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters);
+    setFilters(e.filters as DataTableFilterMeta);
   };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,7 +133,7 @@ export default function PanchayatListPage() {
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
-  const actionTemplate = (row: PanchayatRecord) => (
+  const actionTemplate = (row: PanchayatListRecord) => (
     <div className="flex gap-3 justify-center">
       <button
         title={t("common.edit")}
@@ -143,13 +145,16 @@ export default function PanchayatListPage() {
     </div>
   );
 
-  const statusTemplate = (row: PanchayatRecord) => {
+  const statusTemplate = (row: PanchayatListRecord) => {
     const updateStatus = async (value: boolean) => {
       const id = String(row.unique_id);
       setPendingStatusId(id);
 
       try {
-        await updatePanchayatMutation.mutateAsync({ id: row.unique_id, payload: { is_active: value } });
+        await updatePanchayatMutation.mutateAsync({
+          id: row.unique_id,
+          payload: filterPayload({ is_active: value }) as { is_active: boolean },
+        });
       } catch (error) {
         console.error("Failed to update panchayat status", error);
       } finally {
@@ -167,7 +172,7 @@ export default function PanchayatListPage() {
   };
 
   const indexTemplate = (
-    _: PanchayatRecord,
+    _: PanchayatListRecord,
     { rowIndex }: { rowIndex: number }
   ) => rowIndex + 1;
 
@@ -259,43 +264,53 @@ export default function PanchayatListPage() {
           body={indexTemplate}
           style={{ width: "80px" }}
         />
-        <Column
-          field="panchayat_name"
-          header={t("admin.nav.panchayat")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: PanchayatRecord) => cap(row.panchayat_name)}
-        />
-        <Column
-          field="state_name"
-          header={t("common.state")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: PanchayatRecord) => cap(row.state_name)}
-        />
-        <Column
-          field="district_name"
-          header={t("common.district")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: PanchayatRecord) => cap(row.district_name)}
-        />
-        <Column
-          field="city_name"
-          header={t("common.city")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: PanchayatRecord) => cap(row.city_name)}
-        />
-        <Column
-          header={t("common.status")}
-          body={statusTemplate}
-          style={{ width: "140px" }}
-        />
+        {showCol("panchayat_name") && (
+          <Column
+            field="panchayat_name"
+            header={t("admin.nav.panchayat")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: PanchayatListRecord) => cap(row.panchayat_name)}
+          />
+        )}
+        {showCol("state_name") && (
+          <Column
+            field="state_name"
+            header={t("common.state")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: PanchayatListRecord) => cap(row.state_name)}
+          />
+        )}
+        {showCol("district_name") && (
+          <Column
+            field="district_name"
+            header={t("common.district")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: PanchayatListRecord) => cap(row.district_name)}
+          />
+        )}
+        {showCol("city_name") && (
+          <Column
+            field="city_name"
+            header={t("common.city")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: PanchayatListRecord) => cap(row.city_name)}
+          />
+        )}
+        {showCol("is_active") && (
+          <Column
+            header={t("common.status")}
+            body={statusTemplate}
+            style={{ width: "140px" }}
+          />
+        )}
         <Column
           header={t("common.actions")}
           body={actionTemplate}

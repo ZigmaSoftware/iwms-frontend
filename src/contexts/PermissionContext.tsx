@@ -1,16 +1,29 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import {
+  getStoredColumnPermissions,
+  getStoredPermissionDetails,
   getStoredPermissions,
+  // getStoredPermissionDetails,
   hasPermission as checkPermission,
+  hasColumnPermission as checkColumnPermission,
+  type ColumnPermissionsPayload,
+  type PermissionDetailsMap,
   type PermissionsMap,
+  // type PermissionDetailsMap,
   type PermissionAction,
   fetchPermissionsFromAPI,
 } from "@/utils/permissions";
 
 type PermissionContextValue = {
   permissions: PermissionsMap;
+  permissionDetails: PermissionDetailsMap;
   hasPermission: (moduleName: string, screenName: string, action?: PermissionAction) => boolean;
-  updatePermissions: (permissions: PermissionsMap) => void;
+  hasColumnPermission: (moduleName: string, screenName: string, fieldName: string) => boolean;
+  updatePermissions: (
+    permissions: PermissionsMap,
+    columnPermissions?: ColumnPermissionsPayload,
+    permissionDetails?: PermissionDetailsMap
+  ) => void;
   isLoading: boolean;
   lastVersion: number | null;
   /**
@@ -26,8 +39,14 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
   const [permissions, setPermissions] = useState<PermissionsMap>(() =>
     getStoredPermissions()
   );
+  const [permissionDetails, setPermissionDetails] = useState<PermissionDetailsMap>(() =>
+    getStoredPermissionDetails()
+  );
+  const [columnPermissions, setColumnPermissions] = useState<ColumnPermissionsPayload>(
+  () => getStoredColumnPermissions()
+);
   const [isLoading, setIsLoading] = useState(false);
-  const [lastVersion, setLastVersion] = useState<number | null>(null);
+  const [lastVersion] = useState<number | null>(null);
   const [isEmptyPermissions, setIsEmptyPermissions] = useState(false);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef(true);
@@ -45,21 +64,25 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
 
       if (apiPermissions && Object.keys(apiPermissions).length > 0) {
         setPermissions(apiPermissions);
+        setPermissionDetails(getStoredPermissionDetails());
+        setColumnPermissions(getStoredColumnPermissions());
         setIsEmptyPermissions(false);
-        // console.log("[PermissionContext] ✅ Permissions updated from API");
       } else {
         const storedPerms = getStoredPermissions();
         setPermissions(storedPerms);
+        setPermissionDetails(getStoredPermissionDetails());
+        setColumnPermissions(getStoredColumnPermissions());
         setIsEmptyPermissions(Object.keys(storedPerms).length === 0);
         // console.log(
         //   `[PermissionContext] ℹ️ Using stored permissions (isEmpty: ${Object.keys(storedPerms).length === 0})`
         // );
       }
-    } catch (error) {
-      // console.error("[PermissionContext] ❌ Failed to fetch permissions:", error);
+    } catch {
       if (isMountedRef.current) {
         const storedPerms = getStoredPermissions();
         setPermissions(storedPerms);
+        setPermissionDetails(getStoredPermissionDetails());
+        setColumnPermissions(getStoredColumnPermissions());
         setIsEmptyPermissions(Object.keys(storedPerms).length === 0);
       }
     }
@@ -126,8 +149,9 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
    */
   const handleStorageChange = useCallback(() => {
     const updated = getStoredPermissions();
-    // console.log("[PermissionContext] 📤 Storage sync - updating permissions");
     setPermissions(updated);
+    setPermissionDetails(getStoredPermissionDetails());
+    setColumnPermissions(getStoredColumnPermissions());
     setIsEmptyPermissions(Object.keys(updated).length === 0);
   }, []);
 
@@ -139,9 +163,15 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
   /**
    * 🔹 Allow explicit permission updates (useful for same-tab updates)
    */
-  const updatePermissions = useCallback((newPermissions: PermissionsMap) => {
+  const updatePermissions = useCallback((
+    newPermissions: PermissionsMap,
+    newColumnPermissions?: ColumnPermissionsPayload,
+    newPermissionDetails?: PermissionDetailsMap
+  ) => {
     // console.log("[PermissionContext] 🔄 Explicit permission update");
     setPermissions(newPermissions);
+    setPermissionDetails(newPermissionDetails ?? getStoredPermissionDetails());
+    setColumnPermissions(newColumnPermissions ?? getStoredColumnPermissions());
     setIsEmptyPermissions(Object.keys(newPermissions).length === 0);
   }, []);
 
@@ -167,9 +197,22 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
     return result;
   };
 
+  const hasColumnPermission = (
+    moduleName: string,
+    screenName: string,
+    fieldName: string
+  ): boolean => {
+    return checkColumnPermission(
+      moduleName,
+      screenName,
+      fieldName,
+      columnPermissions
+    );
+  };
+
   return (
-    <PermissionContext.Provider 
-      value={{ permissions, hasPermission, updatePermissions, isLoading, lastVersion, isEmptyPermissions }}
+    <PermissionContext.Provider
+      value={{ permissions, permissionDetails, hasPermission, updatePermissions, hasColumnPermission, isLoading, lastVersion, isEmptyPermissions }}
     >
       {children}
     </PermissionContext.Provider>

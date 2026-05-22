@@ -31,11 +31,46 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 /* ===============================
    TYPES
 ================================ */
 type Option = { value: string; label: string };
+
+const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
+  customer_name: ["customer_name", "name"],
+  contact_no: ["contact_no", "mobile"],
+  username: ["username"],
+  email: ["email"],
+  password: ["password"],
+  building_no: ["building_no"],
+  street: ["street"],
+  area: ["area"],
+  pincode: ["pincode"],
+  latitude: ["latitude"],
+  longitude: ["longitude"],
+  sqft: ["sqft"],
+  property_id: ["property_id", "property"],
+  sub_property_id: ["sub_property_id", "sub_property"],
+  id_proof_type: ["id_proof_type"],
+  id_no: ["id_no"],
+  country_id: ["country_id", "country"],
+  state_id: ["state_id", "state"],
+  district_id: ["district_id", "district"],
+  city_id: ["city_id", "city"],
+  zone_id: ["zone_id", "zone"],
+  ward_id: ["ward_id", "ward"],
+  panchayat_id: ["panchayat_id", "panchayat"],
+  is_active: ["is_active"],
+  is_bulkwaste_generator: ["is_bulkwaste_generator"],
+  apartment_name: ["apartment_name"],
+  block_no: ["block_no"],
+  flat_no: ["flat_no"],
+  villa_no: ["villa_no"],
+  industry_name: ["industry_name"],
+  industry_type: ["industry_type"],
+};
 
 interface FormDataType {
   customer_name: string;
@@ -240,6 +275,7 @@ const PropertySelectionStep = ({
   onPropertyChange,
   onSubPropertyChange,
   onNext,
+  showField,
   t,
 }: {
   properties: any[];
@@ -249,13 +285,16 @@ const PropertySelectionStep = ({
   onPropertyChange: (v: string) => void;
   onSubPropertyChange: (v: string) => void;
   onNext: () => void;
+  showField: (fieldKey: string) => boolean;
   t: any;
 }) => {
   const filteredSubProps = subProperties.filter(
     (sp: any) => !selectedProperty || String(sp.property_id ?? sp.property) === selectedProperty
   );
 
-  const isStepComplete = selectedProperty && selectedSubProperty;
+  const isStepComplete =
+    (!showField("property_id") || selectedProperty) &&
+    (!showField("sub_property_id") || selectedSubProperty);
 
   return (
     <ComponentCard title={t("admin.customer_creation.select_property_subproperty") || "Select Property & Sub-Property"}>
@@ -267,27 +306,31 @@ const PropertySelectionStep = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <ShadcnSelect
-            label={t("admin.customer_creation.property") || "Property"}
-            value={selectedProperty}
-            onChange={onPropertyChange}
-            options={properties.map((p: any) => ({
-              value: String(p?.unique_id ?? p?.id ?? ""),
-              label: p.property_name,
-            }))}
-            placeholder={t("admin.customer_creation.property_placeholder") || "Select property"}
-          />
+          {showField("property_id") && (
+            <ShadcnSelect
+              label={t("admin.customer_creation.property") || "Property"}
+              value={selectedProperty}
+              onChange={onPropertyChange}
+              options={properties.map((p: any) => ({
+                value: String(p?.unique_id ?? p?.id ?? ""),
+                label: p.property_name,
+              }))}
+              placeholder={t("admin.customer_creation.property_placeholder") || "Select property"}
+            />
+          )}
 
-          <ShadcnSelect
-            label={t("admin.customer_creation.sub_property") || "Sub Property"}
-            value={selectedSubProperty}
-            onChange={onSubPropertyChange}
-            options={filteredSubProps.map((sp: any) => ({
-              value: String(sp?.unique_id ?? sp?.id ?? ""),
-              label: sp.sub_property_name,
-            }))}
-            placeholder={t("admin.customer_creation.sub_property_placeholder") || "Select sub property"}
-          />
+          {showField("sub_property_id") && (
+            <ShadcnSelect
+              label={t("admin.customer_creation.sub_property") || "Sub Property"}
+              value={selectedSubProperty}
+              onChange={onSubPropertyChange}
+              options={filteredSubProps.map((sp: any) => ({
+                value: String(sp?.unique_id ?? sp?.id ?? ""),
+                label: sp.sub_property_name,
+              }))}
+              placeholder={t("admin.customer_creation.sub_property_placeholder") || "Select sub property"}
+            />
+          )}
         </div>
 
         <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
@@ -317,6 +360,11 @@ const PropertySelectionStep = ({
 ================================ */
 export default function CustomerCreationForm() {
   const { t } = useTranslation();
+  const { showField, filterPayload, getMissingRequiredFields } = useFieldVisibility(
+    "customer-master",
+    "customer-creation",
+    CUSTOMER_CREATION_FIELDS,
+  );
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
@@ -557,8 +605,10 @@ export default function CustomerCreationForm() {
   const isApartment = subName.includes("apartment");
   const isVilla = subName.includes("villa");
   const isIndustry = subName.includes("industry");
-  const zoneOrWardSelected  = Boolean(formData.zone_id || formData.ward_id);
-  const panchayatSelected   = Boolean(formData.panchayat_id);
+  // const zoneOrWardSelected  = Boolean(formData.zone_id || formData.ward_id);
+  // const panchayatSelected   = Boolean(formData.panchayat_id);
+  const isPanchayatSelected = Boolean(formData.panchayat_id);
+  const isZoneOrWardSelected = Boolean(formData.zone_id || formData.ward_id);
 
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
@@ -575,8 +625,13 @@ export default function CustomerCreationForm() {
       ...(!isEdit ? ["password"] : []),
     ].flat();
 
-    for (const field of requiredFields) {
-      if (!formData[field as keyof FormDataType]) {
+    const missingFields = getMissingRequiredFields(
+      requiredFields,
+      (fieldKey) => formData[fieldKey as keyof FormDataType],
+    );
+
+    if (missingFields.length > 0) {
+      for (const field of missingFields) {
         const fieldLabel = String(field).replace(/_/g, " ");
         Swal.fire(t("common.warning") || "Warning", `${fieldLabel} is required`, "warning");
         return false;
@@ -589,7 +644,7 @@ export default function CustomerCreationForm() {
     }
 
     // Contact validation (10 digits)
-    if (!/^\d{10}$/.test(formData.contact_no)) {
+    if (showField("contact_no") && !/^\d{10}$/.test(formData.contact_no)) {
       Swal.fire(
         t("admin.customer_creation.invalid_contact_title") || "Invalid Contact",
         t("admin.customer_creation.invalid_contact_desc") || "Please enter a valid 10-digit contact number",
@@ -599,19 +654,19 @@ export default function CustomerCreationForm() {
     }
 
     // Email validation
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    if (showField("email") && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       Swal.fire("Invalid Email", "Please enter a valid email address", "warning");
       return false;
     }
 
     // the password validation block:
-    if (!isEdit && formData.password.length < 8) {
+    if (showField("password") && !isEdit && formData.password.length < 8) {
       Swal.fire("Weak Password", "Password must be at least 8 characters", "warning");
       return false;
     }
 
     // Pincode validation (6 digits)
-    if (!/^\d{6}$/.test(formData.pincode)) {
+    if (showField("pincode") && !/^\d{6}$/.test(formData.pincode)) {
       Swal.fire(
         t("admin.customer_creation.invalid_pincode_title") || "Invalid Pincode",
         t("admin.customer_creation.invalid_pincode_desc") || "Please enter a valid 6-digit pincode",
@@ -623,7 +678,10 @@ export default function CustomerCreationForm() {
     // Latitude & Longitude validation
     const lat = parseFloat(formData.latitude);
     const lon = parseFloat(formData.longitude);
-    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+    if (
+      (showField("latitude") || showField("longitude")) &&
+      (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180)
+    ) {
       Swal.fire(
         t("admin.customer_creation.invalid_coordinates_title") || "Invalid Coordinates",
         t("admin.customer_creation.invalid_coordinates_desc") || "Please enter valid latitude and longitude",
@@ -634,7 +692,7 @@ export default function CustomerCreationForm() {
 
     // Square feet validation
     const sqftValue = parseFloat(formData.sqft);
-    if (isNaN(sqftValue) || sqftValue <= 0) {
+    if (showField("sqft") && (isNaN(sqftValue) || sqftValue <= 0)) {
       Swal.fire("Invalid Square Feet", "Please enter a valid square feet value", "warning");
       return false;
     }
@@ -650,15 +708,16 @@ export default function CustomerCreationForm() {
 
     if (!validateForm()) return;
 
-    const payload = {
+    const rawPayload = {
       ...formData,
       company_id: companyUniqueId,
       project_id: projectId,
-      latitude: String(parseFloat(formData.latitude)),
-      longitude: String(parseFloat(formData.longitude)),
-      sqft: String(parseFloat(formData.sqft)),
+      latitude: showField("latitude") ? String(parseFloat(formData.latitude)) : formData.latitude,
+      longitude: showField("longitude") ? String(parseFloat(formData.longitude)) : formData.longitude,
+      sqft: showField("sqft") ? String(parseFloat(formData.sqft)) : formData.sqft,
       ...(isEdit && !formData.password ? { password: undefined } : {}), // Only include password for new records
     };
+    const payload = filterPayload(rawPayload, ["company_id", "project_id"]);
 
     try {
       if (isEdit) {
@@ -700,6 +759,7 @@ export default function CustomerCreationForm() {
         }}
         onSubPropertyChange={(v: string) => update("sub_property_id", v)}
         onNext={() => setStep(1)}
+        showField={showField}
         t={t}
       />
     );
@@ -726,196 +786,240 @@ export default function CustomerCreationForm() {
       <form onSubmit={handleSubmit} className="space-y-4">
 
         <FormSection title={t("admin.customer_creation.personal_info") || "Personal Information"}>
-          <FormInput
-            label={t("admin.customer_creation.customer_name") || "Customer Name"}
-            value={formData.customer_name}
-            onChange={(e) => update("customer_name", e.target.value)}
-            placeholder="Enter full name"
-          />
-          <FormInput
-            label={t("admin.customer_creation.contact_no") || "Contact Number"}
-            value={formData.contact_no}
-            onChange={(e) => {
-              const numericValue = e.target.value.replace(/[^0-9]/g, "");
-              update("contact_no", numericValue);
-            }}
-            placeholder="10 digit mobile number"
-            maxLength={10}
-            inputMode="numeric"
-          />
-          <FormInput
-            label={t("login.username") || "Username"}
-            value={formData.username}
-            onChange={(e) => update("username", e.target.value)}
-            placeholder="Enter username"
-          />
-          <FormInput
-            label={t("admin.customer_creation.email") || "Email Address"}
-            value={formData.email}
-            onChange={(e) => update("email", e.target.value)}
-            placeholder="Enter email address"
-            type="email"
-          />
+          {showField("customer_name") && (
+            <FormInput
+              label={t("admin.customer_creation.customer_name") || "Customer Name"}
+              value={formData.customer_name}
+              onChange={(e) => update("customer_name", e.target.value)}
+              placeholder="Enter full name"
+            />
+          )}
+          {showField("contact_no") && (
+            <FormInput
+              label={t("admin.customer_creation.contact_no") || "Contact Number"}
+              value={formData.contact_no}
+              onChange={(e) => {
+                const numericValue = e.target.value.replace(/[^0-9]/g, "");
+                update("contact_no", numericValue);
+              }}
+              placeholder="10 digit mobile number"
+              maxLength={10}
+              inputMode="numeric"
+            />
+          )}
+          {showField("username") && (
+            <FormInput
+              label={t("login.username") || "Username"}
+              value={formData.username}
+              onChange={(e) => update("username", e.target.value)}
+              placeholder="Enter username"
+            />
+          )}
+          {showField("email") && (
+            <FormInput
+              label={t("admin.customer_creation.email") || "Email Address"}
+              value={formData.email}
+              onChange={(e) => update("email", e.target.value)}
+              placeholder="Enter email address"
+              type="email"
+            />
+          )}
           
-          <PasswordInput
-            label={t("login.password") || "Password"}
-            value={formData.password}
-            onChange={(e) => update("password", e.target.value)}
-            placeholder={isEdit ? "Leave blank to keep current password" : "Enter password (min 8 chars)"}
-            isRequired={!isEdit}
-          />
+          {showField("password") && (
+            <PasswordInput
+              label={t("login.password") || "Password"}
+              value={formData.password}
+              onChange={(e) => update("password", e.target.value)}
+              placeholder={isEdit ? "Leave blank to keep current password" : "Enter password (min 8 chars)"}
+              isRequired={!isEdit}
+            />
+          )}
         </FormSection>
 
         <FormSection title={t("admin.customer_creation.address_info") || "Address Information"}>
           {/* INDIVIDUAL HOUSE */}
           {isIndividual && (
             <>
-              <FormInput
-                label={t("common.building_no") || "Building No"}
-                value={formData.building_no}
-                onChange={(e) => update("building_no", e.target.value)}
-                placeholder="e.g., 13A"
-              />
-              <FormInput
-                label={t("common.street") || "Street"}
-                value={formData.street}
-                onChange={(e) => update("street", e.target.value)}
-                placeholder="e.g., Main Street"
-              />
-              <FormInput
-                label={t("common.area") || "Area"}
-                value={formData.area}
-                onChange={(e) => update("area", e.target.value)}
-                placeholder="e.g., Village Center"
-              />
+              {showField("building_no") && (
+                <FormInput
+                  label={t("common.building_no") || "Building No"}
+                  value={formData.building_no}
+                  onChange={(e) => update("building_no", e.target.value)}
+                  placeholder="e.g., 13A"
+                />
+              )}
+              {showField("street") && (
+                <FormInput
+                  label={t("common.street") || "Street"}
+                  value={formData.street}
+                  onChange={(e) => update("street", e.target.value)}
+                  placeholder="e.g., Main Street"
+                />
+              )}
+              {showField("area") && (
+                <FormInput
+                  label={t("common.area") || "Area"}
+                  value={formData.area}
+                  onChange={(e) => update("area", e.target.value)}
+                  placeholder="e.g., Village Center"
+                />
+              )}
             </>
           )}
 
           {/* APARTMENT */}
           {isApartment && (
             <>
-              <FormInput
-                label="Apartment Name"
-                value={formData.apartment_name}
-                onChange={(e) => update("apartment_name", e.target.value)}
-                placeholder="Enter apartment name"
-                isRequired={false}
-              />
-              <FormInput
-                label="Block No"
-                value={formData.block_no}
-                onChange={(e) => update("block_no", e.target.value)}
-                placeholder="Enter block number"
-                isRequired={false}
-              />
-              <FormInput
-                label="Flat No"
-                value={formData.flat_no}
-                onChange={(e) => update("flat_no", e.target.value)}
-                placeholder="Enter flat number"
-                isRequired={false}
-              />
+              {showField("apartment_name") && (
+                <FormInput
+                  label="Apartment Name"
+                  value={formData.apartment_name}
+                  onChange={(e) => update("apartment_name", e.target.value)}
+                  placeholder="Enter apartment name"
+                  isRequired={false}
+                />
+              )}
+              {showField("block_no") && (
+                <FormInput
+                  label="Block No"
+                  value={formData.block_no}
+                  onChange={(e) => update("block_no", e.target.value)}
+                  placeholder="Enter block number"
+                  isRequired={false}
+                />
+              )}
+              {showField("flat_no") && (
+                <FormInput
+                  label="Flat No"
+                  value={formData.flat_no}
+                  onChange={(e) => update("flat_no", e.target.value)}
+                  placeholder="Enter flat number"
+                  isRequired={false}
+                />
+              )}
             </>
           )}
 
           {/* VILLA */}
           {isVilla && (
             <>
-              <FormInput
-                label={t("common.street") || "Street"}
-                value={formData.street}
-                onChange={(e) => update("street", e.target.value)}
-                placeholder="e.g., Main Street"
-              />
-              <FormInput
-                label={t("common.area") || "Area"}
-                value={formData.area}
-                onChange={(e) => update("area", e.target.value)}
-                placeholder="e.g., Village Center"
-              />
-              <FormInput
-                label="Villa No"
-                value={formData.villa_no}
-                onChange={(e) => update("villa_no", e.target.value)}
-                placeholder="Enter villa number"
-                isRequired={false}
-              />
+              {showField("street") && (
+                <FormInput
+                  label={t("common.street") || "Street"}
+                  value={formData.street}
+                  onChange={(e) => update("street", e.target.value)}
+                  placeholder="e.g., Main Street"
+                />
+              )}
+              {showField("area") && (
+                <FormInput
+                  label={t("common.area") || "Area"}
+                  value={formData.area}
+                  onChange={(e) => update("area", e.target.value)}
+                  placeholder="e.g., Village Center"
+                />
+              )}
+              {showField("villa_no") && (
+                <FormInput
+                  label="Villa No"
+                  value={formData.villa_no}
+                  onChange={(e) => update("villa_no", e.target.value)}
+                  placeholder="Enter villa number"
+                  isRequired={false}
+                />
+              )}
             </>
           )}
 
           {/* INDUSTRY */}
           {isIndustry && (
             <>
-              <FormInput
-                label="Industry Name"
-                value={formData.industry_name}
-                onChange={(e) => update("industry_name", e.target.value)}
-                placeholder="Enter industry name"
-                isRequired={false}
-              />
-              <FormInput
-                label="Industry Type"
-                value={formData.industry_type}
-                onChange={(e) => update("industry_type", e.target.value)}
-                placeholder="Enter industry type"
-                isRequired={false}
-              />
-              <FormInput
-                label={t("common.area") || "Area"}
-                value={formData.area}
-                onChange={(e) => update("area", e.target.value)}
-                placeholder="e.g., Industrial Zone"
-              />
+              {showField("industry_name") && (
+                <FormInput
+                  label="Industry Name"
+                  value={formData.industry_name}
+                  onChange={(e) => update("industry_name", e.target.value)}
+                  placeholder="Enter industry name"
+                  isRequired={false}
+                />
+              )}
+              {showField("industry_type") && (
+                <FormInput
+                  label="Industry Type"
+                  value={formData.industry_type}
+                  onChange={(e) => update("industry_type", e.target.value)}
+                  placeholder="Enter industry type"
+                  isRequired={false}
+                />
+              )}
+              {showField("area") && (
+                <FormInput
+                  label={t("common.area") || "Area"}
+                  value={formData.area}
+                  onChange={(e) => update("area", e.target.value)}
+                  placeholder="e.g., Industrial Zone"
+                />
+              )}
             </>
           )}
 
-          <FormInput
-            label={t("common.pincode") || "Pincode"}
-            value={formData.pincode}
-            onChange={(e) => {
-              const numericValue = e.target.value.replace(/[^0-9]/g, "");
-              update("pincode", numericValue);
-            }}
-            placeholder="6 digit pincode"
-            maxLength={6}
-            inputMode="numeric"
-          />
-          <FormInput
-            label={t("common.latitude") || "Latitude"}
-            value={formData.latitude}
-            onChange={(e) => update("latitude", e.target.value)}
-            placeholder="e.g., 13.0827"
-            type="number"
-            step="0.0001"
-          />
-          <FormInput
-            label={t("common.longitude") || "Longitude"}
-            value={formData.longitude}
-            onChange={(e) => update("longitude", e.target.value)}
-            placeholder="e.g., 80.2707"
-            type="number"
-            step="0.0001"
-          />
+          {showField("pincode") && (
+            <FormInput
+              label={t("common.pincode") || "Pincode"}
+              value={formData.pincode}
+              onChange={(e) => {
+                const numericValue = e.target.value.replace(/[^0-9]/g, "");
+                update("pincode", numericValue);
+              }}
+              placeholder="6 digit pincode"
+              maxLength={6}
+              inputMode="numeric"
+            />
+          )}
+          {showField("latitude") && (
+            <FormInput
+              label={t("common.latitude") || "Latitude"}
+              value={formData.latitude}
+              onChange={(e) => update("latitude", e.target.value)}
+              placeholder="e.g., 13.0827"
+              type="number"
+              step="0.0001"
+            />
+          )}
+          {showField("longitude") && (
+            <FormInput
+              label={t("common.longitude") || "Longitude"}
+              value={formData.longitude}
+              onChange={(e) => update("longitude", e.target.value)}
+              placeholder="e.g., 80.2707"
+              type="number"
+              step="0.0001"
+            />
+          )}
         </FormSection>
 
         <FormSection title={t("admin.customer_creation.property_info") || "Property Information"}>
           {/* Display selected property and sub-property (read-only in form step) */}
-          {!isEdit && (
+          {!isEdit && (showField("property_id") || showField("sub_property_id")) && (
             <div className="md:col-span-3 bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-sm text-gray-600">
-                    {t("admin.customer_creation.selected_property") || "Selected Property"}:{" "}
-                    <span className="font-semibold text-gray-800">
-                      {dropdowns.properties.find((p: any) => String(p?.unique_id ?? p?.id ?? "") === formData.property_id)?.property_name || "-"}
-                    </span>
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {t("admin.customer_creation.selected_sub_property") || "Selected Sub-Property"}:{" "}
-                    <span className="font-semibold text-gray-800">
-                      {dropdowns.subProperties.find((sp: any) => String(sp?.unique_id ?? sp?.id ?? "") === formData.sub_property_id)?.sub_property_name || "-"}
-                    </span>
-                  </p>
+                  {showField("property_id") && (
+                    <p className="text-sm text-gray-600">
+                      {t("admin.customer_creation.selected_property") || "Selected Property"}:{" "}
+                      <span className="font-semibold text-gray-800">
+                        {dropdowns.properties.find((p: any) => String(p?.unique_id ?? p?.id ?? "") === formData.property_id)?.property_name || "-"}
+                      </span>
+                    </p>
+                  )}
+                  {showField("sub_property_id") && (
+                    <p className="text-sm text-gray-600">
+                      {t("admin.customer_creation.selected_sub_property") || "Selected Sub-Property"}:{" "}
+                      <span className="font-semibold text-gray-800">
+                        {dropdowns.subProperties.find((sp: any) => String(sp?.unique_id ?? sp?.id ?? "") === formData.sub_property_id)?.sub_property_name || "-"}
+                      </span>
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -928,49 +1032,57 @@ export default function CustomerCreationForm() {
             </div>
           )}
 
-          <FormInput
-            label={t("admin.customer_creation.sqft") || "Square Feet (Sqft)"}
-            value={formData.sqft}
-            onChange={(e) => update("sqft", e.target.value)}
-            placeholder="e.g., 1200.50"
-            type="number"
-            step="0.01"
-          />
-          <ShadcnSelect
-            label={tOrFallback("admin.customer_creation.bulk_waste_generator", "Bulk Waste Generator")}
-            value={formData.is_bulkwaste_generator ? "true" : "false"}
-            onChange={(v: string) => update("is_bulkwaste_generator", v === "true")}
-            options={[
-              { value: "true", label: tOrFallback("common.yes", "Yes") },
-              { value: "false", label: tOrFallback("common.no", "No") },
-            ]}
-            placeholder={tOrFallback("admin.customer_creation.bulk_waste_generator_placeholder", "Select option")}
-            isRequired={false}
-          />
+          {showField("sqft") && (
+            <FormInput
+              label={t("admin.customer_creation.sqft") || "Square Feet (Sqft)"}
+              value={formData.sqft}
+              onChange={(e) => update("sqft", e.target.value)}
+              placeholder="e.g., 1200.50"
+              type="number"
+              step="0.01"
+            />
+          )}
+          {showField("is_bulkwaste_generator") && (
+            <ShadcnSelect
+              label={tOrFallback("admin.customer_creation.bulk_waste_generator", "Bulk Waste Generator")}
+              value={formData.is_bulkwaste_generator ? "true" : "false"}
+              onChange={(v: string) => update("is_bulkwaste_generator", v === "true")}
+              options={[
+                { value: "true", label: tOrFallback("common.yes", "Yes") },
+                { value: "false", label: tOrFallback("common.no", "No") },
+              ]}
+              placeholder={tOrFallback("admin.customer_creation.bulk_waste_generator_placeholder", "Select option")}
+              isRequired={false}
+            />
+          )}
         </FormSection>
 
         <FormSection title={t("admin.customer_creation.identification") || "Identification"}>
-          <ShadcnSelect
-            label={t("admin.customer_creation.id_proof_type") || "ID Proof Type"}
-            value={formData.id_proof_type}
-            onChange={(v: string) => update("id_proof_type", v)}
-            options={[
-              { value: "AADHAAR", label: t("admin.customer_creation.id_proof_aadhaar") || "Aadhaar" },
-              { value: "VOTER_ID", label: t("admin.customer_creation.id_proof_voter") || "Voter ID" },
-              { value: "PAN_CARD", label: t("admin.customer_creation.id_proof_pan") || "PAN Card" },
-              { value: "DL", label: t("admin.customer_creation.id_proof_dl") || "Driving License" },
-              { value: "PASSPORT", label: t("admin.customer_creation.id_proof_passport") || "Passport" },
-            ]}
-            placeholder={t("admin.customer_creation.id_proof_placeholder") || "Select ID proof type"}
-          />
-          <div className="md:col-span-2">
-            <FormInput
-              label={t("admin.customer_creation.id_no") || "ID Number"}
-              value={formData.id_no}
-              onChange={(e) => update("id_no", e.target.value)}
-              placeholder="Enter identification number"
+          {showField("id_proof_type") && (
+            <ShadcnSelect
+              label={t("admin.customer_creation.id_proof_type") || "ID Proof Type"}
+              value={formData.id_proof_type}
+              onChange={(v: string) => update("id_proof_type", v)}
+              options={[
+                { value: "AADHAAR", label: t("admin.customer_creation.id_proof_aadhaar") || "Aadhaar" },
+                { value: "VOTER_ID", label: t("admin.customer_creation.id_proof_voter") || "Voter ID" },
+                { value: "PAN_CARD", label: t("admin.customer_creation.id_proof_pan") || "PAN Card" },
+                { value: "DL", label: t("admin.customer_creation.id_proof_dl") || "Driving License" },
+                { value: "PASSPORT", label: t("admin.customer_creation.id_proof_passport") || "Passport" },
+              ]}
+              placeholder={t("admin.customer_creation.id_proof_placeholder") || "Select ID proof type"}
             />
-          </div>
+          )}
+          {showField("id_no") && (
+            <div className="md:col-span-2">
+              <FormInput
+                label={t("admin.customer_creation.id_no") || "ID Number"}
+                value={formData.id_no}
+                onChange={(e) => update("id_no", e.target.value)}
+                placeholder="Enter identification number"
+              />
+            </div>
+          )}
         </FormSection>
 
         <FormSection title={t("admin.customer_creation.company_project_info") || "Company & Project Information"}>
@@ -997,127 +1109,168 @@ export default function CustomerCreationForm() {
         </FormSection>
 
         <FormSection title={t("admin.customer_creation.location_details") || "Location Details"}>
-          <ShadcnSelect
-            label={t("common.country") || "Country"}
-            value={formData.country_id}
-            onChange={(v: string) => {
-              update("country_id", v);
-              update("state_id", "");
-              update("district_id", "");
-              update("city_id", "");
-              update("zone_id", "");
-              update("ward_id", "");
-              update("panchayat_id", "");
-            }}
-            options={dropdowns.countries.map((c: any) => ({
-              value: resolveId(c),
-              label: c.name,
-            }))}
-            placeholder={t("common.select_item_placeholder", { item: t("common.country") }) || "Select country"}
-          />
-          <ShadcnSelect
-            label={t("common.state") || "State"}
-            value={formData.state_id}
-            onChange={(v: string) => {
-              update("state_id", v);
-              update("district_id", "");
-              update("city_id", "");
-              update("zone_id", "");
-              update("ward_id", "");
-              update("panchayat_id", "");
-            }}
-            options={filteredStates.map((s: any) => ({
-              value: resolveId(s),
-              label: s.name,
-            }))}
-            placeholder={t("common.select_item_placeholder", { item: t("common.state") }) || "Select state"}
-          />
-          <ShadcnSelect
-            label={t("common.district") || "District"}
-            value={formData.district_id}
-            onChange={(v: string) => {
-              update("district_id", v);
-              update("city_id", "");
-              update("zone_id", "");
-              update("ward_id", "");
-              update("panchayat_id", "");
-            }}
-            options={filteredDistricts.map((d: any) => ({
-              value: resolveId(d),
-              label: d.name,
-            }))}
-            placeholder={t("common.select_item_placeholder", { item: t("common.district") }) || "Select district"}
-          />
-          <ShadcnSelect
-            label={t("common.city") || "City"}
-            value={formData.city_id}
-            onChange={(v: string) => {
-              update("city_id", v);
-              update("zone_id", "");
-              update("ward_id", "");
-              update("panchayat_id", "");
-            }}
-            options={filteredCities.map((c: any) => ({
-              value: resolveId(c),
-              label: c.name,
-            }))}
-            placeholder={t("common.select_item_placeholder", { item: t("common.city") }) || "Select city"}
-          />
-          <ShadcnSelect
-            label={t("common.zone") || "Zone"}
-            value={formData.zone_id}
-            disabled = {panchayatSelected}
-            onChange={(v: string) => {
-              update("zone_id", v);
-              update("ward_id", "");
-              update("panchayat_id", "");
-            }}
-            options={filteredZones.map((z: any) => ({
-              value: resolveId(z),
-              label: z.zone_name || z.name,
-            }))}
-            placeholder={t("common.select_item_placeholder", { item: t("common.zone") }) || "Select zone"}
-          />
-          <ShadcnSelect
-            label={t("common.ward") || "Ward"}
-            value={formData.ward_id}
-            disabled={panchayatSelected}
-            onChange={(v: string) => {
-              update("ward_id", v);
-              update("panchayat_id", "");
-            }}
-            options={filteredWards.map((w: any) => ({
-              value: resolveId(w),
-              label: w.ward_name || w.name,
-            }))}
-            placeholder={t("common.select_item_placeholder", { item: t("common.ward") }) || "Select ward"}
-          />
-          <ShadcnSelect
-            label={t("admin.nav.panchayat") || "Panchayat"}
-            value={formData.panchayat_id}
-            disabled={zoneOrWardSelected}
-            onChange={(v: string) => update("panchayat_id", v)}
-            options={filteredPanchayats.map((p: any) => ({
-              value: resolveId(p),
-              label: p.panchayat_name || p.name,
-            }))}
-            placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") }) || "Select panchayat"}
-            isRequired={false}
-          />
+          {showField("country_id") && (
+            <ShadcnSelect
+              label={t("common.country") || "Country"}
+              value={formData.country_id}
+              onChange={(v: string) => {
+                update("country_id", v);
+                update("state_id", "");
+                update("district_id", "");
+                update("city_id", "");
+                update("zone_id", "");
+                update("ward_id", "");
+                update("panchayat_id", "");
+              }}
+              options={dropdowns.countries.map((c: any) => ({
+                value: resolveId(c),
+                label: c.name,
+              }))}
+              placeholder={t("common.select_item_placeholder", { item: t("common.country") }) || "Select country"}
+            />
+          )}
+          {showField("state_id") && (
+            <ShadcnSelect
+              label={t("common.state") || "State"}
+              value={formData.state_id}
+              onChange={(v: string) => {
+                update("state_id", v);
+                update("district_id", "");
+                update("city_id", "");
+                update("zone_id", "");
+                update("ward_id", "");
+                update("panchayat_id", "");
+              }}
+              options={filteredStates.map((s: any) => ({
+                value: resolveId(s),
+                label: s.name,
+              }))}
+              placeholder={t("common.select_item_placeholder", { item: t("common.state") }) || "Select state"}
+            />
+          )}
+          {showField("district_id") && (
+            <ShadcnSelect
+              label={t("common.district") || "District"}
+              value={formData.district_id}
+              onChange={(v: string) => {
+                update("district_id", v);
+                update("city_id", "");
+                update("zone_id", "");
+                update("ward_id", "");
+                update("panchayat_id", "");
+              }}
+              options={filteredDistricts.map((d: any) => ({
+                value: resolveId(d),
+                label: d.name,
+              }))}
+              placeholder={t("common.select_item_placeholder", { item: t("common.district") }) || "Select district"}
+            />
+          )}
+          {showField("city_id") && (
+            <ShadcnSelect
+              label={t("common.city") || "City"}
+              value={formData.city_id}
+              onChange={(v: string) => {
+                update("city_id", v);
+                update("zone_id", "");
+                update("ward_id", "");
+                update("panchayat_id", "");
+              }}
+              options={filteredCities.map((c: any) => ({
+                value: resolveId(c),
+                label: c.name,
+              }))}
+              placeholder={t("common.select_item_placeholder", { item: t("common.city") }) || "Select city"}
+            />
+          )}
+          {/* ── ZONE ── */}
+          {showField("zone_id") && (
+            <ShadcnSelect
+              label={t("common.zone") || "Zone"}
+              value={formData.zone_id || "__none__"}
+              disabled={isPanchayatSelected}
+              onChange={(v: string) => {
+                const next = v === "__none__" ? "" : v;
+                update("zone_id", next);
+                update("ward_id", "");
+                update("panchayat_id", "");
+              }}
+              options={[
+                { value: "__none__", label: t("common.not_available") || "N/A" },
+                ...filteredZones.map((z: any) => ({
+                  value: resolveId(z),
+                  label: z.zone_name || z.name,
+                })),
+              ]}
+              placeholder={t("common.select_item_placeholder", { item: t("common.zone") }) || "Select zone"}
+              isRequired={false}
+            />
+          )}
+
+          {/* ── WARD ── */}
+          {showField("ward_id") && (
+            <ShadcnSelect
+              label={t("common.ward") || "Ward"}
+              value={formData.ward_id || "__none__"}
+              disabled={isPanchayatSelected}
+              onChange={(v: string) => {
+                const next = v === "__none__" ? "" : v;
+                update("ward_id", next);
+                if (next) update("panchayat_id", "");
+              }}
+              options={[
+                { value: "__none__", label: t("common.not_available") || "N/A" },
+                ...filteredWards.map((w: any) => ({
+                  value: resolveId(w),
+                  label: w.ward_name || w.name,
+                })),
+              ]}
+              placeholder={t("common.select_item_placeholder", { item: t("common.ward") }) || "Select ward"}
+              isRequired={false}
+            />
+          )}
+
+          {/* ── PANCHAYAT ── */}
+          {showField("panchayat_id") && (
+            <ShadcnSelect
+              label={t("admin.nav.panchayat") || "Panchayat"}
+              value={formData.panchayat_id || "__none__"}
+              disabled={isZoneOrWardSelected}
+              onChange={(v: string) => {
+                const next = v === "__none__" ? "" : v;
+                update("panchayat_id", next);
+                if (next) {
+                  update("zone_id", "");
+                  update("ward_id", "");
+                }
+              }}
+              options={[
+                { value: "__none__", label: t("common.not_available") || "N/A" },
+                ...filteredPanchayats.map((p: any) => ({
+                  value: resolveId(p),
+                  label: p.panchayat_name || p.name,
+                })),
+              ]}
+              placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") }) || "Select panchayat"}
+              isRequired={false}
+            />
+          )}
         </FormSection>
 
-        <FormSection title={t("common.status") || "Status"}>
-          <ShadcnSelect
-            label={t("common.status") || "Status"}
-            value={formData.is_active ? "true" : "false"}
-            onChange={(v: string) => update("is_active", v === "true")}
-            options={[
-              { value: "true", label: t("common.active") || "Active" },
-              { value: "false", label: t("common.inactive") || "Inactive" },
-            ]}
-            placeholder={t("common.select_status") || "Select status"}
-          />
-        </FormSection>
+        {showField("is_active") && (
+          <FormSection title={t("common.status") || "Status"}>
+            <ShadcnSelect
+              label={t("common.status") || "Status"}
+              value={formData.is_active ? "true" : "false"}
+              onChange={(v: string) => update("is_active", v === "true")}
+              options={[
+                { value: "true", label: t("common.active") || "Active" },
+                { value: "false", label: t("common.inactive") || "Inactive" },
+              ]}
+              placeholder={t("common.select_status") || "Select status"}
+            />
+          </FormSection>
+        )}
 
         {/* ACTION BUTTONS */}
         <div className="flex justify-between gap-3 mt-8 pt-6 border-t border-gray-200">

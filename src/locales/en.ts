@@ -788,7 +788,7 @@ const enResource = {
           "hierarchy": "Hierarchy",
 
           
-          "wastetype": "Waste Type",
+          "wastetype": "Property Type",
           "property": "Property",
           "sub_property": "SubProperty",
           "assets": "Assets",
@@ -804,7 +804,7 @@ const enResource = {
           "user_type": "User Type",
           "user_creation": "User Creation",
           "staff_user_type": "Staff User Type",
-          "user_creations": "User Creations",
+          "user_creations": "Staff Creations",
           "staff_creation": "Staff Creation",
           "staff_template": "Staff Template",
           "alternative_staff_template": "Alternative Staff Template",
@@ -833,6 +833,7 @@ const enResource = {
           "trip_attendance": "Trip Attendance",
           "fuel": "Fuel",
           "audit_items": "Audit Items",
+          "common_audit": "Common Audit",
           "vehicle_trip_audit": "Vehicle Trip Audit",
           "trip_exception_log": "Trip Exception Log",
           "bin_load_log": "Bin Load Log",
@@ -943,6 +944,22 @@ const enResource = {
           "performed_role": "Performed Role",
           "change_remarks": "Remarks",
           "performed_at": "Performed At"
+        },
+        "common_audit": {
+          "list_title": "Common Audit",
+          "list_subtitle": "Audit trail across system modules",
+          "search_placeholder": "Search common audits",
+          "empty_message": "No common audit records found",
+          "module_filter": "Filter by module",
+          "module_name": "Module Name",
+          "endpoint_name": "Endpoint Name",
+          "method": "Method",
+          "object_id": "Object ID",
+          "created_by": "Created By",
+          "created_at": "Created At",
+          "detail_title": "Audit Details",
+          "previous_data": "Previous Data",
+          "new_data": "New Data"
         },
         "supervisor_zone_map": {
           "title": "Supervisor Zone Map",

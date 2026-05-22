@@ -809,6 +809,7 @@ const taResource = {
           "trip_instance": "பயண நிகழ்வு",
           "trip_attendance": "பயண வருகை",
           "audit_items": "ஆய்வு உருப்படிகள்",
+          "common_audit": "Common Audit",
           "vehicle_trip_audit": "வாகன பயண ஆய்வு",
           "trip_exception_log": "பயண விதிவிலக்கு பதிவு",
           "zone_property_load_tracker": "மண்டல சொத்து சுமை கண்காணிப்பு",
@@ -941,6 +942,22 @@ const taResource = {
           "performed_role": "Performed Role",
           "change_remarks": "Remarks",
           "performed_at": "Performed At"
+        },
+        "common_audit": {
+          "list_title": "Common Audit",
+          "list_subtitle": "Audit trail across system modules",
+          "search_placeholder": "Search common audits",
+          "empty_message": "No common audit records found",
+          "module_filter": "Filter by module",
+          "module_name": "Module Name",
+          "endpoint_name": "Endpoint Name",
+          "method": "Method",
+          "object_id": "Object ID",
+          "created_by": "Created By",
+          "created_at": "Created At",
+          "detail_title": "Audit Details",
+          "previous_data": "Previous Data",
+          "new_data": "New Data"
         },
         "supervisor_zone_map": {
           "title": "மேற்பார்வையாளர் மண்டல வரைபடம்",

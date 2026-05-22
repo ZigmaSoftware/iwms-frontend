@@ -4,7 +4,6 @@ import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -15,6 +14,20 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { api } from "@/api";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { normalizeList } from "@/utils/forms";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+
+const TRIP_ATTENDANCE_COLUMN_FIELDS: Record<string, string[]> = {
+  trip_instance_id: ["trip_instance_id", "trip_instance"],
+  staff_id: ["staff_id", "staff"],
+  vehicle_id: ["vehicle_id", "vehicle"],
+  attendance_time: ["attendance_time"],
+  latitude: ["latitude"],
+  longitude: ["longitude"],
+  source: ["source"],
+  photo: ["photo"],
+  created_at: ["created_at"],
+};
 
 type TripAttendanceRecord = {
   id: number;
@@ -43,9 +56,6 @@ type  TableFilters = {
   source?: { value: string | null; matchMode: FilterMatchMode };
   attendance_time?: { value: string | null; matchMode: FilterMatchMode };
 };
-
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : payload?.results ?? [];
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -89,6 +99,11 @@ const formatDateTime = (value?: string | null) =>
 export default function TripAttendanceList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { showColumn: showCol } = useFieldVisibility(
+    "transport-master",
+    "trip-attendance",
+    TRIP_ATTENDANCE_COLUMN_FIELDS
+  );
 
   const tripAttendanceApi = adminApi.tripAttendances;
   const tripInstanceApi = adminApi.tripInstances;
@@ -317,10 +332,10 @@ export default function TripAttendanceList() {
         loading={loading}
         filters={filters}
         globalFilterFields={[
-          "trip_instance_id",
-          "staff_id",
-          "vehicle_id",
-          "source",
+          ...(showCol("trip_instance_id") ? ["trip_instance_id"] : []),
+          ...(showCol("staff_id") ? ["staff_id"] : []),
+          ...(showCol("vehicle_id") ? ["vehicle_id"] : []),
+          ...(showCol("source") ? ["source"] : []),
           "company_name",
           "project_name",
         ]}
@@ -331,45 +346,70 @@ export default function TripAttendanceList() {
         emptyMessage={t("admin.trip_attendance.empty_message")}
       >
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
-        <Column
-          header={t("admin.trip_attendance.trip_instance")}
-          body={(row: TripAttendanceRecord) =>
-            tripLookup[row.trip_instance_id] ?? row.trip_instance_id
-          }
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          header={t("admin.trip_attendance.staff")}
-          body={(row: TripAttendanceRecord) => staffLookup[row.staff_id] ?? row.staff_id}
-          filter
-          showFilterMatchModes={false}
-
-        />
-        <Column
-          header={t("admin.trip_attendance.vehicle")}
-          body={(row: TripAttendanceRecord) =>
-            vehicleLookup[row.vehicle_id] ?? row.vehicle_id
-          }
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          header={t("admin.trip_attendance.attendance_time")}
-          body={(row: TripAttendanceRecord) => formatDateTime(row.attendance_time)}
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column field="latitude" header={t("admin.trip_attendance.latitude")} />
-        <Column field="longitude" header={t("admin.trip_attendance.longitude")} />
-        <Column header={t("admin.trip_attendance.source")} body={(row) => resolveSource(row.source)} filter showFilterMatchModes={false} />
-        <Column header={t("admin.trip_attendance.photo")} body={(row) => resolvePhotoLink(row.photo)} />
-        <Column
-          header={t("common.created_at")}
-          body={(row: TripAttendanceRecord) => formatDateTime(row.created_at)}
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("trip_instance_id") && (
+          <Column
+            header={t("admin.trip_attendance.trip_instance")}
+            body={(row: TripAttendanceRecord) =>
+              tripLookup[row.trip_instance_id] ?? row.trip_instance_id
+            }
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
+        {showCol("staff_id") && (
+          <Column
+            header={t("admin.trip_attendance.staff")}
+            body={(row: TripAttendanceRecord) => staffLookup[row.staff_id] ?? row.staff_id}
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
+        {showCol("vehicle_id") && (
+          <Column
+            header={t("admin.trip_attendance.vehicle")}
+            body={(row: TripAttendanceRecord) =>
+              vehicleLookup[row.vehicle_id] ?? row.vehicle_id
+            }
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
+        {showCol("attendance_time") && (
+          <Column
+            header={t("admin.trip_attendance.attendance_time")}
+            body={(row: TripAttendanceRecord) => formatDateTime(row.attendance_time)}
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
+        {showCol("latitude") && (
+          <Column field="latitude" header={t("admin.trip_attendance.latitude")} />
+        )}
+        {showCol("longitude") && (
+          <Column field="longitude" header={t("admin.trip_attendance.longitude")} />
+        )}
+        {showCol("source") && (
+          <Column
+            header={t("admin.trip_attendance.source")}
+            body={(row: TripAttendanceRecord) => resolveSource(row.source)}
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
+        {showCol("photo") && (
+          <Column
+            header={t("admin.trip_attendance.photo")}
+            body={(row: TripAttendanceRecord) => resolvePhotoLink(row.photo)}
+          />
+        )}
+        {showCol("created_at") && (
+          <Column
+            header={t("common.created_at")}
+            body={(row: TripAttendanceRecord) => formatDateTime(row.created_at)}
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
       </DataTable>
     </div>

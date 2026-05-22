@@ -24,19 +24,18 @@ import {
   type SubPropertyPayload,
 } from "@/tanstack/admin/queries/wastetype/subProperty";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { usePropertiesQuery } from "@/tanstack/admin/queries/wastetype/property";
+import type { SubPropertyEditorProps } from "./types";
 
 const { encMasters, encSubProperties } = getEncryptedRoute();
 
 const ENC_LIST_PATH = `/${encMasters}/${encSubProperties}`;
 
-type SubPropertyEditorProps = {
-  initialPayload: SubPropertyPayload;
-  properties: Array<{ unique_id: string | number; property_name: string; is_active: boolean }>;
-  isEdit: boolean;
-  isSubmitting: boolean;
-  onCancel: () => void;
-  onSubmit: (payload: SubPropertyPayload) => Promise<void>;
+const SUB_PROPERTY_FIELDS: Record<string, string[]> = {
+  property_id: ["property_id"],
+  sub_property_name: ["sub_property_name"],
+  is_active: ["is_active"],
 };
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
@@ -70,14 +69,26 @@ function SubPropertyEditor({
   onSubmit,
 }: SubPropertyEditorProps) {
   const { t } = useTranslation();
+  const { showField, filterPayload, getMissingRequiredFields } =
+    useFieldVisibility("masters", "sub-properties", SUB_PROPERTY_FIELDS);
   const [subPropertyName, setSubPropertyName] = useState(initialPayload.sub_property_name);
   const [propertyId, setPropertyId] = useState<string>(String(initialPayload.property_id ?? ""));
   const [isActive, setIsActive] = useState(initialPayload.is_active);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedName = subPropertyName.trim();
+    const fieldValues: Record<string, unknown> = {
+      sub_property_name: trimmedName,
+      property_id: propertyId,
+    };
 
-    if (!subPropertyName || !propertyId) {
+    if (
+      getMissingRequiredFields(
+        ["sub_property_name", "property_id"],
+        (fieldKey) => fieldValues[fieldKey],
+      ).length > 0
+    ) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -86,84 +97,89 @@ function SubPropertyEditor({
       return;
     }
 
-    await onSubmit({
-      sub_property_name: subPropertyName.trim(),
+    const rawPayload = {
+      sub_property_name: trimmedName,
       property_id: propertyId,
       is_active: isActive,
-    });
+    };
+
+    await onSubmit(filterPayload(rawPayload) as SubPropertyPayload);
   };
 
   return (
     <form onSubmit={handleSubmit} noValidate>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Property dropdown */}
-        <div>
-          <Label htmlFor="property">
-            {t("admin.nav.property")} *
-          </Label>
+        {showField("property_id") && (
+          <div>
+            <Label htmlFor="property">
+              {t("admin.nav.property")} *
+            </Label>
 
-          <Select
-            value={propertyId || ""}
-            onValueChange={(val) => setPropertyId(val)}
-            disabled={isSubmitting}
-          >
-            <SelectTrigger id="property" className="input-validate w-full">
-              <SelectValue
-                placeholder={t("common.select_item_placeholder", {
-                  item: t("admin.nav.property"),
-                })}
-              />
-            </SelectTrigger>
+            <Select
+              value={propertyId || ""}
+              onValueChange={(val) => setPropertyId(val)}
+              disabled={isSubmitting}
+            >
+              <SelectTrigger id="property" className="input-validate w-full">
+                <SelectValue
+                  placeholder={t("common.select_item_placeholder", {
+                    item: t("admin.nav.property"),
+                  })}
+                />
+              </SelectTrigger>
 
-            <SelectContent>
-              {properties
-                ?.filter((p) => p.is_active === true)
-                .map((p) => (
-                  <SelectItem key={p.unique_id} value={String(p.unique_id)}>
-                    {p.property_name}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-        </div>
+              <SelectContent>
+                {properties
+                  ?.filter((p) => p.is_active === true)
+                  .map((p) => (
+                    <SelectItem key={p.unique_id} value={String(p.unique_id)}>
+                      {p.property_name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        {/* Sub-property Name */}
-        <div>
-          <Label htmlFor="subPropertyName">
-            {t("common.item_name", { item: t("admin.nav.sub_property") })} *
-          </Label>
-          <Input
-            id="subPropertyName"
-            type="text"
-            className="input-validate w-full"
-            placeholder={t("common.enter_item_name", {
-              item: t("admin.nav.sub_property"),
-            })}
-            value={subPropertyName}
-            onChange={(e) => setSubPropertyName(e.target.value)}
-            disabled={isSubmitting}
-          />
-        </div>
+        {showField("sub_property_name") && (
+          <div>
+            <Label htmlFor="subPropertyName">
+              {t("common.item_name", { item: t("admin.nav.sub_property") })} *
+            </Label>
+            <Input
+              id="subPropertyName"
+              type="text"
+              className="input-validate w-full"
+              placeholder={t("common.enter_item_name", {
+                item: t("admin.nav.sub_property"),
+              })}
+              value={subPropertyName}
+              onChange={(e) => setSubPropertyName(e.target.value)}
+              disabled={isSubmitting}
+            />
+          </div>
+        )}
 
-        {/* Status */}
-        <div>
-          <Label htmlFor="isActive">{t("common.status")} *</Label>
+        {showField("is_active") && (
+          <div>
+            <Label htmlFor="isActive">{t("common.status")} *</Label>
 
-          <Select
-            value={isActive ? "true" : "false"}
-            onValueChange={(val) => setIsActive(val === "true")}
-            disabled={isSubmitting}
-          >
-            <SelectTrigger id="isActive" className="input-validate w-full">
-              <SelectValue placeholder={t("common.select_status")} />
-            </SelectTrigger>
+            <Select
+              value={isActive ? "true" : "false"}
+              onValueChange={(val) => setIsActive(val === "true")}
+              disabled={isSubmitting}
+            >
+              <SelectTrigger id="isActive" className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_status")} />
+              </SelectTrigger>
 
-            <SelectContent>
-              <SelectItem value="true">{t("common.active")}</SelectItem>
-              <SelectItem value="false">{t("common.inactive")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+              <SelectContent>
+                <SelectItem value="true">{t("common.active")}</SelectItem>
+                <SelectItem value="false">{t("common.inactive")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       {/* Buttons */}

@@ -258,7 +258,7 @@
 
 
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -277,8 +277,49 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { type CountryRecord, useCountriesQuery, useUpdateCountryMutation } from "@/tanstack/admin";
 
+type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  continent_name: { value: string | null; matchMode: FilterMatchMode };
+  name: { value: string | null; matchMode: FilterMatchMode };
+  currency: { value: string | null; matchMode: FilterMatchMode };
+  mob_code: { value: string | null; matchMode: FilterMatchMode };
+};
+
+type ErrorWithResponse = {
+  response?: {
+    data?: unknown;
+  };
+};
+
+const COUNTRY_COLUMN_FIELDS: Record<string, string[]> = {
+  continent_name: ["continent_id"],
+  name: ["name"],
+  currency: ["currency"],
+  mob_code: ["mob_code"],
+  is_active: ["is_active"],
+};
+
+const extractErrorMessage = (error: unknown, fallback: string) => {
+  const data = (error as ErrorWithResponse).response?.data;
+
+  if (typeof data === "string") return data;
+  if (Array.isArray(data)) return data.join(", ");
+
+  if (data && typeof data === "object") {
+    return Object.entries(data as Record<string, unknown>)
+      .map(([key, value]) =>
+        `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
+      )
+      .join("\n");
+  }
+
+  if (error instanceof Error && error.message) return error.message;
+
+  return fallback;
+};
 
 export default function CountryList() {
   const { t } = useTranslation();
@@ -287,10 +328,15 @@ export default function CountryList() {
   const updateCountryMutation = useUpdateCountryMutation();
   const countries = countriesQuery.data ?? [];
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "masters",
+    "countries",
+    COUNTRY_COLUMN_FIELDS,
+  );
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
-  const [filters, setFilters] = useState<any>({
+  const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     continent_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -311,19 +357,19 @@ export default function CountryList() {
 
     Swal.fire(
       t("common.error"),
-      (countriesQuery.error as any) ? String((countriesQuery.error as any).response?.data ?? countriesQuery.error) : t("common.fetch_failed"),
+      extractErrorMessage(countriesQuery.error, t("common.fetch_failed")),
       "error"
     );
   }, [countriesQuery.error, countriesQuery.isError, t]);
 
   const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters);
+    setFilters(e.filters as TableFilters);
   };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
 
-    let updated = { ...filters };
+    const updated = { ...filters };
     updated.global.value = value;
 
     setFilters(updated);
@@ -338,8 +384,14 @@ export default function CountryList() {
     setPendingStatusId(countryId);
 
     try {
-      await updateCountryMutation.mutateAsync({ id: row.unique_id, payload: { name: row.name, is_active: checked } });
-    } catch (error) {
+      await updateCountryMutation.mutateAsync({
+        id: row.unique_id,
+        payload: filterPayload({ name: row.name, is_active: checked }) as {
+          name: string;
+          is_active: boolean;
+        },
+      });
+    } catch {
       Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
     } finally {
       setPendingStatusId(null);
@@ -368,7 +420,8 @@ export default function CountryList() {
     </div>
   );
 
-  const indexTemplate = (_: any, options: any) => options.rowIndex + 1;
+  const indexTemplate = (_: CountryRecord, options: { rowIndex: number }) =>
+    options.rowIndex + 1;
 
   const header = (
     <div className="flex justify-end items-center">
@@ -440,44 +493,54 @@ export default function CountryList() {
           style={{ width: "80px" }}
         />
 
-        <Column
-          field="continent_name"
-          header={t("admin.nav.continent")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(r) => cap(r.continent_name)}
-        />
+        {showCol("continent_name") && (
+          <Column
+            field="continent_name"
+            header={t("admin.nav.continent")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(r) => cap(r.continent_name)}
+          />
+        )}
 
-        <Column
-          field="name"
-          header={t("admin.nav.country")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(r) => cap(r.name)}
-        />
+        {showCol("name") && (
+          <Column
+            field="name"
+            header={t("admin.nav.country")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(r) => cap(r.name)}
+          />
+        )}
 
-        <Column
-          field="currency"
-          header={t("common.currency")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("currency") && (
+          <Column
+            field="currency"
+            header={t("common.currency")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="mob_code"
-          header={t("common.mobile_code")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("mob_code") && (
+          <Column
+            field="mob_code"
+            header={t("common.mobile_code")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          header={t("common.status")}
-          body={statusTemplate}
-        />
+        {showCol("is_active") && (
+          <Column
+            header={t("common.status")}
+            body={statusTemplate}
+          />
+        )}
 
         <Column
           header={t("common.actions")}

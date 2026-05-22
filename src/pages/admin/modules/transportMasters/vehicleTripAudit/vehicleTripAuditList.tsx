@@ -19,6 +19,7 @@ import {
 } from "@/tanstack/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { normalizeList } from "@/utils/forms";
 
 const tripInstanceQueryKey = ["masters", "trip_instances"] as const;
 const vehicleCreationQueryKey = ["masters", "vehicle_creations"] as const;
@@ -33,13 +34,6 @@ type TripInstanceRecord = {
   unique_id: string;
   trip_no?: string;
 };
-
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.data)
-      ? payload.data
-      : payload?.results ?? [];
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();

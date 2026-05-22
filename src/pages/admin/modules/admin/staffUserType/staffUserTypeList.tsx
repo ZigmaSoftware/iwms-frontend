@@ -17,14 +17,21 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 
-import type { StaffUserType } from "../types/admin.types"; 
-import { useStaffUserTypesQuery, useUpdateStaffUserTypeMutation } from "@/tanstack/admin";
+import type { StaffUserType } from "../types/admin.types";
+import {
+  useStaffUserTypesQuery,
+  useUpdateStaffUserTypeMutation,
+  useContractorUserTypesQuery,
+  useUpdateContractorUserTypeMutation,
+} from "@/tanstack/admin";
 
 
 export default function StaffUserTypeList() {
   const { t } = useTranslation();
   const staffUserTypesQuery = useStaffUserTypesQuery();
+  const contractorUserTypesQuery = useContractorUserTypesQuery();
   const updateStaffUserTypeMutation = useUpdateStaffUserTypeMutation();
+  const updateContractorUserTypeMutation = useUpdateContractorUserTypeMutation();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
@@ -32,6 +39,7 @@ export default function StaffUserTypeList() {
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     usertype_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    category: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const navigate = useNavigate();
@@ -42,35 +50,45 @@ export default function StaffUserTypeList() {
     `/${encAdmins}/${encStaffUserType}/${id}/edit`;
 
   useEffect(() => {
-    if (!staffUserTypesQuery.isError) return;
-    Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-  }, [staffUserTypesQuery.isError, t]);
+    if (staffUserTypesQuery.isError || contractorUserTypesQuery.isError) {
+      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+    }
+  }, [staffUserTypesQuery.isError, contractorUserTypesQuery.isError, t]);
 
   const records = useMemo(() => {
-    const list = staffUserTypesQuery.data ?? [];
-    return list.map((item: any) => ({
-      ...item,
-      usertype_id: item.usertype_id ?? item.usertype?.unique_id ?? null,
-      usertype_name: item.usertype_name ?? item.usertype?.name ?? t("common.unknown"),
-    }));
-  }, [staffUserTypesQuery.data, t]);
+    const normalize = (list: any[], category: string) =>
+      (list ?? []).map((item: any) => ({
+        ...item,
+        usertype_id: item.usertype_id ?? item.usertype?.unique_id ?? null,
+        usertype_name: item.usertype_name ?? item.usertype?.name ?? t("common.unknown"),
+        category,
+      }));
+
+    return [
+      ...normalize(staffUserTypesQuery.data ?? [], "Staff"),
+      ...normalize(contractorUserTypesQuery.data ?? [], "Contractor"),
+    ];
+  }, [staffUserTypesQuery.data, contractorUserTypesQuery.data, t]);
 
   /* -----------------------------------------------------------
      STATUS SWITCH
   ----------------------------------------------------------- */
-  const updateStatus = async (row: StaffUserType, checked: boolean) => {
+  const updateStatus = async (row: any, checked: boolean) => {
     const id = String(row.unique_id);
     setPendingStatusId(id);
 
+    const payload = {
+      usertype_id: row.usertype_id as string,
+      name: row.name,
+      is_active: checked,
+    };
+
     try {
-      await updateStaffUserTypeMutation.mutateAsync({
-        id: row.unique_id,
-        payload: {
-          usertype_id: row.usertype_id as string,
-          name: row.name,
-          is_active: checked,
-        },
-      });
+      if (row.category === "Contractor") {
+        await updateContractorUserTypeMutation.mutateAsync({ id: row.unique_id, payload });
+      } else {
+        await updateStaffUserTypeMutation.mutateAsync({ id: row.unique_id, payload });
+      }
     } catch (error: any) {
       console.error("Update Status Error:", error?.response?.data || error);
       Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
@@ -79,16 +97,32 @@ export default function StaffUserTypeList() {
     }
   };
 
-  const statusTemplate = (row: StaffUserType) => {
+  const statusTemplate = (row: any) => {
     const id = String(row.unique_id);
+    const isPending =
+      (row.category === "Contractor"
+        ? updateContractorUserTypeMutation.isPending
+        : updateStaffUserTypeMutation.isPending) && pendingStatusId === id;
     return (
       <Switch
         checked={row.is_active}
-        disabled={updateStaffUserTypeMutation.isPending && pendingStatusId === id}
+        disabled={isPending}
         onCheckedChange={(checked) => void updateStatus(row, checked)}
       />
     );
   };
+
+  const categoryTemplate = (row: any) => (
+    <span
+      className={`px-2 py-0.5 rounded text-xs font-medium ${
+        row.category === "Contractor"
+          ? "bg-orange-100 text-orange-700"
+          : "bg-blue-100 text-blue-700"
+      }`}
+    >
+      {row.category}
+    </span>
+  );
 
 
   /* -----------------------------------------------------------
@@ -179,10 +213,10 @@ export default function StaffUserTypeList() {
           value={records}
           paginator
           rows={10}
-          loading={staffUserTypesQuery.isPending && records.length === 0}
+          loading={(staffUserTypesQuery.isPending || contractorUserTypesQuery.isPending) && records.length === 0}
           filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          globalFilterFields={["name", "usertype_name"]}
+          globalFilterFields={["name", "usertype_name", "category"]}
           header={header}
           stripedRows
           showGridlines
@@ -198,7 +232,13 @@ export default function StaffUserTypeList() {
             sortable
             style={{ minWidth: 150 }}
           />
-
+          {/* <Column
+            field="category"
+            header="Type"
+            body={categoryTemplate}
+            sortable
+            style={{ minWidth: 120 }}
+          /> */}
           <Column
             field="name"
             header={t("admin.nav.staff_user_type")}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -20,22 +20,14 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useWardsQuery, useUpdateWardMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import type { WardListRecord } from "./types";
 
-type WardRecord = {
-  unique_id: string;
-  ward_name: string;
-  is_active: boolean;
-  zone_name: string;
-  city_name: string;
-  district_name: string;
-  state_name: string;
-  country_name: string;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
+const WARD_COLUMN_FIELDS: Record<string, string[]> = {
+  zone_name: ["zone_id"],
+  city_name: ["city_id"],
+  ward_name: ["ward_name"],
+  is_active: ["is_active"],
 };
 
 type ErrorWithResponse = {
@@ -71,6 +63,12 @@ const extractErrorMessage = (error: unknown, fallbackMessage: string) => {
 
 export default function WardList() {
   const { t } = useTranslation();
+  const { showColumn: showCol } = useFieldVisibility(
+    "masters",
+    "wards",
+    WARD_COLUMN_FIELDS,
+  );
+
   const wardsQuery = useWardsQuery();
   const updateWardMutation = useUpdateWardMutation();
   const allWards = wardsQuery.data ?? [];
@@ -97,20 +95,52 @@ export default function WardList() {
 
   const { encMasters, encWards } = getEncryptedRoute();
 
-  const ENC_NEW_PATH = `/${encMasters}/${encWards}/new`;
+  const ENC_NEW_PATH = (companyId?: string | null, selectedProjectId?: string | null) => {
+    const params = new URLSearchParams();
+    if (companyId) params.set("company_unique_id", companyId);
+    if (selectedProjectId) params.set("project_id", selectedProjectId);
+    const query = params.toString();
+    return `/${encMasters}/${encWards}/new${query ? `?${query}` : ""}`;
+  };
   const ENC_EDIT_PATH = (id: string | number) =>
     `/${encMasters}/${encWards}/${id}/edit`;
 
   useEffect(() => {
+    if (typeof window === "undefined" || projects.length === 0) return;
+    const storedProjectId = localStorage.getItem("selected_project_id");
+    if (
+      storedProjectId &&
+      storedProjectId !== projectId &&
+      projects.some((project) => project.value === storedProjectId)
+    ) {
+      setProjectId(storedProjectId);
+    }
+  }, [projectId, projects, setProjectId]);
+
+  const onFilterCompanyChange = (value: string) => {
+    localStorage.setItem("selected_company_unique_id", value);
+    localStorage.removeItem("selected_project_id");
+    onCompanyChange(value);
+  };
+
+  const onFilterProjectChange = (value: string) => {
+    localStorage.setItem("selected_project_id", value);
+    setProjectId(value);
+  };
+
+  useEffect(() => {
     if (!wardsQuery.isError) return;
-    Swal.fire({ icon: "error", title: t("common.error"), text: String((wardsQuery.error as any)?.response?.data ?? wardsQuery.error) });
+    const errorData = (wardsQuery.error as ErrorWithResponse)?.response?.data;
+    Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? wardsQuery.error) });
   }, [wardsQuery.error, wardsQuery.isError, t]);
 
-  const wards = ((): WardRecord[] => {
+  const wards = ((): WardListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
-    const rows = Array.isArray(allWards) ? (allWards as any[]) : [];
+    const rows = Array.isArray(allWards)
+      ? (allWards as unknown as WardListRecord[])
+      : [];
     const filtered = rows.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
@@ -121,7 +151,7 @@ export default function WardList() {
       return companyMatches && projectMatches;
     });
 
-    return filtered as WardRecord[];
+    return filtered as WardListRecord[];
   })();
 
   const onFilter = (e: DataTableFilterEvent) => {
@@ -165,7 +195,7 @@ export default function WardList() {
   // ===========================
   //   Toggle Status
   // ===========================
-  const updateStatus = async (row: WardRecord, checked: boolean) => {
+  const updateStatus = async (row: WardListRecord, checked: boolean) => {
     const id = String(row.unique_id);
 
     setPendingStatusId(id);
@@ -183,7 +213,7 @@ export default function WardList() {
     }
   };
 
-  const statusTemplate = (row: WardRecord) => (
+  const statusTemplate = (row: WardListRecord) => (
     <Switch
       checked={row.is_active}
       disabled={updateWardMutation.isPending && pendingStatusId === String(row.unique_id)}
@@ -196,7 +226,7 @@ export default function WardList() {
   // ===========================
   //   Actions
   // ===========================
-  const actionTemplate = (row: WardRecord) => (
+  const actionTemplate = (row: WardListRecord) => (
     <div className="flex gap-3 justify-center">
       <button
         onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
@@ -214,7 +244,7 @@ export default function WardList() {
     </div>
   );
 
-  const indexTemplate = (_: WardRecord, { rowIndex }: { rowIndex: number }) =>
+  const indexTemplate = (_: WardListRecord, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
   // ===========================
@@ -236,7 +266,7 @@ export default function WardList() {
           <div className="flex items-center gap-3">
             <select
               value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
+              onChange={(e) => onFilterCompanyChange(e.target.value)}
               disabled={!isSuperAdmin || companies.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
@@ -252,7 +282,7 @@ export default function WardList() {
 
             <select
               value={projectId || ""}
-              onChange={(e) => setProjectId(e.target.value)}
+              onChange={(e) => onFilterProjectChange(e.target.value)}
               disabled={!companyUniqueId || projects.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
@@ -271,7 +301,14 @@ export default function WardList() {
               icon="pi pi-plus"
               className="p-button-success"
               disabled={!companyUniqueId || !projectId}
-              onClick={() => navigate(ENC_NEW_PATH)}
+              onClick={() =>
+                navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
+                  state: {
+                    companyUniqueId,
+                    projectId,
+                  },
+                })
+              }
             />
           </div>
         </div>
@@ -305,38 +342,46 @@ export default function WardList() {
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
 
-          <Column
-            field="zone_name"
-            header={t("admin.nav.zone")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row) => cap(row.zone_name)}
-          />
+          {showCol("zone_name") && (
+            <Column
+              field="zone_name"
+              header={t("admin.nav.zone")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row) => cap(row.zone_name)}
+            />
+          )}
 
-          <Column
-            field="city_name"
-            header={t("admin.nav.city")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row) => cap(row.city_name)}
-          />
+          {showCol("city_name") && (
+            <Column
+              field="city_name"
+              header={t("admin.nav.city")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row) => cap(row.city_name)}
+            />
+          )}
 
-          <Column
-            field="ward_name"
-            header={t("admin.nav.ward")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row) => cap(row.ward_name)}
-          />
+          {showCol("ward_name") && (
+            <Column
+              field="ward_name"
+              header={t("admin.nav.ward")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row) => cap(row.ward_name)}
+            />
+          )}
 
-          <Column
-            header={t("common.status")}
-            body={statusTemplate}
-            style={{ width: "140px" }}
-          />
+          {showCol("is_active") && (
+            <Column
+              header={t("common.status")}
+              body={statusTemplate}
+              style={{ width: "140px" }}
+            />
+          )}
 
           <Column
             header={t("common.actions")}

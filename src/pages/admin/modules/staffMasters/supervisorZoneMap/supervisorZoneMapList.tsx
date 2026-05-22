@@ -246,7 +246,6 @@ import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 
-import { adminApi } from "@/helpers/admin/registry";
 import {
   useSupervisorZoneMapList,
   useDistrictsList,
@@ -258,6 +257,18 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { normalizeList } from "@/utils/forms";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+
+const SUPERVISOR_ZONE_MAP_COLUMN_FIELDS: Record<string, string[]> = {
+  unique_id: ["unique_id", "mapping_id"],
+  supervisor: ["supervisor_id", "supervisor"],
+  district: ["district_id", "district"],
+  city: ["city_id", "city"],
+  zones: ["zone_ids", "zones", "zone_id"],
+  status: ["status"],
+  created_at: ["created_at"],
+};
 
 type SupervisorZoneMapRecord = {
   id: number;
@@ -291,13 +302,6 @@ type TableFilters = {
   _city_name: { value: string | null; matchMode: FilterMatchMode };
   _zone_names: { value: string | null; matchMode: FilterMatchMode };
 };
-
-const normalizeList = (payload: any): any[] =>
-  Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.data)
-    ? payload.data
-    : payload?.results ?? [];
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -338,6 +342,11 @@ const buildLookup = (items: any[], key: string, label: string) =>
 export default function SupervisorZoneMapList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "staff-masters",
+    "supervisor-zone-map",
+    SUPERVISOR_ZONE_MAP_COLUMN_FIELDS
+  );
   const {
     companyUniqueId,
     projectId,
@@ -369,7 +378,7 @@ export default function SupervisorZoneMapList() {
 
   const { encStaffMasters, encSupervisorZoneMap } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encStaffMasters}/${encSupervisorZoneMap}/new`;
-  const ENC_EDIT_PATH = (id: number) =>
+  const ENC_EDIT_PATH = (id: string) =>
     `/${encStaffMasters}/${encSupervisorZoneMap}/${id}/edit`;
 
   const params =
@@ -481,7 +490,10 @@ export default function SupervisorZoneMapList() {
   const statusBodyTemplate = (row: SupervisorZoneMapRecord) => {
     const updateStatus = async (checked: boolean) => {
       try {
-        await updateMutation.mutateAsync({ id: row.id, payload: { status: checked ? "ACTIVE" : "INACTIVE" } });
+        await updateMutation.mutateAsync({
+          id: row.id,
+          payload: filterPayload({ status: checked ? "ACTIVE" : "INACTIVE" }),
+        });
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       }
@@ -499,7 +511,7 @@ export default function SupervisorZoneMapList() {
     <div className="flex justify-center">
       <button
         title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.id))}
+        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
         className="text-blue-600 hover:text-blue-800"
       >
         {t("common.edit")}
@@ -583,11 +595,11 @@ export default function SupervisorZoneMapList() {
         filters={filters}
         onFilter={onFilter}
         globalFilterFields={[
-          "unique_id",
-          "_supervisor_name",
-          "_district_name",
-          "_city_name",
-          "_zone_names",
+          ...(showCol("unique_id") ? ["unique_id"] : []),
+          ...(showCol("supervisor") ? ["_supervisor_name"] : []),
+          ...(showCol("district") ? ["_district_name"] : []),
+          ...(showCol("city") ? ["_city_name"] : []),
+          ...(showCol("zones") ? ["_zone_names"] : []),
           "company_name",
           "project_name",
         ]}
@@ -602,59 +614,73 @@ export default function SupervisorZoneMapList() {
           style={{ width: 70 }}
         />
 
-        <Column
-          field="unique_id"
-          header={t("admin.supervisor_zone_map.mapping_id")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("unique_id") && (
+          <Column
+            field="unique_id"
+            header={t("admin.supervisor_zone_map.mapping_id")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="_supervisor_name"
-          header={t("admin.supervisor_zone_map.supervisor")}
-          body={resolveSupervisor}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("supervisor") && (
+          <Column
+            field="_supervisor_name"
+            header={t("admin.supervisor_zone_map.supervisor")}
+            body={resolveSupervisor}
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="_district_name"
-          header={t("admin.supervisor_zone_map.district")}
-          body={resolveDistrict}
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("district") && (
+          <Column
+            field="_district_name"
+            header={t("admin.supervisor_zone_map.district")}
+            body={resolveDistrict}
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="_city_name"
-          header={t("admin.supervisor_zone_map.city")}
-          body={resolveCity}
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("city") && (
+          <Column
+            field="_city_name"
+            header={t("admin.supervisor_zone_map.city")}
+            body={resolveCity}
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="_zone_names"
-          header={t("admin.supervisor_zone_map.zones")}
-          body={resolveZones}
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("zones") && (
+          <Column
+            field="_zone_names"
+            header={t("admin.supervisor_zone_map.zones")}
+            body={resolveZones}
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          header={t("common.status")}
-          body={statusBodyTemplate}
-          style={{ width: 120 }}
-        />
+        {showCol("status") && (
+          <Column
+            header={t("common.status")}
+            body={statusBodyTemplate}
+            style={{ width: 120 }}
+          />
+        )}
 
-        <Column
-          header={t("common.created_at")}
-          body={(r: SupervisorZoneMapRecord) =>
-            r.created_at ? new Date(r.created_at).toLocaleDateString() : "-"
-          }
-        />
+        {showCol("created_at") && (
+          <Column
+            header={t("common.created_at")}
+            body={(r: SupervisorZoneMapRecord) =>
+              r.created_at ? new Date(r.created_at).toLocaleDateString() : "-"
+            }
+          />
+        )}
 
         <Column
           header={t("common.actions")}

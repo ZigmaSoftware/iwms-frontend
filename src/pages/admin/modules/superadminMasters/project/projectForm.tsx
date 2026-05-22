@@ -262,7 +262,7 @@ export default function ProjectForm() {
               <SelectContent>
                 {companies.map((company) => (
                   <SelectItem key={company.unique_id} value={company.unique_id}>
-                    {company.name} ({company.unique_id})
+                    {company.name}
                   </SelectItem>
                 ))}
               </SelectContent>

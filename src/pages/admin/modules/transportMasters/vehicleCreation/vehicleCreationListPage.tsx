@@ -19,8 +19,10 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import {
+  type VehicleCreationPayload,
   useVehicleCreationsQuery,
   useUpdateVehicleCreationMutation,
   useDeleteVehicleCreationMutation,
@@ -51,6 +53,20 @@ type VehicleCreationRecord = {
   project_id?: string | null;
   project_unique_id?: string | null;
   project_name?: string | null;
+};
+
+const VEHICLE_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
+  vehicle_no: ["vehicle_no", "vehicle"],
+  vehicle_type_name: ["vehicle_type_id", "vehicle_type_name", "vehicle_type"],
+  fuel_type_name: ["fuel_type_id", "fuel_type_name", "fuel_type"],
+  capacity: ["capacity"],
+  mileage_per_liter: ["mileage_per_liter", "mileage"],
+  fuel_tank_capacity: ["fuel_tank_capacity"],
+  vehicle_condition: ["vehicle_condition"],
+  insurance_expiry_date: ["insurance_expiry_date"],
+  rc_upload: ["rc_upload"],
+  vehicle_insurance_file: ["vehicle_insurance_file"],
+  is_active: ["is_active", "status", "active_status"],
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -110,6 +126,11 @@ const isImageUrl = (url?: string | null) => {
 export default function VehicleCreationListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "transport-master",
+    "vehicle-creation",
+    VEHICLE_CREATION_COLUMN_FIELDS
+  );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -305,7 +326,7 @@ export default function VehicleCreationListPage() {
       try {
         await updateMutation.mutateAsync({
           id: row.unique_id,
-          payload: {
+          payload: filterPayload({
             vehicle_no: row.vehicle_no,
             vehicle_type_id: row.vehicle_type_id ?? null,
             fuel_type_id: row.fuel_type_id ?? null,
@@ -317,7 +338,7 @@ export default function VehicleCreationListPage() {
             vehicle_condition: row.vehicle_condition ?? "NEW",
             fuel_tank_capacity: row.fuel_tank_capacity ?? null,
             is_active: value,
-          },
+          }) as unknown as VehicleCreationPayload,
         });
       } catch (error) {
         console.error("Status update failed:", error);
@@ -481,9 +502,9 @@ export default function VehicleCreationListPage() {
         showGridlines
         className="p-datatable-sm"
         globalFilterFields={[
-          "vehicle_no",
-          "vehicle_type_name",
-          "fuel_type_name",
+          ...(showCol("vehicle_no") ? ["vehicle_no"] : []),
+          ...(showCol("vehicle_type_name") ? ["vehicle_type_name"] : []),
+          ...(showCol("fuel_type_name") ? ["fuel_type_name"] : []),
           "company_name",
           "project_name",
         ]}
@@ -496,80 +517,102 @@ export default function VehicleCreationListPage() {
           }
           style={{ width: "80px" }}
         />
-        <Column
-          field="vehicle_no"
-          header={t("admin.vehicle_creation.vehicle_no")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          field="vehicle_type_name"
-          header={t("admin.vehicle_creation.vehicle_type")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          field="fuel_type_name"
-          header={t("admin.vehicle_creation.fuel_type")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          field="capacity"
-          header={t("admin.vehicle_creation.capacity")}
-          sortable
-        />
-        <Column
-          field="mileage_per_liter"
-          header={t("admin.vehicle_creation.mileage_per_liter")}
-          sortable
-        />
-        <Column
-          field="fuel_tank_capacity"
-          header={t("admin.vehicle_creation.fuel_tank_capacity")}
-          sortable
-        />
-        <Column
-          field="vehicle_condition"
-          header={t("admin.vehicle_creation.vehicle_condition")}
-          body={(row: VehicleCreationRecord) =>
-            conditionLabel(row.vehicle_condition)
-          }
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          field="insurance_expiry_date"
-          header={t("admin.vehicle_creation.insurance_expiry_date")}
-          body={(row: VehicleCreationRecord) =>
-            formatDate(row.insurance_expiry_date)
-          }
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
-        <Column
-          field="rc_upload"
-          header={t("admin.vehicle_creation.rc_upload")}
-          body={(row: VehicleCreationRecord) => renderFilePreview(row.rc_upload)}
-        />
-        <Column
-          field="vehicle_insurance_file"
-          header={t("admin.vehicle_creation.vehicle_insurance_file")}
-          body={(row: VehicleCreationRecord) =>
-            renderFilePreview(row.vehicle_insurance_file)
-          }
-        />
-        <Column
-          field="is_active"
-          header={t("common.status")}
-          body={statusTemplate}
-          style={{ width: "150px" }}
-        />
+        {showCol("vehicle_no") && (
+          <Column
+            field="vehicle_no"
+            header={t("admin.vehicle_creation.vehicle_no")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
+        {showCol("vehicle_type_name") && (
+          <Column
+            field="vehicle_type_name"
+            header={t("admin.vehicle_creation.vehicle_type")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
+        {showCol("fuel_type_name") && (
+          <Column
+            field="fuel_type_name"
+            header={t("admin.vehicle_creation.fuel_type")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
+        {showCol("capacity") && (
+          <Column
+            field="capacity"
+            header={t("admin.vehicle_creation.capacity")}
+            sortable
+          />
+        )}
+        {showCol("mileage_per_liter") && (
+          <Column
+            field="mileage_per_liter"
+            header={t("admin.vehicle_creation.mileage_per_liter")}
+            sortable
+          />
+        )}
+        {showCol("fuel_tank_capacity") && (
+          <Column
+            field="fuel_tank_capacity"
+            header={t("admin.vehicle_creation.fuel_tank_capacity")}
+            sortable
+          />
+        )}
+        {showCol("vehicle_condition") && (
+          <Column
+            field="vehicle_condition"
+            header={t("admin.vehicle_creation.vehicle_condition")}
+            body={(row: VehicleCreationRecord) =>
+              conditionLabel(row.vehicle_condition)
+            }
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
+        {showCol("insurance_expiry_date") && (
+          <Column
+            field="insurance_expiry_date"
+            header={t("admin.vehicle_creation.insurance_expiry_date")}
+            body={(row: VehicleCreationRecord) =>
+              formatDate(row.insurance_expiry_date)
+            }
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
+        {showCol("rc_upload") && (
+          <Column
+            field="rc_upload"
+            header={t("admin.vehicle_creation.rc_upload")}
+            body={(row: VehicleCreationRecord) => renderFilePreview(row.rc_upload)}
+          />
+        )}
+        {showCol("vehicle_insurance_file") && (
+          <Column
+            field="vehicle_insurance_file"
+            header={t("admin.vehicle_creation.vehicle_insurance_file")}
+            body={(row: VehicleCreationRecord) =>
+              renderFilePreview(row.vehicle_insurance_file)
+            }
+          />
+        )}
+        {showCol("is_active") && (
+          <Column
+            field="is_active"
+            header={t("common.status")}
+            body={statusTemplate}
+            style={{ width: "150px" }}
+          />
+        )}
         <Column
           header={t("common.actions")}
           body={actionTemplate}
