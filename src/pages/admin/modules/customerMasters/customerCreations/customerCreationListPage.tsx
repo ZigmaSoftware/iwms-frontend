@@ -17,7 +17,9 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
+  type CustomerCreationPayload,
   useCustomerCreationsQuery,
   useUpdateCustomerCreationMutation,
   useUploadCustomerCreationsMutation,
@@ -69,8 +71,27 @@ type TableFilters = {
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
+const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
+  customer_name: ["customer_name", "name"],
+  contact_no: ["contact_no", "mobile"],
+  apartment_name: ["apartment_name"],
+  unit: ["block_no", "flat_no"],
+  ward_name: ["ward_id", "ward_name"],
+  zone_name: ["zone_id", "zone_name"],
+  city_name: ["city_id", "city_name"],
+  state_name: ["state_id", "state_name"],
+  panchayat_name: ["panchayat_id", "panchayat_name"],
+  qr_code: ["qr_code"],
+  is_active: ["is_active"],
+};
+
 export default function CustomerCreationListPage() {
   const { t } = useTranslation();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "customer-master",
+    "customer-creation",
+    CUSTOMER_CREATION_COLUMN_FIELDS,
+  );
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -321,12 +342,16 @@ export default function CustomerCreationListPage() {
   const statusTemplate = (row: Customer) => {
     const updateStatus = async (value: boolean) => {
       try {
+        const rawPayload = {
+          ...row,
+          is_active: value,
+        };
         await updateMutation.mutateAsync({
           id: row.unique_id,
-          payload: {
-            ...row,
-            is_active: value,
-          } as any,
+          payload: filterPayload(rawPayload, [
+            "company_id",
+            "project_id",
+          ]) as unknown as CustomerCreationPayload,
         });
       } catch (err) {
         console.error("Status update failed:", err);
@@ -440,58 +465,78 @@ export default function CustomerCreationListPage() {
           body={indexTemplate}
           style={{ width: "80px" }}
         />
-        <Column
-          field="customer_name"
-          header={t("admin.customer_creation.customer")}
-          sortable
-        />
-        <Column field="contact_no" header={t("common.mobile")} sortable />
+        {showCol("customer_name") && (
+          <Column
+            field="customer_name"
+            header={t("admin.customer_creation.customer")}
+            sortable
+          />
+        )}
+        {showCol("contact_no") && (
+          <Column field="contact_no" header={t("common.mobile")} sortable />
+        )}
 
-        {/* ✅ Apartment */}
-        <Column
-          field="apartment_name"
-          header="Apartment"
-          body={(row: Customer) =>
-            row.apartment_name && row.apartment_name.trim() !== ""
-              ? cap(row.apartment_name)
-              : "-"
-          }
-        />
+        {showCol("apartment_name") && (
+          <Column
+            field="apartment_name"
+            header="Apartment"
+            body={(row: Customer) =>
+              row.apartment_name && row.apartment_name.trim() !== ""
+                ? cap(row.apartment_name)
+                : "-"
+            }
+          />
+        )}
 
-        {/* ✅ Unit */}
-        <Column
-          header="Unit"
-          body={(row: Customer) =>
-            row.block_no && row.flat_no
-              ? `${row.block_no}-${row.flat_no}`
-              : "-"
-          }
-        />
+        {showCol("unit") && (
+          <Column
+            header="Unit"
+            body={(row: Customer) =>
+              row.block_no && row.flat_no
+                ? `${row.block_no}-${row.flat_no}`
+                : "-"
+            }
+          />
+        )}
+        {showCol("ward_name") && (
           <Column field="ward_name" 
-          header={t("common.ward")}
-          body={(row: Customer) => row.ward_name || "-"}
-           sortable />
-        <Column field="zone_name" 
-        header={t("common.zone")} 
-        body={(row: Customer) => row.zone_name || "-"}
-         sortable />
-        <Column field="city_name" header={t("common.city")} sortable />
-        <Column field="state_name" header={t("common.state")} sortable />
-        <Column field="panchayat_name"
-         header={t("admin.nav.panchayat")} 
-         body={(row: Customer) => row.panchayat_name || "-"} 
-         sortable />
-        <Column 
-          header={t("admin.customer_creation.qr_label")}
-          body={qrTemplate}
-          style={{ width: "100px" }}
-        />
+            header={t("common.ward")}
+            body={(row: Customer) => row.ward_name || "-"}
+            sortable />
+        )}
+        {showCol("zone_name") && (
+          <Column field="zone_name"
+            header={t("common.zone")}
+            body={(row: Customer) => row.zone_name || "-"}
+            sortable />
+        )}
+        {showCol("city_name") && (
+          <Column field="city_name" header={t("common.city")} sortable />
+        )}
+        {showCol("state_name") && (
+          <Column field="state_name" header={t("common.state")} sortable />
+        )}
+        {showCol("panchayat_name") && (
+          <Column field="panchayat_name"
+            header={t("admin.nav.panchayat")}
+            body={(row: Customer) => row.panchayat_name || "-"}
+            sortable />
+        )}
+        {showCol("qr_code") && (
+          <Column
+            header={t("admin.customer_creation.qr_label")}
+            body={qrTemplate}
+            style={{ width: "100px" }}
+          />
+        )}
 
-        <Column
-          field="is_active"
-          header={t("common.status")}
-          body={statusTemplate}
-        />
+        {showCol("is_active") && (
+          <Column
+            field="is_active"
+            header={t("common.status")}
+            body={statusTemplate}
+          />
+        )}
 
         <Column
           header={t("common.actions")}

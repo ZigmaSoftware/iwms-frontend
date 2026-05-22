@@ -19,7 +19,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useScreenColumnPermissions } from "@/hooks/useScreenColumnPermissions";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 const WARD_FORM_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],
@@ -172,11 +172,11 @@ const ENC_LIST_PATH = `/${encMasters}/${encWards}`;
 ========================================================== */
 export default function WardForm() {
   const { t } = useTranslation();
-  const allowedColumns = useScreenColumnPermissions("masters", "wards");
-  const showField = (key: string): boolean => {
-    if (!allowedColumns) return true;
-    return (WARD_FORM_FIELDS[key] ?? []).some((f) => allowedColumns.has(f));
-  };
+  const { showField, filterPayload, getMissingRequiredFields } = useFieldVisibility(
+    "masters",
+    "wards",
+    WARD_FORM_FIELDS,
+  );
   /* FORM FIELDS */
   const [wardName, setWardName] = useState("");
   const [continentId, setContinentId] = useState("");
@@ -818,7 +818,18 @@ export default function WardForm() {
     const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!continentId || !countryId || !stateId || !wardName.trim()) {
+    const fieldValues: Record<string, unknown> = {
+      continent_id: continentId,
+      country_id: countryId,
+      state_id: stateId,
+      ward_name: wardName.trim(),
+    };
+    const missingFields = getMissingRequiredFields(
+      ["continent_id", "country_id", "state_id", "ward_name"],
+      (fieldKey) => fieldValues[fieldKey],
+    );
+
+    if (missingFields.length > 0) {
       Swal.fire(t("common.warning"), t("common.all_fields_required"), "warning");
       return;
     }
@@ -840,7 +851,7 @@ export default function WardForm() {
     }
 
     try {
-      const payload = {
+      const rawPayload = {
         ward_name: wardName.trim(),
         continent_id: continentId,
         country_id: countryId,
@@ -853,6 +864,7 @@ export default function WardForm() {
         company_id: companyUniqueId,
         project_id: projectId,
       };
+      const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
       if (isEdit && id) {
         await updateWardMutation.mutateAsync({ id, payload });

@@ -21,7 +21,7 @@ import type { DistrictListRecord } from "./types";
 
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useScreenColumnPermissions } from "@/hooks/useScreenColumnPermissions";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 const DISTRICT_FORM_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],
@@ -115,11 +115,11 @@ type DistrictRouteState = {
 
 export default function DistrictForm() {
   const { t } = useTranslation();
-  const allowedColumns = useScreenColumnPermissions("masters", "districts");
-  const showField = (key: string): boolean => {
-    if (!allowedColumns) return true;
-    return (DISTRICT_FORM_FIELDS[key] ?? []).some((f) => allowedColumns.has(f));
-  };
+  const { showField, filterPayload, getMissingRequiredFields } = useFieldVisibility(
+    "masters",
+    "districts",
+    DISTRICT_FORM_FIELDS,
+  );
   const [districtName, setDistrictName] = useState("");
   const [continentId, setContinentId] = useState<string>("");
   const [countryId, setCountryId] = useState<string>("");
@@ -483,7 +483,18 @@ export default function DistrictForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!continentId || !countryId || !stateId || !districtName.trim()) {
+    const fieldValues: Record<string, unknown> = {
+      continent_id: continentId,
+      country_id: countryId,
+      state_id: stateId,
+      name: districtName.trim(),
+    };
+    const missingFields = getMissingRequiredFields(
+      ["continent_id", "country_id", "state_id", "name"],
+      (fieldKey) => fieldValues[fieldKey],
+    );
+
+    if (missingFields.length > 0) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -509,7 +520,7 @@ export default function DistrictForm() {
     }
 
     try {
-      const payload = {
+      const rawPayload = {
         name: districtName.trim(),
         continent_id: continentId,
         country_id: countryId,
@@ -518,6 +529,7 @@ export default function DistrictForm() {
         company_id: companyUniqueId,
         project_id: projectId,
       };
+      const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
       if (isEdit && id) {
         await updateDistrictMutation.mutateAsync({ id, payload });

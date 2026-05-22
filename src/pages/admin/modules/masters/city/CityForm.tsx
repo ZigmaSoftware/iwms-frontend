@@ -21,7 +21,7 @@ import type { SelectOption } from "@/types";
 import type { CityRecord as QueryCityRecord } from "@/tanstack/admin";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useScreenColumnPermissions } from "@/hooks/useScreenColumnPermissions";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 const CITY_FORM_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],
@@ -133,11 +133,11 @@ const ENC_LIST_PATH = `/${encMasters}/${encCities}`;
 ========================================================== */
 export default function CityForm() {
   const { t } = useTranslation();
-  const allowedColumns = useScreenColumnPermissions("masters", "cities");
-  const showField = (key: string): boolean => {
-    if (!allowedColumns) return true;
-    return (CITY_FORM_FIELDS[key] ?? []).some((f) => allowedColumns.has(f));
-  };
+  const { showField, filterPayload, getMissingRequiredFields } = useFieldVisibility(
+    "masters",
+    "cities",
+    CITY_FORM_FIELDS,
+  );
   /* FIELD STATES */
   const [cityName, setCityName] = useState("");
   const [continentId, setContinentId] = useState("");
@@ -237,12 +237,12 @@ export default function CityForm() {
       applied = true;
     }
 
-    if (!cityQuery.data && routeState.city?.name) {
+    if (!cityQuery.data && routeState?.city?.name) {
       setCityName(String(routeState.city.name));
       applied = true;
     }
 
-    if (applied || routeCompanyId || routeProjectId || routeState.city?.name) {
+    if (applied || routeCompanyId || routeProjectId || routeState?.city?.name) {
       routeStateAppliedRef.current = true;
     }
   }, [
@@ -664,7 +664,19 @@ export default function CityForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!continentId || !countryId || !stateId || !districtId || !cityName.trim()) {
+    const fieldValues: Record<string, unknown> = {
+      continent_id: continentId,
+      country_id: countryId,
+      state_id: stateId,
+      district_id: districtId,
+      name: cityName.trim(),
+    };
+    const missingFields = getMissingRequiredFields(
+      ["continent_id", "country_id", "state_id", "district_id", "name"],
+      (fieldKey) => fieldValues[fieldKey],
+    );
+
+    if (missingFields.length > 0) {
       Swal.fire(t("common.warning"), t("common.all_fields_required"), "warning");
       return;
     }
@@ -686,7 +698,7 @@ export default function CityForm() {
     }
 
     try {
-      const payload = {
+      const rawPayload = {
         name: cityName.trim(),
         continent_id: continentId,
         country_id: countryId,
@@ -696,6 +708,7 @@ export default function CityForm() {
         company_id: companyUniqueId,
         project_id: projectId,
       };
+      const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
       if (isEdit && id) {
         await updateCityMutation.mutateAsync({ id, payload });

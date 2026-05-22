@@ -20,7 +20,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useWardsQuery, useUpdateWardMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useScreenColumnPermissions } from "@/hooks/useScreenColumnPermissions";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { WardListRecord } from "./types";
 
 const WARD_COLUMN_FIELDS: Record<string, string[]> = {
@@ -63,12 +63,11 @@ const extractErrorMessage = (error: unknown, fallbackMessage: string) => {
 
 export default function WardList() {
   const { t } = useTranslation();
-  const allowedColumns = useScreenColumnPermissions("masters", "wards");
-
-  const showCol = (key: string): boolean => {
-    if (!allowedColumns) return true;
-    return (WARD_COLUMN_FIELDS[key] ?? []).some((f) => allowedColumns.has(f));
-  };
+  const { showColumn: showCol } = useFieldVisibility(
+    "masters",
+    "wards",
+    WARD_COLUMN_FIELDS,
+  );
 
   const wardsQuery = useWardsQuery();
   const updateWardMutation = useUpdateWardMutation();

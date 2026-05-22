@@ -27,11 +27,23 @@ import {
   companyApi,
 } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { usePanchayatQuery, useCreatePanchayatMutation, useUpdatePanchayatMutation, useAreaTypesQuery, useHierarchiesQuery } from "@/tanstack/admin";
 import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
 import { USER_ROLE_STORAGE_KEY, normalizeRole } from "@/types/roles";
 import type { SelectOption } from "@/types";
 import type { LoginProfile } from "./types";
+
+const PANCHAYAT_FIELDS: Record<string, string[]> = {
+  state_id: ["state_id", "state"],
+  district_id: ["district_id", "district"],
+  city_id: ["city_id", "city"],
+  panchayat_name: ["panchayat_name", "name"],
+  latitude: ["latitude"],
+  longitude: ["longitude"],
+  geofencing_type: ["geofencing_type"],
+  is_active: ["is_active"],
+};
 
 const toStringId = (value: unknown): string => {
   if (value === null || value === undefined) return "";
@@ -56,6 +68,11 @@ const readLoginProfile = (): LoginProfile | null => {
 };
 
 export default function PanchayatForm() {
+  const { showField, filterPayload } = useFieldVisibility(
+    "masters",
+    "panchayats",
+    PANCHAYAT_FIELDS,
+  );
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
@@ -296,7 +313,7 @@ export default function PanchayatForm() {
       return;
     }
 
-    const basePayload = {
+    const rawPayload = {
       panchayat_name: panchayatName,
       company_id: companyUniqueId,
       project_id: projectId,
@@ -310,6 +327,7 @@ export default function PanchayatForm() {
       geofencing_type: geofencingType,
       is_active: isActive,
     };
+    const basePayload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
     try {
       if (isEdit && id) {
@@ -397,70 +415,76 @@ export default function PanchayatForm() {
           )}
         </div>
 
-        <div>
-          <Label>State *</Label>
-          <Select
-            value={stateId}
-            onValueChange={(value) => {
-              setStateId(value);
-              setDistrictId("");
-              setCityId("");
-              setDistricts([]);
-              setCities([]);
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select State" />
-            </SelectTrigger>
-            <SelectContent>
-              {states.map((s) => (
-                <SelectItem key={s.value} value={s.value}>
-                  {s.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("state_id") && (
+          <div>
+            <Label>State *</Label>
+            <Select
+              value={stateId}
+              onValueChange={(value) => {
+                setStateId(value);
+                setDistrictId("");
+                setCityId("");
+                setDistricts([]);
+                setCities([]);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select State" />
+              </SelectTrigger>
+              <SelectContent>
+                {states.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>District *</Label>
-          <Select
-            value={districtId}
-            onValueChange={(value) => {
-              setDistrictId(value);
-              setCityId("");
-              setCities([]);
-            }}
-            disabled={!stateId}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select District" />
-            </SelectTrigger>
-            <SelectContent>
-              {districts.map((d) => (
-                <SelectItem key={d.value} value={d.value}>
-                  {d.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("district_id") && (
+          <div>
+            <Label>District *</Label>
+            <Select
+              value={districtId}
+              onValueChange={(value) => {
+                setDistrictId(value);
+                setCityId("");
+                setCities([]);
+              }}
+              disabled={!stateId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select District" />
+              </SelectTrigger>
+              <SelectContent>
+                {districts.map((d) => (
+                  <SelectItem key={d.value} value={d.value}>
+                    {d.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>City *</Label>
-          <Select value={cityId} onValueChange={setCityId} disabled={!districtId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select City" />
-            </SelectTrigger>
-            <SelectContent>
-              {cities.map((c) => (
-                <SelectItem key={c.value} value={c.value}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("city_id") && (
+          <div>
+            <Label>City *</Label>
+            <Select value={cityId} onValueChange={setCityId} disabled={!districtId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select City" />
+              </SelectTrigger>
+              <SelectContent>
+                {cities.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* <div>
           <Label>Area Type *</Label>
@@ -494,61 +518,71 @@ export default function PanchayatForm() {
           </Select>
         </div> */}
 
-        <div>
-          <Label>Panchayat Name *</Label>
-          <Input
-            value={panchayatName}
-            onChange={(e) => setPanchayatName(e.target.value)}
-            required
-          />
-        </div>
+        {showField("panchayat_name") && (
+          <div>
+            <Label>Panchayat Name *</Label>
+            <Input
+              value={panchayatName}
+              onChange={(e) => setPanchayatName(e.target.value)}
+              required
+            />
+          </div>
+        )}
 
-        <div>
-          <Label>Latitude *</Label>
-          <Input
-            value={latitude}
-            onChange={(e) => setLatitude(e.target.value)}
-            required
-          />
-        </div>
+        {showField("latitude") && (
+          <div>
+            <Label>Latitude *</Label>
+            <Input
+              value={latitude}
+              onChange={(e) => setLatitude(e.target.value)}
+              required
+            />
+          </div>
+        )}
 
-        <div>
-          <Label>Longitude *</Label>
-          <Input
-            value={longitude}
-            onChange={(e) => setLongitude(e.target.value)}
-            required
-          />
-        </div>
+        {showField("longitude") && (
+          <div>
+            <Label>Longitude *</Label>
+            <Input
+              value={longitude}
+              onChange={(e) => setLongitude(e.target.value)}
+              required
+            />
+          </div>
+        )}
 
-        <div>
-          <Label>GeoFencing Type *</Label>
-          <Select value={geofencingType} onValueChange={setGeofencingType}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="polygon">Polygon</SelectItem>
-              <SelectItem value="circle">Circle</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("geofencing_type") && (
+          <div>
+            <Label>GeoFencing Type *</Label>
+            <Select value={geofencingType} onValueChange={setGeofencingType}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="polygon">Polygon</SelectItem>
+                <SelectItem value="circle">Circle</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>Status</Label>
-          <Select
-            value={isActive ? "true" : "false"}
-            onValueChange={(v) => setIsActive(v === "true")}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="true">Active</SelectItem>
-              <SelectItem value="false">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("is_active") && (
+          <div>
+            <Label>Status</Label>
+            <Select
+              value={isActive ? "true" : "false"}
+              onValueChange={(v) => setIsActive(v === "true")}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">Active</SelectItem>
+                <SelectItem value="false">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="md:col-span-2 flex justify-end gap-3">
           <Button type="submit" disabled={createPanchayatMutation.isPending || updatePanchayatMutation.isPending}>{isEdit ? "Update" : "Save"}</Button>

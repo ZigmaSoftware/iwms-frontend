@@ -11,6 +11,7 @@ import Select from "@/components/form/Select";
 import InputField from "@/components/form/input/InputField";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
   useAlternativeStaffTemplateQuery,
   useCreateAlternativeStaffTemplate,
@@ -63,11 +64,30 @@ const initialFormState: FormState = {
   change_remarks: "",
 };
 
+const ALTERNATIVE_STAFF_TEMPLATE_FIELDS: Record<string, string[]> = {
+  staff_template: ["staff_template", "staff_template_id"],
+  effective_date: ["effective_date"],
+  company_id: ["company_id", "company"],
+  project_id: ["project_id", "project"],
+  driver: ["driver", "driver_id"],
+  operator: ["operator", "operator_id"],
+  extra_operator: ["extra_operator", "extra_operator_id", "extra_staff"],
+  change_reason: ["change_reason"],
+  change_remarks: ["change_remarks", "remarks"],
+  approval_status: ["approval_status"],
+  display_code: ["display_code"],
+};
+
 export default function AlternativeStaffTemplateForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
+  const { showField, filterPayload } = useFieldVisibility(
+    "staff-masters",
+    "alternative-staff-template",
+    ALTERNATIVE_STAFF_TEMPLATE_FIELDS
+  );
 
   const [formData, setFormData] = useState<FormState>(initialFormState);
   const [loading, setLoading] = useState(false);
@@ -432,12 +452,12 @@ export default function AlternativeStaffTemplateForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (isEdit && formData.approval_status === "APPROVED") {
+    if (showField("approval_status") && isEdit && formData.approval_status === "APPROVED") {
       Swal.fire("Warning", "Approved records cannot be modified.", "warning");
       return;
     }
 
-    const payload = {
+    const rawPayload = {
       staff_template: formData.staff_template,
       effective_date: formData.effective_date,
       driver: formData.driver,
@@ -448,6 +468,7 @@ export default function AlternativeStaffTemplateForm() {
       company_id: selectedCompanyId || undefined,
       project_id: selectedProjectId || undefined,
     };
+    const payload = filterPayload(rawPayload, ["company_id", "project_id"]);
 
     setLoading(true);
 
@@ -532,7 +553,7 @@ export default function AlternativeStaffTemplateForm() {
       >
         <form onSubmit={handleSubmit} className="space-y-6">
 
-          {isEdit && formData.display_code && (
+          {isEdit && formData.display_code && showField("display_code") && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="text-lg font-semibold text-blue-900">
                 {formData.display_code}
@@ -543,6 +564,7 @@ export default function AlternativeStaffTemplateForm() {
           <div className="grid md:grid-cols-2 gap-5">
 
             {/* STAFF TEMPLATE */}
+            {showField("staff_template") && (
             <div>
               <Label>Staff Template</Label>
               <Select
@@ -556,8 +578,10 @@ export default function AlternativeStaffTemplateForm() {
                 }}
               />
             </div>
+            )}
 
             {/* EFFECTIVE DATE */}
+            {showField("effective_date") && (
             <div>
               <Label>{t("admin.alternative_staff_template.effective_date")}</Label>
               <InputField
@@ -569,8 +593,10 @@ export default function AlternativeStaffTemplateForm() {
                 required
               />
             </div>
+            )}
 
             {/* COMPANY */}
+            {showField("company_id") && (
             <div>
               <Label htmlFor="company_id">
                 {t("admin.nav.company") || "Company"}
@@ -589,8 +615,10 @@ export default function AlternativeStaffTemplateForm() {
                 }}
               />
             </div>
+            )}
 
             {/* PROJECT */}
+            {showField("project_id") && (
             <div>
               <Label htmlFor="project_id">
                 {t("admin.nav.project") || "Project"}
@@ -608,8 +636,10 @@ export default function AlternativeStaffTemplateForm() {
                 }}
               />
             </div>
+            )}
 
             {/* DRIVER */}
+            {showField("driver") && (
             <div>
               <Label>
                 Driver
@@ -623,8 +653,10 @@ export default function AlternativeStaffTemplateForm() {
                 required
               />
             </div>
+            )}
 
             {/* OPERATOR */}
+            {showField("operator") && (
             <div>
               <Label>
                 Operator
@@ -638,8 +670,10 @@ export default function AlternativeStaffTemplateForm() {
                 required
               />
             </div>
+            )}
 
             {/* EXTRA OPERATOR — MultiSelect with chip display */}
+            {showField("extra_operator") && (
             <div>
               <Label>Extra Operator</Label>
               <MultiSelect
@@ -656,8 +690,10 @@ export default function AlternativeStaffTemplateForm() {
                 filter
               />
             </div>
+            )}
 
             {/* CHANGE REASON */}
+            {showField("change_reason") && (
             <div>
               <Label>
                 Change Reason
@@ -671,10 +707,12 @@ export default function AlternativeStaffTemplateForm() {
                 required
               />
             </div>
+            )}
 
           </div>
 
           {/* REMARKS */}
+          {showField("change_remarks") && (
           <div>
             <Label>Remarks</Label>
             <InputField
@@ -684,6 +722,7 @@ export default function AlternativeStaffTemplateForm() {
               }
             />
           </div>
+          )}
 
           {/* ACTIONS */}
           <div className="flex justify-end gap-3">

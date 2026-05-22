@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 type SelectOption = { value: string; label: string };
 
@@ -46,6 +47,18 @@ const sourceOptions: SelectOption[] = [
   { value: "OTHERS", label: "Others" },
 ];
 
+const HOUSEHOLD_PICKUP_FIELDS: Record<string, string[]> = {
+  customer_id: ["customer_id", "customer"],
+  zone_id: ["zone_id", "zone"],
+  property_id: ["property_id", "property"],
+  sub_property_id: ["sub_property_id", "sub_property"],
+  pickup_time: ["pickup_time"],
+  weight_kg: ["weight_kg"],
+  collector_staff_id: ["collector_staff_id", "collector"],
+  vehicle_id: ["vehicle_id", "vehicle"],
+  source: ["source"],
+};
+
 const toOptions = (items: any[], valueKey: string, labelKey: string): SelectOption[] =>
   items
     .map((item) => ({
@@ -59,6 +72,8 @@ const toDateTimeLocal = (value?: string | null) =>
 
 export default function HouseholdPickupEventForm() {
   const { t } = useTranslation();
+  const { showField, filterPayload, getMissingRequiredFields } =
+    useFieldVisibility("customer-master", "household-pickup-event", HOUSEHOLD_PICKUP_FIELDS);
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const location = useLocation();
@@ -171,21 +186,26 @@ export default function HouseholdPickupEventForm() {
     setLoading(true);
     try {
       if (!isEdit) {
-        if (
-          !formData.customer_id ||
-          !formData.zone_id ||
-          !formData.property_id ||
-          !formData.sub_property_id ||
-          !formData.pickup_time ||
-          !formData.collector_staff_id ||
-          !formData.vehicle_id ||
-          !formData.source
-        ) {
+        const missingFields = getMissingRequiredFields(
+          [
+            "customer_id",
+            "zone_id",
+            "property_id",
+            "sub_property_id",
+            "pickup_time",
+            "collector_staff_id",
+            "vehicle_id",
+            "source",
+          ],
+          (fieldKey) => formData[fieldKey as keyof HouseholdPickupFormState],
+        );
+
+        if (missingFields.length > 0) {
           Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
           return;
         }
 
-        const payload = {
+        const rawPayload = {
           customer_id: formData.customer_id,
           zone_id: formData.zone_id,
           property_id: formData.property_id,
@@ -196,10 +216,11 @@ export default function HouseholdPickupEventForm() {
           vehicle_id: formData.vehicle_id,
           source: formData.source,
         };
+        const payload = filterPayload(rawPayload) as typeof rawPayload;
 
         await householdPickupEventApi.create(payload);
       } else if (id) {
-        const payload = {
+        const rawPayload = {
           customer_id: formData.customer_id || undefined,
           zone_id: formData.zone_id || undefined,
           property_id: formData.property_id || undefined,
@@ -212,7 +233,7 @@ export default function HouseholdPickupEventForm() {
         };
 
         const updatePayload = Object.fromEntries(
-          Object.entries(payload).filter(([, value]) => value !== undefined)
+          Object.entries(filterPayload(rawPayload)).filter(([, value]) => value !== undefined)
         );
 
         if (Object.keys(updatePayload).length === 0) {
@@ -249,108 +270,126 @@ export default function HouseholdPickupEventForm() {
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <div>
-              <Label>{t("admin.household_pickup_event.customer")}</Label>
-              <Select
-                value={formData.customer_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, customer_id: value }))}
-                options={customers}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-                required
-              />
-            </div>
+            {showField("customer_id") && (
+              <div>
+                <Label>{t("admin.household_pickup_event.customer")}</Label>
+                <Select
+                  value={formData.customer_id}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, customer_id: value }))}
+                  options={customers}
+                  placeholder={t("common.select_option")}
+                  disabled={fetching}
+                  required
+                />
+              </div>
+            )}
 
-            <div>
-              <Label>{t("admin.household_pickup_event.zone")}</Label>
-              <Select
-                value={formData.zone_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, zone_id: value }))}
-                options={zones}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-                required
-              />
-            </div>
+            {showField("zone_id") && (
+              <div>
+                <Label>{t("admin.household_pickup_event.zone")}</Label>
+                <Select
+                  value={formData.zone_id}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, zone_id: value }))}
+                  options={zones}
+                  placeholder={t("common.select_option")}
+                  disabled={fetching}
+                  required
+                />
+              </div>
+            )}
 
-            <div>
-              <Label>{t("admin.household_pickup_event.property")}</Label>
-              <Select
-                value={formData.property_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, property_id: value }))}
-                options={properties}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-                required
-              />
-            </div>
+            {showField("property_id") && (
+              <div>
+                <Label>{t("admin.household_pickup_event.property")}</Label>
+                <Select
+                  value={formData.property_id}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, property_id: value }))}
+                  options={properties}
+                  placeholder={t("common.select_option")}
+                  disabled={fetching}
+                  required
+                />
+              </div>
+            )}
 
-            <div>
-              <Label>{t("admin.household_pickup_event.sub_property")}</Label>
-              <Select
-                value={formData.sub_property_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, sub_property_id: value }))}
-                options={subProperties}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-                required
-              />
-            </div>
+            {showField("sub_property_id") && (
+              <div>
+                <Label>{t("admin.household_pickup_event.sub_property")}</Label>
+                <Select
+                  value={formData.sub_property_id}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, sub_property_id: value }))}
+                  options={subProperties}
+                  placeholder={t("common.select_option")}
+                  disabled={fetching}
+                  required
+                />
+              </div>
+            )}
 
-            <div>
-              <Label>{t("admin.household_pickup_event.collector")}</Label>
-              <Select
-                value={formData.collector_staff_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, collector_staff_id: value }))}
-                options={collectors}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-                required
-              />
-            </div>
+            {showField("collector_staff_id") && (
+              <div>
+                <Label>{t("admin.household_pickup_event.collector")}</Label>
+                <Select
+                  value={formData.collector_staff_id}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, collector_staff_id: value }))}
+                  options={collectors}
+                  placeholder={t("common.select_option")}
+                  disabled={fetching}
+                  required
+                />
+              </div>
+            )}
 
-            <div>
-              <Label>{t("admin.household_pickup_event.vehicle")}</Label>
-              <Select
-                value={formData.vehicle_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, vehicle_id: value }))}
-                options={vehicles}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-                required
-              />
-            </div>
+            {showField("vehicle_id") && (
+              <div>
+                <Label>{t("admin.household_pickup_event.vehicle")}</Label>
+                <Select
+                  value={formData.vehicle_id}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, vehicle_id: value }))}
+                  options={vehicles}
+                  placeholder={t("common.select_option")}
+                  disabled={fetching}
+                  required
+                />
+              </div>
+            )}
 
-            <div>
-              <Label>{t("admin.household_pickup_event.pickup_time")}</Label>
-              <Input
-                type="datetime-local"
-                value={formData.pickup_time}
-                onChange={(e) => setFormData((prev) => ({ ...prev, pickup_time: e.target.value }))}
-              />
-            </div>
+            {showField("pickup_time") && (
+              <div>
+                <Label>{t("admin.household_pickup_event.pickup_time")}</Label>
+                <Input
+                  type="datetime-local"
+                  value={formData.pickup_time}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, pickup_time: e.target.value }))}
+                />
+              </div>
+            )}
 
-            <div>
-              <Label>{t("admin.household_pickup_event.weight_kg")}</Label>
-              <Input
-                type="number"
-                min={0}
-                value={formData.weight_kg}
-                onChange={(e) => setFormData((prev) => ({ ...prev, weight_kg: e.target.value }))}
-              />
-            </div>
+            {showField("weight_kg") && (
+              <div>
+                <Label>{t("admin.household_pickup_event.weight_kg")}</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={formData.weight_kg}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, weight_kg: e.target.value }))}
+                />
+              </div>
+            )}
 
-            <div>
-              <Label>{t("admin.household_pickup_event.source")}</Label>
-              <Select
-                value={formData.source}
-                onChange={(value) => setFormData((prev) => ({ ...prev, source: value }))}
-                options={sourceOptions}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-                required
-              />
-            </div>
+            {showField("source") && (
+              <div>
+                <Label>{t("admin.household_pickup_event.source")}</Label>
+                <Select
+                  value={formData.source}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, source: value }))}
+                  options={sourceOptions}
+                  placeholder={t("common.select_option")}
+                  disabled={fetching}
+                  required
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3">

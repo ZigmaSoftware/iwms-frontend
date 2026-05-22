@@ -273,6 +273,7 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { type StateRecord, useStatesQuery, useUpdateStateMutation } from "@/tanstack/admin";
 
 type TableFilters = {
@@ -286,6 +287,13 @@ type ErrorWithResponse = {
   response?: {
     data?: unknown;
   };
+};
+
+const STATE_COLUMN_FIELDS: Record<string, string[]> = {
+  country_name: ["country_id"],
+  name: ["name"],
+  label: ["label"],
+  is_active: ["is_active"],
 };
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
@@ -314,6 +322,11 @@ export default function StateList() {
   const updateStateMutation = useUpdateStateMutation();
   const states = statesQuery.data ?? [];
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "masters",
+    "states",
+    STATE_COLUMN_FIELDS,
+  );
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
@@ -342,7 +355,7 @@ export default function StateList() {
   }, [statesQuery.error, statesQuery.isError, t]);
 
   const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters);
+    setFilters(e.filters as TableFilters);
   };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -380,7 +393,13 @@ export default function StateList() {
     setPendingStatusId(stateId);
 
     try {
-      await updateStateMutation.mutateAsync({ id: row.unique_id, payload: { name: row.name, is_active: checked } });
+      await updateStateMutation.mutateAsync({
+        id: row.unique_id,
+        payload: filterPayload({ name: row.name, is_active: checked }) as {
+          name: string;
+          is_active: boolean;
+        },
+      });
     } catch {
       Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
     } finally {
@@ -457,37 +476,45 @@ export default function StateList() {
           style={{ width: "70px" }}
         />
 
-        <Column
-          field="country_name"
-          header={t("admin.nav.country")}
-          body={(r) => cap(r.country_name)}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("country_name") && (
+          <Column
+            field="country_name"
+            header={t("admin.nav.country")}
+            body={(r) => cap(r.country_name)}
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="name"
-          header={t("admin.nav.state")}
-          body={(r) => cap(r.name)}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("name") && (
+          <Column
+            field="name"
+            header={t("admin.nav.state")}
+            body={(r) => cap(r.name)}
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="label"
-          header={t("common.label")}
-          body={(r) => r.label.toUpperCase()}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("label") && (
+          <Column
+            field="label"
+            header={t("common.label")}
+            body={(r) => r.label.toUpperCase()}
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          header={t("common.status")}
-          body={statusTemplate}
-        />
+        {showCol("is_active") && (
+          <Column
+            header={t("common.status")}
+            body={statusTemplate}
+          />
+        )}
 
         <Column
           header={t("common.actions")}

@@ -18,6 +18,7 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
   usePropertiesQuery,
   useUpdatePropertyMutation,
@@ -50,6 +51,11 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
+const PROPERTY_COLUMN_FIELDS: Record<string, string[]> = {
+  property_name: ["property_name"],
+  is_active: ["is_active"],
+};
+
 export default function PropertyList() {
   const { t } = useTranslation();
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -78,6 +84,11 @@ export default function PropertyList() {
 
   const propertiesQuery = usePropertiesQuery();
   const updatePropertyMutation = useUpdatePropertyMutation();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "masters",
+    "properties",
+    PROPERTY_COLUMN_FIELDS,
+  );
 
   // Handle fetch error
   useEffect(() => {
@@ -163,10 +174,10 @@ export default function PropertyList() {
       try {
         await updatePropertyMutation.mutateAsync({
           id: row.unique_id,
-          payload: {
+          payload: filterPayload({
             property_name: row.property_name,
             is_active: value,
-          },
+          }) as PropertyRecord,
         });
       } catch (err) {
         Swal.fire({
@@ -277,20 +288,24 @@ export default function PropertyList() {
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
 
-          <Column
-            field="property_name"
-            header={t("common.item_name", { item: t("admin.nav.property") })}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: PropertyRecord) => cap(row.property_name)}
-          />
+          {showCol("property_name") && (
+            <Column
+              field="property_name"
+              header={t("common.item_name", { item: t("admin.nav.property") })}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row: PropertyRecord) => cap(row.property_name)}
+            />
+          )}
 
-          <Column
-            header={t("common.status")}
-            body={statusTemplate}
-            style={{ width: "140px" }}
-          />
+          {showCol("is_active") && (
+            <Column
+              header={t("common.status")}
+              body={statusTemplate}
+              style={{ width: "140px" }}
+            />
+          )}
 
           <Column
             header={t("common.actions")}

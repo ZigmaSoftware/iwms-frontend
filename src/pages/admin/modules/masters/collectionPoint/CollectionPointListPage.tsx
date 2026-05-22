@@ -13,6 +13,7 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
   useCollectionPointsQuery,
   useUpdateCollectionPointMutation,
@@ -36,6 +37,20 @@ const toDisplay = (value: unknown): string =>
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
+
+const COLLECTION_POINT_COLUMN_FIELDS: Record<string, string[]> = {
+  cp_name: ["cp_name", "collection_point_name", "name"],
+  company_name: ["company_id", "company_name"],
+  project_name: ["project_id", "project_name"],
+  state_name: ["state_id", "state_name"],
+  district_name: ["district_id", "district_name"],
+  city_name: ["city_id", "city_name"],
+  panchayat_name: ["panchayat_id", "panchayat_name"],
+  ward_name: ["ward_id", "ward_name"],
+  latitude: ["latitude"],
+  longitude: ["longitude"],
+  is_active: ["is_active"],
+};
 
 export default function CollectionPointListPage() {
   const { t } = useTranslation();
@@ -71,6 +86,11 @@ export default function CollectionPointListPage() {
     companyUniqueId ? { company_id: companyUniqueId, project_id: projectId || undefined } : null
   );
   const updateCollectionPointMutation = useUpdateCollectionPointMutation();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "masters",
+    "collection-points",
+    COLLECTION_POINT_COLUMN_FIELDS,
+  );
 
   useEffect(() => {
     if (!collectionPointsQuery.isError) return;
@@ -138,7 +158,7 @@ export default function CollectionPointListPage() {
         setPendingStatusId(String(row.unique_id));
         await updateCollectionPointMutation.mutateAsync({
           id: row.unique_id,
-          payload: { is_active: value },
+          payload: filterPayload({ is_active: value }) as { is_active: boolean },
         });
       } catch (error) {
         console.error("Failed to update collection point status", error);
@@ -245,73 +265,95 @@ export default function CollectionPointListPage() {
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.collection_point") })}
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
-        <Column
-          field="cp_name"
-          header={t("admin.nav.collection_point")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: CollectionPointRecord) => cap(row.cp_name ?? row.collection_point_name ?? null)}
-        />
-        <Column
-          field="company_name"
-          header={t("admin.nav.company")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: CollectionPointRecord) => cap(row.company_name ?? null)}
-        />
-        <Column
-          field="project_name"
-          header={t("admin.nav.project")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: CollectionPointRecord) => cap(row.project_name ?? null)}
-        />
-        <Column
-          field="state_name"
-          header={t("common.state")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: CollectionPointRecord) => cap(row.state_name ?? null)}
-        />
-        <Column
-          field="district_name"
-          header={t("common.district")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: CollectionPointRecord) => cap(row.district_name ?? null)}
-        />
-        <Column
-          field="city_name"
-          header={t("common.city")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: CollectionPointRecord) => cap(row.city_name ?? null)}
-        />
-        <Column
-          field="panchayat_name"
-          header={t("admin.nav.panchayat")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: CollectionPointRecord) => toDisplay(row.panchayat_name)}
-        />
-        <Column
-          field="ward_name"
-          header={t("admin.nav.ward")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: CollectionPointRecord) => toDisplay(row.ward_name)}
-        />
-        <Column field="latitude" header="Latitude" body={(row: CollectionPointRecord) => toDisplay(row.latitude)} />
-        <Column field="longitude" header="Longitude" body={(row: CollectionPointRecord) => toDisplay(row.longitude)} />
-        <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />
+        {showCol("cp_name") && (
+          <Column
+            field="cp_name"
+            header={t("admin.nav.collection_point")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: CollectionPointRecord) => cap(row.cp_name ?? row.collection_point_name ?? null)}
+          />
+        )}
+        {showCol("company_name") && (
+          <Column
+            field="company_name"
+            header={t("admin.nav.company")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: CollectionPointRecord) => cap(row.company_name ?? null)}
+          />
+        )}
+        {showCol("project_name") && (
+          <Column
+            field="project_name"
+            header={t("admin.nav.project")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: CollectionPointRecord) => cap(row.project_name ?? null)}
+          />
+        )}
+        {showCol("state_name") && (
+          <Column
+            field="state_name"
+            header={t("common.state")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: CollectionPointRecord) => cap(row.state_name ?? null)}
+          />
+        )}
+        {showCol("district_name") && (
+          <Column
+            field="district_name"
+            header={t("common.district")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: CollectionPointRecord) => cap(row.district_name ?? null)}
+          />
+        )}
+        {showCol("city_name") && (
+          <Column
+            field="city_name"
+            header={t("common.city")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: CollectionPointRecord) => cap(row.city_name ?? null)}
+          />
+        )}
+        {showCol("panchayat_name") && (
+          <Column
+            field="panchayat_name"
+            header={t("admin.nav.panchayat")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: CollectionPointRecord) => toDisplay(row.panchayat_name)}
+          />
+        )}
+        {showCol("ward_name") && (
+          <Column
+            field="ward_name"
+            header={t("admin.nav.ward")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: CollectionPointRecord) => toDisplay(row.ward_name)}
+          />
+        )}
+        {showCol("latitude") && (
+          <Column field="latitude" header="Latitude" body={(row: CollectionPointRecord) => toDisplay(row.latitude)} />
+        )}
+        {showCol("longitude") && (
+          <Column field="longitude" header="Longitude" body={(row: CollectionPointRecord) => toDisplay(row.longitude)} />
+        )}
+        {showCol("is_active") && (
+          <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />
+        )}
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: "150px", textAlign: "center" }} />
       </DataTable>
     </div>

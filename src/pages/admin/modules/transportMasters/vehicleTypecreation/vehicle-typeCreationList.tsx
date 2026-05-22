@@ -18,7 +18,9 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
+  type VehicleTypePayload,
   useVehicleTypesQuery,
   useUpdateVehicleTypeMutation,
 } from "@/tanstack/admin";
@@ -38,6 +40,13 @@ type VehicleTypeRecord = {
   project_name?: string | null;
 };
 
+const VEHICLE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
+  vehicleType: ["vehicleType", "vehicle_type"],
+  company_name: ["company_id", "company_name", "company"],
+  project_name: ["project_id", "project_name", "project"],
+  is_active: ["is_active", "status", "active_status"],
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const normalizeId = (value: unknown): string =>
@@ -51,6 +60,11 @@ const cap = (str?: string | null) =>
 export default function VehicleTypeCreationList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "transport-master",
+    "vehicle-type",
+    VEHICLE_TYPE_COLUMN_FIELDS
+  );
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -121,13 +135,13 @@ export default function VehicleTypeCreationList() {
       try {
         await updateMutation.mutateAsync({
           id: row.unique_id,
-          payload: {
+          payload: filterPayload({
             vehicleType: row.vehicleType,
             description: row.description,
             is_active: value,
             company_id_input: row.company_id || row.company_unique_id,
             project_id_input: row.project_id || row.project_unique_id,
-          },
+          }, ["company_id_input", "project_id_input"]) as unknown as VehicleTypePayload,
         });
       } catch (error) {
         console.error("Failed to update vehicle type status:", error);
@@ -249,9 +263,9 @@ export default function VehicleTypeCreationList() {
         showGridlines
         className="p-datatable-sm"
         globalFilterFields={[
-          "vehicleType",
-          "company_name",
-          "project_name",
+          ...(showCol("vehicleType") ? ["vehicleType"] : []),
+          ...(showCol("company_name") ? ["company_name"] : []),
+          ...(showCol("project_name") ? ["project_name"] : []),
         ]}
         emptyMessage={t("admin.vehicle_type.empty_message")}
       >
@@ -261,39 +275,47 @@ export default function VehicleTypeCreationList() {
           style={{ width: "80px" }}
         />
 
-        <Column
-          field="vehicleType"
-          header={t("admin.vehicle_type.label")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: VehicleTypeRecord) => cap(row.vehicleType)}
-          style={{ minWidth: "200px" }}
-        />
+        {showCol("vehicleType") && (
+          <Column
+            field="vehicleType"
+            header={t("admin.vehicle_type.label")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: VehicleTypeRecord) => cap(row.vehicleType)}
+            style={{ minWidth: "200px" }}
+          />
+        )}
 
-        <Column
-          field="company_name"
-          header={t("admin.nav.company")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: VehicleTypeRecord) => cap(row.company_name)}
-        />
+        {showCol("company_name") && (
+          <Column
+            field="company_name"
+            header={t("admin.nav.company")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: VehicleTypeRecord) => cap(row.company_name)}
+          />
+        )}
 
-        <Column
-          field="project_name"
-          header={t("admin.nav.project")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: VehicleTypeRecord) => cap(row.project_name)}
-        />
+        {showCol("project_name") && (
+          <Column
+            field="project_name"
+            header={t("admin.nav.project")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: VehicleTypeRecord) => cap(row.project_name)}
+          />
+        )}
 
-        <Column
-          header={t("common.status")}
-          body={statusTemplate}
-          style={{ width: "140px" }}
-        />
+        {showCol("is_active") && (
+          <Column
+            header={t("common.status")}
+            body={statusTemplate}
+            style={{ width: "140px" }}
+          />
+        )}
 
         <Column
           header={t("common.actions")}

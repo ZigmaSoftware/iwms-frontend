@@ -18,6 +18,7 @@ import type { SelectOption } from "@/types";
 import type { CountryMeta, ErrorWithResponse } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
   useContinentsQuery,
   useCountriesQuery,
@@ -29,6 +30,14 @@ import {
 
 const { encMasters, encStates } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encStates}`;
+
+const STATE_FIELDS: Record<string, string[]> = {
+  continent_id: ["continent_id"],
+  country_id: ["country_id"],
+  name: ["name"],
+  label: ["label"],
+  is_active: ["is_active"],
+};
 
 const normalizeNullableId = (
   value: string | number | { unique_id?: string | number; id?: string | number } | null | undefined
@@ -83,6 +92,8 @@ type StateWithRelations = {
 
 function StateForm() {
   const { t } = useTranslation();
+  const { showField, filterPayload, getMissingRequiredFields } =
+    useFieldVisibility("masters", "states", STATE_FIELDS);
   const [name, setName] = useState("");
   const [label, setLabel] = useState("");
   const [isActive, setIsActive] = useState(true);
@@ -327,8 +338,19 @@ function StateForm() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const fieldValues: Record<string, unknown> = {
+      continent_id: continentId,
+      country_id: countryId,
+      name: name.trim(),
+      label: label.trim(),
+    };
 
-    if (!continentId || !countryId || !name.trim() || !label.trim()) {
+    if (
+      getMissingRequiredFields(
+        ["continent_id", "country_id", "name", "label"],
+        (fieldKey) => fieldValues[fieldKey],
+      ).length > 0
+    ) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -353,13 +375,14 @@ function StateForm() {
     //   return;
     // }
 
-    const payload = {
+    const rawPayload = {
       name: name.trim(),
       label: label.trim(),
       country_id: countryId,
       continent_id: continentId,
       is_active: isActive,
     };
+    const payload = filterPayload(rawPayload) as typeof rawPayload;
 
     try {
       if (isEdit && id) {
@@ -455,103 +478,113 @@ function StateForm() {
             )}
           </div> */}
 
-          <div>
-            <Label htmlFor="continent">
-              {t("admin.nav.continent")} <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={continentId}
-              onValueChange={(value) => setContinentId(value)}
-            >
-              <SelectTrigger className="input-validate w-full" id="continent">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.continent"),
-                  })}
-                />
-              </SelectTrigger>
+          {showField("continent_id") && (
+            <div>
+              <Label htmlFor="continent">
+                {t("admin.nav.continent")} <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={continentId}
+                onValueChange={(value) => setContinentId(value)}
+              >
+                <SelectTrigger className="input-validate w-full" id="continent">
+                  <SelectValue
+                    placeholder={t("common.select_item_placeholder", {
+                      item: t("admin.nav.continent"),
+                    })}
+                  />
+                </SelectTrigger>
 
-              <SelectContent>
-                {continents.map((ct) => (
-                  <SelectItem key={ct.value} value={ct.value}>
-                    {ct.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                <SelectContent>
+                  {continents.map((ct) => (
+                    <SelectItem key={ct.value} value={ct.value}>
+                      {ct.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
-          <div>
-            <Label htmlFor="country">
-              {t("admin.nav.country")} <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={countryId}
-              disabled={!continentId || filteredCountries.length === 0}
-              onValueChange={(value) => setCountryId(value)}
-            >
-              <SelectTrigger className="input-validate w-full" id="country">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.country"),
-                  })}
-                />
-              </SelectTrigger>
+          {showField("country_id") && (
+            <div>
+              <Label htmlFor="country">
+                {t("admin.nav.country")} <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={countryId}
+                disabled={!continentId || filteredCountries.length === 0}
+                onValueChange={(value) => setCountryId(value)}
+              >
+                <SelectTrigger className="input-validate w-full" id="country">
+                  <SelectValue
+                    placeholder={t("common.select_item_placeholder", {
+                      item: t("admin.nav.country"),
+                    })}
+                  />
+                </SelectTrigger>
 
-              <SelectContent>
-                {filteredCountries.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                <SelectContent>
+                  {filteredCountries.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
-          <div>
-            <Label htmlFor="stateName">
-              {t("common.item_name", { item: t("admin.nav.state") })}{" "}
-              <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="stateName"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t("common.enter_item_name", {
-                item: t("admin.nav.state"),
-              })}
-            />
-          </div>
+          {showField("name") && (
+            <div>
+              <Label htmlFor="stateName">
+                {t("common.item_name", { item: t("admin.nav.state") })}{" "}
+                <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="stateName"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t("common.enter_item_name", {
+                  item: t("admin.nav.state"),
+                })}
+              />
+            </div>
+          )}
 
-          <div>
-            <Label htmlFor="stateLabel">
-              {t("common.label")} <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="stateLabel"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder={t("common.enter_label")}
-            />
-          </div>
+          {showField("label") && (
+            <div>
+              <Label htmlFor="stateLabel">
+                {t("common.label")} <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="stateLabel"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder={t("common.enter_label")}
+              />
+            </div>
+          )}
 
-          <div>
-            <Label htmlFor="stateStatus">
-              {t("common.status")} <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={isActive ? "true" : "false"}
-              onValueChange={(v) => setIsActive(v === "true")}
-            >
-              <SelectTrigger className="input-validate w-full" id="stateStatus">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {showField("is_active") && (
+            <div>
+              <Label htmlFor="stateStatus">
+                {t("common.status")} <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={isActive ? "true" : "false"}
+                onValueChange={(v) => setIsActive(v === "true")}
+              >
+                <SelectTrigger className="input-validate w-full" id="stateStatus">
+                  <SelectValue placeholder={t("common.select_status")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">{t("common.active")}</SelectItem>
+                  <SelectItem value="false">{t("common.inactive")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-3 mt-6">

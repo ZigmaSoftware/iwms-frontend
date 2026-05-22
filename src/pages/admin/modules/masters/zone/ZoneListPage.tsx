@@ -20,41 +20,13 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useZonesQuery, useUpdateZoneMutation } from "@/tanstack/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useScreenColumnPermissions } from "@/hooks/useScreenColumnPermissions";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { ZoneListRecord } from "./types";
 
 const ZONE_COLUMN_FIELDS: Record<string, string[]> = {
   city_name: ["city_id"],
   zone_name: ["zone_name"],
   is_active: ["is_active"],
-};
-
-type ErrorWithResponse = {
-  response?: {
-    data?: unknown;
-  };
-};
-
-const extractErrorMessage = (error: unknown) => {
-  if (!error) return "Something went wrong while processing the request.";
-  if (typeof error === "string") return error;
-
-  const data = (error as ErrorWithResponse)?.response?.data;
-
-  if (typeof data === "string") return data;
-  if (Array.isArray(data)) return data.join(", ");
-
-  if (data && typeof data === "object") {
-    return Object.entries(data as Record<string, unknown>)
-      .map(([k, v]) =>
-        Array.isArray(v) ? `${k}: ${v.join(", ")}` : `${k}: ${String(v)}`
-      )
-      .join("\n");
-  }
-
-  if (error instanceof Error && error.message) return error.message;
-
-  return "Something went wrong while processing the request.";
 };
 
 const normalizeId = (value: unknown): string =>
@@ -65,12 +37,11 @@ const normalizeId = (value: unknown): string =>
 // ===========================
 export default function ZoneList() {
   const { t } = useTranslation();
-  const allowedColumns = useScreenColumnPermissions("masters", "zones");
-
-  const showCol = (key: string): boolean => {
-    if (!allowedColumns) return true;
-    return (ZONE_COLUMN_FIELDS[key] ?? []).some((f) => allowedColumns.has(f));
-  };
+  const { showColumn: showCol } = useFieldVisibility(
+    "masters",
+    "zones",
+    ZONE_COLUMN_FIELDS,
+  );
 
   const zonesQuery = useZonesQuery();
   const updateZoneMutation = useUpdateZoneMutation();

@@ -18,6 +18,7 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
   useSubPropertiesQuery,
   useUpdateSubPropertyMutation,
@@ -50,6 +51,12 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
+const SUB_PROPERTY_COLUMN_FIELDS: Record<string, string[]> = {
+  property_name: ["property_id"],
+  sub_property_name: ["sub_property_name"],
+  is_active: ["is_active"],
+};
+
 export default function SubPropertyList() {
   const { t } = useTranslation();
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -78,6 +85,11 @@ export default function SubPropertyList() {
 
   const subPropertiesQuery = useSubPropertiesQuery();
   const updateSubPropertyMutation = useUpdateSubPropertyMutation();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "masters",
+    "sub-properties",
+    SUB_PROPERTY_COLUMN_FIELDS,
+  );
 
   // Handle fetch error
   useEffect(() => {
@@ -173,11 +185,11 @@ export default function SubPropertyList() {
       try {
         await updateSubPropertyMutation.mutateAsync({
           id: row.unique_id,
-          payload: {
+          payload: filterPayload({
             sub_property_name: row.sub_property_name,
             property_id: row.property_id,
             is_active: value,
-          },
+          }) as SubPropertyRecord,
         });
       } catch (err) {
         Swal.fire({
@@ -289,29 +301,35 @@ export default function SubPropertyList() {
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
 
-          <Column
-            field="property_name"
-            header={t("admin.nav.property")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: SubPropertyRecord) => cap(row.property_name)}
-          />
+          {showCol("property_name") && (
+            <Column
+              field="property_name"
+              header={t("admin.nav.property")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row: SubPropertyRecord) => cap(row.property_name)}
+            />
+          )}
 
-          <Column
-            field="sub_property_name"
-            header={t("admin.nav.sub_property")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: SubPropertyRecord) => cap(row.sub_property_name)}
-          />
+          {showCol("sub_property_name") && (
+            <Column
+              field="sub_property_name"
+              header={t("admin.nav.sub_property")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row: SubPropertyRecord) => cap(row.sub_property_name)}
+            />
+          )}
 
-          <Column
-            header={t("common.status")}
-            body={statusTemplate}
-            style={{ width: "140px" }}
-          />
+          {showCol("is_active") && (
+            <Column
+              header={t("common.status")}
+              body={statusTemplate}
+              style={{ width: "140px" }}
+            />
+          )}
 
           <Column
             header={t("common.actions")}

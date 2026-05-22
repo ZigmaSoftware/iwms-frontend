@@ -46,7 +46,7 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
   () => getStoredColumnPermissions()
 );
   const [isLoading, setIsLoading] = useState(false);
-  const [lastVersion, setLastVersion] = useState<number | null>(null);
+  const [lastVersion] = useState<number | null>(null);
   const [isEmptyPermissions, setIsEmptyPermissions] = useState(false);
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isMountedRef = useRef(true);
@@ -64,29 +64,26 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
 
       if (apiPermissions && Object.keys(apiPermissions).length > 0) {
         setPermissions(apiPermissions);
-        // setPermissionDetails(getStoredPermissionDetails());
+        setPermissionDetails(getStoredPermissionDetails());
         setColumnPermissions(getStoredColumnPermissions());
         setIsEmptyPermissions(false);
-        // setPermissionDetails(getStoredPermissionDetails());
       } else {
         const storedPerms = getStoredPermissions();
         setPermissions(storedPerms);
-        // setPermissionDetails(getStoredPermissionDetails());
+        setPermissionDetails(getStoredPermissionDetails());
         setColumnPermissions(getStoredColumnPermissions());
         setIsEmptyPermissions(Object.keys(storedPerms).length === 0);
-        // setPermissionDetails(getStoredPermissionDetails());
         // console.log(
         //   `[PermissionContext] ℹ️ Using stored permissions (isEmpty: ${Object.keys(storedPerms).length === 0})`
         // );
       }
-    } catch (error) {
+    } catch {
       if (isMountedRef.current) {
         const storedPerms = getStoredPermissions();
         setPermissions(storedPerms);
-        // setPermissionDetails(getStoredPermissionDetails());
+        setPermissionDetails(getStoredPermissionDetails());
         setColumnPermissions(getStoredColumnPermissions());
         setIsEmptyPermissions(Object.keys(storedPerms).length === 0);
-        // setPermissionDetails(getStoredPermissionDetails());
       }
     }
   }, []);
@@ -153,10 +150,9 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
   const handleStorageChange = useCallback(() => {
     const updated = getStoredPermissions();
     setPermissions(updated);
-    // setPermissionDetails(getStoredPermissionDetails());
+    setPermissionDetails(getStoredPermissionDetails());
     setColumnPermissions(getStoredColumnPermissions());
     setIsEmptyPermissions(Object.keys(updated).length === 0);
-    // setPermissionDetails(getStoredPermissionDetails());
   }, []);
 
   useEffect(() => {
@@ -174,7 +170,7 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
   ) => {
     // console.log("[PermissionContext] 🔄 Explicit permission update");
     setPermissions(newPermissions);
-    // setPermissionDetails(newPermissionDetails ?? getStoredPermissionDetails());
+    setPermissionDetails(newPermissionDetails ?? getStoredPermissionDetails());
     setColumnPermissions(newColumnPermissions ?? getStoredColumnPermissions());
     setIsEmptyPermissions(Object.keys(newPermissions).length === 0);
   }, []);

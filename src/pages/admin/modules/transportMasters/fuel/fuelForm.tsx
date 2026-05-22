@@ -7,7 +7,9 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
+  type FuelPayload,
   useFuelQuery,
   useCreateFuelMutation,
   useUpdateFuelMutation,
@@ -16,11 +18,22 @@ import {
 const { encTransportMaster, encFuel } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encTransportMaster}/${encFuel}`;
 
+const FUEL_FIELDS: Record<string, string[]> = {
+  fuel_type: ["fuel_type", "fuel"],
+  description: ["description"],
+  is_active: ["is_active", "active_status", "status"],
+};
+
 function FuelForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const { showField, filterPayload } = useFieldVisibility(
+    "transport-master",
+    "fuel",
+    FUEL_FIELDS
+  );
 
   // ── TanStack ──────────────────────────────────────────────────────────────
   const fuelQuery = useFuelQuery(id);
@@ -56,7 +69,7 @@ function FuelForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!fuelType) {
+    if (showField("fuel_type") && !fuelType) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -66,11 +79,12 @@ function FuelForm() {
       return;
     }
 
-    const payload = {
+    const rawPayload = {
       fuel_type: fuelType,
       description,
       is_active: isActive,
     };
+    const payload = filterPayload(rawPayload) as unknown as FuelPayload;
 
     try {
       if (isEdit && id) {
@@ -119,6 +133,7 @@ function FuelForm() {
       <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Fuel Type */}
+          {showField("fuel_type") && (
           <div>
             <Label htmlFor="fuelType">
               {t("admin.fuel.fuel_type")}{" "}
@@ -134,8 +149,10 @@ function FuelForm() {
               required
             />
           </div>
+          )}
 
           {/* Description */}
+          {showField("description") && (
           <div>
             <Label htmlFor="fuelDescription">
               {t("common.description")}{" "}
@@ -151,8 +168,10 @@ function FuelForm() {
               required
             />
           </div>
+          )}
 
           {/* Active Status */}
+          {showField("is_active") && (
           <div>
             <Label htmlFor="isActive">
               {t("admin.fuel.active_status")}{" "}
@@ -170,6 +189,7 @@ function FuelForm() {
               required
             />
           </div>
+          )}
         </div>
 
         {/* Buttons */}

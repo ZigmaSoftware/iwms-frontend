@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { encryptSegment } from "@/utils/routeCrypto";
 import { PencilIcon } from "@/icons";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useBinsQuery, useUpdateBinMutation, type BinRecord } from "@/tanstack/admin";
 
 type Bin = {
@@ -43,6 +44,10 @@ type Bin = {
   latitude?: number | string;
   longitude?: number | string;
   is_active: boolean;
+};
+
+type BinApiRow = BinRecord & {
+  bin_status?: string | number | null;
 };
 
 type QrPayload = {
@@ -78,6 +83,16 @@ const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encBins}/${id}/edit`;
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
+const BIN_COLUMN_FIELDS: Record<string, string[]> = {
+  bin_name: ["bin_name", "name"],
+  bin_capacity: ["bin_capacity", "capacity_liters"],
+  ward_name: ["ward_id", "ward", "ward_name"],
+  panchayat_name: ["panchayat_id", "panchayat", "panchayat_name"],
+  waste_type_name: ["wastetype_id", "waste_type_id", "waste_type", "waste_type_name"],
+  qr_code: ["bin_qr", "qr_code"],
+  is_active: ["is_active"],
+};
+
 export default function BinList() {
   const { t } = useTranslation();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
@@ -104,17 +119,23 @@ export default function BinList() {
   const navigate = useNavigate();
   const binsQuery = useBinsQuery(companyUniqueId ? { company_id: companyUniqueId, project_id: projectId || undefined } : null);
   const updateBinMutation = useUpdateBinMutation();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "masters",
+    "bins",
+    BIN_COLUMN_FIELDS,
+  );
 
   useEffect(() => {
     if (!binsQuery.isError) return;
-    Swal.fire(t("common.error"), String((binsQuery.error as any)?.response?.data ?? binsQuery.error), "error");
+    const data = (binsQuery.error as { response?: { data?: unknown } })?.response?.data;
+    Swal.fire(t("common.error"), String(data ?? binsQuery.error), "error");
   }, [binsQuery.error, binsQuery.isError, t]);
 
   const bins = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as Bin[];
     if (!companyUniqueId) return [] as Bin[];
 
-    const rows = Array.isArray(binsQuery.data) ? (binsQuery.data as BinRecord[]) : [];
+    const rows = Array.isArray(binsQuery.data) ? (binsQuery.data as BinApiRow[]) : [];
     const mapped: Bin[] = rows.map((row) => ({
       unique_id: String(row.unique_id ?? ""),
       bin_name: String(row.bin_name ?? ""),
@@ -133,7 +154,7 @@ export default function BinList() {
       waste_type_name: row.waste_type_name ? String(row.waste_type_name) : undefined,
       wastetype_name: row.wastetype_name ? String(row.wastetype_name) : undefined,
       waste_type: row.waste_type ? String(row.waste_type) : undefined,
-      bin_status: (row as any).bin_status ? String((row as any).bin_status) : undefined,
+      bin_status: row.bin_status ? String(row.bin_status) : undefined,
       latitude: row.latitude as number | string | undefined,
       longitude: row.longitude as number | string | undefined,
       is_active: Boolean(row.is_active),
@@ -167,11 +188,11 @@ export default function BinList() {
         setPendingStatusId(row.unique_id);
         await updateBinMutation.mutateAsync({
           id: row.unique_id,
-          payload: {
+          payload: filterPayload({
             bin_name: row.bin_name,
             bin_capacity: row.bin_capacity,
             is_active: checked,
-          },
+          }) as { bin_name: string; bin_capacity: number; is_active: boolean },
         });
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
@@ -344,62 +365,76 @@ export default function BinList() {
         className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
-        <Column
-          field="bin_name"
-          header={t("common.item_name", { item: t("admin.nav.bin_master") })}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          body={(row: Bin) => cap(row.bin_name)}
-          style={{ minWidth: "200px" }}
-        />
-        <Column
-          field="bin_capacity"
-          header={t("common.bin_capacity")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: "150px" }}
-        />
-        <Column
-          field="ward_name"
-          header={t("admin.nav.ward")}
-          body={(row: Bin) => cap(row.ward_name || row.ward || "-")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: "120px" }}
-        />
-        <Column
-          field="panchayat_name"
-          header={t("admin.nav.panchayat")}
-          body={(row: Bin) => cap(row.panchayat_name || row.panchayat || "-")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: "140px" }}
-        />
-        <Column
-          field="waste_type_name"
-          header={t("common.waste_type")}
-          body={(row: Bin) => cap(wasteTypeTemplate(row))}
-          sortable
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: "160px" }}
-        />
-        <Column
-          field="qr_code"
-          header={t("admin.bin.qr_label")}
-          body={(row: Bin) => qrTemplate(row)}
-          style={{ width: "100px", textAlign: "center" }}
-        />
-        <Column
-          field="is_active"
-          header={t("common.status")}
-          body={(row: Bin) => statusBodyTemplate(row)}
-          style={{ width: "150px", textAlign: "center" }}
-        />
+        {showCol("bin_name") && (
+          <Column
+            field="bin_name"
+            header={t("common.item_name", { item: t("admin.nav.bin_master") })}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: Bin) => cap(row.bin_name)}
+            style={{ minWidth: "200px" }}
+          />
+        )}
+        {showCol("bin_capacity") && (
+          <Column
+            field="bin_capacity"
+            header={t("common.bin_capacity")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            style={{ minWidth: "150px" }}
+          />
+        )}
+        {showCol("ward_name") && (
+          <Column
+            field="ward_name"
+            header={t("admin.nav.ward")}
+            body={(row: Bin) => cap(row.ward_name || row.ward || "-")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            style={{ minWidth: "120px" }}
+          />
+        )}
+        {showCol("panchayat_name") && (
+          <Column
+            field="panchayat_name"
+            header={t("admin.nav.panchayat")}
+            body={(row: Bin) => cap(row.panchayat_name || row.panchayat || "-")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            style={{ minWidth: "140px" }}
+          />
+        )}
+        {showCol("waste_type_name") && (
+          <Column
+            field="waste_type_name"
+            header={t("common.waste_type")}
+            body={(row: Bin) => cap(wasteTypeTemplate(row))}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            style={{ minWidth: "160px" }}
+          />
+        )}
+        {showCol("qr_code") && (
+          <Column
+            field="qr_code"
+            header={t("admin.bin.qr_label")}
+            body={(row: Bin) => qrTemplate(row)}
+            style={{ width: "100px", textAlign: "center" }}
+          />
+        )}
+        {showCol("is_active") && (
+          <Column
+            field="is_active"
+            header={t("common.status")}
+            body={(row: Bin) => statusBodyTemplate(row)}
+            style={{ width: "150px", textAlign: "center" }}
+          />
+        )}
         <Column
           field="actions"
           header={t("common.actions")}
@@ -410,4 +445,3 @@ export default function BinList() {
     </div>
   );
 }
-
