@@ -377,11 +377,9 @@
 
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { staffCreationApi } from "@/helpers/admin";
 import {
   useStaffCreationList,
   useUpdateStaff,
-  useDeleteStaff,
 } from "@/tanstack/admin/queries/masters/staffCreation";
 import Swal from "sweetalert2";
 import ReactDOM from "react-dom/client";
@@ -395,11 +393,24 @@ import { FilterMatchMode } from "primereact/api";
 import QRCode from "react-qr-code";
 import { useTranslation } from "react-i18next";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
+import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+
+const STAFF_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
+  unique_id: ["unique_id", "staff_unique_id", "zigma_id"],
+  employee_name: ["employee_name", "name"],
+  designation: ["designation"],
+  doj: ["doj", "date_of_joining"],
+  site_name: ["site_name", "site"],
+  salary_type: ["salary_type"],
+  contact_mobile: ["contact_mobile", "mobile"],
+  active_status: ["active_status", "is_active"],
+  qr_code: ["qr_code"],
+};
 
 type Staff = {
   unique_id: number;
@@ -441,6 +452,11 @@ const normalizeId = (value: unknown): string =>
 export default function StaffCreationList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "staff-masters",
+    "staff-creation",
+    STAFF_CREATION_COLUMN_FIELDS
+  );
   const [staffs, setStaffs] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const {
@@ -485,8 +501,6 @@ export default function StaffCreationList() {
   ];
 
   const updateMutation = useUpdateStaff();
-  const deleteMutation = useDeleteStaff();
-
   const requestParams = {
     salary_type: filterParams.salary_type,
     active_status: filterParams.active_status,
@@ -496,7 +510,7 @@ export default function StaffCreationList() {
     ...(projectId ? { project_id: projectId } : {}),
   };
 
-  const { data: rawData, isLoading } = useStaffCreationList(requestParams.company_id ? requestParams : undefined);
+  const { data: rawData, refetch } = useStaffCreationList(requestParams.company_id ? requestParams : undefined);
 
   useEffect(() => {
     const load = async () => {
@@ -554,7 +568,9 @@ export default function StaffCreationList() {
     load();
   }, [rawData, companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
-  const applyFilter = () => fetchStaffs(filterParams);
+  const applyFilter = () => {
+    void refetch();
+  };
 
   const handleFilterChange = (
     ev: ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -574,30 +590,14 @@ export default function StaffCreationList() {
     setDatatableFilters(updated);
   };
 
-  const handleDelete = async (id: number) => {
-    const confirm = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("admin.staff_creation.delete_confirm"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    try {
-      await deleteMutation.mutateAsync(id);
-      Swal.fire(t("common.deleted_success"), t("common.record_removed"), "success");
-    } catch (err) {
-      Swal.fire(t("common.error"), t("admin.staff_creation.delete_failed"), "error");
-    }
-  };
-
   const statusTemplate = (row: Staff) => {
     const updateStatus = async (value: boolean) => {
       try {
         const formData = new FormData();
-        formData.append("active_status", String(value));
+        const payload = filterPayload({ active_status: value });
+        Object.entries(payload).forEach(([key, entryValue]) => {
+          formData.append(key, String(entryValue));
+        });
 
         await updateMutation.mutateAsync({ id: row.unique_id, payload: formData });
       } catch (err) {
@@ -719,6 +719,7 @@ export default function StaffCreationList() {
 
       {/* Filters Row */}
       <div className="grid gap-3 md:grid-cols-5">
+        {showCol("salary_type") && (
         <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold">
             {t("admin.staff_creation.salary_type")}
@@ -735,7 +736,9 @@ export default function StaffCreationList() {
             <option value="Contract">{t("admin.staff_creation.salary_contract")}</option>
           </select>
         </div>
+        )}
 
+        {showCol("active_status") && (
         <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold">{t("common.status")}</span>
           <select
@@ -749,7 +752,9 @@ export default function StaffCreationList() {
             <option value="0">{t("common.inactive")}</option>
           </select>
         </div>
+        )}
 
+        {showCol("site_name") && (
         <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold">
             {t("admin.staff_creation.site_name")}
@@ -762,7 +767,9 @@ export default function StaffCreationList() {
             className="h-10 rounded-lg border px-3 text-sm"
           />
         </div>
+        )}
 
+        {showCol("employee_name") && (
         <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold">
             {t("admin.staff_creation.employee_name")}
@@ -775,6 +782,7 @@ export default function StaffCreationList() {
             className="h-10 rounded-lg border px-3 text-sm"
           />
         </div>
+        )}
 
         <div className="flex items-end">
           <button
@@ -822,62 +830,78 @@ export default function StaffCreationList() {
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 70 }} />
 
-          <Column
-            field="unique_id"
-            header={t("admin.staff_creation.zigma_id")}
-            sortable
-            body={(row: Staff) => cap(row.unique_id)}
-          />
+          {showCol("unique_id") && (
+            <Column
+              field="unique_id"
+              header={t("admin.staff_creation.zigma_id")}
+              sortable
+              body={(row: Staff) => cap(row.unique_id)}
+            />
+          )}
 
-          <Column
-            field="employee_name"
-            header={t("admin.staff_creation.employee_name")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: Staff) => cap(row.employee_name)}
-          />
+          {showCol("employee_name") && (
+            <Column
+              field="employee_name"
+              header={t("admin.staff_creation.employee_name")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row: Staff) => cap(row.employee_name)}
+            />
+          )}
 
-          <Column
-            field="designation"
-            header={t("admin.staff_creation.designation")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
+          {showCol("designation") && (
+            <Column
+              field="designation"
+              header={t("admin.staff_creation.designation")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+            />
+          )}
 
-          <Column
-            field="doj"
-            header={t("admin.staff_creation.doj")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
+          {showCol("doj") && (
+            <Column
+              field="doj"
+              header={t("admin.staff_creation.doj")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+            />
+          )}
 
-          <Column
-            field="site_name"
-            header={t("admin.staff_creation.site_name")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-          />
+          {showCol("site_name") && (
+            <Column
+              field="site_name"
+              header={t("admin.staff_creation.site_name")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+            />
+          )}
 
-          <Column
-            header={t("admin.staff_creation.contact")}
-            body={(row: Staff) => row.contact_mobile || "-"}
-          />
+          {showCol("contact_mobile") && (
+            <Column
+              header={t("admin.staff_creation.contact")}
+              body={(row: Staff) => row.contact_mobile || "-"}
+            />
+          )}
 
-          <Column
-            header={t("common.status")}
-            body={statusTemplate}
-            style={{ width: 120 }}
-          />
+          {showCol("active_status") && (
+            <Column
+              header={t("common.status")}
+              body={statusTemplate}
+              style={{ width: 120 }}
+            />
+          )}
 
-          <Column
-            header={t("admin.staff_creation.qr_label")}
-            body={qrTemplate}
-            style={{ width: 120 }}
-          />
+          {showCol("qr_code") && (
+            <Column
+              header={t("admin.staff_creation.qr_label")}
+              body={qrTemplate}
+              style={{ width: 120 }}
+            />
+          )}
 
           <Column
             header={t("common.actions")}

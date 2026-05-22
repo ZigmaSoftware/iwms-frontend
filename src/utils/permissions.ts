@@ -59,6 +59,9 @@ export type ColumnPermissionsPayload = {
   simple: SimpleColumnPermissionsMap;
 };
 
+export type FieldPermissionMap = Record<string, string[]>;
+export type PayloadRecord = Record<string, unknown>;
+
 // ============================================================
 // Constants
 // ============================================================
@@ -119,6 +122,21 @@ const SCREEN_ALIASES: Record<string, string[]> = {
   "company-creation": ["company"],
   "project-creation": ["project"],
   "customer-creation": ["customercreations"],
+  "household-pickup-event": ["householdpickupevents", "householdPickupEvents"],
+  "staff-creation": ["staffcreation", "staffcreations", "staff creation"],
+  "staff-template": ["stafftemplatecreation", "stafftemplate", "staff template"],
+  "alternative-staff-template": [
+    "alternativestafftemplate",
+    "alternativestafftemplates",
+    "alternative-stafftemplate",
+    "alternative staff template",
+  ],
+  "supervisor-zone-map": ["supervisorzonemap", "supervisor-zone-map", "supervisor zone map"],
+  "unassigned-staff-pool": ["unassignedstaffpool", "unassigned-staff-pool", "unassigned staff pool"],
+  "trip-attendance": ["tripattendance", "tripattendances", "trip-attendance", "trip attendance"],
+  "collection-monitoring": ["collectionmonitoring", "collection-monitoring", "collection monitoring"],
+  "vehicle-type": ["vehicletype", "vehicletypes", "vehicle-type", "vehicle type"],
+  "vehicle-creation": ["vehiclecreation", "vehiclecreations", "vehicle-creation", "vehicle creation"],
 };
 
 // ============================================================
@@ -600,6 +618,43 @@ export const filterVisibleColumns = <TColumn>(
     hasColumnPermission(moduleName, screenName, getFieldName(column), columnPermissions),
   );
 
+export const isFieldVisibleByPermission = (
+  fieldKey: string,
+  fieldPermissionMap: FieldPermissionMap,
+  hasColumnPermissionForField: (fieldName: string) => boolean,
+): boolean => {
+  const mappedFields = fieldPermissionMap[fieldKey];
+  const fieldsToCheck = mappedFields?.length ? mappedFields : [fieldKey];
+  return fieldsToCheck.some((fieldName) => hasColumnPermissionForField(fieldName));
+};
+
+const isBlankFieldValue = (value: unknown): boolean =>
+  value === null ||
+  value === undefined ||
+  (typeof value === "string" && value.trim() === "");
+
+export const getMissingVisibleFields = (
+  requiredFieldKeys: string[],
+  getFieldValue: (fieldKey: string) => unknown,
+  isFieldVisible: (fieldKey: string) => boolean,
+): string[] =>
+  requiredFieldKeys.filter(
+    (fieldKey) => isFieldVisible(fieldKey) && isBlankFieldValue(getFieldValue(fieldKey)),
+  );
+
+export const filterPayloadByFieldVisibility = <T extends PayloadRecord>(
+  payload: T,
+  isFieldVisible: (fieldKey: string) => boolean,
+  alwaysInclude: string[] = [],
+): Partial<T> => {
+  const forcedFields = new Set(alwaysInclude);
+  return Object.fromEntries(
+    Object.entries(payload).filter(
+      ([fieldKey]) => forcedFields.has(fieldKey) || isFieldVisible(fieldKey),
+    ),
+  ) as Partial<T>;
+};
+
 export const hasSidebarPermission = (
   moduleName: string,
   screenName: string,
@@ -654,6 +709,7 @@ export const hasRoutePermission = (
 type PermissionsAPIResponse = {
   permissions?: PermissionsMap;
   permission_details?: PermissionDetailsMap;
+  column_permissions?: unknown;
 };
 
 export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
@@ -687,8 +743,12 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
 
     setStoredPermissions(permissions);
 
-    if (data.permission_details) {
-      setStoredPermissionDetails(data.permission_details);
+    if ("permission_details" in data) {
+      setStoredPermissionDetails(data.permission_details ?? {});
+    }
+
+    if ("column_permissions" in data) {
+      setStoredColumnPermissions(data.column_permissions ?? {});
     }
 
     return permissions;

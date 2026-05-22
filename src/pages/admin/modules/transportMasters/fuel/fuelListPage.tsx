@@ -1,7 +1,5 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
-
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -19,7 +17,12 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useFuelsQuery, useUpdateFuelMutation } from "@/tanstack/admin";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import {
+  type FuelPayload,
+  useFuelsQuery,
+  useUpdateFuelMutation,
+} from "@/tanstack/admin";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,6 +39,11 @@ type Fuel = {
   project_name?: string | null;
 };
 
+const FUEL_COLUMN_FIELDS: Record<string, string[]> = {
+  fuel_type: ["fuel_type", "fuel"],
+  is_active: ["is_active", "active_status", "status"],
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const normalizeId = (value: unknown): string =>
@@ -49,6 +57,11 @@ const cap = (str?: string) =>
 export default function FuelList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "transport-master",
+    "fuel",
+    FUEL_COLUMN_FIELDS
+  );
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -125,11 +138,11 @@ export default function FuelList() {
       try {
         await updateMutation.mutateAsync({
           id: row.unique_id,
-          payload: {
+          payload: filterPayload({
             fuel_type: row.fuel_type,
             description: row.description,
             is_active: value,
-          },
+          }) as unknown as FuelPayload,
         });
       } catch (err) {
         console.error("Failed to update status:", err);
@@ -240,7 +253,11 @@ export default function FuelList() {
         filters={filters}
         onFilter={onFilter}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        globalFilterFields={["fuel_type", "company_name", "project_name"]}
+        globalFilterFields={[
+          ...(showCol("fuel_type") ? ["fuel_type"] : []),
+          "company_name",
+          "project_name",
+        ]}
         header={header}
         emptyMessage={t("admin.fuel.empty_message")}
         stripedRows
@@ -253,22 +270,26 @@ export default function FuelList() {
           style={{ width: "80px" }}
         />
 
-        <Column
-          field="fuel_type"
-          header={t("admin.fuel.fuel_type")}
-          sortable
-          body={(row: Fuel) => cap(row.fuel_type)}
-          style={{ minWidth: "200px" }}
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("fuel_type") && (
+          <Column
+            field="fuel_type"
+            header={t("admin.fuel.fuel_type")}
+            sortable
+            body={(row: Fuel) => cap(row.fuel_type)}
+            style={{ minWidth: "200px" }}
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="is_active"
-          header={t("common.status")}
-          body={statusTemplate}
-          style={{ width: "150px" }}
-        />
+        {showCol("is_active") && (
+          <Column
+            field="is_active"
+            header={t("common.status")}
+            body={statusTemplate}
+            style={{ width: "150px" }}
+          />
+        )}
 
         <Column
           header={t("common.actions")}

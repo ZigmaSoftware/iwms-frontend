@@ -17,6 +17,7 @@ import type { SelectOption } from "@/types";
 
 import { wasteTypeApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { encryptSegment } from "@/utils/routeCrypto";
 import {
   useBinQuery,
@@ -34,6 +35,22 @@ import type { BinRecord, CityOption, CollectionPointOption, LocationOption, Ward
 const encMasters = encryptSegment("masters");
 const encBins = encryptSegment("bins");
 const LIST_PATH = `/${encMasters}/${encBins}`;
+
+const BIN_FIELDS: Record<string, string[]> = {
+  district_id: ["district_id", "district"],
+  city_id: ["city_id", "city"],
+  panchayat_id: ["panchayat_id", "panchayat"],
+  zone_id: ["zone_id", "zone"],
+  ward_id: ["ward_id", "ward"],
+  collection_point_id: ["collection_point_id", "collection_point"],
+  bin_capacity: ["bin_capacity", "capacity_liters"],
+  bin_type: ["bin_type"],
+  wastetype_id: ["wastetype_id", "waste_type_id", "waste_type"],
+  bin_name: ["bin_name", "name"],
+  bin_image: ["bin_image"],
+  bin_qr: ["bin_qr", "qr_code"],
+  is_active: ["is_active"],
+};
 
 const toRecordList = (value: unknown): Record<string, unknown>[] => {
   if (Array.isArray(value)) {
@@ -83,6 +100,8 @@ const normalizeIdValue = (value: unknown): string => {
 
 export default function BinForm() {
   const { t } = useTranslation();
+  const { showField, filterPayload, getMissingRequiredFields } =
+    useFieldVisibility("masters", "bins", BIN_FIELDS);
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
@@ -489,17 +508,41 @@ export default function BinForm() {
     e.preventDefault();
 
     const missingFields: string[] = [];
-    if (!binName.trim()) missingFields.push("Bin name");
+    const fieldValues: Record<string, unknown> = {
+      bin_name: binName.trim(),
+      district_id: districtId,
+      city_id: cityId,
+      panchayat_id: panchayatId,
+      ward_id: wardId,
+      collection_point_id: collectionPointId,
+      wastetype_id: wasteTypeId,
+      bin_capacity: typeof binCapacity === "number" && binCapacity > 0 ? binCapacity : "",
+    };
+    if (getMissingRequiredFields(["bin_name"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
+      missingFields.push("Bin name");
+    }
     if (!companyUniqueId) missingFields.push(t("admin.nav.company"));
     if (!projectId) missingFields.push(t("admin.nav.project"));
-    if (!districtId) missingFields.push(t("common.district"));
-    if (!cityId) missingFields.push(t("common.city"));
-    if (!panchayatId && !wardId) {
+    if (getMissingRequiredFields(["district_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
+      missingFields.push(t("common.district"));
+    }
+    if (getMissingRequiredFields(["city_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
+      missingFields.push(t("common.city"));
+    }
+    const locationChoiceVisible = showField("panchayat_id") || showField("ward_id");
+    if (locationChoiceVisible && !panchayatId && !wardId) {
       missingFields.push(`${t("admin.nav.panchayat")} / ${t("common.ward")}`);
     }
-    if (!collectionPointId) missingFields.push(t("admin.nav.collection_point"));
-    if (!wasteTypeId) missingFields.push(t("common.waste_type"));
-    if (typeof binCapacity !== "number" || binCapacity <= 0) {
+    if (
+      getMissingRequiredFields(["collection_point_id"], (fieldKey) => fieldValues[fieldKey])
+        .length > 0
+    ) {
+      missingFields.push(t("admin.nav.collection_point"));
+    }
+    if (getMissingRequiredFields(["wastetype_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
+      missingFields.push(t("common.waste_type"));
+    }
+    if (getMissingRequiredFields(["bin_capacity"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
       missingFields.push(t("common.bin_capacity"));
     }
 
@@ -512,7 +555,7 @@ export default function BinForm() {
       return;
     }
 
-    const payload = {
+    const rawPayload = {
       company_id: companyUniqueId,
       project_id: projectId,
       district_id: districtId,
@@ -529,6 +572,7 @@ export default function BinForm() {
       wastetype_id: wasteTypeId,
       is_active: isActive,
     };
+    const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
     try {
       if (isEdit && id) {
@@ -607,225 +651,252 @@ export default function BinForm() {
             </SelectContent>
           </Select>
         </div>
-        <div>
-          <Label>{t("common.district")} *</Label>
-          <Select
-            value={districtId}
-            onValueChange={(value) => {
-              setDistrictId(value);
-              setCityId("");
-              setPanchayatId("");
-              setZoneId("");
-              setWardId("");
-              setCollectionPointId("");
-            }}
-          >
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.district") })} />
-            </SelectTrigger>
-            <SelectContent>
-              {districts.map((district) => (
-                <SelectItem key={district.value} value={district.value}>
-                  {district.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>{t("common.city")} *</Label>
-          <Select
-            value={cityId}
-            onValueChange={(value) => {
-              setCityId(value);
-              setPanchayatId("");
-              setZoneId("");
-              setWardId("");
-              setCollectionPointId("");
-            }}
-            disabled={!districtId}
-          >
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.city") })} />
-            </SelectTrigger>
-            <SelectContent>
-              {cityOptions.map((city) => (
-                <SelectItem key={city.value} value={city.value}>
-                  {city.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>{t("admin.nav.panchayat")}</Label>
-          <Select
-            value={panchayatId || "__none__"}
-            onValueChange={(value) => {
-              const next = value === "__none__" ? "" : value;
-              setPanchayatId(next);
-              setZoneId("");
-              setWardId("");
-              setCollectionPointId("");
-            }}
-            disabled={!cityId || isZoneSelected || isWardSelected}
-          >
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue
-                placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") })}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
-              {panchayatOptions.map((p) => (
-                <SelectItem key={p.value} value={p.value}>
-                  {p.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>{t("admin.nav.zone")}</Label>
-          <Select
-            value={zoneId || "__none__"}
-            onValueChange={(value) => {
-              const next = value === "__none__" ? "" : value;
-              setZoneId(next);
-              setPanchayatId("");
-              setWardId("");
-              setCollectionPointId("");
-            }}
-            disabled={!cityId || isPanchayatSelected}
-          >
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.zone") })} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
-              {zoneOptions.map((z) => (
-                <SelectItem key={z.value} value={z.value}>
-                  {z.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>{t("common.ward")}</Label>
-          <Select
-            value={wardId || "__none__"}
-            onValueChange={(value) => {
-              const next = value === "__none__" ? "" : value;
-              setWardId(next);
-              if (next) {
+        {showField("district_id") && (
+          <div>
+            <Label>{t("common.district")} *</Label>
+            <Select
+              value={districtId}
+              onValueChange={(value) => {
+                setDistrictId(value);
+                setCityId("");
                 setPanchayatId("");
+                setZoneId("");
+                setWardId("");
                 setCollectionPointId("");
-              }
-            }}
-            disabled={!cityId || isPanchayatSelected || (!zoneId && !panchayatId)}
-          >
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.ward") })} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
-              {wardOptions.map((w) => (
-                <SelectItem key={w.value} value={w.value}>
-                  {w.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+              }}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.district") })} />
+              </SelectTrigger>
+              <SelectContent>
+                {districts.map((district) => (
+                  <SelectItem key={district.value} value={district.value}>
+                    {district.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>{t("admin.nav.collection_point")} *</Label>
-          <Select value={collectionPointId} onValueChange={setCollectionPointId} disabled={collectionPointOptions.length === 0}>
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.collection_point") })} />
-            </SelectTrigger>
-            <SelectContent>
-              {collectionPointOptions.map((cp) => (
-                <SelectItem key={cp.value} value={cp.value}>
-                  {cp.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("city_id") && (
+          <div>
+            <Label>{t("common.city")} *</Label>
+            <Select
+              value={cityId}
+              onValueChange={(value) => {
+                setCityId(value);
+                setPanchayatId("");
+                setZoneId("");
+                setWardId("");
+                setCollectionPointId("");
+              }}
+              disabled={!districtId}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.city") })} />
+              </SelectTrigger>
+              <SelectContent>
+                {cityOptions.map((city) => (
+                  <SelectItem key={city.value} value={city.value}>
+                    {city.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>{t("common.bin_capacity")} *</Label>
-          <Input
-            type="number"
-            value={binCapacity}
-            onChange={(e) => setBinCapacity(e.target.value ? Number(e.target.value) : "")}
-            min={1}
-            required
-          />
-        </div>
+        {showField("panchayat_id") && (
+          <div>
+            <Label>{t("admin.nav.panchayat")}</Label>
+            <Select
+              value={panchayatId || "__none__"}
+              onValueChange={(value) => {
+                const next = value === "__none__" ? "" : value;
+                setPanchayatId(next);
+                setZoneId("");
+                setWardId("");
+                setCollectionPointId("");
+              }}
+              disabled={!cityId || isZoneSelected || isWardSelected}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue
+                  placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") })}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
+                {panchayatOptions.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>{t("common.bin_type")}</Label>
-          <Select value={binType} onValueChange={setBinType}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="small">Small</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="large">Large</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("zone_id") && (
+          <div>
+            <Label>{t("admin.nav.zone")}</Label>
+            <Select
+              value={zoneId || "__none__"}
+              onValueChange={(value) => {
+                const next = value === "__none__" ? "" : value;
+                setZoneId(next);
+                setPanchayatId("");
+                setWardId("");
+                setCollectionPointId("");
+              }}
+              disabled={!cityId || isPanchayatSelected}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.zone") })} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
+                {zoneOptions.map((z) => (
+                  <SelectItem key={z.value} value={z.value}>
+                    {z.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>{t("common.waste_type")} *</Label>
-          <Select value={wasteTypeId} onValueChange={setWasteTypeId}>
-            <SelectTrigger>
-              <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.waste_type") })} />
-            </SelectTrigger>
-            <SelectContent>
-              {wasteTypes.map((w) => (
-                <SelectItem key={w.value} value={w.value}>
-                  {w.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label>{t("common.item_name", { item: t("admin.nav.bin_master") })} *</Label>
-          <Input value={binName} onChange={(e) => setBinName(e.target.value)} required />
-        </div>
+        {showField("ward_id") && (
+          <div>
+            <Label>{t("common.ward")}</Label>
+            <Select
+              value={wardId || "__none__"}
+              onValueChange={(value) => {
+                const next = value === "__none__" ? "" : value;
+                setWardId(next);
+                if (next) {
+                  setPanchayatId("");
+                  setCollectionPointId("");
+                }
+              }}
+              disabled={!cityId || isPanchayatSelected || (!zoneId && !panchayatId)}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.ward") })} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
+                {wardOptions.map((w) => (
+                  <SelectItem key={w.value} value={w.value}>
+                    {w.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>Bin Image</Label>
-          <Input value={binImage} onChange={(e) => setBinImage(e.target.value)} placeholder="default.png" />
-        </div>
+        {showField("collection_point_id") && (
+          <div>
+            <Label>{t("admin.nav.collection_point")} *</Label>
+            <Select value={collectionPointId} onValueChange={setCollectionPointId} disabled={collectionPointOptions.length === 0}>
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.collection_point") })} />
+              </SelectTrigger>
+              <SelectContent>
+                {collectionPointOptions.map((cp) => (
+                  <SelectItem key={cp.value} value={cp.value}>
+                    {cp.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-        <div>
-          <Label>Bin QR</Label>
-          <Input value={binQr} onChange={(e) => setBinQr(e.target.value)} placeholder="QR-BIN-001" />
-        </div>
+        {showField("bin_capacity") && (
+          <div>
+            <Label>{t("common.bin_capacity")} *</Label>
+            <Input
+              type="number"
+              value={binCapacity}
+              onChange={(e) => setBinCapacity(e.target.value ? Number(e.target.value) : "")}
+              min={1}
+              required
+            />
+          </div>
+        )}
 
-        <div>
-          <Label>{t("common.status")}</Label>
-          <Select value={isActive ? "true" : "false"} onValueChange={(v) => setIsActive(v === "true")}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="true">{t("common.active")}</SelectItem>
-              <SelectItem value="false">{t("common.inactive")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("bin_type") && (
+          <div>
+            <Label>{t("common.bin_type")}</Label>
+            <Select value={binType} onValueChange={setBinType}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="small">Small</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="large">Large</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {showField("wastetype_id") && (
+          <div>
+            <Label>{t("common.waste_type")} *</Label>
+            <Select value={wasteTypeId} onValueChange={setWasteTypeId}>
+              <SelectTrigger>
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.waste_type") })} />
+              </SelectTrigger>
+              <SelectContent>
+                {wasteTypes.map((w) => (
+                  <SelectItem key={w.value} value={w.value}>
+                    {w.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {showField("bin_name") && (
+          <div>
+            <Label>{t("common.item_name", { item: t("admin.nav.bin_master") })} *</Label>
+            <Input value={binName} onChange={(e) => setBinName(e.target.value)} required />
+          </div>
+        )}
+
+        {showField("bin_image") && (
+          <div>
+            <Label>Bin Image</Label>
+            <Input value={binImage} onChange={(e) => setBinImage(e.target.value)} placeholder="default.png" />
+          </div>
+        )}
+
+        {showField("bin_qr") && (
+          <div>
+            <Label>Bin QR</Label>
+            <Input value={binQr} onChange={(e) => setBinQr(e.target.value)} placeholder="QR-BIN-001" />
+          </div>
+        )}
+
+        {showField("is_active") && (
+          <div>
+            <Label>{t("common.status")}</Label>
+            <Select value={isActive ? "true" : "false"} onValueChange={(v) => setIsActive(v === "true")}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">{t("common.active")}</SelectItem>
+                <SelectItem value="false">{t("common.inactive")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <div className="md:col-span-2 flex justify-end gap-3">
           <Button type="submit" disabled={isSubmitting || lookupsLoading}>

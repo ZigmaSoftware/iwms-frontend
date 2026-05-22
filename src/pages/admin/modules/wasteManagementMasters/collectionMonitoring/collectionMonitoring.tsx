@@ -12,6 +12,7 @@ import {
 } from "@/utils/customerUtils";
 import type { CustomerRecord as CustomerRecordBase } from "@/utils/customerUtils";
 import { useTranslation } from "react-i18next";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 interface Vehicle {
   id: string;
@@ -52,6 +53,26 @@ interface CustomerLocation {
   zone?: string;
   ward?: string;
 }
+
+const COLLECTION_MONITORING_FIELDS: Record<string, string[]> = {
+  date: ["date", "collection_date", "fromDate"],
+  zone: ["zone", "zone_name"],
+  ward: ["ward", "ward_name"],
+  customer: ["customer", "customer_id", "customer_name"],
+  vehicle: ["vehicle", "vehicle_no", "vehicle_number"],
+  collection_status: ["collection_status", "status"],
+  collected_count: ["collected_count", "collected"],
+  not_collected_count: ["not_collected_count", "not_collected"],
+  total_household_count: ["total_household_count", "total_household"],
+  address: ["address", "building_no", "street", "area"],
+  latitude: ["latitude"],
+  longitude: ["longitude"],
+  speed: ["speed"],
+  ignition: ["ignition"],
+  distance: ["distance"],
+  location: ["location"],
+  updated_at: ["updated_at", "updatedAt"],
+};
 
 const parseCoordinate = (value?: number | string | null) => {
   if (value === null || value === undefined) return null;
@@ -142,6 +163,11 @@ const pickCoordinate = (record: Record<string, any>, keys: string[]) => {
 
 const WasteCollectionMonitor: React.FC = () => {
   const { t } = useTranslation();
+  const { showField } = useFieldVisibility(
+    "waste-management",
+    "collection-monitoring",
+    COLLECTION_MONITORING_FIELDS
+  );
   const [fromDate, setFromDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
@@ -611,6 +637,7 @@ const WasteCollectionMonitor: React.FC = () => {
 
         {/* Filters */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mt-2">
+          {showField("date") && (
           <div>
             <label className="block text-sm font-medium mb-1">{t("common.date")}</label>
             <input
@@ -621,7 +648,9 @@ const WasteCollectionMonitor: React.FC = () => {
               readOnly
             />
           </div>
+          )}
 
+          {showField("zone") && (
           <div>
             <label className="block text-sm font-medium mb-1">{t("common.zone")}</label>
             <select
@@ -643,6 +672,8 @@ const WasteCollectionMonitor: React.FC = () => {
               ))}
             </select>
           </div>
+          )}
+          {showField("ward") && (
           <div>
             <label className="block text-sm font-medium mb-1">{t("common.ward")}</label>
             <select
@@ -663,7 +694,9 @@ const WasteCollectionMonitor: React.FC = () => {
               ))}
             </select>
           </div>
+          )}
 
+          {showField("customer") && (
           <div>
             <label className="block text-sm font-medium mb-1">
               {t("common.customer")}
@@ -683,6 +716,7 @@ const WasteCollectionMonitor: React.FC = () => {
               ))}
             </select>
           </div>
+          )}
 
           <div className="flex items-end">
             <button
@@ -699,31 +733,43 @@ const WasteCollectionMonitor: React.FC = () => {
         <div className="mb-3 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-surfaceAlt)]/80 px-4 py-3 text-sm">
           {selectedCustomerLocation ? (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              {(showField("customer") || showField("address")) && (
               <div>
+                {showField("customer") && (
+                <>
                 <div className="text-xs font-semibold uppercase tracking-wide text-[var(--admin-mutedText)]">
                   {t("common.customer")}
                 </div>
                 <div className="text-base font-semibold text-[var(--admin-text)]">
                   {selectedCustomerLocation.name}
                 </div>
+                </>
+                )}
+                {showField("address") && (
                 <div className="text-xs text-[var(--admin-mutedText)]">
                   {selectedCustomerLocation.address || t("common.not_available")}
                 </div>
+                )}
               </div>
+              )}
               <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-[var(--admin-text)]">
+                {showField("zone") && (
                 <span>
                   <span className="text-[var(--admin-mutedText)]">
                     {t("common.zone")}:
                   </span>{" "}
                   {selectedCustomerLocation.zone || t("common.not_available")}
                 </span>
+                )}
+                {showField("ward") && (
                 <span>
                   <span className="text-[var(--admin-mutedText)]">
                     {t("common.ward")}:
                   </span>{" "}
                   {selectedCustomerLocation.ward || t("common.not_available")}
                 </span>
-                {selectedCustomerStatusLabel && (
+                )}
+                {showField("collection_status") && selectedCustomerStatusLabel && (
                   <span className="rounded-full bg-[var(--admin-accentSoft)] px-3 py-1 text-[var(--admin-accent)]">
                     {selectedCustomerStatusLabel}
                   </span>
@@ -760,6 +806,8 @@ const WasteCollectionMonitor: React.FC = () => {
             </button>
             <div className="admin-map-panel__content">
               <div className="admin-map-panel__section">
+                {showField("vehicle") && (
+                <>
                 <div className="admin-map-panel__section-title">
                   {t("common.vehicle")}
                 </div>
@@ -780,6 +828,7 @@ const WasteCollectionMonitor: React.FC = () => {
                         {getVehicleStatusLabel(focusedVehicle.status)}
                       </span>
                     </div>
+                    {showField("speed") && (
                     <div className="admin-map-panel__row">
                       <span className="admin-map-panel__label">
                         {t("dashboard.live_map.labels.speed")}
@@ -789,6 +838,8 @@ const WasteCollectionMonitor: React.FC = () => {
                         {t("dashboard.live_map.units.kmh")}
                       </span>
                     </div>
+                    )}
+                    {showField("ignition") && (
                     <div className="admin-map-panel__row">
                       <span className="admin-map-panel__label">
                         {t("admin.vehicle_tracking.labels.ignition")}
@@ -797,6 +848,8 @@ const WasteCollectionMonitor: React.FC = () => {
                         {focusedVehicle.ignition ? "ON" : "OFF"}
                       </span>
                     </div>
+                    )}
+                    {showField("distance") && (
                     <div className="admin-map-panel__row">
                       <span className="admin-map-panel__label">
                         {t("admin.vehicle_tracking.labels.distance")}
@@ -805,6 +858,8 @@ const WasteCollectionMonitor: React.FC = () => {
                         {Number(focusedVehicle.distance).toFixed(1)} km
                       </span>
                     </div>
+                    )}
+                    {showField("location") && (
                     <div className="admin-map-panel__row">
                       <span className="admin-map-panel__label">
                         {t("dashboard.live_map.labels.location")}
@@ -813,6 +868,8 @@ const WasteCollectionMonitor: React.FC = () => {
                         {focusedVehicle.location || t("common.location_unavailable")}
                       </span>
                     </div>
+                    )}
+                    {showField("updated_at") && (
                     <div className="admin-map-panel__row">
                       <span className="admin-map-panel__label">
                         {t("admin.vehicle_tracking.labels.updated")}
@@ -821,23 +878,34 @@ const WasteCollectionMonitor: React.FC = () => {
                         {focusedVehicle.updatedAt}
                       </span>
                     </div>
+                    )}
                   </>
                 ) : (
                   <div className="admin-map-panel__empty">
                     {t("dashboard.live_map.select_vehicle")}
                   </div>
                 )}
+                </>
+                )}
               </div>
 
               <div className="admin-map-panel__divider" />
 
               <div className="admin-map-panel__section">
+                {(showField("customer") ||
+                  showField("address") ||
+                  showField("zone") ||
+                  showField("ward") ||
+                  showField("latitude") ||
+                  showField("longitude")) && (
+                <>
                 <div className="admin-map-panel__section-title">
                   {t("common.customer")}
                 </div>
                 {selectedCustomerLocation ? (
                   <>
                     <div className="admin-map-panel__header">
+                      {showField("customer") && (
                       <div className="admin-map-panel__title-row">
                         <span className="admin-map-panel__icon admin-map-panel__icon--house" aria-hidden="true">
                           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -860,10 +928,14 @@ const WasteCollectionMonitor: React.FC = () => {
                           </div>
                         </div>
                       </div>
+                      )}
+                      {showField("collection_status") && (
                       <span className="admin-map-panel__status">
                         {selectedCustomerStatusLabel}
                       </span>
+                      )}
                     </div>
+                    {showField("address") && (
                     <div className="admin-map-panel__row">
                       <span className="admin-map-panel__label">
                         {t("common.address")}
@@ -872,6 +944,8 @@ const WasteCollectionMonitor: React.FC = () => {
                         {selectedCustomerLocation.address || t("common.not_available")}
                       </span>
                     </div>
+                    )}
+                    {showField("zone") && (
                     <div className="admin-map-panel__row">
                       <span className="admin-map-panel__label">
                         {t("common.zone")}
@@ -880,6 +954,8 @@ const WasteCollectionMonitor: React.FC = () => {
                         {selectedCustomerLocation.zone || t("common.not_available")}
                       </span>
                     </div>
+                    )}
+                    {showField("ward") && (
                     <div className="admin-map-panel__row">
                       <span className="admin-map-panel__label">
                         {t("common.ward")}
@@ -888,6 +964,8 @@ const WasteCollectionMonitor: React.FC = () => {
                         {selectedCustomerLocation.ward || t("common.not_available")}
                       </span>
                     </div>
+                    )}
+                    {showField("latitude") && (
                     <div className="admin-map-panel__row">
                       <span className="admin-map-panel__label">
                         {t("common.latitude")}
@@ -896,6 +974,8 @@ const WasteCollectionMonitor: React.FC = () => {
                         {formatCoordinate(selectedCustomerLocation.lat)}
                       </span>
                     </div>
+                    )}
+                    {showField("longitude") && (
                     <div className="admin-map-panel__row">
                       <span className="admin-map-panel__label">
                         {t("common.longitude")}
@@ -904,17 +984,27 @@ const WasteCollectionMonitor: React.FC = () => {
                         {formatCoordinate(selectedCustomerLocation.lon)}
                       </span>
                     </div>
+                    )}
                   </>
                 ) : (
                   <div className="admin-map-panel__empty">
                     {t("admin.collection_monitoring.select_customer_hint")}
                   </div>
                 )}
+                </>
+                )}
               </div>
             </div>
           </div>
+          {(showField("not_collected_count") ||
+            showField("collected_count") ||
+            showField("total_household_count")) && (
           <div className="map-household-summary">
-            {statusOptions.map((status) => {
+            {statusOptions.filter((status) => {
+              if (status.value === "not_collected") return showField("not_collected_count");
+              if (status.value === "collected") return showField("collected_count");
+              return showField("total_household_count");
+            }).map((status) => {
               const isSelected = selectedStatus === status.value;
               return (
                 <button
@@ -931,12 +1021,16 @@ const WasteCollectionMonitor: React.FC = () => {
               );
             })}
           </div>
+          )}
           <div className="map-status-badge">
             {selectedCustomerLocation ? (
               <>
+                {showField("customer") && (
                 <span className="map-status-badge__title">
                   {selectedCustomerLocation.name}
                 </span>
+                )}
+                {showField("collection_status") && (
                 <span
                   className={`map-status-pill ${
                     selectedCustomerStatus === "collected"
@@ -946,6 +1040,7 @@ const WasteCollectionMonitor: React.FC = () => {
                 >
                   {selectedCustomerStatusLabel}
                 </span>
+                )}
               </>
             ) : (
               <span className="map-status-badge__hint">

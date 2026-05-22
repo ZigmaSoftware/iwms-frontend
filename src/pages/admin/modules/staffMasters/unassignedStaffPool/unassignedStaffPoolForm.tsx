@@ -8,7 +8,6 @@ import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 
-import { adminApi } from "@/helpers/admin/registry";
 import {
   useUsersList,
   useZonesList,
@@ -20,6 +19,7 @@ import {
 } from "@/tanstack/admin/queries/masters/unassignedStaffPool";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 type SelectOption = { value: string; label: string };
 
@@ -35,6 +35,16 @@ type UnassignedStaffPoolFormState = {
 type UserLocationMeta = {
   zone_id?: string;
   ward_id?: string;
+};
+
+const UNASSIGNED_STAFF_POOL_FIELDS: Record<string, string[]> = {
+  role: ["role"],
+  operator_id: ["operator_id", "operator"],
+  driver_id: ["driver_id", "driver"],
+  zone_id: ["zone_id", "zone"],
+  ward_id: ["ward_id", "ward"],
+  status: ["status"],
+  trip_instance_id: ["trip_instance_id", "trip_instance"],
 };
 
 const statusOptions: SelectOption[] = [
@@ -61,12 +71,11 @@ export default function UnassignedStaffPoolForm() {
   const { id } = useParams<{ id?: string }>();
   const location = useLocation();
   const isEdit = Boolean(id);
-
-  const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
-  const userApi = adminApi.usersCreation;
-  const zoneApi = adminApi.zones;
-  const wardApi = adminApi.wards;
-  const tripInstanceApi = adminApi.tripInstances;
+  const { showField, filterPayload } = useFieldVisibility(
+    "staff-masters",
+    "unassigned-staff-pool",
+    UNASSIGNED_STAFF_POOL_FIELDS
+  );
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -220,14 +229,21 @@ export default function UnassignedStaffPoolForm() {
 
     const selectedId = role === "operator" ? formData.operator_id : formData.driver_id;
 
-    if (!role || !selectedId || !formData.zone_id || !formData.ward_id || !formData.status) {
+    if (
+      (showField("role") && !role) ||
+      ((role === "operator" || showField("operator_id")) && role === "operator" && !selectedId) ||
+      ((role === "driver" || showField("driver_id")) && role === "driver" && !selectedId) ||
+      (showField("zone_id") && !formData.zone_id) ||
+      (showField("ward_id") && !formData.ward_id) ||
+      (showField("status") && !formData.status)
+    ) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
 
     setLoading(true);
     try {
-      const payload = {
+      const rawPayload = {
         operator_id: role === "operator" ? formData.operator_id : null,
         driver_id: role === "driver" ? formData.driver_id : null,
         zone_id: formData.zone_id,
@@ -235,6 +251,7 @@ export default function UnassignedStaffPoolForm() {
         status: formData.status,
         trip_instance_id: formData.trip_instance_id || null,
       };
+      const payload = filterPayload(rawPayload);
 
       if (isEdit && id) {
         await updateMutation.mutateAsync({ id, payload });
@@ -267,6 +284,7 @@ export default function UnassignedStaffPoolForm() {
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            {showField("role") && (
             <div>
               <Label>{t("admin.unassigned_staff_pool.role")}</Label>
               <Select
@@ -278,8 +296,9 @@ export default function UnassignedStaffPoolForm() {
                 required
               />
             </div>
+            )}
 
-            {role === "operator" && (
+            {role === "operator" && showField("operator_id") && (
               <div>
                 <Label>{t("admin.unassigned_staff_pool.operator")}</Label>
                 <Select
@@ -296,7 +315,7 @@ export default function UnassignedStaffPoolForm() {
               </div>
             )}
 
-            {role === "driver" && (
+            {role === "driver" && showField("driver_id") && (
               <div>
                 <Label>{t("admin.unassigned_staff_pool.driver")}</Label>
                 <Select
@@ -313,6 +332,7 @@ export default function UnassignedStaffPoolForm() {
               </div>
             )}
 
+            {showField("zone_id") && (
             <div>
               <Label>{t("admin.unassigned_staff_pool.zone")}</Label>
               <Select
@@ -326,7 +346,9 @@ export default function UnassignedStaffPoolForm() {
                 required
               />
             </div>
+            )}
 
+            {showField("ward_id") && (
             <div>
               <Label>{t("admin.unassigned_staff_pool.ward")}</Label>
               <Select
@@ -338,7 +360,9 @@ export default function UnassignedStaffPoolForm() {
                 required
               />
             </div>
+            )}
 
+            {showField("status") && (
             <div>
               <Label>{t("admin.unassigned_staff_pool.status")}</Label>
               <Select
@@ -349,7 +373,9 @@ export default function UnassignedStaffPoolForm() {
                 disabled={fetching}
               />
             </div>
+            )}
 
+            {showField("trip_instance_id") && (
             <div>
               <Label>{t("admin.unassigned_staff_pool.trip_instance")}</Label>
               <Select
@@ -362,6 +388,7 @@ export default function UnassignedStaffPoolForm() {
                 disabled={fetching}
               />
             </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3">

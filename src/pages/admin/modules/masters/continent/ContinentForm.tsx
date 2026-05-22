@@ -15,6 +15,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
   type ContinentPayload,
   useContinentQuery,
@@ -27,6 +28,11 @@ import type { ContinentEditorProps } from "./types";
 const { encMasters, encContinents } = getEncryptedRoute();
 
 const ENC_LIST_PATH = `/${encMasters}/${encContinents}`;
+
+const CONTINENT_FIELDS: Record<string, string[]> = {
+  name: ["name"],
+  is_active: ["is_active"],
+};
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -62,14 +68,20 @@ function ContinentEditor({
   onSubmit,
 }: ContinentEditorProps) {
   const { t } = useTranslation();
+  const { showField, filterPayload, getMissingRequiredFields } =
+    useFieldVisibility("masters", "continents", CONTINENT_FIELDS);
   const [name, setName] = useState(initialPayload.name);
   const [isActive, setIsActive] = useState(initialPayload.is_active);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
+    const fieldValues: Record<string, unknown> = {
+      name: trimmedName,
+      is_active: isActive,
+    };
 
-    if (!trimmedName) {
+    if (getMissingRequiredFields(["name"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -79,52 +91,58 @@ function ContinentEditor({
       return;
     }
 
-    await onSubmit({
+    const rawPayload = {
       name: trimmedName,
       is_active: isActive,
-    });
+    };
+
+    await onSubmit(filterPayload(rawPayload) as ContinentPayload);
   };
 
   return (
     <form onSubmit={handleSubmit} noValidate>
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <div>
-          <Label htmlFor="continentName">
-            {t("common.item_name", { item: t("admin.nav.continent") })}{" "}
-            <span className="text-red-500">*</span>
-          </Label>
-          <Input
-            id="continentName"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={t("common.enter_item_name", {
-              item: t("admin.nav.continent"),
-            })}
-            className="input-validate w-full"
-            disabled={isSubmitting}
-            required
-          />
-        </div>
+        {showField("name") && (
+          <div>
+            <Label htmlFor="continentName">
+              {t("common.item_name", { item: t("admin.nav.continent") })}{" "}
+              <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="continentName"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t("common.enter_item_name", {
+                item: t("admin.nav.continent"),
+              })}
+              className="input-validate w-full"
+              disabled={isSubmitting}
+              required
+            />
+          </div>
+        )}
 
-        <div>
-          <Label htmlFor="isActive">
-            {t("common.status")} <span className="text-red-500">*</span>
-          </Label>
-          <Select
-            value={isActive ? "true" : "false"}
-            onValueChange={(value) => setIsActive(value === "true")}
-            disabled={isSubmitting}
-          >
-            <SelectTrigger className="input-validate w-full" id="isActive">
-              <SelectValue placeholder={t("common.select_status")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="true">{t("common.active")}</SelectItem>
-              <SelectItem value="false">{t("common.inactive")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {showField("is_active") && (
+          <div>
+            <Label htmlFor="isActive">
+              {t("common.status")} <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={isActive ? "true" : "false"}
+              onValueChange={(value) => setIsActive(value === "true")}
+              disabled={isSubmitting}
+            >
+              <SelectTrigger className="input-validate w-full" id="isActive">
+                <SelectValue placeholder={t("common.select_status")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">{t("common.active")}</SelectItem>
+                <SelectItem value="false">{t("common.inactive")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <div className="mt-6 flex justify-end gap-3">

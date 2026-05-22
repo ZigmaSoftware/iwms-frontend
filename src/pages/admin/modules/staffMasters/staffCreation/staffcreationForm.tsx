@@ -12,6 +12,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { staffCreationApi } from "@/helpers/admin";
 import { useCreateStaff, useUpdateStaff } from "@/tanstack/admin/queries/masters/staffCreation";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 import {
   countryApi,
@@ -180,6 +181,55 @@ const initialFormData = {
   // emergency_mobile: "",
 };
 
+const STAFF_CREATION_FIELDS: Record<string, string[]> = {
+  employee_name: ["employee_name", "name"],
+  doj: ["doj", "date_of_joining"],
+  department: ["department"],
+  designation: ["designation"],
+  department_id: ["department_id"],
+  designation_id: ["designation_id"],
+  grade: ["grade"],
+  site_name: ["site_name", "site"],
+  biometric_id: ["biometric_id"],
+  staff_head: ["staff_head"],
+  staff_head_id: ["staff_head_id"],
+  employee_known: ["employee_known"],
+  salary_type: ["salary_type"],
+  active_status: ["active_status", "is_active"],
+  staffusertype_id: ["staffusertype_id", "staff_user_type", "staffusertype"],
+  username: ["username"],
+  password: ["password"],
+  photo: ["photo"],
+  company_id: ["company_id", "company"],
+  project_id: ["project_id", "project"],
+  marital_status: ["marital_status"],
+  dob: ["dob", "date_of_birth"],
+  blood_group: ["blood_group"],
+  gender: ["gender"],
+  physically_challenged: ["physically_challenged"],
+  extra_curricular: ["extra_curricular"],
+  present_country: ["present_country", "present_address.country"],
+  present_state: ["present_state", "present_address.state"],
+  present_district: ["present_district", "present_address.district"],
+  present_city: ["present_city", "present_address.city"],
+  present_building_no: ["present_building_no", "present_address.building_no"],
+  present_street: ["present_street", "present_address.street"],
+  present_area: ["present_area", "present_address.area"],
+  present_pincode: ["present_pincode", "present_address.pincode"],
+  permanent_country: ["permanent_country", "permanent_address.country"],
+  permanent_state: ["permanent_state", "permanent_address.state"],
+  permanent_district: ["permanent_district", "permanent_address.district"],
+  permanent_city: ["permanent_city", "permanent_address.city"],
+  permanent_building_no: ["permanent_building_no", "permanent_address.building_no"],
+  permanent_street: ["permanent_street", "permanent_address.street"],
+  permanent_area: ["permanent_area", "permanent_address.area"],
+  permanent_pincode: ["permanent_pincode", "permanent_address.pincode"],
+  contact_mobile: ["contact_mobile", "mobile"],
+  contact_email: ["contact_email", "email"],
+  driving_licence_no: ["driving_licence_no", "driving_license_no"],
+  driving_licence_file: ["driving_licence_file", "driving_license_file"],
+};
+
 export default function StaffCreationForm() {
   const [formData, setFormData] = useState(initialFormData);
   const [section, setSection] = useState<Section>("official");
@@ -205,6 +255,11 @@ export default function StaffCreationForm() {
   const { t } = useTranslation();
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
+  const { showField, filterPayload } = useFieldVisibility(
+    "staff-masters",
+    "staff-creation",
+    STAFF_CREATION_FIELDS
+  );
 
   const {
     companyUniqueId,
@@ -597,14 +652,30 @@ export default function StaffCreationForm() {
 
   const buildAddressPayload = (prefix: "present" | "permanent") => {
     const address = {
-      country: formData[`${prefix}_country` as keyof typeof initialFormData] as string,
-      state: formData[`${prefix}_state` as keyof typeof initialFormData] as string,
-      district: formData[`${prefix}_district` as keyof typeof initialFormData] as string,
-      city: formData[`${prefix}_city` as keyof typeof initialFormData] as string,
-      building_no: formData[`${prefix}_building_no` as keyof typeof initialFormData] as string,
-      street: formData[`${prefix}_street` as keyof typeof initialFormData] as string,
-      area: formData[`${prefix}_area` as keyof typeof initialFormData] as string,
-      pincode: formData[`${prefix}_pincode` as keyof typeof initialFormData] as string,
+      ...(showField(`${prefix}_country`) && {
+        country: formData[`${prefix}_country` as keyof typeof initialFormData] as string,
+      }),
+      ...(showField(`${prefix}_state`) && {
+        state: formData[`${prefix}_state` as keyof typeof initialFormData] as string,
+      }),
+      ...(showField(`${prefix}_district`) && {
+        district: formData[`${prefix}_district` as keyof typeof initialFormData] as string,
+      }),
+      ...(showField(`${prefix}_city`) && {
+        city: formData[`${prefix}_city` as keyof typeof initialFormData] as string,
+      }),
+      ...(showField(`${prefix}_building_no`) && {
+        building_no: formData[`${prefix}_building_no` as keyof typeof initialFormData] as string,
+      }),
+      ...(showField(`${prefix}_street`) && {
+        street: formData[`${prefix}_street` as keyof typeof initialFormData] as string,
+      }),
+      ...(showField(`${prefix}_area`) && {
+        area: formData[`${prefix}_area` as keyof typeof initialFormData] as string,
+      }),
+      ...(showField(`${prefix}_pincode`) && {
+        pincode: formData[`${prefix}_pincode` as keyof typeof initialFormData] as string,
+      }),
     };
 
     return Object.values(address).some((value) => Boolean(value)) ? address : null;
@@ -624,7 +695,7 @@ export default function StaffCreationForm() {
       return;
     }
 
-    if (photoFile && !photoFile.type.startsWith("image/")) {
+    if (showField("photo") && photoFile && !photoFile.type.startsWith("image/")) {
       Swal.fire({
         icon: "warning",
         title: t("admin.staff_creation.invalid_photo_title"),
@@ -634,7 +705,13 @@ export default function StaffCreationForm() {
     }
 
     // ✅ DRIVER VALIDATION
-    if (isDriverSelected && !licenceFile && !isEdit) {
+    if (
+      showField("driving_licence_file") &&
+      showField("driving_licence_no") &&
+      isDriverSelected &&
+      !licenceFile &&
+      !isEdit
+    ) {
       Swal.fire({
         icon: "error",
         title: "Licence Required",
@@ -646,7 +723,7 @@ export default function StaffCreationForm() {
     setSubmitting(true);
 
     try {
-      const payload: Record<string, any> = {
+      const rawPayload: Record<string, any> = {
         employee_name: formData.employee_name,
         doj: formData.doj || null,
         department: formData.department,
@@ -680,25 +757,27 @@ export default function StaffCreationForm() {
       // ✅ Add password if provided
       console.log("Form password:", formData.password);
       console.log("Is password truthy?", Boolean(formData.password));
-      console.log("Payload before password:", payload);
+      console.log("Payload before password:", rawPayload);
       if (formData.password) {
-        payload.password = formData.password;
-        console.log("Password added to payload:", payload.password);
+        rawPayload.password = formData.password;
+        console.log("Password added to payload:", rawPayload.password);
       } else {
         console.log("No password provided, skipping...");
       }
-      console.log("Payload after password:", payload);
+      console.log("Payload after password:", rawPayload);
 
       // ✅ ADD DRIVER FIELD HERE (Correct Placement)
-      if (isDriverSelected) {
-        payload.driving_licence_no = formData.driving_licence_no || "";
+      if (showField("driving_licence_no") && isDriverSelected) {
+        rawPayload.driving_licence_no = formData.driving_licence_no || "";
       }
 
       const presentPayload = buildAddressPayload("present");
       const permanentPayload = buildAddressPayload("permanent");
 
-      if (presentPayload) payload.present_address = presentPayload;
-      if (permanentPayload) payload.permanent_address = permanentPayload;
+      if (presentPayload) rawPayload.present_address = presentPayload;
+      if (permanentPayload) rawPayload.permanent_address = permanentPayload;
+
+      const payload = filterPayload(rawPayload, ["company_id", "project_id"]);
 
       const formBody = new FormData();
 
@@ -716,18 +795,15 @@ export default function StaffCreationForm() {
       });
 
       // ✅ FILE APPENDS
-      if (photoFile) {
+      if (showField("photo") && photoFile) {
         formBody.append("photo", photoFile);
       }
 
-      if (licenceFile) {
+      if (showField("driving_licence_file") && licenceFile) {
         formBody.append("driving_licence_file", licenceFile);
       }
 
       let response: any;
-      const multipartConfig = {
-        headers: { "Content-Type": "multipart/form-data" },
-      };
 
       if (isEdit) {
         if (!id) throw new Error("Missing staff id");
@@ -769,6 +845,7 @@ export default function StaffCreationForm() {
     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
 
       {/* ── Company ── */}
+      {showField("company_id") && (
       <div>
         <Label htmlFor="company_id">
           {t("admin.nav.company") || "Company"}
@@ -785,8 +862,10 @@ export default function StaffCreationForm() {
           placeholder={t("admin.nav.company_placeholder") || "Select company"}
         />
       </div>
+      )}
 
       {/* ── Project ── */}
+      {showField("project_id") && (
       <div>
         <Label htmlFor="project_id">
           {t("admin.nav.project") || "Project"}
@@ -800,6 +879,8 @@ export default function StaffCreationForm() {
           placeholder={t("admin.nav.project_placeholder") || "Select project"}
         />
       </div>
+      )}
+      {showField("employee_name") && (
       <div>
         <Label htmlFor="employee_name">
           {t("admin.staff_creation.employee_name")}
@@ -811,6 +892,7 @@ export default function StaffCreationForm() {
           required
         />
       </div>
+      )}
       {/* <div>
         <Label htmlFor="employee_id">Employee ID</Label>
         <Input
@@ -819,10 +901,13 @@ export default function StaffCreationForm() {
           onChange={handleInputChange}
         />
       </div> */}
+      {showField("doj") && (
       <div>
         <Label htmlFor="doj">{t("admin.staff_creation.doj")}</Label>
         <Input id="doj" type="date" value={formData.doj} onChange={handleInputChange} />
       </div>
+      )}
+      {showField("department") && (
       <div>
         <Label htmlFor="department">{t("admin.staff_creation.department_name")}</Label>
         <Input
@@ -831,6 +916,8 @@ export default function StaffCreationForm() {
           onChange={handleInputChange}
         />
       </div>
+      )}
+      {showField("designation") && (
       <div>
         <Label htmlFor="designation">{t("admin.staff_creation.designation")}</Label>
         <Input
@@ -839,6 +926,8 @@ export default function StaffCreationForm() {
           onChange={handleInputChange}
         />
       </div>
+      )}
+      {showField("staffusertype_id") && (
       <div>
         <Label htmlFor="staffusertype_id">
           {t("admin.staff_creation.staff_user_type")}
@@ -851,8 +940,10 @@ export default function StaffCreationForm() {
           placeholder={t("admin.staff_creation.staff_user_type_placeholder")}
         />
       </div>
+      )}
 
       {/* ── Username ── */}
+      {showField("username") && (
       <div>
         <Label htmlFor="username">
           {t("admin.staff_creation.username")}
@@ -864,8 +955,10 @@ export default function StaffCreationForm() {
           placeholder={t("admin.staff_creation.username_placeholder")}
         />
       </div>
+      )}
 
       {/* ── Password ── */}
+      {showField("password") && (
       <div>
         <PasswordInput
           id="password"
@@ -875,9 +968,11 @@ export default function StaffCreationForm() {
           placeholder={t("admin.staff_creation.password_placeholder")}
         />
       </div>
+      )}
 
-      {isDriverSelected && (
+      {isDriverSelected && (showField("driving_licence_no") || showField("driving_licence_file")) && (
         <>
+          {showField("driving_licence_no") && (
           <div>
             <Label htmlFor="driving_licence_no">{t("admin.staff_creation.driving_licence_no")}</Label>
             <Input
@@ -886,7 +981,9 @@ export default function StaffCreationForm() {
               onChange={handleInputChange}
             />
           </div>
+          )}
 
+          {showField("driving_licence_file") && (
           <div className="md:col-span-2">
             <Label htmlFor="driving_licence">{t("admin.staff_creation.driving_licence_upload")}</Label>
             <div className="flex flex-col gap-2 md:flex-row md:items-center">
@@ -950,8 +1047,10 @@ export default function StaffCreationForm() {
               ) : null}
             </div>
           </div>
+          )}
         </>
       )}
+      {showField("department_id") && (
       <div>
         <Label htmlFor="department_id">{t("admin.staff_creation.department_id")}</Label>
         <Input
@@ -960,6 +1059,8 @@ export default function StaffCreationForm() {
           onChange={handleInputChange}
         />
       </div>
+      )}
+      {showField("designation_id") && (
       <div>
         <Label htmlFor="designation_id">{t("admin.staff_creation.designation_id")}</Label>
         <Input
@@ -968,6 +1069,8 @@ export default function StaffCreationForm() {
           onChange={handleInputChange}
         />
       </div>
+      )}
+      {showField("grade") && (
       <div>
         <Label htmlFor="grade">{t("admin.staff_creation.grade")}</Label>
         <Select
@@ -978,6 +1081,8 @@ export default function StaffCreationForm() {
           placeholder={t("admin.staff_creation.grade_placeholder")}
         />
       </div>
+      )}
+      {showField("site_name") && (
       <div>
         <Label htmlFor="site_name">{t("admin.staff_creation.site_name")}</Label>
         <Select
@@ -988,6 +1093,8 @@ export default function StaffCreationForm() {
           placeholder={t("admin.staff_creation.site_placeholder")}
         />
       </div>
+      )}
+      {showField("biometric_id") && (
       <div>
         <Label htmlFor="biometric_id">{t("admin.staff_creation.biometric_id")}</Label>
         <Input
@@ -996,6 +1103,8 @@ export default function StaffCreationForm() {
           onChange={handleInputChange}
         />
       </div>
+      )}
+      {showField("staff_head") && (
       <div>
         <Label htmlFor="staff_head">{t("admin.staff_creation.staff_head")}</Label>
         <Input
@@ -1004,6 +1113,8 @@ export default function StaffCreationForm() {
           onChange={handleInputChange}
         />
       </div>
+      )}
+      {showField("staff_head_id") && (
       <div>
         <Label htmlFor="staff_head_id">{t("admin.staff_creation.staff_head_id")}</Label>
         <Input
@@ -1012,6 +1123,8 @@ export default function StaffCreationForm() {
           onChange={handleInputChange}
         />
       </div>
+      )}
+      {showField("employee_known") && (
       <div>
         <Label htmlFor="employee_known">{t("admin.staff_creation.employee_known")}</Label>
         <Select
@@ -1022,6 +1135,8 @@ export default function StaffCreationForm() {
           placeholder={t("admin.staff_creation.select_option")}
         />
       </div>
+      )}
+      {showField("salary_type") && (
       <div>
         <Label htmlFor="salary_type">{t("admin.staff_creation.salary_type")}</Label>
         <Select
@@ -1032,6 +1147,8 @@ export default function StaffCreationForm() {
           placeholder={t("admin.staff_creation.salary_type_placeholder")}
         />
       </div>
+      )}
+      {showField("active_status") && (
       <div>
         <Label htmlFor="active_status">{t("admin.staff_creation.active_status")}</Label>
         <Select
@@ -1042,6 +1159,8 @@ export default function StaffCreationForm() {
           placeholder={t("common.select_status")}
         />
       </div>
+      )}
+      {showField("photo") && (
       <div className="md:col-span-2">
         <Label htmlFor="photo">{t("admin.staff_creation.photo_label")}</Label>
         <div className="flex flex-col gap-2 md:flex-row md:items-center">
@@ -1096,12 +1215,14 @@ export default function StaffCreationForm() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 
   const renderPersonalSection = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        {showField("marital_status") && (
         <div>
           <Label htmlFor="marital_status">
             {t("admin.staff_creation.marital_status")}
@@ -1114,10 +1235,14 @@ export default function StaffCreationForm() {
             placeholder={t("admin.staff_creation.marital_status_placeholder")}
           />
         </div>
+        )}
+        {showField("dob") && (
         <div>
           <Label htmlFor="dob">{t("admin.staff_creation.dob")}</Label>
           <Input id="dob" type="date" value={formData.dob} onChange={handleInputChange} />
         </div>
+        )}
+        {showField("dob") && (
         <div>
           <Label htmlFor="age">{t("admin.staff_creation.age")}</Label>
           <Input
@@ -1126,6 +1251,8 @@ export default function StaffCreationForm() {
             placeholder={t("admin.staff_creation.age_auto")}
           />
         </div>
+        )}
+        {showField("blood_group") && (
         <div>
           <Label htmlFor="blood_group">{t("admin.staff_creation.blood_group")}</Label>
           <Select
@@ -1136,6 +1263,8 @@ export default function StaffCreationForm() {
             placeholder={t("admin.staff_creation.blood_group_placeholder")}
           />
         </div>
+        )}
+        {showField("gender") && (
         <div>
           <Label htmlFor="gender">{t("admin.staff_creation.gender")}</Label>
           <Select
@@ -1146,6 +1275,8 @@ export default function StaffCreationForm() {
             placeholder={t("admin.staff_creation.gender_placeholder")}
           />
         </div>
+        )}
+        {showField("physically_challenged") && (
         <div>
           <Label htmlFor="physically_challenged">
             {t("admin.staff_creation.physically_challenged")}
@@ -1158,6 +1289,8 @@ export default function StaffCreationForm() {
             placeholder={t("admin.staff_creation.select_option")}
           />
         </div>
+        )}
+        {showField("extra_curricular") && (
         <div>
           <Label htmlFor="extra_curricular">
             {t("admin.staff_creation.extra_curricular")}
@@ -1170,14 +1303,24 @@ export default function StaffCreationForm() {
             className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
           />
         </div>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
+        {(showField("present_country") ||
+          showField("present_state") ||
+          showField("present_district") ||
+          showField("present_city") ||
+          showField("present_building_no") ||
+          showField("present_street") ||
+          showField("present_area") ||
+          showField("present_pincode")) && (
         <div className="space-y-3 rounded-lg border border-gray-200 p-4">
           <p className="text-sm font-semibold text-gray-600">
             {t("admin.staff_creation.address_present_title")}
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {showField("present_country") && (
             <div>
               <Label htmlFor="present_country">{t("common.country")}</Label>
               <Select
@@ -1188,6 +1331,8 @@ export default function StaffCreationForm() {
                 placeholder={t("common.select_item_placeholder", { item: t("common.country") })}
               />
             </div>
+            )}
+            {showField("present_state") && (
             <div>
               <Label htmlFor="present_state">{t("common.state")}</Label>
               <Select
@@ -1198,6 +1343,8 @@ export default function StaffCreationForm() {
                 placeholder={t("common.select_item_placeholder", { item: t("common.state") })}
               />
             </div>
+            )}
+            {showField("present_district") && (
             <div>
               <Label htmlFor="present_district">{t("common.district")}</Label>
               <Select
@@ -1208,6 +1355,8 @@ export default function StaffCreationForm() {
                 placeholder={t("common.select_item_placeholder", { item: t("common.district") })}
               />
             </div>
+            )}
+            {showField("present_city") && (
             <div>
               <Label htmlFor="present_city">{t("common.city")}</Label>
               <Select
@@ -1218,6 +1367,8 @@ export default function StaffCreationForm() {
                 placeholder={t("common.select_item_placeholder", { item: t("common.city") })}
               />
             </div>
+            )}
+            {showField("present_building_no") && (
             <div className="sm:col-span-2">
               <Label htmlFor="present_building_no">{t("common.building_no")}</Label>
               <Input
@@ -1226,6 +1377,8 @@ export default function StaffCreationForm() {
                 onChange={handleInputChange}
               />
             </div>
+            )}
+            {showField("present_street") && (
             <div className="sm:col-span-2">
               <Label htmlFor="present_street">{t("common.street")}</Label>
               <textarea
@@ -1236,6 +1389,8 @@ export default function StaffCreationForm() {
                 className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
               />
             </div>
+            )}
+            {showField("present_area") && (
             <div className="sm:col-span-2">
               <Label htmlFor="present_area">{t("common.area")}</Label>
               <textarea
@@ -1246,6 +1401,8 @@ export default function StaffCreationForm() {
                 className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
               />
             </div>
+            )}
+            {showField("present_pincode") && (
             <div>
               <Label htmlFor="present_pincode">{t("common.pincode")}</Label>
               <Input
@@ -1254,9 +1411,19 @@ export default function StaffCreationForm() {
                 onChange={handleInputChange}
               />
             </div>
+            )}
           </div>
         </div>
+        )}
 
+        {(showField("permanent_country") ||
+          showField("permanent_state") ||
+          showField("permanent_district") ||
+          showField("permanent_city") ||
+          showField("permanent_building_no") ||
+          showField("permanent_street") ||
+          showField("permanent_area") ||
+          showField("permanent_pincode")) && (
         <div className="space-y-3 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-gray-600">
@@ -1273,6 +1440,7 @@ export default function StaffCreationForm() {
             </label>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {showField("permanent_country") && (
             <div>
               <Label htmlFor="permanent_country">{t("common.country")}</Label>
               <Select
@@ -1283,6 +1451,8 @@ export default function StaffCreationForm() {
                 placeholder={t("common.select_item_placeholder", { item: t("common.country") })}
               />
             </div>
+            )}
+            {showField("permanent_state") && (
             <div>
               <Label htmlFor="permanent_state">{t("common.state")}</Label>
               <Select
@@ -1293,6 +1463,8 @@ export default function StaffCreationForm() {
                 placeholder={t("common.select_item_placeholder", { item: t("common.state") })}
               />
             </div>
+            )}
+            {showField("permanent_district") && (
             <div>
               <Label htmlFor="permanent_district">{t("common.district")}</Label>
               <Select
@@ -1303,6 +1475,8 @@ export default function StaffCreationForm() {
                 placeholder={t("common.select_item_placeholder", { item: t("common.district") })}
               />
             </div>
+            )}
+            {showField("permanent_city") && (
             <div>
               <Label htmlFor="permanent_city">{t("common.city")}</Label>
               <Select
@@ -1313,6 +1487,8 @@ export default function StaffCreationForm() {
                 placeholder={t("common.select_item_placeholder", { item: t("common.city") })}
               />
             </div>
+            )}
+            {showField("permanent_building_no") && (
             <div className="sm:col-span-2">
               <Label htmlFor="permanent_building_no">{t("common.building_no")}</Label>
               <Input
@@ -1321,6 +1497,8 @@ export default function StaffCreationForm() {
                 onChange={handleInputChange}
               />
             </div>
+            )}
+            {showField("permanent_street") && (
             <div className="sm:col-span-2">
               <Label htmlFor="permanent_street">{t("common.street")}</Label>
               <textarea
@@ -1331,6 +1509,8 @@ export default function StaffCreationForm() {
                 className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
               />
             </div>
+            )}
+            {showField("permanent_area") && (
             <div className="sm:col-span-2">
               <Label htmlFor="permanent_area">{t("common.area")}</Label>
               <textarea
@@ -1341,6 +1521,8 @@ export default function StaffCreationForm() {
                 className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
               />
             </div>
+            )}
+            {showField("permanent_pincode") && (
             <div>
               <Label htmlFor="permanent_pincode">{t("common.pincode")}</Label>
               <Input
@@ -1349,15 +1531,19 @@ export default function StaffCreationForm() {
                 onChange={handleInputChange}
               />
             </div>
+            )}
           </div>
         </div>
+        )}
       </div>
 
+      {(showField("contact_mobile") || showField("contact_email")) && (
       <div className="rounded-lg border border-gray-200 p-4">
         <p className="text-sm font-semibold text-gray-600">
           {t("admin.staff_creation.contact_details")}
         </p>
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          {showField("contact_mobile") && (
           <div>
             <Label htmlFor="contact_mobile">
               {t("admin.staff_creation.contact_mobile")}
@@ -1368,6 +1554,8 @@ export default function StaffCreationForm() {
               onChange={handleInputChange}
             />
           </div>
+          )}
+          {showField("contact_email") && (
           <div>
             <Label htmlFor="contact_email">
               {t("admin.staff_creation.contact_email")}
@@ -1379,6 +1567,7 @@ export default function StaffCreationForm() {
               onChange={handleInputChange}
             />
           </div>
+          )}
           {/* <div>
             <Label htmlFor="emergency_contact">Emergency Contact</Label>
             <Input
@@ -1397,6 +1586,7 @@ export default function StaffCreationForm() {
           </div> */}
         </div>
       </div>
+      )}
     </div>
   );
 

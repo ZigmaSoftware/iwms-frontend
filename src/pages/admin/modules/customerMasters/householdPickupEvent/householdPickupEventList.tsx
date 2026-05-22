@@ -13,6 +13,7 @@ import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 type HouseholdPickupEventRecord = {
   id: number;
@@ -37,8 +38,25 @@ const buildLookup = (items: any[], key: string, label: string) =>
     return acc;
   }, {});
 
+const HOUSEHOLD_PICKUP_COLUMN_FIELDS: Record<string, string[]> = {
+  customer_id: ["customer_id", "customer"],
+  zone_id: ["zone_id", "zone"],
+  property_id: ["property_id", "property"],
+  sub_property_id: ["sub_property_id", "sub_property"],
+  pickup_time: ["pickup_time"],
+  weight_kg: ["weight_kg"],
+  collector_staff_id: ["collector_staff_id", "collector"],
+  vehicle_id: ["vehicle_id", "vehicle"],
+  source: ["source"],
+};
+
 export default function HouseholdPickupEventList() {
   const { t } = useTranslation();
+  const { showColumn: showCol } = useFieldVisibility(
+    "customer-master",
+    "household-pickup-event",
+    HOUSEHOLD_PICKUP_COLUMN_FIELDS,
+  );
   const navigate = useNavigate();
 
   const householdPickupEventApi = adminApi.householdPickupEvents;
@@ -192,46 +210,64 @@ export default function HouseholdPickupEventList() {
         emptyMessage={t("admin.household_pickup_event.empty_message")}
       >
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
-        <Column
-          header={t("admin.household_pickup_event.customer")}
-          body={(row: HouseholdPickupEventRecord) =>
-            customerLookup[row.customer_id] ?? row.customer_id
-          }
-        />
-        <Column
-          header={t("admin.household_pickup_event.zone")}
-          body={(row: HouseholdPickupEventRecord) => zoneLookup[row.zone_id] ?? row.zone_id}
-        />
-        <Column
-          header={t("admin.household_pickup_event.property")}
-          body={(row: HouseholdPickupEventRecord) =>
-            propertyLookup[row.property_id] ?? row.property_id
-          }
-        />
-        <Column
-          header={t("admin.household_pickup_event.sub_property")}
-          body={(row: HouseholdPickupEventRecord) =>
-            subPropertyLookup[row.sub_property_id] ?? row.sub_property_id
-          }
-        />
-        <Column
-          header={t("admin.household_pickup_event.collector")}
-          body={(row: HouseholdPickupEventRecord) =>
-            collectorLookup[row.collector_staff_id] ?? row.collector_staff_id
-          }
-        />
-        <Column
-          header={t("admin.household_pickup_event.vehicle")}
-          body={(row: HouseholdPickupEventRecord) =>
-            vehicleLookup[row.vehicle_id] ?? row.vehicle_id
-          }
-        />
-        <Column
-          header={t("admin.household_pickup_event.pickup_time")}
-          body={(row: HouseholdPickupEventRecord) => formatDate(row.pickup_time)}
-        />
-        <Column field="weight_kg" header={t("admin.household_pickup_event.weight_kg")} />
-        <Column field="source" header={t("admin.household_pickup_event.source")} />
+        {showCol("customer_id") && (
+          <Column
+            header={t("admin.household_pickup_event.customer")}
+            body={(row: HouseholdPickupEventRecord) =>
+              customerLookup[row.customer_id] ?? row.customer_id
+            }
+          />
+        )}
+        {showCol("zone_id") && (
+          <Column
+            header={t("admin.household_pickup_event.zone")}
+            body={(row: HouseholdPickupEventRecord) => zoneLookup[row.zone_id] ?? row.zone_id}
+          />
+        )}
+        {showCol("property_id") && (
+          <Column
+            header={t("admin.household_pickup_event.property")}
+            body={(row: HouseholdPickupEventRecord) =>
+              propertyLookup[row.property_id] ?? row.property_id
+            }
+          />
+        )}
+        {showCol("sub_property_id") && (
+          <Column
+            header={t("admin.household_pickup_event.sub_property")}
+            body={(row: HouseholdPickupEventRecord) =>
+              subPropertyLookup[row.sub_property_id] ?? row.sub_property_id
+            }
+          />
+        )}
+        {showCol("collector_staff_id") && (
+          <Column
+            header={t("admin.household_pickup_event.collector")}
+            body={(row: HouseholdPickupEventRecord) =>
+              collectorLookup[row.collector_staff_id] ?? row.collector_staff_id
+            }
+          />
+        )}
+        {showCol("vehicle_id") && (
+          <Column
+            header={t("admin.household_pickup_event.vehicle")}
+            body={(row: HouseholdPickupEventRecord) =>
+              vehicleLookup[row.vehicle_id] ?? row.vehicle_id
+            }
+          />
+        )}
+        {showCol("pickup_time") && (
+          <Column
+            header={t("admin.household_pickup_event.pickup_time")}
+            body={(row: HouseholdPickupEventRecord) => formatDate(row.pickup_time)}
+          />
+        )}
+        {showCol("weight_kg") && (
+          <Column field="weight_kg" header={t("admin.household_pickup_event.weight_kg")} />
+        )}
+        {showCol("source") && (
+          <Column field="source" header={t("admin.household_pickup_event.source")} />
+        )}
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
       </DataTable>
     </div>

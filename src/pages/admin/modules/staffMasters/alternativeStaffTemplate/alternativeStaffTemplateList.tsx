@@ -13,6 +13,19 @@ import { FilterMatchMode } from "primereact/api";
 import { useAlternativeStaffTemplateList } from "@/tanstack/admin/queries/masters/alternativeStaffTemplate";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+
+const ALTERNATIVE_STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
+  unique_id: ["unique_id", "display_code"],
+  staff_template: ["staff_template", "staff_template_display_code", "staff_template_id"],
+  effective_date: ["effective_date"],
+  driver_name: ["driver", "driver_id", "driver_name"],
+  operator_name: ["operator", "operator_id", "operator_name"],
+  extra_operator: ["extra_operator", "extra_operator_id", "extra_staff"],
+  change_reason: ["change_reason"],
+  approval_status: ["approval_status"],
+  created_at: ["created_at"],
+};
 
 type AlternativeStaffTemplate = {
   id: number;
@@ -51,6 +64,11 @@ type TableFilters = {
 export default function AlternativeStaffTemplateList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { showColumn: showCol } = useFieldVisibility(
+    "staff-masters",
+    "alternative-staff-template",
+    ALTERNATIVE_STAFF_TEMPLATE_COLUMN_FIELDS
+  );
   const {
     companyUniqueId,
     projectId,
@@ -252,16 +270,12 @@ export default function AlternativeStaffTemplateList() {
         filters={datatableFilters}
         onFilter={onFilter}
         globalFilterFields={[
-          "unique_id",
-          "display_code",
-          "staff_template",
-          "staff_template_display_code",
-          "driver",
-          "driver_name",
-          "operator",
-          "operator_name",
-          "change_reason",
-          "approval_status",
+          ...(showCol("unique_id") ? ["unique_id", "display_code"] : []),
+          ...(showCol("staff_template") ? ["staff_template", "staff_template_display_code"] : []),
+          ...(showCol("driver_name") ? ["driver", "driver_name"] : []),
+          ...(showCol("operator_name") ? ["operator", "operator_name"] : []),
+          ...(showCol("change_reason") ? ["change_reason"] : []),
+          ...(showCol("approval_status") ? ["approval_status"] : []),
           "company_name",
           "project_name",
         ]}
@@ -273,73 +287,91 @@ export default function AlternativeStaffTemplateList() {
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 70 }} />
 
-        <Column
-          header={t("admin.alternative_staff_template.columns.template_id")}
-          body={(row: AlternativeStaffTemplate) => row.display_code ?? row.unique_id}
-          sortable
-        />
+        {showCol("unique_id") && (
+          <Column
+            header={t("admin.alternative_staff_template.columns.template_id")}
+            body={(row: AlternativeStaffTemplate) => row.display_code ?? row.unique_id}
+            sortable
+          />
+        )}
 
-        <Column
-          header={t("admin.alternative_staff_template.columns.staff_template")}
-          body={(row: AlternativeStaffTemplate) =>
-            row.staff_template_display_code ?? row.staff_template
-          }
-        />
+        {showCol("staff_template") && (
+          <Column
+            header={t("admin.alternative_staff_template.columns.staff_template")}
+            body={(row: AlternativeStaffTemplate) =>
+              row.staff_template_display_code ?? row.staff_template
+            }
+          />
+        )}
 
-        <Column
-          field="effective_date"
-          header={t("admin.alternative_staff_template.columns.effective_date")}
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("effective_date") && (
+          <Column
+            field="effective_date"
+            header={t("admin.alternative_staff_template.columns.effective_date")}
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="driver_name"
-          header={t("admin.alternative_staff_template.columns.driver")}
-          body={(row: AlternativeStaffTemplate) => row.driver_name ?? row.driver}
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("driver_name") && (
+          <Column
+            field="driver_name"
+            header={t("admin.alternative_staff_template.columns.driver")}
+            body={(row: AlternativeStaffTemplate) => row.driver_name ?? row.driver}
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="operator_name"
-          header={t("admin.alternative_staff_template.columns.operator")}
-          body={(row: AlternativeStaffTemplate) => row.operator_name ?? row.operator}
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("operator_name") && (
+          <Column
+            field="operator_name"
+            header={t("admin.alternative_staff_template.columns.operator")}
+            body={(row: AlternativeStaffTemplate) => row.operator_name ?? row.operator}
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          header={t("admin.alternative_staff_template.columns.extra_operator")}
-          body={(row: AlternativeStaffTemplate) =>
-            Array.isArray(row.extra_operator)
-              ? row.extra_operator.length
-              : row.extra_operator
-              ? 1
-              : 0
-          }
-        />
+        {showCol("extra_operator") && (
+          <Column
+            header={t("admin.alternative_staff_template.columns.extra_operator")}
+            body={(row: AlternativeStaffTemplate) =>
+              Array.isArray(row.extra_operator)
+                ? row.extra_operator.length
+                : row.extra_operator
+                ? 1
+                : 0
+            }
+          />
+        )}
 
-        <Column
-          field="change_reason"
-          header={t("admin.alternative_staff_template.columns.change_reason")}
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("change_reason") && (
+          <Column
+            field="change_reason"
+            header={t("admin.alternative_staff_template.columns.change_reason")}
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="approval_status"
-          header={t("admin.alternative_staff_template.columns.approval_status")}
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("approval_status") && (
+          <Column
+            field="approval_status"
+            header={t("admin.alternative_staff_template.columns.approval_status")}
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          header={t("common.created_at")}
-          body={(r: AlternativeStaffTemplate) =>
-            r.created_at ? new Date(r.created_at).toLocaleDateString() : "-"
-          }
-        />
+        {showCol("created_at") && (
+          <Column
+            header={t("common.created_at")}
+            body={(r: AlternativeStaffTemplate) =>
+              r.created_at ? new Date(r.created_at).toLocaleDateString() : "-"
+            }
+          />
+        )}
 
         <Column
           header={t("common.actions")}
