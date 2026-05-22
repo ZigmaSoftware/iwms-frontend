@@ -274,6 +274,18 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+
+const STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
+  unique_id: ["unique_id", "display_code", "template_id"],
+  driver_name: ["driver_id", "driver_name", "primary_driver", "driver"],
+  operator_name: ["operator_id", "operator_name", "primary_operator", "operator"],
+  extra_operator_id: ["extra_operator_id", "extra_staff", "extra_operator"],
+  status: ["status", "active_status"],
+  approval_status: ["approval_status"],
+  created_at: ["created_at"],
+  updated_at: ["updated_at"],
+};
 
 /* ================= TYPES ================= */
 
@@ -317,6 +329,11 @@ type TableFilters = {
 export default function StaffTemplateList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { showColumn: showCol, filterPayload } = useFieldVisibility(
+    "staff-masters",
+    "staff-template",
+    STAFF_TEMPLATE_COLUMN_FIELDS
+  );
   const {
     companyUniqueId,
     projectId,
@@ -428,7 +445,10 @@ export default function StaffTemplateList() {
   const statusBodyTemplate = (row: StaffTemplate) => {
     const updateStatus = async (checked: boolean) => {
       try {
-        await updateMutation.mutateAsync({ id: row.unique_id, payload: { status: checked ? "ACTIVE" : "INACTIVE" } });
+        await updateMutation.mutateAsync({
+          id: row.unique_id,
+          payload: filterPayload({ status: checked ? "ACTIVE" : "INACTIVE" }),
+        });
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       }
@@ -541,12 +561,11 @@ export default function StaffTemplateList() {
         filters={datatableFilters}
         onFilter={onFilter}
         globalFilterFields={[
-          "unique_id",
-          "display_code",
-          "driver_name",
-          "operator_name",
-          "status",
-          "approval_status",
+          ...(showCol("unique_id") ? ["unique_id", "display_code"] : []),
+          ...(showCol("driver_name") ? ["driver_name"] : []),
+          ...(showCol("operator_name") ? ["operator_name"] : []),
+          ...(showCol("status") ? ["status"] : []),
+          ...(showCol("approval_status") ? ["approval_status"] : []),
           "company_name",
           "project_name",
         ]}
@@ -558,62 +577,78 @@ export default function StaffTemplateList() {
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 70 }} />
 
-        <Column
-          field="unique_id"
-          header={t("admin.staff_template.columns.template_id")}
-          body={(r: StaffTemplate) => r.display_code ?? r.unique_id}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("unique_id") && (
+          <Column
+            field="unique_id"
+            header={t("admin.staff_template.columns.template_id")}
+            body={(r: StaffTemplate) => r.display_code ?? r.unique_id}
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="driver_name"
-          header={t("admin.staff_template.columns.primary_driver")}
-          body={(r: StaffTemplate) => r.driver_name}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("driver_name") && (
+          <Column
+            field="driver_name"
+            header={t("admin.staff_template.columns.primary_driver")}
+            body={(r: StaffTemplate) => r.driver_name}
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          field="operator_name"
-          header={t("admin.staff_template.columns.primary_operator")}
-          body={(r: StaffTemplate) => r.operator_name}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("operator_name") && (
+          <Column
+            field="operator_name"
+            header={t("admin.staff_template.columns.primary_operator")}
+            body={(r: StaffTemplate) => r.operator_name}
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          header={t("admin.staff_template.columns.extra_staff")}
-          body={(r: StaffTemplate) => r.extra_operator_id?.length ?? 0}
-          style={{ width: 130 }}
-        />
+        {showCol("extra_operator_id") && (
+          <Column
+            header={t("admin.staff_template.columns.extra_staff")}
+            body={(r: StaffTemplate) => r.extra_operator_id?.length ?? 0}
+            style={{ width: 130 }}
+          />
+        )}
 
-        <Column
-          header={t("common.status")}
-          body={statusBodyTemplate}
-          style={{ width: 120 }}
-        />
+        {showCol("status") && (
+          <Column
+            header={t("common.status")}
+            body={statusBodyTemplate}
+            style={{ width: 120 }}
+          />
+        )}
 
-        <Column
-          field="approval_status"
-          header={t("admin.staff_template.columns.approval_status")}
-          sortable
-          filter
-          showFilterMatchModes={false}
-        />
+        {showCol("approval_status") && (
+          <Column
+            field="approval_status"
+            header={t("admin.staff_template.columns.approval_status")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+          />
+        )}
 
-        <Column
-          header={t("admin.staff_template.columns.created_at")}
-          body={(r: StaffTemplate) => new Date(r.created_at).toLocaleDateString()}
-        />
+        {showCol("created_at") && (
+          <Column
+            header={t("admin.staff_template.columns.created_at")}
+            body={(r: StaffTemplate) => new Date(r.created_at).toLocaleDateString()}
+          />
+        )}
 
-        <Column
-          header={t("admin.staff_template.columns.updated_at")}
-          body={(r: StaffTemplate) => new Date(r.updated_at).toLocaleDateString()}
-        />
+        {showCol("updated_at") && (
+          <Column
+            header={t("admin.staff_template.columns.updated_at")}
+            body={(r: StaffTemplate) => new Date(r.updated_at).toLocaleDateString()}
+          />
+        )}
 
         <Column
           header={t("common.actions")}

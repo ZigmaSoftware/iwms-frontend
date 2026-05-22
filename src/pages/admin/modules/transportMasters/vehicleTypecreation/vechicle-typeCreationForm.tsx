@@ -16,8 +16,10 @@ import {
 } from "@/components/ui/select";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import {
+  type VehicleTypePayload,
   useVehicleTypeQuery,
   useCreateVehicleTypeMutation,
   useUpdateVehicleTypeMutation,
@@ -29,11 +31,24 @@ const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleType}`;
 const toStr = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
+const VEHICLE_TYPE_FIELDS: Record<string, string[]> = {
+  company_id_input: ["company_id_input", "company_id", "company"],
+  project_id_input: ["project_id_input", "project_id", "project"],
+  vehicleType: ["vehicleType", "vehicle_type", "vehicleTypeName"],
+  description: ["description"],
+  is_active: ["is_active", "status", "active_status"],
+};
+
 export default function VehicleTypeCreationForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
+  const { showField, filterPayload } = useFieldVisibility(
+    "transport-master",
+    "vehicle-type",
+    VEHICLE_TYPE_FIELDS
+  );
 
   // ── Company / Project selection (same hook used across all forms) ──────────
   const {
@@ -108,9 +123,9 @@ export default function VehicleTypeCreationForm() {
 
     // Validate required fields
     const missingFields: string[] = [];
-    if (!companyUniqueId) missingFields.push(t("admin.nav.company"));
-    if (!projectId) missingFields.push(t("admin.nav.project"));
-    if (!vehicleTypeName.trim())
+    if (showField("company_id_input") && !companyUniqueId) missingFields.push(t("admin.nav.company"));
+    if (showField("project_id_input") && !projectId) missingFields.push(t("admin.nav.project"));
+    if (showField("vehicleType") && !vehicleTypeName.trim())
       missingFields.push(t("admin.vehicle_type.label"));
 
     if (missingFields.length > 0) {
@@ -122,13 +137,17 @@ export default function VehicleTypeCreationForm() {
       return;
     }
 
-    const payload = {
+    const rawPayload = {
       vehicleType: vehicleTypeName.trim(),
       description: description.trim() || null,
       is_active: isActive,
       company_id_input: companyUniqueId,
       project_id_input: projectId,
     };
+    const payload = filterPayload(rawPayload, [
+      "company_id_input",
+      "project_id_input",
+    ]) as unknown as VehicleTypePayload;
 
     try {
       if (isEdit && id) {
@@ -169,6 +188,7 @@ export default function VehicleTypeCreationForm() {
         noValidate
       >
         {/* Company */}
+        {showField("company_id_input") && (
         <div>
           <Label>
             {t("admin.nav.company")} <span className="text-red-500">*</span>
@@ -202,8 +222,10 @@ export default function VehicleTypeCreationForm() {
             </SelectContent>
           </Select>
         </div>
+        )}
 
         {/* Project */}
+        {showField("project_id_input") && (
         <div>
           <Label>
             {t("admin.nav.project")} <span className="text-red-500">*</span>
@@ -229,8 +251,10 @@ export default function VehicleTypeCreationForm() {
             </SelectContent>
           </Select>
         </div>
+        )}
 
         {/* Vehicle Type Name */}
+        {showField("vehicleType") && (
         <div>
           <Label>
             {t("admin.vehicle_type.label")}{" "}
@@ -243,8 +267,10 @@ export default function VehicleTypeCreationForm() {
             required
           />
         </div>
+        )}
 
         {/* Status */}
+        {showField("is_active") && (
         <div>
           <Label>
             {t("common.status")} <span className="text-red-500">*</span>
@@ -262,8 +288,10 @@ export default function VehicleTypeCreationForm() {
             </SelectContent>
           </Select>
         </div>
+        )}
 
         {/* Description */}
+        {showField("description") && (
         <div className="md:col-span-2">
           <Label>{t("common.description")}</Label>
           <textarea
@@ -274,6 +302,7 @@ export default function VehicleTypeCreationForm() {
             className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-200 resize-none"
           />
         </div>
+        )}
 
         {/* Actions */}
         <div className="md:col-span-2 flex justify-end gap-3">

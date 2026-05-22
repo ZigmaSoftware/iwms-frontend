@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
+  type CustomerCreationPayload,
   useCustomerCreationsQuery,
   useUpdateCustomerCreationMutation,
   useUploadCustomerCreationsMutation,
@@ -347,7 +348,10 @@ export default function CustomerCreationListPage() {
         };
         await updateMutation.mutateAsync({
           id: row.unique_id,
-          payload: filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload,
+          payload: filterPayload(rawPayload, [
+            "company_id",
+            "project_id",
+          ]) as unknown as CustomerCreationPayload,
         });
       } catch (err) {
         console.error("Status update failed:", err);

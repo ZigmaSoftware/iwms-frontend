@@ -13,6 +13,7 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { api } from "@/api";
 import { normalizeList } from "@/utils/forms";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 type SelectOption = { value: string; label: string };
 
@@ -45,6 +46,17 @@ const sourceOptions: SelectOption[] = [
   { value: "VEHICLE_CAM", label: "Vehicle Camera" },
 ];
 
+const TRIP_ATTENDANCE_FIELDS: Record<string, string[]> = {
+  trip_instance_id: ["trip_instance_id", "trip_instance"],
+  staff_id: ["staff_id", "staff"],
+  vehicle_id: ["vehicle_id", "vehicle"],
+  attendance_time: ["attendance_time"],
+  latitude: ["latitude"],
+  longitude: ["longitude"],
+  source: ["source"],
+  photo: ["photo"],
+};
+
 const toOptions = (items: any[], valueKey: string, labelKey: string, fallbackKey?: string): SelectOption[] =>
   items
     .map((item) => ({
@@ -75,6 +87,11 @@ export default function TripAttendanceForm() {
   const { id } = useParams<{ id?: string }>();
   const location = useLocation();
   const isEdit = Boolean(id);
+  const { showField, filterPayload } = useFieldVisibility(
+    "transport-master",
+    "trip-attendance",
+    TRIP_ATTENDANCE_FIELDS
+  );
 
   const tripAttendanceApi = adminApi.tripAttendances;
   const tripInstanceApi = adminApi.tripInstances;
@@ -278,22 +295,25 @@ export default function TripAttendanceForm() {
 
     if (
       (!isEdit && (
-        !formData.trip_instance_id ||
-        !formData.staff_id ||
-        !formData.vehicle_id
+        (showField("trip_instance_id") && !formData.trip_instance_id) ||
+        (showField("staff_id") && !formData.staff_id) ||
+        (showField("vehicle_id") && !formData.vehicle_id)
       )) ||
-      formData.latitude === "" ||
-      formData.longitude === "" ||
-      !formData.source
+      (showField("latitude") && formData.latitude === "") ||
+      (showField("longitude") && formData.longitude === "") ||
+      (showField("source") && !formData.source)
     ) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
 
-    const latitude = Number(formData.latitude);
-    const longitude = Number(formData.longitude);
+    const latitude = showField("latitude") ? Number(formData.latitude) : null;
+    const longitude = showField("longitude") ? Number(formData.longitude) : null;
 
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    if (
+      (showField("latitude") && !Number.isFinite(latitude)) ||
+      (showField("longitude") && !Number.isFinite(longitude))
+    ) {
       Swal.fire(t("common.warning"), t("common.invalid_data"), "warning");
       return;
     }
@@ -306,23 +326,37 @@ export default function TripAttendanceForm() {
 
       if (isEdit && id) {
         const updateBody = new FormData();
-        updateBody.append("latitude", String(latitude));
-        updateBody.append("longitude", String(longitude));
-        updateBody.append("source", formData.source);
-        if (photoFile) {
+        const updatePayload = filterPayload({
+          latitude,
+          longitude,
+          source: formData.source,
+        });
+        Object.entries(updatePayload).forEach(([key, value]) => {
+          if (value !== null && value !== undefined) {
+            updateBody.append(key, String(value));
+          }
+        });
+        if (showField("photo") && photoFile) {
           updateBody.append("photo", photoFile);
         }
 
         await tripAttendanceApi.update(id, updateBody, multipartConfig);
       } else {
         const createBody = new FormData();
-        createBody.append("trip_instance_id", formData.trip_instance_id);
-        createBody.append("staff_id", formData.staff_id);
-        createBody.append("vehicle_id", formData.vehicle_id);
-        createBody.append("latitude", String(latitude));
-        createBody.append("longitude", String(longitude));
-        createBody.append("source", formData.source);
-        if (photoFile) {
+        const createPayload = filterPayload({
+          trip_instance_id: formData.trip_instance_id,
+          staff_id: formData.staff_id,
+          vehicle_id: formData.vehicle_id,
+          latitude,
+          longitude,
+          source: formData.source,
+        });
+        Object.entries(createPayload).forEach(([key, value]) => {
+          if (value !== null && value !== undefined) {
+            createBody.append(key, String(value));
+          }
+        });
+        if (showField("photo") && photoFile) {
           createBody.append("photo", photoFile);
         }
 
@@ -360,6 +394,7 @@ export default function TripAttendanceForm() {
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            {showField("trip_instance_id") && (
             <div>
               <Label>{t("admin.trip_attendance.trip_instance")}</Label>
               <Select
@@ -373,7 +408,9 @@ export default function TripAttendanceForm() {
                 required
               />
             </div>
+            )}
 
+            {showField("staff_id") && (
             <div>
               <Label>{t("admin.trip_attendance.staff")}</Label>
               <Select
@@ -385,7 +422,9 @@ export default function TripAttendanceForm() {
                 required
               />
             </div>
+            )}
 
+            {showField("vehicle_id") && (
             <div>
               <Label>{t("admin.trip_attendance.vehicle")}</Label>
               <Select
@@ -397,7 +436,9 @@ export default function TripAttendanceForm() {
                 required
               />
             </div>
+            )}
 
+            {showField("attendance_time") && (
             <div>
               <Label>{t("admin.trip_attendance.attendance_time")}</Label>
               <Input
@@ -407,7 +448,9 @@ export default function TripAttendanceForm() {
                 className="bg-gray-100"
               />
             </div>
+            )}
 
+            {showField("latitude") && (
             <div>
               <Label>{t("admin.trip_attendance.latitude")}</Label>
               <Input
@@ -417,7 +460,9 @@ export default function TripAttendanceForm() {
                 placeholder={t("admin.trip_attendance.latitude")}
               />
             </div>
+            )}
 
+            {showField("longitude") && (
             <div>
               <Label>{t("admin.trip_attendance.longitude")}</Label>
               <Input
@@ -427,7 +472,9 @@ export default function TripAttendanceForm() {
                 placeholder={t("admin.trip_attendance.longitude")}
               />
             </div>
+            )}
 
+            {showField("source") && (
             <div>
               <Label>{t("admin.trip_attendance.source")}</Label>
               <Select
@@ -445,7 +492,9 @@ export default function TripAttendanceForm() {
                 required
               />
             </div>
+            )}
 
+            {showField("photo") && (
             <div className="md:col-span-2">
               <Label>{t("admin.trip_attendance.photo")}</Label>
               <div className="flex flex-col gap-2 md:flex-row md:items-center">
@@ -498,6 +547,7 @@ export default function TripAttendanceForm() {
                 )}
               </div>
             </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3">

@@ -123,6 +123,20 @@ const SCREEN_ALIASES: Record<string, string[]> = {
   "project-creation": ["project"],
   "customer-creation": ["customercreations"],
   "household-pickup-event": ["householdpickupevents", "householdPickupEvents"],
+  "staff-creation": ["staffcreation", "staffcreations", "staff creation"],
+  "staff-template": ["stafftemplatecreation", "stafftemplate", "staff template"],
+  "alternative-staff-template": [
+    "alternativestafftemplate",
+    "alternativestafftemplates",
+    "alternative-stafftemplate",
+    "alternative staff template",
+  ],
+  "supervisor-zone-map": ["supervisorzonemap", "supervisor-zone-map", "supervisor zone map"],
+  "unassigned-staff-pool": ["unassignedstaffpool", "unassigned-staff-pool", "unassigned staff pool"],
+  "trip-attendance": ["tripattendance", "tripattendances", "trip-attendance", "trip attendance"],
+  "collection-monitoring": ["collectionmonitoring", "collection-monitoring", "collection monitoring"],
+  "vehicle-type": ["vehicletype", "vehicletypes", "vehicle-type", "vehicle type"],
+  "vehicle-creation": ["vehiclecreation", "vehiclecreations", "vehicle-creation", "vehicle creation"],
 };
 
 // ============================================================

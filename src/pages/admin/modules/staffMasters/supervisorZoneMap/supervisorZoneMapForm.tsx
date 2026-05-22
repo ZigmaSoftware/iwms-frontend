@@ -19,6 +19,7 @@ import {
 } from "@/tanstack/admin/queries/masters/supervisorZoneMap";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 /* ─────────────────────────── types ──────────────────────────────────────── */
 
@@ -69,6 +70,17 @@ type StaffRecord = {
   active_status?: boolean | number | string | null;
   company_name?: string;
   project_name?: string;
+};
+
+const SUPERVISOR_ZONE_MAP_FIELDS: Record<string, string[]> = {
+  company_id: ["company_id", "company"],
+  project_id: ["project_id", "project"],
+  supervisor_id: ["supervisor_id", "supervisor"],
+  district_id: ["district_id", "district"],
+  city_id: ["city_id", "city"],
+  zone_ids: ["zone_ids", "zones", "zone_id"],
+  status: ["status"],
+  remarks: ["remarks"],
 };
 
 /* ─────────────────────────── helpers ────────────────────────────────────── */
@@ -273,6 +285,11 @@ export default function SupervisorZoneMapForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
+  const { showField, filterPayload } = useFieldVisibility(
+    "staff-masters",
+    "supervisor-zone-map",
+    SUPERVISOR_ZONE_MAP_FIELDS
+  );
 
   const [fetching, setFetching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -552,19 +569,19 @@ export default function SupervisorZoneMapForm() {
   /* ── save ────────────────────────────────────────────────────────────────── */
   const handleSave = async () => {
     if (
-      !selectedCompanyId ||
-      !selectedProjectId ||
-      !form.supervisor_id ||
-      !form.district_id ||
-      !form.city_id ||
-      zoneIds.length === 0
+      (showField("company_id") && !selectedCompanyId) ||
+      (showField("project_id") && !selectedProjectId) ||
+      (showField("supervisor_id") && !form.supervisor_id) ||
+      (showField("district_id") && !form.district_id) ||
+      (showField("city_id") && !form.city_id) ||
+      (showField("zone_ids") && zoneIds.length === 0)
     ) {
       Swal.fire(t("common.error"), t("common.missing_fields"), "warning");
       return;
     }
     setFormError(null);
 
-    const payload = {
+    const rawPayload = {
       company_id: selectedCompanyId,
       project_id: selectedProjectId,
       supervisor_id: form.supervisor_id,
@@ -574,6 +591,7 @@ export default function SupervisorZoneMapForm() {
       status: form.status,
       remarks: remarks.trim(),
     };
+    const payload = filterPayload(rawPayload, ["company_id", "project_id"]);
 
     setSubmitting(true);
     try {
@@ -617,6 +635,7 @@ export default function SupervisorZoneMapForm() {
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {/* COMPANY */}
+          {showField("company_id") && (
           <div>
             <Label>
               {t("admin.nav.company")}
@@ -631,8 +650,10 @@ export default function SupervisorZoneMapForm() {
               required
             />
           </div>
+          )}
 
           {/* PROJECT */}
+          {showField("project_id") && (
           <div>
             <Label>
               {t("admin.nav.project")}
@@ -651,8 +672,10 @@ export default function SupervisorZoneMapForm() {
               required
             />
           </div>
+          )}
 
           {/* SUPERVISOR — scoped to company + project */}
+          {showField("supervisor_id") && (
           <div>
             <Label>
               {t("admin.supervisor_zone_map.supervisor")}
@@ -671,8 +694,10 @@ export default function SupervisorZoneMapForm() {
               required
             />
           </div>
+          )}
 
           {/* DISTRICT — scoped to company + project */}
+          {showField("district_id") && (
           <div>
             <Label>
               {t("admin.supervisor_zone_map.district")}
@@ -691,8 +716,10 @@ export default function SupervisorZoneMapForm() {
               required
             />
           </div>
+          )}
 
           {/* CITY — scoped to district */}
+          {showField("city_id") && (
           <div>
             <Label>
               {t("admin.supervisor_zone_map.city")}
@@ -711,8 +738,10 @@ export default function SupervisorZoneMapForm() {
               required
             />
           </div>
+          )}
 
           {/* STATUS */}
+          {showField("status") && (
           <div>
             <Label>{t("admin.supervisor_zone_map.status")}</Label>
             <Select
@@ -726,9 +755,11 @@ export default function SupervisorZoneMapForm() {
               required
             />
           </div>
+          )}
         </div>
 
         {/* ZONES — full-width multi-select with inline checkboxes */}
+        {showField("zone_ids") && (
         <div>
           <Label>
             {t("admin.supervisor_zone_map.zones")}
@@ -749,8 +780,10 @@ export default function SupervisorZoneMapForm() {
             disabled={fetching || !form.district_id || !form.city_id}
           />
         </div>
+        )}
 
         {/* REMARKS */}
+        {showField("remarks") && (
         <div>
           <Label>{t("admin.supervisor_zone_map.remarks")}</Label>
           <textarea
@@ -762,6 +795,7 @@ export default function SupervisorZoneMapForm() {
             disabled={fetching}
           />
         </div>
+        )}
 
         {isEdit && (
           <p className="text-xs text-gray-500">

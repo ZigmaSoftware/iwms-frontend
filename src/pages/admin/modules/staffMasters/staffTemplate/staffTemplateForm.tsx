@@ -9,6 +9,7 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { staffCreationApi, staffTemplateApi, companyApi, projectApi } from "@/helpers/admin";
 import {
   useCreateStaffTemplate,
@@ -63,6 +64,17 @@ const initialFormData: StaffTemplateFormData = {
   approved_by: "",
 };
 
+const STAFF_TEMPLATE_FIELDS: Record<string, string[]> = {
+  company_id: ["company_id", "company"],
+  project_id: ["project_id", "project"],
+  driver_id: ["driver_id", "primary_driver", "driver"],
+  operator_id: ["operator_id", "primary_operator", "operator"],
+  extra_operator_id: ["extra_operator_id", "extra_staff", "extra_operator"],
+  status: ["status", "active_status"],
+  approval_status: ["approval_status"],
+  approved_by: ["approved_by", "approver"],
+};
+
 /* ================= COMPONENT ================= */
 
 export default function StaffTemplateForm() {
@@ -70,6 +82,11 @@ export default function StaffTemplateForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
+  const { showField, filterPayload } = useFieldVisibility(
+    "staff-masters",
+    "staff-template",
+    STAFF_TEMPLATE_FIELDS
+  );
 
   const [formData, setFormData] =
     useState<StaffTemplateFormData>(initialFormData);
@@ -529,6 +546,8 @@ export default function StaffTemplateForm() {
 
     // Business rule
     if (
+      showField("driver_id") &&
+      showField("operator_id") &&
       formData.driver_id &&
       formData.driver_id === formData.operator_id
     ) {
@@ -543,7 +562,7 @@ export default function StaffTemplateForm() {
     setSubmitting(true);
 
     try {
-      const payload = {
+      const rawPayload = {
         driver_id: formData.driver_id,
         operator_id: formData.operator_id,
         extra_operator_id: formData.extra_operator_id,
@@ -556,6 +575,7 @@ export default function StaffTemplateForm() {
         company_id: selectedCompanyId,
         project_id: selectedProjectId,
       };
+      const payload = filterPayload(rawPayload, ["company_id", "project_id"]);
 
       if (isEdit && id) {
         await updateMutation.mutateAsync({ id, payload });
@@ -604,6 +624,7 @@ export default function StaffTemplateForm() {
           ) : null}
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             {/* COMPANY */}
+            {showField("company_id") && (
             <div>
               <Label htmlFor="company_id">
                 {t("admin.nav.company") || "Company"}
@@ -621,8 +642,10 @@ export default function StaffTemplateForm() {
                 disabled={fetching}
               />
             </div>
+            )}
 
             {/* PROJECT */}
+            {showField("project_id") && (
             <div>
               <Label htmlFor="project_id">
                 {t("admin.nav.project") || "Project"}
@@ -637,8 +660,10 @@ export default function StaffTemplateForm() {
                 disabled={fetching}
               />
             </div>
+            )}
 
             {/* DRIVER */}
+            {showField("driver_id") && (
             <div>
               <Label>{t("admin.staff_template.primary_driver")}</Label>
               <Select
@@ -652,8 +677,10 @@ export default function StaffTemplateForm() {
                 disabled={fetching}
               />
             </div>
+            )}
 
             {/* OPERATOR */}
+            {showField("operator_id") && (
             <div>
               <Label>{t("admin.staff_template.primary_operator")}</Label>
               <Select
@@ -667,8 +694,10 @@ export default function StaffTemplateForm() {
                 disabled={fetching}
               />
             </div>
+            )}
 
             {/* EXTRA OPERATORS */}
+            {showField("extra_operator_id") && (
             <div>
               <Label>{t("admin.staff_template.extra_staff")}</Label>
               <Select
@@ -707,8 +736,10 @@ export default function StaffTemplateForm() {
                 )}
               </div>
             </div>
+            )}
 
             {/* STATUS */}
+            {showField("status") && (
             <div>
               <Label>{t("common.status")}</Label>
               <Select
@@ -722,8 +753,10 @@ export default function StaffTemplateForm() {
                 disabled={fetching}
               />
             </div>
+            )}
 
             {/* APPROVAL STATUS */}
+            {showField("approval_status") && (
             <div>
               <Label>{t("admin.staff_template.approval_status")}</Label>
               <Select
@@ -737,8 +770,10 @@ export default function StaffTemplateForm() {
                 disabled={fetching}
               />
             </div>
+            )}
 
             {/* APPROVER */}
+            {showField("approved_by") && (
             <div>
               <Label>{t("admin.staff_template.approved_by")}</Label>
               <Select
@@ -751,6 +786,7 @@ export default function StaffTemplateForm() {
                 disabled={fetching}
               />
             </div>
+            )}
 
           </div>
 
