@@ -59,7 +59,9 @@ export const adminEndpoints = {
   ========================= */
   userTypes: "role-assigns/user-type",
   staffUserTypes: "role-assigns/staffusertypes",
-  roleTypes:"role-assigns/staffusertypes/role-choices",
+  roleTypes: "role-assigns/staffusertypes/role-choices",
+  contractorUserTypes: "role-assigns/contractorusertypes",
+  contractorRoleTypes: "role-assigns/contractorusertypes/role-choices",
 
   /* =========================
      USER CREATION

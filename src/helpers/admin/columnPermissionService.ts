@@ -20,6 +20,7 @@ export interface CreateColumnPermissionPayload {
   userscreen_id: string;
   column_id: string;
   staffusertype_id?: string;
+  contractorusertype_id?: string;
   usertype_id?: string;
   is_active?: boolean;
   order_no?: number;
@@ -36,6 +37,9 @@ export interface UpdateColumnPermissionPayload {
 
 const _api = adminApi.columnPermissions;
 
+const isContractorRoleId = (value: string): boolean =>
+  value.trim().startsWith("CNTUSRTYPE-");
+
 // ---------------------------------------------------------------------------
 // Service functions
 // ---------------------------------------------------------------------------
@@ -49,10 +53,14 @@ export async function getColumnPermissions(
   staffuserTypeId: string,
   companyId?: string
 ): Promise<ColumnPermissionsResponse> {
+  const roleParam = isContractorRoleId(staffuserTypeId)
+    ? { contractorusertype_id: staffuserTypeId }
+    : { staffusertype_id: staffuserTypeId };
+
   const result = await _api.list({
     params: {
       userscreen_id: userscreenId,
-      staffusertype_id: staffuserTypeId,
+      ...roleParam,
       ...(companyId ? { company_id: companyId } : {}),
     },
   });

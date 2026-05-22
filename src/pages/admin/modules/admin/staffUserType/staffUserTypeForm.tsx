@@ -19,6 +19,10 @@ import {
   useStaffUserTypeQuery,
   useUpdateStaffUserTypeMutation,
   useUserTypesQuery,
+  useCreateContractorUserTypeMutation,
+  useUpdateContractorUserTypeMutation,
+  useContractorRoleTypesQuery,
+  useContractorUserTypeQuery,
 } from "@/tanstack/admin";
 
 const { encAdmins, encStaffUserType } = getEncryptedRoute();
@@ -50,14 +54,37 @@ export default function StaffUserTypeForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
 
+  const selectedUserTypeName = userTypes
+    .find((u) => u.unique_id === selectedUserType)
+    ?.name?.toLowerCase() ?? "";
+  const isContractor = selectedUserTypeName === "contractor";
+
   const userTypesQuery = useUserTypesQuery();
-  const roleTypeChoicesQuery = useRoleTypeChoicesQuery();
-  const staffUserTypeQuery = useStaffUserTypeQuery(isEdit ? (id as string) : null);
+  const staffRoleChoicesQuery = useRoleTypeChoicesQuery();
+  const contractorRoleChoicesQuery = useContractorRoleTypesQuery();
+  const roleTypeChoicesQuery = isContractor ? contractorRoleChoicesQuery : staffRoleChoicesQuery;
+
+  const staffUserTypeQuery = useStaffUserTypeQuery(!isContractor && isEdit ? (id as string) : null);
+  const contractorUserTypeQuery = useContractorUserTypeQuery(isContractor && isEdit ? (id as string) : null);
 
   const createStaffUserTypeMutation = useCreateStaffUserTypeMutation();
   const updateStaffUserTypeMutation = useUpdateStaffUserTypeMutation();
-  const loading =
-    createStaffUserTypeMutation.isPending || updateStaffUserTypeMutation.isPending;
+  const createContractorUserTypeMutation = useCreateContractorUserTypeMutation();
+  const updateContractorUserTypeMutation = useUpdateContractorUserTypeMutation();
+
+  const loading = isContractor
+    ? createContractorUserTypeMutation.isPending || updateContractorUserTypeMutation.isPending
+    : createStaffUserTypeMutation.isPending || updateStaffUserTypeMutation.isPending;
+
+  /* =========================
+     Swap role choices when user type changes (after page is ready)
+  ========================= */
+  useEffect(() => {
+    if (!pageReady) return;
+    const roles = roleTypeChoicesQuery.data ?? [];
+    setRoleTypes(roles);
+    setName(roles[0]?.value ?? "");
+  }, [selectedUserType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* =========================
      INIT
@@ -65,40 +92,40 @@ export default function StaffUserTypeForm() {
   useEffect(() => {
     if (pageReady) return;
 
-    if (userTypesQuery.isError || roleTypeChoicesQuery.isError || staffUserTypeQuery.isError) {
+    const editQuery = isContractor ? contractorUserTypeQuery : staffUserTypeQuery;
+
+    if (userTypesQuery.isError || staffRoleChoicesQuery.isError || contractorRoleChoicesQuery.isError || editQuery.isError) {
       Swal.fire(t("common.error"), t("common.load_failed"), "error");
       navigate(ENC_LIST_PATH);
       return;
     }
 
-    if (userTypesQuery.isPending || roleTypeChoicesQuery.isPending) return;
-    if (isEdit && staffUserTypeQuery.isPending) return;
+    if (userTypesQuery.isPending || staffRoleChoicesQuery.isPending || contractorRoleChoicesQuery.isPending) return;
+    if (isEdit && editQuery.isPending) return;
 
     const ut = (userTypesQuery.data ?? []) as unknown as UserType[];
-    const roles = roleTypeChoicesQuery.data ?? [];
-    console.log(roles);
-    console.log("User Types",ut);
+    setUserTypes(ut);
 
-    const staff = ut.find(
-      (u) => u.name.toLowerCase() === "staff"
-    );
-   
-    if (staff) {
-      setUserTypes([staff]); // only staff in dropdown
-      setSelectedUserType(staff.unique_id); // always select staff
+    if (ut.length > 0 && !selectedUserType) {
+      setSelectedUserType(ut[0].unique_id);
     }
- 
+
+    const roles = roleTypeChoicesQuery.data ?? [];
     setRoleTypes(roles);
 
     if (isEdit) {
-      const data = staffUserTypeQuery.data as any;
+      const data = editQuery.data as any;
       if (!data) return;
 
       const roleValue = String(data.name ?? "").trim();
       setName(roleValue);
       setIsActive(Boolean(data.is_active));
 
-      if (roleValue && !roles.some((role) => role.value === roleValue)) {
+      if (data.usertype_id) {
+        setSelectedUserType(data.usertype_id);
+      }
+
+      if (roleValue && !roles.some((role: RoleTypeOption) => role.value === roleValue)) {
         setRoleTypes((prev) => [
           ...prev,
           { value: roleValue, label: prettifyRoleLabel(roleValue) },
@@ -113,16 +140,24 @@ export default function StaffUserTypeForm() {
     setPageReady(true);
   }, [
     isEdit,
+    isContractor,
     name,
     navigate,
     pageReady,
+    staffRoleChoicesQuery.data,
+    staffRoleChoicesQuery.isError,
+    staffRoleChoicesQuery.isPending,
+    contractorRoleChoicesQuery.data,
+    contractorRoleChoicesQuery.isError,
+    contractorRoleChoicesQuery.isPending,
     roleTypeChoicesQuery.data,
-    roleTypeChoicesQuery.isError,
-    roleTypeChoicesQuery.isPending,
     selectedUserType,
     staffUserTypeQuery.data,
     staffUserTypeQuery.isError,
     staffUserTypeQuery.isPending,
+    contractorUserTypeQuery.data,
+    contractorUserTypeQuery.isError,
+    contractorUserTypeQuery.isPending,
     t,
     userTypesQuery.data,
     userTypesQuery.isError,
@@ -147,17 +182,21 @@ export default function StaffUserTypeForm() {
     };
 
     try {
-      if (isEdit) {
-        await updateStaffUserTypeMutation.mutateAsync({
-          id: id as string,
-          payload,
-        });
-        Swal.fire(t("common.success"), t("common.updated_success"), "success");
+      if (isContractor) {
+        if (isEdit) {
+          await updateContractorUserTypeMutation.mutateAsync({ id: id as string, payload });
+        } else {
+          await createContractorUserTypeMutation.mutateAsync(payload);
+        }
       } else {
-        await createStaffUserTypeMutation.mutateAsync(payload);
-        Swal.fire(t("common.success"), t("common.added_success"), "success");
+        if (isEdit) {
+          await updateStaffUserTypeMutation.mutateAsync({ id: id as string, payload });
+        } else {
+          await createStaffUserTypeMutation.mutateAsync(payload);
+        }
       }
 
+      Swal.fire(t("common.success"), isEdit ? t("common.updated_success") : t("common.added_success"), "success");
       navigate(ENC_LIST_PATH);
     } catch (error: any) {
       Swal.fire(
@@ -202,7 +241,6 @@ export default function StaffUserTypeForm() {
               <Select
                 value={selectedUserType}
                 onValueChange={setSelectedUserType}
-                disabled
               >
                 <SelectTrigger>
                   <SelectValue
@@ -285,11 +323,10 @@ export default function StaffUserTypeForm() {
                 : t("common.save")}
             </Button>
 
-            <Button 
+            <Button
               type="button"
               variant="destructive"
               onClick={() => navigate(ENC_LIST_PATH)}
-              // className="bg-red-600 text-white px-6 py-2 rounded"
             >
               {t("common.cancel")}
             </Button>

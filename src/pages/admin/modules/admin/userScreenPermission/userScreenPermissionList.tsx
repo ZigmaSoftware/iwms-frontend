@@ -329,6 +329,12 @@ export default function UserScreenPermissionList() {
         />
 
         <Column
+          field="usertype_name"
+          header={t("admin.nav.user_type")}
+          sortable
+        />
+
+        <Column
           field="staffusertype_name"
           header={t("admin.nav.staff_user_type")}
           sortable

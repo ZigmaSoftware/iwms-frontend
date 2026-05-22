@@ -5,7 +5,10 @@ import {
   normalizeRole,
 } from "@/types/roles";
 import {
+  COLUMN_PERMISSIONS_STORAGE_KEY,
   clearStoredPermissions,
+  PERMISSION_DETAILS_STORAGE_KEY,
+  PERMISSIONS_STORAGE_KEY,
   setStoredColumnPermissions,
   setStoredPermissionDetails,
   setStoredPermissions,
@@ -76,6 +79,14 @@ const safeJsonParse = <T>(value: string | null, fallback: T): T => {
   }
 };
 
+const safeSetStorageItem = (key: string, value: string): void => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    console.warn(`[Auth] Unable to persist '${key}' in localStorage:`, error);
+  }
+};
+
 export const unwrapLoginPayload = (response: LoginEnvelope): LoginPayload => {
   if (response && "data" in response && response.data) {
     return response.data;
@@ -107,6 +118,10 @@ export const isAccessTokenValid = (token = getStoredAccessToken()): boolean => {
 };
 
 export const persistLoginSession = (payload: LoginPayload): void => {
+  localStorage.removeItem(PERMISSIONS_STORAGE_KEY);
+  localStorage.removeItem(PERMISSION_DETAILS_STORAGE_KEY);
+  localStorage.removeItem(COLUMN_PERMISSIONS_STORAGE_KEY);
+
   const access = payload.access ?? payload.access_token ?? "";
   const refresh = payload.refresh ?? payload.refresh_token ?? "";
   const user: AuthUser = payload.user ?? {
@@ -118,24 +133,24 @@ export const persistLoginSession = (payload: LoginPayload): void => {
   const profile = payload.profile ?? null;
   const role = normalizeRole(user.role ?? payload.role ?? null);
 
-  if (access) localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, access);
-  if (refresh) localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refresh);
-  localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-  if (role) localStorage.setItem(USER_ROLE_STORAGE_KEY, role);
-  if (user.unique_id) localStorage.setItem("unique_id", String(user.unique_id));
+  if (access) safeSetStorageItem(ACCESS_TOKEN_STORAGE_KEY, access);
+  if (refresh) safeSetStorageItem(REFRESH_TOKEN_STORAGE_KEY, refresh);
+  safeSetStorageItem(USER_STORAGE_KEY, JSON.stringify(user));
+  if (role) safeSetStorageItem(USER_ROLE_STORAGE_KEY, role);
+  if (user.unique_id) safeSetStorageItem("unique_id", String(user.unique_id));
 
   setStoredPermissions(payload.permissions ?? {});
   setStoredPermissionDetails(payload.permission_details ?? {});
   setStoredColumnPermissions(payload.column_permissions ?? {});
 
   if (profile) {
-    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+    safeSetStorageItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
     const projectId =
       profile.project_id ??
       profile.project_unique_id ??
       profile.project?.unique_id;
     if (projectId) {
-      localStorage.setItem("project_id", String(projectId));
+      safeSetStorageItem("project_id", String(projectId));
     } else {
       localStorage.removeItem("project_id");
     }

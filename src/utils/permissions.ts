@@ -382,7 +382,11 @@ export const setStoredPermissions = (permissions: unknown): void => {
     localStorage.removeItem(PERMISSIONS_STORAGE_KEY);
     return;
   }
-  localStorage.setItem(PERMISSIONS_STORAGE_KEY, JSON.stringify(sanitized));
+  try {
+    localStorage.setItem(PERMISSIONS_STORAGE_KEY, JSON.stringify(sanitized));
+  } catch (error) {
+    console.warn("[Permissions] Unable to cache permissions:", error);
+  }
 };
 
 export const clearStoredPermissions = (): void => {
@@ -408,7 +412,12 @@ export const setStoredPermissionDetails = (permissionDetails: unknown): void => 
     localStorage.removeItem(PERMISSION_DETAILS_STORAGE_KEY);
     return;
   }
-  localStorage.setItem(PERMISSION_DETAILS_STORAGE_KEY, JSON.stringify(sanitized));
+  try {
+    localStorage.setItem(PERMISSION_DETAILS_STORAGE_KEY, JSON.stringify(sanitized));
+  } catch (error) {
+    localStorage.removeItem(PERMISSION_DETAILS_STORAGE_KEY);
+    console.warn("[Permissions] Permission details are too large to cache:", error);
+  }
 };
 
 export const getStoredColumnPermissions = (): ColumnPermissionsPayload => {
@@ -433,7 +442,12 @@ export const setStoredColumnPermissions = (columnPermissions: unknown): void => 
     localStorage.removeItem(COLUMN_PERMISSIONS_STORAGE_KEY);
     return;
   }
-  localStorage.setItem(COLUMN_PERMISSIONS_STORAGE_KEY, JSON.stringify(sanitized));
+  try {
+    localStorage.setItem(COLUMN_PERMISSIONS_STORAGE_KEY, JSON.stringify(sanitized));
+  } catch (error) {
+    localStorage.removeItem(COLUMN_PERMISSIONS_STORAGE_KEY);
+    console.warn("[Permissions] Column permissions are too large to cache:", error);
+  }
 };
 
 // ============================================================
