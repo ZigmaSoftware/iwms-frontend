@@ -28,6 +28,8 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import {
   useMainScreensQuery,
   useStaffUserTypesQuery,
+  useContractorUserTypesQuery,
+  useUserTypesQuery,
   useSyncUserScreenPermissionMutation,
   useUserScreenActionsQuery,
   useUserScreenPermissionFormattedQuery,
@@ -129,6 +131,17 @@ const toId = (value: unknown): string => {
   return String(value).trim();
 };
 
+const toUserTypeId = (record: {
+  usertype_id?: unknown;
+  usertype?: { unique_id?: unknown };
+}): string => {
+  const direct = record.usertype_id;
+  if (direct && typeof direct === "object") {
+    return toId((direct as { unique_id?: unknown }).unique_id);
+  }
+  return toId(direct ?? record.usertype?.unique_id);
+};
+
 const toOrder = (value: unknown): number => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
@@ -147,6 +160,9 @@ const uniqueIds = (values: unknown[]): string[] => {
 
   return normalized;
 };
+
+const isContractorRoleId = (value: string): boolean =>
+  value.trim().startsWith("CNTUSRTYPE-");
 
 const firstErrorMessage = (value: unknown): string | undefined => {
   if (Array.isArray(value) && typeof value[0] === "string") {
@@ -195,7 +211,10 @@ export default function UserScreenPermissionForm() {
   );
   const [description, setDescription] = useState("");
   const [userTypeId, setUserTypeId] = useState("");
+  const [selectedUserTypeCategoryId, setSelectedUserTypeCategoryId] = useState("");
 
+  const [userTypeOptions, setUserTypeOptions] = useState<Option[]>([]);
+  const [allRoleOptions, setAllRoleOptions] = useState<Option[]>([]);
   const [staffUserTypes, setStaffUserTypes] = useState<Option[]>([]);
   const [mainScreens, setMainScreens] = useState<Option[]>([]);
   const [allUserScreens, setAllUserScreens] = useState<ApiUserScreen[]>([]);
@@ -218,7 +237,9 @@ export default function UserScreenPermissionForm() {
   >({});
 
   const [loading, setLoading] = useState(false);
+  const userTypesQuery = useUserTypesQuery();
   const staffUserTypesQuery = useStaffUserTypesQuery();
+  const contractorUserTypesQuery = useContractorUserTypesQuery();
   const mainScreensQuery = useMainScreensQuery();
   const userScreensQuery = useUserScreensQuery();
   const userScreenActionsQuery = useUserScreenActionsQuery();
@@ -232,7 +253,9 @@ export default function UserScreenPermissionForm() {
   );
   const syncPermissionMutation = useSyncUserScreenPermissionMutation();
   const loadingData =
+    userTypesQuery.isPending ||
     staffUserTypesQuery.isPending ||
+    contractorUserTypesQuery.isPending ||
     mainScreensQuery.isPending ||
     userScreensQuery.isPending ||
     userScreenActionsQuery.isPending;
@@ -256,18 +279,31 @@ export default function UserScreenPermissionForm() {
   ----------------------------------------------------------- */
 
   useEffect(() => {
-    setStaffUserTypes(
-      (staffUserTypesQuery.data ?? []).map((x: StaffUserType) => ({
-            value: toId(x.unique_id),
-            label: String(x.name ?? ""),
-            userTypeId: toId(x.usertype_id ?? x.usertype?.unique_id),
+    // UserType category dropdown (staff, contractor, …)
+    setUserTypeOptions(
+      (userTypesQuery.data ?? []).map((x: any) => ({
+        value: toId(x.unique_id),
+        label: String(x.name ?? ""),
       }))
     );
 
+    // Combined role pool — tag each with its parent usertype_id
+    const staffRoles = (staffUserTypesQuery.data ?? []).map((x: StaffUserType) => ({
+      value: toId(x.unique_id),
+      label: String(x.name ?? ""),
+      userTypeId: toUserTypeId(x),
+    }));
+    const contractorRoles = (contractorUserTypesQuery.data ?? []).map((x: any) => ({
+      value: toId(x.unique_id),
+      label: String(x.name ?? ""),
+      userTypeId: toUserTypeId(x),
+    }));
+    setAllRoleOptions([...staffRoles, ...contractorRoles]);
+
     setMainScreens(
       (mainScreensQuery.data ?? []).map((x: MainScreen) => ({
-            value: toId(x.unique_id),
-            label: String(x.mainscreen_name ?? ""),
+        value: toId(x.unique_id),
+        label: String(x.mainscreen_name ?? ""),
       }))
     );
 
@@ -279,15 +315,41 @@ export default function UserScreenPermissionForm() {
 
     setActions(
       (userScreenActionsQuery.data ?? []).map((x: UserScreenAction) => ({
-            value: toId(x.unique_id),
-            label: String(x.action_name ?? ""),
+        value: toId(x.unique_id),
+        label: String(x.action_name ?? ""),
       }))
     );
   }, [
+    userTypesQuery.data,
     mainScreensQuery.data,
     staffUserTypesQuery.data,
+    contractorUserTypesQuery.data,
     userScreenActionsQuery.data,
     userScreensQuery.data,
+  ]);
+
+  useEffect(() => {
+    if (!isEdit || !staffUserTypeId) return;
+
+    const matchingRole = allRoleOptions.find(
+      (role) => role.value === staffUserTypeId
+    );
+    const formattedUserTypeId = toId(
+      (formattedPermissionQuery.data as any)?.usertype_id ??
+        (formattedPermissionQuery.data as any)?.userTypeId
+    );
+    const nextUserTypeId = matchingRole?.userTypeId || formattedUserTypeId;
+
+    if (!nextUserTypeId || selectedUserTypeCategoryId === nextUserTypeId) return;
+
+    setSelectedUserTypeCategoryId(nextUserTypeId);
+    setUserTypeId(nextUserTypeId);
+  }, [
+    allRoleOptions,
+    formattedPermissionQuery.data,
+    isEdit,
+    selectedUserTypeCategoryId,
+    staffUserTypeId,
   ]);
 
   useEffect(() => {
@@ -545,14 +607,25 @@ export default function UserScreenPermissionForm() {
   }, [screenIdsKey, staffUserTypeId, effectiveCompanyId]);
 
   /* -----------------------------------------------------------
-     AUTO USER TYPE
+     FILTER ROLES BY SELECTED USER TYPE CATEGORY
   ----------------------------------------------------------- */
 
   useEffect(() => {
-    if (!staffUserTypeId || staffUserTypes.length === 0) return;
-    const sut = staffUserTypes.find((s) => s.value === staffUserTypeId);
-    setUserTypeId(sut?.userTypeId || "");
-  }, [staffUserTypeId, staffUserTypes]);
+    if (selectedUserTypeCategoryId) {
+      const filtered = allRoleOptions.filter(
+        (r) => r.userTypeId === selectedUserTypeCategoryId
+      );
+      setStaffUserTypes(filtered);
+      setUserTypeId(selectedUserTypeCategoryId);
+      // Clear the role selection if it no longer belongs to the new usertype
+      setStaffUserTypeId((prev) =>
+        filtered.some((r) => r.value === prev) ? prev : ""
+      );
+    } else {
+      setStaffUserTypes(allRoleOptions);
+      setUserTypeId("");
+    }
+  }, [selectedUserTypeCategoryId, allRoleOptions]);
 
   /* -----------------------------------------------------------
      TOGGLE ACTIONS
@@ -682,9 +755,12 @@ export default function UserScreenPermissionForm() {
       })
       .filter((screen) => Boolean(screen.userscreen_id));
 
+    const isContractorRole = isContractorRoleId(staffUserTypeId);
     const payload = {
       company_id: effectiveCompanyId,
-      staffusertype_id: staffUserTypeId,
+      staffusertype_id: isContractorRole ? null : staffUserTypeId,
+      contractorusertype_id: isContractorRole ? staffUserTypeId : null,
+      permission_for: isContractorRole ? "contractor" : "staff",
       mainscreen_id: mainScreenId,
       description: description.trim(),
       usertype_id: userTypeId,
@@ -721,7 +797,8 @@ export default function UserScreenPermissionForm() {
               createColumnPermission({
                 userscreen_id: screen.userscreen_id,
                 column_id: col.unique_id,
-                staffusertype_id: staffUserTypeId,
+                staffusertype_id: isContractorRole ? undefined : staffUserTypeId,
+                contractorusertype_id: isContractorRole ? staffUserTypeId : undefined,
                 usertype_id: userTypeId,
                 is_active: true,
                 company_id: effectiveCompanyId,
@@ -798,7 +875,7 @@ export default function UserScreenPermissionForm() {
       }
     >
       <form onSubmit={handleSubmit}>
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-4 gap-6">
           <div>
             <Label>{t("admin.nav.company")} *</Label>
             <Select
@@ -836,11 +913,44 @@ export default function UserScreenPermissionForm() {
           </div>
 
           <div>
+            <Label>{t("admin.nav.user_type")} *</Label>
+            <Select
+              value={selectedUserTypeCategoryId}
+              onValueChange={(value) => {
+                setSelectedUserTypeCategoryId(value);
+                if (!isEdit) {
+                  setStaffUserTypeId("");
+                  setScreenMatrix([]);
+                  setScreenColumns({});
+                  setColumnPermissionIds({});
+                  setDescription("");
+                }
+              }}
+              disabled={isEdit || !companyUniqueId}
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={t("common.select_item_placeholder", {
+                    item: t("admin.nav.user_type"),
+                  })}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {userTypeOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
             <Label>{t("admin.nav.staff_user_type")} *</Label>
             <Select
               value={staffUserTypeId}
               onValueChange={setStaffUserTypeId}
-              disabled={isEdit || !companyUniqueId}
+              disabled={isEdit || !selectedUserTypeCategoryId}
             >
               <SelectTrigger>
                 <SelectValue

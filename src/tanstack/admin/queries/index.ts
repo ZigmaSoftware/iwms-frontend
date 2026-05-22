@@ -26,6 +26,8 @@ export * from "./audits/commonAudit";
 export * from "./roleAssigns/userType";
 export * from "./roleAssigns/staffUserType";
 export * from "./roleAssigns/roleTypes";
+export * from "./roleAssigns/contractorUserType";
+export * from "./roleAssigns/contractorRoleTypes";
 export * from "./screenManagement/mainscreentype";
 export * from "./screenManagement/mainscreen";
 export * from "./screenManagement/userscreen";

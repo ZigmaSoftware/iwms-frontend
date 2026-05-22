@@ -20,6 +20,7 @@ import {
   districtApi,
   cityApi,
   staffUserTypeApi,
+  contractorUserTypeApi,
   companyApi,
   projectApi,
 } from "@/helpers/admin/index";
@@ -147,6 +148,7 @@ const initialFormData = {
   salary_type: "",
   active_status: "1",
   staffusertype_id: "",
+  contractorusertype_id: "",
   username: "",       // ← username field
   password: "",
   office_email: "",
@@ -246,6 +248,10 @@ export default function StaffCreationForm() {
   const [staffUserTypeOptions, setStaffUserTypeOptions] = useState<
     { value: string; label: string }[]
   >([]);
+  const [contractorUserTypeOptions, setContractorUserTypeOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
+  const [userTypeCategory, setUserTypeCategory] = useState<"staff" | "contractor">("staff");
   const [licenceFile, setLicenceFile] = useState<File | null>(null);
   const [licencePreview, setLicencePreview] = useState("");
   const licenceInputRef = useRef<HTMLInputElement>(null);
@@ -368,33 +374,30 @@ export default function StaffCreationForm() {
   }, [isDriverSelected]);
 
   useEffect(() => {
-    const loadStaffUserTypes = async () => {
+    const loadUserTypeOptions = async () => {
       try {
-        console.log("Loading staff user types...");
-        const res: any = await staffUserTypeApi.list();
-        console.log("Staff user types response:", res);
+        const toOptions = (res: any) => {
+          const data = Array.isArray(res)
+            ? res
+            : Array.isArray(res?.data)
+              ? res.data
+              : res?.data?.results ?? [];
+          return data.map((item: any) => ({ value: item.unique_id, label: item.name }));
+        };
 
-        const data = Array.isArray(res)
-          ? res
-          : Array.isArray(res?.data)
-            ? res.data
-            : res?.data?.results ?? [];
+        const [staffRes, contractorRes] = await Promise.all([
+          staffUserTypeApi.list(),
+          contractorUserTypeApi.list(),
+        ]);
 
-        console.log("Staff user types data:", data);
-
-        const options = data.map((item: any) => ({
-          value: item.unique_id,
-          label: item.name,
-        }));
-
-        console.log("Staff user types options:", options);
-        setStaffUserTypeOptions(options);
+        setStaffUserTypeOptions(toOptions(staffRes));
+        setContractorUserTypeOptions(toOptions(contractorRes));
       } catch (err) {
-        console.error("Failed to load staff user types", err);
+        console.error("Failed to load user type options", err);
       }
     };
 
-    loadStaffUserTypes();
+    loadUserTypeOptions();
   }, []);
 
   useEffect(() => {
@@ -523,6 +526,7 @@ export default function StaffCreationForm() {
 
           // DRIVER and USER TYPE details
           staffusertype_id: staff.staffusertype_id ?? "",
+          contractorusertype_id: staff.contractorusertype_id ?? "",
           driving_licence_no: staff.driving_licence_no ?? "",
 
           // Company and Project
@@ -540,6 +544,12 @@ export default function StaffCreationForm() {
               ? staff.driving_licence_file
               : `${backendOrigin}${staff.driving_licence_file}`
           );
+        }
+
+        if (staff.contractorusertype_id) {
+          setUserTypeCategory("contractor");
+        } else {
+          setUserTypeCategory("staff");
         }
 
         applyCompanyProjectFromRecord(staff);
@@ -740,7 +750,8 @@ export default function StaffCreationForm() {
         active_status: formData.active_status === "1",
         company_id: formData.company_id || companyUniqueId,
         project_id: formData.project_id || null,
-        staffusertype_id: formData.staffusertype_id || null,
+        staffusertype_id: userTypeCategory === "staff" ? (formData.staffusertype_id || null) : null,
+        contractorusertype_id: userTypeCategory === "contractor" ? (formData.contractorusertype_id || null) : null,
         username: formData.username || null,     // ← username in payload
 
         // Personal
@@ -926,20 +937,47 @@ export default function StaffCreationForm() {
           onChange={handleInputChange}
         />
       </div>
-      )}
-      {showField("staffusertype_id") && (
       <div>
-        <Label htmlFor="staffusertype_id">
-          {t("admin.staff_creation.staff_user_type")}
-        </Label>
+        <Label htmlFor="userTypeCategory">User Type</Label>
         <Select
-          id="staffusertype_id"
-          value={formData.staffusertype_id}
-          onChange={(value) => handleSelectChange("staffusertype_id", value)}
-          options={staffUserTypeOptions}
-          placeholder={t("admin.staff_creation.staff_user_type_placeholder")}
+          id="userTypeCategory"
+          value={userTypeCategory}
+          onChange={(value) => {
+            setUserTypeCategory(value as "staff" | "contractor");
+            handleSelectChange("staffusertype_id", "");
+            handleSelectChange("contractorusertype_id", "");
+          }}
+          options={[
+            { value: "staff", label: "Staff" },
+            { value: "contractor", label: "Contractor" },
+          ]}
+          placeholder="Select User Type"
         />
       </div>
+      {userTypeCategory === "staff" ? (
+        <div>
+          <Label htmlFor="staffusertype_id">
+            {t("admin.staff_creation.staff_user_type")}
+          </Label>
+          <Select
+            id="staffusertype_id"
+            value={formData.staffusertype_id}
+            onChange={(value) => handleSelectChange("staffusertype_id", value)}
+            options={staffUserTypeOptions}
+            placeholder={t("admin.staff_creation.staff_user_type_placeholder")}
+          />
+        </div>
+      ) : (
+        <div>
+          <Label htmlFor="contractorusertype_id">Contractor User Type</Label>
+          <Select
+            id="contractorusertype_id"
+            value={formData.contractorusertype_id}
+            onChange={(value) => handleSelectChange("contractorusertype_id", value)}
+            options={contractorUserTypeOptions}
+            placeholder="Select Contractor Type"
+          />
+        </div>
       )}
 
       {/* ── Username ── */}

@@ -409,10 +409,14 @@ export default function Auth() {
     } catch (error: any) {
       console.error("[Auth] ❌ Login failed:", error);
 
+      const errorMessage =
+        error?.response?.data?.detail ||
+        error?.message ||
+        "Invalid credentials";
+
       toast({
         title: t("login.title"),
-        description:
-          error?.response?.data?.detail || "Invalid credentials",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
