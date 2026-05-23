@@ -32,6 +32,7 @@ type StaffRecord = {
   username?: string;
   user_type_name?: string;
   staffusertype_name?: string;
+  contractorusertype_name?: string;
   designation?: string;
   is_active?: boolean;
   is_deleted?: boolean;
@@ -120,7 +121,11 @@ export default function StaffTemplateForm() {
   ];
 
   const normalizeRole = (value: unknown) =>
-    String(value ?? "").trim().toLowerCase();
+    String(value ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ");
 
   const normalizeActiveStatus = (
     value: StaffRecord["active_status"]
@@ -163,11 +168,25 @@ export default function StaffTemplateForm() {
   };
 
   const getStaffRole = (staff: StaffRecord): string =>
-    normalizeRole(staff.staffusertype_name ?? staff.designation);
+    normalizeRole(
+      staff.staffusertype_name ||
+        staff.contractorusertype_name ||
+        staff.designation
+    );
+
+  const isDriverRole = (staff: StaffRecord): boolean => {
+    const role = getStaffRole(staff);
+    return role === "company driver" || role === "contractor driver";
+  };
+
+  const isOperatorRole = (staff: StaffRecord): boolean => {
+    const role = getStaffRole(staff);
+    return role === "company operator" || role === "contractor operator";
+  };
 
   const isStaffRow = (staff: StaffRecord): boolean => {
     const userType = normalizeRole(staff.user_type_name);
-    return !userType || userType === "staff";
+    return !userType || userType === "staff" || userType === "contractor";
   };
 
   const isActiveStaff = (staff: StaffRecord): boolean => {
@@ -373,13 +392,13 @@ export default function StaffTemplateForm() {
 
     setDriverOptions(
       scopedStaff
-        .filter((staff) => getStaffRole(staff) === "company driver")
+        .filter(isDriverRole)
         .map((staff) => toStaffOption(staff))
     );
 
     setOperatorOptions(
       scopedStaff
-        .filter((staff) => getStaffRole(staff) === "company operator")
+        .filter(isOperatorRole)
         .map((staff) => toStaffOption(staff))
     );
   }, [selectedCompanyId, selectedProjectId, staffRecords]);

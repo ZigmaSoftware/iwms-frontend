@@ -929,55 +929,58 @@ export default function StaffCreationForm() {
       </div>
       )}
       {showField("designation") && (
-      <div>
-        <Label htmlFor="designation">{t("admin.staff_creation.designation")}</Label>
-        <Input
-          id="designation"
-          value={formData.designation}
-          onChange={handleInputChange}
-        />
-      </div>
-      <div>
-        <Label htmlFor="userTypeCategory">User Type</Label>
-        <Select
-          id="userTypeCategory"
-          value={userTypeCategory}
-          onChange={(value) => {
-            setUserTypeCategory(value as "staff" | "contractor");
-            handleSelectChange("staffusertype_id", "");
-            handleSelectChange("contractorusertype_id", "");
-          }}
-          options={[
-            { value: "staff", label: "Staff" },
-            { value: "contractor", label: "Contractor" },
-          ]}
-          placeholder="Select User Type"
-        />
-      </div>
-      {userTypeCategory === "staff" ? (
-        <div>
-          <Label htmlFor="staffusertype_id">
-            {t("admin.staff_creation.staff_user_type")}
-          </Label>
-          <Select
-            id="staffusertype_id"
-            value={formData.staffusertype_id}
-            onChange={(value) => handleSelectChange("staffusertype_id", value)}
-            options={staffUserTypeOptions}
-            placeholder={t("admin.staff_creation.staff_user_type_placeholder")}
-          />
-        </div>
-      ) : (
-        <div>
-          <Label htmlFor="contractorusertype_id">Contractor User Type</Label>
-          <Select
-            id="contractorusertype_id"
-            value={formData.contractorusertype_id}
-            onChange={(value) => handleSelectChange("contractorusertype_id", value)}
-            options={contractorUserTypeOptions}
-            placeholder="Select Contractor Type"
-          />
-        </div>
+        <>
+          <div>
+            <Label htmlFor="designation">{t("admin.staff_creation.designation")}</Label>
+            <Input
+              id="designation"
+              value={formData.designation}
+              onChange={handleInputChange}
+            />
+          </div>
+          <div>
+            <Label htmlFor="userTypeCategory">User Type</Label>
+            <Select
+              id="userTypeCategory"
+              value={userTypeCategory}
+              onChange={(value) => {
+                setUserTypeCategory(value as "staff" | "contractor");
+                handleSelectChange("staffusertype_id", "");
+                handleSelectChange("contractorusertype_id", "");
+              }}
+              options={[
+                { value: "staff", label: "Staff" },
+                { value: "contractor", label: "Contractor" },
+              ]}
+              placeholder="Select User Type"
+            />
+          </div>
+          {userTypeCategory === "staff" ? (
+            <div>
+              <Label htmlFor="staffusertype_id">
+                {t("admin.staff_creation.staff_user_type")}
+              </Label>
+              <Select
+                id="staffusertype_id"
+                value={formData.staffusertype_id}
+                onChange={(value) => handleSelectChange("staffusertype_id", value)}
+                options={staffUserTypeOptions}
+                placeholder={t("admin.staff_creation.staff_user_type_placeholder")}
+              />
+            </div>
+          ) : (
+            <div>
+              <Label htmlFor="contractorusertype_id">Contractor User Type</Label>
+              <Select
+                id="contractorusertype_id"
+                value={formData.contractorusertype_id}
+                onChange={(value) => handleSelectChange("contractorusertype_id", value)}
+                options={contractorUserTypeOptions}
+                placeholder="Select Contractor Type"
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* ── Username ── */}
