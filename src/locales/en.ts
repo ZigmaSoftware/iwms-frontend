@@ -785,6 +785,8 @@ const enResource = {
 
           "panchayat": "Panchayat",
           "area_type": "Area Type",
+          "department": "Department Master",
+          "designation": "Designation Master",
           "hierarchy": "Hierarchy",
 
           

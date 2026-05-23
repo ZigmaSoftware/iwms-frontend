@@ -10,7 +10,10 @@ import Select from "@/components/form/Select";
 import PasswordInput from "@/components/form/input/PasswordInput";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { staffCreationApi } from "@/helpers/admin";
-import { useCreateStaff, useUpdateStaff } from "@/tanstack/admin/queries/masters/staffCreation";
+import {
+  useCreateStaff,
+  useUpdateStaff,
+} from "@/tanstack/admin/queries/masters/staffCreation";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
@@ -21,8 +24,8 @@ import {
   cityApi,
   staffUserTypeApi,
   contractorUserTypeApi,
-  companyApi,
-  projectApi,
+  departmentApi,
+  designationApi,
 } from "@/helpers/admin/index";
 
 type Section = "official" | "personal";
@@ -117,12 +120,16 @@ const formatErrorMessage = (t: (key: string) => string, error: unknown) => {
   if (Array.isArray(data)) return data.join(", ");
 
   const payload =
-    data && typeof data === "object" && "errors" in data ? (data as any).errors : data;
+    data && typeof data === "object" && "errors" in data
+      ? (data as any).errors
+      : data;
 
   if (payload && typeof payload === "object") {
     return Object.entries(payload as Record<string, unknown>)
       .map(([key, value]) =>
-        Array.isArray(value) ? `${key}: ${value.join(", ")}` : `${key}: ${String(value)}`
+        Array.isArray(value)
+          ? `${key}: ${value.join(", ")}`
+          : `${key}: ${String(value)}`,
       )
       .join("\n");
   }
@@ -141,7 +148,6 @@ const initialFormData = {
 
   grade: "",
   site_name: "",
-  biometric_id: "",
   staff_head: "",
   staff_head_id: "",
   employee_known: "",
@@ -149,7 +155,7 @@ const initialFormData = {
   active_status: "1",
   staffusertype_id: "",
   contractorusertype_id: "",
-  username: "",       // ← username field
+  username: "", // ← username field
   password: "",
   office_email: "",
   company_id: "",
@@ -159,7 +165,6 @@ const initialFormData = {
   blood_group: "",
   gender: "",
   physically_challenged: "",
-  extra_curricular: "",
   present_country: "",
   present_state: "",
   present_district: "",
@@ -192,7 +197,6 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   designation_id: ["designation_id"],
   grade: ["grade"],
   site_name: ["site_name", "site"],
-  biometric_id: ["biometric_id"],
   staff_head: ["staff_head"],
   staff_head_id: ["staff_head_id"],
   employee_known: ["employee_known"],
@@ -209,7 +213,6 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   blood_group: ["blood_group"],
   gender: ["gender"],
   physically_challenged: ["physically_challenged"],
-  extra_curricular: ["extra_curricular"],
   present_country: ["present_country", "present_address.country"],
   present_state: ["present_state", "present_address.state"],
   present_district: ["present_district", "present_address.district"],
@@ -222,7 +225,10 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   permanent_state: ["permanent_state", "permanent_address.state"],
   permanent_district: ["permanent_district", "permanent_address.district"],
   permanent_city: ["permanent_city", "permanent_address.city"],
-  permanent_building_no: ["permanent_building_no", "permanent_address.building_no"],
+  permanent_building_no: [
+    "permanent_building_no",
+    "permanent_address.building_no",
+  ],
   permanent_street: ["permanent_street", "permanent_address.street"],
   permanent_area: ["permanent_area", "permanent_address.area"],
   permanent_pincode: ["permanent_pincode", "permanent_address.pincode"],
@@ -251,12 +257,21 @@ export default function StaffCreationForm() {
   const [contractorUserTypeOptions, setContractorUserTypeOptions] = useState<
     { value: string; label: string }[]
   >([]);
-  const [userTypeCategory, setUserTypeCategory] = useState<"staff" | "contractor">("staff");
+  const [userTypeCategory, setUserTypeCategory] = useState<
+    "staff" | "contractor"
+  >("staff");
   const [licenceFile, setLicenceFile] = useState<File | null>(null);
   const [licencePreview, setLicencePreview] = useState("");
   const licenceInputRef = useRef<HTMLInputElement>(null);
-  const [companyOptions, setCompanyOptions] = useState<{ value: string; label: string }[]>([]);
-  const [projectOptions, setProjectOptions] = useState<{ value: string; label: string }[]>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<
+    { value: string; label: string; name: string; code?: string }[]
+  >([]);
+  const [designationOptions, setDesignationOptions] = useState<
+    { value: string; label: string; name: string; group?: string; departmentId?: string }[]
+  >([]);
+  const [staffHeadOptions, setStaffHeadOptions] = useState<
+    { value: string; label: string; name: string }[]
+  >([]);
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { id } = useParams<{ id?: string }>();
@@ -264,13 +279,18 @@ export default function StaffCreationForm() {
   const { showField, filterPayload } = useFieldVisibility(
     "staff-masters",
     "staff-creation",
-    STAFF_CREATION_FIELDS
+    STAFF_CREATION_FIELDS,
   );
 
   const {
     companyUniqueId,
+    projectId: hookProjectId,
+    companies: hookCompanies,
+    projects: hookProjects,
     loggedInCompanyUniqueId,
     isSuperAdmin,
+    onCompanyChange: hookOnCompanyChange,
+    setProjectId: hookSetProjectId,
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit });
 
@@ -294,7 +314,7 @@ export default function StaffCreationForm() {
   ];
 
   const selectedUserType = staffUserTypeOptions.find(
-    (opt) => opt.value === formData.staffusertype_id
+    (opt) => opt.value === formData.staffusertype_id,
   );
 
   const isDriverSelected =
@@ -304,38 +324,47 @@ export default function StaffCreationForm() {
   const presentDistrictOptions = useMemo(
     () =>
       districtOptions.filter(
-        (option) => !formData.present_state || !option.stateName || option.stateName === formData.present_state
+        (option) =>
+          !formData.present_state ||
+          !option.stateName ||
+          option.stateName === formData.present_state,
       ),
-    [districtOptions, formData.present_state]
+    [districtOptions, formData.present_state],
   );
 
   const presentCityOptions = useMemo(
     () =>
       cityOptions.filter(
-        (option) => !formData.present_district || !option.districtName || option.districtName === formData.present_district
+        (option) =>
+          !formData.present_district ||
+          !option.districtName ||
+          option.districtName === formData.present_district,
       ),
-    [cityOptions, formData.present_district]
+    [cityOptions, formData.present_district],
   );
 
   const permanentDistrictOptions = useMemo(
     () =>
       districtOptions.filter(
-        (option) => !formData.permanent_state || !option.stateName || option.stateName === formData.permanent_state
+        (option) =>
+          !formData.permanent_state ||
+          !option.stateName ||
+          option.stateName === formData.permanent_state,
       ),
-    [districtOptions, formData.permanent_state]
+    [districtOptions, formData.permanent_state],
   );
 
   const permanentCityOptions = useMemo(
     () =>
       cityOptions.filter(
-        (option) => !formData.permanent_district || !option.districtName || option.districtName === formData.permanent_district
+        (option) =>
+          !formData.permanent_district ||
+          !option.districtName ||
+          option.districtName === formData.permanent_district,
       ),
-    [cityOptions, formData.permanent_district]
+    [cityOptions, formData.permanent_district],
   );
 
-  const filteredProjects = projectOptions.filter(
-    (p: any) => !formData.company_id || p.company_id === formData.company_id
-  );
 
   const handleLicenceUpload = (file: File | null) => {
     if (!file) return;
@@ -381,8 +410,11 @@ export default function StaffCreationForm() {
             ? res
             : Array.isArray(res?.data)
               ? res.data
-              : res?.data?.results ?? [];
-          return data.map((item: any) => ({ value: item.unique_id, label: item.name }));
+              : (res?.data?.results ?? []);
+          return data.map((item: any) => ({
+            value: item.unique_id,
+            label: item.name,
+          }));
         };
 
         const [staffRes, contractorRes] = await Promise.all([
@@ -403,55 +435,77 @@ export default function StaffCreationForm() {
   useEffect(() => {
     const loadLocationOptions = async () => {
       try {
-        const [countries, states, districts, cities, companies, projects] = await Promise.all([
-          countryApi.list(),
-          stateApi.list(),
-          districtApi.list(),
-          cityApi.list(),
-          companyApi.list(),
-          projectApi.list(),
-        ]);
+        const [
+          countries,
+          states,
+          districts,
+          cities,
+          departments,
+        ] =
+          await Promise.all([
+            countryApi.list(),
+            stateApi.list(),
+            districtApi.list(),
+            cityApi.list(),
+            departmentApi.list({ params: { status: "active" } }),
+          ]);
 
         const countryList = mapLocationOptions(countries);
         const stateList = mapLocationOptions(states).map((state) => ({
           ...state,
-          countryName: countryList.find((country) => country.uniqueId && country.uniqueId === state.countryId)?.value,
+          countryName: countryList.find(
+            (country) =>
+              country.uniqueId && country.uniqueId === state.countryId,
+          )?.value,
         }));
         const districtList = mapLocationOptions(districts).map((district) => ({
           ...district,
-          countryName: countryList.find((country) => country.uniqueId && country.uniqueId === district.countryId)?.value,
-          stateName: stateList.find((state) => state.uniqueId && state.uniqueId === district.stateId)?.value,
+          countryName: countryList.find(
+            (country) =>
+              country.uniqueId && country.uniqueId === district.countryId,
+          )?.value,
+          stateName: stateList.find(
+            (state) => state.uniqueId && state.uniqueId === district.stateId,
+          )?.value,
         }));
         const cityList = mapLocationOptions(cities).map((city) => ({
           ...city,
-          countryName: countryList.find((country) => country.uniqueId && country.uniqueId === city.countryId)?.value,
-          stateName: stateList.find((state) => state.uniqueId && state.uniqueId === city.stateId)?.value,
-          districtName: districtList.find((district) => district.uniqueId && district.uniqueId === city.districtId)?.value,
+          countryName: countryList.find(
+            (country) =>
+              country.uniqueId && country.uniqueId === city.countryId,
+          )?.value,
+          stateName: stateList.find(
+            (state) => state.uniqueId && state.uniqueId === city.stateId,
+          )?.value,
+          districtName: districtList.find(
+            (district) =>
+              district.uniqueId && district.uniqueId === city.districtId,
+          )?.value,
         }));
 
         setCountryOptions(countryList);
         setStateOptions(stateList);
         setDistrictOptions(districtList);
         setCityOptions(cityList);
-        
+
         const normalize = (arr: any[]) =>
           arr.filter((i) => i?.is_active !== false && i?.is_deleted !== true);
-        
-        const companyList = normalize(companies);
-        const projectList = normalize(projects);
-        
-        setCompanyOptions(
-          companyList.map((c: any) => ({
-            value: String(c?.unique_id ?? c?.id ?? ""),
-            label: c.name,
-          }))
-        );
-        setProjectOptions(
-          projectList.map((p: any) => ({
-            value: String(p?.unique_id ?? p?.id ?? ""),
-            label: p.name,
-            company_id: p.company_unique_id,
-          }))
+        const normalizeResponse = (res: any) =>
+          Array.isArray(res)
+            ? res
+            : Array.isArray(res?.data)
+              ? res.data
+              : res?.data?.results ?? [];
+
+        setDepartmentOptions(
+          normalize(normalizeResponse(departments)).map((d: any) => ({
+            value: String(d?.unique_id ?? d?.id ?? ""),
+            label: d.department_code
+              ? `${d.department_name} (${d.department_code})`
+              : d.department_name,
+            name: d.department_name,
+            code: d.department_code,
+          })),
         );
       } catch (error) {
         console.error("Failed to load location masters", error);
@@ -460,6 +514,33 @@ export default function StaffCreationForm() {
 
     void loadLocationOptions();
   }, []);
+
+  useEffect(() => {
+    if (!formData.department_id) {
+      setDesignationOptions([]);
+      return;
+    }
+    const normalizeResponse = (res: any) =>
+      Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : res?.data?.results ?? [];
+
+    designationApi
+      .list({ params: { status: "active", department_id: formData.department_id } })
+      .then((res: any) => {
+        const list = normalizeResponse(res).filter(
+          (d: any) => d?.is_active !== false && d?.is_deleted !== true,
+        );
+        setDesignationOptions(
+          list.map((d: any) => ({
+            value: String(d?.unique_id ?? d?.id ?? ""),
+            label: d.designation_name,
+            name: d.designation_name,
+            group: d.designation_group,
+            departmentId: d.department_id ? String(d.department_id) : undefined,
+          })),
+        );
+      })
+      .catch(() => setDesignationOptions([]));
+  }, [formData.department_id]);
 
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -480,7 +561,6 @@ export default function StaffCreationForm() {
           designation_id: staff.designation_id ?? "",
           grade: staff.grade ?? "",
           site_name: staff.site_name ?? "",
-          biometric_id: staff.biometric_id ?? "",
           staff_head: staff.staff_head ?? "",
           staff_head_id: staff.staff_head_id ?? "",
           employee_known: staff.employee_known ?? "",
@@ -488,12 +568,15 @@ export default function StaffCreationForm() {
           active_status: staff.active_status ? "1" : "0",
 
           // Auth
-          username: staff.username ?? "",                                          // ← populate on edit
-          password: staff.password ?? staff.user_password ?? staff.staff_password ?? "",
+          username: staff.username ?? "", // ← populate on edit
+          password:
+            staff.password ?? staff.user_password ?? staff.staff_password ?? "",
 
           // Personal details (FLAT — NOT nested)
           marital_status:
-            staff.marital_status ?? staff.personal_details?.marital_status ?? "",
+            staff.marital_status ??
+            staff.personal_details?.marital_status ??
+            "",
           dob: staff.dob ?? staff.personal_details?.dob ?? "",
           blood_group:
             staff.blood_group ?? staff.personal_details?.blood_group ?? "",
@@ -502,8 +585,6 @@ export default function StaffCreationForm() {
             staff.physically_challenged ??
             staff.personal_details?.physically_challenged ??
             "",
-          extra_curricular:
-            staff.extra_curricular ?? staff.personal_details?.extra_curricular ?? "",
 
           present_country: staff.present_address?.country ?? "",
           present_state: staff.present_address?.state ?? "",
@@ -542,7 +623,7 @@ export default function StaffCreationForm() {
           setLicencePreview(
             staff.driving_licence_file.startsWith("http")
               ? staff.driving_licence_file
-              : `${backendOrigin}${staff.driving_licence_file}`
+              : `${backendOrigin}${staff.driving_licence_file}`,
           );
         }
 
@@ -559,7 +640,7 @@ export default function StaffCreationForm() {
           setPhotoPreview(
             staff.photo.startsWith("http")
               ? staff.photo
-              : `${backendOrigin}${staff.photo}`
+              : `${backendOrigin}${staff.photo}`,
           );
         }
       })
@@ -575,6 +656,35 @@ export default function StaffCreationForm() {
       })
       .finally(() => setFetching(false));
   }, [backendOrigin, id, isEdit]);
+
+  useEffect(() => {
+    const loadStaffHeads = async () => {
+      try {
+        const params: Record<string, string> = {};
+        if (id) params.exclude = id;
+
+        const response = await api.get(
+          "/user-creations/staffcreation/staff-head-options/",
+          { params },
+        );
+        const records = Array.isArray(response.data)
+          ? response.data
+          : response.data?.results ?? [];
+        const options: { value: string; label: string; name: string }[] = records.map((staff: any) => ({
+          value: String(staff.unique_id),
+          label: `${staff.employee_name}${staff.department_name ? ` — ${staff.department_name}` : ""}`,
+          name: staff.employee_name,
+        }));
+
+        setStaffHeadOptions(options);
+      } catch (error) {
+        console.error("Failed to load staff head options", error);
+        setStaffHeadOptions([]);
+      }
+    };
+
+    void loadStaffHeads();
+  }, [id]);
 
   useEffect(() => {
     if (!photoFile) return;
@@ -608,12 +718,24 @@ export default function StaffCreationForm() {
     formData.present_pincode,
   ]);
 
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
     const { id, value } = e.target;
     setFormData((prev) => ({ ...prev, [id]: value }));
   };
 
-  const handleSelectChange = (field: keyof typeof initialFormData, value: string) => {
+  const handleSelectChange = (
+    field: keyof typeof initialFormData,
+    value: string,
+  ) => {
+    if (field === "company_id") {
+      hookOnCompanyChange(value);
+      hookSetProjectId("");
+    }
+    if (field === "project_id") {
+      hookSetProjectId(value);
+    }
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
 
@@ -641,6 +763,26 @@ export default function StaffCreationForm() {
       if (field === "permanent_district") {
         next.permanent_city = "";
       }
+      if (field === "department_id") {
+        const department = departmentOptions.find((item) => item.value === value);
+        next.department = department?.name ?? "";
+        next.designation_id = "";
+        next.designation = "";
+        next.staff_head = "";
+        next.staff_head_id = "";
+      }
+      if (field === "designation_id") {
+        const designation = designationOptions.find((item) => item.value === value);
+        next.designation = designation?.name ?? "";
+      }
+      if (field === "staffusertype_id" || field === "contractorusertype_id") {
+        next.staff_head = "";
+        next.staff_head_id = "";
+      }
+      if (field === "staff_head_id") {
+        const staffHead = staffHeadOptions.find((item) => item.value === value);
+        next.staff_head = staffHead?.name ?? "";
+      }
 
       return next;
     });
@@ -663,32 +805,50 @@ export default function StaffCreationForm() {
   const buildAddressPayload = (prefix: "present" | "permanent") => {
     const address = {
       ...(showField(`${prefix}_country`) && {
-        country: formData[`${prefix}_country` as keyof typeof initialFormData] as string,
+        country: formData[
+          `${prefix}_country` as keyof typeof initialFormData
+        ] as string,
       }),
       ...(showField(`${prefix}_state`) && {
-        state: formData[`${prefix}_state` as keyof typeof initialFormData] as string,
+        state: formData[
+          `${prefix}_state` as keyof typeof initialFormData
+        ] as string,
       }),
       ...(showField(`${prefix}_district`) && {
-        district: formData[`${prefix}_district` as keyof typeof initialFormData] as string,
+        district: formData[
+          `${prefix}_district` as keyof typeof initialFormData
+        ] as string,
       }),
       ...(showField(`${prefix}_city`) && {
-        city: formData[`${prefix}_city` as keyof typeof initialFormData] as string,
+        city: formData[
+          `${prefix}_city` as keyof typeof initialFormData
+        ] as string,
       }),
       ...(showField(`${prefix}_building_no`) && {
-        building_no: formData[`${prefix}_building_no` as keyof typeof initialFormData] as string,
+        building_no: formData[
+          `${prefix}_building_no` as keyof typeof initialFormData
+        ] as string,
       }),
       ...(showField(`${prefix}_street`) && {
-        street: formData[`${prefix}_street` as keyof typeof initialFormData] as string,
+        street: formData[
+          `${prefix}_street` as keyof typeof initialFormData
+        ] as string,
       }),
       ...(showField(`${prefix}_area`) && {
-        area: formData[`${prefix}_area` as keyof typeof initialFormData] as string,
+        area: formData[
+          `${prefix}_area` as keyof typeof initialFormData
+        ] as string,
       }),
       ...(showField(`${prefix}_pincode`) && {
-        pincode: formData[`${prefix}_pincode` as keyof typeof initialFormData] as string,
+        pincode: formData[
+          `${prefix}_pincode` as keyof typeof initialFormData
+        ] as string,
       }),
     };
 
-    return Object.values(address).some((value) => Boolean(value)) ? address : null;
+    return Object.values(address).some((value) => Boolean(value))
+      ? address
+      : null;
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -700,17 +860,31 @@ export default function StaffCreationForm() {
         !loggedInCompanyUniqueId && !isSuperAdmin
           ? "Company is not mapped to this login. Only super admin can choose a company."
           : "Company is required",
-        "error"
+        "error",
       );
       return;
     }
 
-    if (showField("photo") && photoFile && !photoFile.type.startsWith("image/")) {
+    if (
+      showField("photo") &&
+      photoFile &&
+      !photoFile.type.startsWith("image/")
+    ) {
       Swal.fire({
         icon: "warning",
         title: t("admin.staff_creation.invalid_photo_title"),
         text: t("admin.staff_creation.invalid_photo_desc"),
       });
+      return;
+    }
+
+    if (showField("department_id") && !formData.department_id) {
+      Swal.fire("Error", "Department is required", "error");
+      return;
+    }
+
+    if (showField("designation_id") && !formData.designation_id) {
+      Swal.fire("Error", "Designation is required", "error");
       return;
     }
 
@@ -742,17 +916,22 @@ export default function StaffCreationForm() {
         designation_id: formData.designation_id,
         grade: formData.grade,
         site_name: formData.site_name,
-        biometric_id: formData.biometric_id,
         staff_head: formData.staff_head,
         staff_head_id: formData.staff_head_id,
         employee_known: formData.employee_known,
         salary_type: formData.salary_type,
         active_status: formData.active_status === "1",
-        company_id: formData.company_id || companyUniqueId,
-        project_id: formData.project_id || null,
-        staffusertype_id: userTypeCategory === "staff" ? (formData.staffusertype_id || null) : null,
-        contractorusertype_id: userTypeCategory === "contractor" ? (formData.contractorusertype_id || null) : null,
-        username: formData.username || null,     // ← username in payload
+        company_id: companyUniqueId,
+        project_id: hookProjectId || null,
+        staffusertype_id:
+          userTypeCategory === "staff"
+            ? formData.staffusertype_id || null
+            : null,
+        contractorusertype_id:
+          userTypeCategory === "contractor"
+            ? formData.contractorusertype_id || null
+            : null,
+        username: formData.username || null, // ← username in payload
 
         // Personal
         marital_status: formData.marital_status,
@@ -760,7 +939,6 @@ export default function StaffCreationForm() {
         blood_group: formData.blood_group,
         gender: formData.gender,
         physically_challenged: formData.physically_challenged,
-        extra_curricular: formData.extra_curricular,
         contact_mobile: formData.contact_mobile,
         contact_email: formData.contact_email,
       };
@@ -854,55 +1032,54 @@ export default function StaffCreationForm() {
 
   const renderOfficialSection = () => (
     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-
       {/* ── Company ── */}
       {showField("company_id") && (
-      <div>
-        <Label htmlFor="company_id">
-          {t("admin.nav.company") || "Company"}
-          <span className="text-red-500 ml-1">*</span>
-        </Label>
-        <Select
-          id="company_id"
-          value={formData.company_id}
-          onChange={(value) => {
-            handleSelectChange("company_id", value);
-            handleSelectChange("project_id", "");
-          }}
-          options={companyOptions}
-          placeholder={t("admin.nav.company_placeholder") || "Select company"}
-        />
-      </div>
+        <div>
+          <Label htmlFor="company_id">
+            {t("admin.nav.company") || "Company"}
+            <span className="text-red-500 ml-1">*</span>
+          </Label>
+          <Select
+            id="company_id"
+            value={companyUniqueId}
+            onChange={(value) => {
+              handleSelectChange("company_id", value);
+              handleSelectChange("project_id", "");
+            }}
+            options={hookCompanies}
+            placeholder={t("admin.nav.company_placeholder") || "Select company"}
+          />
+        </div>
       )}
 
       {/* ── Project ── */}
       {showField("project_id") && (
-      <div>
-        <Label htmlFor="project_id">
-          {t("admin.nav.project") || "Project"}
-          <span className="text-red-500 ml-1">*</span>
-        </Label>
-        <Select
-          id="project_id"
-          value={formData.project_id}
-          onChange={(value) => handleSelectChange("project_id", value)}
-          options={filteredProjects}
-          placeholder={t("admin.nav.project_placeholder") || "Select project"}
-        />
-      </div>
+        <div>
+          <Label htmlFor="project_id">
+            {t("admin.nav.project") || "Project"}
+            <span className="text-red-500 ml-1">*</span>
+          </Label>
+          <Select
+            id="project_id"
+            value={hookProjectId}
+            onChange={(value) => handleSelectChange("project_id", value)}
+            options={hookProjects}
+            placeholder={t("admin.nav.project_placeholder") || "Select project"}
+          />
+        </div>
       )}
       {showField("employee_name") && (
-      <div>
-        <Label htmlFor="employee_name">
-          {t("admin.staff_creation.employee_name")}
-        </Label>
-        <Input
-          id="employee_name"
-          value={formData.employee_name}
-          onChange={handleInputChange}
-          required
-        />
-      </div>
+        <div>
+          <Label htmlFor="employee_name">
+            {t("admin.staff_creation.employee_name")}
+          </Label>
+          <Input
+            id="employee_name"
+            value={formData.employee_name}
+            onChange={handleInputChange}
+            required
+          />
+        </div>
       )}
       {/* <div>
         <Label htmlFor="employee_id">Employee ID</Label>
@@ -913,346 +1090,365 @@ export default function StaffCreationForm() {
         />
       </div> */}
       {showField("doj") && (
-      <div>
-        <Label htmlFor="doj">{t("admin.staff_creation.doj")}</Label>
-        <Input id="doj" type="date" value={formData.doj} onChange={handleInputChange} />
-      </div>
-      )}
-      {showField("department") && (
-      <div>
-        <Label htmlFor="department">{t("admin.staff_creation.department_name")}</Label>
-        <Input
-          id="department"
-          value={formData.department}
-          onChange={handleInputChange}
-        />
-      </div>
-      )}
-      {showField("designation") && (
-      <div>
-        <Label htmlFor="designation">{t("admin.staff_creation.designation")}</Label>
-        <Input
-          id="designation"
-          value={formData.designation}
-          onChange={handleInputChange}
-        />
-      </div>
-      <div>
-        <Label htmlFor="userTypeCategory">User Type</Label>
-        <Select
-          id="userTypeCategory"
-          value={userTypeCategory}
-          onChange={(value) => {
-            setUserTypeCategory(value as "staff" | "contractor");
-            handleSelectChange("staffusertype_id", "");
-            handleSelectChange("contractorusertype_id", "");
-          }}
-          options={[
-            { value: "staff", label: "Staff" },
-            { value: "contractor", label: "Contractor" },
-          ]}
-          placeholder="Select User Type"
-        />
-      </div>
-      {userTypeCategory === "staff" ? (
         <div>
-          <Label htmlFor="staffusertype_id">
-            {t("admin.staff_creation.staff_user_type")}
+          <Label htmlFor="doj">{t("admin.staff_creation.doj")}</Label>
+          <Input
+            id="doj"
+            type="date"
+            value={formData.doj}
+            onChange={handleInputChange}
+          />
+        </div>
+      )}
+      {showField("department_id") && (
+        <div>
+          <Label htmlFor="department_id">
+            {t("admin.staff_creation.department_name")}
+            <span className="text-red-500 ml-1">*</span>
           </Label>
           <Select
-            id="staffusertype_id"
-            value={formData.staffusertype_id}
-            onChange={(value) => handleSelectChange("staffusertype_id", value)}
-            options={staffUserTypeOptions}
-            placeholder={t("admin.staff_creation.staff_user_type_placeholder")}
+            id="department_id"
+            value={formData.department_id}
+            onChange={(value) => handleSelectChange("department_id", value)}
+            options={departmentOptions}
+            placeholder={t("common.select_item_placeholder", {
+              item: t("admin.staff_creation.department_name"),
+            })}
           />
         </div>
-      ) : (
+      )}
+      {showField("designation_id") && (
         <div>
-          <Label htmlFor="contractorusertype_id">Contractor User Type</Label>
+          <Label htmlFor="designation_id">
+            {t("admin.staff_creation.designation")}
+            <span className="text-red-500 ml-1">*</span>
+          </Label>
           <Select
-            id="contractorusertype_id"
-            value={formData.contractorusertype_id}
-            onChange={(value) => handleSelectChange("contractorusertype_id", value)}
-            options={contractorUserTypeOptions}
-            placeholder="Select Contractor Type"
+            id="designation_id"
+            value={formData.designation_id}
+            onChange={(value) => handleSelectChange("designation_id", value)}
+            options={designationOptions}
+            placeholder={
+              formData.department_id
+                ? t("common.select_item_placeholder", { item: t("admin.staff_creation.designation") })
+                : "Select a department first"
+            }
           />
         </div>
+      )}
+      {showField("staffusertype_id") && (
+        <>
+          <div>
+            <Label htmlFor="userTypeCategory">User Type</Label>
+            <Select
+              id="userTypeCategory"
+              value={userTypeCategory}
+              onChange={(value) => {
+                setUserTypeCategory(value as "staff" | "contractor");
+                handleSelectChange("staffusertype_id", "");
+                handleSelectChange("contractorusertype_id", "");
+                handleSelectChange("staff_head_id", "");
+              }}
+              options={[
+                { value: "staff", label: "Staff" },
+                { value: "contractor", label: "Contractor" },
+              ]}
+              placeholder="Select User Type"
+            />
+          </div>
+
+          {userTypeCategory === "staff" ? (
+            <div>
+              <Label htmlFor="staffusertype_id">
+                {t("admin.staff_creation.staff_user_type")}
+              </Label>
+              <Select
+                id="staffusertype_id"
+                value={formData.staffusertype_id}
+                onChange={(value) =>
+                  handleSelectChange("staffusertype_id", value)
+                }
+                options={staffUserTypeOptions}
+                placeholder={t(
+                  "admin.staff_creation.staff_user_type_placeholder",
+                )}
+              />
+            </div>
+          ) : (
+            <div>
+              <Label htmlFor="contractorusertype_id">
+                Contractor User Type
+              </Label>
+              <Select
+                id="contractorusertype_id"
+                value={formData.contractorusertype_id}
+                onChange={(value) =>
+                  handleSelectChange("contractorusertype_id", value)
+                }
+                options={contractorUserTypeOptions}
+                placeholder="Select Contractor Type"
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* ── Username ── */}
       {showField("username") && (
-      <div>
-        <Label htmlFor="username">
-          {t("admin.staff_creation.username")}
-        </Label>
-        <Input
-          id="username"
-          value={formData.username}
-          onChange={handleInputChange}
-          placeholder={t("admin.staff_creation.username_placeholder")}
-        />
-      </div>
+        <div>
+          <Label htmlFor="username">{t("admin.staff_creation.username")}</Label>
+          <Input
+            id="username"
+            value={formData.username}
+            onChange={handleInputChange}
+            placeholder={t("admin.staff_creation.username_placeholder")}
+          />
+        </div>
       )}
 
       {/* ── Password ── */}
       {showField("password") && (
-      <div>
-        <PasswordInput
-          id="password"
-          label={t("admin.staff_creation.password")}
-          value={formData.password}
-          onChange={handleInputChange}
-          placeholder={t("admin.staff_creation.password_placeholder")}
-        />
-      </div>
+        <div>
+          <PasswordInput
+            id="password"
+            label={t("admin.staff_creation.password")}
+            value={formData.password}
+            onChange={handleInputChange}
+            placeholder={t("admin.staff_creation.password_placeholder")}
+          />
+        </div>
       )}
 
-      {isDriverSelected && (showField("driving_licence_no") || showField("driving_licence_file")) && (
-        <>
-          {showField("driving_licence_no") && (
-          <div>
-            <Label htmlFor="driving_licence_no">{t("admin.staff_creation.driving_licence_no")}</Label>
-            <Input
-              id="driving_licence_no"
-              value={formData.driving_licence_no}
-              onChange={handleInputChange}
-            />
-          </div>
-          )}
-
-          {showField("driving_licence_file") && (
-          <div className="md:col-span-2">
-            <Label htmlFor="driving_licence">{t("admin.staff_creation.driving_licence_upload")}</Label>
-            <div className="flex flex-col gap-2 md:flex-row md:items-center">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => licenceInputRef.current?.click()}
-                  className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-                >
-                  {t("admin.staff_creation.driving_licence_choose")}
-                </button>
-                <span className="text-sm text-gray-500">
-                  {licenceFile?.name || t("admin.staff_creation.driving_licence_no_file")}
-                </span>
+      {isDriverSelected &&
+        (showField("driving_licence_no") ||
+          showField("driving_licence_file")) && (
+          <>
+            {showField("driving_licence_no") && (
+              <div>
+                <Label htmlFor="driving_licence_no">
+                  {t("admin.staff_creation.driving_licence_no")}
+                </Label>
+                <Input
+                  id="driving_licence_no"
+                  value={formData.driving_licence_no}
+                  onChange={handleInputChange}
+                />
               </div>
-              <input
-                ref={licenceInputRef}
-                type="file"
-                id="driving_licence"
-                accept=".jpg,.jpeg,.png,.pdf"
-                className="sr-only"
-                onChange={(e) => {
-                  const file = e.target.files?.[0] || null;
-                  handleLicenceUpload(file);
-                  e.target.value = "";
-                }}
-              />
-              {licencePreview ? (
-                licencePreview.toLowerCase().endsWith(".pdf") ? (
-                  <a
-                    href={licencePreview}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm mt-2 inline-block text-blue-600 hover:underline"
-                  >
-                    Open Licence PDF
-                  </a>
-                ) : (
-                  <a
-                    href={licencePreview}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 block"
-                  >
-                    <img
-                      src={licencePreview}
-                      alt="Licence preview"
-                      className="h-32 w-32 border rounded"
-                    />
-                  </a>
-                )
-              ) : licenceFile?.type === "application/pdf" ? (
-                <a
-                  href={URL.createObjectURL(licenceFile)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm mt-2 inline-block text-blue-600 hover:underline"
-                >
-                  PDF: {licenceFile.name}
-                </a>
-              ) : null}
-            </div>
-          </div>
-          )}
-        </>
-      )}
-      {showField("department_id") && (
-      <div>
-        <Label htmlFor="department_id">{t("admin.staff_creation.department_id")}</Label>
-        <Input
-          id="department_id"
-          value={formData.department_id}
-          onChange={handleInputChange}
-        />
-      </div>
-      )}
-      {showField("designation_id") && (
-      <div>
-        <Label htmlFor="designation_id">{t("admin.staff_creation.designation_id")}</Label>
-        <Input
-          id="designation_id"
-          value={formData.designation_id}
-          onChange={handleInputChange}
-        />
-      </div>
-      )}
+            )}
+
+            {showField("driving_licence_file") && (
+              <div className="md:col-span-2">
+                <Label htmlFor="driving_licence">
+                  {t("admin.staff_creation.driving_licence_upload")}
+                </Label>
+                <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => licenceInputRef.current?.click()}
+                      className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                    >
+                      {t("admin.staff_creation.driving_licence_choose")}
+                    </button>
+                    <span className="text-sm text-gray-500">
+                      {licenceFile?.name ||
+                        t("admin.staff_creation.driving_licence_no_file")}
+                    </span>
+                  </div>
+                  <input
+                    ref={licenceInputRef}
+                    type="file"
+                    id="driving_licence"
+                    accept=".jpg,.jpeg,.png,.pdf"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      handleLicenceUpload(file);
+                      e.target.value = "";
+                    }}
+                  />
+                  {licencePreview ? (
+                    licencePreview.toLowerCase().endsWith(".pdf") ? (
+                      <a
+                        href={licencePreview}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm mt-2 inline-block text-blue-600 hover:underline"
+                      >
+                        Open Licence PDF
+                      </a>
+                    ) : (
+                      <a
+                        href={licencePreview}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 block"
+                      >
+                        <img
+                          src={licencePreview}
+                          alt="Licence preview"
+                          className="h-32 w-32 border rounded"
+                        />
+                      </a>
+                    )
+                  ) : licenceFile?.type === "application/pdf" ? (
+                    <a
+                      href={URL.createObjectURL(licenceFile)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm mt-2 inline-block text-blue-600 hover:underline"
+                    >
+                      PDF: {licenceFile.name}
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </>
+        )}
       {showField("grade") && (
-      <div>
-        <Label htmlFor="grade">{t("admin.staff_creation.grade")}</Label>
-        <Select
-          id="grade"
-          value={formData.grade}
-          onChange={(value) => handleSelectChange("grade", value)}
-          options={gradeOptions}
-          placeholder={t("admin.staff_creation.grade_placeholder")}
-        />
-      </div>
+        <div>
+          <Label htmlFor="grade">{t("admin.staff_creation.grade")}</Label>
+          <Select
+            id="grade"
+            value={formData.grade}
+            onChange={(value) => handleSelectChange("grade", value)}
+            options={gradeOptions}
+            placeholder={t("admin.staff_creation.grade_placeholder")}
+          />
+        </div>
       )}
       {showField("site_name") && (
-      <div>
-        <Label htmlFor="site_name">{t("admin.staff_creation.site_name")}</Label>
-        <Select
-          id="site_name"
-          value={formData.site_name}
-          onChange={(value) => handleSelectChange("site_name", value)}
-          options={siteOptions}
-          placeholder={t("admin.staff_creation.site_placeholder")}
-        />
-      </div>
-      )}
-      {showField("biometric_id") && (
-      <div>
-        <Label htmlFor="biometric_id">{t("admin.staff_creation.biometric_id")}</Label>
-        <Input
-          id="biometric_id"
-          value={formData.biometric_id}
-          onChange={handleInputChange}
-        />
-      </div>
-      )}
-      {showField("staff_head") && (
-      <div>
-        <Label htmlFor="staff_head">{t("admin.staff_creation.staff_head")}</Label>
-        <Input
-          id="staff_head"
-          value={formData.staff_head}
-          onChange={handleInputChange}
-        />
-      </div>
+        <div>
+          <Label htmlFor="site_name">
+            {t("admin.staff_creation.site_name")}
+          </Label>
+          <Select
+            id="site_name"
+            value={formData.site_name}
+            onChange={(value) => handleSelectChange("site_name", value)}
+            options={siteOptions}
+            placeholder={t("admin.staff_creation.site_placeholder")}
+          />
+        </div>
       )}
       {showField("staff_head_id") && (
-      <div>
-        <Label htmlFor="staff_head_id">{t("admin.staff_creation.staff_head_id")}</Label>
-        <Input
-          id="staff_head_id"
-          value={formData.staff_head_id}
-          onChange={handleInputChange}
-        />
-      </div>
+        <div>
+          <Label htmlFor="staff_head_id">
+            {t("admin.staff_creation.staff_head")}
+          </Label>
+          <Select
+            id="staff_head_id"
+            value={formData.staff_head_id}
+            onChange={(value) => handleSelectChange("staff_head_id", value)}
+            options={staffHeadOptions}
+            placeholder={
+              formData.department_id
+                ? t("common.select_item_placeholder", {
+                    item: t("admin.staff_creation.staff_head"),
+                  })
+                : t("admin.staff_creation.department_id")
+            }
+          />
+        </div>
       )}
       {showField("employee_known") && (
-      <div>
-        <Label htmlFor="employee_known">{t("admin.staff_creation.employee_known")}</Label>
-        <Select
-          id="employee_known"
-          value={formData.employee_known}
-          onChange={(value) => handleSelectChange("employee_known", value)}
-          options={yesNoOptions}
-          placeholder={t("admin.staff_creation.select_option")}
-        />
-      </div>
+        <div>
+          <Label htmlFor="employee_known">
+            {t("admin.staff_creation.employee_known")}
+          </Label>
+          <Select
+            id="employee_known"
+            value={formData.employee_known}
+            onChange={(value) => handleSelectChange("employee_known", value)}
+            options={yesNoOptions}
+            placeholder={t("admin.staff_creation.select_option")}
+          />
+        </div>
       )}
       {showField("salary_type") && (
-      <div>
-        <Label htmlFor="salary_type">{t("admin.staff_creation.salary_type")}</Label>
-        <Select
-          id="salary_type"
-          value={formData.salary_type}
-          onChange={(value) => handleSelectChange("salary_type", value)}
-          options={salaryTypeOptions}
-          placeholder={t("admin.staff_creation.salary_type_placeholder")}
-        />
-      </div>
+        <div>
+          <Label htmlFor="salary_type">
+            {t("admin.staff_creation.salary_type")}
+          </Label>
+          <Select
+            id="salary_type"
+            value={formData.salary_type}
+            onChange={(value) => handleSelectChange("salary_type", value)}
+            options={salaryTypeOptions}
+            placeholder={t("admin.staff_creation.salary_type_placeholder")}
+          />
+        </div>
       )}
       {showField("active_status") && (
-      <div>
-        <Label htmlFor="active_status">{t("admin.staff_creation.active_status")}</Label>
-        <Select
-          id="active_status"
-          value={formData.active_status}
-          onChange={(value) => handleSelectChange("active_status", value)}
-          options={activeStatusOptions}
-          placeholder={t("common.select_status")}
-        />
-      </div>
+        <div>
+          <Label htmlFor="active_status">
+            {t("admin.staff_creation.active_status")}
+          </Label>
+          <Select
+            id="active_status"
+            value={formData.active_status}
+            onChange={(value) => handleSelectChange("active_status", value)}
+            options={activeStatusOptions}
+            placeholder={t("common.select_status")}
+          />
+        </div>
       )}
       {showField("photo") && (
-      <div className="md:col-span-2">
-        <Label htmlFor="photo">{t("admin.staff_creation.photo_label")}</Label>
-        <div className="flex flex-col gap-2 md:flex-row md:items-center">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => photoInputRef.current?.click()}
-              className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-            >
-              {t("admin.staff_creation.photo_choose")}
-            </button>
-            <span className="text-sm text-gray-500">
-              {photoFile?.name || t("admin.staff_creation.photo_none")}
-            </span>
-          </div>
-          <input
-            ref={photoInputRef}
-            type="file"
-            id="photo"
-            accept="image/*"
-            className="sr-only"
-            onChange={(event) => {
-              const file = event.target.files?.[0] ?? null;
-              if (!file) {
-                setPhotoFile(null);
-                return;
-              }
-              if (!file.type.startsWith("image/")) {
-                Swal.fire({
-                  icon: "warning",
-                  title: t("admin.staff_creation.invalid_photo_title"),
-                  text: t("admin.staff_creation.invalid_photo_desc"),
-                });
-                event.target.value = "";
-                setPhotoFile(null);
-                setPhotoPreview("");
-                return;
-              }
-              setPhotoFile(file);
-            }}
-          />
-          {photoPreview ? (
-            <img
-              src={photoPreview}
-              alt={t("admin.staff_creation.photo_preview_alt")}
-              className="h-32 w-32 rounded-lg border object-cover"
-            />
-          ) : (
-            <div className="flex h-32 w-32 items-center justify-center rounded-lg border border-dashed px-2 text-xs text-gray-500">
-              {t("admin.staff_creation.photo_empty")}
+        <div className="md:col-span-2">
+          <Label htmlFor="photo">{t("admin.staff_creation.photo_label")}</Label>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+              >
+                {t("admin.staff_creation.photo_choose")}
+              </button>
+              <span className="text-sm text-gray-500">
+                {photoFile?.name || t("admin.staff_creation.photo_none")}
+              </span>
             </div>
-          )}
+            <input
+              ref={photoInputRef}
+              type="file"
+              id="photo"
+              accept="image/*"
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                if (!file) {
+                  setPhotoFile(null);
+                  return;
+                }
+                if (!file.type.startsWith("image/")) {
+                  Swal.fire({
+                    icon: "warning",
+                    title: t("admin.staff_creation.invalid_photo_title"),
+                    text: t("admin.staff_creation.invalid_photo_desc"),
+                  });
+                  event.target.value = "";
+                  setPhotoFile(null);
+                  setPhotoPreview("");
+                  return;
+                }
+                setPhotoFile(file);
+              }}
+            />
+            {photoPreview ? (
+              <img
+                src={photoPreview}
+                alt={t("admin.staff_creation.photo_preview_alt")}
+                className="h-32 w-32 rounded-lg border object-cover"
+              />
+            ) : (
+              <div className="flex h-32 w-32 items-center justify-center rounded-lg border border-dashed px-2 text-xs text-gray-500">
+                {t("admin.staff_creation.photo_empty")}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
       )}
     </div>
   );
@@ -1261,86 +1457,81 @@ export default function StaffCreationForm() {
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {showField("marital_status") && (
-        <div>
-          <Label htmlFor="marital_status">
-            {t("admin.staff_creation.marital_status")}
-          </Label>
-          <Select
-            id="marital_status"
-            value={formData.marital_status}
-            onChange={(value) => handleSelectChange("marital_status", value)}
-            options={maritalStatusOptions}
-            placeholder={t("admin.staff_creation.marital_status_placeholder")}
-          />
-        </div>
+          <div>
+            <Label htmlFor="marital_status">
+              {t("admin.staff_creation.marital_status")}
+            </Label>
+            <Select
+              id="marital_status"
+              value={formData.marital_status}
+              onChange={(value) => handleSelectChange("marital_status", value)}
+              options={maritalStatusOptions}
+              placeholder={t("admin.staff_creation.marital_status_placeholder")}
+            />
+          </div>
         )}
         {showField("dob") && (
-        <div>
-          <Label htmlFor="dob">{t("admin.staff_creation.dob")}</Label>
-          <Input id="dob" type="date" value={formData.dob} onChange={handleInputChange} />
-        </div>
+          <div>
+            <Label htmlFor="dob">{t("admin.staff_creation.dob")}</Label>
+            <Input
+              id="dob"
+              type="date"
+              value={formData.dob}
+              onChange={handleInputChange}
+            />
+          </div>
         )}
         {showField("dob") && (
-        <div>
-          <Label htmlFor="age">{t("admin.staff_creation.age")}</Label>
-          <Input
-            id="age"
-            value={formData.dob ? calculateAge(formData.dob) : ""}
-            placeholder={t("admin.staff_creation.age_auto")}
-          />
-        </div>
+          <div>
+            <Label htmlFor="age">{t("admin.staff_creation.age")}</Label>
+            <Input
+              id="age"
+              value={formData.dob ? calculateAge(formData.dob) : ""}
+              placeholder={t("admin.staff_creation.age_auto")}
+            />
+          </div>
         )}
         {showField("blood_group") && (
-        <div>
-          <Label htmlFor="blood_group">{t("admin.staff_creation.blood_group")}</Label>
-          <Select
-            id="blood_group"
-            value={formData.blood_group}
-            onChange={(value) => handleSelectChange("blood_group", value)}
-            options={bloodGroupOptions}
-            placeholder={t("admin.staff_creation.blood_group_placeholder")}
-          />
-        </div>
+          <div>
+            <Label htmlFor="blood_group">
+              {t("admin.staff_creation.blood_group")}
+            </Label>
+            <Select
+              id="blood_group"
+              value={formData.blood_group}
+              onChange={(value) => handleSelectChange("blood_group", value)}
+              options={bloodGroupOptions}
+              placeholder={t("admin.staff_creation.blood_group_placeholder")}
+            />
+          </div>
         )}
         {showField("gender") && (
-        <div>
-          <Label htmlFor="gender">{t("admin.staff_creation.gender")}</Label>
-          <Select
-            id="gender"
-            value={formData.gender}
-            onChange={(value) => handleSelectChange("gender", value)}
-            options={genderOptions}
-            placeholder={t("admin.staff_creation.gender_placeholder")}
-          />
-        </div>
+          <div>
+            <Label htmlFor="gender">{t("admin.staff_creation.gender")}</Label>
+            <Select
+              id="gender"
+              value={formData.gender}
+              onChange={(value) => handleSelectChange("gender", value)}
+              options={genderOptions}
+              placeholder={t("admin.staff_creation.gender_placeholder")}
+            />
+          </div>
         )}
         {showField("physically_challenged") && (
-        <div>
-          <Label htmlFor="physically_challenged">
-            {t("admin.staff_creation.physically_challenged")}
-          </Label>
-          <Select
-            id="physically_challenged"
-            value={formData.physically_challenged}
-            onChange={(value) => handleSelectChange("physically_challenged", value)}
-            options={yesNoOptions}
-            placeholder={t("admin.staff_creation.select_option")}
-          />
-        </div>
-        )}
-        {showField("extra_curricular") && (
-        <div>
-          <Label htmlFor="extra_curricular">
-            {t("admin.staff_creation.extra_curricular")}
-          </Label>
-          <textarea
-            id="extra_curricular"
-            value={formData.extra_curricular}
-            onChange={handleInputChange}
-            rows={3}
-            className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
-          />
-        </div>
+          <div>
+            <Label htmlFor="physically_challenged">
+              {t("admin.staff_creation.physically_challenged")}
+            </Label>
+            <Select
+              id="physically_challenged"
+              value={formData.physically_challenged}
+              onChange={(value) =>
+                handleSelectChange("physically_challenged", value)
+              }
+              options={yesNoOptions}
+              placeholder={t("admin.staff_creation.select_option")}
+            />
+          </div>
         )}
       </div>
 
@@ -1353,105 +1544,125 @@ export default function StaffCreationForm() {
           showField("present_street") ||
           showField("present_area") ||
           showField("present_pincode")) && (
-        <div className="space-y-3 rounded-lg border border-gray-200 p-4">
-          <p className="text-sm font-semibold text-gray-600">
-            {t("admin.staff_creation.address_present_title")}
-          </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {showField("present_country") && (
-            <div>
-              <Label htmlFor="present_country">{t("common.country")}</Label>
-              <Select
-                id="present_country"
-                value={formData.present_country}
-                onChange={(value) => handleSelectChange("present_country", value)}
-                options={countryOptions}
-                placeholder={t("common.select_item_placeholder", { item: t("common.country") })}
-              />
+          <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+            <p className="text-sm font-semibold text-gray-600">
+              {t("admin.staff_creation.address_present_title")}
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {showField("present_country") && (
+                <div>
+                  <Label htmlFor="present_country">{t("common.country")}</Label>
+                  <Select
+                    id="present_country"
+                    value={formData.present_country}
+                    onChange={(value) =>
+                      handleSelectChange("present_country", value)
+                    }
+                    options={countryOptions}
+                    placeholder={t("common.select_item_placeholder", {
+                      item: t("common.country"),
+                    })}
+                  />
+                </div>
+              )}
+              {showField("present_state") && (
+                <div>
+                  <Label htmlFor="present_state">{t("common.state")}</Label>
+                  <Select
+                    id="present_state"
+                    value={formData.present_state}
+                    onChange={(value) =>
+                      handleSelectChange("present_state", value)
+                    }
+                    options={stateOptions}
+                    placeholder={t("common.select_item_placeholder", {
+                      item: t("common.state"),
+                    })}
+                  />
+                </div>
+              )}
+              {showField("present_district") && (
+                <div>
+                  <Label htmlFor="present_district">
+                    {t("common.district")}
+                  </Label>
+                  <Select
+                    id="present_district"
+                    value={formData.present_district}
+                    onChange={(value) =>
+                      handleSelectChange("present_district", value)
+                    }
+                    options={presentDistrictOptions}
+                    placeholder={t("common.select_item_placeholder", {
+                      item: t("common.district"),
+                    })}
+                  />
+                </div>
+              )}
+              {showField("present_city") && (
+                <div>
+                  <Label htmlFor="present_city">{t("common.city")}</Label>
+                  <Select
+                    id="present_city"
+                    value={formData.present_city}
+                    onChange={(value) =>
+                      handleSelectChange("present_city", value)
+                    }
+                    options={presentCityOptions}
+                    placeholder={t("common.select_item_placeholder", {
+                      item: t("common.city"),
+                    })}
+                  />
+                </div>
+              )}
+              {showField("present_building_no") && (
+                <div className="sm:col-span-2">
+                  <Label htmlFor="present_building_no">
+                    {t("common.building_no")}
+                  </Label>
+                  <Input
+                    id="present_building_no"
+                    value={formData.present_building_no}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              )}
+              {showField("present_street") && (
+                <div className="sm:col-span-2">
+                  <Label htmlFor="present_street">{t("common.street")}</Label>
+                  <textarea
+                    id="present_street"
+                    value={formData.present_street}
+                    onChange={handleInputChange}
+                    rows={2}
+                    className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
+                  />
+                </div>
+              )}
+              {showField("present_area") && (
+                <div className="sm:col-span-2">
+                  <Label htmlFor="present_area">{t("common.area")}</Label>
+                  <textarea
+                    id="present_area"
+                    value={formData.present_area}
+                    onChange={handleInputChange}
+                    rows={2}
+                    className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
+                  />
+                </div>
+              )}
+              {showField("present_pincode") && (
+                <div>
+                  <Label htmlFor="present_pincode">{t("common.pincode")}</Label>
+                  <Input
+                    id="present_pincode"
+                    value={formData.present_pincode}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              )}
             </div>
-            )}
-            {showField("present_state") && (
-            <div>
-              <Label htmlFor="present_state">{t("common.state")}</Label>
-              <Select
-                id="present_state"
-                value={formData.present_state}
-                onChange={(value) => handleSelectChange("present_state", value)}
-                options={stateOptions}
-                placeholder={t("common.select_item_placeholder", { item: t("common.state") })}
-              />
-            </div>
-            )}
-            {showField("present_district") && (
-            <div>
-              <Label htmlFor="present_district">{t("common.district")}</Label>
-              <Select
-                id="present_district"
-                value={formData.present_district}
-                onChange={(value) => handleSelectChange("present_district", value)}
-                options={presentDistrictOptions}
-                placeholder={t("common.select_item_placeholder", { item: t("common.district") })}
-              />
-            </div>
-            )}
-            {showField("present_city") && (
-            <div>
-              <Label htmlFor="present_city">{t("common.city")}</Label>
-              <Select
-                id="present_city"
-                value={formData.present_city}
-                onChange={(value) => handleSelectChange("present_city", value)}
-                options={presentCityOptions}
-                placeholder={t("common.select_item_placeholder", { item: t("common.city") })}
-              />
-            </div>
-            )}
-            {showField("present_building_no") && (
-            <div className="sm:col-span-2">
-              <Label htmlFor="present_building_no">{t("common.building_no")}</Label>
-              <Input
-                id="present_building_no"
-                value={formData.present_building_no}
-                onChange={handleInputChange}
-              />
-            </div>
-            )}
-            {showField("present_street") && (
-            <div className="sm:col-span-2">
-              <Label htmlFor="present_street">{t("common.street")}</Label>
-              <textarea
-                id="present_street"
-                value={formData.present_street}
-                onChange={handleInputChange}
-                rows={2}
-                className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
-              />
-            </div>
-            )}
-            {showField("present_area") && (
-            <div className="sm:col-span-2">
-              <Label htmlFor="present_area">{t("common.area")}</Label>
-              <textarea
-                id="present_area"
-                value={formData.present_area}
-                onChange={handleInputChange}
-                rows={2}
-                className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
-              />
-            </div>
-            )}
-            {showField("present_pincode") && (
-            <div>
-              <Label htmlFor="present_pincode">{t("common.pincode")}</Label>
-              <Input
-                id="present_pincode"
-                value={formData.present_pincode}
-                onChange={handleInputChange}
-              />
-            </div>
-            )}
           </div>
-        </div>
         )}
 
         {(showField("permanent_country") ||
@@ -1462,151 +1673,175 @@ export default function StaffCreationForm() {
           showField("permanent_street") ||
           showField("permanent_area") ||
           showField("permanent_pincode")) && (
-        <div className="space-y-3 rounded-lg border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-600">
-              {t("admin.staff_creation.address_permanent_title")}
-            </p>
-            <label className="flex items-center gap-2 text-sm text-gray-600">
-              <input
-                type="checkbox"
-                checked={sameAddress}
-                onChange={() => setSameAddress((prev) => !prev)}
-                className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
-              />
-              {t("admin.staff_creation.address_same")}
-            </label>
+          <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-600">
+                {t("admin.staff_creation.address_permanent_title")}
+              </p>
+              <label className="flex items-center gap-2 text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={sameAddress}
+                  onChange={() => setSameAddress((prev) => !prev)}
+                  className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                />
+                {t("admin.staff_creation.address_same")}
+              </label>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {showField("permanent_country") && (
+                <div>
+                  <Label htmlFor="permanent_country">
+                    {t("common.country")}
+                  </Label>
+                  <Select
+                    id="permanent_country"
+                    value={formData.permanent_country}
+                    onChange={(value) =>
+                      handleSelectChange("permanent_country", value)
+                    }
+                    options={countryOptions}
+                    placeholder={t("common.select_item_placeholder", {
+                      item: t("common.country"),
+                    })}
+                  />
+                </div>
+              )}
+              {showField("permanent_state") && (
+                <div>
+                  <Label htmlFor="permanent_state">{t("common.state")}</Label>
+                  <Select
+                    id="permanent_state"
+                    value={formData.permanent_state}
+                    onChange={(value) =>
+                      handleSelectChange("permanent_state", value)
+                    }
+                    options={stateOptions}
+                    placeholder={t("common.select_item_placeholder", {
+                      item: t("common.state"),
+                    })}
+                  />
+                </div>
+              )}
+              {showField("permanent_district") && (
+                <div>
+                  <Label htmlFor="permanent_district">
+                    {t("common.district")}
+                  </Label>
+                  <Select
+                    id="permanent_district"
+                    value={formData.permanent_district}
+                    onChange={(value) =>
+                      handleSelectChange("permanent_district", value)
+                    }
+                    options={permanentDistrictOptions}
+                    placeholder={t("common.select_item_placeholder", {
+                      item: t("common.district"),
+                    })}
+                  />
+                </div>
+              )}
+              {showField("permanent_city") && (
+                <div>
+                  <Label htmlFor="permanent_city">{t("common.city")}</Label>
+                  <Select
+                    id="permanent_city"
+                    value={formData.permanent_city}
+                    onChange={(value) =>
+                      handleSelectChange("permanent_city", value)
+                    }
+                    options={permanentCityOptions}
+                    placeholder={t("common.select_item_placeholder", {
+                      item: t("common.city"),
+                    })}
+                  />
+                </div>
+              )}
+              {showField("permanent_building_no") && (
+                <div className="sm:col-span-2">
+                  <Label htmlFor="permanent_building_no">
+                    {t("common.building_no")}
+                  </Label>
+                  <Input
+                    id="permanent_building_no"
+                    value={formData.permanent_building_no}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              )}
+              {showField("permanent_street") && (
+                <div className="sm:col-span-2">
+                  <Label htmlFor="permanent_street">{t("common.street")}</Label>
+                  <textarea
+                    id="permanent_street"
+                    value={formData.permanent_street}
+                    onChange={handleInputChange}
+                    rows={2}
+                    className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
+                  />
+                </div>
+              )}
+              {showField("permanent_area") && (
+                <div className="sm:col-span-2">
+                  <Label htmlFor="permanent_area">{t("common.area")}</Label>
+                  <textarea
+                    id="permanent_area"
+                    value={formData.permanent_area}
+                    onChange={handleInputChange}
+                    rows={2}
+                    className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
+                  />
+                </div>
+              )}
+              {showField("permanent_pincode") && (
+                <div>
+                  <Label htmlFor="permanent_pincode">
+                    {t("common.pincode")}
+                  </Label>
+                  <Input
+                    id="permanent_pincode"
+                    value={formData.permanent_pincode}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              )}
+            </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {showField("permanent_country") && (
-            <div>
-              <Label htmlFor="permanent_country">{t("common.country")}</Label>
-              <Select
-                id="permanent_country"
-                value={formData.permanent_country}
-                onChange={(value) => handleSelectChange("permanent_country", value)}
-                options={countryOptions}
-                placeholder={t("common.select_item_placeholder", { item: t("common.country") })}
-              />
-            </div>
-            )}
-            {showField("permanent_state") && (
-            <div>
-              <Label htmlFor="permanent_state">{t("common.state")}</Label>
-              <Select
-                id="permanent_state"
-                value={formData.permanent_state}
-                onChange={(value) => handleSelectChange("permanent_state", value)}
-                options={stateOptions}
-                placeholder={t("common.select_item_placeholder", { item: t("common.state") })}
-              />
-            </div>
-            )}
-            {showField("permanent_district") && (
-            <div>
-              <Label htmlFor="permanent_district">{t("common.district")}</Label>
-              <Select
-                id="permanent_district"
-                value={formData.permanent_district}
-                onChange={(value) => handleSelectChange("permanent_district", value)}
-                options={permanentDistrictOptions}
-                placeholder={t("common.select_item_placeholder", { item: t("common.district") })}
-              />
-            </div>
-            )}
-            {showField("permanent_city") && (
-            <div>
-              <Label htmlFor="permanent_city">{t("common.city")}</Label>
-              <Select
-                id="permanent_city"
-                value={formData.permanent_city}
-                onChange={(value) => handleSelectChange("permanent_city", value)}
-                options={permanentCityOptions}
-                placeholder={t("common.select_item_placeholder", { item: t("common.city") })}
-              />
-            </div>
-            )}
-            {showField("permanent_building_no") && (
-            <div className="sm:col-span-2">
-              <Label htmlFor="permanent_building_no">{t("common.building_no")}</Label>
-              <Input
-                id="permanent_building_no"
-                value={formData.permanent_building_no}
-                onChange={handleInputChange}
-              />
-            </div>
-            )}
-            {showField("permanent_street") && (
-            <div className="sm:col-span-2">
-              <Label htmlFor="permanent_street">{t("common.street")}</Label>
-              <textarea
-                id="permanent_street"
-                value={formData.permanent_street}
-                onChange={handleInputChange}
-                rows={2}
-                className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
-              />
-            </div>
-            )}
-            {showField("permanent_area") && (
-            <div className="sm:col-span-2">
-              <Label htmlFor="permanent_area">{t("common.area")}</Label>
-              <textarea
-                id="permanent_area"
-                value={formData.permanent_area}
-                onChange={handleInputChange}
-                rows={2}
-                className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
-              />
-            </div>
-            )}
-            {showField("permanent_pincode") && (
-            <div>
-              <Label htmlFor="permanent_pincode">{t("common.pincode")}</Label>
-              <Input
-                id="permanent_pincode"
-                value={formData.permanent_pincode}
-                onChange={handleInputChange}
-              />
-            </div>
-            )}
-          </div>
-        </div>
         )}
       </div>
 
       {(showField("contact_mobile") || showField("contact_email")) && (
-      <div className="rounded-lg border border-gray-200 p-4">
-        <p className="text-sm font-semibold text-gray-600">
-          {t("admin.staff_creation.contact_details")}
-        </p>
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          {showField("contact_mobile") && (
-          <div>
-            <Label htmlFor="contact_mobile">
-              {t("admin.staff_creation.contact_mobile")}
-            </Label>
-            <Input
-              id="contact_mobile"
-              value={formData.contact_mobile}
-              onChange={handleInputChange}
-            />
-          </div>
-          )}
-          {showField("contact_email") && (
-          <div>
-            <Label htmlFor="contact_email">
-              {t("admin.staff_creation.contact_email")}
-            </Label>
-            <Input
-              id="contact_email"
-              type="email"
-              value={formData.contact_email}
-              onChange={handleInputChange}
-            />
-          </div>
-          )}
-          {/* <div>
+        <div className="rounded-lg border border-gray-200 p-4">
+          <p className="text-sm font-semibold text-gray-600">
+            {t("admin.staff_creation.contact_details")}
+          </p>
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            {showField("contact_mobile") && (
+              <div>
+                <Label htmlFor="contact_mobile">
+                  {t("admin.staff_creation.contact_mobile")}
+                </Label>
+                <Input
+                  id="contact_mobile"
+                  value={formData.contact_mobile}
+                  onChange={handleInputChange}
+                />
+              </div>
+            )}
+            {showField("contact_email") && (
+              <div>
+                <Label htmlFor="contact_email">
+                  {t("admin.staff_creation.contact_email")}
+                </Label>
+                <Input
+                  id="contact_email"
+                  type="email"
+                  value={formData.contact_email}
+                  onChange={handleInputChange}
+                />
+              </div>
+            )}
+            {/* <div>
             <Label htmlFor="emergency_contact">Emergency Contact</Label>
             <Input
               id="emergency_contact"
@@ -1622,8 +1857,8 @@ export default function StaffCreationForm() {
               onChange={handleInputChange}
             />
           </div> */}
+          </div>
         </div>
-      </div>
       )}
     </div>
   );
@@ -1656,7 +1891,9 @@ export default function StaffCreationForm() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {section === "official" ? renderOfficialSection() : renderPersonalSection()}
+          {section === "official"
+            ? renderOfficialSection()
+            : renderPersonalSection()}
 
           <div className="flex flex-wrap justify-end gap-3">
             <button

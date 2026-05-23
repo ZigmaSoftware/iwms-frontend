@@ -23,6 +23,8 @@ export const adminEndpoints = {
   cities: "masters/cities",
   zones: "masters/zones",
   wards: "masters/wards",
+  departments: "masters/departments",
+  designations: "masters/designations",
   
   wasteTypes: "assets/waste-types",
   panchayats: "masters/panchayat",

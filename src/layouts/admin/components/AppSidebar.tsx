@@ -28,7 +28,8 @@ const {
   encAudits,
   encContinents,
   encCountries,
-  encBins,
+  encDepartments,
+  encDesignations,
   encStates,
   encDistricts,
   encCities,
@@ -82,7 +83,6 @@ const {
   encSupervisorZoneMap,
   encSupervisorZoneAccessAudit,
   encTripDefinition,
-  encBinLoadLog,
   // encCustomerTag,
   // encHouseholdPickupEvent,
   encZonePropertyLoadTracker,
@@ -207,6 +207,18 @@ const masterItems: NavItem[] = [
     screen: "masters",
     subItems: [
       {
+        nameKey: "admin.nav.department",
+        path: `/${encMasters}/${encDepartments}`,
+        module: "masters",
+        screen: "departments",
+      },
+      {
+        nameKey: "admin.nav.designation",
+        path: `/${encMasters}/${encDesignations}`,
+        module: "masters",
+        screen: "designations",
+      },
+      {
         nameKey: "admin.nav.district",
         path: `/${encMasters}/${encDistricts}`,
         module: "masters",
@@ -282,12 +294,6 @@ const assetItems: NavItem[] = [
     module: "assets",
     screen: "assets",
     subItems: [
-      {
-        nameKey: "admin.nav.bin_creation",
-        path: `/${encMasters}/${encBins}`,
-        module: "assets",
-        screen: "bins",
-      },
       {
         nameKey: "admin.nav.collection_point",
         path: `/${encMasters}/${encCollectionPoints}`,
@@ -567,12 +573,6 @@ const auditItems: NavItem[] = [
         path: `/${encTransportMaster}/${encTripExceptionLog}`,
         module: "audits",
         screen: "trip-exception-log",
-      },
-      {
-        nameKey: "admin.nav.bin_load_log",
-        path: `/${encTransportMaster}/${encBinLoadLog}`,
-        module: "audits",
-        screen: "bin-load-log",
       },
       {
         nameKey: "admin.nav.supervisor_zone_access_audit",
