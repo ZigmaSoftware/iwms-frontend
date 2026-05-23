@@ -19,6 +19,10 @@ import ZoneList from "@/pages/admin/modules/masters/zone/ZoneListPage";
 import ZoneForm from "@/pages/admin/modules/masters/zone/ZoneForm";
 import WardList from "@/pages/admin/modules/masters/ward/WardListPage";
 import WardForm from "@/pages/admin/modules/masters/ward/WardForm";
+import DepartmentList from "@/pages/admin/modules/masters/department/DepartmentListPage";
+import DepartmentForm from "@/pages/admin/modules/masters/department/DepartmentForm";
+import DesignationList from "@/pages/admin/modules/masters/designation/DesignationListPage";
+import DesignationForm from "@/pages/admin/modules/masters/designation/DesignationForm";
 import CollectionPointListPage from "@/pages/admin/modules/masters/collectionPoint/CollectionPointListPage";
 import CollectionPointForm from "@/pages/admin/modules/masters/collectionPoint/CollectionPointForm";
 import WasteTypeListPage from "@/pages/admin/modules/masters/wasteType/WasteTypeListPage";
@@ -37,8 +41,6 @@ import PropertyList from "@/pages/admin/modules/masters/property/PropertyListPag
 import PropertyForm from "@/pages/admin/modules/masters/property/PropertyForm";
 import SubPropertyList from "@/pages/admin/modules/masters/subproperty/SubPropertyListPage";
 import SubPropertyForm from "@/pages/admin/modules/masters/subproperty/SubPropertyForm";
-import BinListPage from "@/pages/admin/modules/masters/bin/BinListPage";
-import BinForm from "@/pages/admin/modules/masters/bin/BinForm";
 import StaffCreationList from "@/pages/admin/modules/staffMasters/staffCreation/staffcreationlist";
 import StaffCreationForm from "@/pages/admin/modules/staffMasters/staffCreation/staffcreationForm";
 // Admin
@@ -68,8 +70,6 @@ import VehicleCreationListPage from "@/pages/admin/modules/transportMasters/vehi
 import VehicleCreationForm from "@/pages/admin/modules/transportMasters/vehicleCreation/vehicleCreationForm";
 import TripDefinitionList from "@/pages/admin/modules/transportMasters/tripDefinition/tripDefinitionList";
 import TripDefinitionForm from "@/pages/admin/modules/transportMasters/tripDefinition/tripDefinitionForm";
-import BinLoadLogList from "@/pages/admin/modules/transportMasters/binLoadLog/binLoadLogList";
-import BinLoadLogForm from "@/pages/admin/modules/transportMasters/binLoadLog/binLoadLogForm";
 import TripInstanceList from "@/pages/admin/modules/transportMasters/tripInstance/tripInstanceList";
 import TripInstanceForm from "@/pages/admin/modules/transportMasters/tripInstance/tripInstanceForm";
 import ZonePropertyLoadTrackerList from "@/pages/admin/modules/transportMasters/zonePropertyLoadTracker/zonePropertyLoadTrackerList";
@@ -158,12 +158,13 @@ const ROUTES: RouteMap = {
   masters: {
     continents: { list: ContinentList, form: ContinentForm },
     countries: { list: CountryList, form: CountryForm },
-    bins: { list: BinListPage, form: BinForm },
     states: { list: StateList, form: StateForm },
     districts: { list: DistrictList, form: DistrictForm },
     cities: { list: CityList, form: CityForm },
     zones: { list: ZoneList, form: ZoneForm },
     wards: { list: WardList, form: WardForm },
+    departments: { list: DepartmentList, form: DepartmentForm },
+    designations: { list: DesignationList, form: DesignationForm },
     "collection-points": { list: CollectionPointListPage, form: CollectionPointForm },
     "waste-types": { list: WasteTypeListPage, form: WasteTypeForm },
 
@@ -191,7 +192,6 @@ const ROUTES: RouteMap = {
     "vehicle-type": { list: VehicleTypeCreation, form: VehicleTypeCreationForm },
     "vehicle-creation": { list: VehicleCreationListPage, form: VehicleCreationForm },
     "trip-definition": { list: TripDefinitionList, form: TripDefinitionForm },
-    "bin-load-log": { list: BinLoadLogList, form: BinLoadLogForm },
     "trip-instance": { list: TripInstanceList, form: TripInstanceForm },
     "zone-property-load-tracker": { list: ZonePropertyLoadTrackerList, form: ZonePropertyLoadTrackerForm },
     "trip-attendance": { list: TripAttendanceList, form: TripAttendanceForm },
