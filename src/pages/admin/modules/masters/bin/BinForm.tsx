@@ -101,7 +101,7 @@ const normalizeIdValue = (value: unknown): string => {
 export default function BinForm() {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
-    useFieldVisibility("masters", "bins", BIN_FIELDS);
+    useFieldVisibility("assets", "bins", BIN_FIELDS);
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
@@ -529,8 +529,7 @@ export default function BinForm() {
     if (getMissingRequiredFields(["city_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
       missingFields.push(t("common.city"));
     }
-    const locationChoiceVisible = showField("panchayat_id") || showField("ward_id");
-    if (locationChoiceVisible && !panchayatId && !wardId) {
+    if (!panchayatId && !wardId) {
       missingFields.push(`${t("admin.nav.panchayat")} / ${t("common.ward")}`);
     }
     if (
@@ -707,95 +706,89 @@ export default function BinForm() {
           </div>
         )}
 
-        {showField("panchayat_id") && (
-          <div>
-            <Label>{t("admin.nav.panchayat")}</Label>
-            <Select
-              value={panchayatId || "__none__"}
-              onValueChange={(value) => {
-                const next = value === "__none__" ? "" : value;
-                setPanchayatId(next);
-                setZoneId("");
-                setWardId("");
-                setCollectionPointId("");
-              }}
-              disabled={!cityId || isZoneSelected || isWardSelected}
-            >
-              <SelectTrigger className="input-validate w-full">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") })}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
-                {panchayatOptions.map((p) => (
-                  <SelectItem key={p.value} value={p.value}>
-                    {p.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+        <div>
+          <Label>{t("admin.nav.panchayat")}</Label>
+          <Select
+            value={panchayatId || "__none__"}
+            onValueChange={(value) => {
+              const next = value === "__none__" ? "" : value;
+              setPanchayatId(next);
+              setZoneId("");
+              setWardId("");
+              setCollectionPointId("");
+            }}
+            disabled={!cityId || isZoneSelected || isWardSelected}
+          >
+            <SelectTrigger className="input-validate w-full">
+              <SelectValue
+                placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") })}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
+              {panchayatOptions.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        {showField("zone_id") && (
-          <div>
-            <Label>{t("admin.nav.zone")}</Label>
-            <Select
-              value={zoneId || "__none__"}
-              onValueChange={(value) => {
-                const next = value === "__none__" ? "" : value;
-                setZoneId(next);
+        <div>
+          <Label>{t("admin.nav.zone")}</Label>
+          <Select
+            value={zoneId || "__none__"}
+            onValueChange={(value) => {
+              const next = value === "__none__" ? "" : value;
+              setZoneId(next);
+              setPanchayatId("");
+              setWardId("");
+              setCollectionPointId("");
+            }}
+            disabled={!cityId || isPanchayatSelected}
+          >
+            <SelectTrigger className="input-validate w-full">
+              <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.zone") })} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
+              {zoneOptions.map((z) => (
+                <SelectItem key={z.value} value={z.value}>
+                  {z.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label>{t("common.ward")}</Label>
+          <Select
+            value={wardId || "__none__"}
+            onValueChange={(value) => {
+              const next = value === "__none__" ? "" : value;
+              setWardId(next);
+              if (next) {
                 setPanchayatId("");
-                setWardId("");
                 setCollectionPointId("");
-              }}
-              disabled={!cityId || isPanchayatSelected}
-            >
-              <SelectTrigger className="input-validate w-full">
-                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.zone") })} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
-                {zoneOptions.map((z) => (
-                  <SelectItem key={z.value} value={z.value}>
-                    {z.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {showField("ward_id") && (
-          <div>
-            <Label>{t("common.ward")}</Label>
-            <Select
-              value={wardId || "__none__"}
-              onValueChange={(value) => {
-                const next = value === "__none__" ? "" : value;
-                setWardId(next);
-                if (next) {
-                  setPanchayatId("");
-                  setCollectionPointId("");
-                }
-              }}
-              disabled={!cityId || isPanchayatSelected || (!zoneId && !panchayatId)}
-            >
-              <SelectTrigger className="input-validate w-full">
-                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.ward") })} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
-                {wardOptions.map((w) => (
-                  <SelectItem key={w.value} value={w.value}>
-                    {w.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
+              }
+            }}
+            disabled={!cityId || isPanchayatSelected || (!zoneId && !panchayatId)}
+          >
+            <SelectTrigger className="input-validate w-full">
+              <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.ward") })} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
+              {wardOptions.map((w) => (
+                <SelectItem key={w.value} value={w.value}>
+                  {w.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         {showField("collection_point_id") && (
           <div>
