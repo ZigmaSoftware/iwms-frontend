@@ -138,7 +138,7 @@ const AppHeader: React.FC = () => {
                   className="text-[10px] font-bold uppercase tracking-[0.18em]"
                   style={{ color: PRIMARY }}
                 >
-                  WPE ERP
+                  IWMS
                 </span>
                 <span
                   className={cn(
