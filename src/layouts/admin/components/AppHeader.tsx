@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { LayoutDashboard } from "lucide-react";
+import { LayoutDashboard, Zap } from "lucide-react";
 
 import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -16,6 +16,9 @@ import {
 } from "@/types/roles";
 import ZigmaLogo from "@/images/logo.png";
 
+const PRIMARY = "#22a855";
+const SECONDARY = "#f97316";
+
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -26,10 +29,7 @@ const AppHeader: React.FC = () => {
   const { t } = useTranslation();
 
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 10);
-    };
-
+    const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
@@ -41,7 +41,6 @@ const AppHeader: React.FC = () => {
         inputRef.current?.focus();
       }
     };
-
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
@@ -51,7 +50,6 @@ const AppHeader: React.FC = () => {
     else toggleMobileSidebar();
   };
 
-  const toggleApplicationMenu = () => setApplicationMenuOpen((prev) => !prev);
   const handleDashboardView = () => {
     setAdminViewPreference(ADMIN_VIEW_MODE_DASHBOARD);
     navigate("/", { replace: true });
@@ -62,202 +60,227 @@ const AppHeader: React.FC = () => {
   return (
     <header
       className={cn(
-        "sticky top-0 z-[60] w-full backdrop-blur-xl transition-all duration-500",
+        "sticky top-0 z-60 w-full transition-all duration-300",
         isDark
-          ? "bg-gradient-to-r from-slate-950/90 via-slate-900/90 to-slate-950/90"
-          : "bg-white"
+          ? "bg-slate-950/95 backdrop-blur-xl"
+          : "bg-white",
+        scrolled && (isDark ? "shadow-xl shadow-black/30" : "shadow-md shadow-green-900/8")
       )}
     >
-      {/* Animated gradient border */}
-      <div
-        className={cn(
-          "absolute bottom-0 left-0 right-0 h-[2px] overflow-hidden",
-          scrolled ? "opacity-100" : "opacity-0",
-          "transition-opacity duration-500"
-        )}
-      >
+      {/* ── Bottom accent bar ─────────────────────────────────────────── */}
+      <div className="absolute bottom-0 left-0 right-0 h-[2.5px] overflow-hidden">
         <motion.div
-          className={cn(
-            "h-full w-full",
-            isDark
-              ? "bg-gradient-to-r from-transparent via-blue-500 to-transparent"
-              : "bg-gradient-to-r from-transparent via-blue-400 to-transparent"
-          )}
-          animate={{
-            x: ["-100%", "100%"],
+          className="h-full w-[200%]"
+          style={{
+            background: `linear-gradient(90deg, transparent 0%, ${PRIMARY} 20%, ${SECONDARY} 50%, ${PRIMARY} 80%, transparent 100%)`,
           }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            ease: "linear",
-          }}
+          animate={{ x: ["-50%", "0%"] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
         />
       </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
+      {/* ── Left green accent border ──────────────────────────────────── */}
+      <div
+        className="absolute left-0 top-0 bottom-0 w-[3px]"
+        style={{ background: `linear-gradient(to bottom, ${PRIMARY}, ${SECONDARY}, ${PRIMARY})` }}
+      />
+
+      <div
         className={cn(
-          "relative h-[var(--admin-header-h)] px-4 lg:px-8",
-          scrolled &&
-            (isDark
-              ? "shadow-2xl shadow-blue-500/10"
-              : "shadow-xl shadow-blue-300/20"),
-          "transition-shadow duration-500"
+          "relative h-(--admin-header-h) pl-5 pr-4 lg:pl-7 lg:pr-6 transition-all duration-300"
         )}
       >
-        <div className="flex min-h-[54px] flex-col gap-3 py-3 lg:flex-row lg:items-center lg:justify-between lg:py-2">
-          <div className="flex w-full items-center justify-between gap-4">
-            {/* Left Group */}
-            <div className="flex items-center gap-5">
-              {/* Sidebar Toggle with Pulse Effect */}
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleSidebarToggle}
-              >
-                {/* Hover glow effect */}
-                <div
-                  className={cn(
-                    "absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-300",
-                    isDark ? "bg-blue-500/30" : "bg-blue-400/30"
-                  )}
-                />
-                <motion.div
-                  animate={{ rotate: isMobileOpen ? 90 : 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="relative z-10"
-                >
-                  {isMobileOpen ? (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                      <path
-                        d="M6.22 7.28a.75.75 0 0 1 1.06-1.06L12 10.94l4.72-4.72a.75.75 0 1 1 1.06 1.06L13.06 12l4.72 4.72a.75.75 0 1 1-1.06 1.06L12 13.06l-4.72 4.72a.75.75 0 0 1-1.06-1.06L10.94 12 6.22 7.28Z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                  ) : (
-                    <svg width="20" height="14" viewBox="0 0 16 12" fill="none">
-                      <path
-                        d="M1.33.25h13.33a.75.75 0 0 1 0 1.5H1.33a.75.75 0 0 1 0-1.5Zm0 10h13.33a.75.75 0 0 1 0 1.5H1.33a.75.75 0 0 1 0-1.5Zm0-5h6.67a.75.75 0 0 1 0 1.5H1.33a.75.75 0 0 1 0-1.5Z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                  )}
-                </motion.div>
-              </motion.button>
-
-              {/* Enhanced Branding */}
-              <div className="hidden flex-col lg:flex select-none">
-                <motion.div
-                  className="flex items-center gap-3 mb-1"
-                  whileHover={{ scale: 1.02 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <div className="relative">
-                    <img src={ZigmaLogo} className="h-12 w-12" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span
-                      className={cn(
-                        "text-xl font-bold tracking-tight",
-                        isDark
-                          ? "bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent"
-                          : "bg-gradient-to-r from-gray-900 via-blue-900 to-gray-900 bg-clip-text text-transparent"
-                      )}
-                    >
-                      {t("admin.panel_title")}
-                    </span>
-                  </div>
-                </motion.div>
-              </div>
-
-              {/* Mobile Logo */}
-              <Link to="/admin" className="lg:hidden">
-                <motion.img
-                  whileHover={{ scale: 1.05 }}
-                  src="/logo.png"
-                  alt="Logo"
-                  className="h-9 w-auto opacity-95"
-                />
-              </Link>
-            </div>
-
-            {/* Mobile Quick Action Button */}
-            <div className="flex items-center gap-2 lg:hidden">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={toggleApplicationMenu}
-                className={cn(
-                  "group relative flex h-11 w-11 items-center justify-center rounded-2xl transition-all duration-300",
-                  isDark
-                    ? "bg-gradient-to-br from-blue-600/20 to-purple-600/20 text-white hover:from-blue-600/30 hover:to-purple-600/30 border border-white/10"
-                    : "bg-gradient-to-br from-blue-500/10 to-purple-500/10 text-blue-700 hover:from-blue-500/20 hover:to-purple-500/20 border border-blue-200/50"
-                )}
-              >
-                <motion.div
-                  animate={{ rotate: isApplicationMenuOpen ? 90 : 0 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M6 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm12 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                </motion.div>
-              </motion.button>
-            </div>
-          </div>
-
-          {/* Right Section */}
-          <motion.div
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-            className={cn(
-              "flex w-full flex-row items-center justify-end gap-3 pt-2 lg:w-auto lg:pt-0",
-              isApplicationMenuOpen ? "flex" : "hidden lg:flex",
-              isDark
-                ? "border-t border-white/10 lg:border-none"
-                : "border-t border-gray-200 lg:border-none"
-            )}
-          >
+        <div className="flex h-full items-center justify-between gap-4">
+          {/* ── Left Group ──────────────────────────────────────────────── */}
+          <div className="flex items-center gap-3">
+            {/* Sidebar Toggle */}
             <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={handleDashboardView}
-              title={t("common.dashboard_view")}
-              aria-label={t("common.dashboard_view")}
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.94 }}
+              onClick={handleSidebarToggle}
               className={cn(
-                "rainbow-border flex h-11 w-11 items-center justify-center rounded-xl text-sm font-semibold shadow transition-all",
+                "flex h-9 w-9 items-center justify-center rounded-xl transition-colors duration-200",
                 isDark
-                  ? "border border-white/20 bg-white/5 text-white hover:bg-white/10"
-                  : "border border-gray-200 bg-white text-blue-700 hover:bg-gray-50"
+                  ? "text-slate-400 hover:bg-slate-800 hover:text-white"
+                  : "text-gray-500 hover:bg-green-50 hover:text-[#22a855]"
               )}
             >
-              <LayoutDashboard className="h-4 w-4" />
-              <span className="sr-only">{t("common.dashboard_view")}</span>
+              <motion.div animate={{ rotate: isMobileOpen ? 90 : 0 }} transition={{ duration: 0.25 }}>
+                {isMobileOpen ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <path d="M6.22 7.28a.75.75 0 0 1 1.06-1.06L12 10.94l4.72-4.72a.75.75 0 1 1 1.06 1.06L13.06 12l4.72 4.72a.75.75 0 1 1-1.06 1.06L12 13.06l-4.72 4.72a.75.75 0 0 1-1.06-1.06L10.94 12 6.22 7.28Z" fill="currentColor" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="13" viewBox="0 0 16 12" fill="none">
+                    <path d="M1.33.25h13.33a.75.75 0 0 1 0 1.5H1.33a.75.75 0 0 1 0-1.5Zm0 10h13.33a.75.75 0 0 1 0 1.5H1.33a.75.75 0 0 1 0-1.5Zm0-5h6.67a.75.75 0 0 1 0 1.5H1.33a.75.75 0 0 1 0-1.5Z" fill="currentColor" />
+                  </svg>
+                )}
+              </motion.div>
             </motion.button>
+
+            {/* Brand — desktop */}
+            <motion.div
+              className="hidden lg:flex items-center gap-3 select-none"
+              whileHover={{ scale: 1.01 }}
+              transition={{ duration: 0.15 }}
+            >
+              {/* Logo box */}
+              <div
+                className="relative flex h-9 w-9 items-center justify-center rounded-xl shadow-md"
+                style={{ background: `linear-gradient(135deg, ${PRIMARY}, #16a34a)`, boxShadow: `0 4px 14px ${PRIMARY}40` }}
+              >
+                <img src={ZigmaLogo} className="h-6 w-6 object-contain" alt="Logo" />
+              </div>
+
+              {/* Text stack */}
+              <div className="flex flex-col leading-none">
+                <span
+                  className="text-[10px] font-bold uppercase tracking-[0.18em]"
+                  style={{ color: PRIMARY }}
+                >
+                  IWMS
+                </span>
+                <span
+                  className={cn(
+                    "text-base font-bold tracking-tight mt-0.5",
+                    isDark ? "text-white" : "text-gray-900"
+                  )}
+                >
+                  {t("admin.panel_title")}
+                </span>
+              </div>
+
+              {/* LIVE pill */}
+              <div
+                className="hidden xl:flex items-center gap-1.5 rounded-full border px-2.5 py-0.5"
+                style={{ borderColor: `${PRIMARY}30`, backgroundColor: `${PRIMARY}10` }}
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full animate-pulse"
+                  style={{ backgroundColor: PRIMARY }}
+                />
+                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: PRIMARY }}>
+                  Live
+                </span>
+              </div>
+            </motion.div>
+
+            {/* Brand — mobile */}
+            <Link to="/admin" className="lg:hidden">
+              <div
+                className="flex h-8 w-8 items-center justify-center rounded-lg"
+                style={{ background: `linear-gradient(135deg, ${PRIMARY}, #16a34a)` }}
+              >
+                <img src={ZigmaLogo} className="h-5 w-5 object-contain" alt="Logo" />
+              </div>
+            </Link>
+          </div>
+
+          {/* ── Mobile quick actions toggle ──────────────────────────────── */}
+          <div className="flex items-center gap-2 lg:hidden">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setApplicationMenuOpen((p) => !p)}
+              className={cn(
+                "flex h-9 w-9 items-center justify-center rounded-xl transition-colors",
+                isDark
+                  ? "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  : "bg-green-50 text-[#22a855] hover:bg-green-100"
+              )}
+            >
+              <motion.div animate={{ rotate: isApplicationMenuOpen ? 90 : 0 }} transition={{ duration: 0.25 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M6 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm12 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Z" fill="currentColor" />
+                </svg>
+              </motion.div>
+            </motion.button>
+          </div>
+
+          {/* ── Right Group ─────────────────────────────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className={cn(
+              "flex w-full flex-row items-center justify-end gap-2 pt-2 lg:w-auto lg:pt-0",
+              isApplicationMenuOpen ? "flex" : "hidden lg:flex",
+              isDark
+                ? "border-t border-slate-800 lg:border-none"
+                : "border-t border-gray-100 lg:border-none"
+            )}
+          >
+            {/* Dashboard view button */}
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={handleDashboardView}
+              title={t("common.dashboard_view")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-xl px-3 h-9 text-xs font-semibold transition-all duration-200",
+                isDark
+                  ? "border border-slate-700 bg-slate-800/70 text-slate-300 hover:bg-slate-700 hover:text-white"
+                  : "border text-[#22a855] hover:text-white hover:shadow-md"
+              )}
+              style={
+                isDark
+                  ? {}
+                  : {
+                      borderColor: `${PRIMARY}30`,
+                      backgroundColor: `${PRIMARY}08`,
+                      ...(undefined),
+                    }
+              }
+              onMouseEnter={(e) => {
+                if (!isDark) {
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = PRIMARY;
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = PRIMARY;
+                  (e.currentTarget as HTMLButtonElement).style.color = "#fff";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isDark) {
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = `${PRIMARY}08`;
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = `${PRIMARY}30`;
+                  (e.currentTarget as HTMLButtonElement).style.color = PRIMARY;
+                }
+              }}
+            >
+              <LayoutDashboard className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{t("common.dashboard_view")}</span>
+            </motion.button>
+
+            {/* Secondary CTA badge */}
+            <div
+              className="hidden xl:flex items-center gap-1.5 rounded-xl px-3 h-9"
+              style={{ backgroundColor: `${SECONDARY}12`, borderColor: `${SECONDARY}30` }}
+            >
+              <Zap className="h-3.5 w-3.5" style={{ color: SECONDARY }} />
+              <span className="text-xs font-semibold" style={{ color: SECONDARY }}>
+                Admin
+              </span>
+            </div>
+
+            {/* Divider */}
+            <div className={cn("hidden lg:block h-5 w-px mx-1", isDark ? "bg-slate-700" : "bg-gray-200")} />
 
             <LanguageSwitcher
               variant="select"
-              className="w-[150px]"
+              className="w-[140px]"
               triggerClassName={cn(
-                "h-11 rounded-full px-4 text-xs font-semibold",
+                "h-9 rounded-xl px-3 text-xs font-semibold border",
                 isDark
-                  ? "border-white/15 bg-white/5 text-white focus-visible:ring-white/30"
-                  : "border-[var(--admin-border)] bg-white/90 text-[var(--admin-text)] shadow-[0_10px_24px_rgba(9,74,141,0.08)] focus-visible:ring-[var(--admin-primarySoft)]",
+                  ? "border-slate-700 bg-slate-800/70 text-slate-300 focus-visible:ring-slate-600"
+                  : "border-gray-200 bg-white text-gray-700 shadow-sm hover:border-green-300 focus-visible:ring-green-300"
               )}
             />
 
-            {/* Theme Toggle */}
             <ThemeToggleButton showLabel={false} />
 
             <UserDropdown />
           </motion.div>
         </div>
-      </motion.div>
+      </div>
     </header>
   );
 };

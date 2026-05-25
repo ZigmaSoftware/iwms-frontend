@@ -120,7 +120,7 @@ export default function BinList() {
   const binsQuery = useBinsQuery(companyUniqueId ? { company_id: companyUniqueId, project_id: projectId || undefined } : null);
   const updateBinMutation = useUpdateBinMutation();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
-    "masters",
+    "assets",
     "bins",
     BIN_COLUMN_FIELDS,
   );

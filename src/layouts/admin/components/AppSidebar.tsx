@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { usePermission } from "@/contexts/PermissionContext";
+import { cn } from "@/lib/utils";
 
 import {
   ChevronDown,
@@ -312,6 +313,12 @@ const assetItems: NavItem[] = [
         path: `/${encMasters}/${encWasteTypes}`,
         module: "assets",
         screen: "wastetypes",
+      },
+      {
+        nameKey: "admin.nav.bin_creation", 
+        path: `/${encMasters}/${encBins}`,
+        module: "assets",
+        screen: "bins",
       }
     ],
   },
@@ -696,13 +703,17 @@ const reportItems: NavItem[] = [
 ];
 
 const menuButtonBase =
-  "group flex w-full items-center gap-2 rounded-[14px] px-3 py-2 text-left text-sm font-semibold transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300";
-const menuActiveClasses = "border border-sky-200 bg-sky-100 text-sky-900";
+  "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-300";
+const menuActiveClasses =
+  "bg-linear-to-r from-green-500 to-green-600 text-white shadow-md shadow-green-200/60";
 const menuInactiveClasses =
-  "border border-transparent bg-white/80 text-sky-600 hover:border-sky-200 hover:bg-white hover:text-sky-900";
-const subMenuContainerClasses = "mt-2 ml-5 space-y-1 pl-2";
-const subMenuActiveClasses = "bg-sky-100 text-sky-900 font-semibold rounded-lg";
-const subMenuInactiveClasses = "text-sky-600 hover:text-sky-900";
+  "text-gray-700 hover:bg-green-50 hover:text-green-800";
+const subMenuContainerClasses =
+  "mt-1 ml-2 border-l-2 border-green-100 pl-3 space-y-0.5 pb-1";
+const subMenuActiveClasses =
+  "block rounded-lg bg-orange-50 px-3 py-1.5 text-sm font-semibold text-orange-600";
+const subMenuInactiveClasses =
+  "block rounded-lg px-3 py-1.5 text-sm text-gray-600 hover:bg-green-50 hover:text-green-700";
 
 // ✅ Helper: Check if user is superadmin
 const isSuperAdminUser = (): boolean => {
@@ -944,24 +955,30 @@ const AppSidebar: React.FC = () => {
                 }`}
               >
                 <span
-                  className={`menu-item-icon-size ${
-                    !showFullSidebar ? "mx-auto" : ""
-                  } text-emerald-600`}
+                  className={cn(
+                    "menu-item-icon-size shrink-0",
+                    !showFullSidebar && "mx-auto",
+                    isSubmenuOpen ? "text-white" : "text-green-600"
+                  )}
                 >
                   {nav.icon}
                 </span>
 
                 {showFullSidebar && (
                   <>
-                    <span className="text-sm font-semibold text-emerald-900">
+                    <span
+                      className={cn(
+                        "truncate text-sm font-semibold",
+                        isSubmenuOpen ? "text-white" : "text-gray-800"
+                      )}
+                    >
                       {t(nav.nameKey)}
                     </span>
                     <ChevronDown
-                      className={`ml-auto h-5 w-5 transition-transform ${
-                        isSubmenuOpen
-                          ? "rotate-180 text-emerald-700"
-                          : "text-emerald-500"
-                      }`}
+                      className={cn(
+                        "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                        isSubmenuOpen ? "rotate-180 text-white" : "text-green-500"
+                      )}
                     />
                   </>
                 )}
@@ -977,14 +994,21 @@ const AppSidebar: React.FC = () => {
                   }`}
                 >
                   <span
-                    className={`menu-item-icon-size ${
-                      !showFullSidebar ? "mx-auto" : ""
-                    } text-emerald-600`}
+                    className={cn(
+                      "menu-item-icon-size shrink-0",
+                      !showFullSidebar && "mx-auto",
+                      isActive(nav.path, true) ? "text-white" : "text-green-600"
+                    )}
                   >
                     {nav.icon}
                   </span>
                   {showFullSidebar && (
-                    <span className="text-sm font-semibold text-emerald-900">
+                    <span
+                      className={cn(
+                        "truncate text-sm font-semibold",
+                        isActive(nav.path, true) ? "text-white" : "text-gray-800"
+                      )}
+                    >
                       {t(nav.nameKey)}
                     </span>
                   )}
@@ -1030,26 +1054,30 @@ const AppSidebar: React.FC = () => {
 
   return (
     <aside
-      className={`fixed left-0 top-[var(--admin-header-h)] z-50 h-[calc(100vh-var(--admin-header-h))] border-r bg-white text-sky-900 transition-all duration-300 ease-out ${
-        showFullSidebar ? "w-[300px]" : "w-[140px]"
-      } ${isMobileOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
+      className={cn(
+        "fixed left-0 top-(--admin-header-h) z-50 h-[calc(100vh-var(--admin-header-h))] transition-all duration-300 ease-out",
+        "border-r border-green-100 bg-white shadow-lg shadow-green-100/40",
+        showFullSidebar ? "w-[290px]" : "w-20",
+        isMobileOpen ? "translate-x-0" : "-translate-x-full",
+        "lg:translate-x-0"
+      )}
     >
-      <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/60 to-transparent opacity-80" />
-      <div className="flex h-full flex-col px-4 pb-6 pt-6">
-        {/* {showFullSidebar && (
-          <div className="mb-4 text-xs font-semibold uppercase tracking-[0.4em] text-sky-500">
-            
-          </div>
-        )} */}
-        <div className="flex-1 overflow-y-auto pr-2 no-scrollbar">
-          <nav className="flex flex-col gap-4">
+      {/* Top accent bar: green → blue → orange */}
+      <div className="absolute left-0 right-0 top-0 h-[3px] bg-linear-to-r from-green-500 via-blue-500 to-orange-400" />
+
+      <div className="flex h-full flex-col px-3 pb-6 pt-5">
+        <div className="no-scrollbar flex-1 overflow-y-auto pr-1">
+          <nav className="flex flex-col gap-1.5">
             {sidebarSections.map((section) => (
-              <div key={section.key}>
+              <div key={section.key} className="flex flex-col gap-1">
                 {renderMenuItems(section.items, section.key)}
               </div>
             ))}
           </nav>
         </div>
+
+        {/* Bottom blue accent line */}
+        <div className="mt-4 h-px bg-linear-to-r from-transparent via-blue-200 to-transparent" />
       </div>
     </aside>
   );
