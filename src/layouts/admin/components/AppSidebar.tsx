@@ -97,6 +97,7 @@ const {
   encPanchayats,
   encAreaTypes,
   encHierarchies,
+  encBins
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -294,6 +295,12 @@ const assetItems: NavItem[] = [
     module: "assets",
     screen: "assets",
     subItems: [
+      {
+        nameKey: "admin.nav.bin_creation", 
+        path: `/${encMasters}/${encBins}`,
+        module: "assets",
+        screen: "bins",
+      },
       {
         nameKey: "admin.nav.collection_point",
         path: `/${encMasters}/${encCollectionPoints}`,
