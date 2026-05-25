@@ -27,6 +27,8 @@ import CollectionPointListPage from "@/pages/admin/modules/masters/collectionPoi
 import CollectionPointForm from "@/pages/admin/modules/masters/collectionPoint/CollectionPointForm";
 import WasteTypeListPage from "@/pages/admin/modules/masters/wasteType/WasteTypeListPage";
 import WasteTypeForm from "@/pages/admin/modules/masters/wasteType/WasteTypeForm";
+import BinList from "@/pages/admin/modules/masters/bin/BinListPage";
+import BinForm from "@/pages/admin/modules/masters/bin/BinForm";
 
 
 import PanchayatListPage from "@/pages/admin/modules/masters/panchayat/PanchayatListPage";
@@ -167,6 +169,7 @@ const ROUTES: RouteMap = {
     designations: { list: DesignationList, form: DesignationForm },
     "collection-points": { list: CollectionPointListPage, form: CollectionPointForm },
     "waste-types": { list: WasteTypeListPage, form: WasteTypeForm },
+    bins: { list: BinList, form: BinForm },
 
 
     panchayats: { list: PanchayatListPage, form: PanchayatForm },
