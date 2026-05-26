@@ -20,6 +20,7 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { useFormCompanyProjectSync } from "@/hooks/useFormCompanyProjectSync";
 
 /* ─────────────────────────── types ──────────────────────────────────────── */
 
@@ -312,6 +313,16 @@ export default function SupervisorZoneMapForm() {
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [zoneIds, setZoneIds] = useState<string[]>([]);
 
+  const {
+    handleCompanyChange: handleCompanyChangeSync,
+    handleProjectChange: handleProjectChangeSync,
+  } = useFormCompanyProjectSync({
+    selectedCompanyId,
+    setSelectedCompanyId,
+    selectedProjectId,
+    setSelectedProjectId,
+  });
+
   const [form, setForm] = useState<SupervisorZoneMapPayload>({
     supervisor_id: "",
     district_id: "",
@@ -544,14 +555,13 @@ export default function SupervisorZoneMapForm() {
 
   /* ── cascade resets ──────────────────────────────────────────────────────── */
   const handleCompanyChange = (value: string) => {
-    setSelectedCompanyId(value);
-    setSelectedProjectId("");
+    handleCompanyChangeSync(value);
     setForm((p) => ({ ...p, supervisor_id: "", district_id: "", city_id: "" }));
     setZoneIds([]);
   };
 
   const handleProjectChange = (value: string) => {
-    setSelectedProjectId(value);
+    handleProjectChangeSync(value);
     setForm((p) => ({ ...p, supervisor_id: "", district_id: "", city_id: "" }));
     setZoneIds([]);
   };
@@ -605,7 +615,18 @@ export default function SupervisorZoneMapForm() {
         isEdit ? t("common.updated_success") : t("common.added_success"),
         "success"
       );
-      navigate(ENC_LIST_PATH);
+
+      const listQuery = new URLSearchParams();
+      if (selectedCompanyId) {
+        listQuery.set("company_unique_id", selectedCompanyId);
+      }
+      if (selectedProjectId) {
+        listQuery.set("project_id", selectedProjectId);
+      }
+
+      navigate(
+        `${ENC_LIST_PATH}${listQuery.toString() ? `?${listQuery.toString()}` : ""}`
+      );
     } catch (error) {
       const msg = extractError(error);
       setFormError(msg);
@@ -613,6 +634,20 @@ export default function SupervisorZoneMapForm() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCancel = () => {
+    const listQuery = new URLSearchParams();
+    if (selectedCompanyId) {
+      listQuery.set("company_unique_id", selectedCompanyId);
+    }
+    if (selectedProjectId) {
+      listQuery.set("project_id", selectedProjectId);
+    }
+
+    navigate(
+      `${ENC_LIST_PATH}${listQuery.toString() ? `?${listQuery.toString()}` : ""}`
+    );
   };
 
   /* ── render ──────────────────────────────────────────────────────────────── */
@@ -815,7 +850,7 @@ export default function SupervisorZoneMapForm() {
           </button>
           <button
             type="button"
-            onClick={() => navigate(ENC_LIST_PATH)}
+            onClick={handleCancel}
             className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600"
           >
             {t("common.cancel")}

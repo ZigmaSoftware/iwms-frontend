@@ -16,6 +16,8 @@ import {
   useUpdateStaffTemplate,
 } from "@/tanstack/admin/queries/masters/staffTemplate";
 
+import { useFormCompanyProjectSync } from "@/hooks/useFormCompanyProjectSync";
+
 /* ================= TYPES ================= */
 
 type Option = {
@@ -96,8 +98,16 @@ export default function StaffTemplateForm() {
   const [companyOptions, setCompanyOptions] = useState<Option[]>([]);
   const [projectOptions, setProjectOptions] = useState<Option[]>([]);
   const [allProjects, setAllProjects] = useState<any[]>([]);
+
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState("");
+
+  const { handleCompanyChange, handleProjectChange, globalCompanyId, globalProjectId } = useFormCompanyProjectSync({
+    selectedCompanyId,
+    setSelectedCompanyId,
+    selectedProjectId,
+    setSelectedProjectId,
+  });
   const [userLookup, setUserLookup] = useState<Record<string, string>>({});
   const [extraOperatorPick, setExtraOperatorPick] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -275,6 +285,9 @@ export default function StaffTemplateForm() {
           if (prev && normalizedCompanies.some((option: Option) => option.value === prev)) {
             return prev;
           }
+          if (globalCompanyId && normalizedCompanies.some((option: Option) => option.value === globalCompanyId)) {
+            return globalCompanyId;
+          }
           return normalizedCompanies[0]?.value ?? "";
         });
 
@@ -297,7 +310,10 @@ export default function StaffTemplateForm() {
         setAllProjects(normalizedProjects);
 
         const firstCompanyId = normalizedCompanies[0]?.value ?? "";
-        const initialProjects = firstCompanyId
+        const initialCompanyId = globalCompanyId && normalizedCompanies.some((opt: Option) => opt.value === globalCompanyId)
+          ? globalCompanyId
+          : firstCompanyId;
+        const initialProjects = initialCompanyId
           ? normalizedProjects.filter(
               (p: any) => !p.company_id || p.company_id === firstCompanyId
             )
@@ -363,7 +379,7 @@ export default function StaffTemplateForm() {
       .map((s) => toStaffOption(s));
 
     const scopedSupervisors = scopedStaff
-      .filter((s) => getStaffRole(s) === "company supervisor")
+      .filter((s) => { const role = getStaffRole(s); return role === "company supervisor" || role === "contractor supervisor"; })
       .map((s) => toStaffOption(s));
 
     setAdminOptions(scopedAdmins);
@@ -582,7 +598,17 @@ export default function StaffTemplateForm() {
         "success"
       );
 
-      navigate(ENC_LIST_PATH);
+      const listQuery = new URLSearchParams();
+      if (selectedCompanyId) {
+        listQuery.set("company_unique_id", selectedCompanyId);
+      }
+      if (selectedProjectId) {
+        listQuery.set("project_id", selectedProjectId);
+      }
+
+      navigate(
+        `${ENC_LIST_PATH}${listQuery.toString() ? `?${listQuery.toString()}` : ""}`
+      );
     } catch (error) {
       const message = extractError(error);
       setFormError(message);
@@ -627,10 +653,7 @@ export default function StaffTemplateForm() {
                 <Select
                   id="company_id"
                   value={selectedCompanyId}
-                  onChange={(value) => {
-                    setSelectedCompanyId(value);
-                    setSelectedProjectId("");
-                  }}
+                  onChange={(value) => handleCompanyChange(value)}
                   options={companyOptions}
                   placeholder={t("admin.nav.company_placeholder") || "Select company"}
                   disabled={fetching}
@@ -648,7 +671,7 @@ export default function StaffTemplateForm() {
                 <Select
                   id="project_id"
                   value={selectedProjectId}
-                  onChange={(value) => setSelectedProjectId(value)}
+                  onChange={(value) => handleProjectChange(value)}
                   options={projectOptions}
                   placeholder={t("admin.nav.project_placeholder") || "Select project"}
                   disabled={fetching}
@@ -799,7 +822,21 @@ export default function StaffTemplateForm() {
 
             <button
               type="button"
-              onClick={() => navigate(ENC_LIST_PATH)}
+              onClick={() => {
+                const listQuery = new URLSearchParams();
+                if (selectedCompanyId) {
+                  listQuery.set("company_unique_id", selectedCompanyId);
+                }
+                if (selectedProjectId) {
+                  listQuery.set("project_id", selectedProjectId);
+                }
+
+                navigate(
+                  `${ENC_LIST_PATH}${
+                    listQuery.toString() ? `?${listQuery.toString()}` : ""
+                  }`
+                );
+              }}
               className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600"
             >
               {t("common.cancel")}

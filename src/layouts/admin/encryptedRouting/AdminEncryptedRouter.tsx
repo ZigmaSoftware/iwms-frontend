@@ -170,7 +170,7 @@ const ROUTES: RouteMap = {
     bins: { list: BinListPage, form: BinForm },
     "collection-points": { list: CollectionPointListPage, form: CollectionPointForm },
     "waste-types": { list: WasteTypeListPage, form: WasteTypeForm },
-    bins: { list: BinList, form: BinForm },
+    // bins: { list: BinListPage, form: BinForm },
 
 
     panchayats: { list: PanchayatListPage, form: PanchayatForm },

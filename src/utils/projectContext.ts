@@ -47,8 +47,14 @@ const readCompanyFromProfile = (profile: Record<string, unknown> | null): string
   );
 };
 
+const getQueryStringValue = (key: string): string | null =>
+  asNonEmptyString(new URLSearchParams(window.location.search).get(key));
+
 export const getCurrentProjectId = (): string | null => {
   if (typeof window === "undefined") return null;
+
+  const fromQuery = getQueryStringValue("project_id");
+  if (fromQuery) return fromQuery;
 
   for (const key of PROJECT_STORAGE_KEYS) {
     const value = asNonEmptyString(localStorage.getItem(key));
@@ -59,11 +65,14 @@ export const getCurrentProjectId = (): string | null => {
   const fromProfile = readProjectFromProfile(profile);
   if (fromProfile) return fromProfile;
 
-  return asNonEmptyString(new URLSearchParams(window.location.search).get("project_id"));
+  return null;
 };
 
 export const getCurrentCompanyUniqueId = (): string | null => {
   if (typeof window === "undefined") return null;
+
+  const fromQuery = getQueryStringValue("company_unique_id");
+  if (fromQuery) return fromQuery;
 
   for (const key of COMPANY_STORAGE_KEYS) {
     const value = asNonEmptyString(localStorage.getItem(key));
@@ -74,7 +83,5 @@ export const getCurrentCompanyUniqueId = (): string | null => {
   const fromProfile = readCompanyFromProfile(profile);
   if (fromProfile) return fromProfile;
 
-  return asNonEmptyString(
-    new URLSearchParams(window.location.search).get("company_unique_id")
-  );
+  return null;
 };
