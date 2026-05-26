@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -116,6 +116,8 @@ export default function TripAttendanceList() {
   const [tripLookup, setTripLookup] = useState<Record<string, string>>({});
   const [staffLookup, setStaffLookup] = useState<Record<string, string>>({});
   const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>({});
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -124,7 +126,7 @@ export default function TripAttendanceList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   // const [filters, setFilters] = useState<any>({
@@ -291,7 +293,7 @@ export default function TripAttendanceList() {
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
             disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH)}
+            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
       </div>

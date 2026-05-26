@@ -874,7 +874,7 @@ export default function WardForm() {
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (err) {
       Swal.fire(t("common.save_failed"), extractErr(err), "error");
     }
@@ -1097,7 +1097,7 @@ export default function WardForm() {
           <Button
             type="button"
             variant="destructive"
-            onClick={() => navigate(ENC_LIST_PATH)}
+            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
           >
             {t("common.cancel")}
           </Button>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -68,6 +68,8 @@ export default function CollectionPointListPage() {
     panchayat_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     ward_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -76,7 +78,7 @@ export default function CollectionPointListPage() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const { encMasters, encCollectionPoints } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encMasters}/${encCollectionPoints}/new`;
@@ -226,7 +228,7 @@ export default function CollectionPointListPage() {
             icon="pi pi-plus"
             className="p-button-success"
             disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH)}
+            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
       </div>

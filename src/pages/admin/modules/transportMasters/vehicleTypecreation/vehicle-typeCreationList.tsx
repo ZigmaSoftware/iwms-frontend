@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -75,6 +75,8 @@ export default function VehicleTypeCreationList() {
   });
 
   // ── Company / project selection ───────────────────────────────────────────
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -83,7 +85,7 @@ export default function VehicleTypeCreationList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encVehicleType } = getEncryptedRoute();
@@ -243,7 +245,7 @@ export default function VehicleTypeCreationList() {
             icon="pi pi-plus"
             className="p-button-success"
             disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH)}
+            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -43,6 +43,8 @@ export default function WasteTypeForm() {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
 
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -53,7 +55,7 @@ export default function WasteTypeForm() {
     setProjectId,
     onCompanyChange,
     applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const wasteTypeQuery = useWasteTypeQuery(id);
   const createWasteTypeMutation = useCreateWasteTypeMutation();
@@ -149,7 +151,7 @@ export default function WasteTypeForm() {
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error) {
       Swal.fire(t("common.save_failed"), extractErr(error), "error");
     } finally {
@@ -267,7 +269,7 @@ export default function WasteTypeForm() {
           <Button
             type="button"
             variant="destructive"
-            onClick={() => navigate(ENC_LIST_PATH)}
+            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
           >
             {t("common.cancel")}
           </Button>

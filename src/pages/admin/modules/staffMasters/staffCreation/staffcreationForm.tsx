@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { api } from "@/api";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -282,6 +282,8 @@ export default function StaffCreationForm() {
     STAFF_CREATION_FIELDS,
   );
 
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId: hookProjectId,
@@ -292,7 +294,7 @@ export default function StaffCreationForm() {
     onCompanyChange: hookOnCompanyChange,
     setProjectId: hookSetProjectId,
     applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const { encStaffMasters, encStaffCreation } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encStaffMasters}/${encStaffCreation}`;
@@ -1012,7 +1014,7 @@ export default function StaffCreationForm() {
           t("admin.staff_creation.save_success_desc"),
       });
 
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId: hookProjectId } });
     } catch (error: any) {
       console.error("Failed to save staff", error);
       Swal.fire({
@@ -1911,7 +1913,7 @@ export default function StaffCreationForm() {
             </button>
             <button
               type="button"
-              onClick={() => navigate(ENC_LIST_PATH)}
+              onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId: hookProjectId } })}
               className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600"
             >
               {t("common.cancel")}

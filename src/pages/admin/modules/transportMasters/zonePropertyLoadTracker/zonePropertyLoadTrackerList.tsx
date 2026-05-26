@@ -1,5 +1,5 @@
 // import { useEffect, useState } from "react";
-// import { useNavigate } from "react-router-dom";
+// import { useNavigate, useLocation} from "react-router-dom";
 // import Swal from "sweetalert2";
 // import { useTranslation } from "react-i18next";
 
@@ -122,7 +122,7 @@
 //           label={t("admin.zone_property_load_tracker.create_button")}
 //           icon="pi pi-plus"
 //           className="p-button-success p-button-sm"
-//           onClick={() => navigate(ENC_NEW_PATH)}
+//           onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
 //         />
 //       </div>
 
@@ -218,7 +218,7 @@
 
 
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -287,6 +287,8 @@ export default function ZonePropertyLoadTrackerList() {
 
   const [records, setRecords] = useState<ZonePropertyLoadTrackerApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -295,7 +297,7 @@ export default function ZonePropertyLoadTrackerList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
@@ -383,7 +385,7 @@ export default function ZonePropertyLoadTrackerList() {
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
             disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH)}
+            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
       </div>

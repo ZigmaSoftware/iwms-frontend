@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { Input } from "@/components/ui/input";
@@ -160,12 +160,14 @@ export function MainComplaintCategoryForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
 
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     loggedInCompanyUniqueId,
     isSuperAdmin,
     applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const mainCategoryQuery = useMainCategoryQuery(id);
   const createMainCategoryMutation = useCreateMainCategoryMutation(companyUniqueId);
@@ -235,7 +237,7 @@ export function MainComplaintCategoryForm() {
         });
       }
 
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error) {
       Swal.fire(
         t("common.error"),
@@ -284,7 +286,7 @@ export function MainComplaintCategoryForm() {
         initialPayload={initialPayload}
         isEdit={isEdit}
         isSubmitting={isSubmitting}
-        onCancel={() => navigate(ENC_LIST_PATH)}
+        onCancel={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
         onSubmit={handleSubmit}
       />
     </ComponentCard>

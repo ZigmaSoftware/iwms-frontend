@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -216,8 +216,12 @@ export default function SubPropertyForm() {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
 
-  const { applyCompanyProjectFromRecord } = useCompanyProjectSelection({
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const { applyCompanyProjectFromRecord, companyUniqueId, projectId } = useCompanyProjectSelection({
     isEdit,
+    initialCompanyId: routeState?.companyUniqueId,
+    initialProjectId: routeState?.projectId,
   });
 
   const subPropertyQuery = useSubPropertyQuery(id);
@@ -289,7 +293,7 @@ export default function SubPropertyForm() {
         });
       }
 
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error: unknown) {
       const message = extractErrorMessage(error, t("common.save_failed_desc"));
       Swal.fire({
@@ -332,7 +336,7 @@ export default function SubPropertyForm() {
         properties={propertiesQuery.data ?? []}
         isEdit={isEdit}
         isSubmitting={isSubmitting}
-        onCancel={() => navigate(ENC_LIST_PATH)}
+        onCancel={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
         onSubmit={submitSubProperty}
       />
     </ComponentCard>

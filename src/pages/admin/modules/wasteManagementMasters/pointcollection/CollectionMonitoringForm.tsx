@@ -1,5 +1,5 @@
 // import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
-// import { useNavigate, useParams } from "react-router-dom";
+// import { useNavigate, useParams, useLocation} from "react-router-dom";
 // import Swal from "sweetalert2";
 
 // import ComponentCard from "@/components/common/ComponentCard";
@@ -147,6 +147,8 @@
 //   const navigate = useNavigate();
 //   const { id } = useParams();
 //   const isEdit = Boolean(id);
+//   const location = useLocation();
+//   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 //   const {
 //     companyUniqueId,
 //     projectId,
@@ -157,7 +159,7 @@
 //     setProjectId,
 //     onCompanyChange,
 //     applyCompanyProjectFromRecord,
-//   } = useCompanyProjectSelection({ isEdit });
+//   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
 //   const { encWasteManagementMaster, encCollectionMonitoring } =
 //     getEncryptedRoute();
@@ -603,7 +605,7 @@
 //         isEdit ? t("common.updated_success") : t("common.added_success"),
 //         "success"
 //       );
-//       navigate(LIST_PATH);
+//       navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
 //     } catch {
 //       Swal.fire(t("common.save_failed"), t("common.save_failed_desc"), "error");
 //     } finally {
@@ -835,7 +837,7 @@
 //           </button>
 //           <button
 //             type="button"
-//             onClick={() => navigate(LIST_PATH)}
+//             onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
 //             className="bg-red-400 text-white px-4 py-2 rounded"
 //           >
 //             {t("common.cancel")}
@@ -851,7 +853,7 @@
 
 
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -1003,6 +1005,8 @@ function CollectionMonitoringForm() {
   const NONE_VALUE = "__none__";
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const { id } = useParams();
   const isEdit = Boolean(id);
   const {
@@ -1015,7 +1019,7 @@ function CollectionMonitoringForm() {
     setProjectId,
     onCompanyChange,
     applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const { encWasteManagementMaster, encCollectionMonitoring } =
     getEncryptedRoute();
@@ -1490,7 +1494,7 @@ function CollectionMonitoringForm() {
         isEdit ? t("common.updated_success") : t("common.added_success"),
         "success"
       );
-      navigate(LIST_PATH);
+      navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch {
       Swal.fire(t("common.save_failed"), t("common.save_failed_desc"), "error");
     } finally {
@@ -1722,7 +1726,7 @@ function CollectionMonitoringForm() {
           </button>
           <button
             type="button"
-            onClick={() => navigate(LIST_PATH)}
+            onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
             className="bg-red-400 text-white px-4 py-2 rounded"
           >
             {t("common.cancel")}

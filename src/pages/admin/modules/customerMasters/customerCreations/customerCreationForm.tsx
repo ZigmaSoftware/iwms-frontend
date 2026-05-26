@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 
 import {
@@ -376,6 +376,8 @@ export default function CustomerCreationForm() {
   const customerQuery = useCustomerCreationQuery(isEdit ? id : null);
   const createMutation = useCreateCustomerCreationMutation();
   const updateMutation = useUpdateCustomerCreationMutation();
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -386,7 +388,7 @@ export default function CustomerCreationForm() {
     setProjectId,
     onCompanyChange,
     applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const [step, setStep] = useState(isEdit ? 1 : 0); // 0 = property selection, 1 = form
   const tOrFallback = (key: string, fallback: string) => {
@@ -734,7 +736,7 @@ export default function CustomerCreationForm() {
         t("admin.customer_creation.save_success") || "Saved successfully",
         "success"
       );
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (err) {
       console.error("Submit error:", err);
       Swal.fire(t("common.error") || "Error", t("admin.customer_creation.save_failed") || "Failed to save", "error");
@@ -1286,7 +1288,7 @@ export default function CustomerCreationForm() {
             )}
             <button
               type="button"
-              onClick={() => navigate(ENC_LIST_PATH)}
+              onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
               className="bg-red-500 hover:bg-red-600 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
             >
               {t("common.cancel") || "Cancel"}

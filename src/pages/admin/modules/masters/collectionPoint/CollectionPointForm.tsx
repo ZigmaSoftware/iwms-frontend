@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -105,6 +105,8 @@ export default function CollectionPointForm() {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
 
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -115,7 +117,7 @@ export default function CollectionPointForm() {
     setProjectId,
     onCompanyChange,
     applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const extractErr = useCallback(
     (error: unknown): string => {
@@ -446,7 +448,7 @@ export default function CollectionPointForm() {
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error) {
       Swal.fire(t("common.save_failed"), extractErr(error), "error");
     }
@@ -723,7 +725,7 @@ export default function CollectionPointForm() {
                 ? t("common.update")
                 : t("common.save")}
           </Button>
-          <Button type="button" variant="destructive" onClick={() => navigate(ENC_LIST_PATH)}>
+          <Button type="button" variant="destructive" onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}>
             {t("common.cancel")}
           </Button>
         </div>

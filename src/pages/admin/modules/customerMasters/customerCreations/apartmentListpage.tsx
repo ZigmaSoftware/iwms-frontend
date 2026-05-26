@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -75,6 +76,8 @@ export default function ApartmentListPage() {
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -83,7 +86,7 @@ export default function ApartmentListPage() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const filteredCustomers = useMemo<CustomerCreationRecord[]>(() => {
     if (isSuperAdmin && companies.length === 0) return [];

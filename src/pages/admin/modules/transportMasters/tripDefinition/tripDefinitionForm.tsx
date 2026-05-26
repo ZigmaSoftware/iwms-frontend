@@ -292,7 +292,7 @@
 //         isEdit ? t("common.updated_success") : t("common.added_success"),
 //         "success"
 //       );
-//       navigate(ENC_LIST_PATH);
+//       navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
 //     } catch (error: any) {
 //       const message = extractErrorMessage(error) ?? t("common.save_failed_desc");
 //       Swal.fire(t("common.save_failed"), message, "error");
@@ -418,7 +418,7 @@
 
 //             <button
 //               type="button"
-//               onClick={() => navigate(ENC_LIST_PATH)}
+//               onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
 //               className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600"
 //             >
 //               {t("common.cancel")}
@@ -586,7 +586,7 @@ export default function TripDefinitionForm() {
     setProjectId,
     onCompanyChange,
     applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   // ── API instances (unchanged) ─────────────────────────────────────────────
   const routePlanApi = adminApi.routePlans;
@@ -819,7 +819,7 @@ export default function TripDefinitionForm() {
         isEdit ? t("common.updated_success") : t("common.added_success"),
         "success"
       );
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error: any) {
       const message =
         extractErrorMessage(error) ?? t("common.save_failed_desc");
@@ -1042,7 +1042,7 @@ export default function TripDefinitionForm() {
 
             <button
               type="button"
-              onClick={() => navigate(ENC_LIST_PATH)}
+              onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
               className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600"
             >
               {t("common.cancel")}

@@ -539,7 +539,7 @@ export default function DistrictForm() {
         Swal.fire({ icon: "success", title: t("common.added_success") });
       }
 
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (err: unknown) {
       const errorData = (err as { response?: { data?: unknown } }).response?.data;
       const errorMessage =
@@ -742,7 +742,7 @@ export default function DistrictForm() {
           <Button
             type="button"
             variant="destructive"
-            onClick={() => navigate(ENC_LIST_PATH)}
+            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
           >
             {t("common.cancel")}
           </Button>

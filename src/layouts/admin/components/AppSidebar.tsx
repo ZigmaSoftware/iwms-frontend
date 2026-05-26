@@ -313,12 +313,6 @@ const assetItems: NavItem[] = [
         path: `/${encMasters}/${encWasteTypes}`,
         module: "assets",
         screen: "wastetypes",
-      },
-      {
-        nameKey: "admin.nav.bin_creation", 
-        path: `/${encMasters}/${encBins}`,
-        module: "assets",
-        screen: "bins",
       }
     ],
   },
