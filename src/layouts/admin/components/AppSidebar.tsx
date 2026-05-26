@@ -297,6 +297,12 @@ const assetItems: NavItem[] = [
     screen: "assets",
     subItems: [
       {
+        nameKey: "admin.nav.bin_creation", 
+        path: `/${encMasters}/${encBins}`,
+        module: "assets",
+        screen: "bins",
+      },
+      {
         nameKey: "admin.nav.collection_point",
         path: `/${encMasters}/${encCollectionPoints}`,
         module: "assets",

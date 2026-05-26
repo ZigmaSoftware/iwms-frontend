@@ -16,6 +16,8 @@ import {
   useUpdateStaffTemplate,
 } from "@/tanstack/admin/queries/masters/staffTemplate";
 
+import { useFormCompanyProjectSync } from "@/hooks/useFormCompanyProjectSync";
+
 /* ================= TYPES ================= */
 
 type Option = {
@@ -47,8 +49,6 @@ type StaffTemplateFormData = {
   extra_operator_id: string[];
   status: "ACTIVE" | "INACTIVE";
   approval_status: "PENDING" | "APPROVED" | "REJECTED";
-  // created_by: string;
-  // updated_by: string;
   approved_by: string;
 };
 
@@ -60,8 +60,6 @@ const initialFormData: StaffTemplateFormData = {
   extra_operator_id: [],
   status: "ACTIVE",
   approval_status: "PENDING",
-  // created_by: "",
-  // updated_by: "",
   approved_by: "",
 };
 
@@ -100,8 +98,16 @@ export default function StaffTemplateForm() {
   const [companyOptions, setCompanyOptions] = useState<Option[]>([]);
   const [projectOptions, setProjectOptions] = useState<Option[]>([]);
   const [allProjects, setAllProjects] = useState<any[]>([]);
+
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState("");
+
+  const { handleCompanyChange, handleProjectChange, globalCompanyId, globalProjectId } = useFormCompanyProjectSync({
+    selectedCompanyId,
+    setSelectedCompanyId,
+    selectedProjectId,
+    setSelectedProjectId,
+  });
   const [userLookup, setUserLookup] = useState<Record<string, string>>({});
   const [extraOperatorPick, setExtraOperatorPick] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -110,6 +116,7 @@ export default function StaffTemplateForm() {
 
   const { encStaffMasters, encStaffTemplate } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encStaffMasters}/${encStaffTemplate}`;
+
   const statusOptions = [
     { value: "ACTIVE", label: t("common.active") },
     { value: "INACTIVE", label: t("common.inactive") },
@@ -162,7 +169,6 @@ export default function StaffTemplateForm() {
   const getCompanyProjectLabel = (staff: StaffRecord): string => {
     const company = String(staff.company_name ?? "").trim();
     const project = String(staff.project_name ?? "").trim();
-
     if (company && project) return `${company} / ${project}`;
     return company || project;
   };
@@ -198,40 +204,10 @@ export default function StaffTemplateForm() {
   const toStaffOption = (staff: StaffRecord): Option => {
     const baseLabel = getStaffDisplayName(staff);
     const companyProject = getCompanyProjectLabel(staff);
-
     return {
       value: String(staff.unique_id ?? ""),
       label: companyProject ? `${baseLabel} (${companyProject})` : baseLabel,
     };
-  };
-
-  const buildCompanyOptions = (records: StaffRecord[]): Option[] => {
-    const map = new Map<string, string>();
-    records.forEach((staff) => {
-      const id = getCompanyId(staff);
-      const label = getCompanyLabel(staff);
-      if (!id || !label || map.has(id)) return;
-      map.set(id, label);
-    });
-    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
-  };
-
-  const buildProjectOptions = (
-    records: StaffRecord[],
-    companyId: string
-  ): Option[] => {
-    const scoped = companyId
-      ? records.filter((staff) => getCompanyId(staff) === companyId)
-      : records;
-
-    const map = new Map<string, string>();
-    scoped.forEach((staff) => {
-      const id = getProjectId(staff);
-      const label = getProjectLabel(staff);
-      if (!id || !label || map.has(id)) return;
-      map.set(id, label);
-    });
-    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
   };
 
   const extractError = (error: any): string => {
@@ -257,16 +233,16 @@ export default function StaffTemplateForm() {
     return t("common.unexpected_error");
   };
 
-  /* ================= LOAD STAFF OPTIONS ================= */
+  /* ================= LOAD STAFF + COMPANY + PROJECT ================= */
 
   useEffect(() => {
     Promise.all([
-      staffCreationApi.list({ params: { active_status: 1 } }),
-      companyApi.list(),
-      projectApi.list(),
+      staffCreationApi.list({ params: { active_status: 1 } }) as Promise<any>,
+      companyApi.list() as Promise<any>,
+      projectApi.list() as Promise<any>,
     ])
-      .then(([staffRes, companiesRes, projectsRes]) => {
-        // Process staff data
+      .then(([staffRes, companiesRes, projectsRes]: [any, any, any]) => {
+        // ---- Staff ----
         const staffData = Array.isArray(staffRes)
           ? staffRes
           : Array.isArray(staffRes?.results)
@@ -280,8 +256,8 @@ export default function StaffTemplateForm() {
         const staffOnly = staffData.filter(
           (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && u.unique_id
         );
-        const lookup: Record<string, string> = {};
 
+        const lookup: Record<string, string> = {};
         staffOnly.forEach((u: StaffRecord) => {
           lookup[String(u.unique_id)] = getStaffDisplayName(u);
         });
@@ -289,15 +265,7 @@ export default function StaffTemplateForm() {
         setStaffRecords(staffOnly);
         setUserLookup(lookup);
 
-        const admins: Option[] = staffOnly
-          .filter((s: StaffRecord) => getStaffRole(s) === "admin")
-          .map((s: StaffRecord) => toStaffOption(s));
-
-        const supervisors: Option[] = staffOnly
-          .filter((s: StaffRecord) => getStaffRole(s) === "company supervisor")
-          .map((s: StaffRecord) => toStaffOption(s));
-
-        // Process companies from API directly
+        // ---- Companies ----
         const companiesData = Array.isArray(companiesRes)
           ? companiesRes
           : Array.isArray(companiesRes?.data)
@@ -314,13 +282,16 @@ export default function StaffTemplateForm() {
 
         setCompanyOptions(normalizedCompanies);
         setSelectedCompanyId((prev) => {
-          if (prev && normalizedCompanies.some((option) => option.value === prev)) {
+          if (prev && normalizedCompanies.some((option: Option) => option.value === prev)) {
             return prev;
+          }
+          if (globalCompanyId && normalizedCompanies.some((option: Option) => option.value === globalCompanyId)) {
+            return globalCompanyId;
           }
           return normalizedCompanies[0]?.value ?? "";
         });
 
-        // Process projects from API directly
+        // ---- Projects ----
         const projectsData = Array.isArray(projectsRes)
           ? projectsRes
           : Array.isArray(projectsRes?.data)
@@ -336,24 +307,25 @@ export default function StaffTemplateForm() {
           }))
           .filter((option: any) => option.value && option.label);
 
-        // Store all projects for filtering
         setAllProjects(normalizedProjects);
+
         const firstCompanyId = normalizedCompanies[0]?.value ?? "";
-        const initialProjects = firstCompanyId
+        const initialCompanyId = globalCompanyId && normalizedCompanies.some((opt: Option) => opt.value === globalCompanyId)
+          ? globalCompanyId
+          : firstCompanyId;
+        const initialProjects = initialCompanyId
           ? normalizedProjects.filter(
               (p: any) => !p.company_id || p.company_id === firstCompanyId
             )
           : normalizedProjects;
         setProjectOptions(initialProjects);
 
-        setAdminOptions(admins);
-        setSupervisorOptions(supervisors);
-
+        // Pre-fill approved_by if current user is an admin
         const currentUserId = localStorage.getItem("unique_id") || "";
-        const isAdmin = admins.some((option) => String(option.value) === currentUserId);
-        const isSupervisor = supervisors.some(
-          (option) => String(option.value) === currentUserId
-        );
+        const isAdmin = staffOnly
+          .filter((s: StaffRecord) => getStaffRole(s) === "admin")
+          .some((s: StaffRecord) => String(s.unique_id) === currentUserId);
+
         setFormData((prev) => ({
           ...prev,
           approved_by: isAdmin ? currentUserId : prev.approved_by,
@@ -364,8 +336,9 @@ export default function StaffTemplateForm() {
       });
   }, [t]);
 
+  /* ================= FILTER PROJECTS BY COMPANY ================= */
+
   useEffect(() => {
-    // Filter projects by selected company from all available projects
     const filteredProjects = selectedCompanyId
       ? allProjects.filter(
           (p: any) => !p.company_id || p.company_id === selectedCompanyId
@@ -374,12 +347,14 @@ export default function StaffTemplateForm() {
 
     setProjectOptions(filteredProjects);
     setSelectedProjectId((prev) => {
-      if (prev && filteredProjects.some((option) => option.value === prev)) {
+      if (prev && filteredProjects.some((option: any) => option.value === prev)) {
         return prev;
       }
       return filteredProjects[0]?.value ?? "";
     });
   }, [selectedCompanyId, allProjects]);
+
+  /* ================= SCOPE DRIVERS / OPERATORS / APPROVERS BY COMPANY + PROJECT ================= */
 
   useEffect(() => {
     const scopedStaff = staffRecords.filter((staff) => {
@@ -391,20 +366,40 @@ export default function StaffTemplateForm() {
     });
 
     setDriverOptions(
-      scopedStaff
-        .filter(isDriverRole)
-        .map((staff) => toStaffOption(staff))
+      scopedStaff.filter(isDriverRole).map((staff) => toStaffOption(staff))
     );
 
     setOperatorOptions(
-      scopedStaff
-        .filter(isOperatorRole)
-        .map((staff) => toStaffOption(staff))
+      scopedStaff.filter(isOperatorRole).map((staff) => toStaffOption(staff))
     );
+
+    // ✅ Approvers scoped to selected company + project
+    const scopedAdmins = scopedStaff
+      .filter((s) => getStaffRole(s) === "admin")
+      .map((s) => toStaffOption(s));
+
+    const scopedSupervisors = scopedStaff
+      .filter((s) => { const role = getStaffRole(s); return role === "company supervisor" || role === "contractor supervisor"; })
+      .map((s) => toStaffOption(s));
+
+    setAdminOptions(scopedAdmins);
+    setSupervisorOptions(scopedSupervisors);
+
+    // Reset approved_by if it no longer belongs to the scoped staff
+    const allApproverIds = new Set([
+      ...scopedAdmins.map((o) => o.value),
+      ...scopedSupervisors.map((o) => o.value),
+    ]);
+
+    setFormData((prev) => {
+      if (prev.approved_by && !allApproverIds.has(prev.approved_by)) {
+        return { ...prev, approved_by: "" };
+      }
+      return prev;
+    });
   }, [selectedCompanyId, selectedProjectId, staffRecords]);
 
   /* ================= LOAD TEMPLATE (EDIT) ================= */
-  // ⚠️ Loads ONLY after options exist
 
   useEffect(() => {
     if (!isEdit || !id || staffRecords.length === 0) return;
@@ -430,8 +425,6 @@ export default function StaffTemplateForm() {
           extra_operator_id: extraIds,
           status: tpl.status ?? "ACTIVE",
           approval_status: tpl.approval_status ?? "PENDING",
-          // created_by: tpl.created_by ?? "",
-          // updated_by: tpl.updated_by ?? "",
           approved_by: tpl.approved_by ?? "",
         });
 
@@ -455,6 +448,8 @@ export default function StaffTemplateForm() {
       })
       .finally(() => setFetching(false));
   }, [id, isEdit, staffRecords, t]);
+
+  /* ================= CLEAR INVALID DRIVER / OPERATOR / EXTRA WHEN OPTIONS CHANGE ================= */
 
   useEffect(() => {
     setFormData((prev) => {
@@ -501,19 +496,17 @@ export default function StaffTemplateForm() {
       const filtered = prev.extra_operator_id.filter(
         (item) => item !== prev.driver_id && item !== prev.operator_id
       );
-      if (filtered.length === prev.extra_operator_id.length) {
-        return prev;
-      }
+      if (filtered.length === prev.extra_operator_id.length) return prev;
       return { ...prev, extra_operator_id: filtered };
     });
   }, [formData.driver_id, formData.operator_id]);
 
+  /* ================= DERIVED ================= */
+
   const availableExtraOperatorOptions = operatorOptions.filter((option) => {
     const value = String(option.value);
     if (!value) return false;
-    if (value === formData.driver_id || value === formData.operator_id) {
-      return false;
-    }
+    if (value === formData.driver_id || value === formData.operator_id) return false;
     return !formData.extra_operator_id.includes(value);
   });
 
@@ -523,11 +516,13 @@ export default function StaffTemplateForm() {
     );
     return match?.label ?? value;
   };
+
   const resolveUserName = (userId?: string) => {
     if (!userId) return "-";
     return userLookup[userId] || userId;
   };
 
+  /* ================= EXTRA OPERATOR HANDLERS ================= */
 
   const handleAddExtraOperator = (value: string) => {
     if (!value) return;
@@ -539,7 +534,6 @@ export default function StaffTemplateForm() {
       setExtraOperatorPick("");
       return;
     }
-
     setFormData((prev) => ({
       ...prev,
       extra_operator_id: [...prev.extra_operator_id, value],
@@ -563,7 +557,6 @@ export default function StaffTemplateForm() {
     e.preventDefault();
     setFormError(null);
 
-    // Business rule
     if (
       showField("driver_id") &&
       showField("operator_id") &&
@@ -587,10 +580,7 @@ export default function StaffTemplateForm() {
         extra_operator_id: formData.extra_operator_id,
         status: formData.status,
         approval_status: formData.approval_status,
-        // created_by: formData.created_by,
-        // updated_by: formData.updated_by || formData.created_by,
         approved_by: formData.approved_by || null,
-
         company_id: selectedCompanyId,
         project_id: selectedProjectId,
       };
@@ -608,7 +598,17 @@ export default function StaffTemplateForm() {
         "success"
       );
 
-      navigate(ENC_LIST_PATH);
+      const listQuery = new URLSearchParams();
+      if (selectedCompanyId) {
+        listQuery.set("company_unique_id", selectedCompanyId);
+      }
+      if (selectedProjectId) {
+        listQuery.set("project_id", selectedProjectId);
+      }
+
+      navigate(
+        `${ENC_LIST_PATH}${listQuery.toString() ? `?${listQuery.toString()}` : ""}`
+      );
     } catch (error) {
       const message = extractError(error);
       setFormError(message);
@@ -641,172 +641,169 @@ export default function StaffTemplateForm() {
               </ul>
             </div>
           ) : null}
+
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             {/* COMPANY */}
             {showField("company_id") && (
-            <div>
-              <Label htmlFor="company_id">
-                {t("admin.nav.company") || "Company"}
-                <span className="text-red-500 ml-1">*</span>
-              </Label>
-              <Select
-                id="company_id"
-                value={selectedCompanyId}
-                onChange={(value) => {
-                  setSelectedCompanyId(value);
-                  setSelectedProjectId("");
-                }}
-                options={companyOptions}
-                placeholder={t("admin.nav.company_placeholder") || "Select company"}
-                disabled={fetching}
-              />
-            </div>
+              <div>
+                <Label htmlFor="company_id">
+                  {t("admin.nav.company") || "Company"}
+                  <span className="text-red-500 ml-1">*</span>
+                </Label>
+                <Select
+                  id="company_id"
+                  value={selectedCompanyId}
+                  onChange={(value) => handleCompanyChange(value)}
+                  options={companyOptions}
+                  placeholder={t("admin.nav.company_placeholder") || "Select company"}
+                  disabled={fetching}
+                />
+              </div>
             )}
 
             {/* PROJECT */}
             {showField("project_id") && (
-            <div>
-              <Label htmlFor="project_id">
-                {t("admin.nav.project") || "Project"}
-                <span className="text-red-500 ml-1">*</span>
-              </Label>
-              <Select
-                id="project_id"
-                value={selectedProjectId}
-                onChange={(value) => setSelectedProjectId(value)}
-                options={projectOptions}
-                placeholder={t("admin.nav.project_placeholder") || "Select project"}
-                disabled={fetching}
-              />
-            </div>
+              <div>
+                <Label htmlFor="project_id">
+                  {t("admin.nav.project") || "Project"}
+                  <span className="text-red-500 ml-1">*</span>
+                </Label>
+                <Select
+                  id="project_id"
+                  value={selectedProjectId}
+                  onChange={(value) => handleProjectChange(value)}
+                  options={projectOptions}
+                  placeholder={t("admin.nav.project_placeholder") || "Select project"}
+                  disabled={fetching}
+                />
+              </div>
             )}
 
             {/* DRIVER */}
             {showField("driver_id") && (
-            <div>
-              <Label>{t("admin.staff_template.primary_driver")}</Label>
-              <Select
-                value={formData.driver_id}
-                onChange={(v) =>
-                  setFormData((p) => ({ ...p, driver_id: v }))
-                }
-                options={driverOptions}
-                placeholder={t("common.select_option")}
-                required
-                disabled={fetching}
-              />
-            </div>
+              <div>
+                <Label>{t("admin.staff_template.primary_driver")}</Label>
+                <Select
+                  value={formData.driver_id}
+                  onChange={(v) =>
+                    setFormData((p) => ({ ...p, driver_id: v }))
+                  }
+                  options={driverOptions}
+                  placeholder={t("common.select_option")}
+                  required
+                  disabled={fetching}
+                />
+              </div>
             )}
 
             {/* OPERATOR */}
             {showField("operator_id") && (
-            <div>
-              <Label>{t("admin.staff_template.primary_operator")}</Label>
-              <Select
-                value={formData.operator_id}
-                onChange={(v) =>
-                  setFormData((p) => ({ ...p, operator_id: v }))
-                }
-                options={operatorOptions}
-                placeholder={t("common.select_option")}
-                required
-                disabled={fetching}
-              />
-            </div>
+              <div>
+                <Label>{t("admin.staff_template.primary_operator")}</Label>
+                <Select
+                  value={formData.operator_id}
+                  onChange={(v) =>
+                    setFormData((p) => ({ ...p, operator_id: v }))
+                  }
+                  options={operatorOptions}
+                  placeholder={t("common.select_option")}
+                  required
+                  disabled={fetching}
+                />
+              </div>
             )}
 
             {/* EXTRA OPERATORS */}
             {showField("extra_operator_id") && (
-            <div>
-              <Label>{t("admin.staff_template.extra_staff")}</Label>
-              <Select
-                value={extraOperatorPick}
-                onChange={handleAddExtraOperator}
-                options={availableExtraOperatorOptions}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-              />
-              <div className="mt-3 flex flex-wrap gap-2">
-                {formData.extra_operator_id.length === 0 ? (
-                  <span className="text-xs text-gray-500">
-                    {t("common.no_items_found", {
-                      item: t("admin.staff_template.extra_staff"),
-                    })}
-                  </span>
-                ) : (
-                  formData.extra_operator_id.map((value) => (
-                    <span
-                      key={value}
-                      className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs text-gray-700"
-                    >
-                      <span className="max-w-[160px] truncate">
-                        {resolveOperatorLabel(value)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveExtraOperator(value)}
-                        className="rounded-full bg-white px-2 py-0.5 text-xs text-gray-500 hover:text-gray-800"
-                        aria-label={t("common.remove")}
-                      >
-                        x
-                      </button>
+              <div>
+                <Label>{t("admin.staff_template.extra_staff")}</Label>
+                <Select
+                  value={extraOperatorPick}
+                  onChange={handleAddExtraOperator}
+                  options={availableExtraOperatorOptions}
+                  placeholder={t("common.select_option")}
+                  disabled={fetching}
+                />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {formData.extra_operator_id.length === 0 ? (
+                    <span className="text-xs text-gray-500">
+                      {t("common.no_items_found", {
+                        item: t("admin.staff_template.extra_staff"),
+                      })}
                     </span>
-                  ))
-                )}
+                  ) : (
+                    formData.extra_operator_id.map((value) => (
+                      <span
+                        key={value}
+                        className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs text-gray-700"
+                      >
+                        <span className="max-w-[160px] truncate">
+                          {resolveOperatorLabel(value)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExtraOperator(value)}
+                          className="rounded-full bg-white px-2 py-0.5 text-xs text-gray-500 hover:text-gray-800"
+                          aria-label={t("common.remove")}
+                        >
+                          x
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
             )}
 
             {/* STATUS */}
             {showField("status") && (
-            <div>
-              <Label>{t("common.status")}</Label>
-              <Select
-                value={formData.status}
-                onChange={(v) =>
-                  setFormData((p) => ({ ...p, status: v as any }))
-                }
-                options={statusOptions}
-                placeholder={t("common.select_status")}
-                required
-                disabled={fetching}
-              />
-            </div>
+              <div>
+                <Label>{t("common.status")}</Label>
+                <Select
+                  value={formData.status}
+                  onChange={(v) =>
+                    setFormData((p) => ({ ...p, status: v as any }))
+                  }
+                  options={statusOptions}
+                  placeholder={t("common.select_status")}
+                  required
+                  disabled={fetching}
+                />
+              </div>
             )}
 
             {/* APPROVAL STATUS */}
             {showField("approval_status") && (
-            <div>
-              <Label>{t("admin.staff_template.approval_status")}</Label>
-              <Select
-                value={formData.approval_status}
-                onChange={(v) =>
-                  setFormData((p) => ({ ...p, approval_status: v as any }))
-                }
-                options={approvalStatusOptions}
-                placeholder={t("common.select_status")}
-                required
-                disabled={fetching}
-              />
-            </div>
+              <div>
+                <Label>{t("admin.staff_template.approval_status")}</Label>
+                <Select
+                  value={formData.approval_status}
+                  onChange={(v) =>
+                    setFormData((p) => ({ ...p, approval_status: v as any }))
+                  }
+                  options={approvalStatusOptions}
+                  placeholder={t("common.select_status")}
+                  required
+                  disabled={fetching}
+                />
+              </div>
             )}
 
-            {/* APPROVER */}
+            {/* APPROVER — scoped to selected company + project */}
             {showField("approved_by") && (
-            <div>
-              <Label>{t("admin.staff_template.approved_by")}</Label>
-              <Select
-                value={formData.approved_by}
-                onChange={(v) =>
-                  setFormData((p) => ({ ...p, approved_by: v }))
-                }
-                options={[...adminOptions,...supervisorOptions]}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-              />
-            </div>
+              <div>
+                <Label>{t("admin.staff_template.approved_by")}</Label>
+                <Select
+                  value={formData.approved_by}
+                  onChange={(v) =>
+                    setFormData((p) => ({ ...p, approved_by: v }))
+                  }
+                  options={[...adminOptions, ...supervisorOptions]}
+                  placeholder={t("common.select_option")}
+                  disabled={fetching}
+                />
+              </div>
             )}
-
           </div>
 
           {/* ACTIONS */}
@@ -825,7 +822,21 @@ export default function StaffTemplateForm() {
 
             <button
               type="button"
-              onClick={() => navigate(ENC_LIST_PATH)}
+              onClick={() => {
+                const listQuery = new URLSearchParams();
+                if (selectedCompanyId) {
+                  listQuery.set("company_unique_id", selectedCompanyId);
+                }
+                if (selectedProjectId) {
+                  listQuery.set("project_id", selectedProjectId);
+                }
+
+                navigate(
+                  `${ENC_LIST_PATH}${
+                    listQuery.toString() ? `?${listQuery.toString()}` : ""
+                  }`
+                );
+              }}
               className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600"
             >
               {t("common.cancel")}
