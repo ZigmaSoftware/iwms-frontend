@@ -1,5 +1,5 @@
 // import { useEffect, useState } from "react";
-// import { useNavigate } from "react-router-dom";
+// import { useNavigate, useLocation} from "react-router-dom";
 // import Swal from "sweetalert2";
 // import { useTranslation } from "react-i18next";
 
@@ -254,7 +254,7 @@
 
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -334,6 +334,8 @@ export default function StaffTemplateList() {
     "staff-template",
     STAFF_TEMPLATE_COLUMN_FIELDS
   );
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -342,7 +344,7 @@ export default function StaffTemplateList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [templates, setTemplates] = useState<StaffTemplate[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
@@ -100,6 +100,8 @@ export default function AreaTypeForm() {
   const [allCities, setAllCities] = useState<AreaTypeCityMeta[]>([]);
   const [filteredCities, setFilteredCities] = useState<SelectOption[]>([]);
 
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -110,7 +112,7 @@ export default function AreaTypeForm() {
     setProjectId,
     onCompanyChange,
     applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const extractErr = (e: unknown): string => {
     const data = (e as { response?: { data?: unknown } })?.response?.data;
@@ -398,7 +400,7 @@ export default function AreaTypeForm() {
         });
       }
 
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error: unknown) {
       Swal.fire({
         icon: "error",
@@ -625,7 +627,7 @@ export default function AreaTypeForm() {
           <Button
             type="button"
             variant="destructive"
-            onClick={() => navigate(ENC_LIST_PATH)}
+            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
           >
             {t("common.cancel")}
           </Button>

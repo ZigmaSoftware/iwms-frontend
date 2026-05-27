@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -74,6 +74,8 @@ export default function PanchayatForm() {
     PANCHAYAT_FIELDS,
   );
   const navigate = useNavigate();
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
 
@@ -81,9 +83,9 @@ export default function PanchayatForm() {
 
   const [panchayatName, setPanchayatName] = useState("");
   const [companyUniqueId, setCompanyUniqueId] = useState(
-    () => getCurrentCompanyUniqueId() ?? ""
+    () => (!isEdit && routeState?.companyUniqueId) || (getCurrentCompanyUniqueId() ?? "")
   );
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState((!isEdit && routeState?.projectId) || "");
   const [stateId, setStateId] = useState("");
   const [districtId, setDistrictId] = useState("");
   const [cityId, setCityId] = useState("");
@@ -338,7 +340,7 @@ export default function PanchayatForm() {
         Swal.fire("Success", "Created successfully", "success");
       }
 
-      navigate(LIST_PATH);
+      navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch {
       Swal.fire("Error", "Something went wrong", "error");
     }
@@ -589,7 +591,7 @@ export default function PanchayatForm() {
           <Button
             type="button"
             variant="destructive"
-            onClick={() => navigate(LIST_PATH)}
+            onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
           >
             Cancel
           </Button>

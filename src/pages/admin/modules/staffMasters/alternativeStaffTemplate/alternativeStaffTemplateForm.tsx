@@ -1,6 +1,6 @@
 // import { useEffect, useState, useRef } from "react";
 // import type { FormEvent } from "react";
-// import { useNavigate, useParams } from "react-router-dom";
+// import { useNavigate, useParams, useLocation} from "react-router-dom";
 // import Swal from "sweetalert2";
 // import { useTranslation } from "react-i18next";
 // import { MultiSelect } from "primereact/multiselect";
@@ -756,7 +756,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import type { FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 import { MultiSelect } from "primereact/multiselect";
@@ -883,12 +883,14 @@ export default function AlternativeStaffTemplateForm() {
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState("");
 
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId: globalCompanyId,
     projectId: globalProjectId,
     onCompanyChange: onGlobalCompanyChange,
     setProjectId: setGlobalProjectId,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const templateSelectedByUser = useRef(false);
   const editDataLoaded = useRef(false);

@@ -106,6 +106,8 @@ export function WeighmentSummary() {
     <DataCard
       title={t("dashboard.home.weighment_summary_title")}
       compact
+      accent="brand-primary"
+      icon={<span className="text-emerald-500 text-sm leading-none font-bold">⚖</span>}
       action={
         <Link
           to={weighbridgePath}
@@ -116,7 +118,7 @@ export function WeighmentSummary() {
       }
     >
       <div className="space-y-3">
-        <div className="rounded-lg border border-gray-200 bg-gradient-to-br from-white via-slate-50 to-white p-2 shadow-sm dark:border-gray-700 dark:from-gray-900 dark:via-gray-900/60 dark:to-gray-900">
+        <div className="rounded-lg border border-gray-200 bg-linear-to-br from-white via-slate-50 to-white p-2 shadow-sm dark:border-gray-700 dark:from-gray-900 dark:via-gray-900/60 dark:to-gray-900">
           <div className="h-24">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
