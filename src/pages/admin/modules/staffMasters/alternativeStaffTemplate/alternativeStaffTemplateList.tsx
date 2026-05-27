@@ -45,6 +45,7 @@ type AlternativeStaffTemplate = {
   operator: string;
   operator_name?: string;
   extra_operator?: string[] | null;
+  extra_operator_names?: string[] | null;
   change_reason: string;
   change_remarks?: string;
   approval_status: string;
@@ -342,13 +343,14 @@ export default function AlternativeStaffTemplateList() {
         {showCol("extra_operator") && (
           <Column
             header={t("admin.alternative_staff_template.columns.extra_operator")}
-            body={(row: AlternativeStaffTemplate) =>
-              Array.isArray(row.extra_operator)
-                ? row.extra_operator.length
-                : row.extra_operator
-                ? 1
-                : 0
-            }
+            body={(row: AlternativeStaffTemplate) => {
+              const names = Array.isArray(row.extra_operator_names)
+                ? row.extra_operator_names
+                : [];
+              if (names.length) return names.join(", ");
+              if (Array.isArray(row.extra_operator)) return row.extra_operator.join(", ");
+              return row.extra_operator || "-";
+            }}
           />
         )}
 
