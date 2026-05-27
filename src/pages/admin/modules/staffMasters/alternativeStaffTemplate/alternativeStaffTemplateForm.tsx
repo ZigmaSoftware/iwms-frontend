@@ -848,7 +848,7 @@ export default function AlternativeStaffTemplateForm() {
             )}
 
             {/* EFFECTIVE DATE */}
-            {showField("effective_date") && (
+            {/* {showField("effective_date") && (
               <div>
                 <Label>
                   {t("admin.alternative_staff_template.effective_date")}
@@ -865,7 +865,7 @@ export default function AlternativeStaffTemplateForm() {
                   required
                 />
               </div>
-            )}
+            )} */}
 
             {/* DRIVER — scoped to selected company + project */}
             {showField("driver") && (

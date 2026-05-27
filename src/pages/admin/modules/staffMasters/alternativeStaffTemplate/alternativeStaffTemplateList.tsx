@@ -313,14 +313,14 @@ export default function AlternativeStaffTemplateList() {
           />
         )}
 
-        {showCol("effective_date") && (
+        {/* {showCol("effective_date") && (
           <Column
             field="effective_date"
             header={t("admin.alternative_staff_template.columns.effective_date")}
             filter
             showFilterMatchModes={false}
           />
-        )}
+        )} */}
 
         {showCol("driver_name") && (
           <Column
