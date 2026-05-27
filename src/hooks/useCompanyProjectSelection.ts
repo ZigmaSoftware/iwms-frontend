@@ -19,6 +19,8 @@ type LoginProfile = {
 
 type UseCompanyProjectSelectionArgs = {
   isEdit: boolean;
+  initialCompanyId?: string;
+  initialProjectId?: string;
 };
 
 const toStringId = (value: unknown): string => {
@@ -62,11 +64,13 @@ const readLoginProfile = (): LoginProfile | null => {
 
 export const useCompanyProjectSelection = ({
   isEdit,
+  initialCompanyId,
+  initialProjectId,
 }: UseCompanyProjectSelectionArgs) => {
   const [companyUniqueId, setCompanyUniqueId] = useState(
-    () => getCurrentCompanyUniqueId() ?? ""
+    () => initialCompanyId || (getCurrentCompanyUniqueId() ?? "")
   );
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(initialProjectId || "");
   const [apiCompanies, setApiCompanies] = useState<CompanyProjectOption[]>([]);
   const [projects, setProjects] = useState<CompanyProjectOption[]>([]);
   const [resolvedLoggedInCompanyLabel, setResolvedLoggedInCompanyLabel] =

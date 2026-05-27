@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, Fragment, type FormEvent } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -195,13 +195,15 @@ export default function UserScreenPermissionForm() {
 
   const isEdit = Boolean(staffTypeId);
 
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     companies,
     isSuperAdmin,
     loggedInCompanyUniqueId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit });
+  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const [staffUserTypeId, setStaffUserTypeId] = useState(() =>
     isEdit && staffTypeId ? String(staffTypeId) : ""
@@ -816,7 +818,7 @@ export default function UserScreenPermissionForm() {
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (err: unknown) {
       if (getErrorStatus(err) === 403) {
         Swal.fire({
@@ -1241,7 +1243,7 @@ export default function UserScreenPermissionForm() {
           <Button
             type="button"
             variant="destructive"
-            onClick={() => navigate(ENC_LIST_PATH)}
+            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
           >
             {t("common.cancel")}
           </Button>

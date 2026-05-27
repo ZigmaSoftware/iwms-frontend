@@ -136,6 +136,8 @@ export function WastePieChart() {
         <DataCard
             title={t("dashboard.home.daily_waste_collection_title")}
             compact
+            accent="brand-primary"
+            icon={<span className="text-green-500 text-base leading-none">♻</span>}
             action={
                 <Link
                     to={wasteCollectionPath}

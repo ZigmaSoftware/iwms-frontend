@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -25,12 +25,14 @@ export default function UserTypeForm() {
   const userTypeId = id;
   const isEdit = Boolean(userTypeId);
 
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     loggedInCompanyUniqueId,
     isSuperAdmin,
     applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   /* -----------------------------------------------------------
      LOAD RECORD FOR EDIT
@@ -114,7 +116,7 @@ export default function UserTypeForm() {
         });
       }
 
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error: any) {
       const message =
         error?.response?.data?.name?.[0] ||
@@ -198,7 +200,7 @@ export default function UserTypeForm() {
             <Button
               type="button"
               variant="destructive"
-              onClick={() => navigate(ENC_LIST_PATH)}
+              onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
               // className="bg-red-500 text-white font-medium px-6 py-2 rounded hover:bg-red-600 transition"
             >
               {t("common.cancel")}

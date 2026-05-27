@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -52,6 +52,8 @@ export default function FeedBackFormList() {
     project_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
   const navigate = useNavigate();
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -60,7 +62,7 @@ export default function FeedBackFormList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
   const { encCitizenGrivence, encFeedback } = getEncryptedRoute();
 
   const ENC_NEW_PATH = `/${encCitizenGrivence}/${encFeedback}/new`;
@@ -234,7 +236,7 @@ export default function FeedBackFormList() {
             icon="pi pi-plus"
             className="p-button-success"
             disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH)}
+            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
       </div>

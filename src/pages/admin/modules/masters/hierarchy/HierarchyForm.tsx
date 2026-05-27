@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,8 @@ export default function HierarchyForm() {
   const areaTypesQuery = useAreaTypesQuery();
   const isSubmitting =
     createHierarchyMutation.isPending || updateHierarchyMutation.isPending;
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -61,7 +63,7 @@ export default function HierarchyForm() {
     setProjectId,
     onCompanyChange,
     applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   useEffect(() => {
     if (!hierarchyQuery.data) return;
@@ -177,7 +179,7 @@ export default function HierarchyForm() {
           showConfirmButton: false,
         });
       }
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error: unknown) {
       const message =
         (error as ApiError)?.response?.data?.detail ||
@@ -356,7 +358,7 @@ export default function HierarchyForm() {
           <Button
             type="button"
             variant="destructive"
-            onClick={() => navigate(ENC_LIST_PATH)}
+            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
           >
             {t("common.cancel")}
           </Button>

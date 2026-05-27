@@ -9,7 +9,7 @@ import { RecentActivityTimeline } from "./RecentActivityTimeLine";
 import { WeighmentSummary } from "@/components/ui/WeighmentSummary";
 import { CameraStatus } from "./cameraStatus";
 import { useEffect, useRef, useState } from "react";
-import { Maximize2, Square, Trash2 } from "lucide-react";
+import { Home, Maximize2, Square, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { BinMapPanel } from "./map/BinMapPanel";
@@ -202,15 +202,15 @@ export function HomeDashboard() {
 
         <div className="grid grid-cols-12 gap-3 h-full overflow-hidden">
 
-
           {/* LEFT PANEL */}
           <div className="col-span-3 space-y-3 h-full overflow-y-auto pr-1">
-
             <div className="space-y-4">
               <WastePieChart />
               <DataCard
                 title={t("dashboard.home.household_status_title")}
                 compact
+                accent="brand-accent"
+                icon={<Home className="w-3.5 h-3.5 text-(--admin-accent)" />}
                 action={
                   <button
                     type="button"
@@ -221,42 +221,40 @@ export function HomeDashboard() {
                   </button>
                 }
               >
-                <div className="grid grid-cols-3 gap-3 text-center text-xs font-medium">
-                  <div className="p-2 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700">
-                    <div className="text-blue-700 dark:text-blue-400 break-words leading-tight">
+                <div className="grid grid-cols-3 gap-2 text-center text-xs font-medium">
+                  <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700">
+                    <div className="text-[10px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">
                       {t("common.total")}
                     </div>
-                    <div className="text-lg font-bold text-blue-700 dark:text-blue-400">
+                    <div className="text-xl font-bold text-blue-700 dark:text-blue-400 mt-0.5">
                       {householdStats.total}
                     </div>
                   </div>
-                  <div className="p-2 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700">
-                    <div className="text-green-700 dark:text-green-400 break-words leading-tight">
+                  <div className="p-2.5 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700">
+                    <div className="text-[10px] font-medium text-green-600 dark:text-green-400 uppercase tracking-wide">
                       {t("common.collected")}
                     </div>
-                    <div className="text-lg font-bold text-green-700 dark:text-green-400">
+                    <div className="text-xl font-bold text-green-700 dark:text-green-400 mt-0.5">
                       {householdStats.collected}
                     </div>
                   </div>
-                  <div className="p-2 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700">
-                    <div className="text-red-700 dark:text-red-400 break-words leading-tight">
+                  <div className="p-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700">
+                    <div className="text-[10px] font-medium text-red-600 dark:text-red-400 uppercase tracking-wide">
                       {t("common.not_collected")}
                     </div>
-                    <div className="text-lg font-bold text-red-700 dark:text-red-400">
+                    <div className="text-xl font-bold text-red-700 dark:text-red-400 mt-0.5">
                       {householdStats.notCollected}
                     </div>
                   </div>
                 </div>
               </DataCard>
-               <AttendanceMonitor />
+              <AttendanceMonitor />
               <RecentActivityTimeline />
             </div>
-
           </div>
 
           {/* CENTER (MAP) PANEL */}
           <div className="col-span-6 flex flex-col gap-3 h-full">
-
             {isMapMaximized ? (
               <div className="fixed inset-0 z-50 bg-white">
                 {mapCard}
@@ -268,60 +266,52 @@ export function HomeDashboard() {
             )}
 
             <div style={{ height: "16%" }}>
-
               <div className="grid gap-3 mt-1 md:grid-cols-2">
-                <div className="p-4 rounded-lg border bg-white dark:bg-gray-900 dark:border-gray-700 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Trash2 className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-                      <h3 className="text-sm font-semibold">
-                        {t("dashboard.home.bin_sensors_title")}
-                      </h3>
-                    </div>
+                <DataCard
+                  compact
+                  accent="brand-primary"
+                  icon={<Trash2 className="w-3.5 h-3.5 text-(--admin-primary)" />}
+                  title={t("dashboard.home.bin_sensors_title")}
+                  action={
                     <Link
                       to={binsPath}
                       className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                     >
                       {t("common.view_all")}
                     </Link>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3 text-xs font-medium">
-                    <div className="p-2 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700">
-                      <div className="text-green-700 dark:text-green-400 break-words leading-tight">
+                  }
+                >
+                  <div className="grid grid-cols-3 gap-2 text-xs font-medium">
+                    <div className="p-2.5 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700">
+                      <div className="text-[10px] font-medium text-green-600 dark:text-green-400 uppercase tracking-wide">
                         {t("common.active")}
                       </div>
-                      <div className="text-lg font-bold text-green-700 dark:text-green-400">
+                      <div className="text-xl font-bold text-green-700 dark:text-green-400 mt-0.5">
                         {binStats.active}
                       </div>
                     </div>
-
-                    <div className="p-2 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700">
-                      <div className="text-red-700 dark:text-red-400 break-words leading-tight">
+                    <div className="p-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700">
+                      <div className="text-[10px] font-medium text-red-600 dark:text-red-400 uppercase tracking-wide">
                         {t("common.inactive")}
                       </div>
-                      <div className="text-lg font-bold text-red-700 dark:text-red-400">
+                      <div className="text-xl font-bold text-red-700 dark:text-red-400 mt-0.5">
                         {binStats.inactive}
                       </div>
                     </div>
-
-                    <div className="p-2 rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700">
-                      <div className="text-yellow-700 dark:text-yellow-400 break-words leading-tight">
+                    <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
+                      <div className="text-[10px] font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide">
                         {t("common.total")}
                       </div>
-                      <div className="text-lg font-bold text-yellow-700 dark:text-yellow-400">
+                      <div className="text-xl font-bold text-amber-700 dark:text-amber-400 mt-0.5">
                         {binTotal}
                       </div>
                     </div>
                   </div>
-                </div>
+                </DataCard>
 
-                <CameraStatus active={42} inactive={5} /> 
-                {/* <TotalStatus active={126} inactive={21}/>  */}
+                <CameraStatus active={42} inactive={5} />
               </div>
-
             </div>
-
           </div>
 
           {/* RIGHT PANEL */}
@@ -329,7 +319,6 @@ export function HomeDashboard() {
             <ComplaintsPanel />
             <VehicleStatusPanel />
             <WeighmentSummary />
-            
           </div>
         </div>
       </DataCard>

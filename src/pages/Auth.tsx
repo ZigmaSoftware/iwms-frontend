@@ -1,273 +1,6 @@
-// import { useState, type ChangeEvent, type FormEvent } from "react";
-// import { useNavigate } from "react-router-dom";
-// import { api } from "@/api";
-// import { Button } from "@/components/ui/button";
-// import { Input } from "@/components/ui/input";
-// import { Label } from "@/components/ui/label";
-// import { useToast } from "@/hooks/use-toast";
-// import { useTranslation } from "react-i18next";
-// import { useUser } from "@/contexts/UserContext";
-// import {
-//   DEFAULT_ROLE,
-//   USER_ROLE_STORAGE_KEY,
-//   normalizeRole,
-//   setAdminViewPreference,
-//   clearAdminViewPreference,
-//   ADMIN_VIEW_MODE_ADMIN,
-//   isAdmin,
-// } from "@/types/roles";
-// import { fetchPermissionsFromAPI } from "@/utils/permissions";
-// import { Eye, EyeOff } from "lucide-react";
-// import ZigmaLogo from "../images/logo.png";
-// import BgImg from "../images/bgSignin.png";
-
-// type Profile = {
-//   user_type: string;
-//   unique_id: string;
-//   name: string;
-//   role: string;
-//   email: string;
-//   company_unique_id: string;
-//   company_name: string;
-//   staff_unique_id: string;
-//   employee_id: string;
-//   employee_name: string;
-//   emp_id: string;
-//   staffusertype_unique_id: string;
-//   project_id?: string;
-//   project_unique_id?: string;
-//   project?: {
-//     unique_id?: string;
-//   };
-// };
-
-// type LoginResponse = {
-//   access_token: string;
-//   role: string;
-//   unique_id: string;
-//   name?: string;
-//   username?: string;
-//   email?: string;
-//   permissions?: Record<string, any>;
-//   profile?: Profile;
-// };
-
-// export default function Auth() {
-//   const [username, setUsername] = useState("");
-//   const [password, setPassword] = useState("");
-//   const [showPassword, setShowPassword] = useState(false);
-//   const [loading, setLoading] = useState(false);
-
-//   const navigate = useNavigate();
-//   const { toast } = useToast();
-//   const { t } = useTranslation();
-//   const { setUser } = useUser();
-
-//   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
-//     e.preventDefault();
-//     setLoading(true);
-
-//     try {
-//       const res = await api.post<LoginResponse>("/login/", {
-//         username,
-//         password,
-//       });
-
-//       console.log("[Auth] ✅ Login response received:", res.data);
-
-//       const {
-//         access_token,
-//         role,
-//         unique_id,
-//         name,
-//         username: apiUsername,
-//         email,
-//         profile,
-//       } = res.data;
-
-//       const normalizedRole = normalizeRole(role) ?? DEFAULT_ROLE;
-
-//       // ✅ Store auth
-//       localStorage.setItem("access_token", access_token);
-//       localStorage.setItem(USER_ROLE_STORAGE_KEY, normalizedRole);
-
-//       // ✅ Fetch permissions immediately
-//       console.log("[Auth] 📡 Fetching permissions immediately after login...");
-//       try {
-//         await fetchPermissionsFromAPI();
-//         console.log("[Auth] ✅ Permissions cached successfully");
-//       } catch (permError) {
-//         console.warn(
-//           "[Auth] ⚠️ Permissions fetch failed, will retry on app load:",
-//           permError
-//         );
-//       }
-
-//       // ✅ Store profile
-//       if (profile) {
-//         localStorage.setItem("profile", JSON.stringify(profile));
-
-//         const projectId =
-//           profile.project_id ??
-//           profile.project_unique_id ??
-//           profile.project?.unique_id;
-
-//         if (projectId) {
-//           localStorage.setItem("project_id", projectId);
-//         } else {
-//           localStorage.removeItem("project_id");
-//         }
-//       }
-
-//       // ✅ Set user context
-//       setUser({
-//         name: name ?? apiUsername ?? username,
-//         email: email ?? "",
-//       });
-
-//       // ✅ Admin view preference using isAdmin() — covers admin, superadmin, companyadmin
-//       if (isAdmin(normalizedRole)) {
-//         setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);
-//         navigate("/admin", { replace: true });
-//       } else {
-//         clearAdminViewPreference();
-//         navigate("/", { replace: true });
-//       }
-//     } catch (error: any) {
-//       console.error("[Auth] ❌ Login failed:", error);
-
-//       toast({
-//         title: t("login.title"),
-//         description:
-//           error?.response?.data?.detail || "Invalid credentials",
-//         variant: "destructive",
-//       });
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   return (
-//     <div className="min-h-screen flex items-center justify-center bg-[#f3f6f4] dark:bg-[#050b15] p-4 font-sans">
-//       <div
-//         className="absolute inset-0 bg-cover bg-center"
-//         style={{ backgroundImage: `url(${BgImg})` }}
-//       />
-//       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-
-//       <div className="relative w-full max-w-5xl grid md:grid-cols-2 rounded-2xl bg-white shadow-xl border border-gray-200 overflow-hidden">
-//         {/* LEFT */}
-//         <div className="flex flex-col items-center justify-center p-10 bg-[#e8f5e9] dark:bg-[#0f1c31] text-center border-r border-gray-200">
-//           <img src={ZigmaLogo} className="h-40 w-40 mb-4" />
-//           <h2 className="text-2xl font-bold text-[#2e7d32] dark:text-[#9be37d]">
-//             {t("login.left_title")}
-//           </h2>
-//           <p className="text-gray-700 text-sm mt-3 max-w-xs leading-relaxed">
-//             {t("login.left_text")}
-//           </p>
-//         </div>
-
-//         {/* RIGHT */}
-//         <div className="p-10 flex flex-col justify-center">
-//           <div className="flex items-center mb-6">
-//             <div>
-//               <h1 className="text-3xl font-semibold text-gray-800">
-//                 {t("login.title")}
-//               </h1>
-//               <p className="text-[#43A047] dark:text-[#7cd67c] mt-1 text-sm">
-//                 {t("login.subtitle")}
-//               </p>
-//             </div>
-//           </div>
-
-//           <form onSubmit={handleSignIn} className="space-y-6">
-//             {/* Username */}
-//             <div>
-//               <Label htmlFor="username" className="text-gray-700">
-//                 {t("login.username")}
-//               </Label>
-//               <Input
-//                 id="username"
-//                 type="text"
-//                 placeholder={t("login.username_placeholder")}
-//                 value={username}
-//                 onChange={(e: ChangeEvent<HTMLInputElement>) =>
-//                   setUsername(e.target.value)
-//                 }
-//                 className="h-12 rounded-lg bg-white border border-gray-300
-//                   text-gray-800 placeholder-gray-500 dark:placeholder-gray-400
-//                   focus:ring-2 focus:ring-[#43A047] focus:border-[#43A047]"
-//                 required
-//               />
-//             </div>
-
-//             {/* Password */}
-//             <div>
-//               <Label htmlFor="password" className="text-gray-700">
-//                 {t("login.password")}
-//               </Label>
-//               <div className="relative">
-//                 <Input
-//                   id="password"
-//                   type={showPassword ? "text" : "password"}
-//                   placeholder={t("login.password_placeholder")}
-//                   value={password}
-//                   onChange={(e: ChangeEvent<HTMLInputElement>) =>
-//                     setPassword(e.target.value)
-//                   }
-//                   className="h-12 rounded-lg bg-white border border-gray-300
-//                     text-gray-800 placeholder-gray-500 dark:placeholder-gray-400
-//                     focus:ring-2 focus:ring-[#43A047] focus:border-[#43A047] pr-12"
-//                   required
-//                 />
-//                 <button
-//                   type="button"
-//                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
-//                   onClick={() => setShowPassword((v) => !v)}
-//                 >
-//                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-//                 </button>
-//               </div>
-//             </div>
-
-//             {/* Forgot Password */}
-//             <div className="text-right">
-//               <button
-//                 type="button"
-//                 className="text-sm text-[#2e7d32] font-medium"
-//                 onClick={() =>
-//                   toast({
-//                     title: t("login.forgot_password"),
-//                     description: "Password recovery is being implemented.",
-//                   })
-//                 }
-//               >
-//                 {t("login.forgot_password")}
-//               </button>
-//             </div>
-
-//             {/* Submit */}
-//             <Button
-//               type="submit"
-//               disabled={loading}
-//               className="w-full h-12 rounded-lg bg-[#43A047] hover:bg-[#2e7d32]
-//                 text-white text-base font-semibold shadow-md transition-all"
-//             >
-//               {loading ? t("login.authenticating") : t("login.sign_in")}
-//             </Button>
-//           </form>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
-
-
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/api";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -290,7 +23,7 @@ import {
   unwrapLoginPayload,
   type LoginEnvelope,
 } from "@/utils/authStorage";
-import { ArrowRight, Eye, EyeOff } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Lock, User } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 
 type Profile = {
@@ -423,147 +156,169 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#eef6f0] p-4 font-sans">
-      <div className="w-full max-w-5xl rounded-3xl overflow-hidden shadow-2xl shadow-green-900/15 grid md:grid-cols-[1.15fr_1fr]">
+    <>
+      <style>{`
+        @keyframes iwms-blob {
+          0%,100% { transform: translate(0,0) scale(1); }
+          33%      { transform: translate(28px,-24px) scale(1.06); }
+          66%      { transform: translate(-18px,18px) scale(0.96); }
+        }
+        .blob-a { animation: iwms-blob 8s ease-in-out infinite; }
+        .blob-b { animation: iwms-blob 10s ease-in-out infinite reverse; animation-delay:-3s; }
+        .blob-c { animation: iwms-blob 12s ease-in-out infinite; animation-delay:-6s; }
+        .blob-d { animation: iwms-blob 9s ease-in-out infinite; animation-delay:-2s; }
+      `}</style>
 
-        {/* ── Left: Branding Panel ─────────────────────────────────────── */}
-        <div className="relative hidden md:flex flex-col justify-between bg-[#1a3a2a] overflow-hidden p-10">
-          {/* Subtle radial glow */}
-          <div className="pointer-events-none absolute inset-0 bg-green-900" />
-          {/* Decorative rings */}
-          <div className="pointer-events-none absolute -right-24 -bottom-24 h-96 w-96 rounded-full border border-white/5" />
-          <div className="pointer-events-none absolute -right-12 -bottom-12 h-64 w-64 rounded-full border border-white/5" />
-          <div className="pointer-events-none absolute right-0 bottom-0 h-36 w-36 rounded-full border border-white/5" />
-          {/* Top-left accent dot */}
-          <div className="pointer-events-none absolute top-0 left-0 h-40 w-40 rounded-full bg-[#22a855]/10 -translate-x-1/2 -translate-y-1/2" />
+      {/* ── Page wrapper with animated blobs ────────────────────────── */}
+      <div className="relative min-h-screen overflow-hidden flex items-center justify-center bg-slate-50 p-4 font-sans">
 
-          {/* IWMS badge */}
-          <div className="relative flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-[#7ee8a2]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#22a855] animate-pulse" />
-              Integrated Waste Management
-            </span>
-          </div>
+        {/* Background blobs */}
+        <div className="blob-a pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-green-300/55 blur-3xl" />
+        <div className="blob-b pointer-events-none absolute -bottom-40 -right-40 h-112 w-md rounded-full bg-orange-200/55 blur-3xl" />
+        <div className="blob-c pointer-events-none absolute top-1/3 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-green-200/45 blur-3xl" />
+        <div className="blob-d pointer-events-none absolute top-3/4 left-1/4 h-40 w-40 rounded-full bg-emerald-200/40 blur-2xl" />
 
-          {/* Center: Logo + headline */}
-          <div className="relative flex flex-col items-center text-center flex-1 justify-center gap-6 py-6">
-            {/* Logo glow ring */}
-            <div className="relative">
-              <div className="absolute inset-0 rounded-full bg-[#22a855]/20 blur-2xl scale-150" />
-              <div className="relative rounded-2xl bg-white/10 backdrop-blur-sm border border-white/15 p-5 shadow-xl">
-                <img
-                  src={ZigmaLogo}
-                  className="h-28 w-28 object-contain drop-shadow-lg"
-                  alt="Zigma Logo"
-                />
+        {/* ── Card ──────────────────────────────────────────────────── */}
+        <div className="relative z-10 w-full max-w-4xl overflow-hidden rounded-3xl border border-white/80 shadow-2xl shadow-slate-300/50 grid md:grid-cols-2">
+
+          {/* ── LEFT: Illustration panel ──────────────────────────── */}
+          <div className="relative hidden md:flex flex-col items-center justify-between overflow-hidden bg-green-50 p-8 border-r border-green-100">
+            {/* animated green blobs */}
+            <div className="blob-a pointer-events-none absolute -top-10 -right-10 h-56 w-56 rounded-full bg-green-300/45 blur-2xl" />
+            <div className="blob-b pointer-events-none absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-emerald-200/50 blur-2xl" />
+            <div className="blob-c pointer-events-none absolute top-1/2 left-1/2 h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-200/60 blur-xl" />
+            <div className="blob-d pointer-events-none absolute bottom-1/4 right-0 h-28 w-28 rounded-full bg-orange-200/40 blur-xl" />
+
+            {/* company label */}
+            <p className="relative z-10 w-full text-center text-[10px] font-bold uppercase tracking-[0.25em] text-green-700/60">
+              Integrated Waste Management System
+            </p>
+
+            {/* logo — centered with green ring */}
+            <div className="relative z-10 flex flex-1 items-center justify-center w-full py-4">
+              <div className="relative flex items-center justify-center">
+                {/* pulsing outer glow */}
+                <div className="blob-a absolute h-60 w-60 rounded-full bg-green-200/55 blur-3xl" />
+                <div className="blob-c absolute h-40 w-40 rounded-full bg-emerald-300/30 blur-2xl" />
+                {/* ring border */}
+                <div className="relative z-10 rounded-full border-2 border-green-200 bg-white p-3 shadow-xl shadow-green-100/60">
+                  <div className="rounded-full bg-green-50 p-4">
+                    <img
+                      src={ZigmaLogo}
+                      className="h-28 w-28 object-contain"
+                      alt="Zigma IWMS"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Brand name */}
-            <div>
-              <p className="text-[13px] font-bold uppercase tracking-[0.28em] text-[#22a855] mb-1">
-                ZIGMA
-              </p>
-              <p className="text-[11px] text-white/40 italic tracking-wide">
-                Alchemists of the MSW
-              </p>
-            </div>
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 w-full max-w-[220px]">
-              <div className="h-px flex-1 bg-white/10" />
-              <div className="h-1 w-1 rounded-full bg-[#22a855]/60" />
-              <div className="h-px flex-1 bg-white/10" />
-            </div>
-
-            {/* Headline */}
-            <div className="max-w-xs">
-              <h2 className="text-3xl font-black text-white leading-tight tracking-tight">
-                Transforming<br />
-                <span className="text-[#22a855]">City Operations</span>
-              </h2>
-              <p className="mt-3 text-sm text-white/55 leading-relaxed">
-                Experience a cleaner, faster workflow designed for modern field operations.
-              </p>
-            </div>
-
-            {/* Feature pills */}
-            <div className="flex flex-wrap justify-center gap-2 max-w-xs">
-              {["Route Optimization", "Real-time Tracking", "Fleet Management"].map((f) => (
-                <span
-                  key={f}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/6 px-3 py-1 text-[11px] font-medium text-white/60"
-                >
-                  <span className="h-1 w-1 rounded-full bg-[#22a855]" />
+            {/* feature pills */}
+            <div className="relative z-10 flex flex-wrap justify-center gap-1.5 mb-4">
+              {["Route Optimization", "Fleet Tracking", "Real-time Data"].map((f) => (
+                <span key={f} className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-semibold text-green-700">
+                  <span className="h-1 w-1 rounded-full bg-green-500" />
                   {f}
                 </span>
               ))}
             </div>
-          </div>
 
-          {/* Bottom accent bar */}
-          <div className="relative flex items-center gap-2">
-            <div className="h-1.5 w-8 rounded-full bg-[#22a855]" />
-            <div className="h-1.5 w-4 rounded-full bg-white/20" />
-            <div className="h-1.5 w-2 rounded-full bg-white/10" />
-          </div>
-        </div>
+            {/* brand text */}
+            <div className="relative z-10 text-center mb-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-green-600">ZIGMA</p>
+              <p className="text-[10px] text-green-500/70 italic mt-0.5">Alchemists of the MSW</p>
+            </div>
 
-        {/* ── Right: Form Panel ────────────────────────────────────────── */}
-        <div className="bg-white flex flex-col justify-center p-10 gap-8">
-
-          {/* Mobile-only logo */}
-          <div className="flex md:hidden items-center gap-3">
-            <img src={ZigmaLogo} className="h-10 w-10 object-contain" alt="Zigma" />
-            <div>
-              <p className="text-sm font-black tracking-wide text-gray-800">ZIGMA</p>
-              <p className="text-[10px] text-[#22a855] font-semibold uppercase tracking-widest">IWMS</p>
+            {/* carousel dots */}
+            <div className="relative z-10 flex items-center gap-2">
+              <div className="h-2 w-6 rounded-full bg-orange-400" />
+              <div className="h-2 w-2 rounded-full bg-green-200" />
+              <div className="h-2 w-2 rounded-full bg-green-200" />
             </div>
           </div>
 
-          {/* Welcome heading */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="h-5 w-1 rounded-full bg-[#22a855]" />
-              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#22a855]">
-                Field Operations Portal
+          {/* ── RIGHT: Form panel ─────────────────────────────────── */}
+          <div className="flex flex-col justify-center bg-white p-10">
+
+            {/* mobile logo */}
+            <div className="flex md:hidden items-center gap-3 mb-6">
+              <img src={ZigmaLogo} className="h-9 w-9 object-contain" alt="Zigma" />
+              <div>
+                <p className="text-sm font-black tracking-wide text-gray-800">ZIGMA IWMS</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-green-500">Field Operations</p>
+              </div>
+            </div>
+
+            {/* lock icon */}
+            <div className="mb-5">
+              <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-green-200 bg-green-50">
+                <Lock className="h-5 w-5 text-green-600" />
+              </div>
+            </div>
+
+            {/* heading */}
+            <div className="mb-7">
+              <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+                {t("login.title")}
+              </h1>
+              <p className="mt-1 text-sm text-gray-500 leading-relaxed">
+                {t("login.subtitle")}
               </p>
             </div>
-            <h1 className="text-3xl font-black text-gray-900 tracking-tight">
-              {t("login.title")}
-            </h1>
-            <p className="mt-1.5 text-sm text-gray-500 leading-relaxed">
-              {t("login.subtitle")}
-            </p>
-          </div>
 
-          {/* Form */}
-          <form onSubmit={handleSignIn} className="space-y-5">
-            {/* Username */}
-            <div className="space-y-1.5">
-              <label htmlFor="username" className="block text-xs font-bold uppercase tracking-wider text-gray-600">
-                {t("login.username")}
-              </label>
-              <Input
-                id="username"
-                type="text"
-                placeholder={t("login.username_placeholder")}
-                value={username}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
-                className="h-12 rounded-xl border-gray-200 bg-[#f8faf9] text-gray-900 placeholder:text-gray-400 focus-visible:ring-[#22a855] focus-visible:border-[#22a855] transition-all"
-                required
-              />
-            </div>
+            {/* form */}
+            <form onSubmit={handleSignIn} className="space-y-4">
 
-            {/* Password */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label htmlFor="password" className="block text-xs font-bold uppercase tracking-wider text-gray-600">
+              {/* username */}
+              <div className="space-y-1.5">
+                <label htmlFor="username" className="block text-[11px] font-bold uppercase tracking-widest text-gray-500">
+                  {t("login.username")}
+                </label>
+                <div className="relative">
+                  <User className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="username"
+                    type="text"
+                    placeholder={t("login.username_placeholder")}
+                    value={username}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
+                    className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 text-gray-900 placeholder:text-gray-400 focus-visible:border-green-400 focus-visible:ring-green-300/50 transition-all"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* password */}
+              <div className="space-y-1.5">
+                <label htmlFor="password" className="block text-[11px] font-bold uppercase tracking-widest text-gray-500">
                   {t("login.password")}
                 </label>
+                <div className="relative">
+                  <Lock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder={t("login.password_placeholder")}
+                    value={password}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                    className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 pr-12 text-gray-900 placeholder:text-gray-400 focus-visible:border-green-400 focus-visible:ring-green-300/50 transition-all"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* forgot */}
+              <div className="flex justify-end">
                 <button
                   type="button"
-                  className="text-[11px] text-[#22a855] font-semibold hover:underline"
+                  className="text-[11px] font-semibold text-green-600 hover:underline"
                   onClick={() =>
                     toast({ title: t("login.forgot_password"), description: "Password recovery is being implemented." })
                   }
@@ -571,57 +326,39 @@ export default function Auth() {
                   {t("login.forgot_password")}
                 </button>
               </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder={t("login.password_placeholder")}
-                  value={password}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                  className="h-12 rounded-xl border-gray-200 bg-[#f8faf9] text-gray-900 placeholder:text-gray-400 focus-visible:ring-[#22a855] focus-visible:border-[#22a855] pr-12 transition-all"
-                  required
-                />
-                <button
-                  type="button"
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors"
-                  onClick={() => setShowPassword((v) => !v)}
-                >
-                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                </button>
-              </div>
-            </div>
 
-            {/* Sign In Button */}
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full h-12 rounded-xl bg-[#22a855] hover:bg-[#1a8e44] active:bg-[#167338] text-white text-sm font-bold shadow-lg shadow-green-200 transition-all gap-2 mt-2"
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
-                  </svg>
-                  {t("login.authenticating")}
-                </>
-              ) : (
-                <>
-                  {t("login.sign_in")}
-                  <ArrowRight size={16} />
-                </>
-              )}
-            </Button>
-          </form>
+              {/* submit — orange gradient matching reference */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex w-full h-12 items-center justify-center gap-2 rounded-xl bg-linear-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 active:scale-[0.98] disabled:opacity-60 text-white text-sm font-semibold shadow-lg shadow-orange-200/70 transition-all mt-1"
+              >
+                {loading ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+                    </svg>
+                    {t("login.authenticating")}
+                  </>
+                ) : (
+                  <>
+                    {t("login.sign_in")}
+                    <ArrowRight size={15} />
+                  </>
+                )}
+              </button>
+            </form>
 
-          {/* Footer */}
-          <p className="text-center text-[11px] text-gray-400 leading-relaxed">
-            Secure login powered by&nbsp;
-            <span className="font-semibold text-[#22a855]">Zigma IWMS</span>
-            &nbsp;&mdash; Alchemists of the MSW
-          </p>
+            {/* footer */}
+            <p className="mt-8 text-center text-[11px] text-gray-400">
+              Secure login ·{" "}
+              <span className="font-semibold text-gray-500">Zigma IWMS</span>
+            </p>
+          </div>
+
         </div>
       </div>
-    </div>
+    </>
   );
 }

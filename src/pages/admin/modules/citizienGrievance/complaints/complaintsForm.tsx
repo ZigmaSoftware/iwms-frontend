@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 
 import Swal from "sweetalert2";
 
@@ -67,11 +67,13 @@ export default function ComplaintAddForm() {
   const { encCitizenGrivence, encComplaint } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encCitizenGrivence}/${encComplaint}`;
 
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     loggedInCompanyUniqueId,
     isSuperAdmin,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   /* ---------------- STATE ---------------- */
   const [customers, setCustomers] = useState<any[]>([]);
@@ -344,7 +346,7 @@ export default function ComplaintAddForm() {
         t("admin.citizen_grievance.complaints_form.saved_message"),
         "success"
       );
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch {
       Swal.fire(
         t("common.error"),
@@ -521,7 +523,7 @@ export default function ComplaintAddForm() {
             {t("common.save")}
           </button>
           <button type="button"
-            onClick={() => navigate(ENC_LIST_PATH)}
+            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
             className="bg-red-400 text-white px-4 py-2 rounded">
             {t("common.cancel")}
           </button>

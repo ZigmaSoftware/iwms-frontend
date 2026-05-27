@@ -127,7 +127,7 @@ const AppHeader: React.FC = () => {
               {/* Logo box */}
               <div
                 className="relative flex h-9 w-9 items-center justify-center rounded-xl shadow-md"
-                style={{ background: `linear-gradient(135deg, ${PRIMARY}, #16a34a)`, boxShadow: `0 4px 14px ${PRIMARY}40` }}
+                style={{ background: '#ffff', boxShadow: `0 4px 14px ${PRIMARY}40` }}
               >
                 <img src={ZigmaLogo} className="h-6 w-6 object-contain" alt="Logo" />
               </div>
@@ -228,7 +228,6 @@ const AppHeader: React.FC = () => {
                   : {
                       borderColor: `${PRIMARY}30`,
                       backgroundColor: `${PRIMARY}08`,
-                      ...(undefined),
                     }
               }
               onMouseEnter={(e) => {

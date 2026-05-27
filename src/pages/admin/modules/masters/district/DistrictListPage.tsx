@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -60,6 +60,8 @@ export default function DistrictListPage() {
     name:        { value: null, matchMode: FilterMatchMode.CONTAINS },
     is_active:   { value: null, matchMode: FilterMatchMode.EQUALS },
   });
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -68,7 +70,7 @@ export default function DistrictListPage() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const navigate = useNavigate();
   const { encMasters, encDistricts } = getEncryptedRoute();
