@@ -25,6 +25,9 @@ const PANCHAYAT_COLUMN_FIELDS: Record<string, string[]> = {
   state_name: ["state_id", "state", "state_name"],
   district_name: ["district_id", "district", "district_name"],
   city_name: ["city_id", "city", "city_name"],
+  agreed_weight_kg: ["agreed_weight_kg"],
+  weight_unit: ["weight_unit"],
+  effective_from: ["effective_from"],
   is_active: ["is_active"],
 };
 
@@ -55,6 +58,18 @@ export default function PanchayatListPage() {
       matchMode: FilterMatchMode.STARTS_WITH,
     },
     city_name: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    agreed_weight_kg: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    weight_unit: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    effective_from: {
       value: null as string | null,
       matchMode: FilterMatchMode.STARTS_WITH,
     },
@@ -134,6 +149,9 @@ export default function PanchayatListPage() {
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
+
+  const displayValue = (value: unknown) =>
+    value === null || value === undefined || value === "" ? "-" : String(value);
 
   const actionTemplate = (row: PanchayatListRecord) => (
     <div className="flex gap-3 justify-center">
@@ -258,6 +276,9 @@ export default function PanchayatListPage() {
           "country_name",
           "company_name",
           "project_name",
+          "agreed_weight_kg",
+          "weight_unit",
+          "effective_from",
         ]}
         className="p-datatable-sm"
       >
@@ -304,6 +325,36 @@ export default function PanchayatListPage() {
             filter
             showFilterMatchModes={false}
             body={(row: PanchayatListRecord) => cap(row.city_name)}
+          />
+        )}
+        {showCol("agreed_weight_kg") && (
+          <Column
+            field="agreed_weight_kg"
+            header="Agreed Weight"
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: PanchayatListRecord) => displayValue(row.agreed_weight_kg)}
+          />
+        )}
+        {showCol("weight_unit") && (
+          <Column
+            field="weight_unit"
+            header="Weight Unit"
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: PanchayatListRecord) => displayValue(row.weight_unit).toUpperCase()}
+          />
+        )}
+        {showCol("effective_from") && (
+          <Column
+            field="effective_from"
+            header="Effective From"
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: PanchayatListRecord) => displayValue(row.effective_from)}
           />
         )}
         {showCol("is_active") && (

@@ -39,6 +39,9 @@ const PANCHAYAT_FIELDS: Record<string, string[]> = {
   district_id: ["district_id", "district"],
   city_id: ["city_id", "city"],
   panchayat_name: ["panchayat_name", "name"],
+  agreed_weight_kg: ["agreed_weight_kg"],
+  weight_unit: ["weight_unit"],
+  effective_from: ["effective_from"],
   latitude: ["latitude"],
   longitude: ["longitude"],
   geofencing_type: ["geofencing_type"],
@@ -91,6 +94,9 @@ export default function PanchayatForm() {
   const [cityId, setCityId] = useState("");
   const [areaTypeId, setAreaTypeId] = useState("");
   const [hierarchyId, setHierarchyId] = useState("");
+  const [agreedWeightKg, setAgreedWeightKg] = useState("0");
+  const [weightUnit, setWeightUnit] = useState("kg");
+  const [effectiveFrom, setEffectiveFrom] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [geofencingType, setGeofencingType] = useState("polygon");
@@ -286,6 +292,9 @@ export default function PanchayatForm() {
     setCityId(toStringId(data.city_id ?? data.city));
     setAreaTypeId(toStringId(data.area_type_id ?? data.area_type));
     setHierarchyId(toStringId(data.hierarchy_id ?? data.hierarchy));
+    setAgreedWeightKg(toStringId(data.agreed_weight_kg ?? "0"));
+    setWeightUnit(data.weight_unit ?? "kg");
+    setEffectiveFrom(data.effective_from ?? "");
     setLatitude(data.latitude ?? "");
     setLongitude(data.longitude ?? "");
     setGeofencingType(data.geofencing_type ?? "polygon");
@@ -324,6 +333,9 @@ export default function PanchayatForm() {
       city_id: cityId,
       area_type_id: areaTypeId,
       hierarchy_id: hierarchyId,
+      agreed_weight_kg: agreedWeightKg || "0",
+      weight_unit: weightUnit || "kg",
+      effective_from: effectiveFrom || null,
       latitude,
       longitude,
       geofencing_type: geofencingType,
@@ -527,6 +539,46 @@ export default function PanchayatForm() {
               value={panchayatName}
               onChange={(e) => setPanchayatName(e.target.value)}
               required
+            />
+          </div>
+        )}
+
+        {showField("agreed_weight_kg") && (
+          <div>
+            <Label>Agreed Weight *</Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={agreedWeightKg}
+              onChange={(e) => setAgreedWeightKg(e.target.value)}
+              required
+            />
+          </div>
+        )}
+
+        {showField("weight_unit") && (
+          <div>
+            <Label>Weight Unit *</Label>
+            <Select value={weightUnit} onValueChange={setWeightUnit}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="kg">Kg</SelectItem>
+                <SelectItem value="tonne">Tonne</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {showField("effective_from") && (
+          <div>
+            <Label>Effective From</Label>
+            <Input
+              type="date"
+              value={effectiveFrom}
+              onChange={(e) => setEffectiveFrom(e.target.value)}
             />
           </div>
         )}

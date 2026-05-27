@@ -17,6 +17,9 @@ export type PanchayatRecord = {
   city?: string | number | null;
   company_id?: string | number | null;
   project_id?: string | number | null;
+  agreed_weight_kg?: string | number | null;
+  weight_unit?: "kg" | "tonne" | string | null;
+  effective_from?: string | null;
 };
 
 export type PanchayatPayload = {
@@ -32,6 +35,9 @@ export type PanchayatPayload = {
   latitude?: string;
   longitude?: string;
   geofencing_type?: string;
+  agreed_weight_kg?: string | number | null;
+  weight_unit?: "kg" | "tonne" | string | null;
+  effective_from?: string | null;
 };
 
 export type PanchayatListFilters = {
