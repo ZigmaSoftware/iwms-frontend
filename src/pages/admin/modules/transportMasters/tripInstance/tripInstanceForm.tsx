@@ -117,7 +117,9 @@ export default function TripInstanceForm() {
         setStaffTemplates(
           toOptions(normalizeList(staffRes), "unique_id", "display_code", "unique_id")
         );
-        setAltStaffTemplates(toOptions(normalizeList(altStaffRes), "unique_id", "unique_id"));
+        setAltStaffTemplates(
+          toOptions(normalizeList(altStaffRes), "unique_id", "display_code", "unique_id")
+        );
         setZones(toOptions(normalizeList(zoneRes), "unique_id", "name"));
         setVehicles(toOptions(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
         setProperties(toOptions(normalizeList(propertyRes), "unique_id", "property_name"));
