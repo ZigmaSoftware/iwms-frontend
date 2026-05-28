@@ -1,5 +1,5 @@
 // import { useEffect, useState } from "react";
-// import { useNavigate } from "react-router-dom";
+// import { useNavigate, useLocation} from "react-router-dom";
 // import Swal from "sweetalert2";
 // import { useTranslation } from "react-i18next";
 
@@ -235,7 +235,7 @@
 
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -347,6 +347,8 @@ export default function SupervisorZoneMapList() {
     "supervisor-zone-map",
     SUPERVISOR_ZONE_MAP_COLUMN_FIELDS
   );
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -355,7 +357,7 @@ export default function SupervisorZoneMapList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const updateMutation = useUpdateSupervisorZoneMap();
 
@@ -569,7 +571,13 @@ export default function SupervisorZoneMapList() {
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
             disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH)}
+            onClick={() =>
+              navigate(
+                `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
+                  companyUniqueId
+                )}&project_id=${encodeURIComponent(projectId)}`
+              )
+            }
           />
         </div>
       </div>

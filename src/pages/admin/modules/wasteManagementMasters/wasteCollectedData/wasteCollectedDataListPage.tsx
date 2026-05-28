@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -107,6 +107,8 @@ export default function WasteCollectedDataList() {
     company_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     project_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -115,7 +117,7 @@ export default function WasteCollectedDataList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const fetchWasteCollectedData = useCallback(async () => {
     if (isSuperAdmin && companies.length === 0) {

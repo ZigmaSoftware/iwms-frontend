@@ -185,7 +185,9 @@ export function ComplaintsPanel() {
     <DataCard
       title={t("dashboard.home.grievances_title")}
       compact
-      className="h-[240px] flex flex-col overflow-hidden"
+      accent="brand-secondary"
+      icon={<AlertTriangle className="w-3.5 h-3.5 text-(--brand-secondary)" />}
+      className="h-60 flex flex-col overflow-hidden"
       action={
         <Link
           to={grievancesPath}
@@ -201,33 +203,30 @@ export function ComplaintsPanel() {
             {t("dashboard.home.grievances_loading")}
           </div>
         ) : null}
-        <div className="grid grid-cols-3 gap-2 mt-2">
-          {/* TOTAL */}
-          <div className={`${CARD_STYLE} bg-blue-50 dark:bg-blue-900/20`}>
-            <div className="text-[14px] text-gray-600 dark:text-gray-300 font-bold">
+        <div className="grid grid-cols-3 gap-2 mt-1">
+          <div className={`${CARD_STYLE} bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700/50`}>
+            <div className="text-[10px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">
               {t("common.total")}
             </div>
-            <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
+            <div className="text-2xl font-bold text-blue-700 dark:text-blue-300 leading-none mt-0.5">
               {summary.total}
             </div>
           </div>
 
-          {/* IN PROGRESS */}
-          <div className={`${CARD_STYLE} bg-yellow-50 dark:bg-yellow-900/20`}>
-            <div className="text-[14px] text-gray-600 dark:text-gray-300 font-bold">
+          <div className={`${CARD_STYLE} bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50`}>
+            <div className="text-[10px] font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide">
               {t("common.status_in_progress")}
             </div>
-            <div className="text-lg font-bold text-yellow-700 dark:text-yellow-300">
+            <div className="text-2xl font-bold text-amber-700 dark:text-amber-300 leading-none mt-0.5">
               {summary.inProgress}
             </div>
           </div>
 
-          {/* RESOLVED */}
-          <div className={`${CARD_STYLE} bg-green-50 dark:bg-green-900/20`}>
-            <div className="text-[14px] text-gray-600 dark:text-gray-300 font-bold">
+          <div className={`${CARD_STYLE} bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50`}>
+            <div className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
               {t("common.status_resolved")}
             </div>
-            <div className="text-lg font-bold text-green-700 dark:text-green-300">
+            <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 leading-none mt-0.5">
               {summary.resolved}
             </div>
           </div>

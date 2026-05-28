@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { Input } from "@/components/ui/input";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -168,8 +168,12 @@ function PropertyForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
 
-  const { applyCompanyProjectFromRecord } = useCompanyProjectSelection({
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const { applyCompanyProjectFromRecord, companyUniqueId, projectId } = useCompanyProjectSelection({
     isEdit,
+    initialCompanyId: routeState?.companyUniqueId,
+    initialProjectId: routeState?.projectId,
   });
 
   const propertyQuery = usePropertyQuery(id);
@@ -230,7 +234,7 @@ function PropertyForm() {
         });
       }
 
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error) {
       Swal.fire({
         icon: "error",
@@ -269,7 +273,7 @@ function PropertyForm() {
         initialPayload={initialPayload}
         isEdit={isEdit}
         isSubmitting={isSubmitting}
-        onCancel={() => navigate(ENC_LIST_PATH)}
+        onCancel={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
         onSubmit={submitProperty}
       />
     </ComponentCard>

@@ -13,6 +13,7 @@ export const useStaffCreationList = (params?: Record<string, any>) => {
     queryFn: () => staffCreationApi.list({ params }),
     keepPreviousData: true,
   });
+  console.log("query",query);
 
   const paramsSignature = useMemo(() => JSON.stringify(params ?? {}), [params]);
   const previousParamsRef = useRef(paramsSignature);

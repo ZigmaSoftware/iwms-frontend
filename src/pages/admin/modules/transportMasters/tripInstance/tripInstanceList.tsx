@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -113,6 +113,8 @@ export default function TripInstanceList() {
   const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>({});
   const [propertyLookup, setPropertyLookup] = useState<Record<string, string>>({});
   const [subPropertyLookup, setSubPropertyLookup] = useState<Record<string, string>>({});
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -121,7 +123,7 @@ export default function TripInstanceList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   // const [filters, setFilters] = useState<any>({
@@ -231,7 +233,7 @@ export default function TripInstanceList() {
       setRecords(tripRows as TripInstanceRecord[]);
       setTripDefinitionLookup(buildLookup(tripDefRows, "unique_id", "unique_id"));
       setStaffTemplateLookup(buildLookup(staffRows, "unique_id", "display_code", "unique_id"));
-      setAltStaffTemplateLookup(buildLookup(altStaffRows, "unique_id", "unique_id"));
+      setAltStaffTemplateLookup(buildLookup(altStaffRows, "unique_id", "display_code", "unique_id"));
       setZoneLookup(buildLookup(zoneRows, "unique_id", "name"));
       setVehicleLookup(buildLookup(vehicleRows, "unique_id", "vehicle_no"));
       setPropertyLookup(buildLookup(propertyRows, "unique_id", "property_name"));
@@ -306,7 +308,7 @@ export default function TripInstanceList() {
           icon="pi pi-plus"
           className="p-button-success p-button-sm"
           disabled={!companyUniqueId || !projectId}
-          onClick={() => navigate(ENC_NEW_PATH)}
+          onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
         />
 
         </div>

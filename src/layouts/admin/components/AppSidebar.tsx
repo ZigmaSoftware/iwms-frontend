@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { usePermission } from "@/contexts/PermissionContext";
+import { cn } from "@/lib/utils";
 
 import {
   ChevronDown,
@@ -17,6 +18,8 @@ import {
   AlertTriangle,
   Building2,
   BarChart3,
+  Search,
+  X,
 } from "lucide-react";
 
 import { useSidebar } from "@/contexts/SideBarContext";
@@ -97,6 +100,7 @@ const {
   encPanchayats,
   encAreaTypes,
   encHierarchies,
+  encBins
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -294,6 +298,12 @@ const assetItems: NavItem[] = [
     module: "assets",
     screen: "assets",
     subItems: [
+      {
+        nameKey: "admin.nav.bin_creation", 
+        path: `/${encMasters}/${encBins}`,
+        module: "assets",
+        screen: "bins",
+      },
       {
         nameKey: "admin.nav.collection_point",
         path: `/${encMasters}/${encCollectionPoints}`,
@@ -689,13 +699,17 @@ const reportItems: NavItem[] = [
 ];
 
 const menuButtonBase =
-  "group flex w-full items-center gap-2 rounded-[14px] px-3 py-2 text-left text-sm font-semibold transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300";
-const menuActiveClasses = "border border-sky-200 bg-sky-100 text-sky-900";
+  "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-300";
+const menuActiveClasses =
+  "bg-linear-to-r from-green-500 to-green-600 text-white shadow-md shadow-green-200/60";
 const menuInactiveClasses =
-  "border border-transparent bg-white/80 text-sky-600 hover:border-sky-200 hover:bg-white hover:text-sky-900";
-const subMenuContainerClasses = "mt-2 ml-5 space-y-1 pl-2";
-const subMenuActiveClasses = "bg-sky-100 text-sky-900 font-semibold rounded-lg";
-const subMenuInactiveClasses = "text-sky-600 hover:text-sky-900";
+  "text-gray-700 hover:bg-green-50 hover:text-green-800";
+const subMenuContainerClasses =
+  "mt-1 ml-2 border-l-2 border-green-100 pl-3 space-y-0.5 pb-1";
+const subMenuActiveClasses =
+  "block rounded-lg bg-orange-50 px-3 py-1.5 text-sm font-semibold text-orange-600";
+const subMenuInactiveClasses =
+  "block rounded-lg px-3 py-1.5 text-sm text-gray-600 hover:bg-green-50 hover:text-green-700";
 
 // ✅ Helper: Check if user is superadmin
 const isSuperAdminUser = (): boolean => {
@@ -824,6 +838,29 @@ const AppSidebar: React.FC = () => {
     [hasPermission, isSuperAdmin, checkPermission]
   );
 
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredSections = useMemo(() => {
+    if (!searchQuery.trim()) return sidebarSections;
+    const q = searchQuery.toLowerCase().trim();
+    return sidebarSections
+      .map((section) => {
+        const filteredItems = section.items
+          .map((item) => {
+            const parentName = t(item.nameKey).toLowerCase();
+            if (parentName.includes(q)) return item;
+            if (!item.subItems || item.subItems.length === 0) return null;
+            const matchingSubs = item.subItems.filter((sub) =>
+              t(sub.nameKey).toLowerCase().includes(q)
+            );
+            return matchingSubs.length > 0 ? { ...item, subItems: matchingSubs } : null;
+          })
+          .filter((item): item is NavItem => item !== null);
+        return { ...section, items: filteredItems };
+      })
+      .filter((section) => section.items.length > 0);
+  }, [searchQuery, sidebarSections, t]);
+
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: SidebarSectionKey;
     index: number;
@@ -926,7 +963,8 @@ const AppSidebar: React.FC = () => {
     <ul className="flex flex-col gap-2">
       {items.map((nav, index) => {
         const isSubmenuOpen =
-          openSubmenu?.type === type && openSubmenu?.index === index;
+          (searchQuery.trim() !== "" && !!(nav.subItems && nav.subItems.length > 0)) ||
+          (openSubmenu?.type === type && openSubmenu?.index === index);
         return (
           <li key={nav.path ?? nav.nameKey}>
             {nav.subItems && nav.subItems.length > 0 ? (
@@ -937,24 +975,30 @@ const AppSidebar: React.FC = () => {
                 }`}
               >
                 <span
-                  className={`menu-item-icon-size ${
-                    !showFullSidebar ? "mx-auto" : ""
-                  } text-emerald-600`}
+                  className={cn(
+                    "menu-item-icon-size shrink-0",
+                    !showFullSidebar && "mx-auto",
+                    isSubmenuOpen ? "text-white" : "text-green-600"
+                  )}
                 >
                   {nav.icon}
                 </span>
 
                 {showFullSidebar && (
                   <>
-                    <span className="text-sm font-semibold text-emerald-900">
+                    <span
+                      className={cn(
+                        "truncate text-sm font-semibold",
+                        isSubmenuOpen ? "text-white" : "text-gray-800"
+                      )}
+                    >
                       {t(nav.nameKey)}
                     </span>
                     <ChevronDown
-                      className={`ml-auto h-5 w-5 transition-transform ${
-                        isSubmenuOpen
-                          ? "rotate-180 text-emerald-700"
-                          : "text-emerald-500"
-                      }`}
+                      className={cn(
+                        "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
+                        isSubmenuOpen ? "rotate-180 text-white" : "text-green-500"
+                      )}
                     />
                   </>
                 )}
@@ -970,14 +1014,21 @@ const AppSidebar: React.FC = () => {
                   }`}
                 >
                   <span
-                    className={`menu-item-icon-size ${
-                      !showFullSidebar ? "mx-auto" : ""
-                    } text-emerald-600`}
+                    className={cn(
+                      "menu-item-icon-size shrink-0",
+                      !showFullSidebar && "mx-auto",
+                      isActive(nav.path, true) ? "text-white" : "text-green-600"
+                    )}
                   >
                     {nav.icon}
                   </span>
                   {showFullSidebar && (
-                    <span className="text-sm font-semibold text-emerald-900">
+                    <span
+                      className={cn(
+                        "truncate text-sm font-semibold",
+                        isActive(nav.path, true) ? "text-white" : "text-gray-800"
+                      )}
+                    >
                       {t(nav.nameKey)}
                     </span>
                   )}
@@ -1023,26 +1074,61 @@ const AppSidebar: React.FC = () => {
 
   return (
     <aside
-      className={`fixed left-0 top-[var(--admin-header-h)] z-50 h-[calc(100vh-var(--admin-header-h))] border-r bg-white text-sky-900 transition-all duration-300 ease-out ${
-        showFullSidebar ? "w-[300px]" : "w-[140px]"
-      } ${isMobileOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
+      className={cn(
+        "fixed left-0 top-(--admin-header-h) z-50 h-[calc(100vh-var(--admin-header-h))] transition-all duration-300 ease-out",
+        "border-r border-green-100 bg-white shadow-lg shadow-green-100/40",
+        showFullSidebar ? "w-[290px]" : "w-20",
+        isMobileOpen ? "translate-x-0" : "-translate-x-full",
+        "lg:translate-x-0"
+      )}
     >
-      <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/60 to-transparent opacity-80" />
-      <div className="flex h-full flex-col px-4 pb-6 pt-6">
-        {/* {showFullSidebar && (
-          <div className="mb-4 text-xs font-semibold uppercase tracking-[0.4em] text-sky-500">
-            
+      {/* Top accent bar: green → blue → orange */}
+      <div className="absolute left-0 right-0 top-0 h-[3px] bg-linear-to-r from-green-500 via-blue-500 to-orange-400" />
+
+      <div className="flex h-full flex-col px-3 pb-6 pt-5">
+        {/* Search input — only when expanded */}
+        {showFullSidebar && (
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search menu..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-lg border border-green-100 bg-green-50/50 py-2 pl-9 pr-8 text-sm text-gray-700 placeholder-gray-400 focus:border-green-300 focus:outline-none focus:ring-2 focus:ring-green-200"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                aria-label="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
-        )} */}
-        <div className="flex-1 overflow-y-auto pr-2 no-scrollbar">
-          <nav className="flex flex-col gap-4">
-            {sidebarSections.map((section) => (
-              <div key={section.key}>
-                {renderMenuItems(section.items, section.key)}
-              </div>
-            ))}
+        )}
+
+        <div className="no-scrollbar flex-1 overflow-y-auto pr-1">
+          <nav className="flex flex-col gap-1.5">
+            {filteredSections.length > 0 ? (
+              filteredSections.map((section) => (
+                <div key={section.key} className="flex flex-col gap-1">
+                  {renderMenuItems(section.items, section.key)}
+                </div>
+              ))
+            ) : (
+              showFullSidebar && searchQuery.trim() && (
+                <p className="px-3 py-6 text-center text-sm text-gray-400">
+                  No results for &ldquo;{searchQuery}&rdquo;
+                </p>
+              )
+            )}
           </nav>
         </div>
+
+        {/* Bottom blue accent line */}
+        <div className="mt-4 h-px bg-linear-to-r from-transparent via-blue-200 to-transparent" />
       </div>
     </aside>
   );

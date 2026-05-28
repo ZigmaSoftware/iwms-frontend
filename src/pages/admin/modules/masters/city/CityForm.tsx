@@ -718,7 +718,7 @@ export default function CityForm() {
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (err) {
       Swal.fire(t("common.save_failed"), extractError(err), "error");
     }
@@ -935,7 +935,7 @@ export default function CityForm() {
           <Button
             type="button"
             variant="destructive"
-            onClick={() => navigate(ENC_LIST_PATH)}
+            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
           >
             {t("common.cancel")}
           </Button>

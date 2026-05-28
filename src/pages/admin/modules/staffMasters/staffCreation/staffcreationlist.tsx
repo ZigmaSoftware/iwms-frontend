@@ -1,5 +1,5 @@
 // import { type ChangeEvent, useEffect, useState } from "react";
-// import { useNavigate } from "react-router-dom";
+// import { useNavigate, useLocation} from "react-router-dom";
 // import { staffCreationApi } from "@/helpers/admin";
 // import Swal from "sweetalert2";
 // import ReactDOM from "react-dom/client";
@@ -376,7 +376,7 @@
 
 
 import { type ChangeEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 import {
   useStaffCreationList,
   useUpdateStaff,
@@ -459,6 +459,8 @@ export default function StaffCreationList() {
   );
   const [staffs, setStaffs] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -467,7 +469,7 @@ export default function StaffCreationList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [filterParams, setFilterParams] = useState({
     salary_type: "",
@@ -712,7 +714,13 @@ export default function StaffCreationList() {
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
             disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH)}
+            onClick={() =>
+              navigate(
+                `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
+                  companyUniqueId
+                )}&project_id=${encodeURIComponent(projectId)}`
+              )
+            }
           />
         </div>
       </div>

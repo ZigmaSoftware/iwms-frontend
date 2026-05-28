@@ -73,7 +73,7 @@
 
 
 import { type ChangeEvent, useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -152,6 +152,8 @@ export default function RoutePlanList() {
   const navigate = useNavigate();
   const [list, setList] = useState<RoutePlan[]>(mockRoutePlans);
   const [loading, setLoading] = useState(false);
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -160,7 +162,7 @@ export default function RoutePlanList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   // Check permissions for this module
   const canView = hasPermission("user-creations", "RoutePlan", "view");
@@ -377,7 +379,13 @@ export default function RoutePlanList() {
               icon="pi pi-plus"
               className="p-button-success p-button-sm"
               disabled={!companyUniqueId || !projectId}
-              onClick={() => navigate(ENC_NEW_PATH)}
+              onClick={() =>
+                navigate(
+                  `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
+                    companyUniqueId
+                  )}&project_id=${encodeURIComponent(projectId)}`
+                )
+              }
             />
           )}
         </div>

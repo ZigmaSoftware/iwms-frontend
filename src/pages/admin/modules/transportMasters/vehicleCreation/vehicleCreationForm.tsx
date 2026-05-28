@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -76,6 +76,8 @@ export default function VehicleCreationForm() {
   );
 
   // ── Company / Project (same hook used across all forms) ───────────────────
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -86,7 +88,7 @@ export default function VehicleCreationForm() {
     setProjectId,
     onCompanyChange,
     applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   // ── TanStack queries ──────────────────────────────────────────────────────
   const vehicleCreationQuery = useVehicleCreationQuery(id);
@@ -396,7 +398,7 @@ export default function VehicleCreationForm() {
         timer: 1500,
         showConfirmButton: false,
       });
-      navigate(ENC_LIST_PATH);
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error) {
       Swal.fire(t("common.save_failed"), extractErr(error), "error");
     }
@@ -805,7 +807,7 @@ export default function VehicleCreationForm() {
           </button>
           <button
             type="button"
-            onClick={() => navigate(ENC_LIST_PATH)}
+            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
             className="bg-red-400 text-white px-4 py-2 rounded hover:bg-red-500"
           >
             {t("common.cancel")}

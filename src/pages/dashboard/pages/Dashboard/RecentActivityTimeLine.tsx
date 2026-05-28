@@ -367,7 +367,7 @@ export function RecentActivityTimeline() {
   };
 
   return (
-    <DataCard title={t("dashboard.home.activity_title")} compact>
+    <DataCard title={t("dashboard.home.activity_title")} compact accent="brand-secondary" icon={<AlertTriangle className="w-3.5 h-3.5 text-(--brand-secondary)" />}>
       {loading && !items.some((item) => item.value > 0) ? (
         <div className="py-2 text-xs text-muted-foreground">
           {t("common.loading")}

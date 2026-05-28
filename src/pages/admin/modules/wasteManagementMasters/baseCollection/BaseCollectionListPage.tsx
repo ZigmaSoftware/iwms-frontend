@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -111,6 +112,8 @@ export default function BaseCollectionListPage({ scope }: Props) {
     scope === "panchayat"
       ? adminApi.panchayatWiseCollections
       : adminApi.wardWiseCollections;
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -119,7 +122,7 @@ export default function BaseCollectionListPage({ scope }: Props) {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [summaryRows, setSummaryRows] = useState<SummaryRow[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<SummaryRow | null>(

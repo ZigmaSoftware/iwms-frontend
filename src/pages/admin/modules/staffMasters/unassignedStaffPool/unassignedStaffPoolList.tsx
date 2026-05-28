@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -116,6 +116,8 @@ export default function UnassignedStaffPoolList() {
     "unassigned-staff-pool",
     UNASSIGNED_STAFF_POOL_COLUMN_FIELDS
   );
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -124,7 +126,7 @@ export default function UnassignedStaffPoolList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const listParams: Record<string, string> = { company_id: companyUniqueId };
   if (projectId) listParams.project_id = projectId;
@@ -298,7 +300,13 @@ export default function UnassignedStaffPoolList() {
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
             disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH)}
+            onClick={() =>
+              navigate(
+                `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
+                  companyUniqueId
+                )}&project_id=${encodeURIComponent(projectId)}`
+              )
+            }
           />
         </div>
       </div>

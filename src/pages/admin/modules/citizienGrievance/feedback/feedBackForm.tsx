@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -38,6 +38,8 @@ function FeedBackForm() {
   const { encCitizenGrivence, encFeedback } = getEncryptedRoute();
   const LIST_PATH = `/${encCitizenGrivence}/${encFeedback}`;
 
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -48,7 +50,7 @@ function FeedBackForm() {
     setProjectId,
     onCompanyChange,
     applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const resolveId = (c: CustomerCreationRecord & { id?: string | number }) =>
     normalizeId(c.unique_id || c.id);
@@ -183,7 +185,7 @@ function FeedBackForm() {
         t("admin.citizen_grievance.feedback_form.saved"),
         "success"
       );
-      navigate(LIST_PATH);
+      navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch {
       Swal.fire(
         t("common.error"),
@@ -345,7 +347,7 @@ function FeedBackForm() {
           </button>
           <button
             type="button"
-            onClick={() => navigate(LIST_PATH)}
+            onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
             className="bg-red-400 text-white px-4 py-2 rounded"
           >
             {t("common.cancel")}

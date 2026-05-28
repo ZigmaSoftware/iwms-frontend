@@ -153,6 +153,7 @@ const enResource = {
         location_unavailable: "Location unavailable",
         next: "Next",
         change: "Change",
+        bins: "Bin Creations"
       },
       "login": {
         "title": "Welcome Back",

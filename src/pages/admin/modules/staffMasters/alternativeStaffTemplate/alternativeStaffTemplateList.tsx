@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -45,6 +45,7 @@ type AlternativeStaffTemplate = {
   operator: string;
   operator_name?: string;
   extra_operator?: string[] | null;
+  extra_operator_names?: string[] | null;
   change_reason: string;
   change_remarks?: string;
   approval_status: string;
@@ -69,6 +70,8 @@ export default function AlternativeStaffTemplateList() {
     "alternative-staff-template",
     ALTERNATIVE_STAFF_TEMPLATE_COLUMN_FIELDS
   );
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
     projectId,
@@ -77,7 +80,7 @@ export default function AlternativeStaffTemplateList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [records, setRecords] = useState<AlternativeStaffTemplate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -226,7 +229,13 @@ export default function AlternativeStaffTemplateList() {
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
             disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH)}
+            onClick={() =>
+              navigate(
+                `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
+                  companyUniqueId
+                )}&project_id=${encodeURIComponent(projectId)}`
+              )
+            }
           />
         </div>
       </div>
@@ -304,14 +313,14 @@ export default function AlternativeStaffTemplateList() {
           />
         )}
 
-        {showCol("effective_date") && (
+        {/* {showCol("effective_date") && (
           <Column
             field="effective_date"
             header={t("admin.alternative_staff_template.columns.effective_date")}
             filter
             showFilterMatchModes={false}
           />
-        )}
+        )} */}
 
         {showCol("driver_name") && (
           <Column
@@ -336,13 +345,14 @@ export default function AlternativeStaffTemplateList() {
         {showCol("extra_operator") && (
           <Column
             header={t("admin.alternative_staff_template.columns.extra_operator")}
-            body={(row: AlternativeStaffTemplate) =>
-              Array.isArray(row.extra_operator)
-                ? row.extra_operator.length
-                : row.extra_operator
-                ? 1
-                : 0
-            }
+            body={(row: AlternativeStaffTemplate) => {
+              const names = Array.isArray(row.extra_operator_names)
+                ? row.extra_operator_names
+                : [];
+              if (names.length) return names.join(", ");
+              if (Array.isArray(row.extra_operator)) return row.extra_operator.join(", ");
+              return row.extra_operator || "-";
+            }}
           />
         )}
 
