@@ -836,7 +836,8 @@ const taResource = {
           "reports": "அறிக்கைகள்",
           "trip_summary": "பயண சுருக்கம்",
           "monthly_distance": "மாதாந்திர தூரம்",
-          "waste_collected_summary": "கழிவு சேகரிப்பு சுருக்கம்"
+          "waste_collected_summary": "கழிவு சேகரிப்பு சுருக்கம்",
+          "monthly_waste_comparison": "மாதாந்திர கழிவு ஒப்பீடு"
         },
         "project": {
           "company_id": "நிறுவன ஐடி",

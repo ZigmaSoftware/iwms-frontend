@@ -59,6 +59,8 @@ import HouseholdPickupEventForm from "@/pages/admin/modules/customerMasters/hous
 import TripSummary from "@/pages/admin/modules/reports/tripsummary/tripsummary";
 import MonthlyDistance from "@/pages/admin/modules/reports/monthlydistance/monthlydistance";
 import WasteSummary from "@/pages/admin/modules/reports/wasteCollectedSummary/wastesummary";
+import MonthlyWasteComparisonListPage from "@/pages/admin/modules/reports/monthlyWasteComparison/MonthlyWasteComparisonListPage";
+import MonthlyWasteComparisonForm from "@/pages/admin/modules/reports/monthlyWasteComparison/MonthlyWasteComparisonForm";
 import ComplaintsList from "@/pages/admin/modules/citizienGrievance/complaints/complaintsList";
 import ComplaintAddForm from "@/pages/admin/modules/citizienGrievance/complaints/complaintsForm";
 import ComplaintEditForm from "@/pages/admin/modules/citizienGrievance/complaints/complaintsEditForm";
@@ -235,6 +237,7 @@ const ROUTES: RouteMap = {
     "trip-summary": { component: TripSummary },
     "monthly-distance": { component: MonthlyDistance },
     "waste-collected-summary": { component: WasteSummary },
+    "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage, form: MonthlyWasteComparisonForm },
   },
 };
 
