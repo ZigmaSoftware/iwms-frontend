@@ -851,7 +851,8 @@ const enResource = {
           "reports": "Reports",
           "trip_summary": "Trip Summary",
           "monthly_distance": "Monthly Distance",
-          "waste_collected_summary": "Waste Collected Summary"
+          "waste_collected_summary": "Waste Collected Summary",
+          "monthly_waste_comparison": "Monthly Waste Comparison"
         },
         "project": {
           "company_id": "Company ID",

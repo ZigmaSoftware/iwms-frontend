@@ -120,6 +120,7 @@ export const binLoadLogApi = adminApi.binLoadLogs;
 export const supervisorZoneAccessAuditApi = adminApi.supervisorZoneAccessAudits;
 export const staffTemplateAuditLogApi = adminApi.staffTemplateAuditLogs;
 export const commonAuditApi = adminApi.commonAudits;
+export const monthlyWasteComparisonApi = adminApi.monthlyWasteComparison;
 
 /* =========================
    UTILITIES
