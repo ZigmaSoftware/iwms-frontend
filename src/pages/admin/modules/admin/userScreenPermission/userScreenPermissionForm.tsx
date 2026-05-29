@@ -199,10 +199,13 @@ export default function UserScreenPermissionForm() {
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
+    projectId,
+    projects,
     companies,
     isSuperAdmin,
     loggedInCompanyUniqueId,
     onCompanyChange,
+    setProjectId,
   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const [staffUserTypeId, setStaffUserTypeId] = useState(() =>
@@ -908,6 +911,30 @@ export default function UserScreenPermissionForm() {
                 {companyOptions.map((company) => (
                   <SelectItem key={company.value} value={company.value}>
                     {company.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>{t("admin.nav.project")}</Label>
+            <Select
+              value={projectId}
+              onValueChange={setProjectId}
+              disabled={!companyUniqueId || projects.length === 0}
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={t("common.select_item_placeholder", {
+                    item: t("admin.nav.project"),
+                  })}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.value} value={project.value}>
+                    {project.label}
                   </SelectItem>
                 ))}
               </SelectContent>
