@@ -70,6 +70,101 @@ const readLoginProfile = (): LoginProfile | null => {
   }
 };
 
+const sameId = (left: unknown, right: unknown): boolean =>
+  toStringId(left) !== "" && toStringId(left) === toStringId(right);
+
+const normalizeApiList = (response: any): any[] => {
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.results)) return response.results;
+  if (Array.isArray(response?.data)) return response.data;
+  return [];
+};
+
+const normalizeText = (value: unknown): string =>
+  String(value ?? "").trim().toLowerCase();
+
+const getRelationLabel = (
+  relation: unknown,
+  labelKeys: string[] = ["name"]
+): string => {
+  if (relation === null || relation === undefined) return "";
+  if (typeof relation !== "object") return String(relation);
+
+  const record = relation as Record<string, unknown>;
+  for (const key of labelKeys) {
+    if (record[key] !== undefined && record[key] !== null) {
+      return String(record[key]);
+    }
+  }
+  return "";
+};
+
+const toMasterOptions = (
+  rows: any[],
+  labelKeys: string[]
+): SelectOption[] =>
+  rows
+    .map((row: any) => {
+      const value = toStringId(row?.unique_id ?? row?.id);
+      const label =
+        labelKeys
+          .map((key) => row?.[key])
+          .find((item) => item !== undefined && item !== null && item !== "") ??
+        value;
+      return { value, label: String(label) };
+    })
+    .filter((option) => option.value);
+
+const ensureOption = (
+  options: SelectOption[],
+  value: string,
+  label: string
+): SelectOption[] => {
+  if (!value || options.some((option) => sameId(option.value, value))) {
+    return options;
+  }
+  return [{ value, label: label || value }, ...options];
+};
+
+const resolveSelectedValue = (
+  options: SelectOption[],
+  rawId: unknown,
+  rawRelation: unknown,
+  rawLabel: unknown,
+  relationLabelKeys: string[]
+): string => {
+  const idCandidates = [toStringId(rawId), toStringId(rawRelation)].filter(Boolean);
+
+  for (const candidate of idCandidates) {
+    const matchedById = options.find((option) => sameId(option.value, candidate));
+    if (matchedById) return matchedById.value;
+  }
+
+  const labelCandidates = [
+    String(rawLabel ?? ""),
+    getRelationLabel(rawRelation, relationLabelKeys),
+    typeof rawId === "string" ? rawId : "",
+  ].filter(Boolean);
+
+  for (const candidate of labelCandidates) {
+    const matchedByLabel = options.find(
+      (option) => normalizeText(option.label) === normalizeText(candidate)
+    );
+    if (matchedByLabel) return matchedByLabel.value;
+  }
+
+  return toStringId(rawId) || toStringId(rawRelation);
+};
+
+const matchesParent = (
+  parentValue: unknown,
+  selectedId: string,
+  selectedLabel: string
+): boolean =>
+  sameId(parentValue, selectedId) ||
+  normalizeText(getRelationLabel(parentValue, ["name", "state_name", "district_name"])) ===
+    normalizeText(selectedLabel);
+
 export default function PanchayatForm() {
   const { showField, filterPayload } = useFieldVisibility(
     "masters",
@@ -163,14 +258,12 @@ export default function PanchayatForm() {
       LOAD MASTER DATA
   ==============================*/
   useEffect(() => {
-    stateApi.list().then((res: any) =>
-      setStates(
-        res.map((x: any) => ({
-          value: x.unique_id,
-          label: x.name,
-        }))
-      )
-    );
+    stateApi
+      .list()
+      .then((res: any) => {
+        setStates(toMasterOptions(normalizeApiList(res), ["name", "state_name"]));
+      })
+      .catch(() => setStates([]));
   }, []);
 
   const areaTypesQuery = useAreaTypesQuery();
@@ -245,33 +338,66 @@ export default function PanchayatForm() {
       });
   }, [companyUniqueId]);
 
-  useEffect(() => {
-    if (!stateId) return;
-    districtApi.list().then((res: any) =>
-      setDistricts(
-        res
-          .filter((d: any) => d.state_id === stateId)
-          .map((d: any) => ({
-            value: d.unique_id,
-            label: d.name,
-          }))
-      )
-    );
-  }, [stateId]);
+  // Load dependent dropdowns only when the user changes the selection.
+  // Do not use stateId/districtId effects here, because those effects run during
+  // edit population and overwrite the already selected District and City options.
+  const handleStateChange = async (value: string) => {
+    setStateId(value);
+    setDistrictId("");
+    setCityId("");
+    setDistricts([]);
+    setCities([]);
 
-  useEffect(() => {
-    if (!districtId) return;
-    cityApi.list().then((res: any) =>
-      setCities(
-        res
-          .filter((c: any) => c.district_id === districtId)
-          .map((c: any) => ({
-            value: c.unique_id,
-            label: c.name,
-          }))
-      )
-    );
-  }, [districtId]);
+    const selectedStateLabel =
+      states.find((option) => sameId(option.value, value))?.label ?? "";
+
+    try {
+      const rows = normalizeApiList(await districtApi.list()).filter(
+        (district: any) =>
+          matchesParent(
+            district.state_id ??
+              district.state_unique_id ??
+              district.state?.unique_id ??
+              district.state?.id ??
+              district.state,
+            value,
+            selectedStateLabel
+          )
+      );
+
+      setDistricts(toMasterOptions(rows, ["name", "district_name"]));
+    } catch {
+      setDistricts([]);
+    }
+  };
+
+  const handleDistrictChange = async (value: string) => {
+    setDistrictId(value);
+    setCityId("");
+    setCities([]);
+
+    const selectedDistrictLabel =
+      districts.find((option) => sameId(option.value, value))?.label ?? "";
+
+    try {
+      const rows = normalizeApiList(await cityApi.list()).filter(
+        (city: any) =>
+          matchesParent(
+            city.district_id ??
+              city.district_unique_id ??
+              city.district?.unique_id ??
+              city.district?.id ??
+              city.district,
+            value,
+            selectedDistrictLabel
+          )
+      );
+
+      setCities(toMasterOptions(rows, ["name", "city_name"]));
+    } catch {
+      setCities([]);
+    }
+  };
 
   /* =============================
       EDIT MODE
@@ -279,28 +405,175 @@ export default function PanchayatForm() {
   const panchayatQuery = usePanchayatQuery(id);
 
   useEffect(() => {
-    if (!panchayatQuery.data) return;
+    if (!isEdit || !panchayatQuery.data) return;
+
+    let cancelled = false;
     const data = panchayatQuery.data as any;
-    setPanchayatName(data.panchayat_name ?? "");
-    const recordCompanyId = data.company_unique_id ?? data.company_id ?? data.company?.unique_id;
-    if (recordCompanyId && !loggedInCompanyUniqueId) {
-      setCompanyUniqueId(toStringId(recordCompanyId));
-    }
-    setProjectId(toStringId(data.project_id ?? data.project_unique_id ?? data.project));
-    setStateId(toStringId(data.state_id ?? data.state));
-    setDistrictId(toStringId(data.district_id ?? data.district));
-    setCityId(toStringId(data.city_id ?? data.city));
-    setAreaTypeId(toStringId(data.area_type_id ?? data.area_type));
-    setHierarchyId(toStringId(data.hierarchy_id ?? data.hierarchy));
-    setAgreedWeightKg(toStringId(data.agreed_weight_kg ?? "0"));
-    setWeightUnit(data.weight_unit ?? "kg");
-    setEffectiveFrom(data.effective_from ?? "");
-    setLatitude(data.latitude ?? "");
-    setLongitude(data.longitude ?? "");
-    setGeofencingType(data.geofencing_type ?? "polygon");
-    setIsActive(Boolean(data.is_active));
-    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-  }, [panchayatQuery.data, loggedInCompanyUniqueId, applyCompanyProjectFromRecord]);
+
+    const populateEditForm = async () => {
+      try {
+        setPanchayatName(data.panchayat_name ?? data.name ?? "");
+
+        const recordCompanyId =
+          data.company_unique_id ?? data.company_id ?? data.company?.unique_id;
+        if (recordCompanyId && !loggedInCompanyUniqueId) {
+          setCompanyUniqueId(toStringId(recordCompanyId));
+        }
+
+        setProjectId(
+          toStringId(data.project_id ?? data.project_unique_id ?? data.project)
+        );
+        setAreaTypeId(toStringId(data.area_type_id ?? data.area_type));
+        setHierarchyId(toStringId(data.hierarchy_id ?? data.hierarchy));
+        setAgreedWeightKg(toStringId(data.agreed_weight_kg ?? "0"));
+        setWeightUnit(data.weight_unit ?? "kg");
+        setEffectiveFrom(data.effective_from ?? "");
+        setLatitude(data.latitude ?? "");
+        setLongitude(data.longitude ?? "");
+        setGeofencingType(data.geofencing_type ?? "polygon");
+        setIsActive(data.is_active === undefined ? true : Boolean(data.is_active));
+
+        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+
+        // 1. Resolve saved State to the master State Select value.
+        const stateRows = normalizeApiList(await stateApi.list());
+        if (cancelled) return;
+
+        let stateOptions = toMasterOptions(stateRows, ["name", "state_name"]);
+        const selectedStateId = resolveSelectedValue(
+          stateOptions,
+          data.state_id ??
+            data.state_unique_id ??
+            data.state?.unique_id ??
+            data.state?.id,
+          data.state,
+          data.state_name,
+          ["name", "state_name"]
+        );
+        const selectedStateLabel =
+          stateOptions.find((option) => sameId(option.value, selectedStateId))
+            ?.label ??
+          String(
+            data.state_name ??
+              getRelationLabel(data.state, ["name", "state_name"]) ??
+              selectedStateId
+          );
+
+        stateOptions = ensureOption(
+          stateOptions,
+          selectedStateId,
+          selectedStateLabel
+        );
+        setStates(stateOptions);
+        setStateId(selectedStateId);
+
+        // 2. Load districts for resolved State, then resolve saved District.
+        const districtRows = normalizeApiList(await districtApi.list()).filter(
+          (district: any) =>
+            matchesParent(
+              district.state_id ??
+                district.state_unique_id ??
+                district.state?.unique_id ??
+                district.state?.id ??
+                district.state,
+              selectedStateId,
+              selectedStateLabel
+            )
+        );
+        if (cancelled) return;
+
+        let districtOptions = toMasterOptions(districtRows, [
+          "name",
+          "district_name",
+        ]);
+        const selectedDistrictId = resolveSelectedValue(
+          districtOptions,
+          data.district_id ??
+            data.district_unique_id ??
+            data.district?.unique_id ??
+            data.district?.id,
+          data.district,
+          data.district_name,
+          ["name", "district_name"]
+        );
+        const selectedDistrictLabel =
+          districtOptions.find((option) =>
+            sameId(option.value, selectedDistrictId)
+          )?.label ??
+          String(
+            data.district_name ??
+              getRelationLabel(data.district, ["name", "district_name"]) ??
+              selectedDistrictId
+          );
+
+        districtOptions = ensureOption(
+          districtOptions,
+          selectedDistrictId,
+          selectedDistrictLabel
+        );
+        setDistricts(districtOptions);
+        setDistrictId(selectedDistrictId);
+
+        // 3. Load cities for resolved District, then resolve saved City.
+        const cityRows = normalizeApiList(await cityApi.list()).filter(
+          (city: any) =>
+            matchesParent(
+              city.district_id ??
+                city.district_unique_id ??
+                city.district?.unique_id ??
+                city.district?.id ??
+                city.district,
+              selectedDistrictId,
+              selectedDistrictLabel
+            )
+        );
+        if (cancelled) return;
+
+        let cityOptions = toMasterOptions(cityRows, ["name", "city_name"]);
+        const selectedCityId = resolveSelectedValue(
+          cityOptions,
+          data.city_id ??
+            data.city_unique_id ??
+            data.city?.unique_id ??
+            data.city?.id,
+          data.city,
+          data.city_name,
+          ["name", "city_name"]
+        );
+        const selectedCityLabel =
+          cityOptions.find((option) => sameId(option.value, selectedCityId))
+            ?.label ??
+          String(
+            data.city_name ??
+              getRelationLabel(data.city, ["name", "city_name"]) ??
+              selectedCityId
+          );
+
+        cityOptions = ensureOption(
+          cityOptions,
+          selectedCityId,
+          selectedCityLabel
+        );
+        setCities(cityOptions);
+        setCityId(selectedCityId);
+      } catch {
+        if (!cancelled) {
+          Swal.fire("Error", "Unable to load state, district and city details", "error");
+        }
+      }
+    };
+
+    populateEditForm();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isEdit,
+    panchayatQuery.data,
+    loggedInCompanyUniqueId,
+    applyCompanyProjectFromRecord,
+  ]);
 
   /* =============================
       SUBMIT
@@ -342,6 +615,7 @@ export default function PanchayatForm() {
       is_active: isActive,
     };
     const basePayload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
+
 
     try {
       if (isEdit && id) {
@@ -434,13 +708,7 @@ export default function PanchayatForm() {
             <Label>State *</Label>
             <Select
               value={stateId}
-              onValueChange={(value) => {
-                setStateId(value);
-                setDistrictId("");
-                setCityId("");
-                setDistricts([]);
-                setCities([]);
-              }}
+              onValueChange={handleStateChange}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select State" />
@@ -461,11 +729,7 @@ export default function PanchayatForm() {
             <Label>District *</Label>
             <Select
               value={districtId}
-              onValueChange={(value) => {
-                setDistrictId(value);
-                setCityId("");
-                setCities([]);
-              }}
+              onValueChange={handleDistrictChange}
               disabled={!stateId}
             >
               <SelectTrigger>
