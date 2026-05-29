@@ -19,6 +19,8 @@ export * from "./masters/vehicleType";
 export * from "./masters/vehicleCreation";
 export * from "./masters/tripDefinition";
 export * from "./masters/fuel";
+export * from "./masters/dailyTripAssignment";
+export * from "./masters/dailyTripLog";
 export * from "./masters/mainCategory";
 export * from "./masters/subCategory";
 export * from "./masters/vehicleTripAudit";

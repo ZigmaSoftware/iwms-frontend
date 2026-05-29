@@ -38,6 +38,7 @@ export default function UserScreenPermissionList() {
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
+    projectId,
     companies,
     onCompanyChange,
     isSuperAdmin,

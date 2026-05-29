@@ -835,6 +835,8 @@ const enResource = {
           "trip_instance": "Trip Instance",
           "trip_attendance": "Trip Attendance",
           "fuel": "Fuel",
+          "daily_trip_assignment": "Daily Trip Assignment",
+          "daily_trip_log": "Daily Trip Logs",
           "audit_items": "Audit Items",
           "common_audit": "Common Audit",
           "vehicle_trip_audit": "Vehicle Trip Audit",

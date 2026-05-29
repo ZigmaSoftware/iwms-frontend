@@ -88,10 +88,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { usePermission } from "@/contexts/PermissionContext";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useRoutePlansList } from "@/tanstack/admin/queries/masters/routePlan";
-
-// TODO: Replace with actual API import when available
-// import { routePlansApi } from "@/helpers/admin";
+import { routePlanApi } from "@/helpers/admin";
 
 type RoutePlan = {
   unique_id: string;
@@ -164,11 +161,11 @@ export default function RoutePlanList() {
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
-  // Check permissions for this module
-  const canView = hasPermission("user-creations", "RoutePlan", "view");
-  const canAdd = hasPermission("user-creations", "RoutePlan", "add");
-  const canEdit = hasPermission("user-creations", "RoutePlan", "edit");
-  const canDelete = hasPermission("user-creations", "RoutePlan", "delete");
+  // Check permissions for this module — superadmin always has full access
+  const canView   = isSuperAdmin || hasPermission("user-creations", "RoutePlan", "view");
+  const canAdd    = isSuperAdmin || hasPermission("user-creations", "RoutePlan", "add");
+  const canEdit   = isSuperAdmin || hasPermission("user-creations", "RoutePlan", "edit");
+  const canDelete = isSuperAdmin || hasPermission("user-creations", "RoutePlan", "delete");
 
   const { encStaffMasters, encRoutePlans } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encStaffMasters}/${encRoutePlans}/new`;
@@ -177,7 +174,6 @@ export default function RoutePlanList() {
   const apiFilters = companyUniqueId
     ? { company_id: companyUniqueId, project_id: projectId ?? undefined }
     : null;
-  const routePlansQuery = useRoutePlansList(apiFilters);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   // const [filters, setFilters] = useState<any>({
@@ -196,6 +192,9 @@ export default function RoutePlanList() {
   });
 
   const fetchList = useCallback(async () => {
+    // Debug: log invocation
+    // eslint-disable-next-line no-console
+    console.debug("[RoutePlanList] fetchList called", { companyUniqueId, projectId, apiFilters, isSuperAdmin, companiesLength: companies.length });
     if (isSuperAdmin && companies.length === 0) {
       setList([]);
       setLoading(false);
@@ -210,19 +209,14 @@ export default function RoutePlanList() {
 
     try {
       setLoading(true);
-      const res = routePlansQuery.data;
+      // Debug: before API call
+      // eslint-disable-next-line no-console
+      console.debug("[RoutePlanList] calling routePlanApi.list", { apiFilters });
+      const res = await routePlanApi.list({ params: apiFilters ?? undefined });
+      // Debug: after API response
+      // eslint-disable-next-line no-console
+      console.debug("[RoutePlanList] routePlanApi.list response", { res });
       const rows = normalize(res);
-
-      const hasContextFields = rows.some((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        return Boolean(rowCompanyId || rowProjectId);
-      });
-
-      if (!hasContextFields) {
-        setList(rows);
-        return;
-      }
 
       const filtered = rows.filter((row) => {
         const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
@@ -240,7 +234,7 @@ export default function RoutePlanList() {
     } finally {
       setLoading(false);
     }
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, routePlansQuery.data, t]);
+  }, [apiFilters, companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
 
   useEffect(() => {
     if (canView) {

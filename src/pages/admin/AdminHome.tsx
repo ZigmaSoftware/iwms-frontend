@@ -531,8 +531,8 @@ export default function AdminHome() {
               { label: "Active Users", value: dashboard.totals.activeUsers, color: "text-emerald-300" },
               { label: "Vehicles", value: data.vehicles.length, color: "text-amber-300" },
               { label: "Open Grievances", value: dashboard.totals.activeComplaints, color: "text-rose-300" },
-            ].map(({ label, value, color }) => (
-              <div key={label} className="rounded-xl border border-slate-700 bg-slate-800/40 px-4 py-3 backdrop-blur-sm">
+            ].map(({ label, value, color }, idx) => (
+              <div key={`${label}-${idx}`} className="rounded-xl border border-slate-700 bg-slate-800/40 px-4 py-3 backdrop-blur-sm">
                 <p className={`text-2xl font-bold tabular-nums ${color}`}>
                   {loading ? "—" : value.toLocaleString()}
                 </p>
@@ -561,7 +561,7 @@ export default function AdminHome() {
             {loading ? (
               <SkeletonChart height={320} />
             ) : hasUserData ? (
-              <ReactApexChart options={userDonutOptions} series={dashboard.charts.userDonutSeries} type="donut" height={320} />
+              <SafeApexChart options={userDonutOptions} series={dashboard.charts.userDonutSeries} type="donut" height={320} />
             ) : (
               <EmptyChart height={320} />
             )}
@@ -580,8 +580,8 @@ export default function AdminHome() {
                 </h3>
               </div>
               <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
-                {MASTER_CATEGORIES.filter((c) => c.group === "Geography").map(({ label, key, color, icon: Icon }) => (
-                  <MasterCard key={key} label={label} count={data[key].length} color={color} icon={Icon} loading={loading} />
+                {MASTER_CATEGORIES.filter((c) => c.group === "Geography").map(({ label, key, color, icon: Icon }, idx) => (
+                  <MasterCard key={`${key}-${idx}`} label={label} count={data[key].length} color={color} icon={Icon} loading={loading} />
                 ))}
               </div>
             </div>
@@ -595,8 +595,8 @@ export default function AdminHome() {
                 </h3>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {MASTER_CATEGORIES.filter((c) => c.group === "Organisation").map(({ label, key, color, icon: Icon }) => (
-                  <MasterCard key={key} label={label} count={data[key].length} color={color} icon={Icon} loading={loading} />
+                {MASTER_CATEGORIES.filter((c) => c.group === "Organisation").map(({ label, key, color, icon: Icon }, idx) => (
+                  <MasterCard key={`${key}-${idx}`} label={label} count={data[key].length} color={color} icon={Icon} loading={loading} />
                 ))}
               </div>
             </div>
@@ -610,12 +610,12 @@ export default function AdminHome() {
                 </h3>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {MASTER_CATEGORIES.filter((c) => c.group === "Waste").map(({ label, key, color, icon: Icon }) => (
-                  <MasterCard key={key} label={label} count={data[key].length} color={color} icon={Icon} loading={loading} />
+                {MASTER_CATEGORIES.filter((c) => c.group === "Waste").map(({ label, key, color, icon: Icon }, idx) => (
+                  <MasterCard key={`${key}-${idx}`} label={label} count={data[key].length} color={color} icon={Icon} loading={loading} />
                 ))}
                 {/* Extra stats in same row */}
-                <MasterCard label="Departments" count={data.departments.length} color="#f97316" icon={Briefcase} loading={loading} />
-                <MasterCard label="Designations" count={data.designations.length} color="#ef4444" icon={Tag} loading={loading} />
+                <MasterCard key={`departments-${data.departments.length}`} label="Departments" count={data.departments.length} color="#f97316" icon={Briefcase} loading={loading} />
+                <MasterCard key={`designations-${data.designations.length}`} label="Designations" count={data.designations.length} color="#ef4444" icon={Tag} loading={loading} />
               </div>
             </div>
           </div>
@@ -627,7 +627,7 @@ export default function AdminHome() {
             {loading ? (
               <SkeletonChart height={260} />
             ) : hasGrievanceData ? (
-              <ReactApexChart options={grievanceAreaOptions} series={grievanceAreaSeries} type="area" height={260} />
+              <SafeApexChart options={grievanceAreaOptions} series={grievanceAreaSeries} type="area" height={260} />
             ) : (
               <EmptyChart height={260} />
             )}
@@ -645,7 +645,7 @@ export default function AdminHome() {
             ) : hasAssetData ? (
               <div className="flex items-center gap-2">
                 <div className="w-[55%]">
-                  <ReactApexChart options={assetRadialOptions} series={dashboard.charts.assetRadialSeries} type="radialBar" height={240} />
+                  <SafeApexChart options={assetRadialOptions} series={dashboard.charts.assetRadialSeries} type="radialBar" height={240} />
                 </div>
                 <div className="flex-1 space-y-5 py-2 pr-2">
                   {[
@@ -675,7 +675,7 @@ export default function AdminHome() {
             {loading ? (
               <SkeletonChart height={260} />
             ) : hasScreenData ? (
-              <ReactApexChart options={screenDonutOptions} series={dashboard.charts.screenDonutSeries} type="donut" height={260} />
+              <SafeApexChart options={screenDonutOptions} series={dashboard.charts.screenDonutSeries} type="donut" height={260} />
             ) : (
               <EmptyChart height={260} />
             )}
@@ -736,9 +736,9 @@ export default function AdminHome() {
                       <td className="px-4 py-4 max-w-xs">
                         {row.userScreenNames.length > 0 ? (
                           <div className="flex flex-wrap gap-1.5">
-                            {row.userScreenNames.slice(0, 6).map((name) => (
+                            {row.userScreenNames.slice(0, 6).map((name, i) => (
                               <span
-                                key={name}
+                                key={`${name}-${i}`}
                                 className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-600 shadow-sm"
                               >
                                 {name}
@@ -989,4 +989,13 @@ function EmptyChart({ height }: { height: number }) {
       No data available
     </div>
   );
+}
+
+function SafeApexChart(props: any) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  if (!mounted) return null;
+  return <ReactApexChart {...props} />;
 }

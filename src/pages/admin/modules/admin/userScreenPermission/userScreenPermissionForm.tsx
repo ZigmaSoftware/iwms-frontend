@@ -199,6 +199,7 @@ export default function UserScreenPermissionForm() {
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
+    projectId,
     companies,
     isSuperAdmin,
     loggedInCompanyUniqueId,
