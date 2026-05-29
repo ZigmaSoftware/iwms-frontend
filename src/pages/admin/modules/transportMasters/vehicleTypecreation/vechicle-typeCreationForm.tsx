@@ -18,12 +18,8 @@ import {
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import {
-  type VehicleTypePayload,
-  useVehicleTypeQuery,
-  useCreateVehicleTypeMutation,
-  useUpdateVehicleTypeMutation,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
+import type { VehicleTypePayload } from "@/helpers/admin/directQueries";
 
 const { encTransportMaster, encVehicleType } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleType}`;
@@ -65,16 +61,11 @@ export default function VehicleTypeCreationForm() {
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
-  // ── TanStack queries & mutations ──────────────────────────────────────────
-  const vehicleTypeQuery = useVehicleTypeQuery(id);
-  const createMutation = useCreateVehicleTypeMutation();
-  const updateMutation = useUpdateVehicleTypeMutation();
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
-
   // ── Local form state ──────────────────────────────────────────────────────
   const [vehicleTypeName, setVehicleTypeName] = useState("");
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ── Error extractor (mirrors WasteTypeForm pattern) ───────────────────────
   const extractErr = useCallback(
@@ -100,24 +91,27 @@ export default function VehicleTypeCreationForm() {
 
   // ── Populate form when editing ────────────────────────────────────────────
   useEffect(() => {
-    if (!isEdit || !vehicleTypeQuery.data) return;
-
-    const data = vehicleTypeQuery.data as Record<string, unknown>;
-    setVehicleTypeName(toStr(data.vehicleType));
-    setDescription(toStr(data.description));
-    setIsActive(Boolean(data.is_active));
-    applyCompanyProjectFromRecord(data);
-  }, [applyCompanyProjectFromRecord, isEdit, vehicleTypeQuery.data]);
-
-  // ── Show error if fetch fails in edit mode ────────────────────────────────
-  useEffect(() => {
-    if (!isEdit || !vehicleTypeQuery.isError) return;
-    Swal.fire(
-      t("admin.vehicle_type.load_failed_title"),
-      extractErr(vehicleTypeQuery.error),
-      "error"
-    );
-  }, [extractErr, isEdit, vehicleTypeQuery.error, vehicleTypeQuery.isError, t]);
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    adminApi.vehicleTypes.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        const data = res as Record<string, unknown>;
+        setVehicleTypeName(toStr(data.vehicleType));
+        setDescription(toStr(data.description));
+        setIsActive(Boolean(data.is_active));
+        applyCompanyProjectFromRecord(data);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        Swal.fire(
+          t("admin.vehicle_type.load_failed_title"),
+          extractErr(err),
+          "error"
+        );
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: FormEvent) => {
@@ -151,9 +145,10 @@ export default function VehicleTypeCreationForm() {
       "project_id_input",
     ]) as unknown as VehicleTypePayload;
 
+    setIsSubmitting(true);
     try {
       if (isEdit && id) {
-        await updateMutation.mutateAsync({ id, payload });
+        await adminApi.vehicleTypes.update(id, payload);
         Swal.fire({
           icon: "success",
           title: t("common.updated_success"),
@@ -161,7 +156,7 @@ export default function VehicleTypeCreationForm() {
           showConfirmButton: false,
         });
       } else {
-        await createMutation.mutateAsync(payload);
+        await adminApi.vehicleTypes.create(payload);
         Swal.fire({
           icon: "success",
           title: t("common.added_success"),
@@ -172,6 +167,8 @@ export default function VehicleTypeCreationForm() {
       navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error) {
       Swal.fire(t("common.save_failed"), extractErr(error), "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

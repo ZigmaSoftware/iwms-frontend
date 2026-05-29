@@ -15,8 +15,6 @@ export type MainScreenTypeRecord = {
 };
 
 export type MainScreenTypePayload = {
-  company_id?: string | null;
-  project_id?: string | null;
   type_name: string;
   is_active: boolean;
 };

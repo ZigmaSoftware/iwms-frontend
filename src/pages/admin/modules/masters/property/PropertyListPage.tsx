@@ -23,8 +23,8 @@ import {
   usePropertiesQuery,
   useUpdatePropertyMutation,
   // PropertyRecord,
-} from "@/tanstack/admin/queries/wastetype/property";
-import type{ PropertyRecord } from "@/tanstack/admin/queries/wastetype/property";
+} from "@/helpers/admin/directQueries";
+import type{ PropertyRecord } from "@/helpers/admin/directQueries";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;

@@ -88,7 +88,10 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { usePermission } from "@/contexts/PermissionContext";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { routePlanApi } from "@/helpers/admin";
+import { useRoutePlansList } from "@/helpers/admin/directQueries";
+
+// TODO: Replace with actual API import when available
+// import { routePlansApi } from "@/helpers/admin";
 
 type RoutePlan = {
   unique_id: string;

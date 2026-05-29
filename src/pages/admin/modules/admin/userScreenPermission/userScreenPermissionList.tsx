@@ -18,7 +18,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import {
   useDeleteUserScreenPermissionMutation,
   useUserScreenPermissionsByCompanyQuery,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 import type { StaffUserType } from "../types/admin.types";
 
@@ -39,8 +39,10 @@ export default function UserScreenPermissionList() {
   const {
     companyUniqueId,
     projectId,
+    projects,
     companies,
     onCompanyChange,
+    setProjectId,
     isSuperAdmin,
   } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
   const permissionsQuery = useUserScreenPermissionsByCompanyQuery(companyUniqueId);
@@ -89,6 +91,9 @@ export default function UserScreenPermissionList() {
         .trim()
         .toLowerCase();
 
+      const selectedProjectLabel =
+        projects.find((p) => p.value === projectId)?.label ?? "";
+
       const filteredData = data.filter((item) => {
         const itemCompanyId = String(item.company_id ?? "").trim();
         const itemCompanyUniqueId = String(item.company_unique_id ?? "").trim();
@@ -120,6 +125,8 @@ export default function UserScreenPermissionList() {
             composite_key: key,
             company_id: companyId || companyUniqueId,
             company_name: item.company_name ?? t("common.unknown"),
+            project_name: item.project_name || selectedProjectLabel,
+            usertype_name: item.usertype_name ?? "",
             staffusertype_name: item.staffusertype_name ?? t("common.unknown"),
             mainscreen_name: item.mainscreen_name ?? t("common.unknown"),
             mainscreen_id: screenId,
@@ -138,7 +145,7 @@ export default function UserScreenPermissionList() {
       }, {} as Record<string, any>);
 
       return Object.values(groupedObj);
-  }, [companies, companyUniqueId, permissionsQuery.data, t]);
+  }, [companies, companyUniqueId, permissionsQuery.data, projects, projectId, t]);
 
   useEffect(() => {
     if (!permissionsQuery.isError) return;
@@ -284,6 +291,27 @@ export default function UserScreenPermissionList() {
             </select>
           )}
 
+          {companyUniqueId && (
+            <select
+              value={projectId || ""}
+              onChange={(e) => setProjectId(e.target.value)}
+              disabled={projects.length === 0}
+              className="border rounded px-3 py-2 text-sm"
+            >
+              <option value="">
+                {t("common.select_item_placeholder", {
+                  item: t("admin.nav.project"),
+                })}
+              </option>
+
+              {projects.map((p: any) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          )}
+
           <Button
             label={t("common.add_item", {
               item: t("admin.user_screen_permission.permission_label"),
@@ -322,6 +350,12 @@ export default function UserScreenPermissionList() {
         <Column
           field="company_name"
           header={t("admin.nav.company")}
+          sortable
+        />
+
+        <Column
+          field="project_name"
+          header={t("admin.nav.project")}
           sortable
         />
 

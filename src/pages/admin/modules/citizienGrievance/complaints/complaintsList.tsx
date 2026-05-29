@@ -13,7 +13,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
-import { useComplaintsList } from "@/tanstack/admin/queries/masters/complaint";
+import { useComplaintsList } from "@/helpers/admin/directQueries";
 import { useTranslation } from "react-i18next";
 
 type Complaint = {

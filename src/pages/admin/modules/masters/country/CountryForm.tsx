@@ -19,14 +19,7 @@ import type { ErrorWithResponse } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  type CountryPayload,
-  useCountryQuery,
-  useCreateCountryMutation,
-  useUpdateCountryMutation,
-  useContinentsQuery,
-} from "@/tanstack/admin";
-
+import { adminApi } from "@/helpers/admin/registry";
 
 const { encMasters, encCountries } = getEncryptedRoute();
 
@@ -38,6 +31,14 @@ const COUNTRY_FIELDS: Record<string, string[]> = {
   mob_code: ["mob_code"],
   currency: ["currency"],
   is_active: ["is_active"],
+};
+
+type CountryPayload = {
+  name: string;
+  mob_code?: string;
+  currency?: string;
+  continent_id?: string | number | null;
+  is_active: boolean;
 };
 
 const normalizeNullableId = (
@@ -75,6 +76,9 @@ function CountryForm() {
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit });
 
+  const [recordData, setRecordData] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const extractErrorMessage = useCallback((error: unknown) => {
     if (!error) return t("common.request_failed");
     if (typeof error === "string") return error;
@@ -108,68 +112,72 @@ function CountryForm() {
     return t("common.request_failed");
   }, [t]);
 
-  const continentsQuery = useContinentsQuery();
-  const countryQuery = useCountryQuery(id);
-
+  // Fetch continents list
   useEffect(() => {
-    if (continentsQuery.isError) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(continentsQuery.error) });
-      return;
-    }
+    let cancelled = false;
+    adminApi.continents.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const data: any[] = Array.isArray(res) ? res : [];
+        const active = data
+          .filter((continent) => continent.is_active)
+          .map<SelectOption>((continent) => ({ value: String(continent.unique_id), label: continent.name }));
 
-    const selectedCountry = countryQuery.data as CountryWithContinent | undefined;
-    const selectedContinentId = normalizeNullableId(
-      selectedCountry?.continent_id ??
-        selectedCountry?.continent_unique_id ??
-        selectedCountry?.continent
-    );
-    const selectedContinentName = selectedCountry?.continent_name;
-    const data = continentsQuery.data ?? [];
-    const active = data
-      .filter((continent) => continent.is_active)
-      .map<SelectOption>((continent) => ({ value: String(continent.unique_id), label: continent.name }));
+        const selectedContinentId = normalizeNullableId(
+          recordData?.continent_id ??
+            recordData?.continent_unique_id ??
+            recordData?.continent
+        );
+        const selectedContinentName = recordData?.continent_name;
 
-    if (
-      selectedContinentId &&
-      selectedContinentName &&
-      !active.some((continent) => continent.value === selectedContinentId)
-    ) {
-      setContinents([
-        ...active,
-        { value: selectedContinentId, label: selectedContinentName },
-      ]);
-      return;
-    }
+        if (
+          selectedContinentId &&
+          selectedContinentName &&
+          !active.some((continent) => continent.value === selectedContinentId)
+        ) {
+          setContinents([
+            ...active,
+            { value: selectedContinentId, label: selectedContinentName },
+          ]);
+          return;
+        }
 
-    setContinents(active);
-  }, [
-    continentsQuery.data,
-    continentsQuery.error,
-    continentsQuery.isError,
-    countryQuery.data,
-    extractErrorMessage,
-    t,
-  ]);
+        setContinents(active);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(err) });
+      });
+    return () => { cancelled = true; };
+  }, [recordData, t, extractErrorMessage]);
 
-  const createCountryMutation = useCreateCountryMutation();
-  const updateCountryMutation = useUpdateCountryMutation();
-  const isSubmitting = createCountryMutation.isPending || updateCountryMutation.isPending;
-
+  // Fetch country record in edit mode
   useEffect(() => {
-    if (!countryQuery.data) return;
-    const data = countryQuery.data as CountryWithContinent;
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    adminApi.countries.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        const data = res as CountryWithContinent;
+        setRecordData(data);
 
-    setName(data.name ?? "");
-    setIsActive(Boolean(data.is_active));
-    setMobCode(data.mob_code ?? "");
-    setCurrency(data.currency ?? "");
+        setName(data.name ?? "");
+        setIsActive(Boolean(data.is_active));
+        setMobCode(data.mob_code ?? "");
+        setCurrency(data.currency ?? "");
 
-    const resolvedContinentId = normalizeNullableId(
-      data.continent_id ?? data.continent_unique_id ?? data.continent
-    );
-    setContinentId(resolvedContinentId ?? "");
-    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-  }, [countryQuery.data, applyCompanyProjectFromRecord]);
+        const resolvedContinentId = normalizeNullableId(
+          data.continent_id ?? data.continent_unique_id ?? data.continent
+        );
+        setContinentId(resolvedContinentId ?? "");
+        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(err) });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -208,8 +216,7 @@ function CountryForm() {
     //   return;
     // }
 
-    // mutations are declared at component top-level
-
+    setIsSubmitting(true);
     try {
       const rawPayload = {
         name: name.trim(),
@@ -221,10 +228,10 @@ function CountryForm() {
       const payload = filterPayload(rawPayload) as CountryPayload;
 
       if (isEdit && id) {
-        await updateCountryMutation.mutateAsync({ id, payload });
+        await adminApi.countries.update(id, payload);
         Swal.fire({ icon: "success", title: t("common.updated_success"), timer: 1500, showConfirmButton: false });
       } else {
-        await createCountryMutation.mutateAsync(payload);
+        await adminApi.countries.create(payload);
         Swal.fire({ icon: "success", title: t("common.added_success"), timer: 1500, showConfirmButton: false });
       }
 
@@ -233,7 +240,7 @@ function CountryForm() {
       console.error("Failed to save:", error);
       Swal.fire({ icon: "error", title: t("common.save_failed"), text: extractErrorMessage(error) });
     } finally {
-      // no-op: mutation hook loading state drives UI
+      setIsSubmitting(false);
     }
   };
 

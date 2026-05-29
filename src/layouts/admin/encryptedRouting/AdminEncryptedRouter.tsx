@@ -32,7 +32,7 @@ import BinForm from "@/pages/admin/modules/masters/bin/BinForm";
 
 
 import PanchayatListPage from "@/pages/admin/modules/masters/panchayat/PanchayatListPage";
-import PanchayatForm from "@/pages/admin/modules/masters/panchayat/PanchaytForm";
+import PanchayatForm from "@/pages/admin/modules/masters/panchayat/PanchayatForm";
 import AreaTypeListPage from "@/pages/admin/modules/masters/areaType/AreaTypeListPage";
 import AreaTypeForm from "@/pages/admin/modules/masters/areaType/AreaTypeForm";
 import HierarchyListPage from "@/pages/admin/modules/masters/hierarchy/HierarchyListPage";
@@ -59,6 +59,8 @@ import HouseholdPickupEventForm from "@/pages/admin/modules/customerMasters/hous
 import TripSummary from "@/pages/admin/modules/reports/tripsummary/tripsummary";
 import MonthlyDistance from "@/pages/admin/modules/reports/monthlydistance/monthlydistance";
 import WasteSummary from "@/pages/admin/modules/reports/wasteCollectedSummary/wastesummary";
+import MonthlyWasteComparisonListPage from "@/pages/admin/modules/reports/monthlyWasteComparison/MonthlyWasteComparisonListPage";
+import MonthlyWasteComparisonForm from "@/pages/admin/modules/reports/monthlyWasteComparison/MonthlyWasteComparisonForm";
 import ComplaintsList from "@/pages/admin/modules/citizienGrievance/complaints/complaintsList";
 import ComplaintAddForm from "@/pages/admin/modules/citizienGrievance/complaints/complaintsForm";
 import ComplaintEditForm from "@/pages/admin/modules/citizienGrievance/complaints/complaintsEditForm";
@@ -241,6 +243,7 @@ const ROUTES: RouteMap = {
     "trip-summary": { component: TripSummary },
     "monthly-distance": { component: MonthlyDistance },
     "waste-collected-summary": { component: WasteSummary },
+    "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage, form: MonthlyWasteComparisonForm },
   },
 };
 

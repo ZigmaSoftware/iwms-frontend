@@ -22,7 +22,7 @@ import {
   type FuelPayload,
   useFuelsQuery,
   useUpdateFuelMutation,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

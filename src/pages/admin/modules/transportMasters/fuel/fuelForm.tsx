@@ -8,12 +8,8 @@ import Select from "@/components/form/Select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  type FuelPayload,
-  useFuelQuery,
-  useCreateFuelMutation,
-  useUpdateFuelMutation,
-} from "@/tanstack/admin";
+import { type FuelPayload } from "@/helpers/admin/directQueries";
+import { adminApi } from "@/helpers/admin/registry";
 
 const { encTransportMaster, encFuel } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encTransportMaster}/${encFuel}`;
@@ -35,11 +31,33 @@ function FuelForm() {
     FUEL_FIELDS
   );
 
-  // ── TanStack ──────────────────────────────────────────────────────────────
-  const fuelQuery = useFuelQuery(id);
-  const createMutation = useCreateFuelMutation();
-  const updateMutation = useUpdateFuelMutation();
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  // ── Record fetch ──────────────────────────────────────────────────────────
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.fuels.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({
+          icon: "error",
+          title: t("admin.fuel.load_failed_title"),
+          text: err?.response?.data?.detail || t("common.request_failed"),
+        });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
+
+  // ── Submitting state ──────────────────────────────────────────────────────
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ── Local form state ──────────────────────────────────────────────────────
   const [fuelType, setFuelType] = useState("");
@@ -48,22 +66,11 @@ function FuelForm() {
 
   // ── Populate form in edit mode ────────────────────────────────────────────
   useEffect(() => {
-    if (!isEdit || !fuelQuery.data) return;
-    setFuelType(fuelQuery.data.fuel_type ?? "");
-    setDescription(fuelQuery.data.description ?? "");
-    setIsActive(fuelQuery.data.is_active ?? true);
-  }, [isEdit, fuelQuery.data]);
-
-  // ── Show error if fetch fails in edit mode ────────────────────────────────
-  useEffect(() => {
-    if (!isEdit || !fuelQuery.isError) return;
-    const err = fuelQuery.error as any;
-    Swal.fire({
-      icon: "error",
-      title: t("admin.fuel.load_failed_title"),
-      text: err?.response?.data?.detail || t("common.request_failed"),
-    });
-  }, [isEdit, fuelQuery.isError, fuelQuery.error, t]);
+    if (!isEdit || !recordData) return;
+    setFuelType(recordData.fuel_type ?? "");
+    setDescription(recordData.description ?? "");
+    setIsActive(recordData.is_active ?? true);
+  }, [isEdit, recordData]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
@@ -86,9 +93,10 @@ function FuelForm() {
     };
     const payload = filterPayload(rawPayload) as unknown as FuelPayload;
 
+    setIsSubmitting(true);
     try {
       if (isEdit && id) {
-        await updateMutation.mutateAsync({ id, payload });
+        await adminApi.fuels.update(id, payload);
         Swal.fire({
           icon: "success",
           title: t("common.updated_success"),
@@ -96,7 +104,7 @@ function FuelForm() {
           showConfirmButton: false,
         });
       } else {
-        await createMutation.mutateAsync(payload);
+        await adminApi.fuels.create(payload);
         Swal.fire({
           icon: "success",
           title: t("common.added_success"),
@@ -122,6 +130,8 @@ function FuelForm() {
         title: t("common.save_failed"),
         text: message,
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -196,7 +206,7 @@ function FuelForm() {
         <div className="flex justify-end gap-3 mt-6">
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || loadingRecord}
             className="bg-green-custom text-white px-4 py-2 rounded disabled:opacity-50 transition-colors"
           >
             {isSubmitting

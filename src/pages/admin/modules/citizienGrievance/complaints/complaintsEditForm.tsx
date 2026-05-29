@@ -1,21 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api } from "@/api";
 import Swal from "sweetalert2";
 import ComponentCard from "@/components/common/ComponentCard";
 import Select from "@/components/form/Select";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import {
-  customerCreationApi,
-  zoneApi,
-  wardApi,
-} from "@/helpers/admin";
-import {
-  useComplaintQuery,
-  useUpdateComplaint,
-} from "@/tanstack/admin/queries/masters/complaint";
+import { adminApi } from "@/helpers/admin/registry";
 import { useTranslation } from "react-i18next";
 
 const FILE_ICON =
@@ -35,21 +26,29 @@ export default function ComplaintEditForm() {
   const [previewName, setPreviewName] = useState<string>("");
 
   const [data, setData] = useState<any>(null);
-
-  const { data: complaintData, isLoading: complaintLoading } = useComplaintQuery(
-    id
-  );
-
-  const updateMutation = useUpdateComplaint();
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (complaintData) {
-      const c = complaintData?.data || complaintData;
-      setData(c);
-      setStatus(c.status || "PROGRESSING");
-      setRemarks(c.action_remarks || "");
-    }
-  }, [complaintData]);
+    if (!id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.complaints.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        const c = res?.data || res;
+        setData(c);
+        setStatus(c.status || "PROGRESSING");
+        setRemarks(c.action_remarks || "");
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire(t("common.error"), String(err?.response?.data ?? err?.message ?? t("common.load_failed")), "error");
+      });
+    return () => { cancelled = true; };
+  }, [id]);
 
   const { encCitizenGrivence, encComplaint } = getEncryptedRoute();
 
@@ -68,8 +67,6 @@ export default function ComplaintEditForm() {
 
   const isImageFile = (f: File) =>
     f.type.startsWith("image/") || isImageUrl(f.name || "");
-
-// load replaced by `useComplaintQuery` above
 
   const upload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -101,8 +98,11 @@ export default function ComplaintEditForm() {
     fd.append("action_remarks", remarks);
     if (closeFile) fd.append("close_image", closeFile);
 
+    setIsSubmitting(true);
     try {
-      await updateMutation.mutateAsync({ id: id || "", payload: fd });
+      await adminApi.complaints.update(id || "", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       Swal.fire(
         t("admin.citizen_grievance.complaints_edit.updated_title"),
         t("admin.citizen_grievance.complaints_edit.updated_message"),
@@ -118,6 +118,8 @@ export default function ComplaintEditForm() {
           ? JSON.stringify(error.response.data)
           : t("admin.citizen_grievance.complaints_edit.update_failed");
       Swal.fire(t("common.error"), message, "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -243,7 +245,11 @@ export default function ComplaintEditForm() {
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
-          <button className="bg-green-custom text-white px-4 py-2 rounded">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="bg-green-custom text-white px-4 py-2 rounded"
+          >
             {t("common.update")}
           </button>
 

@@ -836,7 +836,8 @@ const hiResource = {
           "reports": "रिपोर्ट्स",
           "trip_summary": "ट्रिप सारांश",
           "monthly_distance": "मासिक दूरी",
-          "waste_collected_summary": "संग्रहित कचरा सारांश"
+          "waste_collected_summary": "संग्रहित कचरा सारांश",
+          "monthly_waste_comparison": "मासिक कचरा तुलना"
         },
         "project": {
           "company_id": "कंपनी आईडी",

@@ -38,6 +38,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encMonthlyDistance,
     encTripSummary,
     encWasteCollectedSummary,
+    encMonthlyWasteComparison,
     encCitizenGrivence,
     encComplaint,
     encFeedback,
@@ -156,6 +157,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encReport}/${encTripSummary}`, nameKey: "admin.nav.trip_summary", parentNameKey: "admin.nav.reports" },
     { path: `/${encReport}/${encMonthlyDistance}`, nameKey: "admin.nav.monthly_distance", parentNameKey: "admin.nav.reports" },
     { path: `/${encReport}/${encWasteCollectedSummary}`, nameKey: "admin.nav.waste_collected_summary", parentNameKey: "admin.nav.reports" },
+    { path: `/${encReport}/${encMonthlyWasteComparison}`, nameKey: "admin.nav.monthly_waste_comparison", parentNameKey: "admin.nav.reports" },
   ];
 
   return _cache;

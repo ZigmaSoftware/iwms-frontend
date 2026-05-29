@@ -380,7 +380,7 @@ import { useNavigate, useLocation} from "react-router-dom";
 import {
   useStaffCreationList,
   useUpdateStaff,
-} from "@/tanstack/admin/queries/masters/staffCreation";
+} from "@/helpers/admin/directQueries";
 import Swal from "sweetalert2";
 import ReactDOM from "react-dom/client";
 

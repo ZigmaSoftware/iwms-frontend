@@ -1,4 +1,4 @@
-import type { PropertyPayload } from "@/tanstack/admin/queries/wastetype/property";
+import type { PropertyPayload } from "@/helpers/admin/directQueries";
 
 export type PropertyEditorProps = {
   initialPayload: PropertyPayload;

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -13,52 +12,13 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 import { companyApi, projectApi, staffCreationApi } from "@/helpers/admin";
 import { normalizeList } from "@/utils/forms";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useFormCompanyProjectSync } from "@/hooks/useFormCompanyProjectSync";
-
-// Sentinel value for "Not Applicable" selection
-const NA_VALUE = "N/A";
-const NA_OPTION: SelectOption = { value: NA_VALUE, label: "N/A" };
-
-/* ─── Types ─────────────────────────────────────────────── */
 
 type RelatedOption = SelectOption & {
   districtId?: string;
   cityId?: string;
-  companyId?: string;
-  projectId?: string;
 };
 
-type StaffRecord = {
-  unique_id?: string;
-  staff_name?: string;
-  employee_name?: string;
-  username?: string;
-  staffusertype_name?: string;
-  contractorusertype_name?: string;
-  designation?: string;
-  company_id?: unknown;
-  company_name?: string;
-  project_id?: unknown;
-  project_name?: string;
-  is_active?: boolean;
-  is_deleted?: boolean;
-  active_status?: boolean | number | string | null;
-  [key: string]: unknown;
-};
-
-type StaffTemplateRecord = {
-  unique_id?: string;
-  display_code?: string;
-  driver_id?: string;
-  [key: string]: unknown;
-};
-
-/* ─── Helpers (mirrors staffTemplateForm) ────────────────── */
-
-const toText = (value: unknown): string => String(value ?? "").trim();
-
-const extractId = (value: unknown): string => {
+const extractId = (value: any): string => {
   if (!value) return "";
   if (typeof value === "string") return value;
   if (typeof value === "number") return String(value);
@@ -109,72 +69,16 @@ const toStaffOption = (staff: StaffRecord): SelectOption => ({
 function RoutePlanEditor({ id, initialPayload, isEdit }: { id?: string; initialPayload: Record<string, unknown>; isEdit: boolean; }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  
+  const { id } = useParams<{ id?: string }>();
+  const isEdit = Boolean(id);
 
-  const districtApi = adminApi.districts;
-  const cityApi    = adminApi.cities;
-  const zoneApi    = adminApi.zones;
-  const vehicleApi = adminApi.vehicleCreations;
-  const panchayatApiInst      = adminApi.panchayats;
-  const staffTemplateApiInst  = adminApi.staffTemplateCreation;
-
-  // Raw data stores
-  const [staffRecords,        setStaffRecords]        = useState<StaffRecord[]>([]);
-  const [allDistricts,        setAllDistricts]        = useState<(SelectOption & { companyId?: string; projectId?: string })[]>([]);
-  const [allCities,           setAllCities]           = useState<RelatedOption[]>([]);
-  const [zones,               setZones]               = useState<RelatedOption[]>([]);
-  const [vehicles,            setVehicles]            = useState<RelatedOption[]>([]);
-  const [panchayats,          setPanchayats]          = useState<RelatedOption[]>([]);
-  const [staffTemplateRecords,setStaffTemplateRecords]= useState<StaffTemplateRecord[]>([]);
-  const [staffTemplates,      setStaffTemplates]      = useState<SelectOption[]>([]);
-
-  // Scoped options — recomputed when company/project changes
-  const [driverOptions,     setDriverOptions]     = useState<SelectOption[]>([]);
-  const [supervisorOptions, setSupervisorOptions] = useState<SelectOption[]>([]);
-
-  // Company / Project
-  const [companyOptions,  setCompanyOptions]  = useState<SelectOption[]>([]);
-  const [projectOptions,  setProjectOptions]  = useState<SelectOption[]>([]);
-  const [allProjects,     setAllProjects]     = useState<(SelectOption & { company_id?: string })[]>([]);
-  const [createCompanyId, setCreateCompanyId] = useState("");
-  const [createProjectId, setCreateProjectId] = useState("");
-
-  const [fetching,       setFetching]       = useState(false);
-  const [submitting,     setSubmitting]     = useState(false);
-  const [optionsLoaded,  setOptionsLoaded]  = useState(false);
-  const [restoreRecord,  setRestoreRecord]  = useState<Record<string, unknown> | null>(null);
-
-  const {
-    handleCompanyChange: createHandleCompanyChange,
-    handleProjectChange: createHandleProjectChange,
-    globalCompanyId,
-    globalProjectId,
-  } = useFormCompanyProjectSync({
-    selectedCompanyId: createCompanyId,
-    setSelectedCompanyId: setCreateCompanyId,
-    selectedProjectId: createProjectId,
-    setSelectedProjectId: setCreateProjectId,
-  });
-
-  const editSelection = useCompanyProjectSelection({
-    isEdit: isEdit,
-    initialCompanyId: String(initialPayload.company_id ?? ""),
-    initialProjectId: String(initialPayload.project_id ?? ""),
-  });
-
-  const selectedCompanyId = isEdit ? editSelection.companyUniqueId : createCompanyId;
-  const selectedProjectId = isEdit ? editSelection.projectId : createProjectId;
-
-  const currentCompanyOptions = isEdit ? editSelection.companies : companyOptions;
-  const currentProjectOptions = isEdit ? editSelection.projects : projectOptions;
-
-  const handleCompanyChange = isEdit ? editSelection.onCompanyChange : createHandleCompanyChange;
-  const handleProjectChange = isEdit ? editSelection.setProjectId : createHandleProjectChange;
-
-  const location = useLocation();
-  const qs = new URLSearchParams(location.search);
-  const qsCompany = qs.get("company_unique_id") ?? "";
-  const qsProject = qs.get("project_id") ?? "";
+  const [districts, setDistricts] = useState<SelectOption[]>([]);
+  const [cities, setCities] = useState<RelatedOption[]>([]);
+  const [zones, setZones] = useState<RelatedOption[]>([]);
+  const [vehicles, setVehicles] = useState<RelatedOption[]>([]);
+  const [supervisors, setSupervisors] = useState<SelectOption[]>([]);
+  const [fetching, setFetching] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     district_id:      "",
@@ -190,14 +94,8 @@ function RoutePlanEditor({ id, initialPayload, isEdit }: { id?: string; initialP
   const { encStaffMasters, encRoutePlans } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encStaffMasters}/${encRoutePlans}`;
 
-  /* ── Option converters ─────────────────────────────────── */
-
-  const toOptions = (
-    items: unknown[],
-    valueKey: string,
-    labelKey: string,
-  ): (SelectOption & { companyId?: string; projectId?: string })[] =>
-    (items as Record<string, unknown>[])
+  const toOptions = (items: any[], valueKey: string, labelKey: string): SelectOption[] =>
+    items
       .map((item) => ({
         value:     item?.[valueKey] as string,
         label:     (item?.[labelKey] ?? item?.[valueKey]) as string,
@@ -218,148 +116,73 @@ function RoutePlanEditor({ id, initialPayload, isEdit }: { id?: string; initialP
       }))
       .filter((opt) => opt.value != null && opt.value !== "");
 
-  /* ── Queries ───────────────────────────────────────────── */
-
-  const companiesQuery      = useQuery({ queryKey: ["superadmin", "companies"],              queryFn: () => companyApi.list() });
-  const projectsQuery       = useQuery({ queryKey: ["superadmin", "projects"],               queryFn: () => projectApi.list() });
-  const staffQuery          = useQuery({ queryKey: ["user creations", "staff creations"],    queryFn: () => staffCreationApi.list({ params: { active_status: 1 } }) });
-  const districtsQuery      = useQuery({ queryKey: ["masters", "districts"],                 queryFn: () => districtApi.list() });
-  const citiesQuery         = useQuery({ queryKey: ["masters", "cities"],                    queryFn: () => cityApi.list() });
-  const zonesQuery          = useQuery({ queryKey: ["masters", "zone"],                      queryFn: () => zoneApi.list() });
-  const vehiclesQuery       = useQuery({ queryKey: ["transport masters", "vehicle creation"],queryFn: () => vehicleApi.list() });
-  const panchayatsQuery     = useQuery({ queryKey: ["masters", "panchayats"],                queryFn: () => panchayatApiInst.list() });
-  const staffTemplatesQuery = useQuery({ queryKey: ["user creations", "staff template"],     queryFn: () => staffTemplateApiInst.list() });
-
-  /* ── Load static option data ───────────────────────────── */
-
-  useEffect(() => {
-    setFetching(
-      companiesQuery.isLoading  || projectsQuery.isLoading  ||
-      staffQuery.isLoading      || districtsQuery.isLoading ||
-      citiesQuery.isLoading     || zonesQuery.isLoading     ||
-      vehiclesQuery.isLoading   || panchayatsQuery.isLoading||
-      staffTemplatesQuery.isLoading,
-    );
-
-    if (
-      companiesQuery.isError  || projectsQuery.isError  ||
-      staffQuery.isError      || districtsQuery.isError ||
-      citiesQuery.isError     || zonesQuery.isError     ||
-      vehiclesQuery.isError   || panchayatsQuery.isError||
-      staffTemplatesQuery.isError
-    ) {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      return;
-    }
-
-    // Companies
-    const companiesData = normalizeList(companiesQuery.data) as Record<string, unknown>[];
-    const normalizedCompanies = companiesData
-      .filter((c) => c?.is_active !== false && c?.is_deleted !== true)
-      .map((c) => ({ value: toText(c?.unique_id ?? c?.id), label: toText(c?.name) }))
-      .filter((o) => o.value && o.label);
-    setCompanyOptions(normalizedCompanies);
-
-    setSelectedCompanyId((prev) => {
-      if (prev && normalizedCompanies.some((o) => o.value === prev)) return prev;
-      if (globalCompanyId && normalizedCompanies.some((o) => o.value === globalCompanyId)) return globalCompanyId;
-      return normalizedCompanies[0]?.value ?? "";
-    });
-
-    // Projects
-    const projectsData = normalizeList(projectsQuery.data) as Record<string, unknown>[];
-    const normalizedProjects = projectsData
-      .filter((p) => p?.is_active !== false && p?.is_deleted !== true)
-      .map((p) => ({
-        value:      toText(p?.unique_id ?? p?.id),
-        label:      toText(p?.name),
-        company_id: toText(p?.company_unique_id ?? p?.company_id),
+  const toSupervisorOptions = (items: any[]): SelectOption[] =>
+    items
+      .filter((item) => {
+        const roleName = (item?.staffusertype_name || "").toLowerCase();
+        return roleName === "supervisor";
+      })
+      .map((item) => ({
+        value: item?.unique_id,
+        label: item?.staff_name ?? item?.unique_id,
       }))
-      .filter((o) => o.value && o.label);
-    setAllProjects(normalizedProjects);
-
-    // Staff (for driver + supervisor options — scoped later by company/project)
-    const rawStaff = normalizeList(staffQuery.data) as StaffRecord[];
-    setStaffRecords(rawStaff.filter((s) => s.unique_id && s.is_deleted !== true));
-
-    // Geography
-    setAllDistricts(toOptions(normalizeList(districtsQuery.data), "unique_id", "name"));
-    setAllCities(toRelatedOptions(normalizeList(citiesQuery.data), "unique_id", "name"));
-    setZones(toRelatedOptions(normalizeList(zonesQuery.data), "unique_id", "zone_name"));
-    setVehicles(toRelatedOptions(normalizeList(vehiclesQuery.data), "unique_id", "vehicle_no"));
-    setPanchayats(toRelatedOptions(normalizeList(panchayatsQuery.data), "unique_id", "panchayat_name"));
-
-    // Staff templates
-    const templateRecords = normalizeList(staffTemplatesQuery.data) as StaffTemplateRecord[];
-    setStaffTemplateRecords(templateRecords);
-    setStaffTemplates(
-      templateRecords
-        .map((r) => ({ value: r?.unique_id ?? "", label: r?.display_code ?? r?.unique_id ?? "" }))
-        .filter((o) => o.value),
-    );
-
-    setOptionsLoaded(true);
-  }, [
-    companiesQuery.data,  companiesQuery.isError,  companiesQuery.isLoading,
-    projectsQuery.data,   projectsQuery.isError,   projectsQuery.isLoading,
-    staffQuery.data,      staffQuery.isError,      staffQuery.isLoading,
-    districtsQuery.data,  districtsQuery.isError,  districtsQuery.isLoading,
-    citiesQuery.data,     citiesQuery.isError,     citiesQuery.isLoading,
-    zonesQuery.data,      zonesQuery.isError,      zonesQuery.isLoading,
-    vehiclesQuery.data,   vehiclesQuery.isError,   vehiclesQuery.isLoading,
-    panchayatsQuery.data, panchayatsQuery.isError, panchayatsQuery.isLoading,
-    staffTemplatesQuery.data, staffTemplatesQuery.isError, staffTemplatesQuery.isLoading,
-    globalCompanyId, t,
-  ]);
-
-  /* ── Filter projects by selected company ───────────────── */
+      .filter((option) => option.value !== undefined && option.value !== null);
 
   useEffect(() => {
-    const filtered = selectedCompanyId
-      ? allProjects.filter((p) => !p.company_id || p.company_id === selectedCompanyId)
-      : allProjects;
-    setProjectOptions(filtered);
-    setSelectedProjectId((prev) => {
-      if (prev && filtered.some((o) => o.value === prev)) return prev;
-      if (globalProjectId && filtered.some((o) => o.value === globalProjectId)) return globalProjectId;
-      return filtered[0]?.value ?? "";
-    });
-  }, [selectedCompanyId, allProjects, globalProjectId]);
+    let cancelled = false;
+    setFetching(true);
 
-  /* ── Scope drivers + supervisors by company + project ───── */
+    Promise.all([
+      adminApi.districts.list(),
+      adminApi.cities.list(),
+      adminApi.zones.list(),
+      adminApi.vehicleCreations.list(),
+      adminApi.usersCreation.list(),
+    ])
+      .then(([districtsData, citiesData, zonesData, vehiclesData, usersData]) => {
+        if (cancelled) return;
+        setDistricts(toOptions(normalizeList(districtsData), "unique_id", "name"));
+        setCities(toRelatedOptions(normalizeList(citiesData), "unique_id", "name"));
+        setZones(toRelatedOptions(normalizeList(zonesData), "unique_id", "zone_name"));
+        setVehicles(toRelatedOptions(normalizeList(vehiclesData), "unique_id", "vehicle_no"));
+        setSupervisors(toSupervisorOptions(normalizeList(usersData)));
+        setFetching(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFetching(false);
+        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
-    const scoped = staffRecords.filter((s) => {
-      const companyMatch = !selectedCompanyId || getStaffCompanyId(s) === selectedCompanyId;
-      const projectMatch = !selectedProjectId || getStaffProjectId(s) === selectedProjectId;
-      return companyMatch && projectMatch;
-    });
+    if (!isEdit || !id) return;
+    let cancelled = false;
 
-    setDriverOptions(scoped.filter(isDriverRole).map(toStaffOption).filter((o) => o.value));
-    setSupervisorOptions(scoped.filter(isSupervisorRole).map(toStaffOption).filter((o) => o.value));
+    adminApi.routePlans.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setForm({
+          district_id: extractId(res?.district_id),
+          city_id: extractId(res?.city_id),
+          zone_id: extractId(res?.zone_id),
+          vehicle_id: extractId(res?.vehicle_id),
+          supervisor_id: extractId(res?.supervisor_id),
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      });
 
-    // Clear driver/supervisor if they no longer belong to the scoped list
-    setForm((prev) => {
-      const scopedIds = new Set(scoped.map((s) => toText(s.unique_id)));
-      return {
-        ...prev,
-        driver_id:    prev.driver_id    && !scopedIds.has(prev.driver_id)    ? "" : prev.driver_id,
-        supervisor_id:prev.supervisor_id && !scopedIds.has(prev.supervisor_id)? "" : prev.supervisor_id,
-      };
-    });
-  }, [selectedCompanyId, selectedProjectId, staffRecords]);
-
-  /* ── Derived geography options ─────────────────────────── */
-
-  const districtOptions = useMemo(
-    () =>
-      allDistricts.filter((d) => {
-        const cm = !selectedCompanyId || !d.companyId || d.companyId === selectedCompanyId;
-        const pm = !selectedProjectId || !d.projectId || d.projectId === selectedProjectId;
-        return cm && pm;
-      }),
-    [allDistricts, selectedCompanyId, selectedProjectId],
-  );
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isEdit]);
 
   const cityOptions = useMemo(
     () =>

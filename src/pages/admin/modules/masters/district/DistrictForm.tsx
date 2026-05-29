@@ -19,9 +19,9 @@ import type { SelectOption } from "@/types";
 import type { CountryMeta, DistrictFormRecord, StateMeta } from "./types";
 import type { DistrictListRecord } from "./types";
 
-
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { adminApi } from "@/helpers/admin/registry";
 
 const DISTRICT_FORM_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],
@@ -30,20 +30,9 @@ const DISTRICT_FORM_FIELDS: Record<string, string[]> = {
   name:         ["name"],
   is_active:    ["is_active"],
 };
-import {
-  useContinentsQuery,
-  useCountriesQuery,
-  useStatesQuery,
-  useDistrictQuery,
-  useCreateDistrictMutation,
-  useUpdateDistrictMutation,
-} from "@/tanstack/admin";
-
 
 const { encMasters, encDistricts } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encDistricts}`;
-
-
 
 const normalize = (
   v:
@@ -153,10 +142,65 @@ export default function DistrictForm() {
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit });
 
-  const continentsQuery = useContinentsQuery();
-  const countriesQuery = useCountriesQuery();
-  const statesQuery = useStatesQuery();
-  const districtQuery = useDistrictQuery(id);
+  // Single-record fetch (edit mode)
+  const [recordData, setRecordData] = useState<DistrictWithProject | null>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.districts.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? t("common.load_failed")) });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
+
+  // Continents list
+  const [continentsRaw, setContinentsRaw] = useState<any[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.continents.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        setContinentsRaw(Array.isArray(res) ? res : (res?.results ?? []));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // Countries list
+  const [countriesRaw, setCountriesRaw] = useState<any[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.countries.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        setCountriesRaw(Array.isArray(res) ? res : (res?.results ?? []));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // States list
+  const [statesRaw, setStatesRaw] = useState<any[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.states.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        setStatesRaw(Array.isArray(res) ? res : (res?.results ?? []));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     routeStateAppliedRef.current = false;
@@ -180,7 +224,7 @@ export default function DistrictForm() {
       applied = true;
     }
 
-    if (!districtQuery.data && routeState.district?.name) {
+    if (!recordData && routeState.district?.name) {
       setDistrictName(String(routeState.district.name));
       applied = true;
     }
@@ -190,7 +234,7 @@ export default function DistrictForm() {
     }
   }, [
     companyUniqueId,
-    districtQuery.data,
+    recordData,
     onCompanyChange,
     projectId,
     routeState,
@@ -198,16 +242,11 @@ export default function DistrictForm() {
   ]);
 
   useEffect(() => {
-    if (continentsQuery.isError) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: String(continentsQuery.error) });
-      return;
-    }
-
-    const data = continentsQuery.data ?? [];
+    const data = continentsRaw;
     const activeContinents = data
       .filter((c) => c.is_active)
       .map((c) => ({ value: String(c.unique_id), label: c.name }));
-    const district = districtQuery.data as DistrictWithProject | undefined;
+    const district = recordData as DistrictWithProject | undefined;
     const recordContinentId = normalize(
       district?.continent_id ?? district?.continent_unique_id ?? district?.continent
     );
@@ -230,15 +269,10 @@ export default function DistrictForm() {
     }
 
     setContinents(activeContinents);
-  }, [continentsQuery.data, continentsQuery.isError, districtQuery.data]);
+  }, [continentsRaw, recordData]);
 
   useEffect(() => {
-    if (countriesQuery.isError) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: String(countriesQuery.error) });
-      return;
-    }
-
-    const district = districtQuery.data as DistrictWithProject | undefined;
+    const district = recordData as DistrictWithProject | undefined;
     const recordContinentId = normalize(
       district?.continent_id ?? district?.continent_unique_id ?? district?.continent
     );
@@ -247,7 +281,7 @@ export default function DistrictForm() {
       recordContinentId,
       district?.continent_name
     );
-    const data = countriesQuery.data ?? [];
+    const data = countriesRaw;
     setAllCountries(
       data.map((x) => ({
         id: String(x.unique_id),
@@ -260,19 +294,14 @@ export default function DistrictForm() {
         isActive: Boolean(x.is_active),
       }))
     );
-  }, [countriesQuery.data, countriesQuery.isError, districtQuery.data, continents]);
+  }, [countriesRaw, recordData, continents]);
 
   useEffect(() => {
-    if (statesQuery.isError) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: String(statesQuery.error) });
-      return;
-    }
-
-    const data = statesQuery.data ?? [];
+    const data = statesRaw;
     setAllStates(
       data.map((x) => ({ id: String(x.unique_id), name: x.name, countryId: normalize(x.country_id ?? x.country), isActive: Boolean(x.is_active) }))
     );
-  }, [statesQuery.data, statesQuery.isError]);
+  }, [statesRaw]);
 
   /* ------------------------------
      Filter Countries on Continent change
@@ -291,7 +320,7 @@ export default function DistrictForm() {
         value: c.id,
         label: c.name,
       }));
-    const district = districtQuery.data as DistrictWithProject | undefined;
+    const district = recordData as DistrictWithProject | undefined;
     const resolvedCountryId = resolveOptionValue(
       filtered,
       pendingCountryId,
@@ -312,7 +341,7 @@ export default function DistrictForm() {
     }
 
     setFilteredCountries(filtered);
-  }, [continentId, allCountries, pendingCountryId, districtQuery.data]);
+  }, [continentId, allCountries, pendingCountryId, recordData]);
 
   /* ------------------------------
      Filter States on Country change
@@ -331,7 +360,7 @@ export default function DistrictForm() {
         value: s.id,
         label: s.name,
       }));
-    const district = districtQuery.data as DistrictWithProject | undefined;
+    const district = recordData as DistrictWithProject | undefined;
     const resolvedStateId = resolveOptionValue(
       filtered,
       pendingStateId,
@@ -351,11 +380,11 @@ export default function DistrictForm() {
     }
 
     setFilteredStates(filtered);
-  }, [countryId, allStates, pendingStateId, districtQuery.data]);
+  }, [countryId, allStates, pendingStateId, recordData]);
 
   useEffect(() => {
-    if (!districtQuery.data) return;
-    const data = districtQuery.data as DistrictWithProject;
+    if (!recordData) return;
+    const data = recordData as DistrictWithProject;
 
     setDistrictName(data.name ?? "");
     setIsActive(Boolean(data.is_active));
@@ -375,12 +404,12 @@ export default function DistrictForm() {
     setPendingCountryId(rawCountryId ?? "");
     setPendingStateId(rawStateId ?? "");
     applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-  }, [districtQuery.data, applyCompanyProjectFromRecord, continents]);
+  }, [recordData, applyCompanyProjectFromRecord, continents]);
 
   useEffect(() => {
-    if (!districtQuery.data || projects.length === 0) return;
+    if (!recordData || projects.length === 0) return;
 
-    const data = districtQuery.data as DistrictWithProject;
+    const data = recordData as DistrictWithProject;
     const recordProjectId = normalize(
       data.project_id ?? data.project_unique_id ?? data.project
     );
@@ -393,7 +422,7 @@ export default function DistrictForm() {
     if (resolvedProjectId && resolvedProjectId !== projectId) {
       setProjectId(resolvedProjectId);
     }
-  }, [districtQuery.data, projectId, projects, setProjectId]);
+  }, [recordData, projectId, projects, setProjectId]);
 
   /* ------------------------------
      Auto-resolve missing continent from pending country
@@ -424,7 +453,7 @@ export default function DistrictForm() {
       return;
     }
 
-    const district = districtQuery.data as DistrictWithProject | undefined;
+    const district = recordData as DistrictWithProject | undefined;
     const resolvedCountryId = resolveOptionValue(
       filteredCountries,
       pendingCountryId,
@@ -438,7 +467,7 @@ export default function DistrictForm() {
       setCountryId(resolvedCountryId);
       setPendingCountryId("");
     }
-  }, [filteredCountries, pendingCountryId, districtQuery.data]);
+  }, [filteredCountries, pendingCountryId, recordData]);
 
   /* ------------------------------
      When filteredStates are ready, apply pending selection
@@ -457,7 +486,7 @@ export default function DistrictForm() {
       return;
     }
 
-    const district = districtQuery.data as DistrictWithProject | undefined;
+    const district = recordData as DistrictWithProject | undefined;
     const resolvedStateId = resolveOptionValue(
       filteredStates,
       pendingStateId,
@@ -471,14 +500,12 @@ export default function DistrictForm() {
       setStateId(resolvedStateId);
       setPendingStateId("");
     }
-  }, [filteredStates, pendingStateId, districtQuery.data]);
+  }, [filteredStates, pendingStateId, recordData]);
 
   /* ------------------------------
      Submit
   ------------------------------ */
-  const createDistrictMutation = useCreateDistrictMutation();
-  const updateDistrictMutation = useUpdateDistrictMutation();
-  const isSubmitting = createDistrictMutation.isPending || updateDistrictMutation.isPending;
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -519,26 +546,26 @@ export default function DistrictForm() {
       return;
     }
 
-    try {
-      const rawPayload = {
-        name: districtName.trim(),
-        continent_id: continentId,
-        country_id: countryId,
-        state_id: stateId,
-        is_active: isActive,
-        company_id: companyUniqueId,
-        project_id: projectId,
-      };
-      const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
+    const rawPayload = {
+      name: districtName.trim(),
+      continent_id: continentId,
+      country_id: countryId,
+      state_id: stateId,
+      is_active: isActive,
+      company_id: companyUniqueId,
+      project_id: projectId,
+    };
+    const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
+    setIsSubmitting(true);
+    try {
       if (isEdit && id) {
-        await updateDistrictMutation.mutateAsync({ id, payload });
+        await adminApi.districts.update(id, payload);
         Swal.fire({ icon: "success", title: t("common.updated_success") });
       } else {
-        await createDistrictMutation.mutateAsync(payload);
+        await adminApi.districts.create(payload);
         Swal.fire({ icon: "success", title: t("common.added_success") });
       }
-
       navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (err: unknown) {
       const errorData = (err as { response?: { data?: unknown } }).response?.data;
@@ -547,6 +574,8 @@ export default function DistrictForm() {
           ? errorData
           : t("common.unexpected_error");
       Swal.fire({ icon: "error", title: t("common.save_failed"), text: errorMessage });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -729,7 +758,7 @@ export default function DistrictForm() {
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting || loadingRecord}>
             {isSubmitting
               ? isEdit
                 ? t("common.updating")

@@ -12,14 +12,8 @@ import { filterActiveRecords } from "@/utils/customerUtils";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  type VehicleCreationPayload,
-  useVehicleCreationQuery,
-  useVehicleTypeOptionsQuery,
-  useFuelTypeOptionsQuery,
-  useCreateVehicleCreationMutation,
-  useUpdateVehicleCreationMutation,
-} from "@/tanstack/admin";
+import { type VehicleCreationPayload } from "@/helpers/admin/directQueries";
+import { adminApi } from "@/helpers/admin/registry";
 
 const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleCreation}`;
@@ -90,13 +84,58 @@ export default function VehicleCreationForm() {
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
-  // ── TanStack queries ──────────────────────────────────────────────────────
-  const vehicleCreationQuery = useVehicleCreationQuery(id);
-  const vehicleTypeOptionsQuery = useVehicleTypeOptionsQuery();
-  const fuelTypeOptionsQuery = useFuelTypeOptionsQuery();
-  const createMutation = useCreateVehicleCreationMutation();
-  const updateMutation = useUpdateVehicleCreationMutation();
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  // ── Record fetch ──────────────────────────────────────────────────────────
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.vehicleCreations.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({
+          icon: "error",
+          title: t("common.load_failed"),
+          text: String(err?.response?.data ?? err?.message ?? t("common.request_failed")),
+        });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
+
+  // ── Dropdown data fetch ───────────────────────────────────────────────────
+  const [vehicleTypeData, setVehicleTypeData] = useState<any[]>([]);
+  const [fuelTypeData, setFuelTypeData] = useState<any[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.vehicleTypes.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        setVehicleTypeData(Array.isArray(res) ? res : (res?.results ?? []));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.fuels.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        setFuelTypeData(Array.isArray(res) ? res : (res?.results ?? []));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Submitting state ──────────────────────────────────────────────────────
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ── Form state ────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
@@ -129,9 +168,9 @@ export default function VehicleCreationForm() {
 
   // ── Populate form in edit mode ─────────────────────────────────────────────
   useEffect(() => {
-    if (!isEdit || !vehicleCreationQuery.data) return;
+    if (!isEdit || !recordData) return;
 
-    const res = vehicleCreationQuery.data as Record<string, unknown>;
+    const res = recordData as Record<string, unknown>;
     setForm({
       vehicleNo: toStr(res.vehicle_no),
       vehicleTypeId: toStr(res.vehicle_type_id),
@@ -164,17 +203,7 @@ export default function VehicleCreationForm() {
     }
     setRemoveRcFile(false);
     setRemoveInsuranceFile(false);
-  }, [applyCompanyProjectFromRecord, isEdit, vehicleCreationQuery.data]);
-
-  // ── Show error if fetch fails ──────────────────────────────────────────────
-  useEffect(() => {
-    if (!isEdit || !vehicleCreationQuery.isError) return;
-    Swal.fire({
-      icon: "error",
-      title: t("common.load_failed"),
-      text: t("common.request_failed"),
-    });
-  }, [isEdit, vehicleCreationQuery.isError, t]);
+  }, [applyCompanyProjectFromRecord, isEdit, recordData]);
 
   // ── Cleanup blob URLs on unmount ───────────────────────────────────────────
   useEffect(() => {
@@ -208,18 +237,16 @@ export default function VehicleCreationForm() {
 
   // ── Dropdown options ───────────────────────────────────────────────────────
   const vehicleTypeOptions = useMemo(() => {
-    const list = vehicleTypeOptionsQuery.data ?? [];
-    return filterActiveRecords(list, form.vehicleTypeId ? [form.vehicleTypeId] : []).map(
+    return filterActiveRecords(vehicleTypeData, form.vehicleTypeId ? [form.vehicleTypeId] : []).map(
       (item) => ({ value: resolveId(item), label: item.vehicleType })
     );
-  }, [vehicleTypeOptionsQuery.data, form.vehicleTypeId]);
+  }, [vehicleTypeData, form.vehicleTypeId]);
 
   const fuelTypeOptions = useMemo(() => {
-    const list = fuelTypeOptionsQuery.data ?? [];
-    return filterActiveRecords(list, form.fuelTypeId ? [form.fuelTypeId] : []).map(
+    return filterActiveRecords(fuelTypeData, form.fuelTypeId ? [form.fuelTypeId] : []).map(
       (item) => ({ value: resolveId(item), label: item.fuel_type })
     );
-  }, [fuelTypeOptionsQuery.data, form.fuelTypeId]);
+  }, [fuelTypeData, form.fuelTypeId]);
 
   const conditionOptions = [
     { value: "NEW", label: t("admin.vehicle_creation.condition_new") },
@@ -360,6 +387,7 @@ export default function VehicleCreationForm() {
         (showField("vehicle_insurance_file") && insuranceFile)
     );
 
+    setIsSubmitting(true);
     try {
       if (hasFiles) {
         // Build FormData for file uploads
@@ -374,9 +402,9 @@ export default function VehicleCreationForm() {
         }
 
         if (isEdit && id) {
-          await updateMutation.mutateAsync({ id, payload: formBody });
+          await adminApi.vehicleCreations.update(id, formBody);
         } else {
-          await createMutation.mutateAsync(formBody);
+          await adminApi.vehicleCreations.create(formBody);
         }
       } else if (isEdit && id) {
         // JSON update — include file removal flags if needed
@@ -387,9 +415,9 @@ export default function VehicleCreationForm() {
             ? { vehicle_insurance_file: null }
             : {}),
         };
-        await updateMutation.mutateAsync({ id, payload: removalPayload });
+        await adminApi.vehicleCreations.update(id, removalPayload);
       } else {
-        await createMutation.mutateAsync(basePayload);
+        await adminApi.vehicleCreations.create(basePayload);
       }
 
       Swal.fire({
@@ -401,6 +429,8 @@ export default function VehicleCreationForm() {
       navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error) {
       Swal.fire(t("common.save_failed"), extractErr(error), "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -794,7 +824,7 @@ export default function VehicleCreationForm() {
         <div className="flex justify-end gap-3 mt-6">
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || loadingRecord}
             className="bg-green-custom text-white px-4 py-2 rounded disabled:opacity-50 transition-colors"
           >
             {isSubmitting

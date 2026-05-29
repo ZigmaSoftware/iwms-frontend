@@ -1,4 +1,4 @@
-import type { ContinentPayload } from "@/tanstack/admin";
+import type { ContinentPayload } from "@/helpers/admin/directQueries";
 
 export type ContinentEditorProps = {
   initialPayload: ContinentPayload;

@@ -19,7 +19,7 @@ import { normalizeList } from "@/utils/forms";
 import {
   useTripDefinitionsQuery,
   useUpdateTripDefinitionMutation,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -200,7 +200,7 @@ export default function TripDefinitionList() {
 
     const params: Record<string, string> = {
       company_id: companyUniqueId,
-      project_id: projectId,
+      project: projectId,
     };
 
     Promise.all([
@@ -399,7 +399,7 @@ export default function TripDefinitionList() {
       <button
         title={t("common.edit")}
         onClick={() =>
-          navigate(ENC_EDIT_PATH(row.unique_id), { state: { record: row } })
+          navigate(ENC_EDIT_PATH(row.unique_id), { state: { record: row, companyUniqueId, projectId } })
         }
         className="text-blue-600 hover:text-blue-800"
       >

@@ -26,7 +26,7 @@ import {
   useVehicleCreationsQuery,
   useUpdateVehicleCreationMutation,
   useDeleteVehicleCreationMutation,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

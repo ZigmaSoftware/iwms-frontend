@@ -19,13 +19,7 @@ import type { CountryMeta, ErrorWithResponse } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  useContinentsQuery,
-  useCountriesQuery,
-  useStateQuery,
-  useCreateStateMutation,
-  useUpdateStateMutation,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
 
 
 const { encMasters, encStates } = getEncryptedRoute();
@@ -102,7 +96,7 @@ function StateForm() {
   const [countryId, setCountryId] = useState<string>("");
   const [continents, setContinents] = useState<SelectOption[]>([]);
 
-  
+
   const [pendingCountryId, setPendingCountryId] = useState<string>("");
   const [allCountries, setAllCountries] = useState<CountryMeta[]>([]);
   const [filteredCountries, setFilteredCountries] = useState<SelectOption[]>([]);
@@ -113,6 +107,9 @@ function StateForm() {
   const {
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit });
+
+  const [recordData, setRecordData] = useState<StateWithRelations | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const extractErrorMessage = useCallback((error: unknown) => {
     if (!error) {
@@ -152,84 +149,114 @@ function StateForm() {
     return t("common.request_failed");
   }, [t]);
 
-  const continentsQuery = useContinentsQuery();
-  const countriesQuery = useCountriesQuery();
-  const stateQuery = useStateQuery(id);
-
+  // Fetch continents list
   useEffect(() => {
-    if (continentsQuery.isError) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(continentsQuery.error) });
-      return;
-    }
+    let cancelled = false;
+    adminApi.continents.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const data: any[] = Array.isArray(res) ? res : [];
+        const selectedContinentId = normalizeNullableId(
+          recordData?.continent_id ??
+            recordData?.continent_unique_id ??
+            recordData?.continent
+        );
+        const selectedContinentName = recordData?.continent_name;
+        const activeContinents = data
+          .filter((continent) => continent.is_active)
+          .map((continent) => ({ value: String(continent.unique_id), label: continent.name }));
+        const resolvedContinentId = resolveOptionValue(
+          activeContinents,
+          selectedContinentId,
+          selectedContinentName
+        );
 
-    const selectedState = stateQuery.data as StateWithRelations | undefined;
-    const selectedContinentId = normalizeNullableId(
-      selectedState?.continent_id ??
-        selectedState?.continent_unique_id ??
-        selectedState?.continent
-    );
-    const selectedContinentName = selectedState?.continent_name;
-    const res = continentsQuery.data ?? [];
-    const activeContinents = res
-      .filter((continent) => continent.is_active)
-      .map((continent) => ({ value: String(continent.unique_id), label: continent.name }));
-    const resolvedContinentId = resolveOptionValue(
-      activeContinents,
-      selectedContinentId,
-      selectedContinentName
-    );
+        if (
+          resolvedContinentId &&
+          selectedContinentName &&
+          !activeContinents.some((continent) => continent.value === resolvedContinentId)
+        ) {
+          setContinents([
+            ...activeContinents,
+            { value: resolvedContinentId, label: selectedContinentName },
+          ]);
+          if (continentId !== resolvedContinentId) {
+            setContinentId(resolvedContinentId);
+          }
+          return;
+        }
 
-    if (
-      resolvedContinentId &&
-      selectedContinentName &&
-      !activeContinents.some((continent) => continent.value === resolvedContinentId)
-    ) {
-      setContinents([
-        ...activeContinents,
-        { value: resolvedContinentId, label: selectedContinentName },
-      ]);
-      if (continentId !== resolvedContinentId) {
-        setContinentId(resolvedContinentId);
-      }
-      return;
-    }
+        setContinents(activeContinents);
+        if (resolvedContinentId && continentId !== resolvedContinentId) {
+          setContinentId(resolvedContinentId);
+        }
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(err) });
+      });
+    return () => { cancelled = true; };
+  }, [recordData, t, extractErrorMessage]);
 
-    setContinents(activeContinents);
-    if (resolvedContinentId && continentId !== resolvedContinentId) {
-      setContinentId(resolvedContinentId);
-    }
-  }, [
-    continentId,
-    continentsQuery.data,
-    continentsQuery.error,
-    continentsQuery.isError,
-    extractErrorMessage,
-    stateQuery.data,
-    t,
-  ]);
-
+  // Fetch countries list
   useEffect(() => {
-    if (countriesQuery.isError) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(countriesQuery.error) });
-      return;
-    }
+    let cancelled = false;
+    adminApi.countries.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const data: any[] = Array.isArray(res) ? res : [];
+        const normalized: CountryMeta[] = data.map((country) => ({
+          id: String(country.unique_id),
+          name: country.name,
+          continentId: normalizeNullableId(country.continent_id ?? country.continent),
+          isActive: Boolean(country.is_active),
+        }));
+        setAllCountries(normalized);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(err) });
+      });
+    return () => { cancelled = true; };
+  }, [t, extractErrorMessage]);
 
-    const data = countriesQuery.data ?? [];
-    const normalized: CountryMeta[] = data.map((country) => ({
-      id: String(country.unique_id),
-      name: country.name,
-      continentId: normalizeNullableId(country.continent_id ?? country.continent),
-      isActive: Boolean(country.is_active),
-    }));
+  // Fetch state record in edit mode
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    adminApi.states.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        const data = res as StateWithRelations;
+        setRecordData(data);
 
-    setAllCountries(normalized);
-  }, [
-    countriesQuery.data,
-    countriesQuery.error,
-    countriesQuery.isError,
-    extractErrorMessage,
-    t,
-  ]);
+        setName(data.name ?? "");
+        setLabel(data.label ?? "");
+        setIsActive(Boolean(data.is_active));
+
+        const cId = normalizeNullableId(
+          data.country_id ?? data.country_unique_id ?? data.country
+        );
+        const contId = normalizeNullableId(
+          data.continent_id ?? data.continent_unique_id ?? data.continent
+        );
+
+        const resolvedContinentId = resolveOptionValue(
+          continents,
+          contId,
+          data.continent_name
+        );
+
+        setContinentId(resolvedContinentId ?? "");
+        setPendingCountryId(cId ?? "");
+        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(err, ) });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
   useEffect(() => {
     if (!continentId) {
@@ -240,13 +267,12 @@ function StateForm() {
       return;
     }
 
-    const selectedState = stateQuery.data as StateWithRelations | undefined;
     const selectedCountryId = normalizeNullableId(
-      selectedState?.country_id ??
-        selectedState?.country_unique_id ??
-        selectedState?.country
+      recordData?.country_id ??
+        recordData?.country_unique_id ??
+        recordData?.country
     );
-    const selectedCountryName = selectedState?.country_name;
+    const selectedCountryName = recordData?.country_name;
 
     const filtered = allCountries
       .filter(
@@ -276,35 +302,7 @@ function StateForm() {
         ? prev
         : resolvedCountryId ?? ""
     );
-  }, [continentId, allCountries, pendingCountryId, stateQuery.data]);
-
-  // EDIT MODE → FETCH DATA
-  useEffect(() => {
-    if (!stateQuery.data) return;
-    const data = stateQuery.data as StateWithRelations;
-
-    setName(data.name ?? "");
-    setLabel(data.label ?? "");
-    setIsActive(Boolean(data.is_active));
-
-    const cId = normalizeNullableId(
-      data.country_id ?? data.country_unique_id ?? data.country
-    );
-    const contId = normalizeNullableId(
-      data.continent_id ?? data.continent_unique_id ?? data.continent
-    );
-
-    const resolvedContinentId = resolveOptionValue(
-      continents,
-      contId,
-      data.continent_name
-    );
-
-    setContinentId(resolvedContinentId ?? "");
-    setPendingCountryId(cId ?? "");
-    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-  }, [stateQuery.data, applyCompanyProjectFromRecord, continents]);
-
+  }, [continentId, allCountries, pendingCountryId, recordData]);
 
   // NEW IMPORTANT EFFECT → Set country AFTER filtering
   useEffect(() => {
@@ -320,21 +318,16 @@ function StateForm() {
       return;
     }
 
-    const selectedState = stateQuery.data as StateWithRelations | undefined;
     const resolvedCountryId = resolveOptionValue(
       filteredCountries,
       pendingCountryId,
-      selectedState?.country_name
+      recordData?.country_name
     );
 
     if (resolvedCountryId) {
       setCountryId(resolvedCountryId);
     }
-  }, [filteredCountries, pendingCountryId, stateQuery.data]);
-
-  const createStateMutation = useCreateStateMutation();
-  const updateStateMutation = useUpdateStateMutation();
-  const isSubmitting = createStateMutation.isPending || updateStateMutation.isPending;
+  }, [filteredCountries, pendingCountryId, recordData]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -384,12 +377,13 @@ function StateForm() {
     };
     const payload = filterPayload(rawPayload) as typeof rawPayload;
 
+    setIsSubmitting(true);
     try {
       if (isEdit && id) {
-        await updateStateMutation.mutateAsync({ id, payload });
+        await adminApi.states.update(id, payload);
         Swal.fire({ icon: "success", title: t("common.updated_success") });
       } else {
-        await createStateMutation.mutateAsync(payload);
+        await adminApi.states.create(payload);
         Swal.fire({ icon: "success", title: t("common.added_success") });
       }
 
@@ -398,7 +392,7 @@ function StateForm() {
       console.error("Failed to save state:", error);
       Swal.fire({ icon: "error", title: t("common.save_failed"), text: extractErrorMessage(error) });
     } finally {
-      // mutation hooks provide loading state
+      setIsSubmitting(false);
     }
   };
 

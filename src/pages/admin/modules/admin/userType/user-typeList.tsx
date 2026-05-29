@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 
 import type { UserType } from "../types/admin.types"; 
 
-import { useUpdateUserTypeMutation, useUserTypesQuery } from "@/tanstack/admin";
+import { useUpdateUserTypeMutation, useUserTypesQuery } from "@/helpers/admin/directQueries";
 
 export default function UserTypePage() {
   const { t } = useTranslation();

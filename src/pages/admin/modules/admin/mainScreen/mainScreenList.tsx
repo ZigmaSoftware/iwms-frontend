@@ -20,7 +20,7 @@ import {
   useDeleteMainScreenMutation,
   useMainScreensQuery,
   useUpdateMainScreenMutation,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 import type { MainScreen } from "../types/admin.types"; // Correct import
 
@@ -86,8 +86,6 @@ export default function MainScreenList() {
       await updateMutation.mutateAsync({ id: row.unique_id, payload: {
         mainscreen_name: row.mainscreen_name,
         mainscreentype_id: row.mainscreentype_id,
-        company_id: row.company_id,
-        project_id: row.project_id,
         icon_name: row.icon_name,
         order_no: row.order_no,
         description: row.description,

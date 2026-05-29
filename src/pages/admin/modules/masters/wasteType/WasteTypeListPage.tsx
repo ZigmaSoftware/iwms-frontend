@@ -18,7 +18,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
   useWasteTypesQuery,
   useUpdateWasteTypeMutation,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 import type { WasteTypeListRecord } from "./types";
 
 const normalizeId = (value: unknown): string =>
