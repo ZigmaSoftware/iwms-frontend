@@ -215,7 +215,9 @@ export default function PanchayatForm() {
   const panchayatQuery = usePanchayatQuery(id);
 
   useEffect(() => {
-    if (!panchayatQuery.data) return;
+    if (!isEdit || !panchayatQuery.data) return;
+
+    let cancelled = false;
     const data = panchayatQuery.data as any;
 
     setPanchayatName(data.panchayat_name ?? "");
@@ -285,6 +287,7 @@ export default function PanchayatForm() {
       is_active: isActive,
     };
     const basePayload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
+
 
     try {
       if (isEdit && id) {

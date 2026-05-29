@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -58,32 +58,7 @@ const statusOptions: SelectOption[] = [
   { value: "INACTIVE", label: "Inactive" },
 ];
 
-// ─── Helpers (unchanged from original) ───────────────────────────────────────
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
-const filterByCompanyProject = (
-  items: any[],
-  companyId: string,
-  projectId: string
-) => {
-  const hasContextFields = items.some((item) => {
-    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
-    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
-    return Boolean(rowCompanyId || rowProjectId);
-  });
-
-  if (!hasContextFields) return items;
-
-  return items.filter((item) => {
-    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
-    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
-    const companyMatches = !companyId || rowCompanyId === companyId;
-    const projectMatches = !projectId || rowProjectId === projectId;
-    return companyMatches && projectMatches;
-  });
-};
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const buildSelectOptions = (items: any[], labelKey: string): SelectOption[] =>
   items
@@ -198,21 +173,90 @@ export default function TripDefinitionForm() {
     value !== undefined && value !== null ? String(value) : "";
 
   const populateFormFromRecord = (record: TripDefinitionRecord) => {
+    const rpId = record.routeplan_id ?? record.routeplan?.unique_id ?? "";
+    const stId = record.staff_template_id ?? record.staff_template?.unique_id ?? "";
+    const propId = record.property_id ?? record.property?.unique_id ?? "";
+    const subPropId = record.sub_property_id ?? record.sub_property?.unique_id ?? "";
+
     setFormData((prev) => ({
       ...prev,
-      routeplan_id:
-        record.routeplan_id ?? record.routeplan?.unique_id ?? "",
-      staff_template_id:
-        record.staff_template_id ?? record.staff_template?.unique_id ?? "",
-      property_id:
-        record.property_id ?? record.property?.unique_id ?? "",
-      sub_property_id:
-        record.sub_property_id ?? record.sub_property?.unique_id ?? "",
+      // Preserve existing non-empty values so a stale TanStack response
+      // doesn't overwrite what stateRecord already set correctly.
+      routeplan_id: rpId || prev.routeplan_id,
+      staff_template_id: stId || prev.staff_template_id,
+      property_id: propId || prev.property_id,
+      sub_property_id: subPropId || prev.sub_property_id,
       trip_trigger_weight_kg: normalizeNumber(record.trip_trigger_weight_kg),
       max_vehicle_capacity_kg: normalizeNumber(record.max_vehicle_capacity_kg),
       approval_status: record.approval_status ?? "PENDING",
       status: record.status ?? "ACTIVE",
     }));
+
+    // Seed the selected option even when the current selection belongs to
+    // another project and is missing from the project-filtered dropdown API.
+    // If a cached partial record supplied only an ID first, a later full detail
+    // response upgrades its label from the ID to the actual display name.
+// Keep the already selected values available in the dropdown.
+// This is required when the selected linked value is not returned
+// by the currently selected company/project API filter.
+if (rpId) {
+  setRoutePlans((prev) =>
+    prev.some((o) => o.value === rpId)
+      ? prev
+      : [
+          {
+            value: rpId,
+            label: record.routeplan?.display_code ?? rpId,
+          },
+          ...prev,
+        ]
+  );
+}
+
+if (stId) {
+  setStaffTemplates((prev) =>
+    prev.some((o) => o.value === stId)
+      ? prev
+      : [
+          {
+            value: stId,
+            label: record.staff_template?.display_code ?? stId,
+          },
+          ...prev,
+        ]
+  );
+}
+
+if (propId) {
+  setProperties((prev) =>
+    prev.some((o) => o.value === propId)
+      ? prev
+      : [
+          {
+            value: propId,
+            label: record.property?.property_name ?? propId,
+          },
+          ...prev,
+        ]
+  );
+}
+
+if (subPropId && propId) {
+  setSubPropertyCache((prev) =>
+    prev.some((o) => String(o.unique_id ?? "") === subPropId)
+      ? prev
+      : [
+          ...prev,
+          {
+            unique_id: subPropId,
+            sub_property_name:
+              record.sub_property?.sub_property_name ?? subPropId,
+            property_id: propId,
+          },
+        ]
+  );
+}
+    
   };
 
   // ── Fetch dropdown data when company/project changes ─────────────────────
@@ -227,7 +271,7 @@ export default function TripDefinitionForm() {
 
     setFetching(true);
     const params: Record<string, string> = { company_id: companyUniqueId };
-    if (projectId) params.project_id = projectId;
+    if (projectId) params.project = projectId;
 
     Promise.all([
       routePlanApi.list({ params }),
@@ -236,33 +280,43 @@ export default function TripDefinitionForm() {
       subPropertyApi.list({ params }),
     ])
       .then(([routeRes, staffRes, propertyRes, subPropertyRes]) => {
-        const normalizedRoutes = filterByCompanyProject(
-          normalizeList(routeRes),
-          companyUniqueId,
-          projectId
-        );
-        const normalizedStaff = filterByCompanyProject(
-          normalizeList(staffRes),
-          companyUniqueId,
-          projectId
-        );
-        const normalizedProperties = filterByCompanyProject(
-          normalizeList(propertyRes),
-          companyUniqueId,
-          projectId
-        );
-        const normalizedSubProperties = filterByCompanyProject(
-          normalizeList(subPropertyRes),
-          companyUniqueId,
-          projectId
-        );
+        // Merge API results with any pre-seeded current values that may be from
+        // a different company/project (e.g. cross-project linked records).
+        // The pre-seeded items are prepended by populateFormFromRecord so the
+        // currently-selected value always appears in the dropdown.
+        const mergeSelectOptions = (
+          fresh: SelectOption[],
+          prev: SelectOption[]
+        ): SelectOption[] => {
+          const freshValues = new Set(fresh.map((o) => o.value));
+          return [...fresh, ...prev.filter((o) => !freshValues.has(o.value))];
+        };
 
-        setRoutePlans(buildSelectOptions(normalizedRoutes, "display_code"));
-        setStaffTemplates(buildSelectOptions(normalizedStaff, "display_code"));
-        setProperties(
-          buildSelectOptions(normalizedProperties, "property_name")
+        setRoutePlans((prev) =>
+          mergeSelectOptions(
+            buildSelectOptions(normalizeList(routeRes), "display_code"),
+            prev
+          )
         );
-        setSubPropertyCache(normalizedSubProperties);
+        setStaffTemplates((prev) =>
+          mergeSelectOptions(
+            buildSelectOptions(normalizeList(staffRes), "display_code"),
+            prev
+          )
+        );
+        setProperties((prev) =>
+          mergeSelectOptions(
+            buildSelectOptions(normalizeList(propertyRes), "property_name"),
+            prev
+          )
+        );
+        setSubPropertyCache((prev) => {
+          const fresh = normalizeList(subPropertyRes);
+          const freshIds = new Set(
+            fresh.map((i: any) => String(i.unique_id ?? ""))
+          );
+          return [...fresh, ...prev.filter((o) => !freshIds.has(String(o.unique_id ?? "")))];
+        });
       })
       .catch((error: any) => {
         const message =
@@ -272,36 +326,43 @@ export default function TripDefinitionForm() {
       .finally(() => setFetching(false));
   }, [companyUniqueId, projectId, t]);
 
-  // ── Populate from router state (fast path — no extra API call) ────────────
-  useEffect(() => {
-    if (!isEdit || !stateRecord) return;
-    applyCompanyProjectFromRecord(
-      stateRecord as unknown as Record<string, unknown>
-    );
-    populateFormFromRecord(stateRecord);
-  }, [applyCompanyProjectFromRecord, isEdit, stateRecord]);
+  // ── Edit-mode populate ────────────────────────────────────────────────────
+  // hasPopulated guards against re-populating the form when the background
+  // refetch (staleTime=0) completes and changes tripDefinitionQuery.data a
+  // second time — which would wipe any changes the user made after load.
+  //
+  // Priority:
+  //   1. TanStack detail data (authoritative — includes full nested objects
+  //      from the server, even on second edit where the cache holds the
+  //      mutation response).
+  //   2. stateRecord only as a fallback while the detail fetch is in flight
+  //      on a cold cache (first edit, no prior cached response).  We do NOT
+  //      mark hasPopulated in this path so the definitive TanStack data can
+  //      still upgrade it when it arrives.
+  const hasPopulated = useRef(false);
 
-  // ── Populate from TanStack query (edit mode — when no router state) ───────
   useEffect(() => {
-    if (!isEdit || !tripDefinitionQuery.data) return;
+    if (!isEdit) return;
+    if (hasPopulated.current) return;
 
-    const res = tripDefinitionQuery.data;
-    applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
-    populateFormFromRecord({
-      routeplan_id: res.routeplan?.unique_id ?? res.routeplan_id ?? "",
-      staff_template_id:
-        res.staff_template?.unique_id ?? res.staff_template_id ?? "",
-      property_id: res.property?.unique_id ?? res.property_id ?? "",
-      sub_property_id:
-        res.sub_property?.unique_id ?? res.sub_property_id ?? "",
-      company_id: String(res.company_id ?? ""),
-      project_id: String(res.project_id ?? ""),
-      trip_trigger_weight_kg: res.trip_trigger_weight_kg,
-      max_vehicle_capacity_kg: res.max_vehicle_capacity_kg,
-      approval_status: res.approval_status ?? "",
-      status: res.status ?? "ACTIVE",
-    });
-  }, [applyCompanyProjectFromRecord, isEdit, tripDefinitionQuery.data]);
+    if (tripDefinitionQuery.data) {
+      const res = tripDefinitionQuery.data as TripDefinitionRecord;
+      applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
+      populateFormFromRecord(res);
+      hasPopulated.current = true;
+      return;
+    }
+
+    // Cold cache (first edit): use stateRecord immediately so the user sees
+    // values before the network fetch completes.  hasPopulated stays false
+    // so the TanStack response will upgrade this when it arrives.
+    if (stateRecord) {
+      applyCompanyProjectFromRecord(
+        stateRecord as unknown as Record<string, unknown>
+      );
+      populateFormFromRecord(stateRecord);
+    }
+  }, [applyCompanyProjectFromRecord, isEdit, stateRecord, tripDefinitionQuery.data]);
 
   // ── Show fetch error ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -317,8 +378,12 @@ export default function TripDefinitionForm() {
     [formData.property_id, subPropertyCache]
   );
 
-  // Reset sub_property_id when it no longer belongs to selected property
+  // Reset sub_property_id when it no longer belongs to the selected property.
+  // Guard with `fetching` to avoid resetting during the initial API load when
+  // subPropertyCache is still empty but sub_property_id is already set from
+  // the record (would incorrectly clear the value and disable the field).
   useEffect(() => {
+    if (fetching) return;
     if (!formData.sub_property_id) return;
     const isValid = subProperties.some(
       (option) => option.value === formData.sub_property_id
@@ -326,7 +391,7 @@ export default function TripDefinitionForm() {
     if (!isValid) {
       setFormData((prev) => ({ ...prev, sub_property_id: "" }));
     }
-  }, [formData.sub_property_id, subProperties]);
+  }, [fetching, formData.sub_property_id, subProperties]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: FormEvent) => {

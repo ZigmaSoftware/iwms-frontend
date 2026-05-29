@@ -18,8 +18,6 @@ export type UserScreenActionRecord = {
 export type UserScreenActionPayload = {
   action_name: string;
   variable_name: string;
-  company_id?: string | null;
-  project_id?: string | null;
   is_active: boolean;
 };
 

@@ -32,7 +32,7 @@ import BinForm from "@/pages/admin/modules/masters/bin/BinForm";
 
 
 import PanchayatListPage from "@/pages/admin/modules/masters/panchayat/PanchayatListPage";
-import PanchayatForm from "@/pages/admin/modules/masters/panchayat/PanchaytForm";
+import PanchayatForm from "@/pages/admin/modules/masters/panchayat/PanchayatForm";
 import AreaTypeListPage from "@/pages/admin/modules/masters/areaType/AreaTypeListPage";
 import AreaTypeForm from "@/pages/admin/modules/masters/areaType/AreaTypeForm";
 import HierarchyListPage from "@/pages/admin/modules/masters/hierarchy/HierarchyListPage";

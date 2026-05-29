@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { tripDefinitionApi } from "@/helpers/admin";
@@ -83,14 +82,30 @@ const updateTripDefinition = (
   payload: TripDefinitionPayload
 ) => tripDefinitionApi.update(id, payload) as Promise<TripDefinitionRecord>;
 
+const mergeTripDefinitionRecord = (
+  previous: TripDefinitionRecord | undefined,
+  incoming: TripDefinitionRecord
+): TripDefinitionRecord => ({
+  ...(previous ?? {}),
+  ...incoming,
+  // Some create/update endpoints return only FK IDs. Preserve enriched nested
+  // values already held by the list/detail cache until the detail refetch returns.
+  routeplan: incoming.routeplan ?? previous?.routeplan,
+  staff_template: incoming.staff_template ?? previous?.staff_template,
+  property: incoming.property ?? previous?.property,
+  sub_property: incoming.sub_property ?? previous?.sub_property,
+});
+
 const replaceInList = (
   items: TripDefinitionRecord[] | undefined,
   item: TripDefinitionRecord
 ) => {
   if (!items) return items;
   const id = normalizeTripDefinitionId(item.unique_id);
-  return items.map((r) =>
-    normalizeTripDefinitionId(r.unique_id) === id ? item : r
+  return items.map((record) =>
+    normalizeTripDefinitionId(record.unique_id) === id
+      ? mergeTripDefinitionRecord(record, item)
+      : record
   );
 };
 
@@ -107,35 +122,18 @@ export const tripDefinitionQueryKeys = {
 export function useTripDefinitionsQuery(
   filters?: TripDefinitionListFilters | null
 ) {
-  const query = enterpriseQuery<TripDefinitionRecord[]>({
-    queryKey: tripDefinitionQueryKeys.all,
+  return enterpriseQuery<TripDefinitionRecord[]>({
+    queryKey:
+      filters !== null
+        ? [
+            ...tripDefinitionQueryKeys.all,
+            filters?.company_id ?? null,
+            filters?.project_id ?? null,
+          ]
+        : tripDefinitionQueryKeys.all,
     queryFn: () => listTripDefinitions(filters ?? undefined),
     enabled: filters !== null,
   });
-
-  const filterSignature = useMemo(
-    () =>
-      JSON.stringify({
-        company_id: filters?.company_id ?? "",
-        project_id: filters?.project_id ?? "",
-      }),
-    [filters?.company_id, filters?.project_id]
-  );
-  const previousFilterSignatureRef = useRef(filterSignature);
-
-  useEffect(() => {
-    if (previousFilterSignatureRef.current === filterSignature) {
-      return;
-    }
-
-    previousFilterSignatureRef.current = filterSignature;
-
-    if (filters !== null) {
-      void query.refetch();
-    }
-  }, [filterSignature, filters, query.refetch]);
-
-  return query;
 }
 
 export function useTripDefinitionQuery(
@@ -145,6 +143,9 @@ export function useTripDefinitionQuery(
     queryKey: tripDefinitionQueryKeys.detail(id ?? "new"),
     queryFn: () => getTripDefinition(id as string | number),
     enabled: Boolean(id),
+    // Always fetch fresh on every edit-page mount so that both page-refresh
+    // and list→edit navigation see the same up-to-date nested record.
+    staleTime: 0,
   });
 }
 
@@ -177,9 +178,9 @@ export function useUpdateTripDefinitionMutation() {
       payload: TripDefinitionPayload;
     }) => updateTripDefinition(id, payload),
     onSuccess: async (data, variables) => {
-      queryClient.setQueryData(
+      queryClient.setQueryData<TripDefinitionRecord>(
         tripDefinitionQueryKeys.detail(variables.id),
-        data
+        (prev) => mergeTripDefinitionRecord(prev, data)
       );
       queryClient.setQueryData<TripDefinitionRecord[]>(
         tripDefinitionQueryKeys.all,
