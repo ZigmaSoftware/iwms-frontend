@@ -87,3 +87,4 @@ export function useDeleteRoutePlanMutation() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: (id: string | number) => deleteRoutePlan(id), onSuccess: async () => { await qc.invalidateQueries({ queryKey: routePlanQueryKeys.all }); } });
 }
+    

@@ -91,6 +91,10 @@ import VehicleHistory from "@/pages/admin/modules/vehicletracking/vehiclehistory
 import WorkforceManagement from "@/pages/admin/modules/workforcemanagement/workforcemanagement";
 import DateReport from "@/pages/admin/modules/workforcemanagement/datereport";
 import DayReport from "@/pages/admin/modules/workforcemanagement/dayreport";
+import DailyTripAssignmentList from "@/pages/admin/modules/transportMasters/dailyTripAssignment/dailyTripAssignmentList"
+import DailyTripAssignmentForm from "@/pages/admin/modules/transportMasters/dailyTripAssignment/dailyTripAssignmentForm";
+import DailyTripLogList from "@/pages/admin/modules/transportMasters/dailyTripLog/dailyTripLogList";
+import DailyTripLogForm from "@/pages/admin/modules/transportMasters/dailyTripLog/dailyTripLogForm";
 
 import CollectionMonitoringListPage from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringListPage";
 import CollectionMonitoringForm from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringForm";
@@ -203,6 +207,8 @@ const ROUTES: RouteMap = {
     "trip-attendance": { list: TripAttendanceList, form: TripAttendanceForm },
     "vehicle-trip-audit": { list: VehicleTripAuditList, form: VehicleTripAuditForm },
     "trip-exception-log": { list: TripExceptionLogList, form: TripExceptionLogForm },
+    "daily-trip-assignment": { list: DailyTripAssignmentList, form: DailyTripAssignmentForm },
+    "daily-trip-log": { list: DailyTripLogList, form: DailyTripLogForm },
   },
   "customer-master": {
     "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },
