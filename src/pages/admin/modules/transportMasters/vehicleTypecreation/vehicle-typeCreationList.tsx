@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
+import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -19,11 +20,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  type VehicleTypePayload,
-  useVehicleTypesQuery,
-  useUpdateVehicleTypeMutation,
-} from "@/helpers/admin/directQueries";
+import { vehicleTypeApi } from "@/helpers/admin";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,6 +63,11 @@ export default function VehicleTypeCreationList() {
     VEHICLE_TYPE_COLUMN_FIELDS
   );
 
+  const [allVehicleTypes, setAllVehicleTypes] = useState<VehicleTypeRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -93,24 +95,29 @@ export default function VehicleTypeCreationList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encTransportMaster}/${encVehicleType}/${id}/edit`;
 
-  // ── TanStack ──────────────────────────────────────────────────────────────
-  const vehicleTypesQuery = useVehicleTypesQuery(
-    companyUniqueId
-      ? { company_id: companyUniqueId, project_id: projectId || undefined }
-      : null
-  );
-  const updateMutation = useUpdateVehicleTypeMutation();
+  // ── Load data ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    let mounted = true;
+    setIsLoading(true);
+    vehicleTypeApi.list()
+      .then((data: unknown) => {
+        if (mounted) setAllVehicleTypes(Array.isArray(data) ? (data as VehicleTypeRecord[]) : []);
+      })
+      .catch((error: unknown) => {
+        if (mounted) {
+          Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
+        }
+      })
+      .finally(() => { if (mounted) setIsLoading(false); });
+    return () => { mounted = false; };
+  }, [t]);
 
   // ── Derived rows with client-side company/project filter ──────────────────
   const rows = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as VehicleTypeRecord[];
     if (!companyUniqueId) return [] as VehicleTypeRecord[];
 
-    const list = Array.isArray(vehicleTypesQuery.data)
-      ? (vehicleTypesQuery.data as VehicleTypeRecord[])
-      : [];
-
-    return list.filter((row) => {
+    return allVehicleTypes.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
       const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
@@ -134,23 +141,39 @@ export default function VehicleTypeCreationList() {
   // ── Status toggle ─────────────────────────────────────────────────────────
   const statusTemplate = (row: VehicleTypeRecord) => {
     const updateStatus = async (value: boolean) => {
+      setPendingStatusId(row.unique_id);
+      setIsUpdating(true);
       try {
-        await updateMutation.mutateAsync({
-          id: row.unique_id,
-          payload: filterPayload({
+        await vehicleTypeApi.update(
+          row.unique_id,
+          filterPayload({
             vehicleType: row.vehicleType,
             description: row.description,
             is_active: value,
             company_id_input: row.company_id || row.company_unique_id,
             project_id_input: row.project_id || row.project_unique_id,
-          }, ["company_id_input", "project_id_input"]) as unknown as VehicleTypePayload,
-        });
+          }, ["company_id_input", "project_id_input"]) as Record<string, unknown>
+        );
+        setAllVehicleTypes((current) =>
+          current.map((item) =>
+            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
+          )
+        );
       } catch (error) {
         console.error("Failed to update vehicle type status:", error);
+      } finally {
+        setPendingStatusId(null);
+        setIsUpdating(false);
       }
     };
 
-    return <Switch checked={Boolean(row.is_active)} onCheckedChange={updateStatus} />;
+    return (
+      <Switch
+        checked={Boolean(row.is_active)}
+        disabled={isUpdating && pendingStatusId === row.unique_id}
+        onCheckedChange={updateStatus}
+      />
+    );
   };
 
   // ── Action buttons ────────────────────────────────────────────────────────
@@ -257,7 +280,7 @@ export default function VehicleTypeCreationList() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={vehicleTypesQuery.isPending || vehicleTypesQuery.isFetching}
+        loading={isLoading && rows.length === 0}
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}

@@ -88,10 +88,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { usePermission } from "@/contexts/PermissionContext";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useRoutePlansList } from "@/helpers/admin/directQueries";
-
-// TODO: Replace with actual API import when available
-// import { routePlansApi } from "@/helpers/admin";
+import { adminApi } from "@/helpers/admin/registry";
 
 type RoutePlan = {
   unique_id: string;
@@ -165,20 +162,15 @@ export default function RoutePlanList() {
   } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   // Check permissions for this module
-  const canView = hasPermission("user-creations", "RoutePlan", "view");
-  const canAdd = hasPermission("user-creations", "RoutePlan", "add");
-  const canEdit = hasPermission("user-creations", "RoutePlan", "edit");
-  const canDelete = hasPermission("user-creations", "RoutePlan", "delete");
+  // const canView = hasPermission("user-creations", "RoutePlan", "view");
+  // const canAdd = hasPermission("user-creations", "RoutePlan", "add");
+  // const canEdit = hasPermission("user-creations", "RoutePlan", "edit");
+  // const canDelete = hasPermission("user-creations", "RoutePlan", "delete");
 
   const { encStaffMasters, encRoutePlans } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encStaffMasters}/${encRoutePlans}/new`;
   const ENC_EDIT_PATH = (id: string) =>
     `/${encStaffMasters}/${encRoutePlans}/${id}/edit`;
-  const apiFilters = companyUniqueId
-    ? { company_id: companyUniqueId, project_id: projectId ?? undefined }
-    : null;
-  const routePlansQuery = useRoutePlansList(apiFilters);
-
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   // const [filters, setFilters] = useState<any>({
   //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -208,10 +200,14 @@ export default function RoutePlanList() {
       return;
     }
 
+    let mounted = true;
     try {
       setLoading(true);
-      const res = routePlansQuery.data;
+      const apiFilters = { company_id: companyUniqueId, project_id: projectId ?? undefined };
+      const res = await adminApi.routePlans.list({ params: apiFilters });
       const rows = normalize(res);
+
+      if (!mounted) return;
 
       const hasContextFields = rows.some((row) => {
         const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
@@ -238,21 +234,19 @@ export default function RoutePlanList() {
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
-      setLoading(false);
+      if (mounted) setLoading(false);
     }
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, routePlansQuery.data, t]);
+    return () => { mounted = false; };
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
 
   useEffect(() => {
-    if (canView) {
-      fetchList();
-    }
-  }, [canView, fetchList]);
+    fetchList();
+  }, [fetchList]);
 
   const statusBodyTemplate = (row: RoutePlan) => {
     const updateStatus = async (checked: boolean) => {
       try {
-        // TODO: Replace with actual API call
-        // await routePlansApi.update(row.unique_id, { is_active: checked });
+        await adminApi.routePlans.update(row.unique_id, { is_active: checked });
         setList((prev) =>
           prev.map((item) =>
             item.unique_id === row.unique_id
@@ -260,7 +254,6 @@ export default function RoutePlanList() {
               : item
           )
         );
-        fetchList();
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       }
@@ -276,7 +269,7 @@ export default function RoutePlanList() {
 
   const actionTemplate = (row: RoutePlan) => (
     <div className="flex justify-center gap-3">
-      {canEdit && (
+      { (
         <button
           onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
           className="text-blue-600 hover:text-blue-800"
@@ -285,7 +278,7 @@ export default function RoutePlanList() {
           <PencilIcon className="size-5" />
         </button>
       )}
-      {canDelete && (
+      { (
         <button
           onClick={() => handleDelete(row.unique_id)}
           className="text-red-600 hover:text-red-800"
@@ -309,10 +302,8 @@ export default function RoutePlanList() {
     if (!confirm.isConfirmed) return;
 
     try {
-      // TODO: Replace with actual API call
-      // await routePlansApi.remove(id);
+      await adminApi.routePlans.remove(id);
       setList((prev) => prev.filter((item) => item.unique_id !== id));
-      fetchList();
       Swal.fire(t("common.deleted_success"), t("common.record_removed"), "success");
     } catch {
       Swal.fire(t("common.error"), "Failed to delete route plan", "error");
@@ -373,7 +364,7 @@ export default function RoutePlanList() {
             ))}
           </select>
 
-          {canAdd && (
+          { (
             <Button
               label={t("admin.route_plan.add") || "Add Route Plan"}
               icon="pi pi-plus"

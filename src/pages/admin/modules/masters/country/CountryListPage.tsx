@@ -278,7 +278,7 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { type CountryRecord, useCountriesQuery, useUpdateCountryMutation } from "@/helpers/admin/directQueries";
+import { countryApi } from "@/helpers/admin";
 
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
@@ -292,6 +292,16 @@ type ErrorWithResponse = {
   response?: {
     data?: unknown;
   };
+};
+
+type CountryRecord = {
+  unique_id: string | number;
+  name?: string;
+  is_active: boolean;
+  continent_name?: string;
+  currency?: string;
+  mob_code?: string;
+  [key: string]: unknown;
 };
 
 const COUNTRY_COLUMN_FIELDS: Record<string, string[]> = {
@@ -324,9 +334,9 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 export default function CountryList() {
   const { t } = useTranslation();
 
-  const countriesQuery = useCountriesQuery();
-  const updateCountryMutation = useUpdateCountryMutation();
-  const countries = countriesQuery.data ?? [];
+  const [countries, setCountries] = useState<CountryRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
@@ -353,14 +363,32 @@ export default function CountryList() {
     `/${encMasters}/${encCountries}/${id}/edit`;
 
   useEffect(() => {
-    if (!countriesQuery.isError) return;
+    let mounted = true;
 
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(countriesQuery.error, t("common.fetch_failed")),
-      "error"
-    );
-  }, [countriesQuery.error, countriesQuery.isError, t]);
+    const loadCountries = async () => {
+      setIsLoading(true);
+      try {
+        const data = await countryApi.list();
+        if (mounted) setCountries(data as CountryRecord[]);
+      } catch (error) {
+        if (mounted) {
+          Swal.fire(
+            t("common.error"),
+            extractErrorMessage(error, t("common.fetch_failed")),
+            "error"
+          );
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadCountries();
+
+    return () => {
+      mounted = false;
+    };
+  }, [t]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);
@@ -382,19 +410,25 @@ export default function CountryList() {
   const updateStatus = async (row: CountryRecord, checked: boolean) => {
     const countryId = String(row.unique_id);
     setPendingStatusId(countryId);
+    setIsUpdating(true);
 
     try {
-      await updateCountryMutation.mutateAsync({
-        id: row.unique_id,
-        payload: filterPayload({ name: row.name, is_active: checked }) as {
-          name: string;
+      await countryApi.update(
+        row.unique_id,
+        filterPayload({ is_active: checked }) as {
           is_active: boolean;
-        },
-      });
+        }
+      );
+      setCountries((current) =>
+        current.map((item) =>
+          item.unique_id === row.unique_id ? { ...item, is_active: checked } : item
+        )
+      );
     } catch {
       Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
     } finally {
       setPendingStatusId(null);
+      setIsUpdating(false);
     }
   };
 
@@ -403,7 +437,7 @@ export default function CountryList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={updateCountryMutation.isPending && pendingStatusId === countryId}
+        disabled={isUpdating && pendingStatusId === countryId}
         onCheckedChange={(checked) => void updateStatus(row, checked)}
       />
     );
@@ -472,7 +506,7 @@ export default function CountryList() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={countriesQuery.isPending && countries.length === 0}
+        loading={isLoading && countries.length === 0}
         filters={filters}
         onFilter={onFilter}
         header={header}

@@ -19,12 +19,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  useSubPropertiesQuery,
-  useUpdateSubPropertyMutation,
-  // SubPropertyRecord,
-} from "@/helpers/admin/directQueries";
-import type { SubPropertyRecord } from "@/helpers/admin/directQueries";
+import { adminApi } from "@/helpers/admin/registry";
+import type { SubPropertyRecord } from "./types";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -60,6 +56,9 @@ const SUB_PROPERTY_COLUMN_FIELDS: Record<string, string[]> = {
 export default function SubPropertyList() {
   const { t } = useTranslation();
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [subProperties, setSubProperties] = useState<SubPropertyRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -85,35 +84,38 @@ export default function SubPropertyList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encMasters}/${encSubProperties}/${id}/edit`;
 
-  const subPropertiesQuery = useSubPropertiesQuery();
-  const updateSubPropertyMutation = useUpdateSubPropertyMutation();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "sub-properties",
     SUB_PROPERTY_COLUMN_FIELDS,
   );
 
-  // Handle fetch error
-  useEffect(() => {
-    if (!subPropertiesQuery.isError) {
-      return;
+  const loadSubProperties = async () => {
+    setIsLoading(true);
+    try {
+      const response = await adminApi.subProperties.list();
+      setSubProperties(
+        (Array.isArray(response)
+          ? response
+          : ((response as { results?: SubPropertyRecord[] })?.results ?? [])) as SubPropertyRecord[]
+      );
+    } catch (error) {
+      Swal.fire(
+        t("common.error"),
+        extractErrorMessage(error, t("common.fetch_failed")),
+        "error"
+      );
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(subPropertiesQuery.error, t("common.fetch_failed")),
-      "error"
-    );
-  }, [subPropertiesQuery.error, subPropertiesQuery.isError, t]);
+  useEffect(() => {
+    void loadSubProperties();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Calculate filtered subproperties based on company and project
   const filteredSubProperties = (() => {
-    if (!subPropertiesQuery.data) {
-      return [];
-    }
-
-    const subProperties = subPropertiesQuery.data;
-
     if (isSuperAdmin && companies.length === 0) {
       return [];
     }
@@ -185,14 +187,18 @@ export default function SubPropertyList() {
   const statusTemplate = (row: SubPropertyRecord) => {
     const updateStatus = async (value: boolean) => {
       try {
-        await updateSubPropertyMutation.mutateAsync({
-          id: row.unique_id,
-          payload: filterPayload({
-            sub_property_name: row.sub_property_name,
-            property_id: row.property_id,
-            is_active: value,
-          }) as SubPropertyRecord,
-        });
+        setUpdatingStatusId(String(row.unique_id));
+        await adminApi.subProperties.update(
+          row.unique_id,
+          filterPayload({ is_active: value })
+        );
+        setSubProperties((current) =>
+          current.map((subProperty) =>
+            subProperty.unique_id === row.unique_id
+              ? { ...subProperty, is_active: value }
+              : subProperty
+          )
+        );
       } catch (err) {
         Swal.fire({
           icon: "error",
@@ -202,7 +208,13 @@ export default function SubPropertyList() {
       }
     };
 
-    return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
+    return (
+      <Switch
+        checked={row.is_active}
+        disabled={updatingStatusId === String(row.unique_id)}
+        onCheckedChange={updateStatus}
+      />
+    );
   };
 
   const actionTemplate = (row: SubPropertyRecord) => (
@@ -284,7 +296,7 @@ export default function SubPropertyList() {
           paginator
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={subPropertiesQuery.isLoading}
+          loading={isLoading}
           filters={filters}
           onFilter={onFilter}
           header={renderHeader()}

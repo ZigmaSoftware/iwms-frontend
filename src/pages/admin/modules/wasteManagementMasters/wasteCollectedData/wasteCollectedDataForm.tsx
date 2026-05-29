@@ -55,19 +55,24 @@ function WasteCollectedForm() {
 
   /* ---------------- LOAD CUSTOMERS ---------------- */
   useEffect(() => {
+    let cancelled = false;
     adminApi.customerCreations.list().then((res) => {
+      if (cancelled) return;
       setCustomers(res || []);
       if (!isEdit && res?.length) {
         setCustomerId(resolveId(res[0])); // same as Feedback
       }
     });
+    return () => { cancelled = true; };
   }, [isEdit]);
 
   /* ---------------- EDIT MODE ---------------- */
   useEffect(() => {
     if (!isEdit) return;
+    let cancelled = false;
 
     adminApi.wasteCollections.get(id as string).then((res: any) => {
+      if (cancelled) return;
       setCustomerId(
         res.customer ?? res.customer_id ?? res.customer_unique_id
       );
@@ -75,6 +80,8 @@ function WasteCollectedForm() {
       setDryWaste(res.dry_waste || 0);
       setMixedWaste(res.mixed_waste || 0);
     });
+
+    return () => { cancelled = true; };
   }, [id, isEdit]);
 
   const selectedCustomer = customers.find(

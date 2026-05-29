@@ -98,16 +98,23 @@ export default function UserScreenForm() {
     return () => { cancelled = true; };
   }, [id, isEdit]);
 
+  // Prefill plain fields as soon as the record arrives.
   useEffect(() => {
     if (!recordData) return;
     const data = recordData;
-    setMainscreenId(data.mainscreen_id ?? "");
     setUserScreenName(data.userscreen_name ?? "");
     setFolderName(data.folder_name ?? "");
     setOrderNo(String(data.order_no ?? ""));
     setDescription(data.description ?? "");
     setIsActive(Boolean(data.is_active));
   }, [recordData]);
+
+  // Prefill the Select only once both the record AND the options list are ready
+  // to avoid the race where the list arrives after the record (value renders blank).
+  useEffect(() => {
+    if (!recordData || mainScreensList.length === 0) return;
+    setMainscreenId(String(recordData.mainscreen_id ?? ""));
+  }, [recordData, mainScreensList]);
 
   const mainScreens = useMemo<MainScreenOption[]>(
     () =>

@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useDistrictsQuery, useUpdateDistrictMutation } from "@/helpers/admin/directQueries";
+import { districtApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { DistrictListRecord } from "./types";
@@ -46,10 +46,9 @@ export default function DistrictListPage() {
     DISTRICT_COLUMN_FIELDS,
   );
 
-  const districtsQuery = useDistrictsQuery();
-  const updateDistrictMutation = useUpdateDistrictMutation();
-  const allDistricts = districtsQuery.data ?? [];
-  console.log("allDistrict", allDistricts);
+  const [allDistricts, setAllDistricts] = useState<DistrictApiRow[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -78,10 +77,29 @@ export default function DistrictListPage() {
   const ENC_EDIT_PATH = (id: string | number) => `/${encMasters}/${encDistricts}/${id}/edit`;
 
   useEffect(() => {
-    if (!districtsQuery.isError) return;
-    const errorData = (districtsQuery.error as { response?: { data?: unknown } })?.response?.data;
-    Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? districtsQuery.error) });
-  }, [districtsQuery.error, districtsQuery.isError, t]);
+    let mounted = true;
+
+    const loadDistricts = async () => {
+      setIsLoading(true);
+      try {
+        const data = await districtApi.list();
+        if (mounted) setAllDistricts(data as DistrictApiRow[]);
+      } catch (error) {
+        if (mounted) {
+          const errorData = (error as { response?: { data?: unknown } })?.response?.data;
+          Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadDistricts();
+
+    return () => {
+      mounted = false;
+    };
+  }, [t]);
 
   const districts = ((): DistrictListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
@@ -103,8 +121,6 @@ export default function DistrictListPage() {
       project_unique_id: d.project_unique_id ? String(d.project_unique_id) : undefined,
       project_name: d.project_name ? String(d.project_name) : undefined,
     }));
-
-    console.log("mapped",mapped);
 
     const filtered = mapped.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
@@ -164,18 +180,25 @@ export default function DistrictListPage() {
   const updateStatus = async (row: DistrictListRecord, checked: boolean) => {
     const id = String(row.unique_id);
     setPendingStatusId(id);
+    setIsUpdating(true);
 
     try {
-      await updateDistrictMutation.mutateAsync({ id: row.unique_id, payload: { name: row.name, is_active: checked } });
+      await districtApi.update(row.unique_id, { is_active: checked });
+      setAllDistricts((current) =>
+        current.map((item) =>
+          item.unique_id === row.unique_id ? { ...item, is_active: checked } : item
+        )
+      );
     } catch (e) {
       console.error("Toggle update failed:", e);
     } finally {
       setPendingStatusId(null);
+      setIsUpdating(false);
     }
   };
 
   const statusTemplate = (row: DistrictListRecord) => (
-    <Switch checked={row.is_active} disabled={updateDistrictMutation.isPending && pendingStatusId === String(row.unique_id)} onCheckedChange={(checked) => void updateStatus(row, checked)} />
+    <Switch checked={row.is_active} disabled={isUpdating && pendingStatusId === String(row.unique_id)} onCheckedChange={(checked) => void updateStatus(row, checked)} />
   );
   
 
@@ -265,7 +288,7 @@ export default function DistrictListPage() {
       <DataTable
         value={districts}
         dataKey="unique_id"
-        loading={districtsQuery.isPending && districts.length === 0}
+        loading={isLoading && districts.length === 0}
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}

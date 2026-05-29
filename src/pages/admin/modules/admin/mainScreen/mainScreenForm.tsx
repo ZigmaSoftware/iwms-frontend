@@ -98,15 +98,22 @@ export default function MainScreenForm() {
     return () => { cancelled = true; };
   }, [id, isEdit]);
 
+  // Prefill plain fields as soon as the record arrives.
   useEffect(() => {
     if (!recordData) return;
     const data = recordData;
     setMainScreenName(data.mainscreen_name ?? "");
     setOrderNo(data.order_no ?? "");
     setDescription(data.description ?? "");
-    setMainScreenTypeId(data.mainscreentype_id ?? "");
     setIsActive(Boolean(data.is_active));
   }, [recordData]);
+
+  // Prefill the Select only once both the record AND the options list are ready
+  // to avoid the race where the list arrives after the record (value renders blank).
+  useEffect(() => {
+    if (!recordData || mainScreenTypesList.length === 0) return;
+    setMainScreenTypeId(String(recordData.mainscreentype_id ?? ""));
+  }, [recordData, mainScreenTypesList]);
 
   const mainScreenTypes = useMemo<MainScreenTypeOption[]>(
     () =>

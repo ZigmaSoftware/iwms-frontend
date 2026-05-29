@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
+import Swal from "sweetalert2";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -18,11 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  type FuelPayload,
-  useFuelsQuery,
-  useUpdateFuelMutation,
-} from "@/helpers/admin/directQueries";
+import { fuelApi } from "@/helpers/admin";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,6 +60,11 @@ export default function FuelList() {
     FUEL_COLUMN_FIELDS
   );
 
+  const [allFuels, setAllFuels] = useState<Fuel[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -88,32 +90,37 @@ export default function FuelList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encTransportMaster}/${encFuel}/${id}/edit`;
 
-  // ── TanStack ──────────────────────────────────────────────────────────────
-  const fuelsQuery = useFuelsQuery(
-    companyUniqueId
-      ? { company_id: companyUniqueId, project_id: projectId || undefined }
-      : null
-  );
-  const updateMutation = useUpdateFuelMutation();
+  // ── Load data ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    let mounted = true;
+    setIsLoading(true);
+    fuelApi.list()
+      .then((data: unknown) => {
+        if (mounted) setAllFuels(Array.isArray(data) ? (data as Fuel[]) : []);
+      })
+      .catch((error: unknown) => {
+        if (mounted) {
+          Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
+        }
+      })
+      .finally(() => { if (mounted) setIsLoading(false); });
+    return () => { mounted = false; };
+  }, [t]);
 
   // ── Derived rows with client-side company/project filter ──────────────────
   const rows = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as Fuel[];
     if (!companyUniqueId) return [] as Fuel[];
 
-    const list = Array.isArray(fuelsQuery.data)
-      ? (fuelsQuery.data as Fuel[])
-      : [];
-
-    const hasContextFields = list.some((row) => {
+    const hasContextFields = allFuels.some((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
       return Boolean(rowCompanyId || rowProjectId);
     });
 
-    if (!hasContextFields) return list;
+    if (!hasContextFields) return allFuels;
 
-    return list.filter((row) => {
+    return allFuels.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
       const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
@@ -134,24 +141,40 @@ export default function FuelList() {
     }));
   };
 
-  // ── Status toggle — TanStack mutation, no manual refetch ──────────────────
+  // ── Status toggle ─────────────────────────────────────────────────────────
   const statusTemplate = (row: Fuel) => {
     const updateStatus = async (value: boolean) => {
+      setPendingStatusId(row.unique_id);
+      setIsUpdating(true);
       try {
-        await updateMutation.mutateAsync({
-          id: row.unique_id,
-          payload: filterPayload({
+        await fuelApi.update(
+          row.unique_id,
+          filterPayload({
             fuel_type: row.fuel_type,
             description: row.description,
             is_active: value,
-          }) as unknown as FuelPayload,
-        });
+          }) as Record<string, unknown>
+        );
+        setAllFuels((current) =>
+          current.map((item) =>
+            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
+          )
+        );
       } catch (err) {
         console.error("Failed to update status:", err);
+      } finally {
+        setPendingStatusId(null);
+        setIsUpdating(false);
       }
     };
 
-    return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
+    return (
+      <Switch
+        checked={row.is_active}
+        disabled={isUpdating && pendingStatusId === row.unique_id}
+        onCheckedChange={updateStatus}
+      />
+    );
   };
 
   // ── Action buttons ────────────────────────────────────────────────────────
@@ -251,7 +274,7 @@ export default function FuelList() {
         dataKey="unique_id"
         paginator
         rows={10}
-        loading={fuelsQuery.isPending || fuelsQuery.isFetching}
+        loading={isLoading && rows.length === 0}
         filters={filters}
         onFilter={onFilter}
         rowsPerPageOptions={[5, 10, 25, 50]}

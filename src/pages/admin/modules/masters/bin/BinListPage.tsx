@@ -20,7 +20,7 @@ import { encryptSegment } from "@/utils/routeCrypto";
 import { PencilIcon } from "@/icons";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { useBinsQuery, useUpdateBinMutation, type BinRecord } from "@/helpers/admin/directQueries";
+import { binApi } from "@/helpers/admin";
 
 type Bin = {
   unique_id: string;
@@ -46,7 +46,9 @@ type Bin = {
   is_active: boolean;
 };
 
-type BinApiRow = BinRecord & {
+type BinApiRow = Record<string, unknown> & {
+  unique_id?: string | number;
+  is_active?: boolean;
   bin_status?: string | number | null;
 };
 
@@ -119,8 +121,9 @@ export default function BinList() {
   });
 
   const navigate = useNavigate();
-  const binsQuery = useBinsQuery(companyUniqueId ? { company_id: companyUniqueId, project_id: projectId || undefined } : null);
-  const updateBinMutation = useUpdateBinMutation();
+  const [binRows, setBinRows] = useState<BinApiRow[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "assets",
     "bins",
@@ -128,16 +131,45 @@ export default function BinList() {
   );
 
   useEffect(() => {
-    if (!binsQuery.isError) return;
-    const data = (binsQuery.error as { response?: { data?: unknown } })?.response?.data;
-    Swal.fire(t("common.error"), String(data ?? binsQuery.error), "error");
-  }, [binsQuery.error, binsQuery.isError, t]);
+    let mounted = true;
+
+    const loadBins = async () => {
+      if (!companyUniqueId) {
+        setBinRows([]);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const data = await binApi.list({
+          params: {
+            company_id: companyUniqueId,
+            project_id: projectId || undefined,
+          },
+        });
+        if (mounted) setBinRows(data as BinApiRow[]);
+      } catch (error) {
+        if (mounted) {
+          const data = (error as { response?: { data?: unknown } })?.response?.data;
+          Swal.fire(t("common.error"), String(data ?? error), "error");
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadBins();
+
+    return () => {
+      mounted = false;
+    };
+  }, [companyUniqueId, projectId, t]);
 
   const bins = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as Bin[];
     if (!companyUniqueId) return [] as Bin[];
 
-    const rows = Array.isArray(binsQuery.data) ? (binsQuery.data as BinApiRow[]) : [];
+    const rows = Array.isArray(binRows) ? binRows : [];
     const mapped: Bin[] = rows.map((row) => ({
       unique_id: String(row.unique_id ?? ""),
       bin_name: String(row.bin_name ?? ""),
@@ -188,25 +220,34 @@ export default function BinList() {
     const updateStatus = async (checked: boolean) => {
       try {
         setPendingStatusId(row.unique_id);
-        await updateBinMutation.mutateAsync({
-          id: row.unique_id,
-          payload: filterPayload({
+        setIsUpdating(true);
+        await binApi.update(
+          row.unique_id,
+          filterPayload({
             bin_name: row.bin_name,
             bin_capacity: row.bin_capacity,
             is_active: checked,
-          }) as { bin_name: string; bin_capacity: number; is_active: boolean },
-        });
+          }) as { bin_name: string; bin_capacity: number; is_active: boolean }
+        );
+        setBinRows((current) =>
+          current.map((item) =>
+            String(item.unique_id ?? "") === row.unique_id
+              ? { ...item, is_active: checked }
+              : item
+          )
+        );
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       } finally {
         setPendingStatusId(null);
+        setIsUpdating(false);
       }
     };
 
     return (
       <Switch
         checked={row.is_active}
-        disabled={updateBinMutation.isPending && pendingStatusId === row.unique_id}
+        disabled={isUpdating && pendingStatusId === row.unique_id}
         onCheckedChange={updateStatus}
       />
     );
@@ -363,7 +404,7 @@ export default function BinList() {
         header={header}
         stripedRows
         showGridlines
-        loading={binsQuery.isPending || binsQuery.isFetching}
+        loading={isLoading}
         className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />

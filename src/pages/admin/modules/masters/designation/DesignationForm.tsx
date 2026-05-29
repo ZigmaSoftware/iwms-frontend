@@ -26,8 +26,14 @@ export default function DesignationForm() {
     status: "active",
   });
 
+  /* pendingDepartmentId holds the ID from the edit record while the
+     department list is still loading; applied once options are ready */
+  const [pendingDepartmentId, setPendingDepartmentId] = useState("");
+
   useEffect(() => {
+    let cancelled = false;
     departmentApi.list({ params: { status: "active" } }).then((res: any) => {
+      if (cancelled) return;
       const list = Array.isArray(res) ? res : res?.data?.results ?? res?.data ?? [];
       setDepartmentOptions(
         list
@@ -40,20 +46,34 @@ export default function DesignationForm() {
           })),
       );
     });
+    return () => { cancelled = true; };
   }, []);
+
+  /* Once departments load, apply the pending ID from the edit record */
+  useEffect(() => {
+    if (!pendingDepartmentId || departmentOptions.length === 0) return;
+    if (departmentOptions.some((d) => d.value === pendingDepartmentId)) {
+      setForm((prev) => ({ ...prev, department_id: pendingDepartmentId }));
+      setPendingDepartmentId("");
+    }
+  }, [pendingDepartmentId, departmentOptions]);
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
     designationApi.get(id).then((record: any) => {
+      if (cancelled) return;
+      const deptId = record.department_id ? String(record.department_id) : "";
       setForm({
         designation_name: record.designation_name ?? "",
-        department_id: record.department_id
-          ? String(record.department_id)
-          : "",
+        department_id: deptId,
         description: record.description ?? "",
         status: record.is_active === false ? "inactive" : "active",
       });
+      /* Keep a pending copy in case departmentOptions hasn't loaded yet */
+      if (deptId) setPendingDepartmentId(deptId);
     });
+    return () => { cancelled = true; };
   }, [id]);
 
   const save = async (event: React.FormEvent) => {

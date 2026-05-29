@@ -106,7 +106,7 @@ export default function WasteTypeForm() {
         Swal.fire(t("common.error"), extractErr(err), "error");
       });
     return () => { cancelled = true; };
-  }, [id, isEdit]);
+  }, [id, isEdit, applyCompanyProjectFromRecord]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

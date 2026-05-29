@@ -14,11 +14,7 @@ import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
-import {
-  type MainCategoryRecord,
-  useMainCategoriesQuery,
-  useUpdateMainCategoryMutation,
-} from "@/helpers/admin/directQueries";
+import { mainCategoryApi } from "@/helpers/admin";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -27,6 +23,13 @@ import "primeicons/primeicons.css";
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
   main_categoryName: { value: string | null; matchMode: FilterMatchMode };
+};
+
+type MainCategoryRecord = {
+  unique_id: string | number;
+  main_categoryName?: string;
+  is_active: boolean;
+  [key: string]: unknown;
 };
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
@@ -59,6 +62,9 @@ export default function MainComplaintCategoryList() {
   const { t } = useTranslation();
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [records, setRecords] = useState<MainCategoryRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const navigate = useNavigate();
   const { encCitizenGrivence, encMainComplaintCategory } = getEncryptedRoute();
@@ -73,21 +79,35 @@ export default function MainComplaintCategoryList() {
     main_categoryName: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
-  const mainCategoriesQuery = useMainCategoriesQuery(companyUniqueId);
-  const updateMainCategoryMutation = useUpdateMainCategoryMutation(companyUniqueId);
-  const records = mainCategoriesQuery.data ?? [];
-
   useEffect(() => {
-    if (!mainCategoriesQuery.isError) {
-      return;
-    }
+    let mounted = true;
 
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(mainCategoriesQuery.error, t("common.fetch_failed")),
-      "error"
-    );
-  }, [mainCategoriesQuery.error, mainCategoriesQuery.isError, t]);
+    const loadMainCategories = async () => {
+      setIsLoading(true);
+      try {
+        const data = await mainCategoryApi.list(
+          companyUniqueId ? { params: { company_id: companyUniqueId } } : undefined
+        );
+        if (mounted) setRecords(data as MainCategoryRecord[]);
+      } catch (error) {
+        if (mounted) {
+          Swal.fire(
+            t("common.error"),
+            extractErrorMessage(error, t("common.fetch_failed")),
+            "error"
+          );
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadMainCategories();
+
+    return () => {
+      mounted = false;
+    };
+  }, [companyUniqueId, t]);
 
   const updateStatus = async (
     row: MainCategoryRecord,
@@ -95,16 +115,22 @@ export default function MainComplaintCategoryList() {
   ) => {
     const rowId = String(row.unique_id);
     setPendingStatusId(rowId);
+    setIsUpdating(true);
 
     try {
-      await updateMainCategoryMutation.mutateAsync({
-        id: row.unique_id,
-        payload: {
+      await mainCategoryApi.update(
+        row.unique_id,
+        {
           main_categoryName: row.main_categoryName,
           is_active: value,
           company_id: companyUniqueId,
-        },
-      });
+        }
+      );
+      setRecords((current) =>
+        current.map((item) =>
+          item.unique_id === row.unique_id ? { ...item, is_active: value } : item
+        )
+      );
     } catch (error) {
       Swal.fire(
         t("common.error"),
@@ -113,6 +139,7 @@ export default function MainComplaintCategoryList() {
       );
     } finally {
       setPendingStatusId(null);
+      setIsUpdating(false);
     }
   };
 
@@ -121,9 +148,7 @@ export default function MainComplaintCategoryList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={
-          updateMainCategoryMutation.isPending && pendingStatusId === rowId
-        }
+        disabled={isUpdating && pendingStatusId === rowId}
         onCheckedChange={(value) => {
           void updateStatus(row, value);
         }}
@@ -197,7 +222,7 @@ export default function MainComplaintCategoryList() {
         dataKey="unique_id"
         paginator
         rows={10}
-        loading={mainCategoriesQuery.isPending && records.length === 0}
+        loading={isLoading && records.length === 0}
         filters={filters}
         onFilter={onFilter}
         globalFilterFields={["main_categoryName"]}
