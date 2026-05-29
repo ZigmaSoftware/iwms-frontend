@@ -268,6 +268,18 @@ export default function StaffCreationForm() {
   const [staffHeadOptions, setStaffHeadOptions] = useState<
     { value: string; label: string; name: string }[]
   >([]);
+
+  // Pending prefill values — set during edit load, applied once the option list arrives
+  const [pendingStaffUserTypeId, setPendingStaffUserTypeId] = useState<string | null>(null);
+  const [pendingDepartmentId, setPendingDepartmentId] = useState<string | null>(null);
+  const [pendingDesignationId, setPendingDesignationId] = useState<string | null>(null);
+  const [pendingPresentState, setPendingPresentState] = useState<string | null>(null);
+  const [pendingPresentDistrict, setPendingPresentDistrict] = useState<string | null>(null);
+  const [pendingPresentCity, setPendingPresentCity] = useState<string | null>(null);
+  const [pendingPermanentState, setPendingPermanentState] = useState<string | null>(null);
+  const [pendingPermanentDistrict, setPendingPermanentDistrict] = useState<string | null>(null);
+  const [pendingPermanentCity, setPendingPermanentCity] = useState<string | null>(null);
+
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { id } = useParams<{ id?: string }>();
@@ -615,6 +627,17 @@ export default function StaffCreationForm() {
           contact_email: staff.contact_email ?? "",
         }));
 
+        // Set pending prefill values so dropdowns apply once their option lists load
+        if (staff.staffusertype_id) setPendingStaffUserTypeId(String(staff.staffusertype_id));
+        if (staff.department_id) setPendingDepartmentId(String(staff.department_id));
+        if (staff.designation_id) setPendingDesignationId(String(staff.designation_id));
+        if (staff.present_address?.state) setPendingPresentState(staff.present_address.state);
+        if (staff.present_address?.district) setPendingPresentDistrict(staff.present_address.district);
+        if (staff.present_address?.city) setPendingPresentCity(staff.present_address.city);
+        if (staff.permanent_address?.state) setPendingPermanentState(staff.permanent_address.state);
+        if (staff.permanent_address?.district) setPendingPermanentDistrict(staff.permanent_address.district);
+        if (staff.permanent_address?.city) setPendingPermanentCity(staff.permanent_address.city);
+
         if (staff.driving_licence_file) {
           setLicencePreview(
             staff.driving_licence_file.startsWith("http")
@@ -713,6 +736,100 @@ export default function StaffCreationForm() {
     formData.present_area,
     formData.present_pincode,
   ]);
+
+  // ── Pending-prefill resolution effects ──────────────────────────────────────
+  // Each effect watches [pendingXxx, xOptions]. Once the option list is non-empty
+  // and contains the pending value, it applies the value and clears the pending.
+
+  useEffect(() => {
+    if (!pendingStaffUserTypeId || staffUserTypeOptions.length === 0) return;
+    const match = staffUserTypeOptions.find((o) => o.value === pendingStaffUserTypeId);
+    if (match) {
+      setFormData((prev) => ({ ...prev, staffusertype_id: pendingStaffUserTypeId }));
+      setPendingStaffUserTypeId(null);
+    }
+  }, [pendingStaffUserTypeId, staffUserTypeOptions]);
+
+  useEffect(() => {
+    if (!pendingDepartmentId || departmentOptions.length === 0) return;
+    const match = departmentOptions.find((o) => o.value === pendingDepartmentId);
+    if (match) {
+      setFormData((prev) => ({
+        ...prev,
+        department_id: pendingDepartmentId,
+        department: match.name,
+      }));
+      setPendingDepartmentId(null);
+    }
+  }, [pendingDepartmentId, departmentOptions]);
+
+  useEffect(() => {
+    if (!pendingDesignationId || designationOptions.length === 0) return;
+    const match = designationOptions.find((o) => o.value === pendingDesignationId);
+    if (match) {
+      setFormData((prev) => ({
+        ...prev,
+        designation_id: pendingDesignationId,
+        designation: match.name,
+      }));
+      setPendingDesignationId(null);
+    }
+  }, [pendingDesignationId, designationOptions]);
+
+  useEffect(() => {
+    if (!pendingPresentState || stateOptions.length === 0) return;
+    const match = stateOptions.find((o) => o.value === pendingPresentState);
+    if (match) {
+      setFormData((prev) => ({ ...prev, present_state: pendingPresentState }));
+      setPendingPresentState(null);
+    }
+  }, [pendingPresentState, stateOptions]);
+
+  useEffect(() => {
+    if (!pendingPresentDistrict || districtOptions.length === 0) return;
+    const match = districtOptions.find((o) => o.value === pendingPresentDistrict);
+    if (match) {
+      setFormData((prev) => ({ ...prev, present_district: pendingPresentDistrict }));
+      setPendingPresentDistrict(null);
+    }
+  }, [pendingPresentDistrict, districtOptions]);
+
+  useEffect(() => {
+    if (!pendingPresentCity || cityOptions.length === 0) return;
+    const match = cityOptions.find((o) => o.value === pendingPresentCity);
+    if (match) {
+      setFormData((prev) => ({ ...prev, present_city: pendingPresentCity }));
+      setPendingPresentCity(null);
+    }
+  }, [pendingPresentCity, cityOptions]);
+
+  useEffect(() => {
+    if (!pendingPermanentState || stateOptions.length === 0) return;
+    const match = stateOptions.find((o) => o.value === pendingPermanentState);
+    if (match) {
+      setFormData((prev) => ({ ...prev, permanent_state: pendingPermanentState }));
+      setPendingPermanentState(null);
+    }
+  }, [pendingPermanentState, stateOptions]);
+
+  useEffect(() => {
+    if (!pendingPermanentDistrict || districtOptions.length === 0) return;
+    const match = districtOptions.find((o) => o.value === pendingPermanentDistrict);
+    if (match) {
+      setFormData((prev) => ({ ...prev, permanent_district: pendingPermanentDistrict }));
+      setPendingPermanentDistrict(null);
+    }
+  }, [pendingPermanentDistrict, districtOptions]);
+
+  useEffect(() => {
+    if (!pendingPermanentCity || cityOptions.length === 0) return;
+    const match = cityOptions.find((o) => o.value === pendingPermanentCity);
+    if (match) {
+      setFormData((prev) => ({ ...prev, permanent_city: pendingPermanentCity }));
+      setPendingPermanentCity(null);
+    }
+  }, [pendingPermanentCity, cityOptions]);
+  // ────────────────────────────────────────────────────────────────────────────
 
   const handleInputChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,

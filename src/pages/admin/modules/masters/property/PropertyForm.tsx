@@ -7,11 +7,10 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
-import type { PropertyPayload } from "@/helpers/admin/directQueries";
 import { adminApi } from "@/helpers/admin/registry";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import type { PropertyEditorProps } from "./types";
+import type { PropertyEditorProps, PropertyPayload } from "./types";
 
 const { encMasters, encProperties } = getEncryptedRoute();
 
@@ -54,7 +53,7 @@ function PropertyEditor({
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
     useFieldVisibility("masters", "properties", PROPERTY_FIELDS);
-  const [propertyName, setPropertyName] = useState(initialPayload.property_name);
+  const [propertyName, setPropertyName] = useState(initialPayload.property_name ?? "");
   const [isActive, setIsActive] = useState(initialPayload.is_active);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -197,7 +196,7 @@ function PropertyForm() {
         );
       });
     return () => { cancelled = true; };
-  }, [id, isEdit]);
+  }, [id, isEdit, applyCompanyProjectFromRecord]);
 
   const title = isEdit
     ? t("common.edit_item", { item: t("admin.nav.property") })

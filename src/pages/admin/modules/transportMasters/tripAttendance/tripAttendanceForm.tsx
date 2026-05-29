@@ -110,6 +110,11 @@ export default function TripAttendanceForm() {
     Record<string, { vehicle_id?: string; staff_template_id?: string; status?: string }>
   >({});
 
+  // Pending IDs — set when the record loads; applied once options are available
+  const [pendingTripInstanceId, setPendingTripInstanceId] = useState<string | null>(null);
+  const [pendingStaffId, setPendingStaffId] = useState<string | null>(null);
+  const [pendingVehicleId, setPendingVehicleId] = useState<string | null>(null);
+
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState("");
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -183,10 +188,18 @@ export default function TripAttendanceForm() {
   useEffect(() => {
     if (!isEdit || !stateRecord) return;
 
+    const tripInstId = stateRecord?.trip_instance_id ?? "";
+    const staffId = stateRecord?.staff_id ?? "";
+    const vehicleId = stateRecord?.vehicle_id ?? "";
+
+    setPendingTripInstanceId(tripInstId);
+    setPendingStaffId(staffId);
+    setPendingVehicleId(vehicleId);
+
     setFormData({
-      trip_instance_id: stateRecord?.trip_instance_id ?? "",
-      staff_id: stateRecord?.staff_id ?? "",
-      vehicle_id: stateRecord?.vehicle_id ?? "",
+      trip_instance_id: tripInstId,
+      staff_id: staffId,
+      vehicle_id: vehicleId,
       attendance_time: stateRecord?.attendance_time ?? "",
       latitude: stateRecord?.latitude ? String(stateRecord.latitude) : "",
       longitude: stateRecord?.longitude ? String(stateRecord.longitude) : "",
@@ -205,10 +218,18 @@ export default function TripAttendanceForm() {
     tripAttendanceApi
       .get(id)
       .then((res: any) => {
+        const tripInstId = res?.trip_instance_id ?? "";
+        const staffId = res?.staff_id ?? "";
+        const vehicleId = res?.vehicle_id ?? "";
+
+        setPendingTripInstanceId(tripInstId);
+        setPendingStaffId(staffId);
+        setPendingVehicleId(vehicleId);
+
         setFormData({
-          trip_instance_id: res?.trip_instance_id ?? "",
-          staff_id: res?.staff_id ?? "",
-          vehicle_id: res?.vehicle_id ?? "",
+          trip_instance_id: tripInstId,
+          staff_id: staffId,
+          vehicle_id: vehicleId,
           attendance_time: res?.attendance_time ?? "",
           latitude: res?.latitude !== undefined && res?.latitude !== null ? String(res.latitude) : "",
           longitude: res?.longitude !== undefined && res?.longitude !== null ? String(res.longitude) : "",
@@ -265,6 +286,28 @@ export default function TripAttendanceForm() {
       "unique_id"
     );
   }, [formData.trip_instance_id, staffRecords, staffTemplates, tripInstanceMeta]);
+
+  // Apply pending IDs once the corresponding options array is populated
+  useEffect(() => {
+    if (pendingTripInstanceId && tripOptions.length > 0 && tripOptions.some((o) => o.value === pendingTripInstanceId)) {
+      setFormData((prev) => ({ ...prev, trip_instance_id: pendingTripInstanceId }));
+      setPendingTripInstanceId(null);
+    }
+  }, [pendingTripInstanceId, tripOptions]);
+
+  useEffect(() => {
+    if (pendingStaffId && staffOptions.length > 0 && staffOptions.some((o) => o.value === pendingStaffId)) {
+      setFormData((prev) => ({ ...prev, staff_id: pendingStaffId }));
+      setPendingStaffId(null);
+    }
+  }, [pendingStaffId, staffOptions]);
+
+  useEffect(() => {
+    if (pendingVehicleId && vehicles.length > 0 && vehicles.some((o) => o.value === pendingVehicleId)) {
+      setFormData((prev) => ({ ...prev, vehicle_id: pendingVehicleId }));
+      setPendingVehicleId(null);
+    }
+  }, [pendingVehicleId, vehicles]);
 
   useEffect(() => {
     if (isEdit) return;

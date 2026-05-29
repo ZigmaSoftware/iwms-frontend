@@ -16,7 +16,7 @@
 //   useSupervisorZoneMapQuery,
 //   useCreateSupervisorZoneMap,
 //   useUpdateSupervisorZoneMap,
-// } from "@/helpers/admin/directQueries";
+// } from "@/helpers/admin/localHooks";
 // import { getEncryptedRoute } from "@/utils/routeCache";
 // import { normalizeList } from "@/utils/forms";
 // import { useFieldVisibility } from "@/hooks/useFieldVisibility";

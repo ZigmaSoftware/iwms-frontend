@@ -8,8 +8,9 @@ import Select from "@/components/form/Select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { type FuelPayload } from "@/helpers/admin/directQueries";
 import { adminApi } from "@/helpers/admin/registry";
+
+type FuelPayload = Record<string, unknown>;
 
 const { encTransportMaster, encFuel } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encTransportMaster}/${encFuel}`;

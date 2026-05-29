@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
@@ -11,7 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { adminApi } from "@/helpers/admin/registry";
+import {
+  contractorRoleTypesApi,
+  contractorUserTypeApi,
+  roleTypesApi,
+  staffUserTypeApi,
+  userTypeApi,
+} from "@/helpers/admin";
 
 const { encAdmins, encStaffUserType } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encAdmins}/${encStaffUserType}`;
@@ -25,6 +32,15 @@ type UserType = {
   unique_id: string;
   name: string;
   is_active: boolean;
+};
+
+const normalizeIdValue = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return normalizeIdValue(record.unique_id ?? record.id ?? record.value);
+  }
+  return String(value).trim();
 };
 
 const prettifyRoleLabel = (value: string) =>
@@ -122,6 +138,23 @@ const normalizeContractorRoleTypes = (raw: unknown): RoleTypeOption[] => {
     .filter((opt) => opt.value);
 };
 
+const ensureRoleOption = (
+  roles: RoleTypeOption[],
+  roleValue: string
+): RoleTypeOption[] => {
+  if (!roleValue || roles.some((role) => role.value === roleValue)) {
+    return roles;
+  }
+
+  return [
+    ...roles,
+    {
+      value: roleValue,
+      label: prettifyRoleLabel(roleValue),
+    },
+  ];
+};
+
 export default function StaffUserTypeForm() {
   const { t } = useTranslation();
   const [name, setName] = useState("");
@@ -134,6 +167,7 @@ export default function StaffUserTypeForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const skipUserTypeResetRef = useRef(false);
 
   const selectedUserTypeName = userTypes
     .find((u) => u.unique_id === selectedUserType)
@@ -162,7 +196,7 @@ export default function StaffUserTypeForm() {
   ------------------------------------------------------- */
   useEffect(() => {
     let cancelled = false;
-    adminApi.userTypes.list()
+    userTypeApi.list()
       .then((res: any) => {
         if (cancelled) return;
         setUserTypes(Array.isArray(res) ? res : (res?.results ?? []));
@@ -176,7 +210,7 @@ export default function StaffUserTypeForm() {
 
   useEffect(() => {
     let cancelled = false;
-    adminApi.roleTypes.list()
+    roleTypesApi.list()
       .then((res: any) => {
         if (cancelled) return;
         setStaffRoleChoices(normalizeRoleTypes(res));
@@ -190,7 +224,7 @@ export default function StaffUserTypeForm() {
 
   useEffect(() => {
     let cancelled = false;
-    adminApi.contractorRoleTypes.list()
+    contractorRoleTypesApi.list()
       .then((res: any) => {
         if (cancelled) return;
         setContractorRoleChoices(normalizeContractorRoleTypes(res));
@@ -212,21 +246,47 @@ export default function StaffUserTypeForm() {
       setEditRecordLoaded(true);
       return;
     }
-    // Fetch both; the correct one will have data
+    const normalizedId = String(id).toUpperCase();
+    const primaryApi = normalizedId.startsWith("STUSRTYPE-")
+      ? staffUserTypeApi
+      : normalizedId.startsWith("CNTUSRTYPE-")
+        ? contractorUserTypeApi
+        : null;
+
     let cancelled = false;
-    Promise.allSettled([
-      adminApi.staffUserTypes.get(id),
-      adminApi.contractorUserTypes.get(id),
-    ]).then(([staffResult, contractorResult]) => {
-      if (cancelled) return;
-      if (staffResult.status === "fulfilled" && staffResult.value) {
-        setStaffRecordData(staffResult.value);
-      }
-      if (contractorResult.status === "fulfilled" && contractorResult.value) {
-        setContractorRecordData(contractorResult.value);
-      }
-      setEditRecordLoaded(true);
-    });
+
+    if (primaryApi) {
+      primaryApi
+        .get(id)
+        .then((record: any) => {
+          if (cancelled) return;
+          if (normalizedId.startsWith("CNTUSRTYPE-")) {
+            setContractorRecordData(record);
+          } else {
+            setStaffRecordData(record);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setEditRecordLoaded(true);
+        });
+
+      return () => { cancelled = true; };
+    }
+
+    Promise.allSettled([staffUserTypeApi.get(id), contractorUserTypeApi.get(id)])
+      .then(([staffResult, contractorResult]) => {
+        if (cancelled) return;
+        if (staffResult.status === "fulfilled" && staffResult.value) {
+          setStaffRecordData(staffResult.value);
+        }
+        if (contractorResult.status === "fulfilled" && contractorResult.value) {
+          setContractorRecordData(contractorResult.value);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setEditRecordLoaded(true);
+      });
     return () => { cancelled = true; };
   }, [id, isEdit]);
 
@@ -236,6 +296,10 @@ export default function StaffUserTypeForm() {
   useEffect(() => {
     if (!pageReady) return;
     const roles = isContractor ? contractorRoleChoices : staffRoleChoices;
+    if (skipUserTypeResetRef.current) {
+      skipUserTypeResetRef.current = false;
+      return;
+    }
     setRoleTypes(roles);
     setName(roles[0]?.value ?? "");
   }, [selectedUserType]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -248,12 +312,15 @@ export default function StaffUserTypeForm() {
     if (!userTypesLoaded || !staffRolesLoaded || !contractorRolesLoaded || !editRecordLoaded) return;
 
     const ut = userTypes;
-    if (ut.length > 0 && !selectedUserType) {
+    if (!isEdit && ut.length > 0 && !selectedUserType) {
       setSelectedUserType(ut[0].unique_id);
     }
 
     const editData = staffRecordData ?? contractorRecordData;
     const isContractorRecord = Boolean(contractorRecordData && !staffRecordData);
+    const fallbackUserTypeId =
+      ut.find((u) => u.name?.toLowerCase?.().trim() === (isContractorRecord ? "contractor" : "staff"))
+        ?.unique_id ?? "";
 
     // Determine role choices based on record (or default staff)
     const roles = isContractorRecord ? contractorRoleChoices : staffRoleChoices;
@@ -267,30 +334,21 @@ export default function StaffUserTypeForm() {
       }
 
       const roleValue = String(data.name ?? "").trim();
+      const recordUserTypeId = normalizeIdValue(data.usertype_id ?? data.usertype);
       setName(roleValue);
       setIsActive(Boolean(data.is_active));
 
-      if (data.usertype_id) {
-        setSelectedUserType(data.usertype_id);
+      if (recordUserTypeId || fallbackUserTypeId) {
+        const nextUserTypeId = recordUserTypeId || fallbackUserTypeId;
+        skipUserTypeResetRef.current = true;
+        setSelectedUserType(nextUserTypeId);
         // Re-derive roles based on the record's user type
-        const matchedUt = ut.find((u) => u.unique_id === data.usertype_id);
+        const matchedUt = ut.find((u) => u.unique_id === nextUserTypeId);
         const matchedIsContractor = matchedUt?.name?.toLowerCase() === "contractor";
         const matchedRoles = matchedIsContractor ? contractorRoleChoices : staffRoleChoices;
-        setRoleTypes(matchedRoles);
-
-        if (roleValue && !matchedRoles.some((role: RoleTypeOption) => role.value === roleValue)) {
-          setRoleTypes((prev) => [
-            ...prev,
-            { value: roleValue, label: prettifyRoleLabel(roleValue) },
-          ]);
-        }
+        setRoleTypes(ensureRoleOption(matchedRoles, roleValue));
       } else {
-        if (roleValue && !roles.some((role: RoleTypeOption) => role.value === roleValue)) {
-          setRoleTypes((prev) => [
-            ...prev,
-            { value: roleValue, label: prettifyRoleLabel(roleValue) },
-          ]);
-        }
+        setRoleTypes(ensureRoleOption(roles, roleValue));
       }
     } else {
       if (!name && roles.length > 0) {
@@ -322,15 +380,15 @@ export default function StaffUserTypeForm() {
     try {
       if (isContractor) {
         if (isEdit) {
-          await adminApi.contractorUserTypes.update(id as string, payload);
+          await contractorUserTypeApi.update(id as string, payload);
         } else {
-          await adminApi.contractorUserTypes.create(payload);
+          await contractorUserTypeApi.create(payload);
         }
       } else {
         if (isEdit) {
-          await adminApi.staffUserTypes.update(id as string, payload);
+          await staffUserTypeApi.update(id as string, payload);
         } else {
-          await adminApi.staffUserTypes.create(payload);
+          await staffUserTypeApi.create(payload);
         }
       }
 

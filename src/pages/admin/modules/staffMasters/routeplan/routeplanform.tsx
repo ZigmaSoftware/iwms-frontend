@@ -41,6 +41,15 @@ export default function RoutePlanForm() {
   const [fetching, setFetching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Holds the raw API record until dropdown options are loaded, then flushes into form state
+  const [pendingRecord, setPendingRecord] = useState<{
+    district_id: string;
+    city_id: string;
+    zone_id: string;
+    vehicle_id: string;
+    supervisor_id: string;
+  } | null>(null);
+
   const [form, setForm] = useState({
     district_id: "",
     city_id: "",
@@ -101,6 +110,8 @@ export default function RoutePlanForm() {
         setVehicles(toRelatedOptions(normalizeList(vehiclesData), "unique_id", "vehicle_no"));
         setSupervisors(toSupervisorOptions(normalizeList(usersData)));
         setFetching(false);
+        // fetching flag is now false — if a pendingRecord arrived before options were
+        // ready the flush effect below will fire on the next render
       })
       .catch(() => {
         if (cancelled) return;
@@ -113,6 +124,8 @@ export default function RoutePlanForm() {
     };
   }, []);
 
+  // Fetch the edit record and store it as pending — the flush effect below
+  // applies it once dropdown options have finished loading.
   useEffect(() => {
     if (!isEdit || !id) return;
     let cancelled = false;
@@ -120,7 +133,7 @@ export default function RoutePlanForm() {
     adminApi.routePlans.get(id)
       .then((res: any) => {
         if (cancelled) return;
-        setForm({
+        setPendingRecord({
           district_id: extractId(res?.district_id),
           city_id: extractId(res?.city_id),
           zone_id: extractId(res?.zone_id),
@@ -137,6 +150,17 @@ export default function RoutePlanForm() {
       cancelled = true;
     };
   }, [id, isEdit]);
+
+  // Flush pendingRecord into form state once dropdown options are ready.
+  // This prevents the selects rendering with a value that has no matching option
+  // when the record API responds faster than the options APIs.
+  useEffect(() => {
+    if (!pendingRecord) return;
+    if (fetching) return; // options not ready yet — wait for the options effect to finish
+
+    setForm(pendingRecord);
+    setPendingRecord(null);
+  }, [pendingRecord, fetching]);
 
   const cityOptions = cities.filter((city) => !form.district_id || !city.districtId || city.districtId === form.district_id);
 

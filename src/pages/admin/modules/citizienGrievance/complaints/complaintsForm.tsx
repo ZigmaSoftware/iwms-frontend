@@ -64,6 +64,7 @@ export default function ComplaintAddForm() {
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
+    projectId,
     loggedInCompanyUniqueId,
     isSuperAdmin,
   } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
@@ -100,15 +101,11 @@ export default function ComplaintAddForm() {
 
   /* ---------------- INIT LOAD ---------------- */
   useEffect(() => {
-    console.log("=== Loading Initial Data ===");
-    console.log("Company Unique ID:", companyUniqueId);
-
     let cancelled = false;
 
     adminApi.customerCreations.list().then((res: any) => {
       if (cancelled) return;
       const normalized = normalizeCustomerArray(res);
-      console.log("Customers loaded:", normalized);
       setCustomers(filterActiveCustomers(normalized));
     }).catch(() => {});
 
@@ -133,56 +130,32 @@ export default function ComplaintAddForm() {
 
   const loadZones = async (cid: string) => {
     try {
-      console.log("=== Loading Zones ===");
-      console.log("Customer ID:", cid);
       const res = await adminApi.zones.list({ params: { customer_id: cid } });
-      console.log("Zone API raw response:", res);
       const normalized = listFromResponse(res);
-      console.log("Normalized zones:", normalized);
       const filtered = filterActiveRecords(normalized);
-      console.log("Filtered active zones:", filtered);
       setZones(filtered);
-    } catch (error) {
-      console.error("Failed to load zones:", error);
+    } catch {
       setZones([]);
     }
   };
 
   const loadWards = async (zid: string) => {
     try {
-      console.log("=== Loading Wards ===");
-      console.log("Zone ID:", zid);
       const res = await adminApi.wards.list({ params: { zone_id: zid } });
-
-      console.log("Ward API raw response:", res);
       const normalized = listFromResponse(res);
-      console.log("Normalized wards:", normalized);
       const filtered = filterActiveRecords(normalized);
-      console.log("Filtered active wards:", filtered);
       setWards(filtered);
-    } catch (error) {
-      console.error("Failed to load wards:", error);
+    } catch {
       setWards([]);
     }
   };
 
-
-  console.log('ward', wards);
-  console.log('zone', zones);
-  console.log('maincategory', mainCategories);
-  console.log('sub category', subCategories);
-
   const onCustomerChange = (id: string) => {
     const c = customers.find((x) => resolveCustomerId(x) === id);
-    console.log("=== Customer Selected ===");
-    console.log("Selected Customer ID:", id);
-    console.log("Full Customer Object:", c);
-    console.log("Customer Fields:", Object.keys(c || {}));
     setCustomer(c);
 
     // Try different field names for contact
     const contactNo = c?.contact_no || c?.contact || c?.phone || c?.mobile || c?.phone_number || "";
-    console.log("Contact No:", contactNo);
     setContact(contactNo);
 
     // Build address from available fields
@@ -196,7 +169,6 @@ export default function ComplaintAddForm() {
     if (c?.pincode) addressParts.push(c.pincode);
 
     const fullAddress = addressParts.join(", ");
-    console.log("Full Address:", fullAddress);
     setAddress(fullAddress);
 
     setZone("");

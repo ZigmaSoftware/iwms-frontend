@@ -19,7 +19,8 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
-import type { VehicleTypePayload } from "@/helpers/admin/directQueries";
+
+type VehicleTypePayload = Record<string, unknown>;
 
 const { encTransportMaster, encVehicleType } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleType}`;

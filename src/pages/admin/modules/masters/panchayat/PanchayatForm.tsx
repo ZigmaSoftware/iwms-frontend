@@ -18,8 +18,7 @@ import {
 import { encryptSegment } from "@/utils/routeCrypto";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { adminApi } from "@/helpers/admin/registry";
-import { panchayatApi, stateApi } from "@/helpers/admin";
+import { panchayatApi, stateApi, districtApi, cityApi } from "@/helpers/admin";
 import type { SelectOption } from "@/types";
 
 const PANCHAYAT_FIELDS: Record<string, string[]> = {
@@ -170,7 +169,7 @@ export default function PanchayatForm() {
       ? { params: { company_id: companyUniqueId, project_id: projectId } }
       : undefined;
 
-    adminApi.districts.list(config)
+    districtApi.list(config)
       .then((res: any) => {
         if (cancelled) return;
         const list = toRecordList(res);
@@ -194,7 +193,7 @@ export default function PanchayatForm() {
       ? { params: { company_id: companyUniqueId, project_id: projectId } }
       : undefined;
 
-    adminApi.cities.list(config)
+    cityApi.list(config)
       .then((res: any) => {
         if (cancelled) return;
         const list = toRecordList(res);
@@ -361,10 +360,10 @@ export default function PanchayatForm() {
     setIsSubmitting(true);
     try {
       if (isEdit && id) {
-        await adminApi.panchayats.update(id, basePayload);
+        await panchayatApi.update(id, basePayload);
         Swal.fire("Success", "Updated successfully", "success");
       } else {
-        await adminApi.panchayats.create(basePayload);
+        await panchayatApi.create(basePayload);
         Swal.fire("Success", "Created successfully", "success");
       }
       navigate(LIST_PATH, { state: { companyUniqueId, projectId } });

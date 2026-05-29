@@ -10,7 +10,7 @@ import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
-import { useAlternativeStaffTemplateList } from "@/helpers/admin/directQueries";
+import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
@@ -99,72 +99,70 @@ export default function AlternativeStaffTemplateList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encStaffMasters}/${encAlternativeStaffTemplate}/${id}/edit`;
 
-  const params =
-    companyUniqueId
-      ? {
-          company_id: companyUniqueId,
-          ...(projectId ? { project_id: projectId } : {}),
-        }
-      : undefined;
-  const recordsQuery = useAlternativeStaffTemplateList(params);
-
   const normalizeId = (value: unknown): string =>
     value === null || value === undefined ? "" : String(value).trim();
 
-  const fetchRecords = async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
+  useEffect(() => {
+    let mounted = true;
 
-    if (!companyUniqueId) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const payload: any = recordsQuery.data;
-      const data =
-        Array.isArray(payload)
-          ? payload
-          : Array.isArray(payload?.data)
-          ? payload.data
-          : payload?.data?.results ?? [];
-      const rows = data as AlternativeStaffTemplate[];
-
-      const hasContextFields = rows.some((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        return Boolean(rowCompanyId || rowProjectId);
-      });
-
-      if (!hasContextFields) {
-        setRecords(rows);
+    const fetchRecords = async () => {
+      if (isSuperAdmin && companies.length === 0) {
+        if (mounted) { setRecords([]); setLoading(false); }
         return;
       }
 
-      const filtered = rows.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-        return companyMatches && projectMatches;
-      });
+      if (!companyUniqueId) {
+        if (mounted) { setRecords([]); setLoading(false); }
+        return;
+      }
 
-      setRecords(filtered);
-    } catch {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (mounted) setLoading(true);
+      try {
+        const params = {
+          company_id: companyUniqueId,
+          ...(projectId ? { project_id: projectId } : {}),
+        };
+        const payload: any = await adminApi.alternativeStaffTemplate.list({ params });
+        if (!mounted) return;
+        const data =
+          Array.isArray(payload)
+            ? payload
+            : Array.isArray(payload?.data)
+            ? payload.data
+            : payload?.data?.results ?? [];
+        const rows = data as AlternativeStaffTemplate[];
 
-  useEffect(() => {
-    fetchRecords();
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, recordsQuery.data]);
+        const hasContextFields = rows.some((row) => {
+          const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+          const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+          return Boolean(rowCompanyId || rowProjectId);
+        });
+
+        if (!hasContextFields) {
+          setRecords(rows);
+          return;
+        }
+
+        const filtered = rows.filter((row) => {
+          const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+          const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+          const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+          const projectMatches = !projectId || rowProjectId === projectId;
+          return companyMatches && projectMatches;
+        });
+
+        setRecords(filtered);
+      } catch {
+        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    void fetchRecords();
+
+    return () => { mounted = false; };
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setDatatableFilters(e.filters as TableFilters);

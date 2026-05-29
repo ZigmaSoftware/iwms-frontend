@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -13,29 +13,24 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
+import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
-import {
-  useDeleteUserScreenActionMutation,
-  useUpdateUserScreenActionMutation,
-  useUserScreenActionsQuery,
-} from "@/helpers/admin/directQueries";
+import { userScreenActionApi } from "@/helpers/admin";
 
 import type { UserScreenAction } from "../types/admin.types"; 
 
 export default function UserScreenActionList() {
   const { t } = useTranslation();
-  const userScreenActionsQuery = useUserScreenActionsQuery();
-  const updateMutation = useUpdateUserScreenActionMutation();
-  const deleteMutation = useDeleteUserScreenActionMutation();
-  const records = (userScreenActionsQuery.data ?? []) as UserScreenAction[];
+  const [records, setRecords] = useState<UserScreenAction[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    action_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    action_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const navigate = useNavigate();
@@ -47,35 +42,28 @@ export default function UserScreenActionList() {
     `/${encAdmins}/${encUserScreenAction}/${unique_id}/edit`;
 
   useEffect(() => {
-    if (!userScreenActionsQuery.isError) return;
-    Swal.fire(t("common.error"), t("common.load_failed"), "error");
-  }, [userScreenActionsQuery.isError, t]);
+    let mounted = true;
 
-  const handleDelete = async (unique_id: string) => {
-    const confirmDelete = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: t("common.confirm_delete_button"),
-    });
+    const loadActions = async () => {
+      setIsLoading(true);
+      try {
+        const data = await userScreenActionApi.list();
+        if (mounted) setRecords(data as UserScreenAction[]);
+      } catch {
+        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
 
-    if (!confirmDelete.isConfirmed) return;
+    void loadActions();
 
-    await deleteMutation.mutateAsync(unique_id);
+    return () => {
+      mounted = false;
+    };
+  }, [t]);
 
-    Swal.fire({
-      icon: "success",
-      title: t("common.deleted_success"),
-      timer: 1500,
-      showConfirmButton: false,
-    });
-
-  };
-
-  const onGlobalFilterChange = (e: any) => {
+  const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     const _filters = { ...filters };
     _filters["global"].value = value;
@@ -110,15 +98,29 @@ export default function UserScreenActionList() {
 
   const statusTemplate = (row: UserScreenAction) => {
     const updateStatus = async (value: boolean) => {
-      await updateMutation.mutateAsync({ id: row.unique_id, payload: {
-        action_name: row.action_name,
-        variable_name: row.variable_name,
-        is_active: value,
-      }});
+      const id = String(row.unique_id);
+      setPendingStatusId(id);
+
+      try {
+        await userScreenActionApi.update(row.unique_id, { is_active: value });
+        setRecords((current) =>
+          current.map((item) =>
+            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
+          )
+        );
+      } catch {
+        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+      } finally {
+        setPendingStatusId(null);
+      }
     };
 
     return (
-      <Switch checked={row.is_active} onCheckedChange={updateStatus} />
+      <Switch
+        checked={row.is_active}
+        disabled={pendingStatusId === String(row.unique_id)}
+        onCheckedChange={updateStatus}
+      />
     );
   };
 
@@ -169,7 +171,7 @@ export default function UserScreenActionList() {
           value={records}
           paginator
           rows={10}
-          loading={userScreenActionsQuery.isPending}
+          loading={isLoading}
           filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
           globalFilterFields={["action_name", "variable_name"]}

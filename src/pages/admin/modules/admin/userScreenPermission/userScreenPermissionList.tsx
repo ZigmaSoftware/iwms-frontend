@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
@@ -15,10 +16,7 @@ import "primeicons/primeicons.css";
 
 import { PencilIcon, TrashBinIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import {
-  useDeleteUserScreenPermissionMutation,
-  useUserScreenPermissionsByCompanyQuery,
-} from "@/helpers/admin/directQueries";
+import { userScreenPermissionApi } from "@/helpers/admin";
 
 import type { StaffUserType } from "../types/admin.types";
 
@@ -45,8 +43,8 @@ export default function UserScreenPermissionList() {
     setProjectId,
     isSuperAdmin,
   } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
-  const permissionsQuery = useUserScreenPermissionsByCompanyQuery(companyUniqueId);
-  const deleteMutation = useDeleteUserScreenPermissionMutation();
+  const [permissionRows, setPermissionRows] = useState<StaffUserType[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -82,9 +80,38 @@ export default function UserScreenPermissionList() {
       companyId
     )}&mainscreen_id=${encodeURIComponent(mainScreenId)}`;
 
+  useEffect(() => {
+    let mounted = true;
+
+    const loadPermissions = async () => {
+      if (!companyUniqueId) {
+        setPermissionRows([]);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const data = await userScreenPermissionApi.list({
+          params: { company_id: companyUniqueId, limit: 6000, offset: 0 },
+        });
+        if (mounted) setPermissionRows(data as StaffUserType[]);
+      } catch {
+        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadPermissions();
+
+    return () => {
+      mounted = false;
+    };
+  }, [companyUniqueId, t]);
+
   const records = useMemo<StaffUserType[]>(() => {
     if (!companyUniqueId) return [];
-    const data = permissionsQuery.data ?? [];
+    const data = permissionRows;
       const selectedCompanyLabel = (
         companies.find((company) => company.value === companyUniqueId)?.label ?? ""
       )
@@ -145,12 +172,7 @@ export default function UserScreenPermissionList() {
       }, {} as Record<string, any>);
 
       return Object.values(groupedObj);
-  }, [companies, companyUniqueId, permissionsQuery.data, projects, projectId, t]);
-
-  useEffect(() => {
-    if (!permissionsQuery.isError) return;
-    Swal.fire(t("common.error"), t("common.load_failed"), "error");
-  }, [permissionsQuery.isError, t]);
+  }, [companies, companyUniqueId, permissionRows, projects, projectId, t]);
 
   /* -----------------------------------------------------------
      DELETE RECORD
@@ -173,7 +195,14 @@ export default function UserScreenPermissionList() {
           ? `delete-by-staffusertype/${row.unique_id}/?company_id=${row.company_id}&mainscreen_id=${row.mainscreen_id}`
           : `delete-by-staffusertype/${row.unique_id}`;
 
-      await deleteMutation.mutateAsync(deletePath);
+      await userScreenPermissionApi.remove(deletePath);
+      setPermissionRows((current) =>
+        current.filter((item) => {
+          const sameStaffType = String(item.staffusertype_id ?? "") === String(row.unique_id);
+          const sameMainScreen = String(item.mainscreen_id ?? "") === String(row.mainscreen_id ?? "");
+          return !(sameStaffType && sameMainScreen);
+        })
+      );
 
       Swal.fire(
         t("common.deleted_success"),
@@ -190,7 +219,7 @@ export default function UserScreenPermissionList() {
         "error"
       );
     }
-  }, [t, deleteMutation]);
+  }, [t]);
 
   /* -----------------------------------------------------------
      ACTION BUTTONS
@@ -329,7 +358,7 @@ export default function UserScreenPermissionList() {
         dataKey="composite_key"
         paginator
         rows={10}
-        loading={permissionsQuery.isPending}
+        loading={isLoading}
         filters={filters}
         rowsPerPageOptions={[5, 10, 25, 50]}
         globalFilterFields={["staffusertype_name", "company_name", "mainscreen_name"]}

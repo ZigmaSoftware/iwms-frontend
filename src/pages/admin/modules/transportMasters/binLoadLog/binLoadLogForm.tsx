@@ -62,6 +62,12 @@ export default function BinLoadLogForm() {
   const [properties, setProperties] = useState<SelectOption[]>([]);
   const [subProperties, setSubProperties] = useState<SelectOption[]>([]);
 
+  // Pending IDs — set when the record loads; applied once options are available
+  const [pendingZoneId, setPendingZoneId] = useState<string | null>(null);
+  const [pendingVehicleId, setPendingVehicleId] = useState<string | null>(null);
+  const [pendingPropertyId, setPendingPropertyId] = useState<string | null>(null);
+  const [pendingSubPropertyId, setPendingSubPropertyId] = useState<string | null>(null);
+
   const [formData, setFormData] = useState<BinLoadLogFormState>({
     zone_id: "",
     vehicle_id: "",
@@ -101,11 +107,21 @@ export default function BinLoadLogForm() {
     binLoadLogApi
       .get(id)
       .then((res: any) => {
+        const zoneId = res?.zone_details?.unique_id ?? res?.zone_id ?? "";
+        const vehicleId = res?.vehicle_details?.unique_id ?? res?.vehicle_id ?? "";
+        const propertyId = res?.property_details?.unique_id ?? res?.property_id ?? "";
+        const subPropertyId = res?.sub_property_details?.unique_id ?? res?.sub_property_id ?? "";
+
+        setPendingZoneId(zoneId);
+        setPendingVehicleId(vehicleId);
+        setPendingPropertyId(propertyId);
+        setPendingSubPropertyId(subPropertyId);
+
         setFormData({
-          zone_id: res?.zone_details?.unique_id ?? res?.zone_id ?? "",
-          vehicle_id: res?.vehicle_details?.unique_id ?? res?.vehicle_id ?? "",
-          property_id: res?.property_details?.unique_id ?? res?.property_id ?? "",
-          sub_property_id: res?.sub_property_details?.unique_id ?? res?.sub_property_id ?? "",
+          zone_id: zoneId,
+          vehicle_id: vehicleId,
+          property_id: propertyId,
+          sub_property_id: subPropertyId,
           weight_kg: res?.weight_kg ? String(res.weight_kg) : "",
           source_type: res?.source_type ?? "",
           event_time: toDateTimeLocal(res?.event_time),
@@ -115,6 +131,35 @@ export default function BinLoadLogForm() {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       });
   }, [binLoadLogApi, id, isEdit, t]);
+
+  // Apply pending IDs once the corresponding options array is populated
+  useEffect(() => {
+    if (pendingZoneId && zones.length > 0 && zones.some((o) => o.value === pendingZoneId)) {
+      setFormData((prev) => ({ ...prev, zone_id: pendingZoneId }));
+      setPendingZoneId(null);
+    }
+  }, [pendingZoneId, zones]);
+
+  useEffect(() => {
+    if (pendingVehicleId && vehicles.length > 0 && vehicles.some((o) => o.value === pendingVehicleId)) {
+      setFormData((prev) => ({ ...prev, vehicle_id: pendingVehicleId }));
+      setPendingVehicleId(null);
+    }
+  }, [pendingVehicleId, vehicles]);
+
+  useEffect(() => {
+    if (pendingPropertyId && properties.length > 0 && properties.some((o) => o.value === pendingPropertyId)) {
+      setFormData((prev) => ({ ...prev, property_id: pendingPropertyId }));
+      setPendingPropertyId(null);
+    }
+  }, [pendingPropertyId, properties]);
+
+  useEffect(() => {
+    if (pendingSubPropertyId && subProperties.length > 0 && subProperties.some((o) => o.value === pendingSubPropertyId)) {
+      setFormData((prev) => ({ ...prev, sub_property_id: pendingSubPropertyId }));
+      setPendingSubPropertyId(null);
+    }
+  }, [pendingSubPropertyId, subProperties]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

@@ -448,6 +448,12 @@ export default function StaffTemplateForm() {
   /* ================= CLEAR INVALID DRIVER / OPERATOR / EXTRA WHEN OPTIONS CHANGE ================= */
 
   useEffect(() => {
+    // Do not clear selections while the edit record is being fetched.
+    // The edit-fetch effect sets formData and company/project simultaneously;
+    // the scoping effect then updates driverOptions/operatorOptions.  Without
+    // this guard that re-render would immediately wipe the just-prefilled IDs.
+    if (fetching) return;
+
     setFormData((prev) => {
       let hasChanges = false;
       const next = { ...prev };

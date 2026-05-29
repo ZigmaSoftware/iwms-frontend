@@ -15,11 +15,7 @@ import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
-import {
-  type SubCategoryRecord,
-  useSubCategoriesQuery,
-  useUpdateSubCategoryMutation,
-} from "@/helpers/admin/directQueries";
+import { subCategoryApi } from "@/helpers/admin";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -29,6 +25,15 @@ type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
   name: { value: string | null; matchMode: FilterMatchMode };
   mainCategory_name: { value: string | null; matchMode: FilterMatchMode };
+};
+
+type SubCategoryRecord = {
+  unique_id: string | number;
+  name?: string;
+  mainCategory?: string | number;
+  mainCategory_name?: string;
+  is_active: boolean;
+  [key: string]: unknown;
 };
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
@@ -61,6 +66,9 @@ export default function SubComplaintCategoryList() {
   const { t } = useTranslation();
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [records, setRecords] = useState<SubCategoryRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -76,36 +84,56 @@ export default function SubComplaintCategoryList() {
   const EDIT_PATH = (id: string) =>
     `/${encCitizenGrivence}/${encSubComplaintCategory}/${id}/edit`;
 
-  const subCategoriesQuery = useSubCategoriesQuery(companyUniqueId);
-  const updateSubCategoryMutation = useUpdateSubCategoryMutation(companyUniqueId);
-  const records = subCategoriesQuery.data ?? [];
-
   useEffect(() => {
-    if (!subCategoriesQuery.isError) {
-      return;
-    }
+    let mounted = true;
 
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(subCategoriesQuery.error, t("common.fetch_failed")),
-      "error"
-    );
-  }, [subCategoriesQuery.error, subCategoriesQuery.isError, t]);
+    const loadSubCategories = async () => {
+      setIsLoading(true);
+      try {
+        const data = await subCategoryApi.list(
+          companyUniqueId ? { params: { company_id: companyUniqueId } } : undefined
+        );
+        if (mounted) setRecords(data as SubCategoryRecord[]);
+      } catch (error) {
+        if (mounted) {
+          Swal.fire(
+            t("common.error"),
+            extractErrorMessage(error, t("common.fetch_failed")),
+            "error"
+          );
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadSubCategories();
+
+    return () => {
+      mounted = false;
+    };
+  }, [companyUniqueId, t]);
 
   const updateStatus = async (row: SubCategoryRecord, value: boolean) => {
     const rowId = String(row.unique_id);
     setPendingStatusId(rowId);
+    setIsUpdating(true);
 
     try {
-      await updateSubCategoryMutation.mutateAsync({
-        id: row.unique_id,
-        payload: {
+      await subCategoryApi.update(
+        row.unique_id,
+        {
           name: row.name,
           mainCategory: row.mainCategory,
           is_active: value,
           company_id: companyUniqueId,
-        },
-      });
+        }
+      );
+      setRecords((current) =>
+        current.map((item) =>
+          item.unique_id === row.unique_id ? { ...item, is_active: value } : item
+        )
+      );
     } catch (error) {
       Swal.fire(
         t("common.error"),
@@ -114,6 +142,7 @@ export default function SubComplaintCategoryList() {
       );
     } finally {
       setPendingStatusId(null);
+      setIsUpdating(false);
     }
   };
 
@@ -122,9 +151,7 @@ export default function SubComplaintCategoryList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={
-          updateSubCategoryMutation.isPending && pendingStatusId === rowId
-        }
+        disabled={isUpdating && pendingStatusId === rowId}
         onCheckedChange={(value) => {
           void updateStatus(row, value);
         }}
@@ -200,7 +227,7 @@ export default function SubComplaintCategoryList() {
         dataKey="unique_id"
         paginator
         rows={10}
-        loading={subCategoriesQuery.isPending && records.length === 0}
+        loading={isLoading && records.length === 0}
         filters={filters}
         onFilter={onFilter}
         globalFilterFields={["name", "mainCategory_name"]}

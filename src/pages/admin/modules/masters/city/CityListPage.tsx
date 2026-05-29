@@ -18,9 +18,24 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { type CityRecord, useCitiesQuery, useUpdateCityMutation } from "@/helpers/admin/directQueries";
+import { cityApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+
+type CityRecord = {
+  unique_id: string | number;
+  name?: string;
+  is_active: boolean;
+  company_id?: string | number | null;
+  company_unique_id?: string | number | null;
+  project_id?: string | number | null;
+  project_unique_id?: string | number | null;
+  country_name?: string;
+  state_name?: string;
+  district_name?: string;
+  company_name?: string;
+  project_name?: string;
+};
 
 const CITY_COLUMN_FIELDS: Record<string, string[]> = {
   country_name: ["country_id"],
@@ -43,8 +58,9 @@ export default function CityList() {
     CITY_COLUMN_FIELDS,
   );
 
-  const citiesQuery = useCitiesQuery();
-  const updateCityMutation = useUpdateCityMutation();
+  const [allCities, setAllCities] = useState<CityRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -82,14 +98,31 @@ export default function CityList() {
     `/${encMasters}/${encCities}/${id}/edit`;
 
   useEffect(() => {
-    if (!citiesQuery.isError) return;
-    const errorData = (citiesQuery.error as { response?: { data?: unknown } })?.response?.data;
-    Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? citiesQuery.error) });
-  }, [citiesQuery.error, citiesQuery.isError, t]);
+    let mounted = true;
+
+    const loadCities = async () => {
+      setIsLoading(true);
+      try {
+        const data = await cityApi.list();
+        if (mounted) setAllCities(data as CityRecord[]);
+      } catch (error) {
+        if (mounted) {
+          const errorData = (error as { response?: { data?: unknown } })?.response?.data;
+          Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadCities();
+
+    return () => {
+      mounted = false;
+    };
+  }, [t]);
 
   const cities = useMemo(() => {
-    const allCities = citiesQuery.data ?? [];
-
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
@@ -102,7 +135,7 @@ export default function CityList() {
 
       return companyMatches && projectMatches;
     });
-  }, [citiesQuery.data, companyUniqueId, companies.length, isSuperAdmin, projectId]);
+  }, [allCities, companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);
@@ -139,18 +172,25 @@ export default function CityList() {
   const updateStatus = async (city: CityRecord, checked: boolean) => {
     const cityId = String(city.unique_id);
     setPendingStatusId(cityId);
+    setIsUpdating(true);
 
     try {
-      await updateCityMutation.mutateAsync({ id: city.unique_id, payload: { name: city.name, is_active: checked } });
+      await cityApi.update(city.unique_id, { is_active: checked });
+      setAllCities((current) =>
+        current.map((item) =>
+          item.unique_id === city.unique_id ? { ...item, is_active: checked } : item
+        )
+      );
     } catch (error) {
       console.error("Status update failed:", error);
     } finally {
       setPendingStatusId(null);
+      setIsUpdating(false);
     }
   };
 
   const statusTemplate = (city: CityRecord) => (
-    <Switch checked={city.is_active} disabled={updateCityMutation.isPending && pendingStatusId === String(city.unique_id)} onCheckedChange={(checked) => void updateStatus(city, checked)} />
+    <Switch checked={city.is_active} disabled={isUpdating && pendingStatusId === String(city.unique_id)} onCheckedChange={(checked) => void updateStatus(city, checked)} />
   );
 
   const actionTemplate = (city: CityRecord) => (
@@ -251,7 +291,7 @@ export default function CityList() {
           paginator
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={citiesQuery.isPending && cities.length === 0}
+          loading={isLoading && cities.length === 0}
           filters={filters}
           onFilter={onFilter}
           header={renderHeader()}

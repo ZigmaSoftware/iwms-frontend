@@ -20,7 +20,7 @@ import type { CountryMeta, ErrorWithResponse } from "./types";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
-
+import { continentApi, countryApi, stateApi } from "@/helpers/admin";
 
 const { encMasters, encStates } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encStates}`;
@@ -151,57 +151,42 @@ function StateForm() {
 
   // Fetch continents list
   useEffect(() => {
-    let cancelled = false;
-    adminApi.continents.list()
-      .then((res: any) => {
-        if (cancelled) return;
-        const data: any[] = Array.isArray(res) ? res : [];
-        const selectedContinentId = normalizeNullableId(
-          recordData?.continent_id ??
-            recordData?.continent_unique_id ??
-            recordData?.continent
-        );
-        const selectedContinentName = recordData?.continent_name;
-        const activeContinents = data
-          .filter((continent) => continent.is_active)
-          .map((continent) => ({ value: String(continent.unique_id), label: continent.name }));
-        const resolvedContinentId = resolveOptionValue(
-          activeContinents,
-          selectedContinentId,
-          selectedContinentName
-        );
+  let cancelled = false;
 
-        if (
-          resolvedContinentId &&
-          selectedContinentName &&
-          !activeContinents.some((continent) => continent.value === resolvedContinentId)
-        ) {
-          setContinents([
-            ...activeContinents,
-            { value: resolvedContinentId, label: selectedContinentName },
-          ]);
-          if (continentId !== resolvedContinentId) {
-            setContinentId(resolvedContinentId);
-          }
-          return;
-        }
+  continentApi.list()
+    .then((res: any) => {
+      if (cancelled) return;
 
-        setContinents(activeContinents);
-        if (resolvedContinentId && continentId !== resolvedContinentId) {
-          setContinentId(resolvedContinentId);
-        }
-      })
-      .catch((err: any) => {
-        if (cancelled) return;
-        Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(err) });
+      const data: any[] = Array.isArray(res) ? res : [];
+
+      const activeContinents = data
+        .filter((continent) => continent.is_active)
+        .map((continent) => ({
+          value: String(continent.unique_id),
+          label: continent.name,
+        }));
+
+      setContinents(activeContinents);
+    })
+    .catch((err: any) => {
+      if (cancelled) return;
+
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: extractErrorMessage(err),
       });
-    return () => { cancelled = true; };
-  }, [recordData, t, extractErrorMessage]);
+    });
+
+  return () => {
+    cancelled = true;
+  };
+}, [t, extractErrorMessage]);
 
   // Fetch countries list
   useEffect(() => {
     let cancelled = false;
-    adminApi.countries.list()
+    countryApi.list()
       .then((res: any) => {
         if (cancelled) return;
         const data: any[] = Array.isArray(res) ? res : [];
@@ -222,112 +207,119 @@ function StateForm() {
 
   // Fetch state record in edit mode
   useEffect(() => {
-    if (!isEdit || !id) return;
-    let cancelled = false;
-    adminApi.states.get(id)
-      .then((res: any) => {
-        if (cancelled) return;
-        const data = res as StateWithRelations;
-        setRecordData(data);
+  if (!isEdit || !id) return;
 
-        setName(data.name ?? "");
-        setLabel(data.label ?? "");
-        setIsActive(Boolean(data.is_active));
+  let cancelled = false;
 
-        const cId = normalizeNullableId(
-          data.country_id ?? data.country_unique_id ?? data.country
-        );
-        const contId = normalizeNullableId(
-          data.continent_id ?? data.continent_unique_id ?? data.continent
-        );
+  stateApi.get(id)
+    .then((res: any) => {
+      if (cancelled) return;
 
-        const resolvedContinentId = resolveOptionValue(
-          continents,
-          contId,
-          data.continent_name
-        );
+      const data = res as StateWithRelations;
 
-        setContinentId(resolvedContinentId ?? "");
-        setPendingCountryId(cId ?? "");
-        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-      })
-      .catch((err: any) => {
-        if (cancelled) return;
-        Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(err, ) });
+      setRecordData(data);
+
+      setName(data.name ?? "");
+      setLabel(data.label ?? "");
+      setIsActive(Boolean(data.is_active));
+
+      const cId = normalizeNullableId(
+        data.country_id ??
+        data.country_unique_id ??
+        data.country
+      );
+
+      const contId = normalizeNullableId(
+        data.continent_id ??
+        data.continent_unique_id ??
+        data.continent
+      );
+
+      setContinentId(contId ?? "");
+      setCountryId(cId ?? "");
+      setPendingCountryId(cId ?? "");
+
+      applyCompanyProjectFromRecord(
+        data as unknown as Record<string, unknown>
+      );
+    })
+    .catch((err: any) => {
+      if (cancelled) return;
+
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: extractErrorMessage(err),
       });
-    return () => { cancelled = true; };
-  }, [id, isEdit]);
+    });
+
+  return () => {
+    cancelled = true;
+  };
+}, [id, isEdit]);
 
   useEffect(() => {
-    if (!continentId) {
-      setFilteredCountries([]);
-      if (!pendingCountryId) {
-        setCountryId("");
-      }
-      return;
-    }
+  if (!continentId || allCountries.length === 0) return;
 
-    const selectedCountryId = normalizeNullableId(
-      recordData?.country_id ??
-        recordData?.country_unique_id ??
-        recordData?.country
-    );
-    const selectedCountryName = recordData?.country_name;
+  const filtered = allCountries
+    .filter(
+      (country) =>
+        country.isActive &&
+        country.continentId === continentId
+    )
+    .map<SelectOption>((country) => ({
+      value: country.id,
+      label: country.name,
+    }));
 
-    const filtered = allCountries
-      .filter(
-        (country) => country.isActive && country.continentId === continentId
-      )
-      .map<SelectOption>((country) => ({
-        value: country.id,
-        label: country.name,
-      }));
-    const resolvedCountryId = resolveOptionValue(
-      filtered,
-      selectedCountryId,
-      selectedCountryName
-    );
+  setFilteredCountries(filtered);
 
-    if (
-      resolvedCountryId &&
-      selectedCountryName &&
-      !filtered.some((country) => country.value === resolvedCountryId)
-    ) {
-      filtered.push({ value: resolvedCountryId, label: selectedCountryName });
-    }
+  // preserve already selected country
+  if (
+    countryId &&
+    filtered.some((c) => c.value === countryId)
+  ) {
+    return;
+  }
 
-    setFilteredCountries(filtered);
-    setCountryId((prev) =>
-      filtered.some((option) => option.value === prev)
-        ? prev
-        : resolvedCountryId ?? ""
-    );
-  }, [continentId, allCountries, pendingCountryId, recordData]);
+  // edit mode initial set
+  if (
+    pendingCountryId &&
+    filtered.some((c) => c.value === pendingCountryId)
+  ) {
+    setCountryId(pendingCountryId);
+  }
+}, [
+  continentId,
+  allCountries,
+  pendingCountryId,
+  countryId,
+]);
 
   // NEW IMPORTANT EFFECT → Set country AFTER filtering
-  useEffect(() => {
-    if (!pendingCountryId) return;
-    if (filteredCountries.length === 0) return;
+  // useEffect(() => {
+  //   if (!pendingCountryId) return;
+  //   if (filteredCountries.length === 0) return;
 
-    const exists = filteredCountries.some(
-      (c) => c.value === pendingCountryId
-    );
+  //   const exists = filteredCountries.some(
+  //     (c) => c.value === pendingCountryId
+  //   );
 
-    if (exists) {
-      setCountryId(pendingCountryId);
-      return;
-    }
+  //   if (exists) {
+  //     setCountryId(pendingCountryId);
+  //     return;
+  //   }
 
-    const resolvedCountryId = resolveOptionValue(
-      filteredCountries,
-      pendingCountryId,
-      recordData?.country_name
-    );
+  //   const resolvedCountryId = resolveOptionValue(
+  //     filteredCountries,
+  //     pendingCountryId,
+  //     recordData?.country_name
+  //   );
 
-    if (resolvedCountryId) {
-      setCountryId(resolvedCountryId);
-    }
-  }, [filteredCountries, pendingCountryId, recordData]);
+  //   if (resolvedCountryId) {
+  //     setCountryId(resolvedCountryId);
+  //   }
+  // }, [filteredCountries, pendingCountryId, recordData]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -380,10 +372,10 @@ function StateForm() {
     setIsSubmitting(true);
     try {
       if (isEdit && id) {
-        await adminApi.states.update(id, payload);
+        await stateApi.update(id, payload);
         Swal.fire({ icon: "success", title: t("common.updated_success") });
       } else {
-        await adminApi.states.create(payload);
+        await stateApi.create(payload);
         Swal.fire({ icon: "success", title: t("common.added_success") });
       }
 
@@ -479,7 +471,9 @@ function StateForm() {
               </Label>
               <Select
                 value={continentId}
-                onValueChange={(value) => setContinentId(value)}
+                onValueChange={(value) =>{
+                   setContinentId(value);
+                  setCountryId(""); }}
               >
                 <SelectTrigger className="input-validate w-full" id="continent">
                   <SelectValue

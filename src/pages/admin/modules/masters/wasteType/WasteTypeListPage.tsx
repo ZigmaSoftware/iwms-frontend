@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -15,10 +15,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  useWasteTypesQuery,
-  useUpdateWasteTypeMutation,
-} from "@/helpers/admin/directQueries";
+import { wasteTypeApi } from "@/helpers/admin";
 import type { WasteTypeListRecord } from "./types";
 
 const normalizeId = (value: unknown): string =>
@@ -34,6 +31,10 @@ const WASTE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
 export default function WasteTypeListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [allWasteTypes, setAllWasteTypes] = useState<WasteTypeListRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: {
@@ -70,25 +71,44 @@ export default function WasteTypeListPage() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encMasters}/${encWasteTypes}/${id}/edit`;
 
-  const wasteTypesQuery = useWasteTypesQuery(
-    companyUniqueId
-      ? { company_id: companyUniqueId, project_id: projectId || undefined }
-      : null,
-  );
-  const updateWasteTypeMutation = useUpdateWasteTypeMutation();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "waste-types",
     WASTE_TYPE_COLUMN_FIELDS,
   );
 
+  useEffect(() => {
+    let mounted = true;
+
+    const loadWasteTypes = async () => {
+      if (!companyUniqueId) {
+        setAllWasteTypes([]);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const data = await wasteTypeApi.list({
+          params: { company_id: companyUniqueId, project_id: projectId || undefined },
+        });
+        if (mounted) setAllWasteTypes(data as WasteTypeListRecord[]);
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadWasteTypes();
+
+    return () => {
+      mounted = false;
+    };
+  }, [companyUniqueId, projectId]);
+
   const rows = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as WasteTypeListRecord[];
     if (!companyUniqueId) return [] as WasteTypeListRecord[];
 
-    const list = Array.isArray(wasteTypesQuery.data)
-      ? (wasteTypesQuery.data as WasteTypeListRecord[])
-      : [];
+    const list = Array.isArray(allWasteTypes) ? allWasteTypes : [];
     return list.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
@@ -150,17 +170,31 @@ export default function WasteTypeListPage() {
   const statusTemplate = (row: WasteTypeListRecord) => {
     const updateStatus = async (value: boolean) => {
       try {
-        await updateWasteTypeMutation.mutateAsync({
-          id: row.unique_id,
-          payload: filterPayload({ is_active: value }) as { is_active: boolean },
-        });
+        setPendingStatusId(String(row.unique_id));
+        setIsUpdating(true);
+        await wasteTypeApi.update(
+          row.unique_id,
+          filterPayload({ is_active: value }) as { is_active: boolean }
+        );
+        setAllWasteTypes((current) =>
+          current.map((item) =>
+            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
+          )
+        );
       } catch (error) {
         console.error("Failed to update waste type status", error);
+      } finally {
+        setPendingStatusId(null);
+        setIsUpdating(false);
       }
     };
 
     return (
-      <Switch checked={Boolean(row.is_active)} onCheckedChange={updateStatus} />
+      <Switch
+        checked={Boolean(row.is_active)}
+        disabled={isUpdating && pendingStatusId === String(row.unique_id)}
+        onCheckedChange={updateStatus}
+      />
     );
   };
 
@@ -231,7 +265,7 @@ export default function WasteTypeListPage() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={wasteTypesQuery.isPending || wasteTypesQuery.isFetching}
+        loading={isLoading}
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}
