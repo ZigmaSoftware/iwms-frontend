@@ -274,7 +274,7 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { type StateRecord, useStatesQuery, useUpdateStateMutation } from "@/tanstack/admin";
+import { type StateRecord, useStatesQuery, useUpdateStateMutation } from "@/helpers/admin/directQueries";
 
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };

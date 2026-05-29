@@ -253,7 +253,7 @@ import {
   useZonesList,
   useUsersList,
   useUpdateSupervisorZoneMap,
-} from "@/tanstack/admin/queries/masters/supervisorZoneMap";
+} from "@/helpers/admin/directQueries";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";

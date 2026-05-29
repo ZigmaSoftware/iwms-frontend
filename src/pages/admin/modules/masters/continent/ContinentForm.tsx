@@ -16,12 +16,7 @@ import { useTranslation } from "react-i18next";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  type ContinentPayload,
-  useContinentQuery,
-  useCreateContinentMutation,
-  useUpdateContinentMutation,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import type { ContinentEditorProps } from "./types";
 
@@ -32,6 +27,11 @@ const ENC_LIST_PATH = `/${encMasters}/${encContinents}`;
 const CONTINENT_FIELDS: Record<string, string[]> = {
   name: ["name"],
   is_active: ["is_active"],
+};
+
+type ContinentPayload = {
+  name: string;
+  is_active: boolean;
 };
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
@@ -171,44 +171,39 @@ function ContinentForm() {
   const { applyCompanyProjectFromRecord } = useCompanyProjectSelection({
     isEdit,
   });
-  const continentQuery = useContinentQuery(id);
-  const createContinentMutation = useCreateContinentMutation();
-  const updateContinentMutation = useUpdateContinentMutation();
-  const isSubmitting =
-    createContinentMutation.isPending || updateContinentMutation.isPending;
+
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const title = isEdit
     ? t("common.edit_item", { item: t("admin.nav.continent") })
     : t("common.add_item", { item: t("admin.nav.continent") });
 
   useEffect(() => {
-    if (!continentQuery.data) {
-      return;
-    }
-
-    applyCompanyProjectFromRecord(
-      continentQuery.data as unknown as Record<string, unknown>
-    );
-  }, [applyCompanyProjectFromRecord, continentQuery.data]);
-
-  useEffect(() => {
-    if (!continentQuery.isError) {
-      return;
-    }
-
-    Swal.fire({
-      icon: "error",
-      title: t("common.error"),
-      text: extractErrorMessage(continentQuery.error, t("common.load_failed")),
-    });
-  }, [continentQuery.error, continentQuery.isError, t]);
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.continents.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(err, t("common.load_failed")) });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
   const submitContinent = async (payload: ContinentPayload) => {
+    setIsSubmitting(true);
     try {
       if (isEdit) {
-        await updateContinentMutation.mutateAsync({
-          id: id as string,
-          payload,
-        });
+        await adminApi.continents.update(id as string, payload);
         Swal.fire({
           icon: "success",
           title: t("common.updated_success"),
@@ -216,7 +211,7 @@ function ContinentForm() {
           showConfirmButton: false,
         });
       } else {
-        await createContinentMutation.mutateAsync(payload);
+        await adminApi.continents.create(payload);
         Swal.fire({
           icon: "success",
           title: t("common.added_success"),
@@ -232,10 +227,12 @@ function ContinentForm() {
         title: t("common.save_failed"),
         text: extractErrorMessage(error, t("common.save_failed_desc")),
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  if (isEdit && continentQuery.isPending && !continentQuery.data) {
+  if (isEdit && loadingRecord && !recordData) {
     return (
       <ComponentCard title={title}>
         <div className="p-6 text-sm text-gray-500">{t("common.loading")}</div>
@@ -243,10 +240,10 @@ function ContinentForm() {
     );
   }
 
-  const initialPayload: ContinentPayload = continentQuery.data
+  const initialPayload: ContinentPayload = recordData
     ? {
-        name: String(continentQuery.data.name ?? ""),
-        is_active: Boolean(continentQuery.data.is_active),
+        name: String(recordData.name ?? ""),
+        is_active: Boolean(recordData.is_active),
       }
     : {
         name: "",
@@ -254,7 +251,7 @@ function ContinentForm() {
       };
 
   const formKey = isEdit
-    ? String(continentQuery.data?.unique_id ?? id)
+    ? String(recordData?.unique_id ?? id)
     : "new-continent";
 
   return (

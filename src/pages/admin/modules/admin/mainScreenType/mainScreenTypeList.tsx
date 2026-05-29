@@ -21,7 +21,7 @@ import {
   useDeleteMainScreenTypeMutation,
   useMainScreenTypesQuery,
   useUpdateMainScreenTypeMutation,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 import type { MainScreenType } from "../types/admin.types"; 
 

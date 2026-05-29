@@ -18,7 +18,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import {
   useDeleteUserScreenPermissionMutation,
   useUserScreenPermissionsByCompanyQuery,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 import type { StaffUserType } from "../types/admin.types";
 

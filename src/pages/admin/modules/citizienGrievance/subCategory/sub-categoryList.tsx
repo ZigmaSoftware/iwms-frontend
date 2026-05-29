@@ -19,7 +19,7 @@ import {
   type SubCategoryRecord,
   useSubCategoriesQuery,
   useUpdateSubCategoryMutation,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";

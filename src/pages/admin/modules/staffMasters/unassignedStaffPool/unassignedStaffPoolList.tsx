@@ -24,7 +24,7 @@ import {
   useWardsList,
   useTripInstancesList,
   useUpdateUnassignedStaffPool,
-} from "@/tanstack/admin/queries/masters/unassignedStaffPool";
+} from "@/helpers/admin/directQueries";
 
 const UNASSIGNED_STAFF_POOL_COLUMN_FIELDS: Record<string, string[]> = {
   operator: ["operator_id", "operator"],

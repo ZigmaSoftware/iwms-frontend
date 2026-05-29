@@ -17,12 +17,13 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import {
-  type MainCategoryPayload,
-  useCreateMainCategoryMutation,
-  useMainCategoryQuery,
-  useUpdateMainCategoryMutation,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
+
+type MainCategoryPayload = {
+  main_categoryName?: string;
+  is_active: boolean;
+  company_id?: string;
+};
 
 const { encCitizenGrivence, encMainComplaintCategory } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encCitizenGrivence}/${encMainComplaintCategory}`;
@@ -164,38 +165,38 @@ export function MainComplaintCategoryForm() {
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
+    projectId,
     loggedInCompanyUniqueId,
     isSuperAdmin,
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
-  const mainCategoryQuery = useMainCategoryQuery(id);
-  const createMainCategoryMutation = useCreateMainCategoryMutation(companyUniqueId);
-  const updateMainCategoryMutation = useUpdateMainCategoryMutation(companyUniqueId);
-  const isSubmitting =
-    createMainCategoryMutation.isPending || updateMainCategoryMutation.isPending;
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!mainCategoryQuery.data) {
-      return;
-    }
-
-    applyCompanyProjectFromRecord(
-      mainCategoryQuery.data as unknown as Record<string, unknown>
-    );
-  }, [applyCompanyProjectFromRecord, mainCategoryQuery.data]);
-
-  useEffect(() => {
-    if (!mainCategoryQuery.isError) {
-      return;
-    }
-
-    Swal.fire({
-      icon: "error",
-      title: t("admin.citizen_grievance.main_category_form.load_failed"),
-      text: extractErrorMessage(mainCategoryQuery.error, t("common.load_failed")),
-    });
-  }, [mainCategoryQuery.error, mainCategoryQuery.isError, t]);
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.mainCategory.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({
+          icon: "error",
+          title: t("admin.citizen_grievance.main_category_form.load_failed"),
+          text: extractErrorMessage(err, t("common.load_failed")),
+        });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
   const handleSubmit = async (payload: MainCategoryPayload) => {
     if (!companyUniqueId) {
@@ -209,14 +210,12 @@ export function MainComplaintCategoryForm() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       if (isEdit) {
-        await updateMainCategoryMutation.mutateAsync({
-          id: id as string,
-          payload: {
-            ...payload,
-            company_id: companyUniqueId,
-          },
+        await adminApi.mainCategory.update(id as string, {
+          ...payload,
+          company_id: companyUniqueId,
         });
         Swal.fire({
           icon: "success",
@@ -225,7 +224,7 @@ export function MainComplaintCategoryForm() {
           showConfirmButton: false,
         });
       } else {
-        await createMainCategoryMutation.mutateAsync({
+        await adminApi.mainCategory.create({
           ...payload,
           company_id: companyUniqueId,
         });
@@ -244,10 +243,12 @@ export function MainComplaintCategoryForm() {
         extractErrorMessage(error, t("admin.citizen_grievance.main_category_form.save_failed")),
         "error"
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  if (isEdit && mainCategoryQuery.isPending && !mainCategoryQuery.data) {
+  if (isEdit && loadingRecord && !recordData) {
     return (
       <ComponentCard
         title={t("admin.citizen_grievance.main_category_form.title_edit")}
@@ -257,10 +258,10 @@ export function MainComplaintCategoryForm() {
     );
   }
 
-  const initialPayload: MainCategoryPayload = mainCategoryQuery.data
+  const initialPayload: MainCategoryPayload = recordData
     ? {
-        main_categoryName: String(mainCategoryQuery.data.main_categoryName ?? ""),
-        is_active: Boolean(mainCategoryQuery.data.is_active),
+        main_categoryName: String(recordData.main_categoryName ?? ""),
+        is_active: Boolean(recordData.is_active),
         company_id: companyUniqueId,
       }
     : {
@@ -270,7 +271,7 @@ export function MainComplaintCategoryForm() {
       };
 
   const formKey = isEdit
-    ? String(mainCategoryQuery.data?.unique_id ?? id)
+    ? String(recordData?.unique_id ?? id)
     : "new-main-category";
 
   return (

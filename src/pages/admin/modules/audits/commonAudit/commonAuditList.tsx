@@ -13,7 +13,7 @@ import {
   type CommonAuditJsonValue,
   type CommonAuditRecord,
   useCommonAuditsQuery,
-} from "@/tanstack/admin/queries/audits/commonAudit";
+} from "@/helpers/admin/directQueries";
 import { normalizeList } from "@/utils/forms";
 
 type TableFilters = {

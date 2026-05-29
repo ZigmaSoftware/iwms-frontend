@@ -19,7 +19,7 @@ import { normalizeList } from "@/utils/forms";
 import {
   useTripDefinitionsQuery,
   useUpdateTripDefinitionMutation,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

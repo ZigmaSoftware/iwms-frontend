@@ -10,13 +10,7 @@ import { Input } from "@/components/ui/input";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import {
-  useCreateFeedbackMutation,
-  useCustomerCreationsQuery,
-  useFeedbackQuery,
-  useUpdateFeedbackMutation,
-  type CustomerCreationRecord,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -30,10 +24,11 @@ function FeedBackForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
-  const customersQuery = useCustomerCreationsQuery();
-  const feedbackQuery = useFeedbackQuery(isEdit ? id : null);
-  const createFeedbackMutation = useCreateFeedbackMutation();
-  const updateFeedbackMutation = useUpdateFeedbackMutation();
+
+  const [customersList, setCustomersList] = useState<any[]>([]);
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { encCitizenGrivence, encFeedback } = getEncryptedRoute();
   const LIST_PATH = `/${encCitizenGrivence}/${encFeedback}`;
@@ -52,14 +47,45 @@ function FeedBackForm() {
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
-  const resolveId = (c: CustomerCreationRecord & { id?: string | number }) =>
+  /* ---------------- LOAD CUSTOMERS ---------------- */
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.customerCreations.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        setCustomersList(Array.isArray(res) ? res : (res?.results ?? []));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  /* ---------------- LOAD RECORD (EDIT MODE) ---------------- */
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.feedbacks.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire(t("common.error"), String(err?.response?.data ?? err?.message ?? t("common.load_failed")), "error");
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
+
+  const resolveId = (c: any) =>
     normalizeId(c.unique_id || c.id);
 
   const customers = useMemo(() => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
-    return (customersQuery.data ?? [])
+    return customersList
       .filter((customer) => {
         const rowCompanyId = normalizeId(customer.company_id || customer.company_unique_id);
         const rowProjectId = normalizeId(customer.project_id || customer.project_unique_id);
@@ -67,13 +93,13 @@ function FeedBackForm() {
         const projectMatches = !projectId || rowProjectId === projectId;
         return companyMatches && projectMatches;
       })
-      .sort((a, b) =>
+      .sort((a: any, b: any) =>
         String(a.customer_name ?? "").localeCompare(String(b.customer_name ?? ""))
       );
   }, [
     companies.length,
     companyUniqueId,
-    customersQuery.data,
+    customersList,
     isSuperAdmin,
     projectId,
   ]);
@@ -81,36 +107,36 @@ function FeedBackForm() {
   useEffect(() => {
     if (isEdit) return;
 
-    const currentExists = customers.some((customer) => resolveId(customer) === customerId);
+    const currentExists = customers.some((customer: any) => resolveId(customer) === customerId);
     if (currentExists) return;
 
     setCustomerId(customers[0] ? resolveId(customers[0]) : "");
   }, [customerId, customers, isEdit]);
 
-  /* ---------------- EDIT MODE ---------------- */
+  /* ---------------- APPLY EDIT DATA ---------------- */
   useEffect(() => {
-    if (!feedbackQuery.data) return;
+    if (!recordData) return;
 
-    const data = feedbackQuery.data;
+    const data = recordData;
     setCustomerId(
       normalizeId(data.customer ?? data.customer_id ?? data.customer_unique_id)
     );
     setFeedbackCategory(data.category || "Excellent");
     setFeedbackDetails(data.feedback_details || "");
     applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-  }, [applyCompanyProjectFromRecord, feedbackQuery.data]);
+  }, [applyCompanyProjectFromRecord, recordData]);
 
   useEffect(() => {
     if (
       !isEdit ||
       !customerId ||
-      feedbackQuery.data?.company_id ||
-      feedbackQuery.data?.company_unique_id
+      recordData?.company_id ||
+      recordData?.company_unique_id
     ) {
       return;
     }
-    const selected = (customersQuery.data ?? []).find(
-      (customer) => resolveId(customer) === customerId
+    const selected = customersList.find(
+      (customer: any) => resolveId(customer) === customerId
     );
     if (selected) {
       applyCompanyProjectFromRecord(selected as unknown as Record<string, unknown>);
@@ -118,32 +144,14 @@ function FeedBackForm() {
   }, [
     applyCompanyProjectFromRecord,
     customerId,
-    customersQuery.data,
-    feedbackQuery.data,
+    customersList,
+    recordData,
     isEdit,
   ]);
 
-  useEffect(() => {
-    if (!customersQuery.isError && !feedbackQuery.isError) return;
-    const error = customersQuery.error ?? feedbackQuery.error;
-    Swal.fire({
-      icon: "error",
-      title: t("common.error"),
-      text: String((error as any)?.response?.data ?? error),
-    });
-  }, [
-    customersQuery.error,
-    customersQuery.isError,
-    feedbackQuery.error,
-    feedbackQuery.isError,
-    t,
-  ]);
-
   const selectedCustomer = customers.find(
-    (c) => resolveId(c) === customerId
+    (c: any) => resolveId(c) === customerId
   );
-  const isSubmitting =
-    createFeedbackMutation.isPending || updateFeedbackMutation.isPending;
 
   /* ---------------- SUBMIT ---------------- */
   const handleSubmit = async (e: React.FormEvent) => {
@@ -167,17 +175,18 @@ function FeedBackForm() {
       return;
     }
 
-    try {
-      const payload = {
-        customer: customerId,
-        category: feedbackCategory,
-        feedback_details: feedbackDetails,
-      };
+    const payload = {
+      customer: customerId,
+      category: feedbackCategory,
+      feedback_details: feedbackDetails,
+    };
 
+    setIsSubmitting(true);
+    try {
       if (isEdit && id) {
-        await updateFeedbackMutation.mutateAsync({ id, payload });
+        await adminApi.feedbacks.update(id, payload);
       } else {
-        await createFeedbackMutation.mutateAsync(payload);
+        await adminApi.feedbacks.create(payload);
       }
 
       Swal.fire(
@@ -192,6 +201,8 @@ function FeedBackForm() {
         t("admin.citizen_grievance.feedback_form.save_failed"),
         "error"
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -242,7 +253,7 @@ function FeedBackForm() {
               value={customerId}
               onChange={(val) => setCustomerId(val)}
               disabled={!companyUniqueId || !projectId || customers.length === 0}
-              options={customers.map((c) => ({
+              options={customers.map((c: any) => ({
                 value: resolveId(c),
                 label: c.customer_name,
               }))}

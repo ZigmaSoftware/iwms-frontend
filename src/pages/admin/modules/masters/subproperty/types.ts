@@ -1,4 +1,4 @@
-import type { SubPropertyPayload } from "@/tanstack/admin/queries/wastetype/subProperty";
+import type { SubPropertyPayload } from "@/helpers/admin/directQueries";
 
 export type SubPropertyOptionRecord = {
   unique_id: string | number;

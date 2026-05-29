@@ -16,13 +16,8 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  type HierarchyPayload,
-  useHierarchyQuery,
-  useCreateHierarchyMutation,
-  useUpdateHierarchyMutation,
-  useAreaTypesQuery,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
+import type { HierarchyPayload } from "@/helpers/admin/directQueries";
 import type { ApiError } from "./types";
 
 const { encMasters, encHierarchies } = getEncryptedRoute();
@@ -45,12 +40,12 @@ export default function HierarchyForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
-  const hierarchyQuery = useHierarchyQuery(id);
-  const createHierarchyMutation = useCreateHierarchyMutation();
-  const updateHierarchyMutation = useUpdateHierarchyMutation();
-  const areaTypesQuery = useAreaTypesQuery();
-  const isSubmitting =
-    createHierarchyMutation.isPending || updateHierarchyMutation.isPending;
+
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [areaTypes, setAreaTypes] = useState<{ value: string; label: string }[]>([]);
+
   const location = useLocation();
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
@@ -65,39 +60,64 @@ export default function HierarchyForm() {
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
+  // Fetch area types list
   useEffect(() => {
-    if (!hierarchyQuery.data) return;
+    let cancelled = false;
+    adminApi.areatypes.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const data: any[] = Array.isArray(res) ? res : [];
+        setAreaTypes(
+          data
+            .filter((record) => record && record.is_active !== false)
+            .map((record) => ({
+              value: String(record.unique_id),
+              label: record.name ?? record.area_type_name ?? String(record.unique_id),
+            }))
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // silently ignore area types fetch error
+      });
+    return () => { cancelled = true; };
+  }, []);
 
-    const record = hierarchyQuery.data;
-    setName(record.level_name ?? "");
-    setIsActive(Boolean(record.is_active));
-    if (record.area_type ?? record.area_type_id) {
-      setAreaTypeId(String(record.area_type ?? record.area_type_id));
-    }
-    applyCompanyProjectFromRecord(
-      record as unknown as Record<string, unknown>
-    );
-  }, [applyCompanyProjectFromRecord, hierarchyQuery.data]);
-
+  // Fetch hierarchy record in edit mode
   useEffect(() => {
-    if (!hierarchyQuery.isError) return;
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.hierarchies.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        const record = res;
+        setRecordData(record);
+        setLoadingRecord(false);
 
-    const message =
-      (hierarchyQuery.error as ApiError)?.response?.data?.detail ||
-      t("common.load_failed");
-    Swal.fire({
-      icon: "error",
-      title: t("common.error"),
-      text: message,
-    });
-  }, [hierarchyQuery.error, hierarchyQuery.isError, t]);
-
-  const areaTypes = (areaTypesQuery.data ?? [])
-    .filter((record) => record && record.is_active !== false)
-    .map((record) => ({
-      value: String(record.unique_id),
-      label: record.name ?? record.area_type_name ?? String(record.unique_id),
-    }));
+        setName(record.level_name ?? "");
+        setIsActive(Boolean(record.is_active));
+        if (record.area_type ?? record.area_type_id) {
+          setAreaTypeId(String(record.area_type ?? record.area_type_id));
+        }
+        applyCompanyProjectFromRecord(
+          record as unknown as Record<string, unknown>
+        );
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        const message =
+          (err as ApiError)?.response?.data?.detail ||
+          t("common.load_failed");
+        Swal.fire({
+          icon: "error",
+          title: t("common.error"),
+          text: message,
+        });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,8 +166,9 @@ export default function HierarchyForm() {
       return;
     }
 
+    setLoading(true);
+    setIsSubmitting(true);
     try {
-      setLoading(true);
       const rawPayload = {
         level_name: name.trim(),
         area_type: areaTypeId,
@@ -160,10 +181,7 @@ export default function HierarchyForm() {
         "project_id",
       ]) as HierarchyPayload;
       if (isEdit) {
-        await updateHierarchyMutation.mutateAsync({
-          id: id as string,
-          payload: basePayload,
-        });
+        await adminApi.hierarchies.update(id as string, basePayload);
         Swal.fire({
           icon: "success",
           title: t("common.updated_success"),
@@ -171,7 +189,7 @@ export default function HierarchyForm() {
           showConfirmButton: false,
         });
       } else {
-        await createHierarchyMutation.mutateAsync(basePayload);
+        await adminApi.hierarchies.create(basePayload);
         Swal.fire({
           icon: "success",
           title: t("common.added_success"),
@@ -191,10 +209,11 @@ export default function HierarchyForm() {
       });
     } finally {
       setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  if (isEdit && hierarchyQuery.isPending && !hierarchyQuery.data) {
+  if (isEdit && loadingRecord && !recordData) {
     return (
       <ComponentCard
         title={t("common.edit_item", { item: t("admin.nav.hierarchy") })}

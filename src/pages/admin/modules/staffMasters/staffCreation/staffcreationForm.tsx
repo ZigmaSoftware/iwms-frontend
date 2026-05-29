@@ -10,10 +10,6 @@ import Select from "@/components/form/Select";
 import PasswordInput from "@/components/form/input/PasswordInput";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { staffCreationApi } from "@/helpers/admin";
-import {
-  useCreateStaff,
-  useUpdateStaff,
-} from "@/tanstack/admin/queries/masters/staffCreation";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
@@ -298,8 +294,6 @@ export default function StaffCreationForm() {
 
   const { encStaffMasters, encStaffCreation } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encStaffMasters}/${encStaffCreation}`;
-  const createMutation = useCreateStaff();
-  const updateMutation = useUpdateStaff();
   const backendOrigin =
     api.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "";
 
@@ -998,9 +992,9 @@ export default function StaffCreationForm() {
 
       if (isEdit) {
         if (!id) throw new Error("Missing staff id");
-        response = await updateMutation.mutateAsync({ id, payload: formBody });
+        response = await staffCreationApi.update(id, formBody);
       } else {
-        response = await createMutation.mutateAsync(formBody);
+        response = await staffCreationApi.create(formBody);
       }
 
       Swal.fire({

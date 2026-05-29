@@ -16,12 +16,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { encryptSegment } from "@/utils/routeCrypto";
-
-import {
-  useCreateMainScreenTypeMutation,
-  useMainScreenTypeQuery,
-  useUpdateMainScreenTypeMutation,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
 
 /* ------------------------------
     ROUTES
@@ -48,25 +43,37 @@ export default function MainScreenTypeForm() {
   const [typeName, setTypeName] = useState("");
   const [isActive, setIsActive] = useState(true);
 
-  const mainScreenTypeQuery = useMainScreenTypeQuery(isEdit ? id : null);
-  const createMutation = useCreateMainScreenTypeMutation();
-  const updateMutation = useUpdateMainScreenTypeMutation();
-  const loading = createMutation.isPending || updateMutation.isPending;
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   /* ==========================================================
       EDIT MODE — LOAD RECORD
   ========================================================== */
   useEffect(() => {
-    if (!mainScreenTypeQuery.data) return;
-    const data = mainScreenTypeQuery.data;
-    setTypeName(data.type_name ?? "");
-    setIsActive(Boolean(data.is_active));
-  }, [mainScreenTypeQuery.data]);
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.mainScreenTypes.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? "Load failed") });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
   useEffect(() => {
-    if (!mainScreenTypeQuery.isError) return;
-    Swal.fire(t("common.error"), t("common.load_failed"), "error");
-  }, [mainScreenTypeQuery.isError, t]);
+    if (!recordData) return;
+    const data = recordData;
+    setTypeName(data.type_name ?? "");
+    setIsActive(Boolean(data.is_active));
+  }, [recordData]);
 
   /* ==========================================================
       SUBMIT HANDLER
@@ -79,6 +86,7 @@ export default function MainScreenTypeForm() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const payload = {
         type_name: typeName.trim(),
@@ -86,10 +94,10 @@ export default function MainScreenTypeForm() {
       };
 
       if (isEdit && id) {
-        await updateMutation.mutateAsync({ id, payload });
+        await adminApi.mainScreenTypes.update(id, payload);
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await createMutation.mutateAsync(payload);
+        await adminApi.mainScreenTypes.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
@@ -105,6 +113,8 @@ export default function MainScreenTypeForm() {
         t("common.save_failed_desc");
 
       Swal.fire(t("common.save_failed"), message, "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -160,8 +170,8 @@ export default function MainScreenTypeForm() {
 
         {/* Buttons */}
         <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={loading}>
-            {loading
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting
               ? isEdit
                 ? t("common.updating")
                 : t("common.saving")

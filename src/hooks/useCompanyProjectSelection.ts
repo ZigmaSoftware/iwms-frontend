@@ -25,6 +25,10 @@ type UseCompanyProjectSelectionArgs = {
 
 const toStringId = (value: unknown): string => {
   if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return toStringId(record.unique_id ?? record.id ?? record.value);
+  }
   return String(value);
 };
 

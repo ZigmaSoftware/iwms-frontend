@@ -23,7 +23,7 @@ import {
   useUpdateStaffUserTypeMutation,
   useContractorUserTypesQuery,
   useUpdateContractorUserTypeMutation,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 
 export default function StaffUserTypeList() {

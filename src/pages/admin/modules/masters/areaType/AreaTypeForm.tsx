@@ -18,15 +18,8 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { SelectOption } from "@/types";
 import type { AreaTypeRecord, CityMeta, DistrictMeta, StateMeta } from "./types";
-import {
-  type AreaTypePayload,
-  useAreaTypeQuery,
-  useCreateAreaTypeMutation,
-  useUpdateAreaTypeMutation,
-  useStatesQuery,
-  useDistrictsQuery,
-  useCitiesQuery,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
+import type { AreaTypePayload } from "@/helpers/admin/directQueries";
 
 const { encMasters, encAreaTypes } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encAreaTypes}`;
@@ -74,14 +67,6 @@ export default function AreaTypeForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
-  const areaTypeQuery = useAreaTypeQuery(id);
-  const createAreaTypeMutation = useCreateAreaTypeMutation();
-  const updateAreaTypeMutation = useUpdateAreaTypeMutation();
-  const statesQuery = useStatesQuery();
-  const districtsQuery = useDistrictsQuery();
-  const citiesQuery = useCitiesQuery();
-  const isSubmitting =
-    createAreaTypeMutation.isPending || updateAreaTypeMutation.isPending;
 
   const [stateId, setStateId] = useState("");
   const [districtId, setDistrictId] = useState("");
@@ -99,6 +84,10 @@ export default function AreaTypeForm() {
 
   const [allCities, setAllCities] = useState<AreaTypeCityMeta[]>([]);
   const [filteredCities, setFilteredCities] = useState<SelectOption[]>([]);
+
+  const [recordData, setRecordData] = useState<AreaTypeRecord | null>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const location = useLocation();
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
@@ -131,63 +120,126 @@ export default function AreaTypeForm() {
     return t("common.unexpected_error");
   };
 
+  // Fetch states list
   useEffect(() => {
-    if (!statesQuery.data) return;
+    let cancelled = false;
+    adminApi.states.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const data: any[] = Array.isArray(res) ? res : [];
+        setAllStates(
+          data.map((s) => ({
+            id: String(s.unique_id),
+            name: s.name,
+            isActive: Boolean(s.is_active),
+          }))
+        );
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), extractErr(err), "error");
+      });
+    return () => { cancelled = true; };
+  }, [t]);
 
-    setAllStates(
-      statesQuery.data.map((s) => ({
-        id: String(s.unique_id),
-        name: s.name,
-        isActive: Boolean(s.is_active),
-      }))
-    );
-  }, [statesQuery.data]);
-
+  // Fetch districts list
   useEffect(() => {
-    if (!districtsQuery.data) return;
+    let cancelled = false;
+    adminApi.districts.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const data: any[] = Array.isArray(res) ? res : [];
+        setAllDistricts(
+          data.map((d) => ({
+            id: String(d.unique_id),
+            name: d.name,
+            stateId: normalizeNullable(d.state_id),
+            isActive: Boolean(d.is_active),
+          }))
+        );
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), extractErr(err), "error");
+      });
+    return () => { cancelled = true; };
+  }, [t]);
 
-    setAllDistricts(
-      districtsQuery.data.map((d) => ({
-        id: String(d.unique_id),
-        name: d.name,
-        stateId: normalizeNullable(d.state_id),
-        isActive: Boolean(d.is_active),
-      }))
-    );
-  }, [districtsQuery.data]);
-
+  // Fetch cities list
   useEffect(() => {
-    if (!citiesQuery.data) return;
+    let cancelled = false;
+    adminApi.cities.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const data: CityRecordWithRelations[] = Array.isArray(res) ? res : [];
+        setAllCities(
+          data.map((c) => ({
+            id: String(c.unique_id),
+            name: c.name,
+            stateId: normalizeNullable(c.state_id ?? c.state_unique_id ?? c.state),
+            districtId: normalizeNullable(c.district_id ?? c.district_unique_id ?? c.district),
+            isActive: Boolean(c.is_active),
+          }))
+        );
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), extractErr(err), "error");
+      });
+    return () => { cancelled = true; };
+  }, [t]);
 
-    setAllCities(
-      (citiesQuery.data as CityRecordWithRelations[]).map((c) => ({
-        id: String(c.unique_id),
-        name: c.name,
-        stateId: normalizeNullable(c.state_id ?? c.state_unique_id ?? c.state),
-        districtId: normalizeNullable(c.district_id ?? c.district_unique_id ?? c.district),
-        isActive: Boolean(c.is_active),
-      }))
-    );
-  }, [citiesQuery.data]);
-
+  // Fetch area type record in edit mode
   useEffect(() => {
-    const queryError =
-      statesQuery.error || districtsQuery.error || citiesQuery.error;
-    const hasError =
-      statesQuery.isError || districtsQuery.isError || citiesQuery.isError;
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.areatypes.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        const record = res as AreaTypeRecord;
+        setRecordData(record);
+        setLoadingRecord(false);
 
-    if (!hasError || !queryError) return;
+        setName(record.name ?? record.area_type_name ?? "");
+        setIsActive(Boolean(record.is_active));
 
-    Swal.fire(t("common.error"), extractErr(queryError), "error");
-  }, [
-    citiesQuery.error,
-    citiesQuery.isError,
-    districtsQuery.error,
-    districtsQuery.isError,
-    statesQuery.error,
-    statesQuery.isError,
-    t,
-  ]);
+        let ste = normalizeNullable(record.state_id);
+        let dis = normalizeNullable(record.district_id);
+        const cty = normalizeNullable(record.city_id);
+        const selectedCity = cty ? allCities.find((city) => city.id === cty) : undefined;
+
+        dis = dis || selectedCity?.districtId || null;
+        ste = ste || selectedCity?.stateId || (dis ? allDistricts.find((district) => district.id === dis)?.stateId ?? null : null);
+
+        if (ste) {
+          setStateId(ste);
+          setPendingState(ste);
+        }
+        if (dis) {
+          setDistrictId(dis);
+          setPendingDistrict(dis);
+        }
+        if (cty) {
+          setCityId(cty);
+          setPendingCity(cty);
+        }
+
+        applyCompanyProjectFromRecord(
+          record as unknown as Record<string, unknown>
+        );
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({
+          icon: "error",
+          title: t("common.error"),
+          text: extractErr(err),
+        });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit, allCities, allDistricts]);
 
   useEffect(() => {
     const filt = allStates
@@ -271,49 +323,6 @@ export default function AreaTypeForm() {
     }
   }, [pendingCity, filteredCities]);
 
-  useEffect(() => {
-    if (!areaTypeQuery.data) return;
-
-    const record = areaTypeQuery.data as AreaTypeRecord;
-    setName(record.name ?? record.area_type_name ?? "");
-    setIsActive(Boolean(record.is_active));
-
-    let ste = normalizeNullable(record.state_id);
-    let dis = normalizeNullable(record.district_id);
-    const cty = normalizeNullable(record.city_id);
-    const selectedCity = cty ? allCities.find((city) => city.id === cty) : undefined;
-
-    dis = dis || selectedCity?.districtId || null;
-    ste = ste || selectedCity?.stateId || (dis ? allDistricts.find((district) => district.id === dis)?.stateId ?? null : null);
-
-    if (ste) {
-      setStateId(ste);
-      setPendingState(ste);
-    }
-    if (dis) {
-      setDistrictId(dis);
-      setPendingDistrict(dis);
-    }
-    if (cty) {
-      setCityId(cty);
-      setPendingCity(cty);
-    }
-
-    applyCompanyProjectFromRecord(
-      record as unknown as Record<string, unknown>
-    );
-  }, [applyCompanyProjectFromRecord, areaTypeQuery.data, allCities, allDistricts]);
-
-  useEffect(() => {
-    if (!areaTypeQuery.isError) return;
-
-    Swal.fire({
-      icon: "error",
-      title: t("common.error"),
-      text: extractErr(areaTypeQuery.error),
-    });
-  }, [areaTypeQuery.error, areaTypeQuery.isError, t]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const fieldValues: Record<string, unknown> = {
@@ -364,6 +373,7 @@ export default function AreaTypeForm() {
 
     try {
       setLoading(true);
+      setIsSubmitting(true);
 
       const rawPayload = {
         name: name.trim(),
@@ -380,10 +390,7 @@ export default function AreaTypeForm() {
       ]) as AreaTypePayload;
 
       if (isEdit) {
-        await updateAreaTypeMutation.mutateAsync({
-          id: id as string,
-          payload: basePayload,
-        });
+        await adminApi.areatypes.update(id as string, basePayload);
         Swal.fire({
           icon: "success",
           title: t("common.updated_success"),
@@ -391,7 +398,7 @@ export default function AreaTypeForm() {
           showConfirmButton: false,
         });
       } else {
-        await createAreaTypeMutation.mutateAsync(basePayload);
+        await adminApi.areatypes.create(basePayload);
         Swal.fire({
           icon: "success",
           title: t("common.added_success"),
@@ -409,10 +416,11 @@ export default function AreaTypeForm() {
       });
     } finally {
       setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  if (isEdit && areaTypeQuery.isPending && !areaTypeQuery.data) {
+  if (isEdit && loadingRecord && !recordData) {
     return (
       <ComponentCard
         title={t("common.edit_item", { item: t("admin.nav.area_type") })}

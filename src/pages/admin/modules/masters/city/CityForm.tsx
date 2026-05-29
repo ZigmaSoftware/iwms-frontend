@@ -18,10 +18,29 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
-import type { CityRecord as QueryCityRecord } from "@/tanstack/admin";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { adminApi } from "@/helpers/admin/registry";
+
+import type { CityRecord, CountryMeta, DistrictMeta, StateMeta } from "./types";
+
+/* ------------------------------
+    TYPES
+------------------------------ */
+
+type CityQueryRecord = {
+  unique_id: string | number;
+  name?: string | null;
+  city_name?: string | null;
+  is_active?: boolean;
+  company_id?: string | number | null;
+  company_unique_id?: string | number | null;
+  company_name?: string | null;
+  project_id?: string | number | null;
+  project_unique_id?: string | number | null;
+  project_name?: string | null;
+};
 
 const CITY_FORM_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],
@@ -31,20 +50,6 @@ const CITY_FORM_FIELDS: Record<string, string[]> = {
   name:         ["name"],
   is_active:    ["is_active"],
 };
-import type { CityRecord, CountryMeta, DistrictMeta, StateMeta } from "./types";
-import {
-  useContinentsQuery,
-  useCountriesQuery,
-  useStatesQuery,
-  useDistrictsQuery,
-  useCityQuery,
-  useCreateCityMutation,
-  useUpdateCityMutation,
-} from "@/tanstack/admin";
-
-/* ------------------------------
-    TYPES
------------------------------- */
 
 /* ------------------------------
     UTILITIES
@@ -116,7 +121,7 @@ type CityWithRelations = CityRecord & {
 };
 
 type CityRouteState = {
-  city?: Partial<QueryCityRecord & CityWithRelations>;
+  city?: Partial<CityQueryRecord & CityWithRelations>;
   companyUniqueId?: string | number | null;
   projectId?: string | number | null;
 };
@@ -182,13 +187,66 @@ export default function CityForm() {
   } = useCompanyProjectSelection({ isEdit });
 
   /* ==========================================================
+      SINGLE-RECORD FETCH (edit mode)
+  ========================================================== */
+  const [recordData, setRecordData] = useState<CityWithRelations | null>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.cities.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? t("common.load_failed")) });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
+
+  /* ==========================================================
       LOAD MASTER DATA
   ========================================================== */
-  const continentsQuery = useContinentsQuery();
-  const countriesQuery = useCountriesQuery();
-  const statesQuery = useStatesQuery();
-  const districtsQuery = useDistrictsQuery();
-  const cityQuery = useCityQuery(id);
+  const [continentsRaw, setContinentsRaw] = useState<any[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.continents.list()
+      .then((res: any) => { if (cancelled) return; setContinentsRaw(Array.isArray(res) ? res : (res?.results ?? [])); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const [countriesRaw, setCountriesRaw] = useState<any[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.countries.list()
+      .then((res: any) => { if (cancelled) return; setCountriesRaw(Array.isArray(res) ? res : (res?.results ?? [])); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const [statesRaw, setStatesRaw] = useState<any[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.states.list()
+      .then((res: any) => { if (cancelled) return; setStatesRaw(Array.isArray(res) ? res : (res?.results ?? [])); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const [districtsRaw, setDistrictsRaw] = useState<any[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.districts.list()
+      .then((res: any) => { if (cancelled) return; setDistrictsRaw(Array.isArray(res) ? res : (res?.results ?? [])); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     routeStateAppliedRef.current = false;
@@ -237,7 +295,7 @@ export default function CityForm() {
       applied = true;
     }
 
-    if (!cityQuery.data && routeState?.city?.name) {
+    if (!recordData && routeState?.city?.name) {
       setCityName(String(routeState.city.name));
       applied = true;
     }
@@ -246,7 +304,7 @@ export default function CityForm() {
       routeStateAppliedRef.current = true;
     }
   }, [
-    cityQuery.data,
+    recordData,
     companyUniqueId,
     isEdit,
     location.search,
@@ -258,16 +316,11 @@ export default function CityForm() {
   ]);
 
   useEffect(() => {
-    if (continentsQuery.isError) {
-      Swal.fire(t("common.error"), String(continentsQuery.error), "error");
-      return;
-    }
-
-    const city = cityQuery.data as CityWithRelations | undefined;
+    const city = recordData as CityWithRelations | undefined;
     const recordContinentId = normalizeNullable(
       city?.continent_id ?? city?.continent_unique_id ?? city?.continent
     );
-    const res = continentsQuery.data ?? [];
+    const res = continentsRaw;
     const activeContinents = res
       .filter((x) => x.is_active)
       .map((x) => ({ value: String(x.unique_id), label: x.name }));
@@ -290,15 +343,10 @@ export default function CityForm() {
     }
 
     setContinents(activeContinents);
-  }, [continentsQuery.data, continentsQuery.error, continentsQuery.isError, cityQuery.data, t]);
+  }, [continentsRaw, recordData]);
 
   useEffect(() => {
-    if (countriesQuery.isError) {
-      Swal.fire(t("common.error"), String(countriesQuery.error), "error");
-      return;
-    }
-
-    const city = cityQuery.data as CityWithRelations | undefined;
+    const city = recordData as CityWithRelations | undefined;
     const recordContinentId = normalizeNullable(
       city?.continent_id ?? city?.continent_unique_id ?? city?.continent
     );
@@ -307,7 +355,7 @@ export default function CityForm() {
       recordContinentId,
       city?.continent_name
     );
-    const res = countriesQuery.data ?? [];
+    const res = countriesRaw;
     const mapped = res.map((c) => ({
       id: String(c.unique_id),
       name: c.name,
@@ -319,32 +367,22 @@ export default function CityForm() {
       isActive: Boolean(c.is_active),
     }));
     setAllCountries(mapped);
-  }, [countriesQuery.data, countriesQuery.error, countriesQuery.isError, cityQuery.data, continents, t]);
+  }, [countriesRaw, recordData, continents]);
 
   useEffect(() => {
-    if (statesQuery.isError) {
-      Swal.fire(t("common.error"), String(statesQuery.error), "error");
-      return;
-    }
-
-    const res = statesQuery.data ?? [];
+    const res = statesRaw;
     const mapped = res.map((s) => ({ id: String(s.unique_id), name: s.name, countryId: normalizeNullable(s.country_id ?? s.country), isActive: Boolean(s.is_active) }));
     setAllStates(mapped);
-  }, [statesQuery.data, statesQuery.error, statesQuery.isError, t]);
+  }, [statesRaw]);
 
   useEffect(() => {
-    if (districtsQuery.isError) {
-      Swal.fire(t("common.error"), String(districtsQuery.error), "error");
-      return;
-    }
-
-    const res = districtsQuery.data ?? [];
+    const res = districtsRaw;
     const mapped = res.map((d) => {
       const district = d as typeof d & { state?: string | number | null };
       return { id: String(district.unique_id), name: district.name, stateId: normalizeNullable(district.state_id ?? district.state), isActive: Boolean(district.is_active) };
     });
     setAllDistricts(mapped);
-  }, [districtsQuery.data, districtsQuery.error, districtsQuery.isError, t]);
+  }, [districtsRaw]);
 
   /* ==========================================================
       FILTER COUNTRIES BASED ON SELECTED CONTINENT
@@ -358,7 +396,7 @@ export default function CityForm() {
     const filt = allCountries
       .filter((c) => c.isActive && c.continentId === continentId)
       .map((c) => ({ value: c.id, label: c.name }));
-    const city = cityQuery.data as CityWithRelations | undefined;
+    const city = recordData as CityWithRelations | undefined;
     const resolvedCountryId = resolveOptionValue(
       filt,
       pendingCountryId,
@@ -378,7 +416,7 @@ export default function CityForm() {
     }
 
     setFilteredCountries(filt);
-  }, [continentId, allCountries, pendingCountryId, cityQuery.data]);
+  }, [continentId, allCountries, pendingCountryId, recordData]);
 
   /* ==========================================================
       FILTER STATES BASED ON SELECTED COUNTRY
@@ -392,7 +430,7 @@ export default function CityForm() {
     const filt = allStates
       .filter((s) => s.isActive && s.countryId === countryId)
       .map((s) => ({ value: s.id, label: s.name }));
-    const city = cityQuery.data as CityWithRelations | undefined;
+    const city = recordData as CityWithRelations | undefined;
     const resolvedStateId = resolveOptionValue(
       filt,
       pendingStateId,
@@ -412,7 +450,7 @@ export default function CityForm() {
     }
 
     setFilteredStates(filt);
-  }, [countryId, allStates, pendingStateId, cityQuery.data]);
+  }, [countryId, allStates, pendingStateId, recordData]);
 
   /* ==========================================================
       FILTER DISTRICTS BY STATE
@@ -426,7 +464,7 @@ export default function CityForm() {
     const filt = allDistricts
       .filter((d) => d.isActive && d.stateId === stateId)
       .map((d) => ({ value: d.id, label: d.name }));
-    const city = cityQuery.data as CityWithRelations | undefined;
+    const city = recordData as CityWithRelations | undefined;
     const resolvedDistrictId = resolveOptionValue(
       filt,
       pendingDistrictId,
@@ -446,7 +484,7 @@ export default function CityForm() {
     }
 
     setFilteredDistricts(filt);
-  }, [stateId, allDistricts, pendingDistrictId, cityQuery.data]);
+  }, [stateId, allDistricts, pendingDistrictId, recordData]);
 
   /* ==========================================================
       APPLY PENDING COUNTRY WHEN FILTER READY
@@ -465,7 +503,7 @@ export default function CityForm() {
       return;
     }
 
-    const city = cityQuery.data as CityWithRelations | undefined;
+    const city = recordData as CityWithRelations | undefined;
     const resolvedCountryId = resolveOptionValue(
       filteredCountries,
       pendingCountryId,
@@ -479,7 +517,7 @@ export default function CityForm() {
       setCountryId(resolvedCountryId);
       setPendingCountryId("");
     }
-  }, [filteredCountries, pendingCountryId, cityQuery.data]);
+  }, [filteredCountries, pendingCountryId, recordData]);
 
   /* ==========================================================
       APPLY PENDING STATE WHEN FILTER READY
@@ -498,7 +536,7 @@ export default function CityForm() {
       return;
     }
 
-    const city = cityQuery.data as CityWithRelations | undefined;
+    const city = recordData as CityWithRelations | undefined;
     const resolvedStateId = resolveOptionValue(
       filteredStates,
       pendingStateId,
@@ -512,7 +550,7 @@ export default function CityForm() {
       setStateId(resolvedStateId);
       setPendingStateId("");
     }
-  }, [filteredStates, pendingStateId, cityQuery.data]);
+  }, [filteredStates, pendingStateId, recordData]);
 
   /* ==========================================================
       APPLY PENDING DISTRICT WHEN FILTER READY
@@ -531,7 +569,7 @@ export default function CityForm() {
       return;
     }
 
-    const city = cityQuery.data as CityWithRelations | undefined;
+    const city = recordData as CityWithRelations | undefined;
     const resolvedDistrictId = resolveOptionValue(
       filteredDistricts,
       pendingDistrictId,
@@ -545,7 +583,7 @@ export default function CityForm() {
       setDistrictId(resolvedDistrictId);
       setPendingDistrictId("");
     }
-  }, [filteredDistricts, pendingDistrictId, cityQuery.data]);
+  }, [filteredDistricts, pendingDistrictId, recordData]);
 
   /* ==========================================================
       AUTO-RESOLVE CHAINS
@@ -587,8 +625,8 @@ export default function CityForm() {
       EDIT MODE — LOAD EXISTING CITY
   ========================================================== */
   useEffect(() => {
-    if (!cityQuery.data) return;
-    const data = cityQuery.data as CityWithRelations;
+    if (!recordData) return;
+    const data = recordData as CityWithRelations;
 
     setCityName(data.name ?? "");
     setIsActive(Boolean(data.is_active));
@@ -628,7 +666,7 @@ export default function CityForm() {
     setPendingDistrictId(district ?? "");
     applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
   }, [
-    cityQuery.data,
+    recordData,
     applyCompanyProjectFromRecord,
     continents,
     allCountries,
@@ -637,9 +675,9 @@ export default function CityForm() {
   ]);
 
   useEffect(() => {
-    if (!cityQuery.data || projects.length === 0) return;
+    if (!recordData || projects.length === 0) return;
 
-    const data = cityQuery.data as CityWithRelations;
+    const data = recordData as CityWithRelations;
     const recordProjectId = normalizeNullable(
       data.project_id ?? data.project_unique_id ?? data.project
     );
@@ -652,14 +690,12 @@ export default function CityForm() {
     if (resolvedProjectId && resolvedProjectId !== projectId) {
       setProjectId(resolvedProjectId);
     }
-  }, [cityQuery.data, projectId, projects, setProjectId]);
+  }, [recordData, projectId, projects, setProjectId]);
 
   /* ==========================================================
       SUBMIT
   ========================================================== */
-  const createCityMutation = useCreateCityMutation();
-  const updateCityMutation = useUpdateCityMutation();
-  const isSubmitting = createCityMutation.isPending || updateCityMutation.isPending;
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -697,30 +733,32 @@ export default function CityForm() {
       return;
     }
 
-    try {
-      const rawPayload = {
-        name: cityName.trim(),
-        continent_id: continentId,
-        country_id: countryId,
-        state_id: stateId,
-        district_id: districtId,
-        is_active: isActive,
-        company_id: companyUniqueId,
-        project_id: projectId,
-      };
-      const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
+    const rawPayload = {
+      name: cityName.trim(),
+      continent_id: continentId,
+      country_id: countryId,
+      state_id: stateId,
+      district_id: districtId,
+      is_active: isActive,
+      company_id: companyUniqueId,
+      project_id: projectId,
+    };
+    const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
+    setIsSubmitting(true);
+    try {
       if (isEdit && id) {
-        await updateCityMutation.mutateAsync({ id, payload });
+        await adminApi.cities.update(id, payload);
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await createCityMutation.mutateAsync(payload);
+        await adminApi.cities.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
-
       navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (err) {
       Swal.fire(t("common.save_failed"), extractError(err), "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -922,7 +960,7 @@ export default function CityForm() {
 
         {/* Actions */}
         <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting || loadingRecord}>
             {isSubmitting
               ? isEdit
                 ? t("common.updating")

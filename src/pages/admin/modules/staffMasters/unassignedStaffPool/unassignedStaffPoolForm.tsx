@@ -8,15 +8,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 
-import {
-  useUsersList,
-  useZonesList,
-  useWardsList,
-  useTripInstancesList,
-  useUnassignedStaffPoolQuery,
-  useCreateUnassignedStaffPool,
-  useUpdateUnassignedStaffPool,
-} from "@/tanstack/admin/queries/masters/unassignedStaffPool";
+import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
@@ -102,48 +94,56 @@ export default function UnassignedStaffPoolForm() {
   const ENC_LIST_PATH = `/${encStaffMasters}/${encUnassignedStaffPool}`;
   const stateRecord = (location.state as { record?: Partial<UnassignedStaffPoolFormState> } | null)?.record;
 
-  const { data: usersData } = useUsersList();
-  const { data: zonesData } = useZonesList();
-  const { data: wardsData } = useWardsList();
-  const { data: tripInstancesData } = useTripInstancesList();
-
-  const recordQuery = useUnassignedStaffPoolQuery(id);
-  const createMutation = useCreateUnassignedStaffPool();
-  const updateMutation = useUpdateUnassignedStaffPool();
-
   useEffect(() => {
-    setFetching(Boolean(!usersData || !zonesData || !wardsData || !tripInstancesData));
-    try {
-      const users = normalizeList(usersData);
-      const operatorUsers = users.filter(
-        (user: any) => String(user?.staffusertype_name ?? "").toLowerCase() === "operator"
-      );
-      const driverUsers = users.filter(
-        (user: any) => String(user?.staffusertype_name ?? "").toLowerCase() === "driver"
-      );
+    let cancelled = false;
+    setFetching(true);
 
-      setOperators(toOptions(operatorUsers, "unique_id", "staff_name", "unique_id"));
-      setDrivers(toOptions(driverUsers, "unique_id", "staff_name", "unique_id"));
-      setZones(toOptions(normalizeList(zonesData), "unique_id", "name"));
-      setWardRecords(normalizeList(wardsData));
-      setTripInstances(toOptions(normalizeList(tripInstancesData), "unique_id", "trip_no"));
-      setUserMeta(
-        users.reduce<Record<string, UserLocationMeta>>((acc, user: any) => {
-          const id = user?.unique_id;
-          if (!id) return acc;
-          acc[String(id)] = {
-            zone_id: user?.zone_id ?? undefined,
-            ward_id: user?.ward_id ?? undefined,
-          };
-          return acc;
-        }, {})
-      );
-    } catch (err) {
-      // ignore, queries will surface errors
-    } finally {
-      setFetching(false);
-    }
-  }, [usersData, zonesData, wardsData, tripInstancesData]);
+    Promise.all([
+      adminApi.usersCreation.list() as Promise<any>,
+      adminApi.zones.list() as Promise<any>,
+      adminApi.wards.list() as Promise<any>,
+      adminApi.tripInstances.list() as Promise<any>,
+    ])
+      .then(([usersData, zonesData, wardsData, tripInstancesData]: [any, any, any, any]) => {
+        if (cancelled) return;
+        try {
+          const users = normalizeList(usersData);
+          const operatorUsers = users.filter(
+            (user: any) => String(user?.staffusertype_name ?? "").toLowerCase() === "operator"
+          );
+          const driverUsers = users.filter(
+            (user: any) => String(user?.staffusertype_name ?? "").toLowerCase() === "driver"
+          );
+
+          setOperators(toOptions(operatorUsers, "unique_id", "staff_name", "unique_id"));
+          setDrivers(toOptions(driverUsers, "unique_id", "staff_name", "unique_id"));
+          setZones(toOptions(normalizeList(zonesData), "unique_id", "name"));
+          setWardRecords(normalizeList(wardsData));
+          setTripInstances(toOptions(normalizeList(tripInstancesData), "unique_id", "trip_no"));
+          setUserMeta(
+            users.reduce<Record<string, UserLocationMeta>>((acc, user: any) => {
+              const uid = user?.unique_id;
+              if (!uid) return acc;
+              acc[String(uid)] = {
+                zone_id: user?.zone_id ?? undefined,
+                ward_id: user?.ward_id ?? undefined,
+              };
+              return acc;
+            }, {})
+          );
+        } catch {
+          // ignore normalisation errors
+        } finally {
+          setFetching(false);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFetching(false);
+      });
+
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!isEdit || !stateRecord) return;
@@ -169,27 +169,37 @@ export default function UnassignedStaffPoolForm() {
 
   useEffect(() => {
     if (!isEdit || !id) return;
-    if (recordQuery.data) {
-      const res: any = recordQuery.data;
-      const operatorId = res?.operator_id ?? "";
-      const driverId = res?.driver_id ?? "";
+    let cancelled = false;
 
-      setFormData({
-        operator_id: operatorId,
-        driver_id: driverId,
-        zone_id: res?.zone_id ?? "",
-        ward_id: res?.ward_id ?? "",
-        status: res?.status ?? "AVAILABLE",
-        trip_instance_id: res?.trip_instance_id ?? "",
+    adminApi.unassignedStaffPool
+      .get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        const operatorId = res?.operator_id ?? "";
+        const driverId = res?.driver_id ?? "";
+
+        setFormData({
+          operator_id: operatorId,
+          driver_id: driverId,
+          zone_id: res?.zone_id ?? "",
+          ward_id: res?.ward_id ?? "",
+          status: res?.status ?? "AVAILABLE",
+          trip_instance_id: res?.trip_instance_id ?? "",
+        });
+
+        if (operatorId) {
+          setRole("operator");
+        } else if (driverId) {
+          setRole("driver");
+        }
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), String(err?.response?.data ?? err?.message ?? t("common.load_failed")), "error");
       });
 
-      if (operatorId) {
-        setRole("operator");
-      } else if (driverId) {
-        setRole("driver");
-      }
-    }
-  }, [id, isEdit, recordQuery.data]);
+    return () => { cancelled = true; };
+  }, [id, isEdit, t]);
 
   const wardOptions = useMemo(() => {
     const filtered = formData.zone_id
@@ -254,9 +264,9 @@ export default function UnassignedStaffPoolForm() {
       const payload = filterPayload(rawPayload);
 
       if (isEdit && id) {
-        await updateMutation.mutateAsync({ id, payload });
+        await adminApi.unassignedStaffPool.update(id, payload);
       } else {
-        await createMutation.mutateAsync(payload);
+        await adminApi.unassignedStaffPool.create(payload);
       }
 
       Swal.fire(

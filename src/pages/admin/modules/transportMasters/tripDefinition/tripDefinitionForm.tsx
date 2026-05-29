@@ -13,11 +13,6 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
-import {
-  useTripDefinitionQuery,
-  useCreateTripDefinitionMutation,
-  useUpdateTripDefinitionMutation,
-} from "@/tanstack/admin";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -140,11 +135,30 @@ export default function TripDefinitionForm() {
   const propertyApi = adminApi.properties;
   const subPropertyApi = adminApi.subProperties;
 
-  // ── TanStack mutations ────────────────────────────────────────────────────
-  const tripDefinitionQuery = useTripDefinitionQuery(id);
-  const createMutation = useCreateTripDefinitionMutation();
-  const updateMutation = useUpdateTripDefinitionMutation();
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  // ── Record fetch ──────────────────────────────────────────────────────────
+  const [recordData, setRecordData] = useState<TripDefinitionRecord | null>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.tripDefinitions.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        const message = extractErrorMessage(err) ?? t("common.load_failed");
+        Swal.fire(t("common.error"), message, "error");
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
+
+  // ── Submitting state ──────────────────────────────────────────────────────
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ── Local state (dropdown data — stays local, not in TanStack cache) ──────
   const [fetching, setFetching] = useState(false);
@@ -180,7 +194,7 @@ export default function TripDefinitionForm() {
 
     setFormData((prev) => ({
       ...prev,
-      // Preserve existing non-empty values so a stale TanStack response
+      // Preserve existing non-empty values so a stale response
       // doesn't overwrite what stateRecord already set correctly.
       routeplan_id: rpId || prev.routeplan_id,
       staff_template_id: stId || prev.staff_template_id,
@@ -256,7 +270,7 @@ if (subPropId && propId) {
         ]
   );
 }
-    
+
   };
 
   // ── Fetch dropdown data when company/project changes ─────────────────────
@@ -327,50 +341,39 @@ if (subPropId && propId) {
   }, [companyUniqueId, projectId, t]);
 
   // ── Edit-mode populate ────────────────────────────────────────────────────
-  // hasPopulated guards against re-populating the form when the background
-  // refetch (staleTime=0) completes and changes tripDefinitionQuery.data a
-  // second time — which would wipe any changes the user made after load.
+  // hasPopulated guards against re-populating the form when a background
+  // refetch completes and changes recordData a second time — which would wipe
+  // any changes the user made after load.
   //
   // Priority:
-  //   1. TanStack detail data (authoritative — includes full nested objects
-  //      from the server, even on second edit where the cache holds the
-  //      mutation response).
+  //   1. Direct API detail data (authoritative — includes full nested objects
+  //      from the server, even on second edit).
   //   2. stateRecord only as a fallback while the detail fetch is in flight
-  //      on a cold cache (first edit, no prior cached response).  We do NOT
-  //      mark hasPopulated in this path so the definitive TanStack data can
-  //      still upgrade it when it arrives.
+  //      (first edit). We do NOT mark hasPopulated in this path so the
+  //      definitive API data can still upgrade it when it arrives.
   const hasPopulated = useRef(false);
 
   useEffect(() => {
     if (!isEdit) return;
     if (hasPopulated.current) return;
 
-    if (tripDefinitionQuery.data) {
-      const res = tripDefinitionQuery.data as TripDefinitionRecord;
-      applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
-      populateFormFromRecord(res);
+    if (recordData) {
+      applyCompanyProjectFromRecord(recordData as unknown as Record<string, unknown>);
+      populateFormFromRecord(recordData);
       hasPopulated.current = true;
       return;
     }
 
-    // Cold cache (first edit): use stateRecord immediately so the user sees
+    // Cold load (first edit): use stateRecord immediately so the user sees
     // values before the network fetch completes.  hasPopulated stays false
-    // so the TanStack response will upgrade this when it arrives.
+    // so the API response will upgrade this when it arrives.
     if (stateRecord) {
       applyCompanyProjectFromRecord(
         stateRecord as unknown as Record<string, unknown>
       );
       populateFormFromRecord(stateRecord);
     }
-  }, [applyCompanyProjectFromRecord, isEdit, stateRecord, tripDefinitionQuery.data]);
-
-  // ── Show fetch error ──────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isEdit || !tripDefinitionQuery.isError) return;
-    const message =
-      extractErrorMessage(tripDefinitionQuery.error) ?? t("common.load_failed");
-    Swal.fire(t("common.error"), message, "error");
-  }, [isEdit, tripDefinitionQuery.isError, tripDefinitionQuery.error, t]);
+  }, [applyCompanyProjectFromRecord, isEdit, stateRecord, recordData]);
 
   // ── Sub-property derived options ──────────────────────────────────────────
   const subProperties = useMemo(
@@ -441,11 +444,12 @@ if (subPropId && propId) {
       status: formData.status,
     };
 
+    setIsSubmitting(true);
     try {
       if (isEdit && id) {
-        await updateMutation.mutateAsync({ id, payload });
+        await adminApi.tripDefinitions.update(id, payload);
       } else {
-        await createMutation.mutateAsync(payload);
+        await adminApi.tripDefinitions.create(payload);
       }
 
       Swal.fire(
@@ -458,6 +462,8 @@ if (subPropId && propId) {
       const message =
         extractErrorMessage(error) ?? t("common.save_failed_desc");
       Swal.fire(t("common.save_failed"), message, "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -664,7 +670,7 @@ if (subPropId && propId) {
           <div className="flex justify-end gap-3">
             <button
               type="submit"
-              disabled={isSubmitting || fetching}
+              disabled={isSubmitting || fetching || loadingRecord}
               className="rounded-lg bg-green-custom px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
             >
               {isSubmitting

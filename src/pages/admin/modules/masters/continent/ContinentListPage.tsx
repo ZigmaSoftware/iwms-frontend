@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Switch } from "@/components/ui/switch";
-import { type ContinentRecord, useContinentsQuery, useUpdateContinentMutation } from "@/tanstack/admin";
+import { type ContinentRecord, useContinentsQuery, useUpdateContinentMutation } from "@/helpers/admin/directQueries";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { PencilIcon } from "@/icons";
 import { Button } from "primereact/button";

@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useDistrictsQuery, useUpdateDistrictMutation } from "@/tanstack/admin";
+import { useDistrictsQuery, useUpdateDistrictMutation } from "@/helpers/admin/directQueries";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { DistrictListRecord } from "./types";

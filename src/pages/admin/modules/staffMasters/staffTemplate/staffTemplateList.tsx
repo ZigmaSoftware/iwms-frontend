@@ -270,7 +270,7 @@ import { staffCreationApi, staffTemplateApi } from "@/helpers/admin";
 import {
   useStaffTemplateList,
   useUpdateStaffTemplate,
-} from "@/tanstack/admin/queries/masters/staffTemplate";
+} from "@/helpers/admin/directQueries";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";

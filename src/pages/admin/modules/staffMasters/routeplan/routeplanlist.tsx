@@ -88,7 +88,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { usePermission } from "@/contexts/PermissionContext";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useRoutePlansList } from "@/tanstack/admin/queries/masters/routePlan";
+import { useRoutePlansList } from "@/helpers/admin/directQueries";
 
 // TODO: Replace with actual API import when available
 // import { routePlansApi } from "@/helpers/admin";

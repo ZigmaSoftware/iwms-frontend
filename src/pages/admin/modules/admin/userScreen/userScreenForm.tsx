@@ -16,13 +16,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { encryptSegment } from "@/utils/routeCrypto";
-
-import {
-  useCreateUserScreenMutation,
-  useMainScreensQuery,
-  useUpdateUserScreenMutation,
-  useUserScreenQuery,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
 
 /* -----------------------------------------
    ROUTES
@@ -63,41 +57,68 @@ export default function UserScreenForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
-  const mainScreensQuery = useMainScreensQuery();
-  const userScreenQuery = useUserScreenQuery(isEdit ? id : null);
-  const createMutation = useCreateUserScreenMutation();
-  const updateMutation = useUpdateUserScreenMutation();
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
-  const mainScreens = useMemo<MainScreenOption[]>(
-    () =>
-      (mainScreensQuery.data ?? [])
-        .filter((x) => Boolean(x.is_active))
-        .map((x) => ({
-          value: toText(x.unique_id),
-          label: toText(x.mainscreen_name),
-        })),
-    [mainScreensQuery.data]
-  );
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [mainScreensList, setMainScreensList] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  /* =========================================
+      FETCH MAIN SCREENS (dropdown)
+  ========================================= */
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.mainScreens.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        setMainScreensList(Array.isArray(res) ? res : (res?.results ?? []));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   /* =========================================
       EDIT MODE — LOAD EXISTING RECORD
   ========================================= */
   useEffect(() => {
-    if (!userScreenQuery.data) return;
-    const data = userScreenQuery.data;
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.userScreens.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? "Load failed") });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
+
+  useEffect(() => {
+    if (!recordData) return;
+    const data = recordData;
     setMainscreenId(data.mainscreen_id ?? "");
     setUserScreenName(data.userscreen_name ?? "");
     setFolderName(data.folder_name ?? "");
     setOrderNo(String(data.order_no ?? ""));
     setDescription(data.description ?? "");
     setIsActive(Boolean(data.is_active));
-  }, [userScreenQuery.data]);
+  }, [recordData]);
 
-  useEffect(() => {
-    if (!userScreenQuery.isError && !mainScreensQuery.isError) return;
-    Swal.fire(t("common.error"), t("common.load_failed"), "error");
-  }, [mainScreensQuery.isError, userScreenQuery.isError, t]);
+  const mainScreens = useMemo<MainScreenOption[]>(
+    () =>
+      mainScreensList
+        .filter((x) => Boolean(x.is_active))
+        .map((x) => ({
+          value: toText(x.unique_id),
+          label: toText(x.mainscreen_name),
+        })),
+    [mainScreensList]
+  );
 
   /* =========================================
       SUBMIT HANDLER
@@ -110,6 +131,7 @@ export default function UserScreenForm() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const payload = {
         mainscreen_id: mainscreenId,
@@ -120,13 +142,10 @@ export default function UserScreenForm() {
       };
 
       if (isEdit && id) {
-        await updateMutation.mutateAsync({
-          id,
-          payload: { ...payload, order_no: Number(orderNo) || 0 },
-        });
+        await adminApi.userScreens.update(id, { ...payload, order_no: Number(orderNo) || 0 });
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await createMutation.mutateAsync(payload);
+        await adminApi.userScreens.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
@@ -143,6 +162,8 @@ export default function UserScreenForm() {
           t("common.save_failed_desc"),
         "error"
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

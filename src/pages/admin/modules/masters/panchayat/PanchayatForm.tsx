@@ -1,4 +1,4 @@
-/* eslint-disable react-hooks/set-state-in-effect, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -18,14 +18,8 @@ import {
 import { encryptSegment } from "@/utils/routeCrypto";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  usePanchayatQuery,
-  useCreatePanchayatMutation,
-  useUpdatePanchayatMutation,
-  useStatesQuery,
-  useDistrictsQuery,
-  useCitiesQuery,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
+import { panchayatApi, stateApi } from "@/helpers/admin";
 import type { SelectOption } from "@/types";
 
 const PANCHAYAT_FIELDS: Record<string, string[]> = {
@@ -44,12 +38,40 @@ const PANCHAYAT_FIELDS: Record<string, string[]> = {
 
 const normalizeNullable = (v: any): string | null => {
   if (v === undefined || v === null) return null;
-  if (typeof v === "object") return normalizeNullable(v.unique_id ?? v.id);
-  return String(v);
+  if (typeof v === "object") {
+    return normalizeNullable(v.unique_id ?? v.id ?? v.value);
+  }
+
+  const raw = String(v).trim();
+  if (!raw) return null;
+
+  const inParentheses = raw.match(/\(([A-Za-z0-9_-]+)\)\s*$/);
+  return inParentheses?.[1] ?? raw;
 };
 
 const normalizeLabel = (v: string | null | undefined) =>
   (v ?? "").trim().toLowerCase();
+
+const toRecordList = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (item): item is Record<string, unknown> =>
+        !!item && typeof item === "object" && !Array.isArray(item)
+    );
+  }
+
+  if (value && typeof value === "object") {
+    const maybeResults = (value as { results?: unknown }).results;
+    if (Array.isArray(maybeResults)) {
+      return maybeResults.filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === "object" && !Array.isArray(item)
+      );
+    }
+  }
+
+  return [];
+};
 
 /** Try to match by id first; fall back to name match */
 const resolveId = (
@@ -123,43 +145,72 @@ export default function PanchayatForm() {
   const LIST_PATH = `/${encMasters}/${encPanchayat}`;
 
   /* ── load master data ── */
-  const statesQuery = useStatesQuery();
-  const districtsQuery = useDistrictsQuery();
-  const citiesQuery = useCitiesQuery();
-  const createPanchayatMutation = useCreatePanchayatMutation();
-  const updatePanchayatMutation = useUpdatePanchayatMutation();
+  useEffect(() => {
+    let cancelled = false;
+    stateApi.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = toRecordList(res);
+        setAllStates(
+          list
+            .map((x: any) => ({
+              value: normalizeNullable(x.unique_id) ?? "",
+              label: String(x.name ?? ""),
+            }))
+            .filter((x) => x.value && x.label)
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
-    const res: any = statesQuery.data ?? [];
-    const list = Array.isArray(res) ? res : (res?.results ?? []);
-    setAllStates(
-      list.map((x: any) => ({ value: String(x.unique_id), label: x.name ?? "" }))
-    );
-  }, [statesQuery.data]);
+    let cancelled = false;
+    const config = companyUniqueId && projectId
+      ? { params: { company_id: companyUniqueId, project_id: projectId } }
+      : undefined;
+
+    adminApi.districts.list(config)
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = toRecordList(res);
+        setAllDistricts(
+          list
+            .map((x: any) => ({
+              value: normalizeNullable(x.unique_id) ?? "",
+              label: String(x.name ?? ""),
+              stateId: normalizeNullable(x.state_id ?? x.state),
+            } as SelectOption & { stateId: string | null }))
+            .filter((x) => x.value && x.label)
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [companyUniqueId, projectId]);
 
   useEffect(() => {
-    const res: any = districtsQuery.data ?? [];
-    const list = Array.isArray(res) ? res : (res?.results ?? []);
-    setAllDistricts(
-      list.map((x: any) => ({
-        value: String(x.unique_id),
-        label: x.name ?? "",
-        stateId: normalizeNullable(x.state_id ?? x.state),
-      } as SelectOption & { stateId: string | null }))
-    );
-  }, [districtsQuery.data]);
+    let cancelled = false;
+    const config = companyUniqueId && projectId
+      ? { params: { company_id: companyUniqueId, project_id: projectId } }
+      : undefined;
 
-  useEffect(() => {
-    const res: any = citiesQuery.data ?? [];
-    const list = Array.isArray(res) ? res : (res?.results ?? []);
-    setAllCities(
-      list.map((x: any) => ({
-        value: String(x.unique_id),
-        label: x.name ?? x.city_name ?? "",
-        districtId: normalizeNullable(x.district_id ?? x.district),
-      } as SelectOption & { districtId: string | null }))
-    );
-  }, [citiesQuery.data]);
+    adminApi.cities.list(config)
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = toRecordList(res);
+        setAllCities(
+          list
+            .map((x: any) => ({
+              value: normalizeNullable(x.unique_id) ?? "",
+              label: String(x.name ?? x.city_name ?? ""),
+              districtId: normalizeNullable(x.district_id ?? x.district),
+            } as SelectOption & { districtId: string | null }))
+            .filter((x) => x.value && x.label)
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [companyUniqueId, projectId]);
 
   /* ── cascade: districts filtered by state ── */
   useEffect(() => {
@@ -212,13 +263,30 @@ export default function PanchayatForm() {
   }, [pendingCity, filteredCities]);
 
   /* ── edit mode: prefill ── */
-  const panchayatQuery = usePanchayatQuery(id);
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    panchayatApi.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({ icon: "error", title: "Error", text: String(err?.response?.data ?? err?.message ?? "Failed to load record") });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
   useEffect(() => {
-    if (!isEdit || !panchayatQuery.data) return;
+    if (!isEdit || !recordData) return;
 
-    let cancelled = false;
-    const data = panchayatQuery.data as any;
+    const data = recordData as any;
 
     setPanchayatName(data.panchayat_name ?? "");
     setAgreedWeightKg(String(data.agreed_weight_kg ?? "0"));
@@ -249,9 +317,11 @@ export default function PanchayatForm() {
     if (resolvedState) { setStateId(resolvedState); setPendingState(resolvedState); }
     if (resolvedDistrict) { setDistrictId(resolvedDistrict); setPendingDistrict(resolvedDistrict); }
     if (resolvedCity) { setCityId(resolvedCity); setPendingCity(resolvedCity); }
-  }, [panchayatQuery.data, applyCompanyProjectFromRecord, allStates, allDistricts, allCities]);
+  }, [isEdit, recordData, applyCompanyProjectFromRecord, allStates, allDistricts, allCities]);
 
   /* ── submit ── */
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -288,18 +358,20 @@ export default function PanchayatForm() {
     };
     const basePayload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
-
+    setIsSubmitting(true);
     try {
       if (isEdit && id) {
-        await updatePanchayatMutation.mutateAsync({ id, payload: basePayload });
+        await adminApi.panchayats.update(id, basePayload);
         Swal.fire("Success", "Updated successfully", "success");
       } else {
-        await createPanchayatMutation.mutateAsync(basePayload);
+        await adminApi.panchayats.create(basePayload);
         Swal.fire("Success", "Created successfully", "success");
       }
       navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch {
       Swal.fire("Error", "Something went wrong", "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -573,7 +645,7 @@ export default function PanchayatForm() {
         <div className="md:col-span-2 flex justify-end gap-3">
           <Button
             type="submit"
-            disabled={createPanchayatMutation.isPending || updatePanchayatMutation.isPending}
+            disabled={isSubmitting || loadingRecord}
           >
             {isEdit ? "Update" : "Save"}
           </Button>

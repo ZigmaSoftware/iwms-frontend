@@ -18,7 +18,7 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useWardsQuery, useUpdateWardMutation } from "@/tanstack/admin";
+import { useWardsQuery, useUpdateWardMutation } from "@/helpers/admin/directQueries";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { WardListRecord } from "./types";
