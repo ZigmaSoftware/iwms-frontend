@@ -18,7 +18,7 @@ import {
   useCollectionPointsQuery,
   useUpdateCollectionPointMutation,
   type CollectionPointRecord,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };

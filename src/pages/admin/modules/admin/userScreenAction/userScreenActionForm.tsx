@@ -16,12 +16,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { encryptSegment } from "@/utils/routeCrypto";
-
-import {
-  useCreateUserScreenActionMutation,
-  useUpdateUserScreenActionMutation,
-  useUserScreenActionQuery,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
 
 /* ------------------------------
     ROUTES
@@ -48,26 +43,39 @@ export default function UserScreenActionForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
-  const userScreenActionQuery = useUserScreenActionQuery(isEdit ? id : null);
-  const createMutation = useCreateUserScreenActionMutation();
-  const updateMutation = useUpdateUserScreenActionMutation();
-  const loading = createMutation.isPending || updateMutation.isPending;
+
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   /* ==========================================================
       FETCH EDIT DATA
   ========================================================== */
   useEffect(() => {
-    if (!userScreenActionQuery.data) return;
-    const data = userScreenActionQuery.data;
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.userScreenActions.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? "Load failed") });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
+
+  useEffect(() => {
+    if (!recordData) return;
+    const data = recordData;
     setActionName(data.action_name || "");
     setVariableName(data.variable_name || "");
     setIsActive(Boolean(data.is_active));
-  }, [userScreenActionQuery.data]);
-
-  useEffect(() => {
-    if (!userScreenActionQuery.isError) return;
-    Swal.fire(t("common.error"), t("common.load_failed"), "error");
-  }, [userScreenActionQuery.isError, t]);
+  }, [recordData]);
 
   /* ==========================================================
       SUBMIT HANDLER
@@ -86,12 +94,13 @@ export default function UserScreenActionForm() {
       is_active: isActive,
     };
 
+    setIsSubmitting(true);
     try {
       if (isEdit && id) {
-        await updateMutation.mutateAsync({ id, payload });
+        await adminApi.userScreenActions.update(id, payload);
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await createMutation.mutateAsync(payload);
+        await adminApi.userScreenActions.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
@@ -108,6 +117,8 @@ export default function UserScreenActionForm() {
         t("common.unexpected_error");
 
       Swal.fire(t("common.save_failed"), message, "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -168,8 +179,8 @@ export default function UserScreenActionForm() {
 
         {/* Actions */}
         <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={loading}>
-            {loading
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting
               ? isEdit
                 ? t("common.updating")
                 : t("common.saving")

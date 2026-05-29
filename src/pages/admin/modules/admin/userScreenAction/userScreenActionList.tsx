@@ -21,7 +21,7 @@ import {
   useDeleteUserScreenActionMutation,
   useUpdateUserScreenActionMutation,
   useUserScreenActionsQuery,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 import type { UserScreenAction } from "../types/admin.types"; 
 

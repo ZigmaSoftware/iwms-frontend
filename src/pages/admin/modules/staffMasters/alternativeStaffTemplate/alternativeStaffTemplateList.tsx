@@ -10,7 +10,7 @@ import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
-import { useAlternativeStaffTemplateList } from "@/tanstack/admin/queries/masters/alternativeStaffTemplate";
+import { useAlternativeStaffTemplateList } from "@/helpers/admin/directQueries";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";

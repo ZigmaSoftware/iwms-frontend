@@ -18,7 +18,7 @@ import {
   type HierarchyRecord,
   useHierarchiesQuery,
   useUpdateHierarchyMutation,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 import Swal from "sweetalert2";
 
 const normalizeId = (value: unknown): string =>

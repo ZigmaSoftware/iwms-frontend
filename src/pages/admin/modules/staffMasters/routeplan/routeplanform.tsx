@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -12,18 +11,12 @@ import Select, { type SelectOption } from "@/components/form/Select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 import { normalizeList } from "@/utils/forms";
-import {
-  useCreateRoutePlanMutation,
-  useRoutePlanQuery,
-  useUpdateRoutePlanMutation,
-} from "@/tanstack/admin/queries/masters/routePlan";
 
 type RelatedOption = SelectOption & {
   districtId?: string;
   cityId?: string;
 };
 
-// Helper to extract ID from a value that could be a string, number, or object
 const extractId = (value: any): string => {
   if (!value) return "";
   if (typeof value === "string") return value;
@@ -40,12 +33,6 @@ export default function RoutePlanForm() {
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
 
-  const districtApi = adminApi.districts;
-  const cityApi = adminApi.cities;
-  const zoneApi = adminApi.zones;
-  const vehicleApi = adminApi.vehicleCreations;
-  const userApi = adminApi.usersCreation;
-
   const [districts, setDistricts] = useState<SelectOption[]>([]);
   const [cities, setCities] = useState<RelatedOption[]>([]);
   const [zones, setZones] = useState<RelatedOption[]>([]);
@@ -53,7 +40,6 @@ export default function RoutePlanForm() {
   const [supervisors, setSupervisors] = useState<SelectOption[]>([]);
   const [fetching, setFetching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [optionsLoaded, setOptionsLoaded] = useState(false);
 
   const [form, setForm] = useState({
     district_id: "",
@@ -65,10 +51,6 @@ export default function RoutePlanForm() {
 
   const { encStaffMasters, encRoutePlans } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encStaffMasters}/${encRoutePlans}`;
-
-  const routePlanQuery = useRoutePlanQuery(id);
-  const createMutation = useCreateRoutePlanMutation();
-  const updateMutation = useUpdateRoutePlanMutation();
 
   const toOptions = (items: any[], valueKey: string, labelKey: string): SelectOption[] =>
     items
@@ -88,11 +70,9 @@ export default function RoutePlanForm() {
       }))
       .filter((option) => option.value !== undefined && option.value !== null);
 
-  // Filter supervisors - only users with supervisor staff user type
   const toSupervisorOptions = (items: any[]): SelectOption[] =>
     items
       .filter((item) => {
-        // Check staffusertype_name field (from API response)
         const roleName = (item?.staffusertype_name || "").toLowerCase();
         return roleName === "supervisor";
       })
@@ -102,86 +82,61 @@ export default function RoutePlanForm() {
       }))
       .filter((option) => option.value !== undefined && option.value !== null);
 
-  const districtsQuery = useQuery({
-    queryKey: ["masters", "districts"],
-    queryFn: () => districtApi.list(),
-  });
-  const citiesQuery = useQuery({
-    queryKey: ["masters", "cities"],
-    queryFn: () => cityApi.list(),
-  });
-  const zonesQuery = useQuery({
-    queryKey: ["masters", "zone"],
-    queryFn: () => zoneApi.list(),
-  });
-  const vehiclesQuery = useQuery({
-    queryKey: ["transport masters", "vehicle creation"],
-    queryFn: () => vehicleApi.list(),
-  });
-  const usersQuery = useQuery({
-    queryKey: ["masters", "users"],
-    queryFn: () => userApi.list(),
-  });
-
-  // Load dropdown options first
   useEffect(() => {
-    setFetching(
-      districtsQuery.isLoading ||
-        citiesQuery.isLoading ||
-        zonesQuery.isLoading ||
-        vehiclesQuery.isLoading ||
-        usersQuery.isLoading
-    );
+    let cancelled = false;
+    setFetching(true);
 
-    if (
-      districtsQuery.isError ||
-      citiesQuery.isError ||
-      zonesQuery.isError ||
-      vehiclesQuery.isError ||
-      usersQuery.isError
-    ) {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      return;
-    }
-
-    setDistricts(toOptions(normalizeList(districtsQuery.data), "unique_id", "name"));
-    setCities(toRelatedOptions(normalizeList(citiesQuery.data), "unique_id", "name"));
-    setZones(toRelatedOptions(normalizeList(zonesQuery.data), "unique_id", "zone_name"));
-    setVehicles(toRelatedOptions(normalizeList(vehiclesQuery.data), "unique_id", "vehicle_no"));
-    setSupervisors(toSupervisorOptions(normalizeList(usersQuery.data)));
-    setOptionsLoaded(true);
-  }, [
-    citiesQuery.data,
-    citiesQuery.isError,
-    citiesQuery.isLoading,
-    districtsQuery.data,
-    districtsQuery.isError,
-    districtsQuery.isLoading,
-    t,
-    usersQuery.data,
-    usersQuery.isError,
-    usersQuery.isLoading,
-    vehiclesQuery.data,
-    vehiclesQuery.isError,
-    vehiclesQuery.isLoading,
-    zonesQuery.data,
-    zonesQuery.isError,
-    zonesQuery.isLoading,
-  ]);
-
-  // Fetch route plan data after options are loaded (for edit mode)
-  useEffect(() => {
-    if (optionsLoaded && isEdit && routePlanQuery.data) {
-      const res: any = routePlanQuery.data;
-      setForm({
-        district_id: extractId(res?.district_id),
-        city_id: extractId(res?.city_id),
-        zone_id: extractId(res?.zone_id),
-        vehicle_id: extractId(res?.vehicle_id),
-        supervisor_id: extractId(res?.supervisor_id),
+    Promise.all([
+      adminApi.districts.list(),
+      adminApi.cities.list(),
+      adminApi.zones.list(),
+      adminApi.vehicleCreations.list(),
+      adminApi.usersCreation.list(),
+    ])
+      .then(([districtsData, citiesData, zonesData, vehiclesData, usersData]) => {
+        if (cancelled) return;
+        setDistricts(toOptions(normalizeList(districtsData), "unique_id", "name"));
+        setCities(toRelatedOptions(normalizeList(citiesData), "unique_id", "name"));
+        setZones(toRelatedOptions(normalizeList(zonesData), "unique_id", "zone_name"));
+        setVehicles(toRelatedOptions(normalizeList(vehiclesData), "unique_id", "vehicle_no"));
+        setSupervisors(toSupervisorOptions(normalizeList(usersData)));
+        setFetching(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFetching(false);
+        Swal.fire(t("common.error"), t("common.load_failed"), "error");
       });
-    }
-  }, [isEdit, optionsLoaded, routePlanQuery.data]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+
+    adminApi.routePlans.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setForm({
+          district_id: extractId(res?.district_id),
+          city_id: extractId(res?.city_id),
+          zone_id: extractId(res?.zone_id),
+          vehicle_id: extractId(res?.vehicle_id),
+          supervisor_id: extractId(res?.supervisor_id),
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isEdit]);
 
   const cityOptions = cities.filter((city) => !form.district_id || !city.districtId || city.districtId === form.district_id);
 
@@ -216,9 +171,9 @@ export default function RoutePlanForm() {
     setSubmitting(true);
     try {
       if (isEdit && id) {
-        await updateMutation.mutateAsync({ id, payload });
+        await adminApi.routePlans.update(id, payload);
       } else {
-        await createMutation.mutateAsync(payload);
+        await adminApi.routePlans.create(payload);
       }
       Swal.fire(
         t("common.success"),

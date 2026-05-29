@@ -18,11 +18,7 @@ import {
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import {
-  useWasteTypeQuery,
-  useCreateWasteTypeMutation,
-  useUpdateWasteTypeMutation,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
 
 const { encMasters, encWasteTypes } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encWasteTypes}`;
@@ -57,11 +53,9 @@ export default function WasteTypeForm() {
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
-  const wasteTypeQuery = useWasteTypeQuery(id);
-  const createWasteTypeMutation = useCreateWasteTypeMutation();
-  const updateWasteTypeMutation = useUpdateWasteTypeMutation();
-  const isSubmitting =
-    createWasteTypeMutation.isPending || updateWasteTypeMutation.isPending;
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const extractErr = useCallback(
     (error: unknown): string => {
@@ -89,22 +83,30 @@ export default function WasteTypeForm() {
   const [isActive, setIsActive] = useState(true);
   const [loading, setLoading] = useState(false);
 
+  // Fetch waste type record in edit mode
   useEffect(() => {
-    if (!isEdit || !wasteTypeQuery.data) return;
-
-    const data = wasteTypeQuery.data as Record<string, unknown>;
-    setWasteTypeName(
-      toStringOrEmpty(data.waste_type_name ?? data.name ?? data.property_name),
-    );
-    setIsActive(Boolean(data.is_active));
-    applyCompanyProjectFromRecord(data);
-  }, [applyCompanyProjectFromRecord, isEdit, wasteTypeQuery.data]);
-
-  useEffect(() => {
-    if (!isEdit || !wasteTypeQuery.isError) return;
-
-    Swal.fire(t("common.error"), extractErr(wasteTypeQuery.error), "error");
-  }, [extractErr, isEdit, wasteTypeQuery.error, wasteTypeQuery.isError, t]);
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.wasteTypes.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        const data = res as Record<string, unknown>;
+        setRecordData(data);
+        setLoadingRecord(false);
+        setWasteTypeName(
+          toStringOrEmpty(data.waste_type_name ?? data.name ?? data.property_name),
+        );
+        setIsActive(Boolean(data.is_active));
+        applyCompanyProjectFromRecord(data);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire(t("common.error"), extractErr(err), "error");
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -134,6 +136,7 @@ export default function WasteTypeForm() {
     }
 
     setLoading(true);
+    setIsSubmitting(true);
     const rawPayload = {
       company_id: companyUniqueId,
       project_id: projectId,
@@ -144,10 +147,10 @@ export default function WasteTypeForm() {
 
     try {
       if (isEdit && id) {
-        await updateWasteTypeMutation.mutateAsync({ id, payload });
+        await adminApi.wasteTypes.update(id, payload);
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await createWasteTypeMutation.mutateAsync(payload);
+        await adminApi.wasteTypes.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
@@ -156,6 +159,7 @@ export default function WasteTypeForm() {
       Swal.fire(t("common.save_failed"), extractErr(error), "error");
     } finally {
       setLoading(false);
+      setIsSubmitting(false);
     }
   };
 

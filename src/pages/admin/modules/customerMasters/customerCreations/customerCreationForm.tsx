@@ -2,20 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 
-import {
-  useCitiesQuery,
-  useCountriesQuery,
-  useCustomerCreationQuery,
-  useCreateCustomerCreationMutation,
-  useDistrictsQuery,
-  usePanchayatsQuery,
-  usePropertiesQuery,
-  useStatesQuery,
-  useSubPropertiesQuery,
-  useUpdateCustomerCreationMutation,
-  useWardsQuery,
-  useZonesQuery,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -372,10 +359,6 @@ export default function CustomerCreationForm() {
   const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encCustomerMaster}/${encCustomerCreation}`;
 
-  // TanStack Query hooks
-  const customerQuery = useCustomerCreationQuery(isEdit ? id : null);
-  const createMutation = useCreateCustomerCreationMutation();
-  const updateMutation = useUpdateCustomerCreationMutation();
   const location = useLocation();
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
@@ -433,6 +416,8 @@ export default function CustomerCreationForm() {
     industry_type: "",
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const resolveId = (o: any) => String(o?.unique_id ?? o?.id ?? "");
   const normalize = (arr: any[]) =>
     arr.filter((i) => i?.is_active !== false && i?.is_deleted !== true);
@@ -444,115 +429,120 @@ export default function CustomerCreationForm() {
   /* ===============================
      DROPDOWNS
   ================================ */
-  const wardsQuery = useWardsQuery();
-  const zonesQuery = useZonesQuery();
-  const citiesQuery = useCitiesQuery();
-  const districtsQuery = useDistrictsQuery();
-  const statesQuery = useStatesQuery();
-  const countriesQuery = useCountriesQuery();
-  const propertiesQuery = usePropertiesQuery();
-  const subPropertiesQuery = useSubPropertiesQuery();
-  const panchayatsQuery = usePanchayatsQuery();
+  const [rawWards, setRawWards] = useState<any[]>([]);
+  const [rawZones, setRawZones] = useState<any[]>([]);
+  const [rawCities, setRawCities] = useState<any[]>([]);
+  const [rawDistricts, setRawDistricts] = useState<any[]>([]);
+  const [rawStates, setRawStates] = useState<any[]>([]);
+  const [rawCountries, setRawCountries] = useState<any[]>([]);
+  const [rawProperties, setRawProperties] = useState<any[]>([]);
+  const [rawSubProperties, setRawSubProperties] = useState<any[]>([]);
+  const [rawPanchayats, setRawPanchayats] = useState<any[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([
+      adminApi.wards.list(),
+      adminApi.zones.list(),
+      adminApi.cities.list(),
+      adminApi.districts.list(),
+      adminApi.states.list(),
+      adminApi.countries.list(),
+      adminApi.properties.list(),
+      adminApi.subProperties.list(),
+      adminApi.panchayats.list(),
+    ])
+      .then(([wards, zones, cities, districts, states, countries, properties, subProperties, panchayats]) => {
+        if (cancelled) return;
+        setRawWards(Array.isArray(wards) ? wards : (wards as any)?.results ?? []);
+        setRawZones(Array.isArray(zones) ? zones : (zones as any)?.results ?? []);
+        setRawCities(Array.isArray(cities) ? cities : (cities as any)?.results ?? []);
+        setRawDistricts(Array.isArray(districts) ? districts : (districts as any)?.results ?? []);
+        setRawStates(Array.isArray(states) ? states : (states as any)?.results ?? []);
+        setRawCountries(Array.isArray(countries) ? countries : (countries as any)?.results ?? []);
+        setRawProperties(Array.isArray(properties) ? properties : (properties as any)?.results ?? []);
+        setRawSubProperties(Array.isArray(subProperties) ? subProperties : (subProperties as any)?.results ?? []);
+        setRawPanchayats(Array.isArray(panchayats) ? panchayats : (panchayats as any)?.results ?? []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to fetch customer dropdowns:", err);
+        Swal.fire("Error", "Failed to load customer form data", "error");
+      });
+
+    return () => { cancelled = true; };
+  }, []);
 
   const dropdowns = useMemo(
     () => ({
-      wards: normalize(wardsQuery.data ?? []),
-      zones: normalize(zonesQuery.data ?? []),
-      cities: normalize(citiesQuery.data ?? []),
-      districts: normalize(districtsQuery.data ?? []),
-      states: normalize(statesQuery.data ?? []),
-      countries: normalize(countriesQuery.data ?? []),
-      properties: normalize(propertiesQuery.data ?? []),
-      subProperties: normalize(subPropertiesQuery.data ?? []),
-      panchayats: normalize(panchayatsQuery.data ?? []),
+      wards: normalize(rawWards),
+      zones: normalize(rawZones),
+      cities: normalize(rawCities),
+      districts: normalize(rawDistricts),
+      states: normalize(rawStates),
+      countries: normalize(rawCountries),
+      properties: normalize(rawProperties),
+      subProperties: normalize(rawSubProperties),
+      panchayats: normalize(rawPanchayats),
     }),
-    [
-      wardsQuery.data,
-      zonesQuery.data,
-      citiesQuery.data,
-      districtsQuery.data,
-      statesQuery.data,
-      countriesQuery.data,
-      propertiesQuery.data,
-      subPropertiesQuery.data,
-      panchayatsQuery.data,
-    ]
+    [rawWards, rawZones, rawCities, rawDistricts, rawStates, rawCountries, rawProperties, rawSubProperties, rawPanchayats]
   );
-
-  useEffect(() => {
-    const failedQuery = [
-      wardsQuery,
-      zonesQuery,
-      citiesQuery,
-      districtsQuery,
-      statesQuery,
-      countriesQuery,
-      propertiesQuery,
-      subPropertiesQuery,
-      panchayatsQuery,
-    ].find((query) => query.isError);
-
-    if (!failedQuery) return;
-
-    console.error("Failed to fetch customer dropdowns:", failedQuery.error);
-    Swal.fire("Error", "Failed to load customer form data", "error");
-  }, [
-    wardsQuery.isError,
-    zonesQuery.isError,
-    citiesQuery.isError,
-    districtsQuery.isError,
-    statesQuery.isError,
-    countriesQuery.isError,
-    propertiesQuery.isError,
-    subPropertiesQuery.isError,
-    panchayatsQuery.isError,
-  ]);
 
   /* ===============================
      LOAD EXISTING DATA (EDIT MODE)
   ================================ */
   useEffect(() => {
-    if (!customerQuery.data) return;
-
-    const data = customerQuery.data;
-    setFormData((prev) => ({
-      ...prev,
-      customer_name: String(data.customer_name ?? ""),
-      contact_no: String(data.contact_no ?? ""),
-      username: String(data.username ?? ""),
-      email: String(data.email ?? ""),
-      password: "",
-      building_no: String(data.building_no ?? ""),
-      street: String(data.street ?? ""),
-      area: String(data.area ?? ""),
-      pincode: String(data.pincode ?? ""),
-      latitude: String(data.latitude ?? ""),
-      longitude: String(data.longitude ?? ""),
-      sqft: String(data.sqft ?? ""),
-      property_id: String(data.property_id ?? ""),
-      sub_property_id: String(data.sub_property_id ?? ""),
-      id_proof_type: String(data.id_proof_type ?? ""),
-      id_no: String(data.id_no ?? ""),
-      country_id: String(data.country_id ?? ""),
-      state_id: String(data.state_id ?? ""),
-      district_id: String(data.district_id ?? ""),
-      city_id: String(data.city_id ?? ""),
-      zone_id: String(data.zone_id ?? ""),
-      ward_id: String(data.ward_id ?? ""),
-      panchayat_id: String(data.panchayat_id ?? ""),
-      company_id: String(data.company_id ?? ""),
-      project_id: String(data.project_id ?? ""),
-      is_active: Boolean(data.is_active),
-      is_bulkwaste_generator: Boolean(data.is_bulkwaste_generator),
-      apartment_name: String(data.apartment_name ?? ""),
-      block_no: String(data.block_no ?? ""),
-      flat_no: String(data.flat_no ?? ""),
-      villa_no: String(data.villa_no ?? ""),
-      industry_name: String(data.industry_name ?? ""),
-      industry_type: String(data.industry_type ?? ""),
-    }));
-    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-  }, [applyCompanyProjectFromRecord, customerQuery.data]);
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    adminApi.customerCreations.get(id)
+      .then((data: any) => {
+        if (cancelled) return;
+        setFormData((prev) => ({
+          ...prev,
+          customer_name: String(data.customer_name ?? ""),
+          contact_no: String(data.contact_no ?? ""),
+          username: String(data.username ?? ""),
+          email: String(data.email ?? ""),
+          password: "",
+          building_no: String(data.building_no ?? ""),
+          street: String(data.street ?? ""),
+          area: String(data.area ?? ""),
+          pincode: String(data.pincode ?? ""),
+          latitude: String(data.latitude ?? ""),
+          longitude: String(data.longitude ?? ""),
+          sqft: String(data.sqft ?? ""),
+          property_id: String(data.property_id ?? ""),
+          sub_property_id: String(data.sub_property_id ?? ""),
+          id_proof_type: String(data.id_proof_type ?? ""),
+          id_no: String(data.id_no ?? ""),
+          country_id: String(data.country_id ?? ""),
+          state_id: String(data.state_id ?? ""),
+          district_id: String(data.district_id ?? ""),
+          city_id: String(data.city_id ?? ""),
+          zone_id: String(data.zone_id ?? ""),
+          ward_id: String(data.ward_id ?? ""),
+          panchayat_id: String(data.panchayat_id ?? ""),
+          company_id: String(data.company_id ?? ""),
+          project_id: String(data.project_id ?? ""),
+          is_active: Boolean(data.is_active),
+          is_bulkwaste_generator: Boolean(data.is_bulkwaste_generator),
+          apartment_name: String(data.apartment_name ?? ""),
+          block_no: String(data.block_no ?? ""),
+          flat_no: String(data.flat_no ?? ""),
+          villa_no: String(data.villa_no ?? ""),
+          industry_name: String(data.industry_name ?? ""),
+          industry_type: String(data.industry_type ?? ""),
+        }));
+        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        console.error("Failed to load customer:", err);
+        Swal.fire(t("common.error") || "Error", t("admin.customer_creation.save_failed") || "Failed to load customer", "error");
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
   /* ===============================
      FILTERS
@@ -612,8 +602,6 @@ export default function CustomerCreationForm() {
   const isPanchayatSelected = Boolean(formData.panchayat_id);
   const isZoneOrWardSelected = Boolean(formData.zone_id || formData.ward_id);
 
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
-
   /* ===============================
      VALIDATION
   ================================ */
@@ -622,7 +610,7 @@ export default function CustomerCreationForm() {
     const requiredFields = [
       "customer_name", "contact_no", "email", "username",
        "pincode", "latitude", "longitude", "sqft", "id_proof_type", "id_no",
-      "country_id", "state_id", "district_id", "city_id",  
+      "country_id", "state_id", "district_id", "city_id",
       "property_id", "sub_property_id",
       ...(!isEdit ? ["password"] : []),
     ].flat();
@@ -721,14 +709,12 @@ export default function CustomerCreationForm() {
     };
     const payload = filterPayload(rawPayload, ["company_id", "project_id"]);
 
+    setIsSubmitting(true);
     try {
       if (isEdit) {
-        await updateMutation.mutateAsync({
-          id: id as string,
-          payload: payload as any,
-        });
+        await adminApi.customerCreations.update(id as string, payload as any);
       } else {
-        await createMutation.mutateAsync(payload as any);
+        await adminApi.customerCreations.create(payload as any);
       }
 
       Swal.fire(
@@ -740,6 +726,8 @@ export default function CustomerCreationForm() {
     } catch (err) {
       console.error("Submit error:", err);
       Swal.fire(t("common.error") || "Error", t("admin.customer_creation.save_failed") || "Failed to save", "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -826,7 +814,7 @@ export default function CustomerCreationForm() {
               type="email"
             />
           )}
-          
+
           {showField("password") && (
             <PasswordInput
               label={t("login.password") || "Password"}

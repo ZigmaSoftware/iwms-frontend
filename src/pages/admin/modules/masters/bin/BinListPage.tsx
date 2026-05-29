@@ -20,7 +20,7 @@ import { encryptSegment } from "@/utils/routeCrypto";
 import { PencilIcon } from "@/icons";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { useBinsQuery, useUpdateBinMutation, type BinRecord } from "@/tanstack/admin";
+import { useBinsQuery, useUpdateBinMutation, type BinRecord } from "@/helpers/admin/directQueries";
 
 type Bin = {
   unique_id: string;

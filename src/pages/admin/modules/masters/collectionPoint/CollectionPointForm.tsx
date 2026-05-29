@@ -17,6 +17,7 @@ import {
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { adminApi } from "@/helpers/admin/registry";
 import type { SelectOption } from "@/types";
 import type {
   UnknownRecord,
@@ -26,17 +27,6 @@ import type {
   WithStateIdOption,
   ZoneOption,
 } from "./types";
-import {
-  useCitiesQuery,
-  useCollectionPointQuery,
-  useCreateCollectionPointMutation,
-  useDistrictsQuery,
-  usePanchayatsQuery,
-  useStatesQuery,
-  useUpdateCollectionPointMutation,
-  useWardsQuery,
-  useZonesQuery,
-} from "@/tanstack/admin";
 
 const normalizeIdValue = (value: unknown): string => {
   if (value === null || value === undefined) return "";
@@ -79,6 +69,25 @@ const ensureSelectedOption = (options: SelectOption[], selectedValue: string): S
     return options;
   }
   return [...options, { value: selectedValue, label: selectedValue }];
+};
+
+const toRecordList = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (item): item is Record<string, unknown> =>
+        !!item && typeof item === "object" && !Array.isArray(item)
+    );
+  }
+  if (value && typeof value === "object") {
+    const maybeResults = (value as { results?: unknown }).results;
+    if (Array.isArray(maybeResults)) {
+      return maybeResults.filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === "object" && !Array.isArray(item)
+      );
+    }
+  }
+  return [];
 };
 
 const { encMasters, encCollectionPoints } = getEncryptedRoute();
@@ -149,6 +158,7 @@ export default function CollectionPointForm() {
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [states, setStates] = useState<SelectOption[]>([]);
   const [districts, setDistricts] = useState<WithStateIdOption[]>([]);
@@ -160,16 +170,6 @@ export default function CollectionPointForm() {
   const isPanchayatSelected = Boolean(panchayatId);
   const isZoneSelected = Boolean(zoneId);
   const isWardSelected = Boolean(wardId);
-  const tenantFilters = useMemo(
-    () =>
-      companyUniqueId && projectId
-        ? {
-            company_id: companyUniqueId,
-            project_id: projectId,
-          }
-        : null,
-    [companyUniqueId, projectId]
-  );
 
   const resetLocationFields = useCallback(() => {
     setStateId("");
@@ -180,16 +180,149 @@ export default function CollectionPointForm() {
     setWardId("");
   }, []);
 
-  const statesQuery = useStatesQuery();
-  const districtsQuery = useDistrictsQuery(tenantFilters);
-  const citiesQuery = useCitiesQuery(tenantFilters);
-  const panchayatsQuery = usePanchayatsQuery(tenantFilters);
-  const zonesQuery = useZonesQuery(tenantFilters);
-  const wardsQuery = useWardsQuery(tenantFilters);
-  const collectionPointQuery = useCollectionPointQuery(id);
-  const createCollectionPointMutation = useCreateCollectionPointMutation();
-  const updateCollectionPointMutation = useUpdateCollectionPointMutation();
-  const isSubmitting = createCollectionPointMutation.isPending || updateCollectionPointMutation.isPending;
+  /* ==========================================================
+      LOAD STATES (global, no tenant filter)
+  ========================================================== */
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.states.list()
+      .then((data: unknown) => {
+        if (cancelled) return;
+        setStates(
+          toRecordList(data)
+            .filter((item) => item.is_active !== false)
+            .map((item) => ({
+              value: normalizeIdValue(item.unique_id),
+              label: toStringOrEmpty(item.name ?? item.unique_id),
+            }))
+            .filter((item) => item.value && item.label)
+            .sort((a, b) => a.label.localeCompare(b.label))
+        );
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), extractErr(err), "error");
+      });
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ==========================================================
+      LOAD TENANT-FILTERED DROPDOWNS (districts, cities, panchayats, zones, wards)
+  ========================================================== */
+  useEffect(() => {
+    if (!companyUniqueId || !projectId) return;
+    let cancelled = false;
+    const params = { company_id: companyUniqueId, project_id: projectId };
+    Promise.all([
+      adminApi.districts.list({ params }),
+      adminApi.cities.list({ params }),
+      adminApi.panchayats.list({ params }),
+      adminApi.zones.list({ params }),
+      adminApi.wards.list({ params }),
+    ])
+      .then(([distData, cityData, panData, zoneData, wardData]) => {
+        if (cancelled) return;
+
+        setDistricts(
+          toRecordList(distData)
+            .filter((item) => item.is_active !== false)
+            .map((item) => ({
+              value: normalizeIdValue(item.unique_id),
+              label: toStringOrEmpty(item.name ?? item.unique_id),
+              stateId: normalizeIdValue(item.state_id),
+            }))
+            .filter((item) => item.value && item.label)
+        );
+
+        setCities(
+          toRecordList(cityData)
+            .filter((item) => item.is_active !== false)
+            .map((item) => ({
+              value: normalizeIdValue(item.unique_id),
+              label: toStringOrEmpty(item.name ?? item.unique_id),
+              stateId: normalizeIdValue(item.state_id),
+              districtId: normalizeIdValue(item.district_id ?? item.district),
+            }))
+            .filter((item) => item.value && item.label)
+        );
+
+        setPanchayats(
+          toRecordList(panData)
+            .filter((item) => item.is_active !== false)
+            .map((item) => ({
+              value: normalizeIdValue(item.unique_id),
+              label: toStringOrEmpty(item.panchayat_name ?? item.name ?? item.unique_id),
+              stateId: normalizeIdValue(item.state_id),
+              districtId: normalizeIdValue(item.district_id),
+              cityId: normalizeIdValue(item.city_id),
+            }))
+            .filter((item) => item.value && item.label)
+        );
+
+        setZoneOptions(
+          toRecordList(zoneData)
+            .filter((item) => item.is_active !== false)
+            .map((item) => ({
+              value: normalizeIdValue(item.unique_id),
+              label: toStringOrEmpty(item.zone_name ?? item.name ?? item.unique_id),
+              stateId: normalizeIdValue(item.state_id),
+              districtId: normalizeIdValue(item.district_id),
+              cityId: normalizeIdValue(item.city_id),
+            }))
+            .filter((item) => item.value && item.label)
+        );
+
+        setWards(
+          toRecordList(wardData)
+            .filter((item) => item.is_active !== false)
+            .map((item) => ({
+              value: normalizeIdValue(item.unique_id),
+              label: toStringOrEmpty(item.ward_name ?? item.name ?? item.unique_id),
+              stateId: normalizeIdValue(item.state_id),
+              districtId: normalizeIdValue(item.district_id ?? item.district),
+              cityId: normalizeIdValue(item.city_id ?? item.city),
+              panchayatId: normalizeIdValue(item.panchayat_id ?? item.panchayat),
+              zoneId: normalizeIdValue(item.zone_id ?? item.zone),
+            }))
+            .filter((item) => item.value && item.label)
+        );
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), extractErr(err), "error");
+      });
+    return () => { cancelled = true; };
+  }, [companyUniqueId, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ==========================================================
+      LOAD COLLECTION POINT DATA (edit mode)
+  ========================================================== */
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    adminApi.collectionPoints.get(id)
+      .then((data: unknown) => {
+        if (cancelled) return;
+        const record = data as UnknownRecord;
+        setStateId(normalizeIdValue(record.state_id ?? record.state));
+        setDistrictId(normalizeIdValue(record.district_id ?? record.district));
+        setCityId(normalizeIdValue(record.city_id ?? record.city));
+        setPanchayatId(normalizeIdValue(record.panchayat_id ?? record.panchayat));
+        setZoneId(normalizeIdValue(record.zone_id ?? record.zone));
+        setWardId(normalizeIdValue(record.ward_id ?? record.ward));
+        setCpName(toStringOrEmpty(record.cp_name ?? record.collection_point_name));
+        setLatitude(toStringOrEmpty(record.latitude));
+        setLongitude(toStringOrEmpty(record.longitude));
+        setIsActive(toBoolean(record.is_active, true));
+
+        applyCompanyProjectFromRecord(record);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), extractErr(err), "error");
+      });
+    return () => { cancelled = true; };
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const districtOptions = useMemo(() => {
     const filtered = districts
@@ -246,131 +379,6 @@ export default function CollectionPointForm() {
       .map((option) => ({ value: option.value, label: option.label }));
     return ensureSelectedOption(filtered, wardId);
   }, [cityId, districtId, panchayatId, stateId, wardId, wards, zoneId]);
-
-  useEffect(() => {
-    const queryError =
-      statesQuery.error ??
-      districtsQuery.error ??
-      citiesQuery.error ??
-      panchayatsQuery.error ??
-      zonesQuery.error ??
-      wardsQuery.error;
-
-    if (queryError) {
-      Swal.fire(t("common.error"), extractErr(queryError), "error");
-    }
-  }, [citiesQuery.error, districtsQuery.error, extractErr, panchayatsQuery.error, statesQuery.error, t, wardsQuery.error, zonesQuery.error]);
-
-  useEffect(() => {
-    const data = statesQuery.data ?? [];
-    setStates(
-      data
-        .filter((item) => item.is_active !== false)
-        .map((item) => ({
-          value: normalizeIdValue(item.unique_id),
-          label: toStringOrEmpty(item.name ?? item.unique_id),
-        }))
-        .filter((item) => item.value && item.label)
-        .sort((a, b) => a.label.localeCompare(b.label))
-    );
-  }, [statesQuery.data]);
-
-  useEffect(() => {
-    const data = districtsQuery.data ?? [];
-    setDistricts(
-      data
-        .filter((item) => item.is_active !== false)
-        .map((item) => ({
-          value: normalizeIdValue(item.unique_id),
-          label: toStringOrEmpty(item.name ?? item.unique_id),
-          stateId: normalizeIdValue(item.state_id),
-        }))
-        .filter((item) => item.value && item.label)
-    );
-  }, [districtsQuery.data]);
-
-  useEffect(() => {
-    const data = citiesQuery.data ?? [];
-    setCities(
-      data
-        .filter((item) => item.is_active !== false)
-        .map((item) => ({
-          value: normalizeIdValue(item.unique_id),
-          label: toStringOrEmpty(item.name ?? item.unique_id),
-          stateId: normalizeIdValue(item.state_id),
-          districtId: normalizeIdValue(item.district_id ?? item.district),
-        }))
-        .filter((item) => item.value && item.label)
-    );
-  }, [citiesQuery.data]);
-
-  useEffect(() => {
-    const data = panchayatsQuery.data ?? [];
-    setPanchayats(
-      data
-        .filter((item) => item.is_active !== false)
-        .map((item) => ({
-          value: normalizeIdValue(item.unique_id),
-          label: toStringOrEmpty(item.panchayat_name ?? item.name ?? item.unique_id),
-          stateId: normalizeIdValue(item.state_id),
-          districtId: normalizeIdValue(item.district_id),
-          cityId: normalizeIdValue(item.city_id),
-        }))
-        .filter((item) => item.value && item.label)
-    );
-  }, [panchayatsQuery.data]);
-
-  useEffect(() => {
-    const data = zonesQuery.data ?? [];
-    setZoneOptions(
-      data
-        .filter((item) => item.is_active !== false)
-        .map((item) => ({
-          value: normalizeIdValue(item.unique_id),
-          label: toStringOrEmpty(item.zone_name ?? item.name ?? item.unique_id),
-          stateId: normalizeIdValue(item.state_id),
-          districtId: normalizeIdValue(item.district_id),
-          cityId: normalizeIdValue(item.city_id),
-        }))
-        .filter((item) => item.value && item.label)
-    );
-  }, [zonesQuery.data]);
-
-  useEffect(() => {
-    const data = wardsQuery.data ?? [];
-    setWards(
-      data
-        .filter((item) => item.is_active !== false)
-        .map((item) => ({
-          value: normalizeIdValue(item.unique_id),
-          label: toStringOrEmpty(item.ward_name ?? item.name ?? item.unique_id),
-          stateId: normalizeIdValue(item.state_id),
-          districtId: normalizeIdValue(item.district_id ?? item.district),
-          cityId: normalizeIdValue(item.city_id ?? item.city),
-          panchayatId: normalizeIdValue(item.panchayat_id ?? item.panchayat),
-          zoneId: normalizeIdValue(item.zone_id ?? item.zone),
-        }))
-        .filter((item) => item.value && item.label)
-    );
-  }, [wardsQuery.data]);
-
-  useEffect(() => {
-    if (!collectionPointQuery.data) return;
-
-    const data = collectionPointQuery.data as UnknownRecord;
-    setStateId(normalizeIdValue(data.state_id ?? data.state));
-    setDistrictId(normalizeIdValue(data.district_id ?? data.district));
-    setCityId(normalizeIdValue(data.city_id ?? data.city));
-    setPanchayatId(normalizeIdValue(data.panchayat_id ?? data.panchayat));
-    setZoneId(normalizeIdValue(data.zone_id ?? data.zone));
-    setWardId(normalizeIdValue(data.ward_id ?? data.ward));
-    setCpName(toStringOrEmpty(data.cp_name ?? data.collection_point_name));
-    setLatitude(toStringOrEmpty(data.latitude));
-    setLongitude(toStringOrEmpty(data.longitude));
-    setIsActive(toBoolean(data.is_active, true));
-
-    applyCompanyProjectFromRecord(data);
-  }, [applyCompanyProjectFromRecord, collectionPointQuery.data]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -440,17 +448,20 @@ export default function CollectionPointForm() {
     const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
     try {
+      setIsSubmitting(true);
       if (isEdit && id) {
-        await updateCollectionPointMutation.mutateAsync({ id, payload });
+        await adminApi.collectionPoints.update(id, payload);
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await createCollectionPointMutation.mutateAsync(payload);
+        await adminApi.collectionPoints.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
       navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error) {
       Swal.fire(t("common.save_failed"), extractErr(error), "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

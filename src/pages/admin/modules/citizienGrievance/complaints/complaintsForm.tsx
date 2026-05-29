@@ -22,14 +22,7 @@ import {
   normalizeCustomerArray,
 } from "@/utils/customerUtils";
 
-import {
-  customerCreationApi,
-  zoneApi,
-  wardApi,
-  mainCategoryApi,
-  subCategoryApi,
-} from "@/helpers/admin";
-import { useCreateComplaint } from "@/tanstack/admin/queries/masters/complaint";
+import { adminApi } from "@/helpers/admin/registry";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
@@ -103,29 +96,37 @@ export default function ComplaintAddForm() {
   const [previewUrl, setPreviewUrl] = useState("");
   const [isPreviewImage, setIsPreviewImage] = useState(false);
 
-  const createMutation = useCreateComplaint();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   /* ---------------- INIT LOAD ---------------- */
   useEffect(() => {
     console.log("=== Loading Initial Data ===");
     console.log("Company Unique ID:", companyUniqueId);
 
-    customerCreationApi.list().then((res) => {
+    let cancelled = false;
+
+    adminApi.customerCreations.list().then((res: any) => {
+      if (cancelled) return;
       const normalized = normalizeCustomerArray(res);
       console.log("Customers loaded:", normalized);
       setCustomers(filterActiveCustomers(normalized));
-    });
+    }).catch(() => {});
 
-    mainCategoryApi.list({ params: { company_id: companyUniqueId } })
-      .then((res) => {
+    adminApi.mainCategory.list({ params: { company_id: companyUniqueId } })
+      .then((res: any) => {
+        if (cancelled) return;
         const normalized = listFromResponse(res);
         setMainCategories(filterActiveRecords(normalized));
-      });
+      }).catch(() => {});
 
-    subCategoryApi.list({ params: { company_id: companyUniqueId } }).then((res) => {
-      const normalized = listFromResponse(res);
-      setAllSubCategories(filterActiveRecords(normalized));
-    });
+    adminApi.subCategory.list({ params: { company_id: companyUniqueId } })
+      .then((res: any) => {
+        if (cancelled) return;
+        const normalized = listFromResponse(res);
+        setAllSubCategories(filterActiveRecords(normalized));
+      }).catch(() => {});
+
+    return () => { cancelled = true; };
   }, [companyUniqueId]);
 
   /* ---------------- CUSTOMER → ZONE → WARD ---------------- */
@@ -134,7 +135,7 @@ export default function ComplaintAddForm() {
     try {
       console.log("=== Loading Zones ===");
       console.log("Customer ID:", cid);
-      const res = await zoneApi.list({ params: { customer_id: cid } });
+      const res = await adminApi.zones.list({ params: { customer_id: cid } });
       console.log("Zone API raw response:", res);
       const normalized = listFromResponse(res);
       console.log("Normalized zones:", normalized);
@@ -151,7 +152,7 @@ export default function ComplaintAddForm() {
     try {
       console.log("=== Loading Wards ===");
       console.log("Zone ID:", zid);
-      const res = await wardApi.list({ params: { zone_id: zid } });
+      const res = await adminApi.wards.list({ params: { zone_id: zid } });
 
       console.log("Ward API raw response:", res);
       const normalized = listFromResponse(res);
@@ -339,8 +340,11 @@ export default function ComplaintAddForm() {
     fd.append("priority", priority);
     if (file) fd.append("image", file);
 
+    setIsSubmitting(true);
     try {
-      await createMutation.mutateAsync(fd);
+      await adminApi.complaints.create(fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       Swal.fire(
         t("admin.citizen_grievance.complaints_form.saved_title"),
         t("admin.citizen_grievance.complaints_form.saved_message"),
@@ -353,6 +357,8 @@ export default function ComplaintAddForm() {
         t("admin.citizen_grievance.complaints_form.save_failed"),
         "error"
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -519,7 +525,11 @@ export default function ComplaintAddForm() {
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
-          <button className="bg-green-custom text-white px-4 py-2 rounded">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="bg-green-custom text-white px-4 py-2 rounded"
+          >
             {t("common.save")}
           </button>
           <button type="button"

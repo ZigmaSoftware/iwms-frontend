@@ -18,7 +18,7 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { type CityRecord, useCitiesQuery, useUpdateCityMutation } from "@/tanstack/admin";
+import { type CityRecord, useCitiesQuery, useUpdateCityMutation } from "@/helpers/admin/directQueries";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 

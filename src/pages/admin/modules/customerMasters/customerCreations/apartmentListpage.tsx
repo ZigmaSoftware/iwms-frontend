@@ -17,7 +17,7 @@ import { useTranslation } from "react-i18next";
 import {
   useCustomerCreationsQuery,
   type CustomerCreationRecord,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 type ApartmentRow = {
   apartment_name: string;

@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { adminApi } from "@/helpers/admin/registry";
 
 const WARD_FORM_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],
@@ -34,18 +35,6 @@ const WARD_FORM_FIELDS: Record<string, string[]> = {
 };
 import type { SelectOption } from "@/types";
 import type { CityMeta, CountryMeta, DistrictMeta, StateMeta, ZoneMeta } from "./types";
-import {
-  useContinentsQuery,
-  useCountriesQuery,
-  useStatesQuery,
-  useDistrictsQuery,
-  useCitiesQuery,
-  useCityQuery,
-  useZonesQuery,
-  useWardQuery,
-  useCreateWardMutation,
-  useUpdateWardMutation,
-} from "@/tanstack/admin";
 
 
 /* ------------------------------
@@ -237,16 +226,39 @@ export default function WardForm() {
   };
 
   /* ==========================================================
+      SINGLE-RECORD FETCH (edit mode)
+  ========================================================== */
+  const [wardRecordData, setWardRecordData] = useState<WardWithRelations | null>(null);
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    adminApi.wards.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setWardRecordData(res);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        Swal.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? t("common.load_failed")) });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
+
+  /* Selected city fetch (for geographic chain resolution in edit mode) */
+  const [selectedCityData, setSelectedCityData] = useState<any>(null);
+  const selectedCityId = isEdit ? (cityId || pendingCity) : null;
+  useEffect(() => {
+    if (!selectedCityId) { setSelectedCityData(null); return; }
+    let cancelled = false;
+    adminApi.cities.get(selectedCityId)
+      .then((res: any) => { if (cancelled) return; setSelectedCityData(res); })
+      .catch(() => { if (!cancelled) setSelectedCityData(null); });
+    return () => { cancelled = true; };
+  }, [selectedCityId]);
+
+  /* ==========================================================
       LOAD MASTER DATA
   ========================================================== */
-  const continentsQuery = useContinentsQuery();
-  const countriesQuery = useCountriesQuery();
-  const statesQuery = useStatesQuery();
-  const districtsQuery = useDistrictsQuery();
-  const citiesQuery = useCitiesQuery();
-  const zonesQuery = useZonesQuery();
-  const selectedCityQuery = useCityQuery(isEdit ? cityId || pendingCity : null);
-
   useEffect(() => {
     if (isEdit) return;
 
@@ -293,104 +305,122 @@ export default function WardForm() {
   ]);
 
   useEffect(() => {
-    if (continentsQuery.isError) {
-      Swal.fire(t("common.error"), String(continentsQuery.error), "error");
-      return;
-    }
-    const res = continentsQuery.data ?? [];
-    setContinents(res.filter((x: any) => x.is_active).map((x: any) => ({ value: String(x.unique_id), label: x.name })));
-  }, [continentsQuery.data, continentsQuery.isError]);
+    let cancelled = false;
+    adminApi.continents.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = Array.isArray(res) ? res : (res?.results ?? []);
+        setContinents(list.filter((x: any) => x.is_active).map((x: any) => ({ value: String(x.unique_id), label: x.name })));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
-    if (countriesQuery.isError) {
-      Swal.fire(t("common.error"), String(countriesQuery.error), "error");
-      return;
-    }
-    const res = countriesQuery.data ?? [];
-    setAllCountries(res.map((c: any) => ({
-      id: String(c.unique_id),
-      name: c.name,
-      continentId: normalizeNullable(c.continent_id ?? c.continent_unique_id ?? c.continent),
-      isActive: Boolean(c.is_active),
-    })));
-  }, [countriesQuery.data, countriesQuery.isError]);
+    let cancelled = false;
+    adminApi.countries.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = Array.isArray(res) ? res : (res?.results ?? []);
+        setAllCountries(list.map((c: any) => ({
+          id: String(c.unique_id),
+          name: c.name,
+          continentId: normalizeNullable(c.continent_id ?? c.continent_unique_id ?? c.continent),
+          isActive: Boolean(c.is_active),
+        })));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
-    if (statesQuery.isError) {
-      Swal.fire(t("common.error"), String(statesQuery.error), "error");
-      return;
-    }
-    const res = statesQuery.data ?? [];
-    setAllStates(res.map((s: any) => ({
-      id: String(s.unique_id),
-      name: s.name,
-      countryId: normalizeNullable(s.country_id ?? s.country_unique_id ?? s.country),
-      continentId: normalizeNullable(s.continent_id ?? s.continent_unique_id ?? s.continent),
-      countryName: s.country_name ?? null,
-      isActive: Boolean(s.is_active),
-    })));
-  }, [statesQuery.data, statesQuery.isError]);
+    let cancelled = false;
+    adminApi.states.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = Array.isArray(res) ? res : (res?.results ?? []);
+        setAllStates(list.map((s: any) => ({
+          id: String(s.unique_id),
+          name: s.name,
+          countryId: normalizeNullable(s.country_id ?? s.country_unique_id ?? s.country),
+          continentId: normalizeNullable(s.continent_id ?? s.continent_unique_id ?? s.continent),
+          countryName: s.country_name ?? null,
+          isActive: Boolean(s.is_active),
+        })));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
-    if (districtsQuery.isError) {
-      Swal.fire(t("common.error"), String(districtsQuery.error), "error");
-      return;
-    }
-    const res = districtsQuery.data ?? [];
-    setAllDistricts(res.map((d: any) => ({
-      id: String(d.unique_id),
-      name: d.name,
-      stateId: normalizeNullable(d.state_id ?? d.state_unique_id ?? d.state),
-      countryId: normalizeNullable(d.country_id ?? d.country_unique_id ?? d.country),
-      continentId: normalizeNullable(d.continent_id ?? d.continent_unique_id ?? d.continent),
-      stateName: d.state_name ?? null,
-      countryName: d.country_name ?? null,
-      continentName: d.continent_name ?? null,
-      isActive: Boolean(d.is_active),
-    })));
-  }, [districtsQuery.data, districtsQuery.isError]);
+    let cancelled = false;
+    adminApi.districts.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = Array.isArray(res) ? res : (res?.results ?? []);
+        setAllDistricts(list.map((d: any) => ({
+          id: String(d.unique_id),
+          name: d.name,
+          stateId: normalizeNullable(d.state_id ?? d.state_unique_id ?? d.state),
+          countryId: normalizeNullable(d.country_id ?? d.country_unique_id ?? d.country),
+          continentId: normalizeNullable(d.continent_id ?? d.continent_unique_id ?? d.continent),
+          stateName: d.state_name ?? null,
+          countryName: d.country_name ?? null,
+          continentName: d.continent_name ?? null,
+          isActive: Boolean(d.is_active),
+        })));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
-    if (citiesQuery.isError) {
-      Swal.fire(t("common.error"), String(citiesQuery.error), "error");
-      return;
-    }
-    const res = citiesQuery.data ?? [];
-    setAllCities(res.map((c: any) => ({
-      id: String(c.unique_id),
-      name: c.name ?? c.city_name,
-      continentId: normalizeNullable(c.continent_id ?? c.continent_unique_id ?? c.continent),
-      countryId: normalizeNullable(c.country_id ?? c.country_unique_id ?? c.country),
-      stateId: normalizeNullable(c.state_id ?? c.state_unique_id ?? c.state),
-      districtId: normalizeNullable(c.district_id ?? c.district_unique_id ?? c.district),
-      continentName: c.continent_name ?? null,
-      countryName: c.country_name ?? null,
-      stateName: c.state_name ?? null,
-      districtName: c.district_name ?? null,
-      isActive: Boolean(c.is_active),
-    })));
-  }, [citiesQuery.data, citiesQuery.isError]);
+    let cancelled = false;
+    adminApi.cities.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = Array.isArray(res) ? res : (res?.results ?? []);
+        setAllCities(list.map((c: any) => ({
+          id: String(c.unique_id),
+          name: c.name ?? c.city_name,
+          continentId: normalizeNullable(c.continent_id ?? c.continent_unique_id ?? c.continent),
+          countryId: normalizeNullable(c.country_id ?? c.country_unique_id ?? c.country),
+          stateId: normalizeNullable(c.state_id ?? c.state_unique_id ?? c.state),
+          districtId: normalizeNullable(c.district_id ?? c.district_unique_id ?? c.district),
+          continentName: c.continent_name ?? null,
+          countryName: c.country_name ?? null,
+          stateName: c.state_name ?? null,
+          districtName: c.district_name ?? null,
+          isActive: Boolean(c.is_active),
+        })));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
-    if (zonesQuery.isError) {
-      Swal.fire(t("common.error"), String(zonesQuery.error), "error");
-      return;
-    }
-    const res = zonesQuery.data ?? [];
-    setAllZones(res.map((z: any) => ({
-      id: String(z.unique_id),
-      name: z.zone_name,
-      continentId: normalizeNullable(z.continent_id ?? z.continent_unique_id ?? z.continent),
-      countryId: normalizeNullable(z.country_id ?? z.country_unique_id ?? z.country),
-      stateId: normalizeNullable(z.state_id ?? z.state_unique_id ?? z.state),
-      districtId: normalizeNullable(z.district_id ?? z.district_unique_id ?? z.district),
-      cityId: normalizeNullable(z.city_id ?? z.city_unique_id ?? z.city),
-      cityName: z.city_name ?? null,
-      districtName: z.district_name ?? null,
-      stateName: z.state_name ?? null,
-      isActive: Boolean(z.is_active),
-    })));
-  }, [zonesQuery.data, zonesQuery.isError]);
+    let cancelled = false;
+    adminApi.zones.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = Array.isArray(res) ? res : (res?.results ?? []);
+        setAllZones(list.map((z: any) => ({
+          id: String(z.unique_id),
+          name: z.zone_name,
+          continentId: normalizeNullable(z.continent_id ?? z.continent_unique_id ?? z.continent),
+          countryId: normalizeNullable(z.country_id ?? z.country_unique_id ?? z.country),
+          stateId: normalizeNullable(z.state_id ?? z.state_unique_id ?? z.state),
+          districtId: normalizeNullable(z.district_id ?? z.district_unique_id ?? z.district),
+          cityId: normalizeNullable(z.city_id ?? z.city_unique_id ?? z.city),
+          cityName: z.city_name ?? null,
+          districtName: z.district_name ?? null,
+          stateName: z.state_name ?? null,
+          isActive: Boolean(z.is_active),
+        })));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   /* ==========================================================
         FILTER CHAINS
@@ -488,11 +518,9 @@ export default function WardForm() {
   /* ==========================================================
         EDIT MODE
   ========================================================== */
-  const wardQuery = useWardQuery(id);
-
   useEffect(() => {
-    if (!wardQuery.data) return;
-    const data = wardQuery.data as WardWithRelations;
+    if (!wardRecordData) return;
+    const data = wardRecordData as WardWithRelations;
 
     setWardName(data.ward_name ?? data.name ?? "");
     setIsActive(Boolean(data.is_active));
@@ -676,7 +704,7 @@ export default function WardForm() {
     }
     applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
   }, [
-    wardQuery.data,
+    wardRecordData,
     applyCompanyProjectFromRecord,
     continents,
     allCountries,
@@ -687,8 +715,8 @@ export default function WardForm() {
   ]);
 
   useEffect(() => {
-    if (!isEdit || !selectedCityQuery.data) return;
-    const city = selectedCityQuery.data as any;
+    if (!isEdit || !selectedCityData) return;
+    const city = selectedCityData as any;
 
     const cont = resolveOptionId(
       continents.map((continent) => ({
@@ -732,7 +760,7 @@ export default function WardForm() {
     }
   }, [
     isEdit,
-    selectedCityQuery.data,
+    selectedCityData,
     continents,
     allCountries,
     allStates,
@@ -811,9 +839,7 @@ export default function WardForm() {
     /* ==========================================================
       FORM SUBMIT
     ========================================================== */
-    const createWardMutation = useCreateWardMutation();
-    const updateWardMutation = useUpdateWardMutation();
-    const isSubmitting = createWardMutation.isPending || updateWardMutation.isPending;
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -850,33 +876,35 @@ export default function WardForm() {
       return;
     }
 
-    try {
-      const rawPayload = {
-        ward_name: wardName.trim(),
-        continent_id: continentId,
-        country_id: countryId,
-        state_id: stateId,
-        district_id: districtId || null,
-        city_id: cityId || null,
-        zone_id: zoneId || null,
-        description,
-        is_active: isActive,
-        company_id: companyUniqueId,
-        project_id: projectId,
-      };
-      const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
+    const rawPayload = {
+      ward_name: wardName.trim(),
+      continent_id: continentId,
+      country_id: countryId,
+      state_id: stateId,
+      district_id: districtId || null,
+      city_id: cityId || null,
+      zone_id: zoneId || null,
+      description,
+      is_active: isActive,
+      company_id: companyUniqueId,
+      project_id: projectId,
+    };
+    const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
+    setIsSubmitting(true);
+    try {
       if (isEdit && id) {
-        await updateWardMutation.mutateAsync({ id, payload });
+        await adminApi.wards.update(id, payload);
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await createWardMutation.mutateAsync(payload);
+        await adminApi.wards.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
-
       navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (err) {
       Swal.fire(t("common.save_failed"), extractErr(err), "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

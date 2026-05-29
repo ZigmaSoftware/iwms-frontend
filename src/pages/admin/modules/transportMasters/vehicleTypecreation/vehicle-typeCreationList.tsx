@@ -23,7 +23,7 @@ import {
   type VehicleTypePayload,
   useVehicleTypesQuery,
   useUpdateVehicleTypeMutation,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

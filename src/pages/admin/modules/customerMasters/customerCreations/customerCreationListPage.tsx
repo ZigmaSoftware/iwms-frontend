@@ -23,7 +23,7 @@ import {
   useCustomerCreationsQuery,
   useUpdateCustomerCreationMutation,
   useUploadCustomerCreationsMutation,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 type Customer = {
   unique_id: string;

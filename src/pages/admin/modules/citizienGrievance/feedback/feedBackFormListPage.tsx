@@ -20,7 +20,7 @@ import {
   useCustomerCreationsQuery,
   useFeedbacksQuery,
   type FeedbackRecord,
-} from "@/tanstack/admin";
+} from "@/helpers/admin/directQueries";
 
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };

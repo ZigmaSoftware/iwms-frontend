@@ -27,8 +27,6 @@ export type UserScreenPayload = {
   description?: string;
   icon_name?: string;
   order_no?: number;
-  company_id?: string | null;
-  project_id?: string | null;
   is_active: boolean;
 };
 

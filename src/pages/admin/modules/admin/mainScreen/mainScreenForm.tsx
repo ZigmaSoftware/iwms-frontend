@@ -16,13 +16,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { encryptSegment } from "@/utils/routeCrypto";
-
-import {
-  useCreateMainScreenMutation,
-  useMainScreenQuery,
-  useMainScreenTypesQuery,
-  useUpdateMainScreenMutation,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
 
 /* ------------------------------
     ROUTES
@@ -62,40 +56,68 @@ export default function MainScreenForm() {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
-  const mainScreenTypesQuery = useMainScreenTypesQuery();
-  const mainScreenQuery = useMainScreenQuery(isEdit ? id : null);
-  const createMutation = useCreateMainScreenMutation();
-  const updateMutation = useUpdateMainScreenMutation();
-  const loading = createMutation.isPending || updateMutation.isPending;
 
-  const mainScreenTypes = useMemo<MainScreenTypeOption[]>(
-    () =>
-      (mainScreenTypesQuery.data ?? [])
-        .filter((x) => Boolean(x.is_active))
-        .map((x) => ({
-          value: toText(x.unique_id),
-          label: toText(x.type_name),
-        })),
-    [mainScreenTypesQuery.data]
-  );
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+
+  const [mainScreenTypesList, setMainScreenTypesList] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  /* ==========================================================
+      FETCH MAIN SCREEN TYPES (dropdown)
+  ========================================================== */
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.mainScreenTypes.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        setMainScreenTypesList(Array.isArray(res) ? res : (res?.results ?? []));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   /* ==========================================================
       EDIT MODE — LOAD RECORD
   ========================================================== */
   useEffect(() => {
-    if (!mainScreenQuery.data) return;
-    const data = mainScreenQuery.data;
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.mainScreens.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? "Load failed") });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
+
+  useEffect(() => {
+    if (!recordData) return;
+    const data = recordData;
     setMainScreenName(data.mainscreen_name ?? "");
     setOrderNo(data.order_no ?? "");
     setDescription(data.description ?? "");
     setMainScreenTypeId(data.mainscreentype_id ?? "");
     setIsActive(Boolean(data.is_active));
-  }, [mainScreenQuery.data]);
+  }, [recordData]);
 
-  useEffect(() => {
-    if (!mainScreenQuery.isError && !mainScreenTypesQuery.isError) return;
-    Swal.fire(t("common.error"), t("common.load_failed"), "error");
-  }, [mainScreenQuery.isError, mainScreenTypesQuery.isError, t]);
+  const mainScreenTypes = useMemo<MainScreenTypeOption[]>(
+    () =>
+      mainScreenTypesList
+        .filter((x) => Boolean(x.is_active))
+        .map((x) => ({
+          value: toText(x.unique_id),
+          label: toText(x.type_name),
+        })),
+    [mainScreenTypesList]
+  );
 
   /* ==========================================================
       SUBMIT
@@ -108,6 +130,7 @@ export default function MainScreenForm() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const payload = {
         mainscreen_name: mainscreenName.trim(),
@@ -117,13 +140,10 @@ export default function MainScreenForm() {
       };
 
       if (isEdit && id) {
-        await updateMutation.mutateAsync({
-          id,
-          payload: { ...payload, order_no: Number(orderNo) || 0 },
-        });
+        await adminApi.mainScreens.update(id, { ...payload, order_no: Number(orderNo) || 0 });
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await createMutation.mutateAsync(payload);
+        await adminApi.mainScreens.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
@@ -140,6 +160,8 @@ export default function MainScreenForm() {
           t("common.save_failed_desc"),
         "error"
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -173,7 +195,7 @@ export default function MainScreenForm() {
               <SelectContent>
                 {mainScreenTypes.length === 0 ? (
                   <div className="px-3 py-2 text-sm text-muted-foreground">
-                    {!mainScreenTypesQuery.isPending
+                    {!loadingRecord
                       ? t("common.no_items_found", {
                           item: t("admin.nav.main_screen_type"),
                         })
@@ -251,8 +273,8 @@ export default function MainScreenForm() {
 
         {/* Actions */}
         <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={loading}>
-            {loading
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting
               ? isEdit
                 ? t("common.updating")
                 : t("common.saving")

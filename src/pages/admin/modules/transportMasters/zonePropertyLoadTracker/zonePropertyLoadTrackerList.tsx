@@ -231,7 +231,7 @@ import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
-import { useZonePropertyLoadTrackerList, useDeleteZonePropertyLoadTracker } from "@/tanstack/admin/queries/masters/zonePropertyLoadTracker";
+import { useZonePropertyLoadTrackerList, useDeleteZonePropertyLoadTracker } from "@/helpers/admin/directQueries";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";

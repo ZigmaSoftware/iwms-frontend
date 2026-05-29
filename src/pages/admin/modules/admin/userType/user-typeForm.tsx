@@ -6,11 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import {
-  useCreateUserTypeMutation,
-  useUpdateUserTypeMutation,
-  useUserTypeQuery,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
 
 const { encAdmins, encUserType } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encAdmins}/${encUserType}`;
@@ -34,44 +30,42 @@ export default function UserTypeForm() {
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   /* -----------------------------------------------------------
      LOAD RECORD FOR EDIT
   ----------------------------------------------------------- */
-  const userTypeQuery = useUserTypeQuery(userTypeId);
+  useEffect(() => {
+    if (!isEdit || !userTypeId) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.userTypes.get(userTypeId)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? "Load failed") });
+      });
+    return () => { cancelled = true; };
+  }, [userTypeId, isEdit]);
 
   useEffect(() => {
-    if (!isEdit) return;
-
-    if (userTypeQuery.isError) {
-      Swal.fire({
-        icon: "error",
-        title: t("common.error"),
-        text: t("common.load_failed"),
-      });
-      return;
-    }
-
-    if (!userTypeQuery.data) return;
-    const data = userTypeQuery.data;
-
+    if (!recordData) return;
+    const data = recordData;
     setName(String((data as any).name ?? ""));
     setIsActive(Boolean((data as any).is_active));
     applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-  }, [
-    applyCompanyProjectFromRecord,
-    isEdit,
-    t,
-    userTypeQuery.data,
-    userTypeQuery.isError,
-  ]);
+  }, [recordData, applyCompanyProjectFromRecord]);
 
   /* -----------------------------------------------------------
      SUBMIT HANDLER
   ----------------------------------------------------------- */
-  const createUserTypeMutation = useCreateUserTypeMutation();
-  const updateUserTypeMutation = useUpdateUserTypeMutation();
-  const loading = createUserTypeMutation.isPending || updateUserTypeMutation.isPending;
-
   const handleSubmit = async (e: any) => {
     e.preventDefault();
 
@@ -92,13 +86,10 @@ export default function UserTypeForm() {
       company_id: companyUniqueId,
     };
 
+    setIsSubmitting(true);
     try {
-      if (isEdit) {
-        // UPDATE
-        await updateUserTypeMutation.mutateAsync({
-          id: userTypeId as string,
-          payload,
-        });
+      if (isEdit && userTypeId) {
+        await adminApi.userTypes.update(userTypeId, payload);
         Swal.fire({
           icon: "success",
           title: t("common.updated_success"),
@@ -106,8 +97,7 @@ export default function UserTypeForm() {
           showConfirmButton: false,
         });
       } else {
-        // CREATE
-        await createUserTypeMutation.mutateAsync(payload);
+        await adminApi.userTypes.create(payload);
         Swal.fire({
           icon: "success",
           title: t("common.added_success"),
@@ -128,6 +118,8 @@ export default function UserTypeForm() {
         title: t("common.save_failed"),
         text: message,
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -148,7 +140,7 @@ export default function UserTypeForm() {
         <form onSubmit={handleSubmit} className="px-6 py-6 space-y-6">
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
+
             {/* User Type Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -187,8 +179,8 @@ export default function UserTypeForm() {
 
           {/* Buttons */}
           <div className="flex justify-end gap-3">
-            <Button type="submit" disabled={loading} >
-               {loading
+            <Button type="submit" disabled={isSubmitting} >
+               {isSubmitting
                 ? isEdit
                   ? t("common.updating")
                   : t("common.saving")
@@ -196,7 +188,7 @@ export default function UserTypeForm() {
                 ? t("common.update")
                 : t("common.save")}
             </Button>
-          
+
             <Button
               type="button"
               variant="destructive"

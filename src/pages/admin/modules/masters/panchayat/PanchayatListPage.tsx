@@ -12,7 +12,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import Swal from "sweetalert2";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
-import { usePanchayatsQuery, useUpdatePanchayatMutation } from "@/tanstack/admin";
+import { usePanchayatsQuery, useUpdatePanchayatMutation } from "@/helpers/admin/directQueries";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { PanchayatListRecord } from "./types";

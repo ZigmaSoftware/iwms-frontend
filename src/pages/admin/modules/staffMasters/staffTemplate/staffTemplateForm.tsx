@@ -11,10 +11,6 @@ import Select from "@/components/form/Select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { staffCreationApi, staffTemplateApi, companyApi, projectApi } from "@/helpers/admin";
-import {
-  useCreateStaffTemplate,
-  useUpdateStaffTemplate,
-} from "@/tanstack/admin/queries/masters/staffTemplate";
 
 import { useFormCompanyProjectSync } from "@/hooks/useFormCompanyProjectSync";
 
@@ -548,9 +544,6 @@ export default function StaffTemplateForm() {
     }));
   };
 
-  const createMutation = useCreateStaffTemplate();
-  const updateMutation = useUpdateStaffTemplate();
-
   /* ================= SUBMIT ================= */
 
   const handleSubmit = async (e: FormEvent) => {
@@ -587,9 +580,9 @@ export default function StaffTemplateForm() {
       const payload = filterPayload(rawPayload, ["company_id", "project_id"]);
 
       if (isEdit && id) {
-        await updateMutation.mutateAsync({ id, payload });
+        await staffTemplateApi.update(id, payload);
       } else {
-        await createMutation.mutateAsync(payload);
+        await staffTemplateApi.create(payload);
       }
 
       Swal.fire(
