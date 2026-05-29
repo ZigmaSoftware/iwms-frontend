@@ -1439,11 +1439,25 @@ export default function StaffCreationForm() {
               }}
             />
             {photoPreview ? (
-              <img
-                src={photoPreview}
-                alt={t("admin.staff_creation.photo_preview_alt")}
-                className="h-32 w-32 rounded-lg border object-cover"
-              />
+              <div className="relative h-32 w-32">
+                <img
+                  src={photoPreview}
+                  alt={t("admin.staff_creation.photo_preview_alt")}
+                  className="h-32 w-32 rounded-lg border object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoFile(null);
+                    setPhotoPreview("");
+                    if (photoInputRef.current) photoInputRef.current.value = "";
+                  }}
+                  className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs leading-none hover:bg-red-600"
+                  title="Remove photo"
+                >
+                  ×
+                </button>
+              </div>
             ) : (
               <div className="flex h-32 w-32 items-center justify-center rounded-lg border border-dashed px-2 text-xs text-gray-500">
                 {t("admin.staff_creation.photo_empty")}

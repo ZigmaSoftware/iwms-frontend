@@ -233,7 +233,7 @@ export default function TripInstanceList() {
       setRecords(tripRows as TripInstanceRecord[]);
       setTripDefinitionLookup(buildLookup(tripDefRows, "unique_id", "unique_id"));
       setStaffTemplateLookup(buildLookup(staffRows, "unique_id", "display_code", "unique_id"));
-      setAltStaffTemplateLookup(buildLookup(altStaffRows, "unique_id", "unique_id"));
+      setAltStaffTemplateLookup(buildLookup(altStaffRows, "unique_id", "display_code", "unique_id"));
       setZoneLookup(buildLookup(zoneRows, "unique_id", "name"));
       setVehicleLookup(buildLookup(vehicleRows, "unique_id", "vehicle_no"));
       setPropertyLookup(buildLookup(propertyRows, "unique_id", "property_name"));
