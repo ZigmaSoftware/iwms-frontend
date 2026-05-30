@@ -17,6 +17,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { collectionMonitoringApi } from "@/helpers/admin";
 
 type CollectionMonitoringRecord = {
   unique_id: string;
@@ -93,8 +94,6 @@ export default function CollectionMonitoringListPage() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encWasteManagementMaster}/${encCollectionMonitoring}/${id}/edit`;
 
-  const pointCollectionApi = adminApi.pointCollections;
-
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
   // const [filters, setFilters] = useState<any>({
@@ -139,9 +138,11 @@ export default function CollectionMonitoringListPage() {
         params.project_id = projectId;
       }
 
-      const res = (await pointCollectionApi.list({
+      const res = (await collectionMonitoringApi.list({
         params,
       })) as CollectionMonitoringApiResponse;
+
+      console.log(res);
 
       let data: CollectionMonitoringRecord[] = [];
 
@@ -192,7 +193,7 @@ export default function CollectionMonitoringListPage() {
     companies.length,
     companyUniqueId,
     isSuperAdmin,
-    pointCollectionApi,
+    collectionMonitoringApi,
     projectId,
   ]);
 
@@ -240,7 +241,7 @@ export default function CollectionMonitoringListPage() {
   const statusTemplate = (row: CollectionMonitoringRecord) => {
     const updateStatus = async (value: boolean) => {
       try {
-        await pointCollectionApi.update(row.unique_id, { is_active: value });
+        await collectionMonitoringApi.update(row.unique_id, { is_active: value });
         fetchRows();
       } catch (error) {
         console.error("Status update failed:", error);
@@ -253,7 +254,7 @@ export default function CollectionMonitoringListPage() {
   const collectedTemplate = (row: CollectionMonitoringRecord) => {
     const updateCollected = async (value: boolean) => {
       try {
-        await pointCollectionApi.update(row.unique_id, { is_collected: value });
+        await collectionMonitoringApi.update(row.unique_id, { is_collected: value });
         fetchRows();
       } catch (error) {
         console.error("Collected status update failed:", error);
