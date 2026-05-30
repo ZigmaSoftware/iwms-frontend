@@ -89,6 +89,15 @@ const getBloodGroupOptions = () => [
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value);
 
+const normalizeEntityId = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return normalizeId(record.unique_id ?? record.id ?? record.value ?? "");
+  }
+  return normalizeId(value);
+};
+
 const mapLocationOptions = (items: any[]): LocationOption[] =>
   (items ?? [])
     .filter((item) => item?.name && item.is_active !== false)
@@ -271,6 +280,7 @@ export default function StaffCreationForm() {
 
   // Pending prefill values — set during edit load, applied once the option list arrives
   const [pendingStaffUserTypeId, setPendingStaffUserTypeId] = useState<string | null>(null);
+  const [pendingContractorUserTypeId, setPendingContractorUserTypeId] = useState<string | null>(null);
   const [pendingDepartmentId, setPendingDepartmentId] = useState<string | null>(null);
   const [pendingDesignationId, setPendingDesignationId] = useState<string | null>(null);
   const [pendingPresentState, setPendingPresentState] = useState<string | null>(null);
@@ -320,6 +330,44 @@ export default function StaffCreationForm() {
     { value: "1", label: t("common.active") },
     { value: "0", label: t("common.inactive") },
   ];
+
+  const departmentOptionsWithCurrent = useMemo(() => {
+    if (!formData.department_id) return departmentOptions;
+    if (departmentOptions.some((option) => option.value === formData.department_id)) {
+      return departmentOptions;
+    }
+    const label = formData.department || formData.department_id;
+    return [
+      {
+        value: formData.department_id,
+        label,
+        name: formData.department || label,
+      },
+      ...departmentOptions,
+    ];
+  }, [departmentOptions, formData.department, formData.department_id]);
+
+  const designationOptionsWithCurrent = useMemo(() => {
+    if (!formData.designation_id) return designationOptions;
+    if (designationOptions.some((option) => option.value === formData.designation_id)) {
+      return designationOptions;
+    }
+    const label = formData.designation || formData.designation_id;
+    return [
+      {
+        value: formData.designation_id,
+        label,
+        name: formData.designation || label,
+        departmentId: formData.department_id || undefined,
+      },
+      ...designationOptions,
+    ];
+  }, [
+    designationOptions,
+    formData.department_id,
+    formData.designation,
+    formData.designation_id,
+  ]);
 
   const selectedUserType = staffUserTypeOptions.find(
     (opt) => opt.value === formData.staffusertype_id,
@@ -543,7 +591,7 @@ export default function StaffCreationForm() {
             label: d.designation_name,
             name: d.designation_name,
             group: d.designation_group,
-            departmentId: d.department_id ? String(d.department_id) : undefined,
+            departmentId: normalizeEntityId(d.department_id),
           })),
         );
       })
@@ -565,8 +613,8 @@ export default function StaffCreationForm() {
           doj: staff.doj ?? "",
           department: staff.department ?? "",
           designation: staff.designation ?? "",
-          department_id: staff.department_id ?? "",
-          designation_id: staff.designation_id ?? "",
+          department_id: normalizeEntityId(staff.department_id ?? staff.department ?? staff.department_unique_id),
+          designation_id: normalizeEntityId(staff.designation_id ?? staff.designation_obj ?? staff.designation_unique_id),
           grade: staff.grade ?? "",
           site_name: staff.site_name ?? "",
           staff_head: staff.staff_head ?? "",
@@ -614,13 +662,13 @@ export default function StaffCreationForm() {
           permanent_pincode: staff.permanent_address?.pincode ?? "",
 
           // DRIVER and USER TYPE details
-          staffusertype_id: staff.staffusertype_id ?? "",
-          contractorusertype_id: staff.contractorusertype_id ?? "",
+          staffusertype_id: normalizeEntityId(staff.staffusertype_id),
+          contractorusertype_id: normalizeEntityId(staff.contractorusertype_id),
           driving_licence_no: staff.driving_licence_no ?? "",
 
           // Company and Project
-          company_id: String(staff.company_id ?? ""),
-          project_id: String(staff.project_id ?? ""),
+          company_id: normalizeEntityId(staff.company_unique_id ?? staff.company_id),
+          project_id: normalizeEntityId(staff.project_unique_id ?? staff.project_id),
 
           // Contact details (FLAT — NOT nested)
           contact_mobile: staff.contact_mobile ?? "",
@@ -628,9 +676,15 @@ export default function StaffCreationForm() {
         }));
 
         // Set pending prefill values so dropdowns apply once their option lists load
-        if (staff.staffusertype_id) setPendingStaffUserTypeId(String(staff.staffusertype_id));
-        if (staff.department_id) setPendingDepartmentId(String(staff.department_id));
-        if (staff.designation_id) setPendingDesignationId(String(staff.designation_id));
+        const staffTypeId = normalizeEntityId(staff.staffusertype_id);
+        const contractorTypeId = normalizeEntityId(staff.contractorusertype_id);
+        const departmentId = normalizeEntityId(staff.department_id ?? staff.department ?? staff.department_unique_id);
+        const designationId = normalizeEntityId(staff.designation_id ?? staff.designation_obj ?? staff.designation_unique_id);
+
+        if (staffTypeId) setPendingStaffUserTypeId(staffTypeId);
+        if (contractorTypeId) setPendingContractorUserTypeId(contractorTypeId);
+        if (departmentId) setPendingDepartmentId(departmentId);
+        if (designationId) setPendingDesignationId(designationId);
         if (staff.present_address?.state) setPendingPresentState(staff.present_address.state);
         if (staff.present_address?.district) setPendingPresentDistrict(staff.present_address.district);
         if (staff.present_address?.city) setPendingPresentCity(staff.present_address.city);
@@ -749,6 +803,15 @@ export default function StaffCreationForm() {
       setPendingStaffUserTypeId(null);
     }
   }, [pendingStaffUserTypeId, staffUserTypeOptions]);
+
+  useEffect(() => {
+    if (!pendingContractorUserTypeId || contractorUserTypeOptions.length === 0) return;
+    const match = contractorUserTypeOptions.find((o) => o.value === pendingContractorUserTypeId);
+    if (match) {
+      setFormData((prev) => ({ ...prev, contractorusertype_id: pendingContractorUserTypeId }));
+      setPendingContractorUserTypeId(null);
+    }
+  }, [contractorUserTypeOptions, pendingContractorUserTypeId]);
 
   useEffect(() => {
     if (!pendingDepartmentId || departmentOptions.length === 0) return;
@@ -877,7 +940,7 @@ export default function StaffCreationForm() {
         next.permanent_city = "";
       }
       if (field === "department_id") {
-        const department = departmentOptions.find((item) => item.value === value);
+        const department = departmentOptionsWithCurrent.find((item) => item.value === value);
         next.department = department?.name ?? "";
         next.designation_id = "";
         next.designation = "";
@@ -885,7 +948,7 @@ export default function StaffCreationForm() {
         next.staff_head_id = "";
       }
       if (field === "designation_id") {
-        const designation = designationOptions.find((item) => item.value === value);
+        const designation = designationOptionsWithCurrent.find((item) => item.value === value);
         next.designation = designation?.name ?? "";
       }
       if (field === "staffusertype_id" || field === "contractorusertype_id") {
@@ -1223,7 +1286,7 @@ export default function StaffCreationForm() {
             id="department_id"
             value={formData.department_id}
             onChange={(value) => handleSelectChange("department_id", value)}
-            options={departmentOptions}
+            options={departmentOptionsWithCurrent}
             placeholder={t("common.select_item_placeholder", {
               item: t("admin.staff_creation.department_name"),
             })}
@@ -1240,7 +1303,7 @@ export default function StaffCreationForm() {
             id="designation_id"
             value={formData.designation_id}
             onChange={(value) => handleSelectChange("designation_id", value)}
-            options={designationOptions}
+            options={designationOptionsWithCurrent}
             placeholder={
               formData.department_id
                 ? t("common.select_item_placeholder", { item: t("admin.staff_creation.designation") })

@@ -24,7 +24,9 @@ type Option = {
 type StaffRecord = {
   unique_id?: string;
   company_id?: string;
+  company_unique_id?: string;
   project_id?: string;
+  project_unique_id?: string;
   staff_name?: string;
   employee_name?: string;
   username?: string;
@@ -151,10 +153,10 @@ export default function StaffTemplateForm() {
     String(value ?? "").trim();
 
   const getCompanyId = (staff: StaffRecord): string =>
-    toText(staff.company_id) || toText(staff.company_name);
+    toText(staff.company_unique_id) || toText(staff.company_id);
 
   const getProjectId = (staff: StaffRecord): string =>
-    toText(staff.project_id) || toText(staff.project_name);
+    toText(staff.project_unique_id) || toText(staff.project_id);
 
   const getCompanyLabel = (staff: StaffRecord): string =>
     toText(staff.company_name) || getCompanyId(staff);
@@ -178,12 +180,12 @@ export default function StaffTemplateForm() {
 
   const isDriverRole = (staff: StaffRecord): boolean => {
     const role = getStaffRole(staff);
-    return role === "company driver" || role === "contractor driver";
+    return role === "driver" || role.includes(" driver");
   };
 
   const isOperatorRole = (staff: StaffRecord): boolean => {
     const role = getStaffRole(staff);
-    return role === "company operator" || role === "contractor operator";
+    return role === "operator" || role.includes(" operator");
   };
 
   const isStaffRow = (staff: StaffRecord): boolean => {
@@ -311,7 +313,7 @@ export default function StaffTemplateForm() {
           : firstCompanyId;
         const initialProjects = initialCompanyId
           ? normalizedProjects.filter(
-              (p: any) => !p.company_id || p.company_id === firstCompanyId
+              (p: any) => !p.company_id || p.company_id === initialCompanyId
             )
           : normalizedProjects;
         setProjectOptions(initialProjects);
@@ -371,11 +373,11 @@ export default function StaffTemplateForm() {
 
     // ✅ Approvers scoped to selected company + project
     const scopedAdmins = scopedStaff
-      .filter((s) => getStaffRole(s) === "admin")
+      .filter((s) => getStaffRole(s).includes("admin"))
       .map((s) => toStaffOption(s));
 
     const scopedSupervisors = scopedStaff
-      .filter((s) => { const role = getStaffRole(s); return role === "company supervisor" || role === "contractor supervisor"; })
+      .filter((s) => getStaffRole(s).includes("supervisor"))
       .map((s) => toStaffOption(s));
 
     setAdminOptions(scopedAdmins);
@@ -512,11 +514,47 @@ export default function StaffTemplateForm() {
     return !formData.extra_operator_id.includes(value);
   });
 
+  const driverOptionsWithCurrent = (() => {
+    if (!formData.driver_id) return driverOptions;
+    if (driverOptions.some((option) => option.value === formData.driver_id)) {
+      return driverOptions;
+    }
+    const staff = staffRecords.find(
+      (item) => String(item.unique_id) === formData.driver_id
+    );
+    return staff ? [toStaffOption(staff), ...driverOptions] : driverOptions;
+  })();
+
+  const operatorOptionsWithCurrent = (() => {
+    if (!formData.operator_id) return operatorOptions;
+    if (operatorOptions.some((option) => option.value === formData.operator_id)) {
+      return operatorOptions;
+    }
+    const staff = staffRecords.find(
+      (item) => String(item.unique_id) === formData.operator_id
+    );
+    return staff ? [toStaffOption(staff), ...operatorOptions] : operatorOptions;
+  })();
+
+  const approverOptionsWithCurrent = (() => {
+    const scopedOptions = [...adminOptions, ...supervisorOptions];
+    if (!formData.approved_by) return scopedOptions;
+    if (scopedOptions.some((option) => option.value === formData.approved_by)) {
+      return scopedOptions;
+    }
+    const staff = staffRecords.find(
+      (item) => String(item.unique_id) === formData.approved_by
+    );
+    return staff ? [toStaffOption(staff), ...scopedOptions] : scopedOptions;
+  })();
+
   const resolveOperatorLabel = (value: string) => {
     const match = operatorOptions.find(
       (option) => String(option.value) === value
     );
-    return match?.label ?? value;
+    if (match) return match.label;
+    const staff = staffRecords.find((item) => String(item.unique_id) === value);
+    return staff ? toStaffOption(staff).label : value;
   };
 
   const resolveUserName = (userId?: string) => {
@@ -687,7 +725,7 @@ export default function StaffTemplateForm() {
                   onChange={(v) =>
                     setFormData((p) => ({ ...p, driver_id: v }))
                   }
-                  options={driverOptions}
+                  options={driverOptionsWithCurrent}
                   placeholder={t("common.select_option")}
                   required
                   disabled={fetching}
@@ -704,7 +742,7 @@ export default function StaffTemplateForm() {
                   onChange={(v) =>
                     setFormData((p) => ({ ...p, operator_id: v }))
                   }
-                  options={operatorOptions}
+                  options={operatorOptionsWithCurrent}
                   placeholder={t("common.select_option")}
                   required
                   disabled={fetching}
@@ -797,7 +835,7 @@ export default function StaffTemplateForm() {
                   onChange={(v) =>
                     setFormData((p) => ({ ...p, approved_by: v }))
                   }
-                  options={[...adminOptions, ...supervisorOptions]}
+                  options={approverOptionsWithCurrent}
                   placeholder={t("common.select_option")}
                   disabled={fetching}
                 />

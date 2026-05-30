@@ -9,7 +9,7 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
 
-import { adminApi } from "@/helpers/admin/registry";
+import { customerCreationApi, wasteCollectionApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
@@ -101,7 +101,7 @@ export default function WasteCollectedForm() {
     setFetchingCustomers(true);
     const params: Record<string, string> = { company_id: companyUniqueId };
     if (projectId) params.project_id = projectId;
-    adminApi.customerCreations.list({ params })
+    customerCreationApi.list({ params })
       .then((res: any) => {
         if (cancelled) return;
         const list = Array.isArray(res) ? res : res?.results ?? [];
@@ -117,7 +117,7 @@ export default function WasteCollectedForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.wasteCollections.get(id)
+    wasteCollectionApi.get(id)
       .then((res: any) => {
         if (cancelled) return;
         // Set waste values immediately (no async dependency)
@@ -201,10 +201,10 @@ export default function WasteCollectedForm() {
     setIsSubmitting(true);
     try {
       if (isEdit && id) {
-        await adminApi.wasteCollections.update(id, payload);
+        await wasteCollectionApi.update(id, payload);
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await adminApi.wasteCollections.create(payload);
+        await wasteCollectionApi.create(payload);
         Swal.fire(t("common.success"), t("admin.waste_collected_data.save_success"), "success");
       }
       navigate(LIST_PATH, { state: { companyUniqueId, projectId } });

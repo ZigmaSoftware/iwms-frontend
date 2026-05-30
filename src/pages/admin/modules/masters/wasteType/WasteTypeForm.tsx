@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -18,7 +19,7 @@ import {
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { adminApi } from "@/helpers/admin/registry";
+import { wasteTypeApi } from "@/helpers/admin";
 
 const { encMasters, encWasteTypes } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encWasteTypes}`;
@@ -51,9 +52,14 @@ export default function WasteTypeForm() {
     setProjectId,
     onCompanyChange,
     applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit,
+    initialCompanyId: routeState?.companyUniqueId,
+    initialProjectId: routeState?.projectId,
+  });
 
-  const [recordData, setRecordData] = useState<any>(null);
+  const [wasteTypeName, setWasteTypeName] = useState("");
+  const [isActive, setIsActive] = useState(true);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -61,44 +67,32 @@ export default function WasteTypeForm() {
     (error: unknown): string => {
       const err = error as { response?: { data?: unknown }; message?: string };
       const data = err.response?.data;
-
       if (typeof data === "string") return data;
       if (data && typeof data === "object") {
         return Object.entries(data as Record<string, unknown>)
-          .map(([key, value]) =>
-            Array.isArray(value)
-              ? `${key}: ${value.join(", ")}`
-              : `${key}: ${String(value)}`,
-          )
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`)
           .join("\n");
       }
-
       if (err.message) return err.message;
       return t("common.unexpected_error");
     },
     [t],
   );
 
-  const [wasteTypeName, setWasteTypeName] = useState("");
-  const [isActive, setIsActive] = useState(true);
-  const [loading, setLoading] = useState(false);
-
-  // Fetch waste type record in edit mode
+  /* ── edit mode prefill ── */
   useEffect(() => {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.wasteTypes.get(id)
+    wasteTypeApi.get(id)
       .then((res: any) => {
         if (cancelled) return;
-        const data = res as Record<string, unknown>;
-        setRecordData(data);
         setLoadingRecord(false);
         setWasteTypeName(
-          toStringOrEmpty(data.waste_type_name ?? data.name ?? data.property_name),
+          toStringOrEmpty(res.waste_type_name ?? res.name ?? res.property_name),
         );
-        setIsActive(Boolean(data.is_active));
-        applyCompanyProjectFromRecord(data);
+        setIsActive(Boolean(res.is_active));
+        applyCompanyProjectFromRecord(res as Record<string, unknown>);
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -106,7 +100,7 @@ export default function WasteTypeForm() {
         Swal.fire(t("common.error"), extractErr(err), "error");
       });
     return () => { cancelled = true; };
-  }, [id, isEdit, applyCompanyProjectFromRecord]);
+  }, [id, isEdit, applyCompanyProjectFromRecord, extractErr, t]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -117,25 +111,17 @@ export default function WasteTypeForm() {
     if (
       getMissingRequiredFields(
         ["waste_type_name"],
-        (fieldKey) =>
-          ({ waste_type_name: wasteTypeName.trim() })[fieldKey as "waste_type_name"],
+        (k) => ({ waste_type_name: wasteTypeName.trim() })[k as "waste_type_name"],
       ).length > 0
     ) {
-      missingFields.push(
-        t("common.item_name", { item: t("common.waste_type") }),
-      );
+      missingFields.push(t("common.item_name", { item: t("common.waste_type") }));
     }
 
     if (missingFields.length > 0) {
-      Swal.fire(
-        t("common.warning"),
-        t("admin.bin.missing_fields", { fields: missingFields.join(", ") }),
-        "warning",
-      );
+      Swal.fire(t("common.warning"), t("admin.bin.missing_fields", { fields: missingFields.join(", ") }), "warning");
       return;
     }
 
-    setLoading(true);
     setIsSubmitting(true);
     const rawPayload = {
       company_id: companyUniqueId,
@@ -147,18 +133,16 @@ export default function WasteTypeForm() {
 
     try {
       if (isEdit && id) {
-        await adminApi.wasteTypes.update(id, payload);
+        await wasteTypeApi.update(id, payload);
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await adminApi.wasteTypes.create(payload);
+        await wasteTypeApi.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
-
       navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error) {
       Swal.fire(t("common.save_failed"), extractErr(error), "error");
     } finally {
-      setLoading(false);
       setIsSubmitting(false);
     }
   };
@@ -171,11 +155,8 @@ export default function WasteTypeForm() {
           : t("common.add_item", { item: t("common.waste_type") })
       }
     >
-      <form
-        onSubmit={handleSubmit}
-        className="grid grid-cols-1 md:grid-cols-2 gap-6"
-        noValidate
-      >
+      <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6" noValidate>
+        {/* Company */}
         <div>
           <Label>{t("admin.nav.company")} *</Label>
           <Select
@@ -187,25 +168,31 @@ export default function WasteTypeForm() {
               companies.length === 0
             }
           >
-            <SelectTrigger className="input-validate w-full">
+            <SelectTrigger>
               <SelectValue
                 placeholder={
                   loggedInCompanyUniqueId
                     ? "Company from logged-in profile"
-                    : "Select Company"
+                    : isSuperAdmin
+                    ? "Select Company"
+                    : "Only super admin can select company"
                 }
               />
             </SelectTrigger>
             <SelectContent>
-              {companies.map((company) => (
-                <SelectItem key={company.value} value={company.value}>
-                  {company.label}
-                </SelectItem>
+              {companies.map((c) => (
+                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {!loggedInCompanyUniqueId && !isSuperAdmin && (
+            <p className="mt-1 text-xs text-red-500">
+              Company is not mapped to this login. Only super admin can view all companies.
+            </p>
+          )}
         </div>
 
+        {/* Project */}
         <div>
           <Label>{t("admin.nav.project")} *</Label>
           <Select
@@ -213,45 +200,39 @@ export default function WasteTypeForm() {
             onValueChange={setProjectId}
             disabled={!companyUniqueId || projects.length === 0}
           >
-            <SelectTrigger className="input-validate w-full">
+            <SelectTrigger>
               <SelectValue placeholder="Select Project" />
             </SelectTrigger>
             <SelectContent>
-              {projects.map((project) => (
-                <SelectItem key={project.value} value={project.value}>
-                  {project.label}
-                </SelectItem>
+              {projects.map((p) => (
+                <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {companyUniqueId && projects.length === 0 && (
+            <p className="mt-1 text-xs text-red-500">No projects found for this company.</p>
+          )}
         </div>
 
+        {/* Waste Type Name */}
         {showField("waste_type_name") && (
           <div>
-            <Label>
-              {t("common.item_name", { item: t("common.waste_type") })} *
-            </Label>
+            <Label>{t("common.item_name", { item: t("common.waste_type") })} *</Label>
             <Input
               value={wasteTypeName}
               onChange={(e) => setWasteTypeName(e.target.value)}
-              placeholder={t("common.enter_item_name", {
-                item: t("common.waste_type"),
-              })}
+              placeholder={t("common.enter_item_name", { item: t("common.waste_type") })}
               required
             />
           </div>
         )}
 
+        {/* Status */}
         {showField("is_active") && (
           <div>
-            <Label>{t("common.status")} *</Label>
-            <Select
-              value={isActive ? "true" : "false"}
-              onValueChange={(value) => setIsActive(value === "true")}
-            >
-              <SelectTrigger className="input-validate w-full">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
+            <Label>{t("common.status")}</Label>
+            <Select value={isActive ? "true" : "false"} onValueChange={(v) => setIsActive(v === "true")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="true">{t("common.active")}</SelectItem>
                 <SelectItem value="false">{t("common.inactive")}</SelectItem>
@@ -261,14 +242,8 @@ export default function WasteTypeForm() {
         )}
 
         <div className="md:col-span-2 flex justify-end gap-3">
-          <Button type="submit" disabled={loading || isSubmitting}>
-            {loading || isSubmitting
-              ? isEdit
-                ? t("common.updating")
-                : t("common.saving")
-              : isEdit
-                ? t("common.update")
-                : t("common.save")}
+          <Button type="submit" disabled={isSubmitting || loadingRecord}>
+            {isEdit ? t("common.update") : t("common.save")}
           </Button>
           <Button
             type="button"

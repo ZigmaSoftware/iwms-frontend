@@ -22,7 +22,9 @@ type Option = { value: string; label: string };
 type StaffRecord = {
   unique_id?: string;
   company_id?: string;
+  company_unique_id?: string;
   project_id?: string;
+  project_unique_id?: string;
   staff_name?: string;
   employee_name?: string;
   username?: string;
@@ -165,12 +167,12 @@ export default function AlternativeStaffTemplateForm() {
 
   const isDriverRole = (staff: StaffRecord): boolean => {
     const role = getStaffRole(staff);
-    return role === "company driver" || role === "contractor driver";
+    return role === "driver" || role.includes(" driver");
   };
 
   const isOperatorRole = (staff: StaffRecord): boolean => {
     const role = getStaffRole(staff);
-    return role === "company operator" || role === "contractor operator";
+    return role === "operator" || role.includes(" operator");
   };
 
   const isStaffRow = (staff: StaffRecord): boolean => {
@@ -192,10 +194,10 @@ export default function AlternativeStaffTemplateForm() {
   const toText = (value: unknown): string => String(value ?? "").trim();
 
   const getCompanyId = (staff: StaffRecord): string =>
-    toText(staff.company_id) || toText(staff.company_name);
+    toText(staff.company_unique_id) || toText(staff.company_id);
 
   const getProjectId = (staff: StaffRecord): string =>
-    toText(staff.project_id) || toText(staff.project_name);
+    toText(staff.project_unique_id) || toText(staff.project_id);
 
   const getCompanyProjectLabel = (staff: StaffRecord): string => {
     const company = String(staff.company_name ?? "").trim();
@@ -293,7 +295,13 @@ export default function AlternativeStaffTemplateForm() {
         // Store all raw template records for scoped filtering later
         const templateRows: StaffTemplateRaw[] = Array.isArray(templatesRes)
           ? templatesRes
-          : (templatesRes?.data ?? []);
+          : Array.isArray(templatesRes?.results)
+            ? templatesRes.results
+            : Array.isArray(templatesRes?.data)
+              ? templatesRes.data
+              : Array.isArray(templatesRes?.data?.results)
+                ? templatesRes.data.results
+                : [];
         setAllStaffTemplates(templateRows);
 
         // Staff creation records
