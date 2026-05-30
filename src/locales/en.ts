@@ -1496,6 +1496,7 @@ const enResource = {
           zone: "Zone",
           vehicle: "Vehicle",
           supervisor: "Supervisor",
+          display_code: "Display Code"
         },
         "customer_creation": {
           "personal_info": "Personal Information",
