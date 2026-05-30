@@ -20,7 +20,7 @@ import { useTranslation } from "react-i18next";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { adminApi } from "@/helpers/admin/registry";
+import { continentApi, countryApi, stateApi, districtApi, cityApi, zoneApi, wardApi } from "@/helpers/admin";
 
 const WARD_FORM_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],
@@ -136,20 +136,6 @@ type WardDistrictMeta = DistrictMeta & {
   continentName?: string | null;
 };
 
-const firstNonEmpty = (...values: Array<string | null | undefined>) =>
-  values.find((value) => Boolean(value)) ?? null;
-
-const resolveOptionId = <T extends { id: string; name: string }>(
-  items: T[],
-  value: string | null | undefined,
-  ...names: Array<string | null | undefined>
-) =>
-  resolveMetaId(
-    items,
-    value ?? null,
-    names.find((name) => Boolean(name)) ?? value ?? null
-  );
-
 /* ------------------------------
   ROUTES
 ------------------------------ */
@@ -232,7 +218,7 @@ export default function WardForm() {
   useEffect(() => {
     if (!isEdit || !id) return;
     let cancelled = false;
-    adminApi.wards.get(id)
+    wardApi.get(id)
       .then((res: any) => {
         if (cancelled) return;
         setWardRecordData(res);
@@ -244,21 +230,90 @@ export default function WardForm() {
     return () => { cancelled = true; };
   }, [id, isEdit]);
 
-  /* Selected city fetch (for geographic chain resolution in edit mode) */
-  const [selectedCityData, setSelectedCityData] = useState<any>(null);
-  const selectedCityId = isEdit ? (cityId || pendingCity) : null;
-  useEffect(() => {
-    if (!selectedCityId) { setSelectedCityData(null); return; }
-    let cancelled = false;
-    adminApi.cities.get(selectedCityId)
-      .then((res: any) => { if (cancelled) return; setSelectedCityData(res); })
-      .catch(() => { if (!cancelled) setSelectedCityData(null); });
-    return () => { cancelled = true; };
-  }, [selectedCityId]);
-
   /* ==========================================================
-      LOAD MASTER DATA
+      LOAD MASTER DATA (all in one Promise.all to avoid race conditions)
   ========================================================== */
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      continentApi.list(),
+      countryApi.list(),
+      stateApi.list(),
+      districtApi.list(),
+      cityApi.list(),
+      zoneApi.list(),
+    ]).then(([continentRes, countryRes, stateRes, districtRes, cityRes, zoneRes]) => {
+      if (cancelled) return;
+
+      const contData = (continentRes as any[]) ?? [];
+      setContinents(
+        contData.filter((x: any) => x.is_active).map((x: any) => ({ value: String(x.unique_id), label: x.name }))
+      );
+
+      const ctrData = (countryRes as any[]) ?? [];
+      setAllCountries(ctrData.map((c: any) => ({
+        id: String(c.unique_id),
+        name: c.name,
+        continentId: normalizeNullable(c.continent_id ?? c.continent_unique_id ?? c.continent),
+        isActive: Boolean(c.is_active),
+      })));
+
+      const steData = (stateRes as any[]) ?? [];
+      setAllStates(steData.map((s: any) => ({
+        id: String(s.unique_id),
+        name: s.name,
+        countryId: normalizeNullable(s.country_id ?? s.country_unique_id ?? s.country),
+        continentId: normalizeNullable(s.continent_id ?? s.continent_unique_id ?? s.continent),
+        countryName: s.country_name ?? null,
+        isActive: Boolean(s.is_active),
+      })));
+
+      const disData = (districtRes as any[]) ?? [];
+      setAllDistricts(disData.map((d: any) => ({
+        id: String(d.unique_id),
+        name: d.name,
+        stateId: normalizeNullable(d.state_id ?? d.state_unique_id ?? d.state),
+        countryId: normalizeNullable(d.country_id ?? d.country_unique_id ?? d.country),
+        continentId: normalizeNullable(d.continent_id ?? d.continent_unique_id ?? d.continent),
+        stateName: d.state_name ?? null,
+        countryName: d.country_name ?? null,
+        continentName: d.continent_name ?? null,
+        isActive: Boolean(d.is_active),
+      })));
+
+      const cityData = (cityRes as any[]) ?? [];
+      setAllCities(cityData.map((c: any) => ({
+        id: String(c.unique_id),
+        name: c.name ?? c.city_name,
+        continentId: normalizeNullable(c.continent_id ?? c.continent_unique_id ?? c.continent),
+        countryId: normalizeNullable(c.country_id ?? c.country_unique_id ?? c.country),
+        stateId: normalizeNullable(c.state_id ?? c.state_unique_id ?? c.state),
+        districtId: normalizeNullable(c.district_id ?? c.district_unique_id ?? c.district),
+        continentName: c.continent_name ?? null,
+        countryName: c.country_name ?? null,
+        stateName: c.state_name ?? null,
+        districtName: c.district_name ?? null,
+        isActive: Boolean(c.is_active),
+      })));
+
+      const zoneData = (zoneRes as any[]) ?? [];
+      setAllZones(zoneData.map((z: any) => ({
+        id: String(z.unique_id),
+        name: z.zone_name,
+        continentId: normalizeNullable(z.continent_id ?? z.continent_unique_id ?? z.continent),
+        countryId: normalizeNullable(z.country_id ?? z.country_unique_id ?? z.country),
+        stateId: normalizeNullable(z.state_id ?? z.state_unique_id ?? z.state),
+        districtId: normalizeNullable(z.district_id ?? z.district_unique_id ?? z.district),
+        cityId: normalizeNullable(z.city_id ?? z.city_unique_id ?? z.city),
+        cityName: z.city_name ?? null,
+        districtName: z.district_name ?? null,
+        stateName: z.state_name ?? null,
+        isActive: Boolean(z.is_active),
+      })));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (isEdit) return;
 
@@ -304,124 +359,6 @@ export default function WardForm() {
     setProjectId,
   ]);
 
-  useEffect(() => {
-    let cancelled = false;
-    adminApi.continents.list()
-      .then((res: any) => {
-        if (cancelled) return;
-        const list = Array.isArray(res) ? res : (res?.results ?? []);
-        setContinents(list.filter((x: any) => x.is_active).map((x: any) => ({ value: String(x.unique_id), label: x.name })));
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    adminApi.countries.list()
-      .then((res: any) => {
-        if (cancelled) return;
-        const list = Array.isArray(res) ? res : (res?.results ?? []);
-        setAllCountries(list.map((c: any) => ({
-          id: String(c.unique_id),
-          name: c.name,
-          continentId: normalizeNullable(c.continent_id ?? c.continent_unique_id ?? c.continent),
-          isActive: Boolean(c.is_active),
-        })));
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    adminApi.states.list()
-      .then((res: any) => {
-        if (cancelled) return;
-        const list = Array.isArray(res) ? res : (res?.results ?? []);
-        setAllStates(list.map((s: any) => ({
-          id: String(s.unique_id),
-          name: s.name,
-          countryId: normalizeNullable(s.country_id ?? s.country_unique_id ?? s.country),
-          continentId: normalizeNullable(s.continent_id ?? s.continent_unique_id ?? s.continent),
-          countryName: s.country_name ?? null,
-          isActive: Boolean(s.is_active),
-        })));
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    adminApi.districts.list()
-      .then((res: any) => {
-        if (cancelled) return;
-        const list = Array.isArray(res) ? res : (res?.results ?? []);
-        setAllDistricts(list.map((d: any) => ({
-          id: String(d.unique_id),
-          name: d.name,
-          stateId: normalizeNullable(d.state_id ?? d.state_unique_id ?? d.state),
-          countryId: normalizeNullable(d.country_id ?? d.country_unique_id ?? d.country),
-          continentId: normalizeNullable(d.continent_id ?? d.continent_unique_id ?? d.continent),
-          stateName: d.state_name ?? null,
-          countryName: d.country_name ?? null,
-          continentName: d.continent_name ?? null,
-          isActive: Boolean(d.is_active),
-        })));
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    adminApi.cities.list()
-      .then((res: any) => {
-        if (cancelled) return;
-        const list = Array.isArray(res) ? res : (res?.results ?? []);
-        setAllCities(list.map((c: any) => ({
-          id: String(c.unique_id),
-          name: c.name ?? c.city_name,
-          continentId: normalizeNullable(c.continent_id ?? c.continent_unique_id ?? c.continent),
-          countryId: normalizeNullable(c.country_id ?? c.country_unique_id ?? c.country),
-          stateId: normalizeNullable(c.state_id ?? c.state_unique_id ?? c.state),
-          districtId: normalizeNullable(c.district_id ?? c.district_unique_id ?? c.district),
-          continentName: c.continent_name ?? null,
-          countryName: c.country_name ?? null,
-          stateName: c.state_name ?? null,
-          districtName: c.district_name ?? null,
-          isActive: Boolean(c.is_active),
-        })));
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    adminApi.zones.list()
-      .then((res: any) => {
-        if (cancelled) return;
-        const list = Array.isArray(res) ? res : (res?.results ?? []);
-        setAllZones(list.map((z: any) => ({
-          id: String(z.unique_id),
-          name: z.zone_name,
-          continentId: normalizeNullable(z.continent_id ?? z.continent_unique_id ?? z.continent),
-          countryId: normalizeNullable(z.country_id ?? z.country_unique_id ?? z.country),
-          stateId: normalizeNullable(z.state_id ?? z.state_unique_id ?? z.state),
-          districtId: normalizeNullable(z.district_id ?? z.district_unique_id ?? z.district),
-          cityId: normalizeNullable(z.city_id ?? z.city_unique_id ?? z.city),
-          cityName: z.city_name ?? null,
-          districtName: z.district_name ?? null,
-          stateName: z.state_name ?? null,
-          isActive: Boolean(z.is_active),
-        })));
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
   /* ==========================================================
         FILTER CHAINS
   ========================================================== */
@@ -432,16 +369,18 @@ export default function WardForm() {
     }
 
     const filt = allCountries
-      .filter((c) => c.isActive && c.continentId === continentId)
+      .filter((c) => c.isActive && (c.continentId === continentId || (pendingContinent && c.continentId === pendingContinent)))
       .map((c) => ({ value: c.id, label: c.name }));
 
-    if (pendingCountry && !filt.some((o) => o.value === pendingCountry)) {
-      const found = allCountries.find((c) => c.id === pendingCountry);
+    // Always keep the currently-selected country visible — prevents blank after pending is cleared
+    const ensureCountry = pendingCountry || countryId;
+    if (ensureCountry && !filt.some((o) => o.value === ensureCountry)) {
+      const found = allCountries.find((c) => c.id === ensureCountry);
       if (found) filt.push({ value: found.id, label: found.name });
     }
 
     setFilteredCountries(filt);
-  }, [continentId, allCountries, pendingCountry]);
+  }, [continentId, allCountries, countryId, pendingCountry]);
 
   useEffect(() => {
     if (!countryId) {
@@ -450,16 +389,18 @@ export default function WardForm() {
     }
 
     const filt = allStates
-      .filter((s) => s.isActive && s.countryId === countryId)
+      .filter((s) => s.isActive && (s.countryId === countryId || (pendingCountry && s.countryId === pendingCountry)))
       .map((s) => ({ value: s.id, label: s.name }));
 
-    if (pendingState && !filt.some((o) => o.value === pendingState)) {
-      const found = allStates.find((s) => s.id === pendingState);
+    // Always keep the currently-selected state visible
+    const ensureState = pendingState || stateId;
+    if (ensureState && !filt.some((o) => o.value === ensureState)) {
+      const found = allStates.find((s) => s.id === ensureState);
       if (found) filt.push({ value: found.id, label: found.name });
     }
 
     setFilteredStates(filt);
-  }, [countryId, allStates, pendingState]);
+  }, [countryId, allStates, stateId, pendingState]);
 
   useEffect(() => {
     if (!stateId) {
@@ -468,52 +409,64 @@ export default function WardForm() {
     }
 
     const filt = allDistricts
-      .filter((d) => d.isActive && d.stateId === stateId)
+      .filter((d) => d.isActive && (d.stateId === stateId || (pendingState && d.stateId === pendingState)))
       .map((d) => ({ value: d.id, label: d.name }));
 
-    if (pendingDistrict && !filt.some((o) => o.value === pendingDistrict)) {
-      const found = allDistricts.find((d) => d.id === pendingDistrict);
+    // Always keep the currently-selected district visible
+    const ensureDistrict = pendingDistrict || districtId;
+    if (ensureDistrict && !filt.some((o) => o.value === ensureDistrict)) {
+      const found = allDistricts.find((d) => d.id === ensureDistrict);
       if (found) filt.push({ value: found.id, label: found.name });
     }
 
     setFilteredDistricts(filt);
-  }, [stateId, allDistricts, pendingDistrict]);
+  }, [stateId, allDistricts, districtId, pendingDistrict]);
 
   useEffect(() => {
-    if (!districtId) {
+    // Always keep the currently-selected city visible even when districtId is empty/mismatched
+    const ensureCity = pendingCity || cityId;
+
+    if (!districtId && !ensureCity) {
       setFilteredCities([]);
       return;
     }
 
-    const filt = allCities
-      .filter((c) => c.isActive && c.districtId === districtId)
-      .map((c) => ({ value: c.id, label: c.name }));
+    const filt = districtId
+      ? allCities
+          .filter((c) => c.isActive && (c.districtId === districtId || (pendingDistrict && c.districtId === pendingDistrict)))
+          .map((c) => ({ value: c.id, label: c.name }))
+      : [];
 
-    if (pendingCity && !filt.some((o) => o.value === pendingCity)) {
-      const found = allCities.find((c) => c.id === pendingCity);
+    if (ensureCity && !filt.some((o) => o.value === ensureCity)) {
+      const found = allCities.find((c) => c.id === ensureCity);
       if (found) filt.push({ value: found.id, label: found.name });
     }
 
     setFilteredCities(filt);
-  }, [districtId, allCities, pendingCity]);
+  }, [districtId, allCities, cityId, pendingCity]);
 
   useEffect(() => {
-    if (!cityId) {
+    // Always keep the currently-selected zone visible even when cityId is empty/mismatched
+    const ensureZone = pendingZone || zoneId;
+
+    if (!cityId && !ensureZone) {
       setFilteredZones([]);
       return;
     }
 
-    const filt = allZones
-      .filter((z) => z.isActive && z.cityId === cityId)
-      .map((z) => ({ value: z.id, label: z.name }));
+    const filt = cityId
+      ? allZones
+          .filter((z) => z.isActive && (z.cityId === cityId || (pendingCity && z.cityId === pendingCity)))
+          .map((z) => ({ value: z.id, label: z.name }))
+      : [];
 
-    if (pendingZone && !filt.some((o) => o.value === pendingZone)) {
-      const found = allZones.find((z) => z.id === pendingZone);
+    if (ensureZone && !filt.some((o) => o.value === ensureZone)) {
+      const found = allZones.find((z) => z.id === ensureZone);
       if (found) filt.push({ value: found.id, label: found.name });
     }
 
     setFilteredZones(filt);
-  }, [cityId, allZones, pendingZone]);
+  }, [cityId, allZones, zoneId, pendingZone]);
 
   /* ==========================================================
         EDIT MODE
@@ -527,10 +480,7 @@ export default function WardForm() {
     setDescription(data.description ?? data.remarks ?? data.notes ?? "");
 
     let cont = resolveMetaId(
-      continents.map((continent) => ({
-        id: continent.value,
-        name: continent.label,
-      })),
+      continents.map((c) => ({ id: c.value, name: c.label })),
       normalizeNullable(data.continent_id ?? data.continent),
       data.continent_name
     );
@@ -559,149 +509,34 @@ export default function WardForm() {
       normalizeNullable(data.zone_id ?? data.zone),
       data.zone_name
     );
-    const selectedZone = zne ? allZones.find((zone) => zone.id === zne) : undefined;
 
-    cty = resolveOptionId(
-      allCities,
-      cty || selectedZone?.cityId || null,
-      data.city_name,
-      selectedZone?.cityName
-    );
-    const resolvedCity = cty
-      ? allCities.find((city) => city.id === cty) ??
-        allCities.find((city) => normalizeLabel(city.name) === normalizeLabel(data.city_name))
-      : selectedZone?.cityName
-        ? allCities.find((city) => normalizeLabel(city.name) === normalizeLabel(selectedZone.cityName))
-        : undefined;
+    // Resolve missing parent IDs by walking up from child records
+    const selectedCity = cty ? allCities.find((c) => c.id === cty) : undefined;
 
-    cty = cty || resolvedCity?.id || null;
-    dis = resolveOptionId(
-      allDistricts,
-      firstNonEmpty(resolvedCity?.districtId, dis, selectedZone?.districtId),
-      resolvedCity?.districtName,
-      data.district_name,
-      selectedZone?.districtName
-    );
+    if (!dis && selectedCity?.districtId) dis = selectedCity.districtId;
 
-    const resolvedDistrict = dis
-      ? allDistricts.find((district) => district.id === dis) ??
-        allDistricts.find(
-          (district) =>
-            normalizeLabel(district.name) ===
-            normalizeLabel(data.district_name ?? resolvedCity?.districtName)
-        )
-      : selectedZone?.districtName || resolvedCity?.districtName
-        ? allDistricts.find(
-            (district) =>
-              normalizeLabel(district.name) ===
-              normalizeLabel(selectedZone?.districtName ?? resolvedCity?.districtName)
-          )
-        : undefined;
+    const resolvedDistrict = dis ? allDistricts.find((d) => d.id === dis) : undefined;
 
-    dis = dis || resolvedDistrict?.id || null;
-    ste = resolveOptionId(
-      allStates,
-      firstNonEmpty(
-        resolvedCity?.stateId,
-        resolvedDistrict?.stateId,
-        ste,
-        selectedZone?.stateId
-      ),
-      resolvedCity?.stateName,
-      resolvedDistrict?.stateName,
-      data.state_name,
-      selectedZone?.stateName
-    );
+    if (!ste) ste = selectedCity?.stateId || resolvedDistrict?.stateId || null;
+    if (!ste && dis) ste = allDistricts.find((d) => d.id === dis)?.stateId ?? null;
 
-    const resolvedState = ste
-      ? allStates.find((state) => state.id === ste) ??
-        allStates.find((state) => normalizeLabel(state.name) === normalizeLabel(data.state_name))
-      : selectedZone?.stateName || resolvedCity?.stateName || resolvedDistrict?.stateName
-        ? allStates.find(
-            (state) =>
-              normalizeLabel(state.name) ===
-              normalizeLabel(
-                selectedZone?.stateName ??
-                  resolvedCity?.stateName ??
-                  resolvedDistrict?.stateName
-              )
-          )
-        : undefined;
+    const resolvedState = ste ? allStates.find((s) => s.id === ste) : undefined;
 
-    ste = ste || resolvedState?.id || null;
-    ctr = resolveOptionId(
-      allCountries,
-      firstNonEmpty(
-        resolvedCity?.countryId,
-        resolvedDistrict?.countryId,
-        resolvedState?.countryId,
-        ctr,
-        selectedZone?.countryId
-      ),
-      resolvedCity?.countryName,
-      resolvedDistrict?.countryName,
-      resolvedState?.countryName,
-      data.country_name
-    );
+    if (!ctr) ctr = selectedCity?.countryId || resolvedDistrict?.countryId || resolvedState?.countryId || null;
+    if (!ctr && ste) ctr = allStates.find((s) => s.id === ste)?.countryId ?? null;
 
-    const resolvedCountry = ctr
-      ? allCountries.find((country) => country.id === ctr) ??
-        allCountries.find((country) => normalizeLabel(country.name) === normalizeLabel(data.country_name))
-      : resolvedCity?.countryName || resolvedDistrict?.countryName || resolvedState?.countryName
-        ? allCountries.find(
-            (country) =>
-              normalizeLabel(country.name) ===
-              normalizeLabel(
-                resolvedCity?.countryName ??
-                  resolvedDistrict?.countryName ??
-                  resolvedState?.countryName
-              )
-          )
-        : undefined;
+    const resolvedCountry = ctr ? allCountries.find((c) => c.id === ctr) : undefined;
 
-    ctr = ctr || resolvedCountry?.id || null;
-    cont = resolveOptionId(
-      continents.map((continent) => ({
-        id: continent.value,
-        name: continent.label,
-      })),
-      firstNonEmpty(
-        resolvedCity?.continentId,
-        resolvedDistrict?.continentId,
-        resolvedState?.continentId,
-        resolvedCountry?.continentId,
-        cont,
-        selectedZone?.continentId
-      ),
-      resolvedCity?.continentName,
-      resolvedDistrict?.continentName,
-      data.continent_name
-    );
+    if (!cont) cont = resolvedCountry?.continentId || null;
+    if (!cont && ctr) cont = allCountries.find((c) => c.id === ctr)?.continentId ?? null;
 
-    if (cont) {
-      setContinentId(cont);
-      setPendingContinent(cont);
-    }
-    if (ctr) {
-      setCountryId(ctr);
-      setPendingCountry(ctr);
-    }
-    if (ste) {
-      setStateId(ste);
-      setPendingState(ste);
-    }
-    if (dis) {
-      setDistrictId(dis);
-      setPendingDistrict(dis);
-    }
-    if (cty) {
-      setCityId(cty);
-      setPendingCity(cty);
-    }
-    if (zne) {
-      setZoneId(zne);
-      setPendingZone(zne);
-    }
+    if (cont) { setContinentId(cont); setPendingContinent(cont); }
+    if (ctr) { setCountryId(ctr); setPendingCountry(ctr); }
+    if (ste) { setStateId(ste); setPendingState(ste); }
+    if (dis) { setDistrictId(dis); setPendingDistrict(dis); }
+    if (cty) { setCityId(cty); setPendingCity(cty); }
+    if (zne) { setZoneId(zne); setPendingZone(zne); }
+
     applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
   }, [
     wardRecordData,
@@ -712,59 +547,6 @@ export default function WardForm() {
     allDistricts,
     allCities,
     allZones,
-  ]);
-
-  useEffect(() => {
-    if (!isEdit || !selectedCityData) return;
-    const city = selectedCityData as any;
-
-    const cont = resolveOptionId(
-      continents.map((continent) => ({
-        id: continent.value,
-        name: continent.label,
-      })),
-      normalizeNullable(city.continent_id ?? city.continent),
-      city.continent_name
-    );
-    const ctr = resolveOptionId(
-      allCountries,
-      normalizeNullable(city.country_id ?? city.country),
-      city.country_name
-    );
-    const ste = resolveOptionId(
-      allStates,
-      normalizeNullable(city.state_id ?? city.state),
-      city.state_name
-    );
-    const dis = resolveOptionId(
-      allDistricts,
-      normalizeNullable(city.district_id ?? city.district),
-      city.district_name
-    );
-
-    if (cont) {
-      setContinentId(cont);
-      setPendingContinent(cont);
-    }
-    if (ctr) {
-      setCountryId(ctr);
-      setPendingCountry(ctr);
-    }
-    if (ste) {
-      setStateId(ste);
-      setPendingState(ste);
-    }
-    if (dis) {
-      setDistrictId(dis);
-      setPendingDistrict(dis);
-    }
-  }, [
-    isEdit,
-    selectedCityData,
-    continents,
-    allCountries,
-    allStates,
-    allDistricts,
   ]);
 
   /* ==========================================================
@@ -894,10 +676,10 @@ export default function WardForm() {
     setIsSubmitting(true);
     try {
       if (isEdit && id) {
-        await adminApi.wards.update(id, payload);
+        await wardApi.update(id, payload);
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await adminApi.wards.create(payload);
+        await wardApi.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
       navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });

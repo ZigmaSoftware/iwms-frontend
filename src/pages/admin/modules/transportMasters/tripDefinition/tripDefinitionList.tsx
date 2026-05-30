@@ -91,7 +91,7 @@ const buildLookup = (
   keyField: string,
   valueField: string
 ): Record<string, string> =>
-  items.reduce(
+  items.reduce<Record<string, string>>(
     (acc, item) => {
       if (item[keyField] !== undefined && item[keyField] !== null) {
         acc[String(item[keyField])] = String(item[valueField] ?? item[keyField]);

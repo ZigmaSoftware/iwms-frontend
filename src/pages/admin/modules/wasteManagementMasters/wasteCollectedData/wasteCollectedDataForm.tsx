@@ -7,7 +7,7 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
 
-import { adminApi } from "@/helpers/admin/registry";
+import { customerCreationApi, wasteCollectionApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 
@@ -46,7 +46,16 @@ function WasteCollectedForm() {
     getEncryptedRoute();
   const LIST_PATH = `/${encWasteManagementMaster}/${encWasteCollectedData}`;
 
-  const resolveId = (c: Customer) => c.unique_id ?? String(c.id);
+  const normalizeEntityId = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      return String(record.unique_id ?? record.id ?? record.value ?? "").trim();
+    }
+    return String(value).trim();
+  };
+
+  const resolveId = (c: Customer) => normalizeEntityId(c);
 
   /* ---------------- TOTAL ---------------- */
   useEffect(() => {
@@ -56,7 +65,7 @@ function WasteCollectedForm() {
   /* ---------------- LOAD CUSTOMERS ---------------- */
   useEffect(() => {
     let cancelled = false;
-    adminApi.customerCreations.list().then((res) => {
+    customerCreationApi.list().then((res) => {
       if (cancelled) return;
       setCustomers(res || []);
       if (!isEdit && res?.length) {
@@ -71,10 +80,10 @@ function WasteCollectedForm() {
     if (!isEdit) return;
     let cancelled = false;
 
-    adminApi.wasteCollections.get(id as string).then((res: any) => {
+    wasteCollectionApi.get(id as string).then((res: any) => {
       if (cancelled) return;
       setCustomerId(
-        res.customer ?? res.customer_id ?? res.customer_unique_id
+        normalizeEntityId(res.customer ?? res.customer_id ?? res.customer_unique_id)
       );
       setWetWaste(res.wet_waste || 0);
       setDryWaste(res.dry_waste || 0);
@@ -111,9 +120,11 @@ function WasteCollectedForm() {
         total_quantity: totalQuantity,
       };
 
-      isEdit
-        ? await adminApi.wasteCollections.update(id as string, payload)
-        : await adminApi.wasteCollections.create(payload);
+      if (isEdit) {
+        await wasteCollectionApi.update(id as string, payload);
+      } else {
+        await wasteCollectionApi.create(payload);
+      }
 
       Swal.fire(
         t("common.success"),
