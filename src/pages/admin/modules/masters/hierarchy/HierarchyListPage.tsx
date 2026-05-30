@@ -13,13 +13,20 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  type HierarchyPayload,
-  type HierarchyRecord,
-  useHierarchiesQuery,
-  useUpdateHierarchyMutation,
-} from "@/helpers/admin/directQueries";
+import { adminApi } from "@/helpers/admin/registry";
 import Swal from "sweetalert2";
+
+type HierarchyRecord = {
+  unique_id?: string | number;
+  level_name?: string;
+  area_type?: string | number | null;
+  area_type_id?: string | number | null;
+  is_active?: boolean;
+  company_id?: string | number | null;
+  company_unique_id?: string | number | null;
+  project_id?: string | number | null;
+  project_unique_id?: string | number | null;
+};
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -59,6 +66,8 @@ export default function HierarchyListPage() {
   const { t } = useTranslation();
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [hierarchies, setHierarchies] = useState<HierarchyRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     level_name: {
@@ -77,8 +86,6 @@ export default function HierarchyListPage() {
     setProjectId,
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
-  const hierarchiesQuery = useHierarchiesQuery();
-  const updateHierarchyMutation = useUpdateHierarchyMutation();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "hierarchies",
@@ -90,7 +97,7 @@ export default function HierarchyListPage() {
   const ENC_NEW_PATH = `/${encMasters}/${encHierarchies}/new`;
   const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encHierarchies}/${id}/edit`;
 
-  const records = (hierarchiesQuery.data ?? []).filter((row) => {
+  const records = hierarchies.filter((row) => {
     const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
     const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
 
@@ -100,17 +107,25 @@ export default function HierarchyListPage() {
     return companyMatches && projectMatches;
   });
 
-  useEffect(() => {
-    if (!hierarchiesQuery.isError) {
-      return;
+  const loadHierarchies = async () => {
+    setIsLoading(true);
+    try {
+      const response = await adminApi.hierarchies.list();
+      setHierarchies(Array.isArray(response) ? response : []);
+    } catch (error) {
+      Swal.fire(
+        t("common.error"),
+        extractErrorMessage(error, t("common.fetch_failed")),
+        "error"
+      );
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(hierarchiesQuery.error, t("common.fetch_failed")),
-      "error"
-    );
-  }, [hierarchiesQuery.error, hierarchiesQuery.isError, t]);
+  useEffect(() => {
+    void loadHierarchies();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);
@@ -147,26 +162,17 @@ export default function HierarchyListPage() {
       setPendingStatusId(hierarchyId);
 
       try {
-        const rawPayload = {
-          level_name: row.level_name ?? "",
-          area_type: String(row.area_type ?? row.area_type_id ?? ""),
-          is_active: value,
-          company_id: String(
-            row.company_id ?? row.company_unique_id ?? companyUniqueId ?? ""
-          ),
-          project_id: String(
-            row.project_id ?? row.project_unique_id ?? projectId ?? ""
-          ),
-        };
-        const payload = filterPayload(rawPayload, [
-          "company_id",
-          "project_id",
-        ]) as HierarchyPayload;
-
-        await updateHierarchyMutation.mutateAsync({
-          id: row.unique_id,
-          payload,
-        });
+        await adminApi.hierarchies.update(
+          row.unique_id as string | number,
+          filterPayload({ is_active: value })
+        );
+        setHierarchies((current) =>
+          current.map((item) =>
+            item.unique_id === row.unique_id
+              ? { ...item, is_active: value }
+              : item
+          )
+        );
       } catch (error) {
         Swal.fire(
           t("common.error"),
@@ -182,7 +188,6 @@ export default function HierarchyListPage() {
       <Switch
         checked={Boolean(row.is_active)}
         disabled={
-          updateHierarchyMutation.isPending &&
           pendingStatusId === String(row.unique_id)
         }
         onCheckedChange={updateStatus}
@@ -273,7 +278,7 @@ export default function HierarchyListPage() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={hierarchiesQuery.isPending && records.length === 0}
+        loading={isLoading && records.length === 0}
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}

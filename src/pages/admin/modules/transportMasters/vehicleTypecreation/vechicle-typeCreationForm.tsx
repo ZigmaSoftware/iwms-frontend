@@ -19,7 +19,8 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
-import type { VehicleTypePayload } from "@/helpers/admin/directQueries";
+
+type VehicleTypePayload = Record<string, unknown>;
 
 const { encTransportMaster, encVehicleType } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleType}`;
@@ -66,6 +67,11 @@ export default function VehicleTypeCreationForm() {
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
+    projectUniqueId: string;
+    projectId: string;
+    projectName: string;
+  } | null>(null);
 
   // ── Error extractor (mirrors WasteTypeForm pattern) ───────────────────────
   const extractErr = useCallback(
@@ -101,6 +107,12 @@ export default function VehicleTypeCreationForm() {
         setDescription(toStr(data.description));
         setIsActive(Boolean(data.is_active));
         applyCompanyProjectFromRecord(data);
+        // Store project identifiers — re-applied once the project list loads
+        setPendingProjectCandidates({
+          projectUniqueId: toStr((data.project as any)?.unique_id ?? data.project_unique_id ?? ""),
+          projectId: toStr(data.project_id ?? ""),
+          projectName: toStr(data.project_name ?? ""),
+        });
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -111,7 +123,19 @@ export default function VehicleTypeCreationForm() {
         );
       });
     return () => { cancelled = true; };
-  }, [id, isEdit]);
+  }, [id, isEdit, applyCompanyProjectFromRecord]);
+
+  // ── Re-apply project after hook loads project list ────────────────────────
+  useEffect(() => {
+    if (!pendingProjectCandidates || projects.length === 0) return;
+    const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
+    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
+    if (!match) match = projects.find((p) => rawId && p.value === rawId);
+    if (!match && projectName)
+      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
+    if (match) setProjectId(match.value);
+    setPendingProjectCandidates(null);
+  }, [projects, pendingProjectCandidates, setProjectId]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: FormEvent) => {

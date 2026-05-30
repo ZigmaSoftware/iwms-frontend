@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -13,28 +13,23 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
+import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import {
-  useDeleteUserScreenMutation,
-  useUpdateUserScreenMutation,
-  useUserScreensQuery,
-} from "@/helpers/admin/directQueries";
+import { userScreenApi } from "@/helpers/admin";
 
 import type { UserScreen } from "../types/admin.types"; 
 
 export default function UserScreenList() {
   const { t } = useTranslation();
-  const userScreensQuery = useUserScreensQuery();
-  const updateMutation = useUpdateUserScreenMutation();
-  const deleteMutation = useDeleteUserScreenMutation();
-  const screens = (userScreensQuery.data ?? []) as UserScreen[];
+  const [screens, setScreens] = useState<UserScreen[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    userscreen_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    userscreen_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const navigate = useNavigate();
@@ -45,35 +40,28 @@ export default function UserScreenList() {
     `/${encAdmins}/${encUserScreen}/${id}/edit`;
 
   useEffect(() => {
-    if (!userScreensQuery.isError) return;
-    Swal.fire(t("common.error"), t("common.load_failed"), "error");
-  }, [userScreensQuery.isError, t]);
+    let mounted = true;
 
-  const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: t("common.confirm_delete_button"),
-    });
+    const loadScreens = async () => {
+      setIsLoading(true);
+      try {
+        const data = await userScreenApi.list();
+        if (mounted) setScreens(data as UserScreen[]);
+      } catch {
+        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
 
-    if (!confirmDelete.isConfirmed) return;
+    void loadScreens();
 
-    await deleteMutation.mutateAsync(id);
+    return () => {
+      mounted = false;
+    };
+  }, [t]);
 
-    Swal.fire({
-      icon: "success",
-      title: t("common.deleted_success"),
-      timer: 1500,
-      showConfirmButton: false,
-    });
-
-  };
-
-  const onGlobalFilterChange = (e: any) => {
+  const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     const _filters = { ...filters };
     _filters.global.value = value;
@@ -86,18 +74,29 @@ export default function UserScreenList() {
 
   const statusTemplate = (row: UserScreen) => {
     const updateStatus = async (value: boolean) => {
-      await updateMutation.mutateAsync({ id: row.unique_id, payload: {
-        userscreen_name: row.userscreen_name,
-        folder_name: row.folder_name,
-        icon_name: row.icon_name,
-        order_no: row.order_no,
-        mainscreen_id: row.mainscreen_id,
-        is_active: value,
-      }});
+      const id = String(row.unique_id);
+      setPendingStatusId(id);
+
+      try {
+        await userScreenApi.update(row.unique_id, { is_active: value });
+        setScreens((current) =>
+          current.map((item) =>
+            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
+          )
+        );
+      } catch {
+        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+      } finally {
+        setPendingStatusId(null);
+      }
     };
 
     return (
-      <Switch checked={row.is_active} onCheckedChange={updateStatus} />
+      <Switch
+        checked={row.is_active}
+        disabled={pendingStatusId === String(row.unique_id)}
+        onCheckedChange={updateStatus}
+      />
     );
   };
 
@@ -166,7 +165,7 @@ export default function UserScreenList() {
           value={screens}
           paginator
           rows={10}
-          loading={userScreensQuery.isPending}
+          loading={isLoading}
           filters={filters}
           globalFilterFields={[
             "userscreen_name",

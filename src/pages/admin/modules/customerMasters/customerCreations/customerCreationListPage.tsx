@@ -18,12 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  type CustomerCreationPayload,
-  useCustomerCreationsQuery,
-  useUpdateCustomerCreationMutation,
-  useUploadCustomerCreationsMutation,
-} from "@/helpers/admin/directQueries";
+import { customerCreationApi } from "@/helpers/admin";
 
 type Customer = {
   unique_id: string;
@@ -92,6 +87,13 @@ export default function CustomerCreationListPage() {
     "customer-creation",
     CUSTOMER_CREATION_COLUMN_FIELDS,
   );
+
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
+
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -119,44 +121,47 @@ export default function CustomerCreationListPage() {
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
-  // TanStack Query hooks
-  const customersQuery = useCustomerCreationsQuery();
-  const updateMutation = useUpdateCustomerCreationMutation();
-  const uploadMutation = useUploadCustomerCreationsMutation();
+  const ENC_NEW_PATH = `/${encCustomerMaster}/${encCustomerCreation}/new`;
+  const ENC_EDIT_PATH = (id: string) =>
+    `/${encCustomerMaster}/${encCustomerCreation}/${id}/edit`;
 
-  const allCustomers = customersQuery.data ?? [];
+  // ── Load data ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    let mounted = true;
+    setIsLoading(true);
+    customerCreationApi.list()
+      .then((data: unknown) => {
+        if (mounted) setAllCustomers(Array.isArray(data) ? (data as Customer[]) : []);
+      })
+      .catch((error: unknown) => {
+        if (mounted) {
+          Swal.fire({
+            icon: "error",
+            title: t("common.error"),
+            text: String((error as { response?: { data?: unknown } })?.response?.data ?? error),
+          });
+        }
+      })
+      .finally(() => { if (mounted) setIsLoading(false); });
+    return () => { mounted = false; };
+  }, [t, refetchTrigger]);
+
   const customers = useMemo<Customer[]>(() => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
-    return (allCustomers as Customer[])
+    return allCustomers
       .filter((row) => {
         const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
         const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
         const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
         const projectMatches = !projectId || rowProjectId === projectId;
-
         return companyMatches && projectMatches;
       })
       .sort((a, b) =>
         String(a.customer_name ?? "").localeCompare(String(b.customer_name ?? ""))
       );
   }, [allCustomers, companies.length, companyUniqueId, isSuperAdmin, projectId]);
-
-  const ENC_NEW_PATH = `/${encCustomerMaster}/${encCustomerCreation}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encCustomerMaster}/${encCustomerCreation}/${id}/edit`;
-
-  // Handle query errors
-  useEffect(() => {
-    if (!customersQuery.isError) return;
-    Swal.fire({
-      icon: "error",
-      title: t("common.error"),
-      text: String((customersQuery.error as any)?.response?.data ?? customersQuery.error),
-    });
-  }, [customersQuery.error, customersQuery.isError, t]);
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -170,58 +175,23 @@ export default function CustomerCreationListPage() {
     setGlobalFilterValue(value);
   };
 
-  // ✅ DOWNLOAD TEMPLATE
+  // ── Download template ─────────────────────────────────────────────────────
   const downloadTemplate = () => {
     const headers = [
-      "customer_name",
-      "contact_no",
-      "id_proof_type",
-      "id_no",
-      "building_no",
-      "street",
-      "area",
-      "pincode",
-      "ward_name",
-      "zone_name",
-      "city_name",
-      "district_name",
-      "state_name",
-      "country_name",
-      "property_name",
-      "sub_property_name",
-      "apartment_name",
-      "block_no",
-      "flat_no",
-      "panchayat_name",
+      "customer_name", "contact_no", "id_proof_type", "id_no",
+      "building_no", "street", "area", "pincode",
+      "ward_name", "zone_name", "city_name", "district_name",
+      "state_name", "country_name", "property_name", "sub_property_name",
+      "apartment_name", "block_no", "flat_no", "panchayat_name",
     ];
-
     const exampleRow = [
-      "John Doe",
-      "9876543210",
-      "Aadhaar",
-      "1234-5678-9012",
-      "12",
-      "Main Street",
-      "Anna Nagar",
-      "600040",
-      "Ward 10",
-      "North Zone",
-      "Chennai",
-      "Chennai",
-      "Tamil Nadu",
-      "India",
-      "Residential",
-      "Apartment",
-      "Sunrise Apt",
-      "A",
-      "101",
-      "N/A",
+      "John Doe", "9876543210", "Aadhaar", "1234-5678-9012",
+      "12", "Main Street", "Anna Nagar", "600040",
+      "Ward 10", "North Zone", "Chennai", "Chennai",
+      "Tamil Nadu", "India", "Residential", "Apartment",
+      "Sunrise Apt", "A", "101", "N/A",
     ];
-
-    const csvContent = [headers, exampleRow]
-      .map((row) => row.join(","))
-      .join("\n");
-
+    const csvContent = [headers, exampleRow].map((row) => row.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -233,10 +203,10 @@ export default function CustomerCreationListPage() {
     URL.revokeObjectURL(url);
   };
 
-  // ✅ BULK UPLOAD
-  const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  // ── Bulk upload ───────────────────────────────────────────────────────────
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -245,53 +215,54 @@ export default function CustomerCreationListPage() {
     formDataObj.append("company_id", companyUniqueId || "");
     formDataObj.append("project_id", projectId || "");
 
+    setIsUploading(true);
     try {
-      const result = await uploadMutation.mutateAsync(formDataObj);
+      const result = await customerCreationApi.upload(formDataObj) as Record<string, unknown>;
       const success = Number(result?.success ?? 0);
       const errors = Number(result?.errors ?? 0);
-      const hasUploadCounts = "success" in (result ?? {}) || "errors" in (result ?? {});
+      const hasUploadCounts = "success" in result || "errors" in result;
 
       Swal.fire({
-        title: result?.message || "Upload Completed",
+        title: String(result?.message ?? "Upload Completed"),
         html: hasUploadCounts
           ? `<b>Success:</b> ${success} <br/> <b>Errors:</b> ${errors}`
           : undefined,
         icon: "success",
       });
+
+      setRefetchTrigger((prev) => prev + 1);
     } catch (err) {
       console.error(err);
       Swal.fire("Error", "Upload failed", "error");
+    } finally {
+      setIsUploading(false);
+      event.target.value = "";
     }
-
-    // Reset input so same file can be re-uploaded if needed
-    event.target.value = "";
   };
 
   const header = (
     <div className="flex justify-between items-center">
-      <div className="flex items-center gap-3 px-3 py-2 ">
+      <div className="flex items-center gap-3 px-3 py-2">
         <Button
-            label={t("admin.customer_creation.add")}
-            icon="pi pi-plus"
-            className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
-          />          
-          <Button
-            label="Download Template"
-            icon="pi pi-download"
-            className="p-button-secondary"
-            onClick={downloadTemplate}
-          />
-
-          
-          <Button
-            label="Upload CSV"
-            icon="pi pi-upload"
-            className="p-button-info"
-            disabled={!companyUniqueId || !projectId || uploadMutation.isPending}
-            onClick={() => document.getElementById("csvUpload")?.click()}
-          />
+          label={t("admin.customer_creation.add")}
+          icon="pi pi-plus"
+          className="p-button-success"
+          disabled={!companyUniqueId || !projectId}
+          onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+        />
+        <Button
+          label="Download Template"
+          icon="pi pi-download"
+          className="p-button-secondary"
+          onClick={downloadTemplate}
+        />
+        <Button
+          label="Upload CSV"
+          icon="pi pi-upload"
+          className="p-button-info"
+          disabled={!companyUniqueId || !projectId || isUploading}
+          onClick={() => document.getElementById("csvUpload")?.click()}
+        />
       </div>
       <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
         <i className="pi pi-search text-gray-500" />
@@ -326,38 +297,37 @@ export default function CustomerCreationListPage() {
     if (!customer.qr_code) {
       return <span className="text-gray-400 text-xs">No QR</span>;
     }
-
     return (
       <button
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
         onClick={() => openQrPopup(customer.qr_code!)}
       >
-        <img
-          src={customer.qr_code}
-          alt="QR"
-          className="w-12 h-12 object-contain"
-        />
+        <img src={customer.qr_code} alt="QR" className="w-12 h-12 object-contain" />
       </button>
     );
   };
 
   const statusTemplate = (row: Customer) => {
     const updateStatus = async (value: boolean) => {
+      setPendingStatusId(row.unique_id);
+      setIsUpdating(true);
       try {
-        const rawPayload = {
-          ...row,
-          is_active: value,
-        };
-        await updateMutation.mutateAsync({
-          id: row.unique_id,
-          payload: filterPayload(rawPayload, [
-            "company_id",
-            "project_id",
-          ]) as unknown as CustomerCreationPayload,
-        });
+        const rawPayload = { ...row, is_active: value };
+        await customerCreationApi.update(
+          row.unique_id,
+          filterPayload(rawPayload, ["company_id", "project_id"]) as Record<string, unknown>
+        );
+        setAllCustomers((current) =>
+          current.map((item) =>
+            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
+          )
+        );
       } catch (err) {
         console.error("Status update failed:", err);
         Swal.fire("Error", "Failed to update status", "error");
+      } finally {
+        setPendingStatusId(null);
+        setIsUpdating(false);
       }
     };
 
@@ -365,7 +335,7 @@ export default function CustomerCreationListPage() {
       <Switch
         checked={row.is_active}
         onCheckedChange={updateStatus}
-        disabled={updateMutation.isPending}
+        disabled={isUpdating && pendingStatusId === row.unique_id}
       />
     );
   };
@@ -374,7 +344,14 @@ export default function CustomerCreationListPage() {
     <div className="flex gap-3 justify-center">
       <button
         title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(customer.unique_id))}
+        onClick={() =>
+          navigate(ENC_EDIT_PATH(customer.unique_id), {
+            state: {
+              companyUniqueId: customer.company_unique_id ?? customer.company_id,
+              projectId: customer.project_unique_id ?? customer.project_id,
+            },
+          })
+        }
         className="text-blue-600 hover:text-blue-800"
       >
         <PencilIcon className="size-5" />
@@ -405,9 +382,7 @@ export default function CustomerCreationListPage() {
             className="border rounded px-3 py-2 text-sm"
           >
             <option value="" disabled>
-              {t("common.select_item_placeholder", {
-                item: t("admin.nav.company"),
-              })}
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
             </option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
@@ -423,9 +398,7 @@ export default function CustomerCreationListPage() {
             className="border rounded px-3 py-2 text-sm"
           >
             <option value="" disabled>
-              {t("common.select_item_placeholder", {
-                item: t("admin.nav.project"),
-              })}
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
             </option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
@@ -442,19 +415,12 @@ export default function CustomerCreationListPage() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={customersQuery.isPending && customers.length === 0}
+        loading={isLoading && customers.length === 0}
         filters={filters}
         globalFilterFields={[
-          "customer_name",
-          "contact_no",
-          "apartment_name",
-          "block_no",
-          "flat_no",
-          "ward_name",
-          "zone_name",
-          "city_name",
-          "company_name",
-          "project_name",
+          "customer_name", "contact_no", "apartment_name",
+          "block_no", "flat_no", "ward_name", "zone_name",
+          "city_name", "company_name", "project_name",
         ]}
         header={header}
         emptyMessage={t("admin.customer_creation.empty_message")}
@@ -462,55 +428,35 @@ export default function CustomerCreationListPage() {
         showGridlines
         className="p-datatable-sm"
       >
-        <Column
-          header={t("common.s_no")}
-          body={indexTemplate}
-          style={{ width: "80px" }}
-        />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
         {showCol("customer_name") && (
-          <Column
-            field="customer_name"
-            header={t("admin.customer_creation.customer")}
-            sortable
-          />
+          <Column field="customer_name" header={t("admin.customer_creation.customer")} sortable />
         )}
         {showCol("contact_no") && (
           <Column field="contact_no" header={t("common.mobile")} sortable />
         )}
-
         {showCol("apartment_name") && (
           <Column
             field="apartment_name"
             header="Apartment"
             body={(row: Customer) =>
-              row.apartment_name && row.apartment_name.trim() !== ""
-                ? cap(row.apartment_name)
-                : "-"
+              row.apartment_name && row.apartment_name.trim() !== "" ? cap(row.apartment_name) : "-"
             }
           />
         )}
-
         {showCol("unit") && (
           <Column
             header="Unit"
             body={(row: Customer) =>
-              row.block_no && row.flat_no
-                ? `${row.block_no}-${row.flat_no}`
-                : "-"
+              row.block_no && row.flat_no ? `${row.block_no}-${row.flat_no}` : "-"
             }
           />
         )}
         {showCol("ward_name") && (
-          <Column field="ward_name" 
-            header={t("common.ward")}
-            body={(row: Customer) => row.ward_name || "-"}
-            sortable />
+          <Column field="ward_name" header={t("common.ward")} body={(row: Customer) => row.ward_name || "-"} sortable />
         )}
         {showCol("zone_name") && (
-          <Column field="zone_name"
-            header={t("common.zone")}
-            body={(row: Customer) => row.zone_name || "-"}
-            sortable />
+          <Column field="zone_name" header={t("common.zone")} body={(row: Customer) => row.zone_name || "-"} sortable />
         )}
         {showCol("city_name") && (
           <Column field="city_name" header={t("common.city")} sortable />
@@ -519,32 +465,20 @@ export default function CustomerCreationListPage() {
           <Column field="state_name" header={t("common.state")} sortable />
         )}
         {showCol("panchayat_name") && (
-          <Column field="panchayat_name"
+          <Column
+            field="panchayat_name"
             header={t("admin.nav.panchayat")}
             body={(row: Customer) => row.panchayat_name || "-"}
-            sortable />
+            sortable
+          />
         )}
         {showCol("qr_code") && (
-          <Column
-            header={t("admin.customer_creation.qr_label")}
-            body={qrTemplate}
-            style={{ width: "100px" }}
-          />
+          <Column header={t("admin.customer_creation.qr_label")} body={qrTemplate} style={{ width: "100px" }} />
         )}
-
         {showCol("is_active") && (
-          <Column
-            field="is_active"
-            header={t("common.status")}
-            body={statusTemplate}
-          />
+          <Column field="is_active" header={t("common.status")} body={statusTemplate} />
         )}
-
-        <Column
-          header={t("common.actions")}
-          body={actionTemplate}
-          style={{ textAlign: "center" }}
-        />
+        <Column header={t("common.actions")} body={actionTemplate} style={{ textAlign: "center" }} />
       </DataTable>
     </div>
   );

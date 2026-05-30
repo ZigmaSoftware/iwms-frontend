@@ -17,8 +17,9 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
-import type { HierarchyPayload } from "@/helpers/admin/directQueries";
 import type { ApiError } from "./types";
+
+type HierarchyPayload = Record<string, unknown>;
 
 const { encMasters, encHierarchies } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encHierarchies}`;
@@ -45,6 +46,7 @@ export default function HierarchyForm() {
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [areaTypes, setAreaTypes] = useState<{ value: string; label: string }[]>([]);
+  const [pendingAreaTypeId, setPendingAreaTypeId] = useState("");
 
   const location = useLocation();
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
@@ -83,6 +85,18 @@ export default function HierarchyForm() {
     return () => { cancelled = true; };
   }, []);
 
+  // Apply pending area type once the list has loaded
+  useEffect(() => {
+    if (
+      pendingAreaTypeId &&
+      areaTypes.length > 0 &&
+      areaTypes.some((a) => a.value === pendingAreaTypeId)
+    ) {
+      setAreaTypeId(pendingAreaTypeId);
+      setPendingAreaTypeId("");
+    }
+  }, [pendingAreaTypeId, areaTypes]);
+
   // Fetch hierarchy record in edit mode
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -98,7 +112,7 @@ export default function HierarchyForm() {
         setName(record.level_name ?? "");
         setIsActive(Boolean(record.is_active));
         if (record.area_type ?? record.area_type_id) {
-          setAreaTypeId(String(record.area_type ?? record.area_type_id));
+          setPendingAreaTypeId(String(record.area_type ?? record.area_type_id));
         }
         applyCompanyProjectFromRecord(
           record as unknown as Record<string, unknown>
@@ -117,7 +131,7 @@ export default function HierarchyForm() {
         });
       });
     return () => { cancelled = true; };
-  }, [id, isEdit]);
+  }, [id, isEdit, applyCompanyProjectFromRecord]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

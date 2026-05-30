@@ -16,15 +16,13 @@ import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-
 import {
-  useUnassignedStaffPoolList,
-  useUsersList,
-  useZonesList,
-  useWardsList,
-  useTripInstancesList,
-  useUpdateUnassignedStaffPool,
-} from "@/helpers/admin/directQueries";
+  unassignedStaffPoolApi,
+  userCreationApi,
+  zoneApi,
+  wardApi,
+  tripInstanceApi,
+} from "@/helpers/admin";
 
 const UNASSIGNED_STAFF_POOL_COLUMN_FIELDS: Record<string, string[]> = {
   operator: ["operator_id", "operator"],
@@ -128,19 +126,10 @@ export default function UnassignedStaffPoolList() {
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
-  const listParams: Record<string, string> = { company_id: companyUniqueId };
-  if (projectId) listParams.project_id = projectId;
-
-  const { data: poolRes } = useUnassignedStaffPoolList(listParams) as any;
-  const { data: userRes } = useUsersList(listParams) as any;
-  const { data: zoneRes } = useZonesList(listParams) as any;
-  const { data: wardRes } = useWardsList(listParams) as any;
-  const { data: tripRes } = useTripInstancesList(listParams) as any;
-
-  const updateMutation = useUpdateUnassignedStaffPool();
-
   const [records, setRecords] = useState<UnassignedStaffPoolRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<number | null>(null);
 
   const [userLookup, setUserLookup] = useState<Record<string, string>>({});
   const [zoneLookup, setZoneLookup] = useState<Record<string, string>>({});
@@ -163,56 +152,71 @@ export default function UnassignedStaffPoolList() {
   const ENC_EDIT_PATH = (id: number) =>
     `/${encStaffMasters}/${encUnassignedStaffPool}/${id}/edit`;
 
-  const fetchRecords = async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
-    if (!companyUniqueId) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const poolRows = filterByCompanyProject(normalizeList(poolRes), companyUniqueId, projectId);
-      const userRows = filterByCompanyProject(normalizeList(userRes), companyUniqueId, projectId);
-      const zoneRows = filterByCompanyProject(normalizeList(zoneRes), companyUniqueId, projectId);
-      const wardRows = filterByCompanyProject(normalizeList(wardRes), companyUniqueId, projectId);
-      const tripRows = filterByCompanyProject(normalizeList(tripRes), companyUniqueId, projectId);
-
-      const uLookup = buildLookup(userRows, "unique_id", "staff_name", "unique_id");
-      const znLookup = buildLookup(zoneRows, "unique_id", "name");
-      const wLookup = buildLookup(wardRows, "unique_id", "name");
-      const tLookup = buildLookup(tripRows, "unique_id", "trip_no");
-
-      const enriched = poolRows.map((rec: any) => ({
-        ...rec,
-        _operator_name: rec.operator_id ? (uLookup[rec.operator_id] ?? rec.operator_id) : "",
-        _driver_name: rec.driver_id ? (uLookup[rec.driver_id] ?? rec.driver_id) : "",
-        _zone_name: znLookup[rec.zone_id] ?? rec.zone_id,
-        _ward_name: wLookup[rec.ward_id] ?? rec.ward_id,
-        _trip_instance_name: rec.trip_instance_id ? (tLookup[rec.trip_instance_id] ?? rec.trip_instance_id) : "",
-      }));
-
-      setRecords(enriched);
-      setUserLookup(uLookup);
-      setZoneLookup(znLookup);
-      setWardLookup(wLookup);
-      setTripInstanceLookup(tLookup);
-    } catch {
-      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchRecords();
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+    let mounted = true;
+
+    const fetchRecords = async () => {
+      if (isSuperAdmin && companies.length === 0) {
+        if (mounted) { setRecords([]); setLoading(false); }
+        return;
+      }
+
+      if (!companyUniqueId) {
+        if (mounted) { setRecords([]); setLoading(false); }
+        return;
+      }
+
+      if (mounted) setLoading(true);
+      try {
+        const listParams: Record<string, string> = { company_id: companyUniqueId };
+        if (projectId) listParams.project_id = projectId;
+
+        const [poolRes, userRes, zoneRes, wardRes, tripRes] = await Promise.all([
+          unassignedStaffPoolApi.list({ params: listParams }),
+          userCreationApi.list({ params: listParams }),
+          zoneApi.list({ params: listParams }),
+          wardApi.list({ params: listParams }),
+          tripInstanceApi.list({ params: listParams }),
+        ]);
+
+        const poolRows = filterByCompanyProject(normalizeList(poolRes), companyUniqueId, projectId);
+        const userRows = filterByCompanyProject(normalizeList(userRes), companyUniqueId, projectId);
+        const zoneRows = filterByCompanyProject(normalizeList(zoneRes), companyUniqueId, projectId);
+        const wardRows = filterByCompanyProject(normalizeList(wardRes), companyUniqueId, projectId);
+        const tripRows = filterByCompanyProject(normalizeList(tripRes), companyUniqueId, projectId);
+
+        const uLookup = buildLookup(userRows, "unique_id", "staff_name", "unique_id");
+        const znLookup = buildLookup(zoneRows, "unique_id", "name");
+        const wLookup = buildLookup(wardRows, "unique_id", "name");
+        const tLookup = buildLookup(tripRows, "unique_id", "trip_no");
+
+        const enriched = poolRows.map((rec: any) => ({
+          ...rec,
+          _operator_name: rec.operator_id ? (uLookup[rec.operator_id] ?? rec.operator_id) : "",
+          _driver_name: rec.driver_id ? (uLookup[rec.driver_id] ?? rec.driver_id) : "",
+          _zone_name: znLookup[rec.zone_id] ?? rec.zone_id,
+          _ward_name: wLookup[rec.ward_id] ?? rec.ward_id,
+          _trip_instance_name: rec.trip_instance_id ? (tLookup[rec.trip_instance_id] ?? rec.trip_instance_id) : "",
+        }));
+
+        if (mounted) {
+          setRecords(enriched);
+          setUserLookup(uLookup);
+          setZoneLookup(znLookup);
+          setWardLookup(wLookup);
+          setTripInstanceLookup(tLookup);
+        }
+      } catch {
+        if (mounted) Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    void fetchRecords();
+
+    return () => { mounted = false; };
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);
@@ -229,20 +233,28 @@ export default function UnassignedStaffPoolList() {
 
   const statusBodyTemplate = (row: UnassignedStaffPoolRecord) => {
     const updateStatus = async (checked: boolean) => {
+      setPendingStatusId(row.id);
+      setIsUpdating(true);
       try {
-        await updateMutation.mutateAsync({
-          id: row.id,
-          payload: filterPayload({ status: checked ? "AVAILABLE" : "ASSIGNED" }),
-        });
+        await unassignedStaffPoolApi.update(row.id, filterPayload({ status: checked ? "AVAILABLE" : "ASSIGNED" }));
+        setRecords((current) =>
+          current.map((item) =>
+            item.id === row.id ? { ...item, status: checked ? "AVAILABLE" : "ASSIGNED" } : item
+          )
+        );
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+      } finally {
+        setPendingStatusId(null);
+        setIsUpdating(false);
       }
     };
 
     return (
       <Switch
         checked={row.status === "AVAILABLE"}
-        onCheckedChange={updateStatus}
+        disabled={isUpdating && pendingStatusId === row.id}
+        onCheckedChange={(checked) => void updateStatus(checked)}
       />
     );
   };

@@ -25,6 +25,7 @@ export default function UserTypeForm() {
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
+    projectId,
     loggedInCompanyUniqueId,
     isSuperAdmin,
     applyCompanyProjectFromRecord,

@@ -158,18 +158,23 @@ export default function HouseholdPickupEventForm() {
 
   useEffect(() => {
     if (!isEdit || !id) return;
+    let cancelled = false;
 
     householdPickupEventApi
       .get(id)
       .then((res: any) => {
+        if (cancelled) return;
         const nextState = toFormState(res);
         if (nextState) {
           setFormData(nextState);
         }
       })
       .catch(() => {
+        if (cancelled) return;
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       });
+
+    return () => { cancelled = true; };
   }, [householdPickupEventApi, id, isEdit, t]);
 
   useEffect(() => {

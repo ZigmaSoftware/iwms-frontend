@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
@@ -17,16 +18,10 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
-import {
-  useSubPropertyQuery,
-  useCreateSubPropertyMutation,
-  useUpdateSubPropertyMutation,
-  type SubPropertyPayload,
-} from "@/helpers/admin/directQueries";
+import { adminApi } from "@/helpers/admin/registry";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { usePropertiesQuery } from "@/helpers/admin/directQueries";
-import type { SubPropertyEditorProps } from "./types";
+import type { SubPropertyEditorProps, SubPropertyPayload, SubPropertyOptionRecord } from "./types";
 
 const { encMasters, encSubProperties } = getEncryptedRoute();
 
@@ -71,9 +66,25 @@ function SubPropertyEditor({
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
     useFieldVisibility("masters", "sub-properties", SUB_PROPERTY_FIELDS);
-  const [subPropertyName, setSubPropertyName] = useState(initialPayload.sub_property_name);
+  const [subPropertyName, setSubPropertyName] = useState(initialPayload.sub_property_name ?? "");
   const [propertyId, setPropertyId] = useState<string>(String(initialPayload.property_id ?? ""));
+  const [pendingPropertyId, setPendingPropertyId] = useState<string>(
+    initialPayload.property_id ? String(initialPayload.property_id) : ""
+  );
   const [isActive, setIsActive] = useState(initialPayload.is_active);
+
+  // Apply pending property id once the list has loaded and the option exists
+  useEffect(() => {
+    if (
+      pendingPropertyId &&
+      properties &&
+      properties.length > 0 &&
+      properties.some((p) => String(p.unique_id) === pendingPropertyId)
+    ) {
+      setPropertyId(pendingPropertyId);
+      setPendingPropertyId("");
+    }
+  }, [pendingPropertyId, properties]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -224,59 +235,62 @@ export default function SubPropertyForm() {
     initialProjectId: routeState?.projectId,
   });
 
-  const subPropertyQuery = useSubPropertyQuery(id);
-  const propertiesQuery = usePropertiesQuery();
-  const createSubPropertyMutation = useCreateSubPropertyMutation();
-  const updateSubPropertyMutation = useUpdateSubPropertyMutation();
-
-  const isSubmitting =
-    createSubPropertyMutation.isPending || updateSubPropertyMutation.isPending;
+  const [subPropertyData, setSubPropertyData] = useState<any>(null);
+  const [properties, setProperties] = useState<SubPropertyOptionRecord[]>([]);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const title = isEdit
     ? t("common.edit_item", { item: t("admin.nav.sub_property") })
     : t("common.add_item", { item: t("admin.nav.sub_property") });
 
-  // Apply company/project from data
   useEffect(() => {
-    if (!subPropertyQuery.data) {
-      return;
-    }
+    let cancelled = false;
+    adminApi.properties.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        setProperties(Array.isArray(res) ? res : (res?.results ?? []));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        Swal.fire(
+          t("common.error"),
+          extractErrorMessage(error, t("common.fetch_failed")),
+          "error"
+        );
+      });
+    return () => { cancelled = true; };
+  }, [t]);
 
-    applyCompanyProjectFromRecord(
-      subPropertyQuery.data as unknown as Record<string, unknown>
-    );
-  }, [applyCompanyProjectFromRecord, subPropertyQuery.data]);
-
-  // Handle subproperty fetch error
   useEffect(() => {
-    if (!subPropertyQuery.isError) {
-      return;
-    }
-
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(subPropertyQuery.error, t("common.load_failed")),
-      "error"
-    );
-  }, [subPropertyQuery.error, subPropertyQuery.isError, t]);
-
-  // Handle properties fetch error
-  useEffect(() => {
-    if (!propertiesQuery.isError) {
-      return;
-    }
-
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(propertiesQuery.error, t("common.fetch_failed")),
-      "error"
-    );
-  }, [propertiesQuery.error, propertiesQuery.isError, t]);
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.subProperties.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setSubPropertyData(res);
+        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        Swal.fire(
+          t("common.error"),
+          extractErrorMessage(error, t("common.load_failed")),
+          "error"
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingRecord(false);
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit, applyCompanyProjectFromRecord, t]);
 
   const submitSubProperty = async (payload: SubPropertyPayload) => {
+    setIsSubmitting(true);
     try {
       if (isEdit) {
-        await updateSubPropertyMutation.mutateAsync({ id: id as string, payload });
+        await adminApi.subProperties.update(id as string, payload);
         Swal.fire({
           icon: "success",
           title: t("common.updated_success"),
@@ -284,7 +298,7 @@ export default function SubPropertyForm() {
           showConfirmButton: false,
         });
       } else {
-        await createSubPropertyMutation.mutateAsync(payload);
+        await adminApi.subProperties.create(payload);
         Swal.fire({
           icon: "success",
           title: t("common.added_success"),
@@ -301,10 +315,12 @@ export default function SubPropertyForm() {
         title: t("common.save_failed"),
         text: message,
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  if (isEdit && subPropertyQuery.isPending && !subPropertyQuery.data) {
+  if (isEdit && loadingRecord && !subPropertyData) {
     return (
       <ComponentCard title={title}>
         <div className="p-6 text-sm text-gray-500">{t("common.loading")}</div>
@@ -312,11 +328,11 @@ export default function SubPropertyForm() {
     );
   }
 
-  const initialPayload: SubPropertyPayload = subPropertyQuery.data
+  const initialPayload: SubPropertyPayload = subPropertyData
     ? {
-        sub_property_name: String(subPropertyQuery.data.sub_property_name ?? ""),
-        property_id: subPropertyQuery.data.property_id ?? subPropertyQuery.data.property ?? "",
-        is_active: Boolean(subPropertyQuery.data.is_active),
+        sub_property_name: String(subPropertyData.sub_property_name ?? ""),
+        property_id: subPropertyData.property_id ?? subPropertyData.property ?? "",
+        is_active: Boolean(subPropertyData.is_active),
       }
     : {
         sub_property_name: "",
@@ -325,7 +341,7 @@ export default function SubPropertyForm() {
       };
 
   const formKey = isEdit
-    ? String(subPropertyQuery.data?.unique_id ?? id)
+    ? String(subPropertyData?.unique_id ?? id)
     : "new-sub-property";
 
   return (
@@ -333,7 +349,7 @@ export default function SubPropertyForm() {
       <SubPropertyEditor
         key={formKey}
         initialPayload={initialPayload}
-        properties={propertiesQuery.data ?? []}
+        properties={properties}
         isEdit={isEdit}
         isSubmitting={isSubmitting}
         onCancel={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}

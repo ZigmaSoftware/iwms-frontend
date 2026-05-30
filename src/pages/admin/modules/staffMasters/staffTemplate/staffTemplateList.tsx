@@ -266,11 +266,7 @@ import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
-import { staffCreationApi, staffTemplateApi } from "@/helpers/admin";
-import {
-  useStaffTemplateList,
-  useUpdateStaffTemplate,
-} from "@/helpers/admin/directQueries";
+import { staffTemplateApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
@@ -348,6 +344,8 @@ export default function StaffTemplateList() {
 
   const [templates, setTemplates] = useState<StaffTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
   const [datatableFilters, setDatatableFilters] = useState<TableFilters>({
@@ -368,28 +366,25 @@ export default function StaffTemplateList() {
 
   /* ================= FETCH ================= */
 
-  const updateMutation = useUpdateStaffTemplate();
-
-  const requestParams = companyUniqueId ? { company_id: companyUniqueId, ...(projectId ? { project_id: projectId } : {}) } : undefined;
-
-  const { data: rawData, isLoading: isQueryLoading } = useStaffTemplateList(requestParams as any);
-
   useEffect(() => {
-    const load = () => {
+    let mounted = true;
+
+    const load = async () => {
       if (isSuperAdmin && companies.length === 0) {
-        setTemplates([]);
-        setLoading(false);
+        if (mounted) { setTemplates([]); setLoading(false); }
         return;
       }
 
       if (!companyUniqueId) {
-        setTemplates([]);
-        setLoading(false);
+        if (mounted) { setTemplates([]); setLoading(false); }
         return;
       }
 
-      setLoading(true);
+      if (mounted) setLoading(true);
       try {
+        const requestParams: Record<string, string> = { company_id: companyUniqueId };
+        if (projectId) requestParams.project_id = projectId;
+        const rawData = await staffTemplateApi.list({ params: requestParams });
         const payload: any = rawData ?? [];
         const data =
           Array.isArray(payload) ? payload :
@@ -404,7 +399,7 @@ export default function StaffTemplateList() {
         });
 
         if (!hasContextFields) {
-          setTemplates(rows);
+          if (mounted) setTemplates(rows);
           return;
         }
 
@@ -416,16 +411,18 @@ export default function StaffTemplateList() {
           return companyMatches && projectMatches;
         });
 
-        setTemplates(filtered);
+        if (mounted) setTemplates(filtered);
       } catch {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
-    load();
-  }, [rawData, companyUniqueId, companies.length, isSuperAdmin, projectId]);
+    void load();
+
+    return () => { mounted = false; };
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
 
   /* ================= FILTERS ================= */
 
@@ -446,20 +443,29 @@ export default function StaffTemplateList() {
 
   const statusBodyTemplate = (row: StaffTemplate) => {
     const updateStatus = async (checked: boolean) => {
+      const id = row.unique_id;
+      setPendingStatusId(id);
+      setIsUpdating(true);
       try {
-        await updateMutation.mutateAsync({
-          id: row.unique_id,
-          payload: filterPayload({ status: checked ? "ACTIVE" : "INACTIVE" }),
-        });
+        await staffTemplateApi.update(id, filterPayload({ status: checked ? "ACTIVE" : "INACTIVE" }));
+        setTemplates((current) =>
+          current.map((item) =>
+            item.unique_id === id ? { ...item, status: checked ? "ACTIVE" : "INACTIVE" } : item
+          )
+        );
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+      } finally {
+        setPendingStatusId(null);
+        setIsUpdating(false);
       }
     };
 
     return (
       <Switch
         checked={row.status === "ACTIVE"}
-        onCheckedChange={updateStatus}
+        disabled={isUpdating && pendingStatusId === row.unique_id}
+        onCheckedChange={(checked) => void updateStatus(checked)}
       />
     );
   };

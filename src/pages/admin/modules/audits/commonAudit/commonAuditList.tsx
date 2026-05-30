@@ -9,11 +9,7 @@ import { Dropdown } from "primereact/dropdown";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
-import {
-  type CommonAuditJsonValue,
-  type CommonAuditRecord,
-  useCommonAuditsQuery,
-} from "@/helpers/admin/directQueries";
+import { commonAuditApi } from "@/helpers/admin";
 import { normalizeList } from "@/utils/forms";
 
 type TableFilters = {
@@ -23,6 +19,27 @@ type TableFilters = {
 type ModuleFilterOption = {
   label: string;
   value: string;
+};
+
+type CommonAuditJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | CommonAuditJsonValue[]
+  | { [key: string]: CommonAuditJsonValue };
+
+type CommonAuditRecord = {
+  uuid?: string | number;
+  module_name?: string;
+  endpoint_name?: string;
+  method?: string;
+  object_id?: string | number;
+  createdBy?: string;
+  createdAt?: string;
+  previous_data?: CommonAuditJsonValue;
+  new_data?: CommonAuditJsonValue;
+  [key: string]: unknown;
 };
 
 const ALL_MODULES = "__all__";
@@ -59,15 +76,15 @@ export default function CommonAuditList() {
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [moduleFilter, setModuleFilter] = useState(ALL_MODULES);
   const [selectedRecord, setSelectedRecord] = useState<CommonAuditRecord | null>(null);
+  const [auditRows, setAuditRows] = useState<CommonAuditRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  const auditsQuery = useCommonAuditsQuery();
-
   const records = useMemo(
-    () => normalizeList<CommonAuditRecord>(auditsQuery.data ?? []),
-    [auditsQuery.data]
+    () => normalizeList<CommonAuditRecord>(auditRows),
+    [auditRows]
   );
 
   const moduleOptions = useMemo<ModuleFilterOption[]>(() => {
@@ -96,7 +113,7 @@ export default function CommonAuditList() {
     return records.filter((record) => record.module_name === moduleFilter);
   }, [moduleFilter, records]);
 
-  const loading = auditsQuery.isPending && records.length === 0;
+  const loading = isLoading && records.length === 0;
 
   const onGlobalFilterChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -135,10 +152,26 @@ export default function CommonAuditList() {
   );
 
   useEffect(() => {
-    if (auditsQuery.isError) {
-      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-    }
-  }, [auditsQuery.isError, t]);
+    let mounted = true;
+
+    const loadAudits = async () => {
+      setIsLoading(true);
+      try {
+        const data = await commonAuditApi.list();
+        if (mounted) setAuditRows(data as CommonAuditRecord[]);
+      } catch {
+        if (mounted) Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadAudits();
+
+    return () => {
+      mounted = false;
+    };
+  }, [t]);
 
   return (
     <div className="p-3">

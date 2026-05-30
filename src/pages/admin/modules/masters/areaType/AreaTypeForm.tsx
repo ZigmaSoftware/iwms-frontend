@@ -19,7 +19,8 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { SelectOption } from "@/types";
 import type { AreaTypeRecord, CityMeta, DistrictMeta, StateMeta } from "./types";
 import { adminApi } from "@/helpers/admin/registry";
-import type { AreaTypePayload } from "@/helpers/admin/directQueries";
+
+type AreaTypePayload = Record<string, unknown>;
 
 const { encMasters, encAreaTypes } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encMasters}/${encAreaTypes}`;
@@ -239,7 +240,7 @@ export default function AreaTypeForm() {
         });
       });
     return () => { cancelled = true; };
-  }, [id, isEdit, allCities, allDistricts]);
+  }, [id, isEdit, allCities, allDistricts, applyCompanyProjectFromRecord]);
 
   useEffect(() => {
     const filt = allStates

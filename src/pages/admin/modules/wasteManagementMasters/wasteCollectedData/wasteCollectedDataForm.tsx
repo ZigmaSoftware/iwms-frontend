@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
+import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -9,295 +11,387 @@ import { Input } from "@/components/ui/input";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useTranslation } from "react-i18next";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type Customer = {
   id: number;
   unique_id?: string;
   customer_name: string;
-  building_no: string;
-  street: string;
-  area: string;
-  zone_name: string;
-  ward_name: string;
-  city_name: string;
-  district_name: string;
-  state_name: string;
-  country_name: string;
+  building_no?: string;
+  street?: string;
+  area?: string;
+  zone_name?: string;
+  ward_name?: string;
+  city_name?: string;
+  district_name?: string;
+  state_name?: string;
+  country_name?: string;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
 };
 
-function WasteCollectedForm() {
-  const { t } = useTranslation();
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerId, setCustomerId] = useState<string>("");
+const extractError = (error: any): string | null => {
+  const data = error?.response?.data;
+  if (!data) return null;
+  if (typeof data === "string") return data;
+  if (typeof data?.detail === "string") return data.detail;
+  if (typeof data === "object") {
+    const first = Object.values(data)[0];
+    if (Array.isArray(first)) return String(first[0]);
+    if (typeof first === "string") return first;
+  }
+  return null;
+};
 
+export default function WasteCollectedForm() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { id } = useParams<{ id?: string }>();
+  const location = useLocation();
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const isEdit = Boolean(id);
+
+  const {
+    companyUniqueId, projectId, projects, companies,
+    isSuperAdmin, loggedInCompanyUniqueId,
+    setProjectId, onCompanyChange, applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({
+    isEdit,
+    initialCompanyId: routeState?.companyUniqueId,
+    initialProjectId: routeState?.projectId,
+  });
+
+  const { encWasteManagementMaster, encWasteCollectedData } = getEncryptedRoute();
+  const LIST_PATH = `/${encWasteManagementMaster}/${encWasteCollectedData}`;
+
+  /* ── form fields ── */
+  const [customerId, setCustomerId] = useState("");
   const [wetWaste, setWetWaste] = useState(0);
   const [dryWaste, setDryWaste] = useState(0);
   const [mixedWaste, setMixedWaste] = useState(0);
-  const [totalQuantity, setTotalQuantity] = useState(0);
+  const totalQuantity = wetWaste + dryWaste + mixedWaste;
 
-  const [loading, setLoading] = useState(false);
+  /* ── dropdown data ── */
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [fetchingCustomers, setFetchingCustomers] = useState(false);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const navigate = useNavigate();
-  const { id } = useParams();
-  const isEdit = Boolean(id);
+  // Pending values stored from the raw API response — applied once their option
+  // lists finish loading (same pendingRecord pattern as panchayat / customer creation)
+  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
+    projectUniqueId: string;
+    projectId: string;
+    projectName: string;
+  } | null>(null);
+  const [pendingCustomerCandidates, setPendingCustomerCandidates] = useState<{
+    customerUniqueId: string;
+    customerId: string;
+    customerName: string;
+  } | null>(null);
 
-  const { encWasteManagementMaster, encWasteCollectedData } =
-    getEncryptedRoute();
-  const LIST_PATH = `/${encWasteManagementMaster}/${encWasteCollectedData}`;
+  const resolveCustomerId = (c: Customer) => String(c.unique_id ?? c.id);
 
-  const resolveId = (c: Customer) => c.unique_id ?? String(c.id);
-
-  /* ---------------- TOTAL ---------------- */
+  /* ── load customers filtered by company + project ── */
   useEffect(() => {
-    setTotalQuantity(wetWaste + dryWaste + mixedWaste);
-  }, [wetWaste, dryWaste, mixedWaste]);
+    if (!companyUniqueId) { setCustomers([]); return; }
+    let cancelled = false;
+    setFetchingCustomers(true);
+    const params: Record<string, string> = { company_id: companyUniqueId };
+    if (projectId) params.project_id = projectId;
+    adminApi.customerCreations.list({ params })
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = Array.isArray(res) ? res : res?.results ?? [];
+        setCustomers(list);
+      })
+      .catch(() => { if (!cancelled) Swal.fire(t("common.error"), t("common.load_failed"), "error"); })
+      .finally(() => { if (!cancelled) setFetchingCustomers(false); });
+    return () => { cancelled = true; };
+  }, [companyUniqueId, projectId, t]);
 
-  /* ---------------- LOAD CUSTOMERS ---------------- */
+  /* ── edit mode: load record ── */
   useEffect(() => {
-    adminApi.customerCreations.list().then((res) => {
-      setCustomers(res || []);
-      if (!isEdit && res?.length) {
-        setCustomerId(resolveId(res[0])); // same as Feedback
-      }
-    });
-  }, [isEdit]);
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.wasteCollections.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        // Set waste values immediately (no async dependency)
+        setWetWaste(Number(res.wet_waste) || 0);
+        setDryWaste(Number(res.dry_waste) || 0);
+        setMixedWaste(Number(res.mixed_waste) || 0);
+        // Apply company (triggers project list load in the hook)
+        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
+        // Store project & customer identifiers — re-applied once their option lists load
+        setPendingProjectCandidates({
+          projectUniqueId: String(res.project_unique_id ?? res.project?.unique_id ?? ""),
+          projectId: String(res.project_id ?? ""),
+          projectName: String(res.project_name ?? res.project?.name ?? ""),
+        });
+        setPendingCustomerCandidates({
+          customerUniqueId: String(res.customer_unique_id ?? res.customer?.unique_id ?? ""),
+          customerId: String(res.customer ?? res.customer_id ?? ""),
+          customerName: String(res.customer_name ?? res.customer?.customer_name ?? ""),
+        });
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? t("common.load_failed") });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit, applyCompanyProjectFromRecord, t]);
 
-  /* ---------------- EDIT MODE ---------------- */
+  /* ── flush project: re-apply after hook loads project list ── */
   useEffect(() => {
-    if (!isEdit) return;
+    if (!pendingProjectCandidates || projects.length === 0) return;
+    const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
+    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
+    if (!match) match = projects.find((p) => rawId && p.value === rawId);
+    if (!match && projectName)
+      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
+    if (match) setProjectId(match.value);
+    setPendingProjectCandidates(null);
+  }, [projects, pendingProjectCandidates, setProjectId]);
 
-    adminApi.wasteCollections.get(id as string).then((res: any) => {
-      setCustomerId(
-        res.customer ?? res.customer_id ?? res.customer_unique_id
-      );
-      setWetWaste(res.wet_waste || 0);
-      setDryWaste(res.dry_waste || 0);
-      setMixedWaste(res.mixed_waste || 0);
-    });
-  }, [id, isEdit]);
+  /* ── flush customer: re-apply after customers list loads ── */
+  useEffect(() => {
+    if (!pendingCustomerCandidates || customers.length === 0) return;
+    const { customerUniqueId, customerId: rawId, customerName } = pendingCustomerCandidates;
+    let match = customers.find((c) => customerUniqueId && resolveCustomerId(c) === customerUniqueId);
+    if (!match) match = customers.find((c) => rawId && resolveCustomerId(c) === rawId);
+    if (!match && customerName)
+      match = customers.find((c) => c.customer_name.toLowerCase() === customerName.toLowerCase());
+    if (match) setCustomerId(resolveCustomerId(match));
+    setPendingCustomerCandidates(null);
+  }, [customers, pendingCustomerCandidates]);
 
-  const selectedCustomer = customers.find(
-    (c) => resolveId(c) === customerId
-  );
+  const selectedCustomer = customers.find((c) => resolveCustomerId(c) === customerId);
 
-  /* ---------------- SUBMIT ---------------- */
+  /* ── submit ── */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!companyUniqueId || !projectId) {
+      Swal.fire(t("common.warning"), "Company and project are required", "warning");
+      return;
+    }
     if (!customerId) {
-      Swal.fire(
-        t("common.warning"),
-        t("admin.waste_collected_data.customer_required"),
-        "warning"
-      );
+      Swal.fire(t("common.warning"), t("admin.waste_collected_data.customer_required"), "warning");
       return;
     }
 
-    setLoading(true);
+    const payload = {
+      // company_id_input / project_id_input are read by CompanyScopedViewSet
+      // to set the FK fields — required for superadmin; non-superadmin uses request.user.company
+      company_id_input: companyUniqueId,
+      project_id_input: projectId,
+      customer: customerId,
+      wet_waste: wetWaste,
+      dry_waste: dryWaste,
+      mixed_waste: mixedWaste,
+      total_quantity: totalQuantity,
+    };
+
+    setIsSubmitting(true);
     try {
-      const payload = {
-        customer: customerId,
-        wet_waste: wetWaste,
-        dry_waste: dryWaste,
-        mixed_waste: mixedWaste,
-        total_quantity: totalQuantity,
-      };
-
-      isEdit
-        ? await adminApi.wasteCollections.update(id as string, payload)
-        : await adminApi.wasteCollections.create(payload);
-
-      Swal.fire(
-        t("common.success"),
-        t("admin.waste_collected_data.save_success"),
-        "success"
-      );
-      navigate(LIST_PATH);
-    } catch {
-      Swal.fire(
-        t("common.save_failed"),
-        t("common.save_failed_desc"),
-        "error"
-      );
+      if (isEdit && id) {
+        await adminApi.wasteCollections.update(id, payload);
+        Swal.fire(t("common.success"), t("common.updated_success"), "success");
+      } else {
+        await adminApi.wasteCollections.create(payload);
+        Swal.fire(t("common.success"), t("admin.waste_collected_data.save_success"), "success");
+      }
+      navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
+    } catch (err: any) {
+      Swal.fire(t("common.save_failed"), extractError(err) ?? t("common.save_failed_desc"), "error");
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  /* ---------------- RENDER ---------------- */
   return (
-    <ComponentCard
-      title={
-        isEdit
-          ? t("admin.waste_collected_data.title_edit")
-          : t("admin.waste_collected_data.title_add")
-      }
-    >
-      <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="p-3">
+      <ComponentCard
+        title={isEdit ? t("admin.waste_collected_data.title_edit") : t("admin.waste_collected_data.title_add")}
+      >
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-          {/* Customer */}
-          <div>
-            <Label>
-              {t("admin.waste_collected_data.customer")}
-              <span className="text-red-500"> *</span>
-            </Label>
-            <Select
-              value={customerId}
-              onChange={(val) => setCustomerId(val)}
-              options={customers.map((c) => ({
-                value: resolveId(c),
-                label: c.customer_name,
-              }))}
-            />
+            {/* Company */}
+            <div>
+              <Label>{t("admin.nav.company")}</Label>
+              <select
+                value={companyUniqueId}
+                onChange={(e) => { onCompanyChange(e.target.value); setCustomerId(""); }}
+                disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId) || companies.length === 0}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="">
+                  {loggedInCompanyUniqueId
+                    ? t("common.company_from_profile")
+                    : t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+                </option>
+                {companies.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Project */}
+            <div>
+              <Label>{t("admin.nav.project")}</Label>
+              <select
+                value={projectId}
+                onChange={(e) => { setProjectId(e.target.value); setCustomerId(""); }}
+                disabled={!companyUniqueId || projects.length === 0}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="">
+                  {companyUniqueId
+                    ? t("common.select_item_placeholder", { item: t("admin.nav.project") })
+                    : "Select a company first"}
+                </option>
+                {projects.map((p) => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Customer */}
+            <div>
+              <Label>
+                {t("admin.waste_collected_data.customer")}
+                <span className="text-red-500"> *</span>
+              </Label>
+              <Select
+                value={customerId}
+                onChange={setCustomerId}
+                options={customers.map((c) => ({
+                  value: resolveCustomerId(c),
+                  label: c.customer_name,
+                }))}
+                placeholder={fetchingCustomers ? "Loading..." : "Select customer"}
+                disabled={fetchingCustomers || !projectId}
+              />
+            </div>
+
+            {/* Address (read-only) */}
+            <div>
+              <Label>{t("admin.waste_collected_data.customer_address")}</Label>
+              <Input
+                disabled
+                className="bg-gray-100"
+                value={
+                  selectedCustomer
+                    ? [selectedCustomer.building_no, selectedCustomer.street, selectedCustomer.area]
+                        .filter(Boolean)
+                        .join(", ")
+                    : ""
+                }
+              />
+            </div>
+
+            {/* Zone */}
+            <div>
+              <Label>{t("admin.waste_collected_data.customer_zone")}</Label>
+              <Input disabled className="bg-gray-100" value={selectedCustomer?.zone_name || ""} />
+            </div>
+
+            {/* Ward */}
+            <div>
+              <Label>{t("admin.waste_collected_data.customer_ward")}</Label>
+              <Input disabled className="bg-gray-100" value={selectedCustomer?.ward_name || ""} />
+            </div>
+
+            {/* City */}
+            <div>
+              <Label>{t("admin.waste_collected_data.customer_city")}</Label>
+              <Input disabled className="bg-gray-100" value={selectedCustomer?.city_name || ""} />
+            </div>
+
+            {/* District */}
+            <div>
+              <Label>{t("admin.waste_collected_data.customer_district")}</Label>
+              <Input disabled className="bg-gray-100" value={selectedCustomer?.district_name || ""} />
+            </div>
+
+            {/* State */}
+            <div>
+              <Label>{t("admin.waste_collected_data.customer_state")}</Label>
+              <Input disabled className="bg-gray-100" value={selectedCustomer?.state_name || ""} />
+            </div>
+
+            {/* Country */}
+            <div>
+              <Label>{t("admin.waste_collected_data.customer_country")}</Label>
+              <Input disabled className="bg-gray-100" value={selectedCustomer?.country_name || ""} />
+            </div>
+
+            {/* Dry Waste */}
+            <div>
+              <Label>{t("admin.waste_collected_data.dry_waste")}</Label>
+              <Input
+                type="number"
+                min={0}
+                value={dryWaste}
+                onChange={(e) => setDryWaste(Math.max(0, Number(e.target.value) || 0))}
+              />
+            </div>
+
+            {/* Wet Waste */}
+            <div>
+              <Label>{t("admin.waste_collected_data.wet_waste")}</Label>
+              <Input
+                type="number"
+                min={0}
+                value={wetWaste}
+                onChange={(e) => setWetWaste(Math.max(0, Number(e.target.value) || 0))}
+              />
+            </div>
+
+            {/* Mixed Waste */}
+            <div>
+              <Label>{t("admin.waste_collected_data.mixed_waste")}</Label>
+              <Input
+                type="number"
+                min={0}
+                value={mixedWaste}
+                onChange={(e) => setMixedWaste(Math.max(0, Number(e.target.value) || 0))}
+              />
+            </div>
+
+            {/* Total (read-only, auto-calculated) */}
+            <div>
+              <Label>{t("admin.waste_collected_data.total_quantity")}</Label>
+              <Input disabled className="bg-gray-100" value={totalQuantity} />
+            </div>
+
           </div>
 
-          {/* Address */}
-          <div>
-            <Label>{t("admin.waste_collected_data.customer_address")}</Label>
-            <Input
-              disabled
-              className="bg-gray-100"
-              value={
-                selectedCustomer
-                  ? [
-                      selectedCustomer.building_no,
-                      selectedCustomer.street,
-                      selectedCustomer.area,
-                    ]
-                      .filter(Boolean)
-                      .join(", ")
-                  : ""
-              }
-            />
+          <div className="flex justify-end gap-3">
+            <button
+              type="submit"
+              disabled={isSubmitting || loadingRecord}
+              className="rounded-lg bg-green-custom px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {isSubmitting ? t("common.saving") : isEdit ? t("common.update") : t("common.save")}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
+              className="rounded-lg bg-red-400 px-5 py-2.5 text-sm font-semibold text-white"
+            >
+              {t("common.cancel")}
+            </button>
           </div>
-
-          {/* Zone */}
-          <div>
-            <Label>{t("admin.waste_collected_data.customer_zone")}</Label>
-            <Input
-              disabled
-              className="bg-gray-100"
-              value={selectedCustomer?.zone_name || ""}
-            />
-          </div>
-
-          {/* Ward */}
-          <div>
-            <Label>{t("admin.waste_collected_data.customer_ward")}</Label>
-            <Input
-              disabled
-              className="bg-gray-100"
-              value={selectedCustomer?.ward_name || ""}
-            />
-          </div>
-
-          {/* City */}
-          <div>
-            <Label>{t("admin.waste_collected_data.customer_city")}</Label>
-            <Input
-              disabled
-              className="bg-gray-100"
-              value={selectedCustomer?.city_name || ""}
-            />
-          </div>
-
-          {/* District */}
-          <div>
-            <Label>{t("admin.waste_collected_data.customer_district")}</Label>
-            <Input
-              disabled
-              className="bg-gray-100"
-              value={selectedCustomer?.district_name || ""}
-            />
-          </div>
-
-          {/* State */}
-          <div>
-            <Label>{t("admin.waste_collected_data.customer_state")}</Label>
-            <Input
-              disabled
-              className="bg-gray-100"
-              value={selectedCustomer?.state_name || ""}
-            />
-          </div>
-
-          {/* Country */}
-          <div>
-            <Label>{t("admin.waste_collected_data.customer_country")}</Label>
-            <Input
-              disabled
-              className="bg-gray-100"
-              value={selectedCustomer?.country_name || ""}
-            />
-          </div>
-
-          {/* Dry */}
-          <div>
-            <Label>{t("admin.waste_collected_data.dry_waste")}</Label>
-            <Input
-              type="number"
-              value={dryWaste}
-              onChange={(e) => setDryWaste(Math.max(0, +e.target.value || 0))}
-            />
-          </div>
-
-          {/* Wet */}
-          <div>
-            <Label>{t("admin.waste_collected_data.wet_waste")}</Label>
-            <Input
-              type="number"
-              value={wetWaste}
-              onChange={(e) => setWetWaste(Math.max(0, +e.target.value || 0))}
-            />
-          </div>
-
-          {/* Mixed */}
-          <div>
-            <Label>{t("admin.waste_collected_data.mixed_waste")}</Label>
-            <Input
-              type="number"
-              value={mixedWaste}
-              onChange={(e) => setMixedWaste(Math.max(0, +e.target.value || 0))}
-            />
-          </div>
-
-          {/* Total */}
-          <div>
-            <Label>{t("admin.waste_collected_data.total_quantity")}</Label>
-            <Input
-              disabled
-              className="bg-gray-100"
-              value={totalQuantity}
-            />
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex justify-end gap-3 mt-6">
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-green-custom text-white px-4 py-2 rounded"
-          >
-            {loading
-              ? t("common.saving")
-              : isEdit
-              ? t("common.update")
-              : t("common.save")}
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate(LIST_PATH)}
-            className="bg-red-400 text-white px-4 py-2 rounded"
-          >
-            {t("common.cancel")}
-          </button>
-        </div>
-      </form>
-    </ComponentCard>
+        </form>
+      </ComponentCard>
+    </div>
   );
 }
-
-export default WasteCollectedForm;

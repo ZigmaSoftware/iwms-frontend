@@ -18,7 +18,7 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useZonesQuery, useUpdateZoneMutation } from "@/helpers/admin/directQueries";
+import { zoneApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { ZoneListRecord } from "./types";
@@ -43,9 +43,9 @@ export default function ZoneList() {
     ZONE_COLUMN_FIELDS,
   );
 
-  const zonesQuery = useZonesQuery();
-  const updateZoneMutation = useUpdateZoneMutation();
-  const allZones = zonesQuery.data ?? [];
+  const [allZones, setAllZones] = useState<ZoneListRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -92,10 +92,29 @@ export default function ZoneList() {
   };
 
   useEffect(() => {
-    if (!zonesQuery.isError) return;
-    const errorData = (zonesQuery.error as { response?: { data?: unknown } })?.response?.data;
-    Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? zonesQuery.error) });
-  }, [zonesQuery.error, zonesQuery.isError, t]);
+    let mounted = true;
+
+    const loadZones = async () => {
+      setIsLoading(true);
+      try {
+        const data = await zoneApi.list();
+        if (mounted) setAllZones(data as ZoneListRecord[]);
+      } catch (error) {
+        if (mounted) {
+          const errorData = (error as { response?: { data?: unknown } })?.response?.data;
+          Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadZones();
+
+    return () => {
+      mounted = false;
+    };
+  }, [t]);
 
   const zones = ((): ZoneListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
@@ -161,18 +180,25 @@ export default function ZoneList() {
   const updateStatus = async (row: ZoneListRecord, checked: boolean) => {
     const id = String(row.unique_id);
     setPendingStatusId(id);
+    setIsUpdating(true);
 
     try {
-      await updateZoneMutation.mutateAsync({ id: row.unique_id, payload: { name: row.zone_name, is_active: checked } });
+      await zoneApi.update(row.unique_id, { is_active: checked });
+      setAllZones((current) =>
+        current.map((item) =>
+          item.unique_id === row.unique_id ? { ...item, is_active: checked } : item
+        )
+      );
     } catch (error) {
       console.error("Status update failed:", error);
     } finally {
       setPendingStatusId(null);
+      setIsUpdating(false);
     }
   };
 
   const statusTemplate = (row: ZoneListRecord) => (
-    <Switch checked={row.is_active} disabled={updateZoneMutation.isPending && pendingStatusId === String(row.unique_id)} onCheckedChange={(checked) => void updateStatus(row, checked)} />
+    <Switch checked={row.is_active} disabled={isUpdating && pendingStatusId === String(row.unique_id)} onCheckedChange={(checked) => void updateStatus(row, checked)} />
   );
 
   // ===========================
@@ -270,7 +296,7 @@ export default function ZoneList() {
           paginator
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={zonesQuery.isPending && zones.length === 0}
+          loading={isLoading && zones.length === 0}
           filters={filters}
           onFilter={onFilter}
           header={renderHeader()}

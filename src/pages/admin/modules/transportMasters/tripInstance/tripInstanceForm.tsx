@@ -79,6 +79,15 @@ export default function TripInstanceForm() {
   const [properties, setProperties] = useState<SelectOption[]>([]);
   const [subProperties, setSubProperties] = useState<SelectOption[]>([]);
 
+  // Pending IDs — set when the record loads; applied once the matching options array is populated
+  const [pendingTripDefinitionId, setPendingTripDefinitionId] = useState<string | null>(null);
+  const [pendingStaffTemplateId, setPendingStaffTemplateId] = useState<string | null>(null);
+  const [pendingAltStaffTemplateId, setPendingAltStaffTemplateId] = useState<string | null>(null);
+  const [pendingZoneId, setPendingZoneId] = useState<string | null>(null);
+  const [pendingVehicleId, setPendingVehicleId] = useState<string | null>(null);
+  const [pendingPropertyId, setPendingPropertyId] = useState<string | null>(null);
+  const [pendingSubPropertyId, setPendingSubPropertyId] = useState<string | null>(null);
+
   const [formData, setFormData] = useState<TripInstanceFormState>({
     trip_definition_id: "",
     staff_template_id: "",
@@ -143,14 +152,30 @@ export default function TripInstanceForm() {
   useEffect(() => {
     if (!isEdit || !stateRecord) return;
 
+    const tripDefId = stateRecord?.trip_definition_id ?? "";
+    const staffTplId = stateRecord?.staff_template_id ?? "";
+    const altStaffTplId = stateRecord?.alternative_staff_template_id ?? "";
+    const zoneId = stateRecord?.zone_id ?? "";
+    const vehicleId = stateRecord?.vehicle_id ?? "";
+    const propertyId = stateRecord?.property_id ?? "";
+    const subPropertyId = stateRecord?.sub_property_id ?? "";
+
+    setPendingTripDefinitionId(tripDefId);
+    setPendingStaffTemplateId(staffTplId);
+    setPendingAltStaffTemplateId(altStaffTplId);
+    setPendingZoneId(zoneId);
+    setPendingVehicleId(vehicleId);
+    setPendingPropertyId(propertyId);
+    setPendingSubPropertyId(subPropertyId);
+
     setFormData({
-      trip_definition_id: stateRecord?.trip_definition_id ?? "",
-      staff_template_id: stateRecord?.staff_template_id ?? "",
-      alternative_staff_template_id: stateRecord?.alternative_staff_template_id ?? "",
-      zone_id: stateRecord?.zone_id ?? "",
-      vehicle_id: stateRecord?.vehicle_id ?? "",
-      property_id: stateRecord?.property_id ?? "",
-      sub_property_id: stateRecord?.sub_property_id ?? "",
+      trip_definition_id: tripDefId,
+      staff_template_id: staffTplId,
+      alternative_staff_template_id: altStaffTplId,
+      zone_id: zoneId,
+      vehicle_id: vehicleId,
+      property_id: propertyId,
+      sub_property_id: subPropertyId,
       trigger_weight_kg:
         stateRecord?.trigger_weight_kg !== undefined && stateRecord?.trigger_weight_kg !== null
           ? String(stateRecord.trigger_weight_kg)
@@ -183,14 +208,30 @@ export default function TripInstanceForm() {
     tripInstanceApi
       .get(id)
       .then((res: any) => {
+        const tripDefId = res?.trip_definition_id ?? "";
+        const staffTplId = res?.staff_template_id ?? "";
+        const altStaffTplId = res?.alternative_staff_template_id ?? "";
+        const zoneId = res?.zone_id ?? "";
+        const vehicleId = res?.vehicle_id ?? "";
+        const propertyId = res?.property_id ?? "";
+        const subPropertyId = res?.sub_property_id ?? "";
+
+        setPendingTripDefinitionId(tripDefId);
+        setPendingStaffTemplateId(staffTplId);
+        setPendingAltStaffTemplateId(altStaffTplId);
+        setPendingZoneId(zoneId);
+        setPendingVehicleId(vehicleId);
+        setPendingPropertyId(propertyId);
+        setPendingSubPropertyId(subPropertyId);
+
         setFormData({
-          trip_definition_id: res?.trip_definition_id ?? "",
-          staff_template_id: res?.staff_template_id ?? "",
-          alternative_staff_template_id: res?.alternative_staff_template_id ?? "",
-          zone_id: res?.zone_id ?? "",
-          vehicle_id: res?.vehicle_id ?? "",
-          property_id: res?.property_id ?? "",
-          sub_property_id: res?.sub_property_id ?? "",
+          trip_definition_id: tripDefId,
+          staff_template_id: staffTplId,
+          alternative_staff_template_id: altStaffTplId,
+          zone_id: zoneId,
+          vehicle_id: vehicleId,
+          property_id: propertyId,
+          sub_property_id: subPropertyId,
           trigger_weight_kg:
             res?.trigger_weight_kg !== undefined && res?.trigger_weight_kg !== null
               ? String(res.trigger_weight_kg)
@@ -220,6 +261,56 @@ export default function TripInstanceForm() {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       });
   }, [id, isEdit, t, tripInstanceApi]);
+
+  // Apply pending IDs once the corresponding options array is populated
+  useEffect(() => {
+    if (pendingTripDefinitionId && tripDefinitions.length > 0 && tripDefinitions.some((o) => o.value === pendingTripDefinitionId)) {
+      setFormData((prev) => ({ ...prev, trip_definition_id: pendingTripDefinitionId }));
+      setPendingTripDefinitionId(null);
+    }
+  }, [pendingTripDefinitionId, tripDefinitions]);
+
+  useEffect(() => {
+    if (pendingStaffTemplateId && staffTemplates.length > 0 && staffTemplates.some((o) => o.value === pendingStaffTemplateId)) {
+      setFormData((prev) => ({ ...prev, staff_template_id: pendingStaffTemplateId }));
+      setPendingStaffTemplateId(null);
+    }
+  }, [pendingStaffTemplateId, staffTemplates]);
+
+  useEffect(() => {
+    if (pendingAltStaffTemplateId && altStaffTemplates.length > 0 && altStaffTemplates.some((o) => o.value === pendingAltStaffTemplateId)) {
+      setFormData((prev) => ({ ...prev, alternative_staff_template_id: pendingAltStaffTemplateId }));
+      setPendingAltStaffTemplateId(null);
+    }
+  }, [pendingAltStaffTemplateId, altStaffTemplates]);
+
+  useEffect(() => {
+    if (pendingZoneId && zones.length > 0 && zones.some((o) => o.value === pendingZoneId)) {
+      setFormData((prev) => ({ ...prev, zone_id: pendingZoneId }));
+      setPendingZoneId(null);
+    }
+  }, [pendingZoneId, zones]);
+
+  useEffect(() => {
+    if (pendingVehicleId && vehicles.length > 0 && vehicles.some((o) => o.value === pendingVehicleId)) {
+      setFormData((prev) => ({ ...prev, vehicle_id: pendingVehicleId }));
+      setPendingVehicleId(null);
+    }
+  }, [pendingVehicleId, vehicles]);
+
+  useEffect(() => {
+    if (pendingPropertyId && properties.length > 0 && properties.some((o) => o.value === pendingPropertyId)) {
+      setFormData((prev) => ({ ...prev, property_id: pendingPropertyId }));
+      setPendingPropertyId(null);
+    }
+  }, [pendingPropertyId, properties]);
+
+  useEffect(() => {
+    if (pendingSubPropertyId && subProperties.length > 0 && subProperties.some((o) => o.value === pendingSubPropertyId)) {
+      setFormData((prev) => ({ ...prev, sub_property_id: pendingSubPropertyId }));
+      setPendingSubPropertyId(null);
+    }
+  }, [pendingSubPropertyId, subProperties]);
 
   const requiresCreate = useMemo(() => !isEdit, [isEdit]);
 

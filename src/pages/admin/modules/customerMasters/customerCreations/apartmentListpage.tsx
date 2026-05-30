@@ -14,10 +14,13 @@ import "primeicons/primeicons.css";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useTranslation } from "react-i18next";
-import {
-  useCustomerCreationsQuery,
-  type CustomerCreationRecord,
-} from "@/helpers/admin/directQueries";
+import { customerCreationApi } from "@/helpers/admin";
+
+type CustomerCreationRecord = {
+  unique_id: string | number;
+  is_active: boolean;
+  [key: string]: unknown;
+};
 
 type ApartmentRow = {
   apartment_name: string;
@@ -63,7 +66,18 @@ const readCustomerText = (
 
 export default function ApartmentListPage() {
   const { t } = useTranslation();
-  const customersQuery = useCustomerCreationsQuery();
+
+  const [allCustomers, setAllCustomers] = useState<CustomerCreationRecord[]>([])
+  const [customersLoading, setCustomersLoading] = useState(false)
+  useEffect(() => {
+    let mounted = true
+    setCustomersLoading(true)
+    customerCreationApi.list()
+      .then((data: unknown) => { if (mounted) setAllCustomers(Array.isArray(data) ? data as CustomerCreationRecord[] : []) })
+      .catch((error: unknown) => { if (mounted) Swal.fire({ icon: 'error', title: 'Error', text: String(error) }) })
+      .finally(() => { if (mounted) setCustomersLoading(false) })
+    return () => { mounted = false }
+  }, [t])
 
   const [viewLevel, setViewLevel] = useState<ViewLevel>("apartment");
 
@@ -92,7 +106,7 @@ export default function ApartmentListPage() {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
 
-    return (customersQuery.data ?? []).filter((row) => {
+    return allCustomers.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
       const apartmentName = readCustomerText(row, "apartment_name");
@@ -105,7 +119,7 @@ export default function ApartmentListPage() {
   }, [
     companies.length,
     companyUniqueId,
-    customersQuery.data,
+    allCustomers,
     isSuperAdmin,
     projectId,
   ]);
@@ -207,15 +221,6 @@ export default function ApartmentListPage() {
     setSelectedFlat("");
     setViewLevel("apartment");
   }, [companyUniqueId, projectId]);
-
-  useEffect(() => {
-    if (!customersQuery.isError) return;
-    Swal.fire({
-      icon: "error",
-      title: t("common.error"),
-      text: String((customersQuery.error as any)?.response?.data ?? customersQuery.error),
-    });
-  }, [customersQuery.error, customersQuery.isError, t]);
 
   /* ---- filter ---- */
 
@@ -466,7 +471,7 @@ export default function ApartmentListPage() {
           paginator
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={customersQuery.isPending && apartments.length === 0}
+          loading={customersLoading && apartments.length === 0}
           filters={filters}
           globalFilterFields={globalFilterFields.apartment}
           header={tableHeader}
@@ -505,7 +510,7 @@ export default function ApartmentListPage() {
             paginator
             rows={10}
             rowsPerPageOptions={[5, 10, 25, 50]}
-            loading={customersQuery.isPending && blocks.length === 0}
+            loading={customersLoading && blocks.length === 0}
             filters={filters}
             globalFilterFields={globalFilterFields.block}
             header={tableHeader}
@@ -536,7 +541,7 @@ export default function ApartmentListPage() {
             paginator
             rows={10}
             rowsPerPageOptions={[5, 10, 25, 50]}
-            loading={customersQuery.isPending && flats.length === 0}
+            loading={customersLoading && flats.length === 0}
             filters={filters}
             globalFilterFields={globalFilterFields.flat}
             header={tableHeader}
@@ -567,7 +572,7 @@ export default function ApartmentListPage() {
             paginator
             rows={10}
             rowsPerPageOptions={[5, 10, 25, 50]}
-            loading={customersQuery.isPending && users.length === 0}
+            loading={customersLoading && users.length === 0}
             filters={filters}
             globalFilterFields={globalFilterFields.user}
             header={tableHeader}

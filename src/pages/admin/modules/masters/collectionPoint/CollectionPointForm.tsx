@@ -154,6 +154,15 @@ export default function CollectionPointForm() {
   const [panchayatId, setPanchayatId] = useState("");
   const [zoneId, setZoneId] = useState("");
   const [wardId, setWardId] = useState("");
+
+  /* pending IDs for edit-mode prefill race condition:
+     set when record loads, cleared once the option list is available */
+  const [pendingStateId, setPendingStateId] = useState("");
+  const [pendingDistrictId, setPendingDistrictId] = useState("");
+  const [pendingCityId, setPendingCityId] = useState("");
+  const [pendingPanchayatId, setPendingPanchayatId] = useState("");
+  const [pendingZoneId, setPendingZoneId] = useState("");
+  const [pendingWardId, setPendingWardId] = useState("");
   const [cpName, setCpName] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
@@ -304,12 +313,25 @@ export default function CollectionPointForm() {
       .then((data: unknown) => {
         if (cancelled) return;
         const record = data as UnknownRecord;
-        setStateId(normalizeIdValue(record.state_id ?? record.state));
-        setDistrictId(normalizeIdValue(record.district_id ?? record.district));
-        setCityId(normalizeIdValue(record.city_id ?? record.city));
-        setPanchayatId(normalizeIdValue(record.panchayat_id ?? record.panchayat));
-        setZoneId(normalizeIdValue(record.zone_id ?? record.zone));
-        setWardId(normalizeIdValue(record.ward_id ?? record.ward));
+        const _stateId = normalizeIdValue(record.state_id ?? record.state);
+        const _districtId = normalizeIdValue(record.district_id ?? record.district);
+        const _cityId = normalizeIdValue(record.city_id ?? record.city);
+        const _panchayatId = normalizeIdValue(record.panchayat_id ?? record.panchayat);
+        const _zoneId = normalizeIdValue(record.zone_id ?? record.zone);
+        const _wardId = normalizeIdValue(record.ward_id ?? record.ward);
+
+        setStateId(_stateId);
+        setPendingStateId(_stateId);
+        setDistrictId(_districtId);
+        setPendingDistrictId(_districtId);
+        setCityId(_cityId);
+        setPendingCityId(_cityId);
+        setPanchayatId(_panchayatId);
+        setPendingPanchayatId(_panchayatId);
+        setZoneId(_zoneId);
+        setPendingZoneId(_zoneId);
+        setWardId(_wardId);
+        setPendingWardId(_wardId);
         setCpName(toStringOrEmpty(record.cp_name ?? record.collection_point_name));
         setLatitude(toStringOrEmpty(record.latitude));
         setLongitude(toStringOrEmpty(record.longitude));
@@ -323,6 +345,64 @@ export default function CollectionPointForm() {
       });
     return () => { cancelled = true; };
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ==========================================================
+      APPLY PENDING IDs once option lists have loaded
+  ========================================================== */
+
+  // Apply pending stateId once the global states list is available
+  useEffect(() => {
+    if (!pendingStateId) return;
+    if (states.length > 0 && states.some((s) => s.value === pendingStateId)) {
+      setStateId(pendingStateId);
+      setPendingStateId("");
+    }
+  }, [pendingStateId, states]);
+
+  // Apply pending districtId once the tenant-filtered districts list is available
+  useEffect(() => {
+    if (!pendingDistrictId) return;
+    if (districts.length > 0 && districts.some((d) => d.value === pendingDistrictId)) {
+      setDistrictId(pendingDistrictId);
+      setPendingDistrictId("");
+    }
+  }, [pendingDistrictId, districts]);
+
+  // Apply pending cityId once the tenant-filtered cities list is available
+  useEffect(() => {
+    if (!pendingCityId) return;
+    if (cities.length > 0 && cities.some((c) => c.value === pendingCityId)) {
+      setCityId(pendingCityId);
+      setPendingCityId("");
+    }
+  }, [pendingCityId, cities]);
+
+  // Apply pending panchayatId once the tenant-filtered panchayats list is available
+  useEffect(() => {
+    if (!pendingPanchayatId) return;
+    if (panchayats.length > 0 && panchayats.some((p) => p.value === pendingPanchayatId)) {
+      setPanchayatId(pendingPanchayatId);
+      setPendingPanchayatId("");
+    }
+  }, [pendingPanchayatId, panchayats]);
+
+  // Apply pending zoneId once the tenant-filtered zones list is available
+  useEffect(() => {
+    if (!pendingZoneId) return;
+    if (zoneOptions.length > 0 && zoneOptions.some((z) => z.value === pendingZoneId)) {
+      setZoneId(pendingZoneId);
+      setPendingZoneId("");
+    }
+  }, [pendingZoneId, zoneOptions]);
+
+  // Apply pending wardId once the tenant-filtered wards list is available
+  useEffect(() => {
+    if (!pendingWardId) return;
+    if (wards.length > 0 && wards.some((w) => w.value === pendingWardId)) {
+      setWardId(pendingWardId);
+      setPendingWardId("");
+    }
+  }, [pendingWardId, wards]);
 
   const districtOptions = useMemo(() => {
     const filtered = districts

@@ -377,10 +377,7 @@
 
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import {
-  useStaffCreationList,
-  useUpdateStaff,
-} from "@/helpers/admin/directQueries";
+import { adminApi } from "@/helpers/admin/registry";
 import Swal from "sweetalert2";
 import ReactDOM from "react-dom/client";
 
@@ -502,7 +499,8 @@ export default function StaffCreationList() {
     "project_name",
   ];
 
-  const updateMutation = useUpdateStaff();
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
+
   const requestParams = {
     salary_type: filterParams.salary_type,
     active_status: filterParams.active_status,
@@ -512,25 +510,24 @@ export default function StaffCreationList() {
     ...(projectId ? { project_id: projectId } : {}),
   };
 
-  const { data: rawData, refetch } = useStaffCreationList(requestParams.company_id ? requestParams : undefined);
-
   useEffect(() => {
+    let mounted = true;
+
     const load = async () => {
       if (isSuperAdmin && companies.length === 0) {
-        setStaffs([]);
-        setLoading(false);
+        if (mounted) { setStaffs([]); setLoading(false); }
         return;
       }
 
       if (!companyUniqueId) {
-        setStaffs([]);
-        setLoading(false);
+        if (mounted) { setStaffs([]); setLoading(false); }
         return;
       }
 
+      if (mounted) setLoading(true);
       try {
-        setLoading(true);
-        const payload: any = rawData ?? [];
+        const payload: any = await adminApi.staffCreation.list({ params: requestParams });
+        if (!mounted) return;
         const data = Array.isArray(payload)
           ? payload
           : Array.isArray(payload?.data)
@@ -561,17 +558,19 @@ export default function StaffCreationList() {
 
         setStaffs(filtered);
       } catch (err) {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
-    load();
-  }, [rawData, companyUniqueId, companies.length, isSuperAdmin, projectId]);
+    void load();
+
+    return () => { mounted = false; };
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, refetchTrigger]);
 
   const applyFilter = () => {
-    void refetch();
+    setRefetchTrigger((n) => n + 1);
   };
 
   const handleFilterChange = (
@@ -601,7 +600,12 @@ export default function StaffCreationList() {
           formData.append(key, String(entryValue));
         });
 
-        await updateMutation.mutateAsync({ id: row.unique_id, payload: formData });
+        await adminApi.staffCreation.update(row.unique_id, formData);
+        setStaffs((prev) =>
+          prev.map((s) =>
+            s.unique_id === row.unique_id ? { ...s, active_status: value } : s
+          )
+        );
       } catch (err) {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       }

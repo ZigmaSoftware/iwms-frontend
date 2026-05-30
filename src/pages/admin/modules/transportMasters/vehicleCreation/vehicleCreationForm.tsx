@@ -12,8 +12,9 @@ import { filterActiveRecords } from "@/utils/customerUtils";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { type VehicleCreationPayload } from "@/helpers/admin/directQueries";
 import { adminApi } from "@/helpers/admin/registry";
+
+type VehicleCreationPayload = Record<string, unknown>;
 
 const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleCreation}`;
@@ -134,6 +135,10 @@ export default function VehicleCreationForm() {
     return () => { cancelled = true; };
   }, []);
 
+  // Pending IDs — set when the record loads; applied once options are available
+  const [pendingVehicleTypeId, setPendingVehicleTypeId] = useState<string | null>(null);
+  const [pendingFuelTypeId, setPendingFuelTypeId] = useState<string | null>(null);
+
   // ── Submitting state ──────────────────────────────────────────────────────
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -171,10 +176,16 @@ export default function VehicleCreationForm() {
     if (!isEdit || !recordData) return;
 
     const res = recordData as Record<string, unknown>;
+    const vehicleTypeId = toStr(res.vehicle_type_id);
+    const fuelTypeId = toStr(res.fuel_type_id);
+
+    if (vehicleTypeId) setPendingVehicleTypeId(vehicleTypeId);
+    if (fuelTypeId) setPendingFuelTypeId(fuelTypeId);
+
     setForm({
       vehicleNo: toStr(res.vehicle_no),
-      vehicleTypeId: toStr(res.vehicle_type_id),
-      fuelTypeId: toStr(res.fuel_type_id),
+      vehicleTypeId,
+      fuelTypeId,
       capacity: toStr(res.capacity),
       mileagePerLiter: toStr(res.mileage_per_liter),
       serviceRecord: toStr(res.service_record),
@@ -252,6 +263,21 @@ export default function VehicleCreationForm() {
     { value: "NEW", label: t("admin.vehicle_creation.condition_new") },
     { value: "SECOND_HAND", label: t("admin.vehicle_creation.condition_second_hand") },
   ];
+
+  // Apply pending IDs once the corresponding options array is populated
+  useEffect(() => {
+    if (pendingVehicleTypeId && vehicleTypeOptions.length > 0 && vehicleTypeOptions.some((o) => o.value === pendingVehicleTypeId)) {
+      setForm((prev) => ({ ...prev, vehicleTypeId: pendingVehicleTypeId }));
+      setPendingVehicleTypeId(null);
+    }
+  }, [pendingVehicleTypeId, vehicleTypeOptions]);
+
+  useEffect(() => {
+    if (pendingFuelTypeId && fuelTypeOptions.length > 0 && fuelTypeOptions.some((o) => o.value === pendingFuelTypeId)) {
+      setForm((prev) => ({ ...prev, fuelTypeId: pendingFuelTypeId }));
+      setPendingFuelTypeId(null);
+    }
+  }, [pendingFuelTypeId, fuelTypeOptions]);
 
   // ── File helpers ───────────────────────────────────────────────────────────
   const handleFileChange = (

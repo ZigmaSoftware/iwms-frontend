@@ -314,7 +314,22 @@ export default function SubComplaintCategoryForm() {
     }
   };
 
-  if (isEdit && loadingRecord && !recordData) {
+  // In edit mode, wait for both the record and the main-category options list before
+  // mounting SubCategoryEditor. Mounting earlier with an empty mainList causes the
+  // controlled Select to render blank even though mainCategory state is correctly seeded.
+  const mainListReady = !isEdit || mainList.length > 0 || !recordData?.mainCategory;
+
+  if (isEdit && (loadingRecord || !mainListReady) && !recordData) {
+    return (
+      <ComponentCard
+        title={t("admin.citizen_grievance.sub_category_form.title_edit")}
+      >
+        <div className="p-6 text-sm text-gray-500">{t("common.loading")}</div>
+      </ComponentCard>
+    );
+  }
+
+  if (isEdit && recordData && !mainListReady) {
     return (
       <ComponentCard
         title={t("admin.citizen_grievance.sub_category_form.title_edit")}

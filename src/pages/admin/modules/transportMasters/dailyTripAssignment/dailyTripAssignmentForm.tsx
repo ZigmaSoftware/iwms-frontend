@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -10,19 +11,41 @@ import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
 
 import { adminApi } from "@/helpers/admin/registry";
+import { dailyTripAssignmentApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
-import type { DailyTripAssignmentRecord } from "@/tanstack/admin";
-import {
-  useDailyTripAssignmentQuery,
-  useCreateDailyTripAssignmentMutation,
-  useUpdateDailyTripAssignmentMutation,
-} from "@/tanstack/admin";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type SelectOption = { value: string; label: string };
+
+type NamedRef = { unique_id?: string; name?: string; [key: string]: unknown };
+
+type DailyTripAssignmentRecord = {
+  unique_id: string;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  trip_definition_id?: string;
+  staff_template_id?: string;
+  panchayat_id?: string;
+  collection_point_id?: string;
+  waste_type_id?: string;
+  trip_definition?: { unique_id?: string; display_code?: string };
+  staff_template?: { unique_id?: string; display_code?: string };
+  effective_staff?: { unique_id?: string; display_code?: string } | null;
+  panchayat?: NamedRef & { panchayat_name?: string };
+  collection_point?: NamedRef & { cp_name?: string; collection_point_name?: string };
+  waste_type?: NamedRef & { waste_type_name?: string };
+  trip_date?: string;
+  scheduled_time?: string;
+  status?: string;
+  approval_status?: string;
+  remarks?: string | null;
+  [key: string]: unknown;
+};
 
 type FormState = {
   trip_definition_id: string;
@@ -58,15 +81,9 @@ const buildOptions = (items: any[], labelKey: string | string[]): SelectOption[]
   items
     .map((item) => {
       const keys = Array.isArray(labelKey) ? labelKey : [labelKey];
-      const label = keys
-        .map((key) => item?.[key])
-        .find((value) => value !== undefined && value !== null && value !== "");
+      const label = keys.map((key) => item?.[key]).find((v) => v !== undefined && v !== null && v !== "");
       const value = String(item?.unique_id ?? item?.id ?? "");
-
-      return {
-        value,
-        label: String(label ?? item?.display_code ?? item?.name ?? value),
-      };
+      return { value, label: String(label ?? item?.display_code ?? item?.name ?? value) };
     })
     .filter((o) => o.value);
 
@@ -78,6 +95,12 @@ const filterByCompanyProject = (items: any[], companyId: string, projectId: stri
     const p = String(item?.project_id ?? item?.project_unique_id ?? "");
     return (!companyId || c === companyId) && (!projectId || p === projectId);
   });
+};
+
+const ensureOption = (options: SelectOption[], value: string, label?: string): SelectOption[] => {
+  if (!value) return options;
+  if (options.some((o) => String(o.value) === value)) return options;
+  return [...options, { value, label: label ?? value }];
 };
 
 const extractError = (error: any): string | null => {
@@ -96,48 +119,28 @@ const extractError = (error: any): string | null => {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-type DailyTripAssignmentRouteState = {
-  record?: Partial<DailyTripAssignmentRecord>;
-  companyUniqueId?: string | number | null;
-  projectId?: string | number | null;
-};
-
 export default function DailyTripAssignmentForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { id: routeId } = useParams<{ id?: string }>();
+  const { id } = useParams<{ id?: string }>();
   const location = useLocation();
-  const routeState = location.state as DailyTripAssignmentRouteState | null;
-  const stateRecord = routeState?.record;
-  const routeStateAppliedRef = useRef(false);
-  const activeId = routeId ?? stateRecord?.unique_id ?? String(stateRecord?.id ?? "");
-  const isEdit = Boolean(activeId);
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const isEdit = Boolean(id);
 
   const {
     companyUniqueId, projectId, projects, companies,
     isSuperAdmin, loggedInCompanyUniqueId,
     setProjectId, onCompanyChange, applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  } = useCompanyProjectSelection({
+    isEdit,
+    initialCompanyId: routeState?.companyUniqueId,
+    initialProjectId: routeState?.projectId,
+  });
 
   const { encTransportMaster, encDailyTripAssignment } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encTransportMaster}/${encDailyTripAssignment}`;
+  const LIST_PATH = `/${encTransportMaster}/${encDailyTripAssignment}`;
 
-  // ── TanStack ──────────────────────────────────────────────────────────────
-  const assignmentQuery = useDailyTripAssignmentQuery(activeId || undefined);
-  const createMutation = useCreateDailyTripAssignmentMutation();
-  const updateMutation = useUpdateDailyTripAssignmentMutation();
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
-
-  // ── Dropdown state ────────────────────────────────────────────────────────
-  const [fetching, setFetching] = useState(false);
-  const [tripDefinitions, setTripDefinitions] = useState<SelectOption[]>([]);
-  const [staffTemplates, setStaffTemplates] = useState<SelectOption[]>([]);
-  const [panchayats, setPanchayats] = useState<SelectOption[]>([]);
-  const [collectionPoints, setCollectionPoints] = useState<SelectOption[]>([]);
-  const [wasteTypes, setWasteTypes] = useState<SelectOption[]>([]);
-  const [altStaffCache, setAltStaffCache] = useState<any[]>([]);
-
-  // ── Form state ────────────────────────────────────────────────────────────
+  // ── Form & record state ───────────────────────────────────────────────────
   const [formData, setFormData] = useState<FormState>({
     trip_definition_id: "",
     staff_template_id: "",
@@ -151,7 +154,52 @@ export default function DailyTripAssignmentForm() {
     remarks: "",
   });
 
-  // ── Fetch dropdowns when company/project selected ─────────────────────────
+  const [recordData, setRecordData] = useState<DailyTripAssignmentRecord | null>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ── Dropdown state ────────────────────────────────────────────────────────
+  const [fetching, setFetching] = useState(false);
+  const [tripDefinitions, setTripDefinitions] = useState<SelectOption[]>([]);
+  const [staffTemplates, setStaffTemplates] = useState<SelectOption[]>([]);
+  const [panchayats, setPanchayats] = useState<SelectOption[]>([]);
+  const [collectionPoints, setCollectionPoints] = useState<SelectOption[]>([]);
+  const [wasteTypes, setWasteTypes] = useState<SelectOption[]>([]);
+  const [altStaffCache, setAltStaffCache] = useState<any[]>([]);
+
+  // ── Load record in edit mode ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    (dailyTripAssignmentApi.get(id) as Promise<DailyTripAssignmentRecord>)
+      .then((res) => {
+        if (cancelled) return;
+        setRecordData(res);
+        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
+        setFormData({
+          trip_definition_id: res.trip_definition?.unique_id ?? res.trip_definition_id ?? "",
+          staff_template_id: res.staff_template?.unique_id ?? res.staff_template_id ?? "",
+          panchayat_id: res.panchayat?.unique_id ?? res.panchayat_id ?? "",
+          collection_point_id: res.collection_point?.unique_id ?? res.collection_point_id ?? "",
+          waste_type_id: res.waste_type?.unique_id ?? res.waste_type_id ?? "",
+          trip_date: res.trip_date ?? "",
+          scheduled_time: res.scheduled_time ?? "",
+          status: res.status ?? "Scheduled",
+          approval_status: res.approval_status ?? "Pending",
+          remarks: String(res.remarks ?? ""),
+        });
+        setLoadingRecord(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Failed to load record" });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit, applyCompanyProjectFromRecord, t]);
+
+  // ── Load dropdowns when company + project are set ─────────────────────────
   useEffect(() => {
     if (!companyUniqueId || !projectId) {
       setTripDefinitions([]);
@@ -161,10 +209,9 @@ export default function DailyTripAssignmentForm() {
       setAltStaffCache([]);
       return;
     }
-
+    let cancelled = false;
     setFetching(true);
     const params = { company_id: companyUniqueId, project_id: projectId };
-
     Promise.all([
       adminApi.tripDefinitions.list({ params }),
       adminApi.staffTemplateCreation.list({ params }),
@@ -174,6 +221,7 @@ export default function DailyTripAssignmentForm() {
       adminApi.alternativeStaffTemplate.list({ params }),
     ])
       .then(([tripRes, staffRes, panchRes, cpRes, wtRes, altRes]) => {
+        if (cancelled) return;
         setTripDefinitions(buildOptions(filterByCompanyProject(normalizeList(tripRes), companyUniqueId, projectId), "display_code"));
         setStaffTemplates(buildOptions(filterByCompanyProject(normalizeList(staffRes), companyUniqueId, projectId), "display_code"));
         setPanchayats(buildOptions(filterByCompanyProject(normalizeList(panchRes), companyUniqueId, projectId), "panchayat_name"));
@@ -181,161 +229,51 @@ export default function DailyTripAssignmentForm() {
         setWasteTypes(buildOptions(normalizeList(wtRes), ["waste_type_name", "name"]));
         setAltStaffCache(normalizeList(altRes));
       })
-      .catch((err: any) => {
-        Swal.fire(t("common.error"), extractError(err) ?? t("common.load_failed"), "error");
-      })
-      .finally(() => setFetching(false));
+      .catch((err: any) => Swal.fire(t("common.error"), extractError(err) ?? t("common.load_failed"), "error"))
+      .finally(() => { if (!cancelled) setFetching(false); });
+    return () => { cancelled = true; };
   }, [companyUniqueId, projectId, t]);
 
-  // ── Auto-resolve effective staff ──────────────────────────────────────────
+  // ── Effective alt-staff resolution ───────────────────────────────────────
   const resolvedAltStaff = useMemo(() => {
     if (!formData.staff_template_id || !formData.trip_date) return null;
     return altStaffCache.find((alt) => {
       const templateId = String(alt?.staff_template?.unique_id ?? alt?.staff_template_id ?? "");
-      return (
-        templateId === formData.staff_template_id &&
+      return templateId === formData.staff_template_id &&
         alt.from_date <= formData.trip_date &&
-        formData.trip_date <= alt.to_date
-      );
+        formData.trip_date <= alt.to_date;
     }) ?? null;
   }, [formData.staff_template_id, formData.trip_date, altStaffCache]);
 
-  const ensureOption = (options: SelectOption[], value: string, label?: string) => {
-    if (!value) return options;
-    if (options.some((option) => String(option.value) === value)) return options;
-    return [...options, { value, label: label ?? value }];
-  };
-
-  const selectedTripDefinitionLabel =
-    assignmentQuery.data?.trip_definition?.display_code ??
-    stateRecord?.trip_definition?.display_code ??
-    stateRecord?.trip_definition_id ??
-    assignmentQuery.data?.trip_definition_id ?? "";
-
-  const selectedStaffTemplateLabel =
-    assignmentQuery.data?.staff_template?.display_code ??
-    stateRecord?.staff_template?.display_code ??
-    stateRecord?.staff_template_id ??
-    assignmentQuery.data?.staff_template_id ?? "";
-
-  const selectedPanchayatLabel =
-    assignmentQuery.data?.panchayat?.panchayat_name ??
-    assignmentQuery.data?.panchayat?.name ??
-    stateRecord?.panchayat?.panchayat_name ??
-    stateRecord?.panchayat?.name ??
-    stateRecord?.panchayat_id ??
-    assignmentQuery.data?.panchayat_id ?? "";
-
-  const selectedCollectionPointLabel =
-    (assignmentQuery.data?.collection_point as any)?.cp_name ??
-    (assignmentQuery.data?.collection_point as any)?.collection_point_name ??
-    assignmentQuery.data?.collection_point?.name ??
-    stateRecord?.collection_point?.cp_name ??
-    stateRecord?.collection_point?.collection_point_name ??
-    stateRecord?.collection_point?.name ??
-    stateRecord?.collection_point_id ??
-    assignmentQuery.data?.collection_point_id ?? "";
-
-  const selectedWasteTypeLabel =
-    (assignmentQuery.data?.waste_type as any)?.waste_type_name ??
-    (assignmentQuery.data?.waste_type as any)?.name ??
-    stateRecord?.waste_type?.waste_type_name ??
-    stateRecord?.waste_type?.name ??
-    stateRecord?.waste_type_id ??
-    assignmentQuery.data?.waste_type_id ?? "";
-
-  const resolvedTripDefinitions = useMemo(
-    () => ensureOption(tripDefinitions, formData.trip_definition_id, selectedTripDefinitionLabel),
-    [tripDefinitions, formData.trip_definition_id, selectedTripDefinitionLabel]
+  // ── Ensure saved values appear in option lists ────────────────────────────
+  const resolvedTripDefinitions = useMemo(() =>
+    ensureOption(tripDefinitions, formData.trip_definition_id, recordData?.trip_definition?.display_code),
+    [tripDefinitions, formData.trip_definition_id, recordData]
   );
-
-  const resolvedStaffTemplates = useMemo(
-    () => ensureOption(staffTemplates, formData.staff_template_id, selectedStaffTemplateLabel),
-    [staffTemplates, formData.staff_template_id, selectedStaffTemplateLabel]
+  const resolvedStaffTemplates = useMemo(() =>
+    ensureOption(staffTemplates, formData.staff_template_id, recordData?.staff_template?.display_code),
+    [staffTemplates, formData.staff_template_id, recordData]
   );
-
-  const resolvedPanchayats = useMemo(
-    () => ensureOption(panchayats, formData.panchayat_id, selectedPanchayatLabel),
-    [panchayats, formData.panchayat_id, selectedPanchayatLabel]
+  const resolvedPanchayats = useMemo(() =>
+    ensureOption(panchayats, formData.panchayat_id, recordData?.panchayat?.panchayat_name ?? recordData?.panchayat?.name as string | undefined),
+    [panchayats, formData.panchayat_id, recordData]
   );
-
-  const resolvedCollectionPoints = useMemo(
-    () => ensureOption(collectionPoints, formData.collection_point_id, selectedCollectionPointLabel),
-    [collectionPoints, formData.collection_point_id, selectedCollectionPointLabel]
+  const resolvedCollectionPoints = useMemo(() =>
+    ensureOption(collectionPoints, formData.collection_point_id, (recordData?.collection_point as any)?.cp_name ?? recordData?.collection_point?.name as string | undefined),
+    [collectionPoints, formData.collection_point_id, recordData]
   );
-
-  const resolvedWasteTypes = useMemo(
-    () => ensureOption(wasteTypes, formData.waste_type_id, selectedWasteTypeLabel),
-    [wasteTypes, formData.waste_type_id, selectedWasteTypeLabel]
+  const resolvedWasteTypes = useMemo(() =>
+    ensureOption(wasteTypes, formData.waste_type_id, (recordData?.waste_type as any)?.waste_type_name ?? recordData?.waste_type?.name as string | undefined),
+    [wasteTypes, formData.waste_type_id, recordData]
   );
-
-  // ── Populate from router state ────────────────────────────────────────────
-  useEffect(() => {
-    if (!routeState || routeStateAppliedRef.current) return;
-
-    const routeCompanyId = String(routeState.companyUniqueId ?? "").trim();
-    const routeProjectId = String(routeState.projectId ?? "").trim();
-    let applied = false;
-
-    if (routeCompanyId && routeCompanyId !== companyUniqueId) {
-      onCompanyChange(routeCompanyId);
-      applied = true;
-    }
-
-    if (routeProjectId && routeProjectId !== projectId) {
-      setProjectId(routeProjectId);
-      applied = true;
-    }
-
-    if (stateRecord && !assignmentQuery.data) {
-      applyCompanyProjectFromRecord(stateRecord as Record<string, unknown>);
-      setFormData({
-        trip_definition_id: stateRecord.trip_definition?.unique_id ?? stateRecord.trip_definition_id ?? "",
-        staff_template_id: stateRecord.staff_template?.unique_id ?? stateRecord.staff_template_id ?? "",
-        panchayat_id: stateRecord.panchayat?.unique_id ?? stateRecord.panchayat_id ?? "",
-        collection_point_id: stateRecord.collection_point?.unique_id ?? stateRecord.collection_point_id ?? "",
-        waste_type_id: stateRecord.waste_type?.unique_id ?? stateRecord.waste_type_id ?? "",
-        trip_date: stateRecord.trip_date ?? "",
-        scheduled_time: stateRecord.scheduled_time ?? "",
-        status: stateRecord.status ?? "Scheduled",
-        approval_status: stateRecord.approval_status ?? "Pending",
-        remarks: stateRecord.remarks ?? "",
-      });
-      applied = true;
-    }
-
-    if (applied) {
-      routeStateAppliedRef.current = true;
-    }
-  }, [assignmentQuery.data, companyUniqueId, projectId, routeState, onCompanyChange, setProjectId, applyCompanyProjectFromRecord, stateRecord]);
-
-  // ── Populate from TanStack query ──────────────────────────────────────────
-  useEffect(() => {
-    if (!isEdit || !assignmentQuery.data) return;
-    const res = assignmentQuery.data;
-    applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
-    setFormData({
-      trip_definition_id: res.trip_definition?.unique_id ?? res.trip_definition_id ?? "",
-      staff_template_id: res.staff_template?.unique_id ?? res.staff_template_id ?? "",
-      panchayat_id: res.panchayat?.unique_id ?? res.panchayat_id ?? "",
-      collection_point_id: res.collection_point?.unique_id ?? res.collection_point_id ?? "",
-      waste_type_id: res.waste_type?.unique_id ?? res.waste_type_id ?? "",
-      trip_date: res.trip_date ?? "",
-      scheduled_time: res.scheduled_time ?? "",
-      status: res.status ?? "Scheduled",
-      approval_status: res.approval_status ?? "Pending",
-      remarks: String(res.remarks ?? ""),
-    });
-  }, [applyCompanyProjectFromRecord, isEdit, assignmentQuery.data]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-
     if (!companyUniqueId || !projectId ||
-        !formData.trip_definition_id || !formData.staff_template_id ||
-        !formData.panchayat_id || !formData.collection_point_id ||
-        !formData.waste_type_id || !formData.trip_date || !formData.scheduled_time) {
+      !formData.trip_definition_id || !formData.staff_template_id ||
+      !formData.panchayat_id || !formData.collection_point_id ||
+      !formData.waste_type_id || !formData.trip_date || !formData.scheduled_time) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
@@ -355,16 +293,20 @@ export default function DailyTripAssignmentForm() {
       remarks: formData.remarks || undefined,
     };
 
+    setIsSubmitting(true);
     try {
-      if (isEdit && activeId) {
-        await updateMutation.mutateAsync({ id: activeId, payload });
+      if (isEdit && id) {
+        await dailyTripAssignmentApi.update(id, payload);
+        Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await createMutation.mutateAsync(payload);
+        await dailyTripAssignmentApi.create(payload);
+        Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
-      Swal.fire(t("common.success"), isEdit ? t("common.updated_success") : t("common.added_success"), "success");
-      navigate(ENC_LIST_PATH);
+      navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (err: any) {
       Swal.fire(t("common.save_failed"), extractError(err) ?? t("common.save_failed_desc"), "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -520,7 +462,7 @@ export default function DailyTripAssignmentForm() {
               />
             </div>
 
-            {/* Status — edit mode only */}
+            {/* Status — edit only */}
             {isEdit && (
               <div>
                 <Label>Status</Label>
@@ -533,7 +475,7 @@ export default function DailyTripAssignmentForm() {
               </div>
             )}
 
-            {/* Approval Status — edit mode only */}
+            {/* Approval Status — edit only */}
             {isEdit && (
               <div>
                 <Label>Approval Status</Label>
@@ -563,14 +505,14 @@ export default function DailyTripAssignmentForm() {
           <div className="flex justify-end gap-3">
             <button
               type="submit"
-              disabled={isSubmitting || fetching}
+              disabled={isSubmitting || loadingRecord || fetching}
               className="rounded-lg bg-green-custom px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
             >
               {isSubmitting ? t("common.saving") : isEdit ? t("common.update") : t("common.save")}
             </button>
             <button
               type="button"
-              onClick={() => navigate(ENC_LIST_PATH)}
+              onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
               className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600"
             >
               {t("common.cancel")}

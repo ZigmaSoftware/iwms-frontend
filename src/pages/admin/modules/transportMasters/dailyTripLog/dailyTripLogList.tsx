@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { createColumnHelper, getCoreRowModel, getSortedRowModel, useReactTable, type SortingState } from "@tanstack/react-table";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -10,15 +10,47 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
+import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import {
-  useDailyTripLogsQuery,
-  useVerifyDailyTripLogMutation,
-  type DailyTripLogRecord,
-} from "@/tanstack/admin";
+import { dailyTripLogApi } from "@/helpers/admin";
+import { api } from "@/api";
+
+type StaffRef = { unique_id?: string; staff_unique_id?: string; employee_name?: string };
+type NamedRef = { unique_id?: string; name?: string; [key: string]: unknown };
+
+type DailyTripLogRecord = {
+  unique_id: string;
+  trip_assignment_id?: string;
+  trip_assignment?: NamedRef & { display_code?: string };
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
+  collection_point?: NamedRef & { cp_name?: string };
+  collection_point_id?: string;
+  waste_type?: NamedRef & { waste_type_name?: string };
+  waste_type_id?: string;
+  trip_date?: string;
+  actual_start_time?: string | null;
+  actual_end_time?: string | null;
+  driver?: StaffRef;
+  operator?: StaffRef;
+  extra_operators?: StaffRef[];
+  collected_weight_kg?: string | number;
+  vehicle?: NamedRef & { vehicle_no?: string };
+  bin_ids?: string[];
+  bins?: (NamedRef & { bin_name?: string })[];
+  remarks?: string | null;
+  log_status?: string;
+  verified_by_name?: string | null;
+  verified_at?: string | null;
+  [key: string]: unknown;
+};
 
 const STATUS_STYLES: Record<string, string> = {
   Draft: "bg-gray-100 text-gray-700",
@@ -45,23 +77,15 @@ const extractError = (error: any): string | null => {
   return null;
 };
 
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  unique_id: { value: string | null; matchMode: FilterMatchMode };
-  company_name: { value: string | null; matchMode: FilterMatchMode };
-  project_name: { value: string | null; matchMode: FilterMatchMode };
-  _assignment: { value: string | null; matchMode: FilterMatchMode };
-  _waste: { value: string | null; matchMode: FilterMatchMode };
-  _cp: { value: string | null; matchMode: FilterMatchMode };
-  log_status: { value: string | null; matchMode: FilterMatchMode };
-  trip_date: { value: string | null; matchMode: FilterMatchMode };
-};
-
-const columnHelper = createColumnHelper<DailyTripLogRecord>();
+const normalizeId = (value: unknown): string =>
+  value === null || value === undefined ? "" : String(value).trim();
 
 export default function DailyTripLogList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+
   const { encTransportMaster, encDailyTripLog } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encTransportMaster}/${encDailyTripLog}/new`;
   const ENC_EDIT_PATH = (id: string) => `/${encTransportMaster}/${encDailyTripLog}/${id}/edit`;
@@ -69,71 +93,70 @@ export default function DailyTripLogList() {
   const {
     companyUniqueId, projectId, projects, companies,
     isSuperAdmin, setProjectId, onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
+  const [allLogs, setAllLogs] = useState<DailyTripLogRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    unique_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    company_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    project_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _assignment: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _waste: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _cp: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    log_status: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    trip_date: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  const [filters, setFilters] = useState<DataTableFilterMeta>({
+    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    company_name: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    project_name: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    _assignment: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    _waste: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    _cp: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    log_status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    trip_date: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  const ordering = sorting[0] ? `${sorting[0].desc ? "-" : ""}${sorting[0].id}` : undefined;
-  const logsQuery = useDailyTripLogsQuery(
-    companyUniqueId ? {
-      company_id: companyUniqueId,
-      project_id: projectId || undefined,
-      search: globalFilterValue || undefined,
-      ordering,
-    } : null
-  );
-  const verifyMutation = useVerifyDailyTripLogMutation();
+  /* ── load logs ── */
+  useEffect(() => {
+    if (!companyUniqueId) { setAllLogs([]); return; }
+    let mounted = true;
+    setIsLoading(true);
+    const params: Record<string, string> = { company_id: companyUniqueId };
+    if (projectId) params.project_id = projectId;
+    (dailyTripLogApi.list({ params }) as Promise<DailyTripLogRecord[]>)
+      .then((data) => { if (mounted) setAllLogs(Array.isArray(data) ? data : []); })
+      .catch((err) => { if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) }); })
+      .finally(() => { if (mounted) setIsLoading(false); });
+    return () => { mounted = false; };
+  }, [companyUniqueId, projectId, t]);
 
-  const rows = useMemo(() => {
-    const list = Array.isArray(logsQuery.data) ? logsQuery.data : [];
-    return list.map((rec) => ({
-      ...rec,
-      _assignment: rec.trip_assignment?.display_code ?? rec.trip_assignment?.unique_id ?? rec.trip_assignment_id ?? "",
-      _waste: rec.waste_type?.waste_type_name ?? rec.waste_type_id ?? "",
-      _cp: rec.collection_point?.cp_name ?? rec.collection_point_id ?? "",
-      _driver: rec.driver?.employee_name ?? rec.driver_id ?? "",
-      _operator: rec.operator?.employee_name ?? rec.operator_id ?? "",
-    }));
-  }, [logsQuery.data]);
+  /* ── enrich rows with computed fields for filtering ── */
+  const rows = allLogs.map((rec) => ({
+    ...rec,
+    _assignment: rec.trip_assignment?.display_code ?? rec.trip_assignment?.unique_id ?? rec.trip_assignment_id ?? "",
+    _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
+    _cp: rec.collection_point?.cp_name ?? rec.collection_point_id ?? "",
+    _driver: rec.driver?.employee_name ?? "",
+    _operator: rec.operator?.employee_name ?? "",
+  }));
 
-  const columns = useMemo(
-    () => [
-      columnHelper.accessor("unique_id", { header: "ID" }),
-      columnHelper.accessor("company_name", { header: "Company" }),
-      columnHelper.accessor("project_name", { header: "Project" }),
-      columnHelper.accessor("collected_weight_kg", { header: "Weight" }),
-      columnHelper.accessor("log_status", { header: "Status" }),
-      columnHelper.accessor("trip_date", { header: "Trip Date" }),
-    ],
-    []
-  );
+  /* ── filter by company+project client-side ── */
+  const data = (() => {
+    if (isSuperAdmin && companies.length === 0) return [];
+    if (!companyUniqueId) return [];
+    return rows.filter((row) => {
+      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+      return (!companyUniqueId || rowCompanyId === companyUniqueId) &&
+             (!projectId || rowProjectId === projectId);
+    });
+  })();
 
-  useReactTable({
-    data: rows,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
+  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
 
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as TableFilters);
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
+    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
     setGlobalFilterValue(value);
-    setFilters((prev) => ({ ...prev, global: { value, matchMode: FilterMatchMode.CONTAINS } }));
   };
 
   const handleVerify = async (row: DailyTripLogRecord) => {
@@ -144,11 +167,19 @@ export default function DailyTripLogList() {
       confirmButtonText: "Yes, verify",
     });
     if (!result.isConfirmed) return;
+    setIsVerifying(true);
     try {
-      await verifyMutation.mutateAsync({ id: row.unique_id });
+      await api.patch(`/transport-masters/daily-trip-log/${row.unique_id}/verify/`, {});
+      setAllLogs((current) =>
+        current.map((item) =>
+          item.unique_id === row.unique_id ? { ...item, log_status: "Verified" } : item
+        )
+      );
       Swal.fire(t("common.success"), "Trip log verified", "success");
     } catch (err: any) {
       Swal.fire(t("common.error"), extractError(err) ?? "Failed to verify trip log", "error");
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -156,15 +187,9 @@ export default function DailyTripLogList() {
     <div className="flex items-center justify-center gap-3">
       <button
         title={row.log_status === "Verified" ? "View" : t("common.edit")}
-        onClick={() =>
-          navigate(ENC_EDIT_PATH(row.unique_id), {
-            state: {
-              record: row,
-              companyUniqueId: row.company_unique_id ?? row.company_id,
-              projectId: row.project_unique_id ?? row.project_id,
-            },
-          })
-        }
+        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id), {
+          state: { companyUniqueId: row.company_unique_id ?? row.company_id, projectId: row.project_unique_id ?? row.project_id },
+        })}
         className="text-blue-600 hover:text-blue-800"
       >
         <PencilIcon className="size-5" />
@@ -173,73 +198,88 @@ export default function DailyTripLogList() {
         <Button
           label="Verify"
           className="p-button-success p-button-sm"
-          loading={verifyMutation.isPending}
+          loading={isVerifying}
           onClick={() => handleVerify(row)}
         />
       )}
     </div>
   );
 
-  const header = (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">Daily Trip Logs</h1>
-          <p className="text-sm text-gray-500">Capture and verify actual collection trip results</p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="rounded border px-3 py-2 text-sm"
-          >
-            <option value="" disabled>{t("common.select_item_placeholder", { item: t("admin.nav.company") })}</option>
-            {companies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </select>
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
-            className="rounded border px-3 py-2 text-sm"
-          >
-            <option value="" disabled>{t("common.select_item_placeholder", { item: t("admin.nav.project") })}</option>
-            {projects.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
-          <Button
-            label="New Log"
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
-          />
-        </div>
-      </div>
-      <div className="flex justify-end">
-        <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-1">
-          <i className="pi pi-search text-gray-500" />
-          <InputText value={globalFilterValue} onChange={onGlobalFilterChange} placeholder="Search trip logs..." className="border-none text-sm" />
-        </div>
+  const renderHeader = () => (
+    <div className="flex justify-end items-center">
+      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
+        <i className="pi pi-search text-gray-500" />
+        <InputText
+          value={globalFilterValue}
+          onChange={onGlobalFilterChange}
+          placeholder="Search trip logs..."
+          className="p-inputtext-sm !border-0 !shadow-none !outline-none"
+        />
       </div>
     </div>
   );
 
   return (
     <div className="p-3">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 mb-1">Daily Trip Logs</h1>
+          <p className="text-sm text-gray-500">Capture and verify actual collection trip results</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((p) => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+
+          <Button
+            label="New Log"
+            icon="pi pi-plus"
+            className="p-button-success"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+          />
+        </div>
+      </div>
+
       <DataTable
-        value={rows}
+        value={data}
         dataKey="unique_id"
         paginator
         rows={10}
-        loading={logsQuery.isPending || logsQuery.isFetching}
+        rowsPerPageOptions={[5, 10, 25, 50]}
+        loading={isLoading && data.length === 0}
         filters={filters}
         onFilter={onFilter}
-        globalFilterFields={["unique_id", "company_name", "project_name", "_assignment", "_waste", "_cp", "_driver", "_operator", "log_status", "trip_date"]}
-        header={header}
+        header={renderHeader()}
         stripedRows
         showGridlines
-        className="p-datatable-sm"
         emptyMessage="No trip logs found. Select a company and project to load data."
+        globalFilterFields={["unique_id", "company_name", "project_name", "_assignment", "_waste", "_cp", "_driver", "_operator", "log_status", "trip_date"]}
+        className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 60 }} />
         <Column field="unique_id" header="ID" sortable filter showFilterMatchModes={false} style={{ minWidth: 150 }} />
@@ -249,7 +289,7 @@ export default function DailyTripLogList() {
         <Column field="_waste" header="Waste Type" filter showFilterMatchModes={false} />
         <Column field="_cp" header="Collection Point" filter showFilterMatchModes={false} style={{ minWidth: 160 }} />
         <Column field="collected_weight_kg" header="Weight (kg)" sortable style={{ minWidth: 120 }} />
-        <Column field="log_status" header="Status" body={(row) => <Badge value={row.log_status} />} sortable filter showFilterMatchModes={false} />
+        <Column field="log_status" header="Status" body={(row: DailyTripLogRecord) => <Badge value={row.log_status} />} sortable filter showFilterMatchModes={false} />
         <Column field="_driver" header="Driver" />
         <Column field="_operator" header="Operator" />
         <Column field="trip_date" header="Trip Date" sortable filter showFilterMatchModes={false} style={{ minWidth: 110 }} />
