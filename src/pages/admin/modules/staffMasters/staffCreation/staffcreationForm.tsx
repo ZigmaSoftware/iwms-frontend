@@ -189,6 +189,7 @@ const initialFormData = {
   contact_mobile: "",
   contact_email: "",
   driving_licence_no: "",
+  driving_licence_expiry_date: "",
   // emergency_contact: "",
   // emergency_mobile: "",
 };
@@ -240,6 +241,7 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   contact_mobile: ["contact_mobile", "mobile"],
   contact_email: ["contact_email", "email"],
   driving_licence_no: ["driving_licence_no", "driving_license_no"],
+  driving_licence_expiry_date: ["driving_licence_expiry_date"],
   driving_licence_file: ["driving_licence_file", "driving_license_file"],
 };
 
@@ -435,16 +437,24 @@ export default function StaffCreationForm() {
     if (!allowedTypes.includes(file.type)) {
       Swal.fire({
         icon: "warning",
-        title: "Invalid File",
-        text: "Only JPG, JPEG, PNG, PDF allowed",
+        title: "Invalid File Type",
+        text: "Only JPG, JPEG, PNG, or PDF files are allowed.",
+      });
+      return;
+    }
+
+    const MAX_SIZE_MB = 5;
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      Swal.fire({
+        icon: "warning",
+        title: "File Too Large",
+        text: `File size must be under ${MAX_SIZE_MB} MB.`,
       });
       return;
     }
 
     setLicenceFile(file);
-
-    const fileUrl = URL.createObjectURL(file);
-    setLicencePreview(fileUrl);
+    setLicencePreview(URL.createObjectURL(file));
   };
 
   useEffect(() => {
@@ -665,6 +675,7 @@ export default function StaffCreationForm() {
           staffusertype_id: normalizeEntityId(staff.staffusertype_id),
           contractorusertype_id: normalizeEntityId(staff.contractorusertype_id),
           driving_licence_no: staff.driving_licence_no ?? "",
+          driving_licence_expiry_date: staff.driving_licence_expiry_date ?? "",
 
           // Company and Project
           company_id: normalizeEntityId(staff.company_unique_id ?? staff.company_id),
@@ -1064,18 +1075,17 @@ export default function StaffCreationForm() {
       return;
     }
 
-    // ✅ DRIVER VALIDATION
+    // ✅ DRIVER VALIDATION — mandatory on create AND on edit when no existing file
     if (
       showField("driving_licence_file") &&
-      showField("driving_licence_no") &&
       isDriverSelected &&
       !licenceFile &&
-      !isEdit
+      !licencePreview
     ) {
       Swal.fire({
         icon: "error",
         title: "Licence Required",
-        text: "Driver must upload driving licence",
+        text: "Please upload the driving licence file (JPG, JPEG, PNG or PDF).",
       });
       return;
     }
@@ -1131,9 +1141,12 @@ export default function StaffCreationForm() {
       }
       console.log("Payload after password:", rawPayload);
 
-      // ✅ ADD DRIVER FIELD HERE (Correct Placement)
+      // ✅ ADD DRIVER FIELDS
       if (showField("driving_licence_no") && isDriverSelected) {
         rawPayload.driving_licence_no = formData.driving_licence_no || "";
+      }
+      if (showField("driving_licence_expiry_date") && isDriverSelected) {
+        rawPayload.driving_licence_expiry_date = formData.driving_licence_expiry_date || null;
       }
 
       const presentPayload = buildAddressPayload("present");
@@ -1172,9 +1185,9 @@ export default function StaffCreationForm() {
 
       if (isEdit) {
         if (!id) throw new Error("Missing staff id");
-        response = await staffCreationApi.update(id, formBody);
+        response = await staffCreationApi.uploadUpdate(id, formBody);
       } else {
-        response = await staffCreationApi.create(formBody);
+        response = await staffCreationApi.upload(formBody);
       }
 
       Swal.fire({
@@ -1412,72 +1425,97 @@ export default function StaffCreationForm() {
               </div>
             )}
 
+            {showField("driving_licence_expiry_date") && (
+              <div>
+                <Label htmlFor="driving_licence_expiry_date">
+                  Driving Licence Expiry Date
+                </Label>
+                <Input
+                  id="driving_licence_expiry_date"
+                  type="date"
+                  value={formData.driving_licence_expiry_date}
+                  onChange={handleInputChange}
+                />
+              </div>
+            )}
+
             {showField("driving_licence_file") && (
               <div className="md:col-span-2">
                 <Label htmlFor="driving_licence">
                   {t("admin.staff_creation.driving_licence_upload")}
+                  <span className="text-red-500 ml-1">*</span>
                 </Label>
-                <div className="flex flex-col gap-2 md:flex-row md:items-center">
-                  <div className="flex items-center gap-3">
+
+                <div className="mt-1 flex items-center gap-3 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 px-4 py-3 transition-colors hover:border-brand-400 dark:border-gray-700 dark:bg-gray-800/40">
+                  <button
+                    type="button"
+                    onClick={() => licenceInputRef.current?.click()}
+                    className="flex shrink-0 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                  >
+                    <span className="material-symbols-outlined text-[18px] leading-none">upload_file</span>
+                    {t("admin.staff_creation.driving_licence_choose")}
+                  </button>
+
+                  <span className="min-w-0 flex-1 truncate text-sm text-gray-500 dark:text-gray-400">
+                    {licenceFile?.name || t("admin.staff_creation.driving_licence_no_file")}
+                  </span>
+
+                  {(licenceFile || licencePreview) && (
                     <button
                       type="button"
-                      onClick={() => licenceInputRef.current?.click()}
-                      className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                      onClick={() => {
+                        setLicenceFile(null);
+                        setLicencePreview("");
+                        if (licenceInputRef.current) licenceInputRef.current.value = "";
+                      }}
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600 transition-colors hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
+                      title="Remove file"
                     >
-                      {t("admin.staff_creation.driving_licence_choose")}
+                      <span className="text-xs font-bold leading-none">✕</span>
                     </button>
-                    <span className="text-sm text-gray-500">
-                      {licenceFile?.name ||
-                        t("admin.staff_creation.driving_licence_no_file")}
-                    </span>
-                  </div>
-                  <input
-                    ref={licenceInputRef}
-                    type="file"
-                    id="driving_licence"
-                    accept=".jpg,.jpeg,.png,.pdf"
-                    className="sr-only"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      handleLicenceUpload(file);
-                      e.target.value = "";
-                    }}
-                  />
-                  {licencePreview ? (
-                    licencePreview.toLowerCase().endsWith(".pdf") ? (
-                      <a
-                        href={licencePreview}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm mt-2 inline-block text-blue-600 hover:underline"
-                      >
-                        Open Licence PDF
-                      </a>
-                    ) : (
-                      <a
-                        href={licencePreview}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2 block"
-                      >
+                  )}
+                </div>
+
+                <p className="mt-1 text-xs text-gray-400">
+                  Accepted: JPG, JPEG, PNG, PDF · Max 5 MB
+                </p>
+
+                <input
+                  ref={licenceInputRef}
+                  type="file"
+                  id="driving_licence"
+                  accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/jpg,image/png,application/pdf"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    handleLicenceUpload(file);
+                    e.target.value = "";
+                  }}
+                />
+
+                {licencePreview && (
+                  licencePreview.toLowerCase().endsWith(".pdf") || licenceFile?.type === "application/pdf" ? (
+                    <a
+                      href={licencePreview}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-blue-600 hover:underline dark:border-gray-700"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+                      View PDF
+                    </a>
+                  ) : (
+                    <div className="mt-2 inline-block">
+                      <a href={licencePreview} target="_blank" rel="noopener noreferrer">
                         <img
                           src={licencePreview}
                           alt="Licence preview"
-                          className="h-32 w-32 border rounded"
+                          className="h-24 w-24 rounded-lg border border-gray-200 object-cover shadow-sm dark:border-gray-700"
                         />
                       </a>
-                    )
-                  ) : licenceFile?.type === "application/pdf" ? (
-                    <a
-                      href={URL.createObjectURL(licenceFile)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm mt-2 inline-block text-blue-600 hover:underline"
-                    >
-                      PDF: {licenceFile.name}
-                    </a>
-                  ) : null}
-                </div>
+                    </div>
+                  )
+                )}
               </div>
             )}
           </>
@@ -1573,71 +1611,77 @@ export default function StaffCreationForm() {
       {showField("photo") && (
         <div className="md:col-span-2">
           <Label htmlFor="photo">{t("admin.staff_creation.photo_label")}</Label>
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
-            <div className="flex items-center gap-3">
+
+          <div className="mt-1 flex items-center gap-3 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 px-4 py-3 transition-colors hover:border-brand-400 dark:border-gray-700 dark:bg-gray-800/40">
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+            >
+              <span className="material-symbols-outlined text-[18px] leading-none">add_photo_alternate</span>
+              {t("admin.staff_creation.photo_choose")}
+            </button>
+
+            <span className="min-w-0 flex-1 truncate text-sm text-gray-500 dark:text-gray-400">
+              {photoFile?.name || t("admin.staff_creation.photo_none")}
+            </span>
+
+            {(photoFile || photoPreview) && (
               <button
                 type="button"
-                onClick={() => photoInputRef.current?.click()}
-                className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-              >
-                {t("admin.staff_creation.photo_choose")}
-              </button>
-              <span className="text-sm text-gray-500">
-                {photoFile?.name || t("admin.staff_creation.photo_none")}
-              </span>
-            </div>
-            <input
-              ref={photoInputRef}
-              type="file"
-              id="photo"
-              accept="image/*"
-              className="sr-only"
-              onChange={(event) => {
-                const file = event.target.files?.[0] ?? null;
-                if (!file) {
-                  setPhotoFile(null);
-                  return;
-                }
-                if (!file.type.startsWith("image/")) {
-                  Swal.fire({
-                    icon: "warning",
-                    title: t("admin.staff_creation.invalid_photo_title"),
-                    text: t("admin.staff_creation.invalid_photo_desc"),
-                  });
-                  event.target.value = "";
+                onClick={() => {
                   setPhotoFile(null);
                   setPhotoPreview("");
-                  return;
-                }
-                setPhotoFile(file);
-              }}
-            />
-            {photoPreview ? (
-              <div className="relative h-32 w-32">
-                <img
-                  src={photoPreview}
-                  alt={t("admin.staff_creation.photo_preview_alt")}
-                  className="h-32 w-32 rounded-lg border object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPhotoFile(null);
-                    setPhotoPreview("");
-                    if (photoInputRef.current) photoInputRef.current.value = "";
-                  }}
-                  className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs leading-none hover:bg-red-600"
-                  title="Remove photo"
-                >
-                  ×
-                </button>
-              </div>
-            ) : (
-              <div className="flex h-32 w-32 items-center justify-center rounded-lg border border-dashed px-2 text-xs text-gray-500">
-                {t("admin.staff_creation.photo_empty")}
-              </div>
+                  if (photoInputRef.current) photoInputRef.current.value = "";
+                }}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600 transition-colors hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
+                title="Remove photo"
+              >
+                <span className="text-xs font-bold leading-none">✕</span>
+              </button>
             )}
           </div>
+
+          <p className="mt-1 text-xs text-gray-400">
+            Accepted: JPG, JPEG, PNG, WEBP · Max 5 MB
+          </p>
+
+          <input
+            ref={photoInputRef}
+            type="file"
+            id="photo"
+            accept="image/*"
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0] ?? null;
+              if (!file) {
+                setPhotoFile(null);
+                return;
+              }
+              if (!file.type.startsWith("image/")) {
+                Swal.fire({
+                  icon: "warning",
+                  title: t("admin.staff_creation.invalid_photo_title"),
+                  text: t("admin.staff_creation.invalid_photo_desc"),
+                });
+                event.target.value = "";
+                setPhotoFile(null);
+                setPhotoPreview("");
+                return;
+              }
+              setPhotoFile(file);
+            }}
+          />
+
+          {photoPreview && (
+            <div className="mt-2 inline-block">
+              <img
+                src={photoPreview}
+                alt={t("admin.staff_creation.photo_preview_alt")}
+                className="h-24 w-24 rounded-lg border border-gray-200 object-cover shadow-sm dark:border-gray-700"
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

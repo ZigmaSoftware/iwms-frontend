@@ -900,7 +900,7 @@ export default function AlternativeStaffTemplateForm() {
               </div>
             )} */}
 
-            {/* DRIVER — scoped to selected company + project */}
+            {/* DRIVER - scoped to selected company + project */}
             {showField("driver") && (
               <div>
                 <Label>
@@ -919,7 +919,7 @@ export default function AlternativeStaffTemplateForm() {
               </div>
             )}
 
-            {/* OPERATOR — scoped to selected company + project */}
+            {/* OPERATOR - scoped to selected company + project */}
             {showField("operator") && (
               <div>
                 <Label>
@@ -938,7 +938,7 @@ export default function AlternativeStaffTemplateForm() {
               </div>
             )}
 
-            {/* EXTRA OPERATOR — scoped to selected company + project */}
+            {/* EXTRA OPERATOR - scoped to selected company + project */}
             {showField("extra_operator") && (
               <div>
                 <Label>
@@ -948,13 +948,37 @@ export default function AlternativeStaffTemplateForm() {
                   value={formData.extra_operator}
                   options={availableExtraOperatorOptions}
                   onChange={(e) =>
-                    setFormData((p) => ({ ...p, extra_operator: e.value }))
+                    setFormData((p) => ({
+                      ...p,
+                      extra_operator: Array.isArray(e.value)
+                        ? e.value.map(String)
+                        : [],
+                    }))
                   }
                   optionLabel="label"
                   optionValue="value"
-                  display="chip"
+                  maxSelectedLabels={3}
                   placeholder={t("common.select_option")}
-                  className="w-full"
+                  className="!flex !h-10 !w-full !items-center !justify-between !rounded-md !border !border-input !bg-background !px-3 !py-2 !text-sm !shadow-none !ring-offset-background focus:!outline-none focus:!ring-2 focus:!ring-ring focus:!ring-offset-2 disabled:!cursor-not-allowed disabled:!opacity-50"
+                  pt={{
+                    labelContainer: {
+                      className: "!flex !flex-1 !items-center !overflow-hidden",
+                    },
+                    label: {
+                      className:
+                        "!m-0 !block !truncate !p-0 !text-sm !leading-5 !text-gray-900",
+                    },
+                    trigger: {
+                      className:
+                        "!ml-2 !flex !h-4 !w-4 !shrink-0 !items-center !justify-center !text-gray-500",
+                    },
+                    dropdownIcon: {
+                      className: "!h-4 !w-4 !opacity-50",
+                    },
+                    panel: {
+                      className: "!z-[80] !rounded-md !border !bg-white !shadow-md",
+                    },
+                  }}
                   filter
                 />
               </div>
