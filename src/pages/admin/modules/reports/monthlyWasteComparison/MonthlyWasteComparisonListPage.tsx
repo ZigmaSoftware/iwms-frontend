@@ -24,8 +24,14 @@ import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type ReportRow = {
+  unique_id: string;
+  company_id: string;
+  company_name?: string;
+  project_id: string;
+  project_name?: string;
   month: string;
   panchayat_id: string;
   panchayat_name?: string;
@@ -79,6 +85,16 @@ const currentMonth = () => {
 export default function MonthlyWasteComparisonListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
+
   const [monthValue, setMonthValue] = useState(currentMonth());
   const [appliedMonth, setAppliedMonth] = useState(currentMonth());
   const [sortMode, setSortMode] = useState("absolute");
@@ -97,11 +113,19 @@ export default function MonthlyWasteComparisonListPage() {
   const NEW_PATH = `/${encReport}/${encMonthlyWasteComparison}/new`;
 
   const fetchReport = async () => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId) { setRows([]); setMonthlyTrends([]); setPanchayatComparison([]); setKpis(initialKpis); return; }
+
     setLoading(true);
     setError("");
     try {
+      const params: Record<string, string> = { sort: sortMode };
+      if (appliedMonth) params.month = appliedMonth;
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+
       const { data } = await api.get<ReportResponse>("/reports/monthly-waste-comparison/", {
-        params: { month: appliedMonth, sort: sortMode },
+        params,
       });
       setRows(Array.isArray(data?.results) ? data.results : []);
       setMonthlyTrends(Array.isArray(data?.monthly_trends) ? data.monthly_trends : []);
@@ -119,8 +143,8 @@ export default function MonthlyWasteComparisonListPage() {
   };
 
   useEffect(() => {
-    fetchReport();
-  }, [appliedMonth, sortMode]);
+    void fetchReport();
+  }, [appliedMonth, sortMode, companyUniqueId, projectId, companies.length]);
 
   const formatNumber = (value?: number | string | null, suffix = "") => {
     const numeric = Number(value);
@@ -156,7 +180,7 @@ export default function MonthlyWasteComparisonListPage() {
     });
     if (!result.isConfirmed) return;
     try {
-      await adminApi.monthlyWasteComparison.remove(row.panchayat_id);
+      await adminApi.monthlyWasteComparison.remove(row.unique_id);
       await fetchReport();
       Swal.fire(t("common.success"), t("common.deleted_success"), "success");
     } catch {
@@ -168,8 +192,12 @@ export default function MonthlyWasteComparisonListPage() {
     <div className="flex gap-2 justify-center">
       <button
         onClick={() =>
-          navigate(`/${encReport}/${encMonthlyWasteComparison}/${row.panchayat_id}/edit`, {
-            state: { record: row },
+          navigate(`/${encReport}/${encMonthlyWasteComparison}/${row.unique_id}/edit`, {
+            state: {
+              record: row,
+              companyUniqueId: row.company_id,
+              projectId: row.project_id,
+            },
           })
         }
         className="inline-flex items-center justify-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
@@ -307,6 +335,34 @@ export default function MonthlyWasteComparisonListPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={companyUniqueId || ""}
+            onChange={(e) => onCompanyChange(e.target.value)}
+            disabled={!isSuperAdmin || companies.length === 0}
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="" disabled>
+              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+            </option>
+            {companies.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+
+          <select
+            value={projectId || ""}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!companyUniqueId || projects.length === 0}
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">
+              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+            </option>
+            {projects.map((p) => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+
           <input
             type="month"
             value={monthValue}
