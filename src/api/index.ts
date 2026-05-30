@@ -36,11 +36,11 @@ const createApi = (opts: CreateApiOptions): AxiosInstance => {
     try {
       // avoid logging full token for security, show presence and URL
       // eslint-disable-next-line no-console
-      console.log("[api] interceptor", {
-        url: config.url,
-        tokenPresent: Boolean(token),
-        isLogin,
-      });
+      // console.log("[api] interceptor", {
+      //   url: config.url,
+      //   tokenPresent: Boolean(token),
+      //   isLogin,
+      // });
     } catch (e) {}
 
     if (token && !isLogin) {
@@ -48,7 +48,7 @@ const createApi = (opts: CreateApiOptions): AxiosInstance => {
       config.headers.Authorization = `Bearer ${token}`;
       try {
         // eslint-disable-next-line no-console
-        console.log("[api] interceptor: Authorization header set for", config.url);
+        // console.log("[api] interceptor: Authorization header set for", config.url);
       } catch (e) {}
     }
 
