@@ -273,7 +273,7 @@ export default function RoutePlanList() {
         />
         <Column
           field="display_code"
-          header={t("common.code") || "Code"}
+          header={t("admin.route_plan.display_code") || "Code"}
           sortable filter showFilterMatchModes={false}
         />
         <Column
@@ -303,7 +303,7 @@ export default function RoutePlanList() {
         />
         <Column
           field="supervisor_name"
-          header={t("common.supervisor") || "Supervisor"}
+          header={t("admin.route_plan.supervisor") || "Supervisor"}
           sortable filter showFilterMatchModes={false}
         />
         <Column
