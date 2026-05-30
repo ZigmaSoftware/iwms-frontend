@@ -129,7 +129,7 @@ const normalizeId = (value: unknown): string => {
   if (value == null) return "";
   if (typeof value === "object") {
     const obj = value as Record<string, unknown>;
-    return String(obj.unique_id ?? obj.id ?? "").trim();
+    return String(obj.unique_id ?? obj.id ?? obj.value ?? "").trim();
   }
   const raw = String(value).trim();
   const m = raw.match(/\(([A-Za-z0-9_-]+)\)\s*$/);
@@ -138,6 +138,40 @@ const normalizeId = (value: unknown): string => {
 
 const toText = (value: unknown): string =>
   value == null ? "" : String(value).trim();
+
+const toMonthValue = (value: unknown): string => {
+  const text = toText(value);
+  if (!text) return "";
+  const match = text.match(/^(\d{4})-(\d{2})/);
+  return match ? `${match[1]}-${match[2]}` : text;
+};
+
+const ensureSelectedOption = (
+  options: SelectOption[],
+  selectedId: string,
+  selectedLabel?: string
+) => {
+  if (!selectedId || options.some((option) => option.value === selectedId)) {
+    return options;
+  }
+  return [...options, { value: selectedId, label: selectedLabel || selectedId }];
+};
+
+const resolveOptionValue = (
+  options: SelectOption[],
+  id: string,
+  label: string
+) => {
+  if (id && options.some((option) => option.value === id)) return id;
+
+  const normalizedLabel = label.trim().toLowerCase();
+  if (!normalizedLabel) return id;
+
+  return (
+    options.find((option) => option.label.trim().toLowerCase() === normalizedLabel)
+      ?.value ?? id
+  );
+};
 
 /* ────────────────────────────────────────────
    Component
@@ -148,7 +182,11 @@ export default function MonthlyWasteComparisonForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const routeState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+    record?: Record<string, unknown>;
+  } | null;
   const isEdit = Boolean(id);
 
   const {
@@ -184,7 +222,9 @@ export default function MonthlyWasteComparisonForm() {
   const [wasteTypeOptions, setWasteTypeOptions] = useState<SelectOption[]>([]);
 
   const [loading, setLoading] = useState(false);
-  const [pendingRecord, setPendingRecord] = useState<Record<string, unknown> | null>(null);
+  const [recordData, setRecordData] = useState<Record<string, unknown> | null>(
+    routeState?.record ?? null
+  );
   const [pendingProjectId, setPendingProjectId] = useState("");
 
   /* default month */
@@ -215,12 +255,12 @@ export default function MonthlyWasteComparisonForm() {
   useEffect(() => {
     if (!tenantParams) {
       setPanchayatOptions([]);
-      setWasteTypeOptions([]);
       return;
     }
     const config = { params: tenantParams };
-    Promise.all([panchayatApi.list(config), wasteTypeApi.list()])
-      .then(([panchayatRes, wasteTypeRes]) => {
+    panchayatApi
+      .list(config)
+      .then((panchayatRes) => {
         const panchayats = toRecordList(panchayatRes)
           .filter((x) => x.is_active !== false)
           .map((x) => ({
@@ -229,6 +269,17 @@ export default function MonthlyWasteComparisonForm() {
           }))
           .filter((x) => x.value && x.label);
 
+        setPanchayatOptions(panchayats);
+      })
+      .catch(() => {
+        setPanchayatOptions([]);
+      });
+  }, [tenantParams]);
+
+  useEffect(() => {
+    wasteTypeApi
+      .list()
+      .then((wasteTypeRes) => {
         const wasteTypes = toRecordList(wasteTypeRes)
           .filter((x) => x.is_active !== false)
           .map((x) => ({
@@ -237,47 +288,128 @@ export default function MonthlyWasteComparisonForm() {
           }))
           .filter((x) => x.value && x.label);
 
-        setPanchayatOptions(panchayats);
         setWasteTypeOptions(wasteTypes);
       })
       .catch(() => {
-        setPanchayatOptions([]);
         setWasteTypeOptions([]);
       });
-  }, [tenantParams]);
+  }, []);
 
-  /* flush pending record once dropdowns ready */
+  /* hydrate edit record immediately; resolve dropdown labels as options arrive */
   useEffect(() => {
-    if (!pendingRecord) return;
-    if (panchayatOptions.length === 0 && wasteTypeOptions.length === 0) return;
+    if (!recordData) return;
 
-    setPanchayatId(normalizeId(pendingRecord.panchayat_id));
-    setWasteTypeId(normalizeId(pendingRecord.waste_type_id));
-    setMonth(toText(pendingRecord.month));
-    setAgreedWeight(toText(pendingRecord.agreed_weight_kg));
-    setActualWeight(toText(pendingRecord.actual_weight_kg));
-    setTotalTrips(toText(pendingRecord.total_trips));
-    setCollectionPointsCovered(toText(pendingRecord.collection_points_covered));
-    setPendingRecord(null);
-  }, [pendingRecord, panchayatOptions, wasteTypeOptions]);
+    const panchayatLabel = toText(
+      recordData.panchayat_name ?? recordData.panchayat
+    );
+    const wasteTypeLabel = toText(
+      recordData.waste_type_name ??
+        recordData.wastetype_name ??
+        recordData.waste_type ??
+        recordData.waste_type_label
+    );
+    const resolvedPanchayatId = resolveOptionValue(
+      panchayatOptions,
+      normalizeId(recordData.panchayat_id ?? recordData.panchayat),
+      panchayatLabel
+    );
+    const resolvedWasteTypeId = resolveOptionValue(
+      wasteTypeOptions,
+      normalizeId(recordData.waste_type_id ?? recordData.waste_type_unique_id),
+      wasteTypeLabel
+    );
+
+    setPanchayatId(resolvedPanchayatId || panchayatLabel);
+    setWasteTypeId(resolvedWasteTypeId || wasteTypeLabel);
+    setMonth(toMonthValue(recordData.month));
+    setAgreedWeight(
+      toText(recordData.agreed_weight_kg ?? recordData.total_agreed_weight)
+    );
+    setActualWeight(
+      toText(recordData.actual_weight_kg ?? recordData.total_actual_weight)
+    );
+    setTotalTrips(toText(recordData.total_trips));
+    setCollectionPointsCovered(toText(recordData.collection_points_covered));
+  }, [recordData, panchayatOptions, wasteTypeOptions]);
 
   /* load record for edit */
   useEffect(() => {
     if (!isEdit) return;
-    adminApi.monthlyWasteComparison.get(id as string).then((res: Record<string, unknown>) => {
-      applyCompanyProjectFromRecord(res);
-      const recProjectId = normalizeId(res.project_id ?? res.project);
-      if (recProjectId) setPendingProjectId(recProjectId);
-      setPendingRecord(res);
-    });
-  }, [applyCompanyProjectFromRecord, id, isEdit]);
+    if (routeState?.record) {
+      setRecordData(routeState.record);
+      applyCompanyProjectFromRecord(routeState.record);
+      const routeProjectId = normalizeId(
+        routeState.record.project_id ?? routeState.record.project
+      );
+      if (routeProjectId) setPendingProjectId(routeProjectId);
+    }
+
+    adminApi.monthlyWasteComparison
+      .get(id as string)
+      .then((res: Record<string, unknown>) => {
+        const merged = { ...(routeState?.record ?? {}), ...res };
+        applyCompanyProjectFromRecord(merged);
+        const recProjectId = normalizeId(merged.project_id ?? merged.project);
+        if (recProjectId) setPendingProjectId(recProjectId);
+        setRecordData(merged);
+      })
+      .catch((err) => {
+        const fallback = routeState?.record;
+        if (fallback) return;
+        Swal.fire(
+          t("common.error"),
+          String(
+            (err as { response?: { data?: unknown }; message?: string })?.response?.data ??
+              (err as { message?: string })?.message ??
+              t("common.load_failed")
+          ),
+          "error"
+        );
+      });
+  }, [applyCompanyProjectFromRecord, id, isEdit, routeState?.record, t]);
+
+  const recordCompanyId = normalizeId(
+    recordData?.company_unique_id ?? recordData?.company_id ?? recordData?.company
+  );
+  const recordProjectId = normalizeId(
+    recordData?.project_unique_id ?? recordData?.project_id ?? recordData?.project
+  );
+  const effectiveCompanyId = companyUniqueId || recordCompanyId;
+  const effectiveProjectId =
+    projectId ||
+    (effectiveCompanyId === recordCompanyId || !recordCompanyId ? recordProjectId : "");
+  const companyOptions = ensureSelectedOption(
+    companies.map((x) => ({ value: x.value, label: x.label })),
+    effectiveCompanyId,
+    toText(recordData?.company_name ?? recordData?.company)
+  );
+  const projectOptions = ensureSelectedOption(
+    projects.map((x) => ({ value: x.value, label: x.label })),
+    effectiveProjectId,
+    toText(recordData?.project_name ?? recordData?.project)
+  );
+  const panchayatOptionsWithSelected = ensureSelectedOption(
+    panchayatOptions,
+    panchayatId,
+    toText(recordData?.panchayat_name ?? recordData?.panchayat)
+  );
+  const wasteTypeOptionsWithSelected = ensureSelectedOption(
+    wasteTypeOptions,
+    wasteTypeId,
+    toText(
+      recordData?.waste_type_name ??
+        recordData?.wastetype_name ??
+        recordData?.waste_type ??
+        recordData?.waste_type_label
+    )
+  );
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     const missing: string[] = [];
-    if (!companyUniqueId) missing.push(t("admin.nav.company"));
-    if (!projectId) missing.push(t("admin.nav.project"));
+    if (!effectiveCompanyId) missing.push(t("admin.nav.company"));
+    if (!effectiveProjectId) missing.push(t("admin.nav.project"));
     if (!panchayatId) missing.push(t("admin.nav.panchayat"));
     if (!wasteTypeId) missing.push(t("common.waste_type"));
     if (!month) missing.push("Month");
@@ -291,8 +423,8 @@ export default function MonthlyWasteComparisonForm() {
     setLoading(true);
     try {
       const payload = {
-        company_id: companyUniqueId,
-        project_id: projectId,
+        company_id: effectiveCompanyId,
+        project_id: effectiveProjectId,
         panchayat_id: panchayatId,
         waste_type_id: wasteTypeId,
         month,
@@ -313,7 +445,9 @@ export default function MonthlyWasteComparisonForm() {
         isEdit ? t("common.updated_success") : t("common.added_success"),
         "success",
       );
-      navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(LIST_PATH, {
+        state: { companyUniqueId: effectiveCompanyId, projectId: effectiveProjectId },
+      });
     } catch {
       Swal.fire(t("common.save_failed"), t("common.save_failed_desc"), "error");
     } finally {
@@ -333,23 +467,23 @@ export default function MonthlyWasteComparisonForm() {
         <FormSection title="Company & Project Information">
           <ShadcnSelect
             label={t("admin.nav.company")}
-            value={companyUniqueId}
+            value={effectiveCompanyId}
             onChange={onCompanyChange}
-            options={companies.map((x) => ({ value: x.value, label: x.label }))}
+            options={companyOptions}
             placeholder={t("common.select_item_placeholder", { item: t("admin.nav.company") })}
             disabled={
               Boolean(loggedInCompanyUniqueId) ||
               (!isSuperAdmin && !loggedInCompanyUniqueId) ||
-              companies.length === 0
+              companyOptions.length === 0
             }
           />
           <ShadcnSelect
             label={t("admin.nav.project")}
-            value={projectId}
+            value={effectiveProjectId}
             onChange={setProjectId}
-            options={projects.map((x) => ({ value: x.value, label: x.label }))}
+            options={projectOptions}
             placeholder={t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={!effectiveCompanyId || projectOptions.length === 0}
           />
         </FormSection>
 
@@ -358,17 +492,17 @@ export default function MonthlyWasteComparisonForm() {
             label={t("admin.nav.panchayat")}
             value={panchayatId}
             onChange={setPanchayatId}
-            options={panchayatOptions}
+            options={panchayatOptionsWithSelected}
             placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") })}
-            disabled={panchayatOptions.length === 0}
+            disabled={panchayatOptionsWithSelected.length === 0}
           />
           <ShadcnSelect
             label={t("common.waste_type")}
             value={wasteTypeId}
             onChange={setWasteTypeId}
-            options={wasteTypeOptions}
+            options={wasteTypeOptionsWithSelected}
             placeholder={t("common.select_item_placeholder", { item: t("common.waste_type") })}
-            disabled={wasteTypeOptions.length === 0}
+            disabled={wasteTypeOptionsWithSelected.length === 0}
           />
           <FormInput
             label="Month"
@@ -425,7 +559,11 @@ export default function MonthlyWasteComparisonForm() {
           </button>
           <button
             type="button"
-            onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() =>
+              navigate(LIST_PATH, {
+                state: { companyUniqueId: effectiveCompanyId, projectId: effectiveProjectId },
+              })
+            }
             className="bg-red-400 hover:bg-red-500 text-white px-5 py-2 rounded-md text-sm font-medium transition-colors"
           >
             {t("common.cancel")}
