@@ -119,8 +119,10 @@ export const adminEndpoints = {
   vehicleCreations: "transport-masters/vehicle-creation",
   tripDefinitions: "transport-masters/trip-definition",
   tripInstances: "transport-masters/trip-instance",
-  tripAttendances: "transport-masters/trip-attendance",
-  fuels: "transport-masters/fuels",
+   tripAttendances: "transport-masters/trip-attendance",
+   fuels: "transport-masters/fuels",
+   dailyTripAssignment: "transport-masters/daily-trip-assignment",
+   dailyTripLog: "transport-masters/daily-trip-log",
 
   /* =========================
      AUDITS

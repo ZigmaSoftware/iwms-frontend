@@ -101,7 +101,9 @@ const {
   encPanchayats,
   encAreaTypes,
   encHierarchies,
-  encBins
+  encBins,
+  encDailyTripAssignment,
+  encDailyTripLog
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -556,6 +558,18 @@ const transportMastersItems: NavItem[] = [
         module: "transport-masters",
         screen: "fuels",
       },
+      {
+        nameKey: "admin.nav.daily_trip_assignment",
+        path: `/${encTransportMaster}/${encDailyTripAssignment}`,
+        module: "transport-masters",
+        screen: "daily-trip-assignment",
+      },
+      {
+        nameKey: "admin.nav.daily_trip_log",
+        path: `/${encTransportMaster}/${encDailyTripLog}`,
+        module: "transport-masters",
+        screen: "daily-trip-log",
+      }
     ],
   },
 ];
