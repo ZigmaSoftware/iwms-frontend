@@ -22,7 +22,7 @@ import type { CityMeta, CountryMeta, DistrictMeta, StateMeta } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { adminApi } from "@/helpers/admin/registry";
+import { continentApi, countryApi, stateApi, districtApi, cityApi, zoneApi } from "@/helpers/admin";
 
 const ZONE_FORM_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],
@@ -188,11 +188,11 @@ export default function ZoneForm() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      adminApi.continents.list(),
-      adminApi.countries.list(),
-      adminApi.states.list(),
-      adminApi.districts.list(),
-      adminApi.cities.list(),
+      continentApi.list(),
+      countryApi.list(),
+      stateApi.list(),
+      districtApi.list(),
+      cityApi.list(),
     ])
       .then(([continentRes, countryRes, stateRes, districtRes, cityRes]) => {
         if (cancelled) return;
@@ -260,7 +260,7 @@ export default function ZoneForm() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    adminApi.zones.get(id)
+    zoneApi.get(id)
       .then((data: any) => {
         if (cancelled) return;
         setZoneData(data as ZoneWithRelations);
@@ -317,16 +317,18 @@ export default function ZoneForm() {
     }
 
     const filt = allCountries
-      .filter((c) => c.isActive && c.continentId === continentId)
+      .filter((c) => c.isActive && (c.continentId === continentId || (pendingContinent && c.continentId === pendingContinent)))
       .map((c) => ({ value: c.id, label: c.name }));
 
-    if (pendingCountry && !filt.some((o) => o.value === pendingCountry)) {
-      const found = allCountries.find((c) => c.id === pendingCountry);
+    // Always keep the currently-selected country visible — prevents blank after pending is cleared
+    const ensureId = pendingCountry || countryId;
+    if (ensureId && !filt.some((o) => o.value === ensureId)) {
+      const found = allCountries.find((c) => c.id === ensureId);
       if (found) filt.push({ value: found.id, label: found.name });
     }
 
     setFilteredCountries(filt);
-  }, [continentId, allCountries, pendingCountry]);
+  }, [continentId, allCountries, countryId, pendingCountry]);
 
   useEffect(() => {
     if (!countryId) {
@@ -335,16 +337,18 @@ export default function ZoneForm() {
     }
 
     const filt = allStates
-      .filter((s) => s.isActive && s.countryId === countryId)
+      .filter((s) => s.isActive && (s.countryId === countryId || (pendingCountry && s.countryId === pendingCountry)))
       .map((s) => ({ value: s.id, label: s.name }));
 
-    if (pendingState && !filt.some((o) => o.value === pendingState)) {
-      const found = allStates.find((s) => s.id === pendingState);
+    // Always keep the currently-selected state visible
+    const ensureId = pendingState || stateId;
+    if (ensureId && !filt.some((o) => o.value === ensureId)) {
+      const found = allStates.find((s) => s.id === ensureId);
       if (found) filt.push({ value: found.id, label: found.name });
     }
 
     setFilteredStates(filt);
-  }, [countryId, allStates, pendingState]);
+  }, [countryId, allStates, stateId, pendingState]);
 
   useEffect(() => {
     if (!stateId) {
@@ -353,31 +357,37 @@ export default function ZoneForm() {
     }
 
     const filt = allDistricts
-      .filter((d) => d.isActive && d.stateId === stateId)
+      .filter((d) => d.isActive && (d.stateId === stateId || (pendingState && d.stateId === pendingState)))
       .map((d) => ({ value: d.id, label: d.name }));
 
-    if (pendingDistrict && !filt.some((o) => o.value === pendingDistrict)) {
-      const found = allDistricts.find((d) => d.id === pendingDistrict);
+    // Always keep the currently-selected district visible
+    const ensureId = pendingDistrict || districtId;
+    if (ensureId && !filt.some((o) => o.value === ensureId)) {
+      const found = allDistricts.find((d) => d.id === ensureId);
       if (found) filt.push({ value: found.id, label: found.name });
     }
 
     setFilteredDistricts(filt);
-  }, [stateId, allDistricts, pendingDistrict]);
+  }, [stateId, allDistricts, districtId, pendingDistrict]);
 
   useEffect(() => {
-    if (!districtId) {
+    // Always keep the currently-selected city visible even when districtId is empty/mismatched
+    const ensureId = pendingCity || cityId;
+
+    if (!districtId && !ensureId) {
       setFilteredCities([]);
       return;
     }
 
-    const filt = allCities
-      .filter((c) => c.isActive && c.districtId === districtId)
-      .map((c) => ({ value: c.id, label: c.name }));
-    const resolvedCityId = resolveMetaId(
-      allCities,
-      pendingCity,
-      zoneData?.city_name
-    );
+    const filt = districtId
+      ? allCities
+          .filter((c) => c.isActive && (c.districtId === districtId || (pendingDistrict && c.districtId === pendingDistrict)))
+          .map((c) => ({ value: c.id, label: c.name }))
+      : [];
+
+    const resolvedCityId = ensureId
+      ? resolveMetaId(allCities, ensureId, zoneData?.city_name)
+      : null;
 
     if (resolvedCityId && !filt.some((o) => o.value === resolvedCityId)) {
       const found = allCities.find((c) => c.id === resolvedCityId);
@@ -389,7 +399,7 @@ export default function ZoneForm() {
     }
 
     setFilteredCities(filt);
-  }, [districtId, allCities, pendingCity, zoneData]);
+  }, [districtId, allCities, cityId, pendingCity, zoneData]);
 
   /* ==========================================================
         EDIT MODE
@@ -686,10 +696,10 @@ export default function ZoneForm() {
       const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
       if (isEdit && id) {
-        await adminApi.zones.update(id, payload);
+        await zoneApi.update(id, payload);
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await adminApi.zones.create(payload);
+        await zoneApi.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 

@@ -10,10 +10,19 @@ import { Input } from "@/components/ui/input";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { adminApi } from "@/helpers/admin/registry";
+import { customerCreationApi, feedbackApi } from "@/helpers/admin";
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
+
+const normalizeEntityId = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return normalizeId(record.unique_id ?? record.id ?? record.value ?? "");
+  }
+  return normalizeId(value);
+};
 
 function FeedBackForm() {
   const { t } = useTranslation();
@@ -50,7 +59,7 @@ function FeedBackForm() {
   /* ---------------- LOAD CUSTOMERS ---------------- */
   useEffect(() => {
     let cancelled = false;
-    adminApi.customerCreations.list()
+    customerCreationApi.list()
       .then((res: any) => {
         if (cancelled) return;
         setCustomersList(Array.isArray(res) ? res : (res?.results ?? []));
@@ -64,7 +73,7 @@ function FeedBackForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.feedbacks.get(id)
+    feedbackApi.get(id)
       .then((res: any) => {
         if (cancelled) return;
         setRecordData(res);
@@ -78,8 +87,7 @@ function FeedBackForm() {
     return () => { cancelled = true; };
   }, [id, isEdit]);
 
-  const resolveId = (c: any) =>
-    normalizeId(c.unique_id || c.id);
+  const resolveId = (c: any) => normalizeEntityId(c);
 
   const customers = useMemo(() => {
     if (isSuperAdmin && companies.length === 0) return [];
@@ -87,8 +95,8 @@ function FeedBackForm() {
 
     return customersList
       .filter((customer) => {
-        const rowCompanyId = normalizeId(customer.company_id || customer.company_unique_id);
-        const rowProjectId = normalizeId(customer.project_id || customer.project_unique_id);
+        const rowCompanyId = normalizeEntityId(customer.company_unique_id ?? customer.company_id);
+        const rowProjectId = normalizeEntityId(customer.project_unique_id ?? customer.project_id);
         const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
         const projectMatches = !projectId || rowProjectId === projectId;
         return companyMatches && projectMatches;
@@ -119,7 +127,7 @@ function FeedBackForm() {
 
     const data = recordData;
     setCustomerId(
-      normalizeId(data.customer ?? data.customer_id ?? data.customer_unique_id)
+      normalizeEntityId(data.customer ?? data.customer_id ?? data.customer_unique_id)
     );
     setFeedbackCategory(data.category || "Excellent");
     setFeedbackDetails(data.feedback_details || "");
@@ -151,7 +159,23 @@ function FeedBackForm() {
 
   const selectedCustomer = customers.find(
     (c: any) => resolveId(c) === customerId
-  );
+  ) ?? customersList.find((c: any) => resolveId(c) === customerId);
+
+  const customerOptions = useMemo(() => {
+    const options = customers.map((c: any) => ({
+      value: resolveId(c),
+      label: c.customer_name,
+    }));
+
+    if (!customerId || options.some((option) => option.value === customerId)) {
+      return options;
+    }
+
+    const current = customersList.find((c: any) => resolveId(c) === customerId);
+    return current
+      ? [{ value: customerId, label: current.customer_name ?? customerId }, ...options]
+      : options;
+  }, [customerId, customers, customersList]);
 
   /* ---------------- SUBMIT ---------------- */
   const handleSubmit = async (e: React.FormEvent) => {
@@ -184,9 +208,9 @@ function FeedBackForm() {
     setIsSubmitting(true);
     try {
       if (isEdit && id) {
-        await adminApi.feedbacks.update(id, payload);
+        await feedbackApi.update(id, payload);
       } else {
-        await adminApi.feedbacks.create(payload);
+        await feedbackApi.create(payload);
       }
 
       Swal.fire(
@@ -252,11 +276,8 @@ function FeedBackForm() {
             <Select
               value={customerId}
               onChange={(val) => setCustomerId(val)}
-              disabled={!companyUniqueId || !projectId || customers.length === 0}
-              options={customers.map((c: any) => ({
-                value: resolveId(c),
-                label: c.customer_name,
-              }))}
+              disabled={!companyUniqueId || !projectId || customerOptions.length === 0}
+              options={customerOptions}
             />
           </div>
 

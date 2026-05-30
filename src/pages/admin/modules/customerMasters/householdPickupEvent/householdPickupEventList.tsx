@@ -10,7 +10,15 @@ import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
-import { adminApi } from "@/helpers/admin/registry";
+import {
+  createCrudHelpers,
+  customerCreationApi,
+  propertiesApi,
+  subPropertiesApi,
+  userCreationApi,
+  vehicleCreationApi,
+  zoneApi,
+} from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
@@ -28,6 +36,10 @@ type HouseholdPickupEventRecord = {
   source: string;
   created_at?: string | null;
 };
+
+const householdPickupEventApi = createCrudHelpers<HouseholdPickupEventRecord>(
+  "customer-masters/household-pickup-events"
+);
 
 const buildLookup = (items: any[], key: string, label: string) =>
   items.reduce<Record<string, string>>((acc, item) => {
@@ -58,14 +70,6 @@ export default function HouseholdPickupEventList() {
     HOUSEHOLD_PICKUP_COLUMN_FIELDS,
   );
   const navigate = useNavigate();
-
-  const householdPickupEventApi = adminApi.householdPickupEvents;
-  const customerApi = adminApi.customerCreations;
-  const zoneApi = adminApi.zones;
-  const propertyApi = adminApi.properties;
-  const subPropertyApi = adminApi.subProperties;
-  const userApi = adminApi.usersCreation;
-  const vehicleApi = adminApi.vehicleCreations;
 
   const [records, setRecords] = useState<HouseholdPickupEventRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,12 +104,12 @@ export default function HouseholdPickupEventList() {
         vehicleRes,
       ] = await Promise.all([
         householdPickupEventApi.list(),
-        customerApi.list(),
+        customerCreationApi.list(),
         zoneApi.list(),
-        propertyApi.list(),
-        subPropertyApi.list(),
-        userApi.list(),
-        vehicleApi.list(),
+        propertiesApi.list(),
+        subPropertiesApi.list(),
+        userCreationApi.list(),
+        vehicleCreationApi.list(),
       ]);
 
       const staffUsers = normalizeList(userRes).filter(

@@ -2,7 +2,18 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 
-import { adminApi } from "@/helpers/admin/registry";
+import {
+  cityApi,
+  countryApi,
+  customerCreationApi,
+  districtApi,
+  panchayatApi,
+  propertiesApi,
+  stateApi,
+  subPropertiesApi,
+  wardApi,
+  zoneApi,
+} from "@/helpers/admin";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -24,6 +35,15 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
    TYPES
 ================================ */
 type Option = { value: string; label: string };
+
+const normalizeEntityId = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return String(record.unique_id ?? record.id ?? record.value ?? "").trim();
+  }
+  return String(value).trim();
+};
 
 const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   customer_name: ["customer_name", "name"],
@@ -276,7 +296,7 @@ const PropertySelectionStep = ({
   t: any;
 }) => {
   const filteredSubProps = subProperties.filter(
-    (sp: any) => !selectedProperty || String(sp.property_id ?? sp.property) === selectedProperty
+    (sp: any) => !selectedProperty || normalizeEntityId(sp.property_id ?? sp.property) === selectedProperty
   );
 
   const isStepComplete =
@@ -418,7 +438,7 @@ export default function CustomerCreationForm() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const resolveId = (o: any) => String(o?.unique_id ?? o?.id ?? "");
+  const resolveId = (o: any) => normalizeEntityId(o);
   const normalize = (arr: any[]) =>
     arr.filter((i) => i?.is_active !== false && i?.is_deleted !== true);
 
@@ -443,15 +463,15 @@ export default function CustomerCreationForm() {
     let cancelled = false;
 
     Promise.all([
-      adminApi.wards.list(),
-      adminApi.zones.list(),
-      adminApi.cities.list(),
-      adminApi.districts.list(),
-      adminApi.states.list(),
-      adminApi.countries.list(),
-      adminApi.properties.list(),
-      adminApi.subProperties.list(),
-      adminApi.panchayats.list(),
+      wardApi.list(),
+      zoneApi.list(),
+      cityApi.list(),
+      districtApi.list(),
+      stateApi.list(),
+      countryApi.list(),
+      propertiesApi.list(),
+      subPropertiesApi.list(),
+      panchayatApi.list(),
     ])
       .then(([wards, zones, cities, districts, states, countries, properties, subProperties, panchayats]) => {
         if (cancelled) return;
@@ -495,7 +515,7 @@ export default function CustomerCreationForm() {
   useEffect(() => {
     if (!isEdit || !id) return;
     let cancelled = false;
-    adminApi.customerCreations.get(id)
+    customerCreationApi.get(id)
       .then((data: any) => {
         if (cancelled) return;
         setFormData((prev) => ({
@@ -512,19 +532,19 @@ export default function CustomerCreationForm() {
           latitude: String(data.latitude ?? ""),
           longitude: String(data.longitude ?? ""),
           sqft: String(data.sqft ?? ""),
-          property_id: String(data.property_id ?? ""),
-          sub_property_id: String(data.sub_property_id ?? ""),
+          property_id: normalizeEntityId(data.property_id ?? data.property_ref ?? data.property),
+          sub_property_id: normalizeEntityId(data.sub_property_id ?? data.sub_property),
           id_proof_type: String(data.id_proof_type ?? ""),
           id_no: String(data.id_no ?? ""),
-          country_id: String(data.country_id ?? ""),
-          state_id: String(data.state_id ?? ""),
-          district_id: String(data.district_id ?? ""),
-          city_id: String(data.city_id ?? ""),
-          zone_id: String(data.zone_id ?? ""),
-          ward_id: String(data.ward_id ?? ""),
-          panchayat_id: String(data.panchayat_id ?? ""),
-          company_id: String(data.company_id ?? ""),
-          project_id: String(data.project_id ?? ""),
+          country_id: normalizeEntityId(data.country_id ?? data.country),
+          state_id: normalizeEntityId(data.state_id ?? data.state),
+          district_id: normalizeEntityId(data.district_id ?? data.district),
+          city_id: normalizeEntityId(data.city_id ?? data.city),
+          zone_id: normalizeEntityId(data.zone_id ?? data.zone),
+          ward_id: normalizeEntityId(data.ward_id ?? data.ward),
+          panchayat_id: normalizeEntityId(data.panchayat_id ?? data.panchayat),
+          company_id: normalizeEntityId(data.company_unique_id ?? data.company_id),
+          project_id: normalizeEntityId(data.project_unique_id ?? data.project_id),
           is_active: Boolean(data.is_active),
           is_bulkwaste_generator: Boolean(data.is_bulkwaste_generator),
           apartment_name: String(data.apartment_name ?? ""),
@@ -548,27 +568,27 @@ export default function CustomerCreationForm() {
      FILTERS
   ================================ */
   const filteredStates = useMemo(
-    () => dropdowns.states.filter((s: any) => !formData.country_id || String(s.country_id ?? s.country) === formData.country_id),
+    () => dropdowns.states.filter((s: any) => !formData.country_id || normalizeEntityId(s.country_id ?? s.country) === formData.country_id),
     [dropdowns.states, formData.country_id]
   );
 
   const filteredDistricts = useMemo(
-    () => dropdowns.districts.filter((d: any) => !formData.state_id || String(d.state_id ?? d.state) === formData.state_id),
+    () => dropdowns.districts.filter((d: any) => !formData.state_id || normalizeEntityId(d.state_id ?? d.state) === formData.state_id),
     [dropdowns.districts, formData.state_id]
   );
 
   const filteredCities = useMemo(
-    () => dropdowns.cities.filter((c: any) => !formData.district_id || String(c.district_id ?? c.district) === formData.district_id),
+    () => dropdowns.cities.filter((c: any) => !formData.district_id || normalizeEntityId(c.district_id ?? c.district) === formData.district_id),
     [dropdowns.cities, formData.district_id]
   );
 
   const filteredZones = useMemo(
-    () => dropdowns.zones.filter((z: any) => !formData.city_id || String(z.city_id ?? z.city) === formData.city_id),
+    () => dropdowns.zones.filter((z: any) => !formData.city_id || normalizeEntityId(z.city_id ?? z.city) === formData.city_id),
     [dropdowns.zones, formData.city_id]
   );
 
   const filteredWards = useMemo(
-    () => dropdowns.wards.filter((w: any) => !formData.zone_id || String(w.zone_id ?? w.zone) === formData.zone_id),
+    () => dropdowns.wards.filter((w: any) => !formData.zone_id || normalizeEntityId(w.zone_id ?? w.zone) === formData.zone_id),
     [dropdowns.wards, formData.zone_id]
   );
 
@@ -576,8 +596,8 @@ export default function CustomerCreationForm() {
     () =>
       dropdowns.panchayats.filter(
         (p: any) =>
-          (!formData.district_id || String(p.district_id ?? p.district) === formData.district_id) &&
-          (!formData.city_id || String(p.city_id ?? p.city) === formData.city_id)
+          (!formData.district_id || normalizeEntityId(p.district_id ?? p.district) === formData.district_id) &&
+          (!formData.city_id || normalizeEntityId(p.city_id ?? p.city) === formData.city_id)
       ),
     [dropdowns.panchayats, formData.district_id, formData.city_id]
   );
@@ -712,9 +732,9 @@ export default function CustomerCreationForm() {
     setIsSubmitting(true);
     try {
       if (isEdit) {
-        await adminApi.customerCreations.update(id as string, payload as any);
+        await customerCreationApi.update(id as string, payload as any);
       } else {
-        await adminApi.customerCreations.create(payload as any);
+        await customerCreationApi.create(payload as any);
       }
 
       Swal.fire(
@@ -998,7 +1018,7 @@ export default function CustomerCreationForm() {
                     <p className="text-sm text-gray-600">
                       {t("admin.customer_creation.selected_property") || "Selected Property"}:{" "}
                       <span className="font-semibold text-gray-800">
-                        {dropdowns.properties.find((p: any) => String(p?.unique_id ?? p?.id ?? "") === formData.property_id)?.property_name || "-"}
+                        {dropdowns.properties.find((p: any) => resolveId(p) === formData.property_id)?.property_name || "-"}
                       </span>
                     </p>
                   )}
@@ -1006,7 +1026,7 @@ export default function CustomerCreationForm() {
                     <p className="text-sm text-gray-600">
                       {t("admin.customer_creation.selected_sub_property") || "Selected Sub-Property"}:{" "}
                       <span className="font-semibold text-gray-800">
-                        {dropdowns.subProperties.find((sp: any) => String(sp?.unique_id ?? sp?.id ?? "") === formData.sub_property_id)?.sub_property_name || "-"}
+                        {dropdowns.subProperties.find((sp: any) => resolveId(sp) === formData.sub_property_id)?.sub_property_name || "-"}
                       </span>
                     </p>
                   )}

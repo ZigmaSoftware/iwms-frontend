@@ -17,7 +17,7 @@ import {
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { adminApi } from "@/helpers/admin/registry";
+import { stateApi, districtApi, cityApi, panchayatApi, zoneApi, wardApi, collectionPointApi } from "@/helpers/admin";
 import type { SelectOption } from "@/types";
 import type {
   UnknownRecord,
@@ -194,7 +194,7 @@ export default function CollectionPointForm() {
   ========================================================== */
   useEffect(() => {
     let cancelled = false;
-    adminApi.states.list()
+    stateApi.list()
       .then((data: unknown) => {
         if (cancelled) return;
         setStates(
@@ -223,11 +223,11 @@ export default function CollectionPointForm() {
     let cancelled = false;
     const params = { company_id: companyUniqueId, project_id: projectId };
     Promise.all([
-      adminApi.districts.list({ params }),
-      adminApi.cities.list({ params }),
-      adminApi.panchayats.list({ params }),
-      adminApi.zones.list({ params }),
-      adminApi.wards.list({ params }),
+      districtApi.list({ params }),
+      cityApi.list({ params }),
+      panchayatApi.list({ params }),
+      zoneApi.list({ params }),
+      wardApi.list({ params }),
     ])
       .then(([distData, cityData, panData, zoneData, wardData]) => {
         if (cancelled) return;
@@ -309,7 +309,7 @@ export default function CollectionPointForm() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    adminApi.collectionPoints.get(id)
+    collectionPointApi.get(id)
       .then((data: unknown) => {
         if (cancelled) return;
         const record = data as UnknownRecord;
@@ -530,10 +530,10 @@ export default function CollectionPointForm() {
     try {
       setIsSubmitting(true);
       if (isEdit && id) {
-        await adminApi.collectionPoints.update(id, payload);
+        await collectionPointApi.update(id, payload);
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await adminApi.collectionPoints.create(payload);
+        await collectionPointApi.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 

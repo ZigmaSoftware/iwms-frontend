@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import { adminApi } from "@/helpers/admin/registry";
+import { wasteCollectionApi } from "@/helpers/admin";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -96,7 +96,6 @@ export default function WasteCollectedDataList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encWasteManagementMaster}/${encWasteCollectedData}/${id}/edit`;
 
-  const wasteApi = adminApi.wasteCollections;
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -139,7 +138,7 @@ export default function WasteCollectedDataList() {
         params.project_id = projectId;
       }
 
-      const res = await wasteApi.list({ params });
+      const res = await wasteCollectionApi.list({ params });
       const rows = toWasteCollectionList(res);
 
       const hasContextFields = rows.some((row) => {
@@ -168,7 +167,7 @@ export default function WasteCollectedDataList() {
     } finally {
       setLoading(false);
     }
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, wasteApi]);
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   useEffect(() => {
     fetchWasteCollectedData();
@@ -203,7 +202,7 @@ export default function WasteCollectedDataList() {
   const statusTemplate = (row: WasteCollection) => {
     const updateStatus = async (value: boolean) => {
       try {
-        await wasteApi.update(row.unique_id, { is_active: value });
+        await wasteCollectionApi.update(row.unique_id, { is_active: value });
         fetchWasteCollectedData();
       } catch (error) {
         console.error("Status update failed:", error);
