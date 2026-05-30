@@ -412,12 +412,12 @@ const userCreationMasters: NavItem[] = [
         module: "user-creations",
         screen: "alternative-stafftemplate",
       },
-      {
-        nameKey: "admin.nav.supervisor_zone_map",
-        path: `/${encStaffMasters}/${encSupervisorZoneMap}`,
-        module: "user-creations",
-        screen: "supervisor-zone-map",
-      },
+      // {
+      //   nameKey: "admin.nav.supervisor_zone_map",
+      //   path: `/${encStaffMasters}/${encSupervisorZoneMap}`,
+      //   module: "user-creations",
+      //   screen: "supervisor-zone-map",
+      // },
       // {
       //   nameKey: "admin.nav.unassigned_staff_pool",
       //   path: `/${encStaffMasters}/${encUnassignedStaffPool}`,
@@ -441,12 +441,12 @@ const processItems: NavItem[] = [
         module: "process",
         screen: "route-plans",
       },
-      {
-        nameKey: "admin.nav.zone_property_load_tracker",
-        path: `/${encTransportMaster}/${encZonePropertyLoadTracker}`,
-        module: "process",
-        screen: "zone-property-load-tracker",
-      },
+      // {
+      //   nameKey: "admin.nav.zone_property_load_tracker",
+      //   path: `/${encTransportMaster}/${encZonePropertyLoadTracker}`,
+      //   module: "process",
+      //   screen: "zone-property-load-tracker",
+      // },
     ],
   },
 ];
@@ -587,30 +587,30 @@ const auditItems: NavItem[] = [
         module: "audits",
         screen: "common-audit",
       },
-      {
-        nameKey: "admin.nav.vehicle_trip_audit",
-        path: `/${encTransportMaster}/${encVehicleTripAudit}`,
-        module: "audits",
-        screen: "vehicle-trip-audit",
-      },
-      {
-        nameKey: "admin.nav.trip_exception_log",
-        path: `/${encTransportMaster}/${encTripExceptionLog}`,
-        module: "audits",
-        screen: "trip-exception-log",
-      },
-      {
-        nameKey: "admin.nav.supervisor_zone_access_audit",
-        path: `/${encStaffMasters}/${encSupervisorZoneAccessAudit}`,
-        module: "audits",
-        screen: "supervisor-zone-access-audit",
-      },
-      {
-        nameKey: "admin.nav.staff_template_audit",
-        path: `/${encStaffMasters}/${encStaffTemplateAudit}`,
-        module: "audits",
-        screen: "stafftemplate-audit-log",
-      },
+      // {
+      //   nameKey: "admin.nav.vehicle_trip_audit",
+      //   path: `/${encTransportMaster}/${encVehicleTripAudit}`,
+      //   module: "audits",
+      //   screen: "vehicle-trip-audit",
+      // },
+      // {
+      //   nameKey: "admin.nav.trip_exception_log",
+      //   path: `/${encTransportMaster}/${encTripExceptionLog}`,
+      //   module: "audits",
+      //   screen: "trip-exception-log",
+      // },
+      // {
+      //   nameKey: "admin.nav.supervisor_zone_access_audit",
+      //   path: `/${encStaffMasters}/${encSupervisorZoneAccessAudit}`,
+      //   module: "audits",
+      //   screen: "supervisor-zone-access-audit",
+      // },
+      // {
+      //   nameKey: "admin.nav.staff_template_audit",
+      //   path: `/${encStaffMasters}/${encStaffTemplateAudit}`,
+      //   module: "audits",
+      //   screen: "stafftemplate-audit-log",
+      // },
     ],
   },
 ];

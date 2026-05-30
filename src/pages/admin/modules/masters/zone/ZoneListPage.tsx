@@ -184,6 +184,7 @@ export default function ZoneList() {
 
     try {
       await zoneApi.update(row.unique_id, { is_active: checked });
+      
       setAllZones((current) =>
         current.map((item) =>
           item.unique_id === row.unique_id ? { ...item, is_active: checked } : item
@@ -196,6 +197,7 @@ export default function ZoneList() {
       setIsUpdating(false);
     }
   };
+  
 
   const statusTemplate = (row: ZoneListRecord) => (
     <Switch checked={row.is_active} disabled={isUpdating && pendingStatusId === String(row.unique_id)} onCheckedChange={(checked) => void updateStatus(row, checked)} />
