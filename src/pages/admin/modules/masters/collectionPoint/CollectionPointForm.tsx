@@ -163,6 +163,9 @@ export default function CollectionPointForm() {
   const [pendingPanchayatId, setPendingPanchayatId] = useState("");
   const [pendingZoneId, setPendingZoneId] = useState("");
   const [pendingWardId, setPendingWardId] = useState("");
+  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
+    projectUniqueId: string; projectId: string; projectName: string;
+  } | null>(null);
   const [cpName, setCpName] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
@@ -338,6 +341,11 @@ export default function CollectionPointForm() {
         setIsActive(toBoolean(record.is_active, true));
 
         applyCompanyProjectFromRecord(record);
+        setPendingProjectCandidates({
+          projectUniqueId: toStringOrEmpty((record as any).project_unique_id ?? (record as any).project?.unique_id ?? ""),
+          projectId: toStringOrEmpty((record as any).project_id ?? ""),
+          projectName: toStringOrEmpty((record as any).project_name ?? ""),
+        });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -403,6 +411,18 @@ export default function CollectionPointForm() {
       setPendingWardId("");
     }
   }, [pendingWardId, wards]);
+
+  // Re-apply project after the hook loads the project list
+  useEffect(() => {
+    if (!pendingProjectCandidates || projects.length === 0) return;
+    const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
+    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
+    if (!match) match = projects.find((p) => rawId && p.value === rawId);
+    if (!match && projectName)
+      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
+    if (match) setProjectId(match.value);
+    setPendingProjectCandidates(null);
+  }, [projects, pendingProjectCandidates, setProjectId]);
 
   const districtOptions = useMemo(() => {
     const filtered = districts
