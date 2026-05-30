@@ -110,6 +110,8 @@ export const tripDefinitionApi = adminApi.tripDefinitions;
 export const tripInstanceApi = adminApi.tripInstances;
 export const tripAttendanceApi = adminApi.tripAttendances;
 export const fuelApi = adminApi.fuels;
+export const dailyTripAssignmentApi = adminApi.dailyTripAssignment;
+export const dailyTripLogApi = adminApi.dailyTripLog;
 
 /* =========================
    AUDITS

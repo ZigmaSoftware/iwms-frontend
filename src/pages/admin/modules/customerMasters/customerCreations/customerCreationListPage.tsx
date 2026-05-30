@@ -344,7 +344,14 @@ export default function CustomerCreationListPage() {
     <div className="flex gap-3 justify-center">
       <button
         title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(customer.unique_id))}
+        onClick={() =>
+          navigate(ENC_EDIT_PATH(customer.unique_id), {
+            state: {
+              companyUniqueId: customer.company_unique_id ?? customer.company_id,
+              projectId: customer.project_unique_id ?? customer.project_id,
+            },
+          })
+        }
         className="text-blue-600 hover:text-blue-800"
       >
         <PencilIcon className="size-5" />

@@ -1366,9 +1366,9 @@ export default function AdminHome() {
                       <td className="px-4 py-4 max-w-xs">
                         {row.userScreenNames.length > 0 ? (
                           <div className="flex flex-wrap gap-1.5">
-                            {row.userScreenNames.slice(0, 6).map((name) => (
+                            {row.userScreenNames.slice(0, 6).map((name, i) => (
                               <span
-                                key={name}
+                                key={`${name}-${i}`}
                                 className="inline-flex items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-600 shadow-sm"
                               >
                                 {name}

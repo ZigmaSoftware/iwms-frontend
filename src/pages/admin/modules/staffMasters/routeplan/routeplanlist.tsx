@@ -1,94 +1,24 @@
-// import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
-// import {
-//   getStoredPermissions,
-//   hasPermission as checkPermission,
-//   type PermissionsMap,
-//   type PermissionAction,
-// } from "@/utils/permissions";
-
-// type PermissionContextValue = {
-//   permissions: PermissionsMap;
-//   hasPermission: (moduleName: string, screenName: string, action?: PermissionAction) => boolean;
-//   updatePermissions: (permissions: PermissionsMap) => void;
-// };
-
-// const PermissionContext = createContext<PermissionContextValue | undefined>(undefined);
-
-// export const PermissionProvider = ({ children }: { children: ReactNode }) => {
-//   const [permissions, setPermissions] = useState<PermissionsMap>(() =>
-//     getStoredPermissions()
-//   );
-
-//   // ✅ Sync permissions when localStorage changes (for multi-tab scenarios)
-//   useEffect(() => {
-//     const stored = getStoredPermissions();
-//     console.log("[PermissionContext] Initial load - permissions:", stored); 
-//     setPermissions(stored);
-
-//     // Listen for storage changes
-//     const handleStorageChange = () => {
-//       const updated = getStoredPermissions();
-//       console.log("[PermissionContext] Storage changed - updating permissions:", updated);
-//       setPermissions(updated);
-//     };
-
-//     window.addEventListener("storage", handleStorageChange);
-//     return () => window.removeEventListener("storage", handleStorageChange);
-//   }, []);
-
-//   // ✅ Allow explicit permission updates (useful for same-tab updates like login)
-//   const updatePermissions = useCallback((newPermissions: PermissionsMap) => {
-//     console.log("[PermissionContext] Explicit permission update:", newPermissions);
-//     setPermissions(newPermissions);
-//   }, []);
-
-//   const hasPermission = (
-//     moduleName: string,
-//     screenName: string,
-//     action: PermissionAction = "view"
-//   ): boolean => {
-//     const result = checkPermission(moduleName, screenName, action, permissions);
-//     console.log(
-//       `[PermissionContext] Checking ${moduleName}/${screenName} (${action}): ${result}`
-//     );
-//     return result;
-//   };
-
-//   return (
-//     <PermissionContext.Provider 
-//       value={{ permissions, hasPermission, updatePermissions }}
-//     >
-//       {children}
-//     </PermissionContext.Provider>
-//   );
-// };
-
-// export const usePermission = () => {
-//   const ctx = useContext(PermissionContext);
-//   if (!ctx) {
-//     throw new Error("usePermission must be used within PermissionProvider");
-//   }
-//   return ctx;
-// };
-
-
-import { type ChangeEvent, useCallback, useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
+import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { PencilIcon, TrashBinIcon } from "@/icons";
-import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { usePermission } from "@/contexts/PermissionContext";
+import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type RoutePlan = {
   unique_id: string;
@@ -96,8 +26,11 @@ type RoutePlan = {
   district_name?: string | null;
   city_name?: string | null;
   zone_name?: string | null;
+  panchayat_name?: string | null;
   vehicle_no?: string | null;
   supervisor_name?: string | null;
+  driver_name?: string | null;
+  staff_template_name?: string | null;
   company_id?: string | null;
   company_unique_id?: string | null;
   company_name?: string | null;
@@ -105,191 +38,106 @@ type RoutePlan = {
   project_unique_id?: string | null;
   project_name?: string | null;
   is_active?: boolean;
-  created_at?: string | null;
 };
 
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  display_code?: { value: string | null; matchMode: FilterMatchMode };
-  district_name?: { value: string | null; matchMode: FilterMatchMode };
-  city_name?: { value: string | null; matchMode: FilterMatchMode };
-  zone_name?: { value: string | null; matchMode: FilterMatchMode };
-  vehicle_no?: { value: string | null; matchMode: FilterMatchMode };
-  supervisor_name?: { value: string | null; matchMode: FilterMatchMode };
-  is_active?: { value: string | null; matchMode: FilterMatchMode };
-};
-
-// Temporary mock data - Replace with actual API calls
-const mockRoutePlans: RoutePlan[] = [];
-
-const normalize = (payload: unknown): RoutePlan[] => {
-  if (Array.isArray(payload)) {
-    return payload as RoutePlan[];
-  }
-
-  if (payload && typeof payload === "object") {
-    const maybePayload = payload as { data?: unknown; results?: unknown };
-    if (Array.isArray(maybePayload.data)) {
-      return maybePayload.data as RoutePlan[];
-    }
-    if (Array.isArray(maybePayload.results)) {
-      return maybePayload.results as RoutePlan[];
-    }
-  }
-
-  return [];
-};
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
+const normalizeList = (payload: unknown): RoutePlan[] => {
+  if (Array.isArray(payload)) return payload as RoutePlan[];
+  if (payload && typeof payload === "object") {
+    const p = payload as { results?: unknown; data?: unknown };
+    if (Array.isArray(p.results)) return p.results as RoutePlan[];
+    if (Array.isArray(p.data)) return p.data as RoutePlan[];
+  }
+  return [];
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function RoutePlanList() {
   const { t } = useTranslation();
-  const { hasPermission } = usePermission();
   const navigate = useNavigate();
-  const [list, setList] = useState<RoutePlan[]>(mockRoutePlans);
-  const [loading, setLoading] = useState(false);
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
-
-  // Check permissions for this module
-  // const canView = hasPermission("user-creations", "RoutePlan", "view");
-  // const canAdd = hasPermission("user-creations", "RoutePlan", "add");
-  // const canEdit = hasPermission("user-creations", "RoutePlan", "edit");
-  // const canDelete = hasPermission("user-creations", "RoutePlan", "delete");
 
   const { encStaffMasters, encRoutePlans } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encStaffMasters}/${encRoutePlans}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encStaffMasters}/${encRoutePlans}/${id}/edit`;
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  // const [filters, setFilters] = useState<any>({
-  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  // });
+  const ENC_EDIT_PATH = (id: string) => `/${encStaffMasters}/${encRoutePlans}/${id}/edit`;
 
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    display_code: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    district_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    vehicle_no: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    supervisor_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    is_active: { value: null, matchMode: FilterMatchMode.EQUALS },
+  const {
+    companyUniqueId, projectId, projects, companies,
+    isSuperAdmin, setProjectId, onCompanyChange,
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
   });
 
-  const fetchList = useCallback(async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setList([]);
-      setLoading(false);
-      return;
-    }
+  const [list, setList] = useState<RoutePlan[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [filters, setFilters] = useState<DataTableFilterMeta>({
+    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    display_code: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    district_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    city_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    zone_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    vehicle_no: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    supervisor_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+  });
 
-    if (!companyUniqueId) {
-      setList([]);
-      setLoading(false);
-      return;
-    }
-
-    let mounted = true;
-    try {
-      setLoading(true);
-      const apiFilters = { company_id: companyUniqueId, project_id: projectId ?? undefined };
-      const res = await adminApi.routePlans.list({ params: apiFilters });
-      const rows = normalize(res);
-
-      if (!mounted) return;
-
-      const hasContextFields = rows.some((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        return Boolean(rowCompanyId || rowProjectId);
-      });
-
-      if (!hasContextFields) {
-        setList(rows);
-        return;
-      }
-
-      const filtered = rows.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-
-        return companyMatches && projectMatches;
-      });
-
-      setList(filtered);
-    } catch {
-      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-    } finally {
-      if (mounted) setLoading(false);
-    }
-    return () => { mounted = false; };
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
-
+  /* ── load list ── */
   useEffect(() => {
-    fetchList();
-  }, [fetchList]);
+    if (!companyUniqueId) { setList([]); return; }
+    let mounted = true;
+    setLoading(true);
+    const params: Record<string, string> = { company_id: companyUniqueId };
+    if (projectId) params.project_id = projectId;
+    adminApi.routePlans.list({ params })
+      .then((res) => {
+        if (!mounted) return;
+        const rows = normalizeList(res);
+        const filtered = rows.filter((row) => {
+          const rc = normalizeId(row.company_id ?? row.company_unique_id);
+          const rp = normalizeId(row.project_id ?? row.project_unique_id);
+          return (!companyUniqueId || rc === companyUniqueId) && (!projectId || rp === projectId);
+        });
+        setList(filtered);
+      })
+      .catch(() => { if (mounted) Swal.fire(t("common.error"), t("common.fetch_failed"), "error"); })
+      .finally(() => { if (mounted) setLoading(false); });
+    return () => { mounted = false; };
+  }, [companyUniqueId, projectId, t]);
 
+  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
+
+  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
+    setGlobalFilterValue(value);
+  };
+
+  /* ── status toggle ── */
   const statusBodyTemplate = (row: RoutePlan) => {
     const updateStatus = async (checked: boolean) => {
       try {
         await adminApi.routePlans.update(row.unique_id, { is_active: checked });
         setList((prev) =>
           prev.map((item) =>
-            item.unique_id === row.unique_id
-              ? { ...item, is_active: checked }
-              : item
+            item.unique_id === row.unique_id ? { ...item, is_active: checked } : item
           )
         );
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       }
     };
-
-    return (
-      <Switch
-        checked={!!row.is_active}
-        onCheckedChange={updateStatus}
-      />
-    );
+    return <Switch checked={!!row.is_active} onCheckedChange={updateStatus} />;
   };
 
-  const actionTemplate = (row: RoutePlan) => (
-    <div className="flex justify-center gap-3">
-      { (
-        <button
-          onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-          className="text-blue-600 hover:text-blue-800"
-          title={t("common.edit")}
-        >
-          <PencilIcon className="size-5" />
-        </button>
-      )}
-      { (
-        <button
-          onClick={() => handleDelete(row.unique_id)}
-          className="text-red-600 hover:text-red-800"
-          title={t("common.delete")}
-        >
-          <TrashBinIcon className="size-5" />
-        </button>
-      )}
-    </div>
-  );
-
+  /* ── delete ── */
   const handleDelete = async (id: string) => {
     const confirm = await Swal.fire({
       title: t("common.confirm_title"),
@@ -298,9 +146,7 @@ export default function RoutePlanList() {
       showCancelButton: true,
       confirmButtonColor: "#d33",
     });
-
     if (!confirm.isConfirmed) return;
-
     try {
       await adminApi.routePlans.remove(id);
       setList((prev) => prev.filter((item) => item.unique_id !== id));
@@ -310,27 +156,59 @@ export default function RoutePlanList() {
     }
   };
 
-  const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters({
-      ...filters,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    });
-    setGlobalFilterValue(value);
-  };
+  const actionTemplate = (row: RoutePlan) => (
+    <div className="flex justify-center gap-3">
+      <button
+        title={t("common.edit")}
+        onClick={() =>
+          navigate(ENC_EDIT_PATH(row.unique_id), {
+            state: {
+              companyUniqueId: row.company_unique_id ?? row.company_id,
+              projectId: row.project_unique_id ?? row.project_id,
+            },
+          })
+        }
+        className="text-blue-600 hover:text-blue-800"
+      >
+        <PencilIcon className="size-5" />
+      </button>
+      <button
+        title={t("common.delete")}
+        onClick={() => handleDelete(row.unique_id)}
+        className="text-red-600 hover:text-red-800"
+      >
+        <TrashBinIcon className="size-5" />
+      </button>
+    </div>
+  );
 
-  const header = (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
+  const indexTemplate = (_: RoutePlan, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
+
+  const renderHeader = () => (
+    <div className="flex justify-end items-center">
+      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
+        <i className="pi pi-search text-gray-500" />
+        <InputText
+          value={globalFilterValue}
+          onChange={onGlobalFilterChange}
+          placeholder={t("common.search") || "Search..."}
+          className="p-inputtext-sm !border-0 !shadow-none !outline-none"
+        />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="p-3">
+      <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">
+          <h1 className="text-3xl font-bold text-gray-800 mb-1">
             {t("admin.route_plan.title") || "Route Plans"}
           </h1>
           <p className="text-sm text-gray-500">
             {t("admin.route_plan.subtitle") || "Manage route plans"}
           </p>
         </div>
-
         <div className="flex items-center gap-3">
           <select
             value={companyUniqueId || ""}
@@ -341,10 +219,8 @@ export default function RoutePlanList() {
             <option value="" disabled>
               {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
             </option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
+            {companies.map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
             ))}
           </select>
 
@@ -357,82 +233,89 @@ export default function RoutePlanList() {
             <option value="" disabled>
               {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
             </option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
+            {projects.map((p) => (
+              <option key={p.value} value={p.value}>{p.label}</option>
             ))}
           </select>
 
-          { (
-            <Button
-              label={t("admin.route_plan.add") || "Add Route Plan"}
-              icon="pi pi-plus"
-              className="p-button-success p-button-sm"
-              disabled={!companyUniqueId || !projectId}
-              onClick={() =>
-                navigate(
-                  `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
-                    companyUniqueId
-                  )}&project_id=${encodeURIComponent(projectId)}`
-                )
-              }
-            />
-          )}
-        </div>
-      </div>
-
-      <div className="flex justify-end">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("common.search") || "Search..."}
-            className="border-0 outline-none text-sm"
+          <Button
+            label={t("admin.route_plan.add") || "Add Route Plan"}
+            icon="pi pi-plus"
+            className="p-button-success"
+            disabled={!companyUniqueId || !projectId}
+            onClick={() =>
+              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+            }
           />
         </div>
       </div>
-    </div>
-  );
 
-  return (
-    <div className="p-4 space-y-4">
       <DataTable
         value={list}
-        loading={loading}
-        filters={filters}
-        globalFilterFields={[
-          "display_code",
-          "zone_name",
-          "vehicle_no",
-          "supervisor_name",
-          "company_name",
-          "project_name",
-        ]}
-        header={header}
+        dataKey="unique_id"
         paginator
         rows={10}
-        rowsPerPageOptions={[10, 20, 50]}
-        className="p-datatable-striped"
+        rowsPerPageOptions={[5, 10, 25, 50]}
+        loading={loading && list.length === 0}
+        filters={filters}
+        onFilter={onFilter}
+        header={renderHeader()}
+        stripedRows
+        showGridlines
+        className="p-datatable-sm"
+        emptyMessage="No route plans found. Select a company and project to load data."
+        globalFilterFields={["display_code", "district_name", "city_name", "zone_name", "panchayat_name", "vehicle_no", "supervisor_name", "driver_name", "company_name", "project_name"]}
       >
-        <Column field="display_code" header={t("common.code") || "Code"} sortable filter showFilterMatchModes={false} />
-        <Column field="zone_name" header={t("common.zone") || "Zone"} sortable filter showFilterMatchModes={false} />
-        <Column field="city_name" header={t("common.city") || "City"} sortable filter showFilterMatchModes={false} />
-        <Column field="district_name" header={t("common.district") || "District"} sortable filter showFilterMatchModes={false} />
-        <Column field="vehicle_no" header={t("common.vehicle") || "Vehicle"} sortable filter showFilterMatchModes={false} />
-        <Column field="supervisor_name" header={t("common.supervisor") || "Supervisor"} sortable filter showFilterMatchModes={false} />
         <Column
-          field="is_active"
-          header={t("common.status") || "Status"}
-          body={statusBodyTemplate}
-          className="text-center"
+          header={t("common.s_no")}
+          body={indexTemplate}
+          style={{ width: "60px" }}
         />
         <Column
-          header={t("common.actions") || "Actions"}
+          field="display_code"
+          header={t("common.code") || "Code"}
+          sortable filter showFilterMatchModes={false}
+        />
+        <Column
+          field="district_name"
+          header={t("common.district") || "District"}
+          sortable filter showFilterMatchModes={false}
+        />
+        <Column
+          field="city_name"
+          header={t("common.city") || "City"}
+          sortable filter showFilterMatchModes={false}
+        />
+        <Column
+          field="zone_name"
+          header={t("common.zone") || "Zone"}
+          sortable filter showFilterMatchModes={false}
+        />
+        <Column
+          field="panchayat_name"
+          header={t("admin.nav.panchayat") || "Panchayat"}
+          sortable filter showFilterMatchModes={false}
+        />
+        <Column
+          field="vehicle_no"
+          header={t("common.vehicle") || "Vehicle"}
+          sortable filter showFilterMatchModes={false}
+        />
+        <Column
+          field="supervisor_name"
+          header={t("common.supervisor") || "Supervisor"}
+          sortable filter showFilterMatchModes={false}
+        />
+        <Column
+          field="is_active"
+          header={t("common.status")}
+          body={statusBodyTemplate}
+          style={{ width: "120px" }}
+        />
+        <Column
+          header={t("common.actions")}
           body={actionTemplate}
-          className="text-center"
-          style={{ width: "100px" }}
+          style={{ width: "120px", textAlign: "center" }}
         />
       </DataTable>
     </div>
