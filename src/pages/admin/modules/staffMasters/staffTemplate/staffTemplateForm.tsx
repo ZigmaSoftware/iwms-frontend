@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
+import { MultiSelect } from "primereact/multiselect";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -77,8 +78,13 @@ const STAFF_TEMPLATE_FIELDS: Record<string, string[]> = {
 export default function StaffTemplateForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const routeCompanyId = routeState?.companyUniqueId ?? searchParams.get("company_unique_id") ?? "";
+  const routeProjectId = routeState?.projectId ?? searchParams.get("project_id") ?? "";
   const { showField, filterPayload } = useFieldVisibility(
     "staff-masters",
     "staff-template",
@@ -97,8 +103,8 @@ export default function StaffTemplateForm() {
   const [projectOptions, setProjectOptions] = useState<Option[]>([]);
   const [allProjects, setAllProjects] = useState<any[]>([]);
 
-  const [selectedCompanyId, setSelectedCompanyId] = useState("");
-  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [selectedCompanyId, setSelectedCompanyId] = useState(routeCompanyId);
+  const [selectedProjectId, setSelectedProjectId] = useState(routeProjectId);
 
   const { handleCompanyChange, handleProjectChange, globalCompanyId, globalProjectId } = useFormCompanyProjectSync({
     selectedCompanyId,
@@ -106,11 +112,15 @@ export default function StaffTemplateForm() {
     selectedProjectId,
     setSelectedProjectId,
   });
-  const [userLookup, setUserLookup] = useState<Record<string, string>>({});
-  const [extraOperatorPick, setExtraOperatorPick] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Pending prefill: values from the fetched template, applied once their option lists are ready
+  const [pendingDriverId, setPendingDriverId] = useState<string | null>(null);
+  const [pendingOperatorId, setPendingOperatorId] = useState<string | null>(null);
+  const [pendingExtraIds, setPendingExtraIds] = useState<string[] | null>(null);
+  const [pendingApprovedBy, setPendingApprovedBy] = useState<string | null>(null);
 
   const { encStaffMasters, encStaffTemplate } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encStaffMasters}/${encStaffTemplate}`;
@@ -152,11 +162,20 @@ export default function StaffTemplateForm() {
   const toText = (value: unknown): string =>
     String(value ?? "").trim();
 
+  const toEntityId = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      return toEntityId(record.unique_id ?? record.id ?? record.value);
+    }
+    return String(value).trim();
+  };
+
   const getCompanyId = (staff: StaffRecord): string =>
-    toText(staff.company_unique_id) || toText(staff.company_id);
+    toEntityId(staff.company_unique_id) || toEntityId(staff.company_id);
 
   const getProjectId = (staff: StaffRecord): string =>
-    toText(staff.project_unique_id) || toText(staff.project_id);
+    toEntityId(staff.project_unique_id) || toEntityId(staff.project_id);
 
   const getCompanyLabel = (staff: StaffRecord): string =>
     toText(staff.company_name) || getCompanyId(staff);
@@ -255,13 +274,7 @@ export default function StaffTemplateForm() {
           (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && u.unique_id
         );
 
-        const lookup: Record<string, string> = {};
-        staffOnly.forEach((u: StaffRecord) => {
-          lookup[String(u.unique_id)] = getStaffDisplayName(u);
-        });
-
         setStaffRecords(staffOnly);
-        setUserLookup(lookup);
 
         // ---- Companies ----
         const companiesData = Array.isArray(companiesRes)
@@ -283,6 +296,9 @@ export default function StaffTemplateForm() {
           if (prev && normalizedCompanies.some((option: Option) => option.value === prev)) {
             return prev;
           }
+          if (routeCompanyId && normalizedCompanies.some((option: Option) => option.value === routeCompanyId)) {
+            return routeCompanyId;
+          }
           if (globalCompanyId && normalizedCompanies.some((option: Option) => option.value === globalCompanyId)) {
             return globalCompanyId;
           }
@@ -300,16 +316,18 @@ export default function StaffTemplateForm() {
           .filter((p: any) => p?.is_active !== false && p?.is_deleted !== true)
           .map((p: any) => ({
             value: String(p?.unique_id ?? p?.id ?? ""),
-            label: p?.name ?? "",
-            company_id: p?.company_unique_id ?? p?.company_id,
+            label: p?.name ?? p?.project_name ?? "",
+            company_id: toEntityId(p?.company_unique_id ?? p?.company_id),
           }))
           .filter((option: any) => option.value && option.label);
 
         setAllProjects(normalizedProjects);
 
         const firstCompanyId = normalizedCompanies[0]?.value ?? "";
-        const initialCompanyId = globalCompanyId && normalizedCompanies.some((opt: Option) => opt.value === globalCompanyId)
-          ? globalCompanyId
+        const initialCompanyId = routeCompanyId && normalizedCompanies.some((opt: Option) => opt.value === routeCompanyId)
+          ? routeCompanyId
+          : globalCompanyId && normalizedCompanies.some((opt: Option) => opt.value === globalCompanyId)
+            ? globalCompanyId
           : firstCompanyId;
         const initialProjects = initialCompanyId
           ? normalizedProjects.filter(
@@ -317,6 +335,18 @@ export default function StaffTemplateForm() {
             )
           : normalizedProjects;
         setProjectOptions(initialProjects);
+        setSelectedProjectId((prev) => {
+          if (prev && initialProjects.some((option: any) => option.value === prev)) {
+            return prev;
+          }
+          if (routeProjectId && initialProjects.some((option: any) => option.value === routeProjectId)) {
+            return routeProjectId;
+          }
+          if (globalProjectId && initialProjects.some((option: any) => option.value === globalProjectId)) {
+            return globalProjectId;
+          }
+          return initialProjects[0]?.value ?? "";
+        });
 
         // Pre-fill approved_by if current user is an admin
         const currentUserId = localStorage.getItem("unique_id") || "";
@@ -332,7 +362,7 @@ export default function StaffTemplateForm() {
       .catch(() => {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       });
-  }, [t]);
+  }, [globalCompanyId, globalProjectId, routeCompanyId, routeProjectId, t]);
 
   /* ================= FILTER PROJECTS BY COMPANY ================= */
 
@@ -348,9 +378,15 @@ export default function StaffTemplateForm() {
       if (prev && filteredProjects.some((option: any) => option.value === prev)) {
         return prev;
       }
+      if (routeProjectId && filteredProjects.some((option: any) => option.value === routeProjectId)) {
+        return routeProjectId;
+      }
+      if (globalProjectId && filteredProjects.some((option: any) => option.value === globalProjectId)) {
+        return globalProjectId;
+      }
       return filteredProjects[0]?.value ?? "";
     });
-  }, [selectedCompanyId, allProjects]);
+  }, [selectedCompanyId, allProjects, routeProjectId, globalProjectId]);
 
   /* ================= SCOPE DRIVERS / OPERATORS / APPROVERS BY COMPANY + PROJECT ================= */
 
@@ -371,7 +407,7 @@ export default function StaffTemplateForm() {
       scopedStaff.filter(isOperatorRole).map((staff) => toStaffOption(staff))
     );
 
-    // ✅ Approvers scoped to selected company + project
+    // Approvers scoped to selected company + project
     const scopedAdmins = scopedStaff
       .filter((s) => getStaffRole(s).includes("admin"))
       .map((s) => toStaffOption(s));
@@ -409,7 +445,7 @@ export default function StaffTemplateForm() {
       .then((tpl: any) => {
         setFormError(null);
         const extraIds = Array.isArray(tpl.extra_operator_id)
-          ? tpl.extra_operator_id.map(String)
+          ? tpl.extra_operator_id.map(toEntityId).filter(Boolean)
           : typeof tpl.extra_operator_id === "string"
             ? tpl.extra_operator_id
               .split(",")
@@ -417,25 +453,40 @@ export default function StaffTemplateForm() {
               .filter(Boolean)
             : [];
 
-        setFormData({
-          driver_id: tpl.driver_id ?? "",
-          operator_id: tpl.operator_id ?? "",
-          extra_operator_id: extraIds,
+        // Apply status fields immediately; they do not depend on option lists.
+        setFormData((prev) => ({
+          ...prev,
           status: tpl.status ?? "ACTIVE",
           approval_status: tpl.approval_status ?? "PENDING",
-          approved_by: tpl.approved_by ?? "",
-        });
+        }));
 
+        // Store FK fields as pending until their option lists are ready.
+        const driverId = toEntityId(tpl.driver_id ?? tpl.driver);
+        const operatorId = toEntityId(tpl.operator_id ?? tpl.operator);
+        const approvedBy = toEntityId(tpl.approved_by ?? tpl.approver);
+        if (driverId) setPendingDriverId(driverId);
+        if (operatorId) setPendingOperatorId(operatorId);
+        if (extraIds.length > 0) setPendingExtraIds(extraIds);
+        if (approvedBy) setPendingApprovedBy(approvedBy);
+
+        const templateCompanyId = toEntityId(tpl.company_unique_id ?? tpl.company_id ?? tpl.company);
+        const templateProjectId = toEntityId(tpl.project_unique_id ?? tpl.project_id ?? tpl.project);
+        if (templateCompanyId) setSelectedCompanyId(templateCompanyId);
+        if (templateProjectId) setSelectedProjectId(templateProjectId);
+
+        // Set company/project from the matched staff record
         const matchedStaff =
           staffRecords.find(
-            (staff) => String(staff.unique_id) === String(tpl.driver_id ?? "")
+            (staff) => String(staff.unique_id) === driverId
           ) ??
           staffRecords.find(
-            (staff) => String(staff.unique_id) === String(tpl.operator_id ?? "")
+            (staff) => String(staff.unique_id) === operatorId
           );
 
-        if (matchedStaff) {
+        if (!templateCompanyId && matchedStaff) {
           setSelectedCompanyId(getCompanyId(matchedStaff));
+        }
+        if (!templateProjectId && matchedStaff) {
           setSelectedProjectId(getProjectId(matchedStaff));
         }
       })
@@ -459,10 +510,12 @@ export default function StaffTemplateForm() {
     setFormData((prev) => {
       let hasChanges = false;
       const next = { ...prev };
+      const staffExists = (value: string) =>
+        staffRecords.some((staff) => String(staff.unique_id) === value);
 
       const isDriverValid = driverOptions.some(
         (option) => String(option.value) === prev.driver_id
-      );
+      ) || staffExists(prev.driver_id);
       if (prev.driver_id && !isDriverValid) {
         next.driver_id = "";
         hasChanges = true;
@@ -470,14 +523,17 @@ export default function StaffTemplateForm() {
 
       const isOperatorValid = operatorOptions.some(
         (option) => String(option.value) === prev.operator_id
-      );
+      ) || staffExists(prev.operator_id);
       if (prev.operator_id && !isOperatorValid) {
         next.operator_id = "";
         hasChanges = true;
       }
 
       const validOperatorIds = new Set(
-        operatorOptions.map((option) => String(option.value))
+        [
+          ...operatorOptions.map((option) => String(option.value)),
+          ...staffRecords.map((staff) => String(staff.unique_id ?? "")).filter(Boolean),
+        ]
       );
       const filteredExtras = next.extra_operator_id.filter(
         (value) =>
@@ -493,7 +549,7 @@ export default function StaffTemplateForm() {
 
       return hasChanges ? next : prev;
     });
-  }, [driverOptions, operatorOptions]);
+  }, [driverOptions, fetching, operatorOptions, staffRecords]);
 
   useEffect(() => {
     setFormData((prev) => {
@@ -505,13 +561,70 @@ export default function StaffTemplateForm() {
     });
   }, [formData.driver_id, formData.operator_id]);
 
+  /* ================= PENDING PREFILL RESOLUTION ================= */
+  // Applied once options are ready to prevent a clear-before-prefill race.
+
+  useEffect(() => {
+    if (!pendingDriverId || staffRecords.length === 0) return;
+    const inOptions = driverOptions.some((o) => o.value === pendingDriverId);
+    const inRecords = staffRecords.some((s) => String(s.unique_id) === pendingDriverId);
+    if (inOptions || inRecords) {
+      setFormData((prev) => ({ ...prev, driver_id: pendingDriverId }));
+      setPendingDriverId(null);
+    }
+  }, [pendingDriverId, driverOptions, staffRecords]);
+
+  useEffect(() => {
+    if (!pendingOperatorId || staffRecords.length === 0) return;
+    const inOptions = operatorOptions.some((o) => o.value === pendingOperatorId);
+    const inRecords = staffRecords.some((s) => String(s.unique_id) === pendingOperatorId);
+    if (inOptions || inRecords) {
+      setFormData((prev) => ({ ...prev, operator_id: pendingOperatorId }));
+      setPendingOperatorId(null);
+    }
+  }, [pendingOperatorId, operatorOptions, staffRecords]);
+
+  useEffect(() => {
+    if (!pendingApprovedBy) return;
+    const allApproverOptions = [...adminOptions, ...supervisorOptions];
+    if (allApproverOptions.length === 0 && staffRecords.length === 0) return;
+    const inOptions = allApproverOptions.some((o) => o.value === pendingApprovedBy);
+    const inRecords = staffRecords.some((s) => String(s.unique_id) === pendingApprovedBy);
+    if (inOptions || inRecords) {
+      setFormData((prev) => ({ ...prev, approved_by: pendingApprovedBy }));
+      setPendingApprovedBy(null);
+    }
+  }, [pendingApprovedBy, adminOptions, supervisorOptions, staffRecords]);
+
+  useEffect(() => {
+    if (!pendingExtraIds || staffRecords.length === 0) return;
+    // Apply extras whose staff records exist (even if outside current project scope)
+    const validIds = pendingExtraIds.filter((id) =>
+      staffRecords.some((s) => String(s.unique_id) === id)
+    );
+    setFormData((prev) => ({ ...prev, extra_operator_id: validIds }));
+    setPendingExtraIds(null);
+  }, [pendingExtraIds, staffRecords]);
+
   /* ================= DERIVED ================= */
 
-  const availableExtraOperatorOptions = operatorOptions.filter((option) => {
+  const extraOperatorOptionsWithCurrent = operatorOptions.filter((option) => {
     const value = String(option.value);
     if (!value) return false;
     if (value === formData.driver_id || value === formData.operator_id) return false;
-    return !formData.extra_operator_id.includes(value);
+    return true;
+  });
+
+  formData.extra_operator_id.forEach((value) => {
+    if (
+      value &&
+      value !== formData.driver_id &&
+      value !== formData.operator_id &&
+      !extraOperatorOptionsWithCurrent.some((option) => String(option.value) === value)
+    ) {
+      const staff = staffRecords.find((item) => String(item.unique_id) === value);
+      if (staff) extraOperatorOptionsWithCurrent.unshift(toStaffOption(staff));
+    }
   });
 
   const driverOptionsWithCurrent = (() => {
@@ -547,46 +660,6 @@ export default function StaffTemplateForm() {
     );
     return staff ? [toStaffOption(staff), ...scopedOptions] : scopedOptions;
   })();
-
-  const resolveOperatorLabel = (value: string) => {
-    const match = operatorOptions.find(
-      (option) => String(option.value) === value
-    );
-    if (match) return match.label;
-    const staff = staffRecords.find((item) => String(item.unique_id) === value);
-    return staff ? toStaffOption(staff).label : value;
-  };
-
-  const resolveUserName = (userId?: string) => {
-    if (!userId) return "-";
-    return userLookup[userId] || userId;
-  };
-
-  /* ================= EXTRA OPERATOR HANDLERS ================= */
-
-  const handleAddExtraOperator = (value: string) => {
-    if (!value) return;
-    if (
-      value === formData.driver_id ||
-      value === formData.operator_id ||
-      formData.extra_operator_id.includes(value)
-    ) {
-      setExtraOperatorPick("");
-      return;
-    }
-    setFormData((prev) => ({
-      ...prev,
-      extra_operator_id: [...prev.extra_operator_id, value],
-    }));
-    setExtraOperatorPick("");
-  };
-
-  const handleRemoveExtraOperator = (value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      extra_operator_id: prev.extra_operator_id.filter((item) => item !== value),
-    }));
-  };
 
   /* ================= SUBMIT ================= */
 
@@ -754,41 +827,44 @@ export default function StaffTemplateForm() {
             {showField("extra_operator_id") && (
               <div>
                 <Label>{t("admin.staff_template.extra_staff")}</Label>
-                <Select
-                  value={extraOperatorPick}
-                  onChange={handleAddExtraOperator}
-                  options={availableExtraOperatorOptions}
+                <MultiSelect
+                  value={formData.extra_operator_id}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      extra_operator_id: Array.isArray(e.value)
+                        ? e.value.map(String)
+                        : [],
+                    }))
+                  }
+                  options={extraOperatorOptionsWithCurrent}
+                  optionLabel="label"
+                  optionValue="value"
+                  maxSelectedLabels={3}
                   placeholder={t("common.select_option")}
+                  className="!flex !h-10 !w-full !items-center !justify-between !rounded-md !border !border-input !bg-background !px-3 !py-2 !text-sm !shadow-none !ring-offset-background focus:!outline-none focus:!ring-2 focus:!ring-ring focus:!ring-offset-2 disabled:!cursor-not-allowed disabled:!opacity-50"
+                  pt={{
+                    labelContainer: {
+                      className: "!flex !flex-1 !items-center !overflow-hidden",
+                    },
+                    label: {
+                      className:
+                        "!m-0 !block !truncate !p-0 !text-sm !leading-5 !text-gray-900",
+                    },
+                    trigger: {
+                      className:
+                        "!ml-2 !flex !h-4 !w-4 !shrink-0 !items-center !justify-center !text-gray-500",
+                    },
+                    dropdownIcon: {
+                      className: "!h-4 !w-4 !opacity-50",
+                    },
+                    panel: {
+                      className: "!z-[80] !rounded-md !border !bg-white !shadow-md",
+                    },
+                  }}
+                  filter
                   disabled={fetching}
                 />
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {formData.extra_operator_id.length === 0 ? (
-                    <span className="text-xs text-gray-500">
-                      {t("common.no_items_found", {
-                        item: t("admin.staff_template.extra_staff"),
-                      })}
-                    </span>
-                  ) : (
-                    formData.extra_operator_id.map((value) => (
-                      <span
-                        key={value}
-                        className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs text-gray-700"
-                      >
-                        <span className="max-w-[160px] truncate">
-                          {resolveOperatorLabel(value)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveExtraOperator(value)}
-                          className="rounded-full bg-white px-2 py-0.5 text-xs text-gray-500 hover:text-gray-800"
-                          aria-label={t("common.remove")}
-                        >
-                          x
-                        </button>
-                      </span>
-                    ))
-                  )}
-                </div>
               </div>
             )}
 
@@ -826,7 +902,7 @@ export default function StaffTemplateForm() {
               </div>
             )}
 
-            {/* APPROVER — scoped to selected company + project */}
+            {/* APPROVER - scoped to selected company + project */}
             {showField("approved_by") && (
               <div>
                 <Label>{t("admin.staff_template.approved_by")}</Label>

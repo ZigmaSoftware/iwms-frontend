@@ -719,11 +719,7 @@ export default function StaffCreationList() {
             className="p-button-success p-button-sm"
             disabled={!companyUniqueId || !projectId}
             onClick={() =>
-              navigate(
-                `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
-                  companyUniqueId
-                )}&project_id=${encodeURIComponent(projectId)}`
-              )
+              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
             }
           />
         </div>
