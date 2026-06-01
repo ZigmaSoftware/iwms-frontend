@@ -33,6 +33,8 @@ import BinForm from "@/pages/admin/modules/masters/bin/BinForm";
 
 import PanchayatListPage from "@/pages/admin/modules/masters/panchayat/PanchayatListPage";
 import PanchayatForm from "@/pages/admin/modules/masters/panchayat/PanchayatForm";
+import PanchayatLeaderListPage from "@/pages/admin/modules/masters/panchayatLeader/PanchayatLeaderListPage";
+import PanchayatLeaderForm from "@/pages/admin/modules/masters/panchayatLeader/PanchayatLeaderForm";
 import AreaTypeListPage from "@/pages/admin/modules/masters/areaType/AreaTypeListPage";
 import AreaTypeForm from "@/pages/admin/modules/masters/areaType/AreaTypeForm";
 import HierarchyListPage from "@/pages/admin/modules/masters/hierarchy/HierarchyListPage";
@@ -182,6 +184,7 @@ const ROUTES: RouteMap = {
 
 
     panchayats: { list: PanchayatListPage, form: PanchayatForm },
+    "panchayat-leaders": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
     "area-types": { list: AreaTypeListPage, form: AreaTypeForm },
     hierarchies: { list: HierarchyListPage, form: HierarchyForm },
 

@@ -30,6 +30,7 @@ export const designationApi = adminApi.designations;
 export const collectionPointApi = adminApi.collectionPoints;
 export const wasteTypeApi = adminApi.wasteTypes;
 export const panchayatApi = adminApi.panchayats;
+export const panchayatLeaderApi = adminApi.panchayatLeaders;
 export const areaTypeApi = adminApi.areatypes;
 export const hierarchyApi = adminApi.hierarchies;
 

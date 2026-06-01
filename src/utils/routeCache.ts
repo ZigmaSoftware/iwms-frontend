@@ -97,6 +97,7 @@ export type EncryptedRoutes = {
   encPanchayats: string;
   encAreaTypes: string;
   encHierarchies: string;
+  encPanchayatLeaders: string;
 };
 
 const plainRoutes: EncryptedRoutes = {
@@ -185,6 +186,7 @@ const plainRoutes: EncryptedRoutes = {
   encPanchayats: "panchayats",
   encAreaTypes: "area-types",
   encHierarchies: "hierarchies",
+  encPanchayatLeaders: "panchayat-leaders",
 
   //dashboard
 
