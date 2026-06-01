@@ -172,7 +172,11 @@ export default function CollectionPointListPage() {
   const actionTemplate = (row: CollectionPointRecord) => (
     <div className="flex gap-3 justify-center">
       <button
-        onClick={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
+        onClick={() =>
+          navigate(ENC_EDIT_PATH(String(row.unique_id)), {
+            state: { companyUniqueId, projectId },
+          })
+        }
         className="text-blue-600 hover:text-blue-800"
         title={t("common.edit")}
       >

@@ -131,6 +131,17 @@ export default function ProjectForm() {
     fetchCompanies();
   }, [fetchCompanies]);
 
+  // Apply pendingCompanyId once the companies list is loaded.
+  // Handles the common case where the project record resolves after companies.
+  useEffect(() => {
+    if (!pendingCompanyId || companies.length === 0) return;
+    const found = companies.some((c) => c.unique_id === pendingCompanyId);
+    if (found) {
+      setCompanyUniqueId(pendingCompanyId);
+      setPendingCompanyId(null);
+    }
+  }, [pendingCompanyId, companies]);
+
   useEffect(() => {
     if (!isEdit) return;
 

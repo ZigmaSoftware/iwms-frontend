@@ -152,9 +152,18 @@ export default function BinForm() {
   const [panchayats, setPanchayats] = useState<LocationOption[]>([]);
   const [collectionPoints, setCollectionPoints] = useState<CollectionPointOption[]>([]);
   const [wasteTypes, setWasteTypes] = useState<SelectOption[]>([]);
+  // Pending IDs — set when the record loads, flushed once the option list is ready.
+  // This ensures Radix Select re-renders with a valid matching option (panchayat pattern).
+  const [pendingDistrictId, setPendingDistrictId] = useState("");
+  const [pendingCityId, setPendingCityId] = useState("");
+  const [pendingZoneId, setPendingZoneId] = useState("");
+  const [pendingCollectionPointId, setPendingCollectionPointId] = useState("");
   const [pendingWard, setPendingWard] = useState("");
   const [pendingPanchayat, setPendingPanchayat] = useState("");
   const [pendingWasteType, setPendingWasteType] = useState("");
+  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
+    projectUniqueId: string; projectId: string; projectName: string;
+  } | null>(null);
   const [lookupsLoading, setLookupsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -329,16 +338,28 @@ export default function BinForm() {
         setBinName(toStringOrEmpty(record.bin_name));
         setBinType(toStringOrEmpty(record.bin_type) || "medium");
         setBinCapacity(toNumberOrEmpty(record.bin_capacity ?? record.capacity_liters));
-        setDistrictId(normalizeIdValue(record.district_id ?? record.district));
-        setCityId(normalizeIdValue(record.city_id ?? record.city));
-        setCollectionPointId(normalizeIdValue(record.collection_point_id ?? record.collection_point));
         setBinImage(toStringOrEmpty(record.bin_image) || "default.png");
         setBinQr(toStringOrEmpty(record.bin_qr));
         setIsActive(Boolean(record.is_active));
         applyCompanyProjectFromRecord(record);
+        setPendingProjectCandidates({
+          projectUniqueId: toStringOrEmpty((record as any).project_unique_id ?? (record as any).project?.unique_id ?? ""),
+          projectId: toStringOrEmpty((record as any).project_id ?? ""),
+          projectName: toStringOrEmpty((record as any).project_name ?? ""),
+        });
+
+        // Set all cascade IDs via pending so Radix Select re-renders once options load
+        const districtCandidate = normalizeIdValue(record.district_id ?? record.district);
+        if (districtCandidate) { setDistrictId(districtCandidate); setPendingDistrictId(districtCandidate); }
+
+        const cityCandidate = normalizeIdValue(record.city_id ?? record.city);
+        if (cityCandidate) { setCityId(cityCandidate); setPendingCityId(cityCandidate); }
 
         const zoneCandidate = normalizeIdValue(record.zone_id ?? record.zone);
-        if (zoneCandidate) setZoneId(zoneCandidate);
+        if (zoneCandidate) { setZoneId(zoneCandidate); setPendingZoneId(zoneCandidate); }
+
+        const cpCandidate = normalizeIdValue(record.collection_point_id ?? record.collection_point);
+        if (cpCandidate) { setCollectionPointId(cpCandidate); setPendingCollectionPointId(cpCandidate); }
 
         const panchayatCandidate = normalizeIdValue(record.panchayat_id ?? record.panchayat);
         const wardCandidate = normalizeIdValue(record.ward_id ?? record.ward);
@@ -362,6 +383,42 @@ export default function BinForm() {
       });
     return () => { cancelled = true; };
   }, [id, isEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Flush district once the districts list is loaded
+  useEffect(() => {
+    if (!pendingDistrictId || districts.length === 0) return;
+    if (districts.some((d) => d.value === pendingDistrictId)) {
+      setDistrictId(pendingDistrictId);
+      setPendingDistrictId("");
+    }
+  }, [pendingDistrictId, districts]);
+
+  // Flush city once the cities list is loaded (city must match the district filter)
+  useEffect(() => {
+    if (!pendingCityId || cities.length === 0) return;
+    if (cities.some((c) => c.value === pendingCityId)) {
+      setCityId(pendingCityId);
+      setPendingCityId("");
+    }
+  }, [pendingCityId, cities]);
+
+  // Flush zone once the zones list is loaded
+  useEffect(() => {
+    if (!pendingZoneId || zones.length === 0) return;
+    if (zones.some((z) => z.value === pendingZoneId)) {
+      setZoneId(pendingZoneId);
+      setPendingZoneId("");
+    }
+  }, [pendingZoneId, zones]);
+
+  // Flush collection point once the collection points list is loaded
+  useEffect(() => {
+    if (!pendingCollectionPointId || collectionPoints.length === 0) return;
+    if (collectionPoints.some((cp) => cp.value === pendingCollectionPointId)) {
+      setCollectionPointId(pendingCollectionPointId);
+      setPendingCollectionPointId("");
+    }
+  }, [pendingCollectionPointId, collectionPoints]);
 
   useEffect(() => {
     if (!pendingWard || wardRecords.length === 0) return;
@@ -389,6 +446,18 @@ export default function BinForm() {
     setWasteTypeId(pendingWasteType);
     setPendingWasteType("");
   }, [pendingWasteType, wasteTypes]);
+
+  /* ── re-apply project after hook loads project list ── */
+  useEffect(() => {
+    if (!pendingProjectCandidates || projects.length === 0) return;
+    const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
+    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
+    if (!match) match = projects.find((p) => rawId && p.value === rawId);
+    if (!match && projectName)
+      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
+    if (match) setProjectId(match.value);
+    setPendingProjectCandidates(null);
+  }, [projects, pendingProjectCandidates, setProjectId]);
 
   const wardOptions = useMemo(() => {
     const filtered = wardRecords

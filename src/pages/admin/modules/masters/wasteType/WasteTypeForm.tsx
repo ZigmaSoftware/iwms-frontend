@@ -62,6 +62,9 @@ export default function WasteTypeForm() {
   const [isActive, setIsActive] = useState(true);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
+    projectUniqueId: string; projectId: string; projectName: string;
+  } | null>(null);
 
   const extractErr = useCallback(
     (error: unknown): string => {
@@ -93,6 +96,11 @@ export default function WasteTypeForm() {
         );
         setIsActive(Boolean(res.is_active));
         applyCompanyProjectFromRecord(res as Record<string, unknown>);
+        setPendingProjectCandidates({
+          projectUniqueId: toStringOrEmpty(res.project_unique_id ?? (res.project as any)?.unique_id ?? ""),
+          projectId: toStringOrEmpty(res.project_id ?? ""),
+          projectName: toStringOrEmpty(res.project_name ?? ""),
+        });
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -101,6 +109,18 @@ export default function WasteTypeForm() {
       });
     return () => { cancelled = true; };
   }, [id, isEdit, applyCompanyProjectFromRecord, extractErr, t]);
+
+  /* ── re-apply project after hook loads project list ── */
+  useEffect(() => {
+    if (!pendingProjectCandidates || projects.length === 0) return;
+    const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
+    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
+    if (!match) match = projects.find((p) => rawId && p.value === rawId);
+    if (!match && projectName)
+      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
+    if (match) setProjectId(match.value);
+    setPendingProjectCandidates(null);
+  }, [projects, pendingProjectCandidates, setProjectId]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

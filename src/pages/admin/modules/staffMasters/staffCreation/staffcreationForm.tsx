@@ -281,6 +281,7 @@ export default function StaffCreationForm() {
   >([]);
 
   // Pending prefill values — set during edit load, applied once the option list arrives
+  const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
   const [pendingStaffUserTypeId, setPendingStaffUserTypeId] = useState<string | null>(null);
   const [pendingContractorUserTypeId, setPendingContractorUserTypeId] = useState<string | null>(null);
   const [pendingDepartmentId, setPendingDepartmentId] = useState<string | null>(null);
@@ -719,7 +720,12 @@ export default function StaffCreationForm() {
 
         applyCompanyProjectFromRecord(staff);
 
-        console.log("Fetched staff data:", staff);
+        // Store the project separately so the pending-resolver effect re-applies it
+        // once hookProjects finishes loading (the hook's internal effect can race
+        // and reset projectId to options[0] before the record's project is applied).
+        const recordProjectId = normalizeEntityId(staff.project_unique_id ?? staff.project_id);
+        if (recordProjectId) setPendingProjectId(recordProjectId);
+
         if (staff.photo) {
           setPhotoPreview(
             staff.photo.startsWith("http")
@@ -805,6 +811,18 @@ export default function StaffCreationForm() {
   // ── Pending-prefill resolution effects ──────────────────────────────────────
   // Each effect watches [pendingXxx, xOptions]. Once the option list is non-empty
   // and contains the pending value, it applies the value and clears the pending.
+
+  // Project: re-apply after the hook re-fetches projects for the record's company.
+  // The hook's internal setProjectId((prev) => ...) can race with applyCompanyProjectFromRecord
+  // and select the first project instead of the record's project.
+  useEffect(() => {
+    if (!pendingProjectId || hookProjects.length === 0) return;
+    const match = hookProjects.find((p) => p.value === pendingProjectId);
+    if (match) {
+      hookSetProjectId(pendingProjectId);
+      setPendingProjectId(null);
+    }
+  }, [pendingProjectId, hookProjects, hookSetProjectId]);
 
   useEffect(() => {
     if (!pendingStaffUserTypeId || staffUserTypeOptions.length === 0) return;
@@ -1130,16 +1148,9 @@ export default function StaffCreationForm() {
       };
 
       // ✅ Add password if provided
-      console.log("Form password:", formData.password);
-      console.log("Is password truthy?", Boolean(formData.password));
-      console.log("Payload before password:", rawPayload);
       if (formData.password) {
         rawPayload.password = formData.password;
-        console.log("Password added to payload:", rawPayload.password);
-      } else {
-        console.log("No password provided, skipping...");
       }
-      console.log("Payload after password:", rawPayload);
 
       // ✅ ADD DRIVER FIELDS
       if (showField("driving_licence_no") && isDriverSelected) {
@@ -1158,9 +1169,6 @@ export default function StaffCreationForm() {
       const payload = filterPayload(rawPayload, ["company_id", "project_id"]);
 
       const formBody = new FormData();
-
-      // Debug: Log all payload entries
-      console.log("All payload entries:", Object.entries(payload));
 
       Object.entries(payload).forEach(([key, value]) => {
         if (value === undefined || value === null) return;
