@@ -99,6 +99,7 @@ const {
   encProjectCreation,
   encSuperAdminMaster,
   encPanchayats,
+  encPanchayatLeaders,
   encAreaTypes,
   encHierarchies,
   encBins,
@@ -254,6 +255,12 @@ const masterItems: NavItem[] = [
         path: `/${encMasters}/${encPanchayats}`,
         module: "masters",
         screen: "panchayats",
+      },
+      {
+        nameKey: "admin.nav.panchayat_leader",
+        path: `/${encMasters}/${encPanchayatLeaders}`,
+        module: "masters",
+        screen: "panchayat-leaders",
       },
       {
         nameKey: "admin.nav.area_type",

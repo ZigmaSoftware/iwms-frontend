@@ -788,6 +788,7 @@ const taResource = {
           "zone": "மண்டலம்",
           "ward": "வார்டு",
           "collection_point": "சேகரிப்பு இடம்",
+          "panchayat_leader": "பஞ்சாயத்து தலைவர்",
           "property": "சொத்து",
           "sub_property": "உப சொத்து",
           "staff_master": "பணியாளர் மாஸ்டர்",

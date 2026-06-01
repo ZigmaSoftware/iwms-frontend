@@ -28,6 +28,7 @@ export const adminEndpoints = {
   
   wasteTypes: "assets/waste-types",
   panchayats: "masters/panchayat",
+  panchayatLeaders: "masters/panchayat-leaders",
   areatypes: "masters/areatypes",
   hierarchies: "masters/hierarchy",
 

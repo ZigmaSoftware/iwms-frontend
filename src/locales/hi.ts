@@ -788,6 +788,7 @@ const hiResource = {
           "zone": "ज़ोन",
           "ward": "वार्ड",
           "collection_point": "कलेक्शन पॉइंट",
+          "panchayat_leader": "पंचायत नेता",
           "property": "प्रॉपर्टी",
           "sub_property": "सब-प्रॉपर्टी",
           "staff_master": "स्टाफ मास्टर",

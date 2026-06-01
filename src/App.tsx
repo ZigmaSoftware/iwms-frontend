@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import Auth from "@/pages/Auth";
+import LocalBodyAuth from "@/pages/LocalBodyAuth";
+import LocalBodyDashboard from "@/pages/localbody/LocalBodyDashboard";
 import Dashboard from "@/pages/dashboard/pages/Dashboard";
 import NotFound from "@/pages/dashboard/pages/NotFound";
 import { HomeDashboard } from "@/pages/dashboard/pages/Dashboard/HomeDashboard";
@@ -110,6 +112,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />
+      <Route path="/auth/localbody" element={<LocalBodyAuth />} />
+      <Route path="/localbody" element={<LocalBodyDashboard />} />
       <Route path="/" element={<HomeRedirect />} />
       <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />
       <Route path="/dashboard/overview" element={withDashboard(<Dashboard />)} />
