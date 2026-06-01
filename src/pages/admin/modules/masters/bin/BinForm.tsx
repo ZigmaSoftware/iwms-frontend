@@ -142,7 +142,6 @@ export default function BinForm() {
   const [binCapacity, setBinCapacity] = useState<number | "">("");
   const [binType, setBinType] = useState("medium");
   const [binImage, setBinImage] = useState("default.png");
-  const [binQr, setBinQr] = useState("");
   const [isActive, setIsActive] = useState(true);
 
   const [zones, setZones] = useState<LocationOption[]>([]);
@@ -339,7 +338,6 @@ export default function BinForm() {
         setBinType(toStringOrEmpty(record.bin_type) || "medium");
         setBinCapacity(toNumberOrEmpty(record.bin_capacity ?? record.capacity_liters));
         setBinImage(toStringOrEmpty(record.bin_image) || "default.png");
-        setBinQr(toStringOrEmpty(record.bin_qr));
         setIsActive(Boolean(record.is_active));
         applyCompanyProjectFromRecord(record);
         setPendingProjectCandidates({
@@ -630,7 +628,6 @@ export default function BinForm() {
       bin_name: binName.trim(),
       bin_type: binType,
       bin_image: binImage.trim() || "default.png",
-      bin_qr: binQr.trim() || null,
       wastetype_id: wasteTypeId,
       is_active: isActive,
     };
@@ -935,14 +932,7 @@ export default function BinForm() {
           </div>
         )}
 
-        {showField("bin_qr") && (
-          <div>
-            <Label>Bin QR</Label>
-            <Input value={binQr} onChange={(e) => setBinQr(e.target.value)} placeholder="QR-BIN-001" />
-          </div>
-        )}
-
-        {showField("is_active") && (
+{showField("is_active") && (
           <div>
             <Label>{t("common.status")}</Label>
             <Select value={isActive ? "true" : "false"} onValueChange={(v) => setIsActive(v === "true")}>
