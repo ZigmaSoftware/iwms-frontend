@@ -782,6 +782,7 @@ const enResource = {
           "zone": "Zone",
           "ward": "Ward",
           "collection_point": "Collection Point",
+          "daily_collection_point": "Daily Collection Point",
 
 
           "panchayat": "Panchayat",
@@ -836,6 +837,7 @@ const enResource = {
           "trip_attendance": "Trip Attendance",
           "fuel": "Fuel",
           "daily_trip_assignment": "Daily Trip Assignment",
+          "daily_trip_collection_point": "Daily Trip Collection Point",
           "daily_trip_log": "Daily Trip Logs",
           "audit_items": "Audit Items",
           "common_audit": "Common Audit",
