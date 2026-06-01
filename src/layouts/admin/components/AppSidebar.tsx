@@ -103,7 +103,8 @@ const {
   encHierarchies,
   encBins,
   encDailyTripAssignment,
-  encDailyTripLog
+  encDailyTripLog,
+  encDailyTripCollectionPoint
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -563,6 +564,12 @@ const transportMastersItems: NavItem[] = [
         path: `/${encTransportMaster}/${encDailyTripAssignment}`,
         module: "transport-masters",
         screen: "daily-trip-assignment",
+      },
+      {
+        nameKey: "admin.nav.daily_trip_collection_point",
+        path: `/${encTransportMaster}/${encDailyTripCollectionPoint}`,
+        module: "transport-masters",
+        screen: "daily-trip-collection-point",
       },
       {
         nameKey: "admin.nav.daily_trip_log",
