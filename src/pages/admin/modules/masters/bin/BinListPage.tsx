@@ -7,8 +7,6 @@ import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
-import ReactDOM from "react-dom/client";
-import QRCode from "react-qr-code";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -26,6 +24,7 @@ type Bin = {
   unique_id: string;
   bin_name: string;
   bin_capacity: number;
+  bin_qr?: string | null;
   company_id?: string | null;
   company_unique_id?: string | null;
   company_name?: string | null;
@@ -50,20 +49,7 @@ type BinApiRow = Record<string, unknown> & {
   unique_id?: string | number;
   is_active?: boolean;
   bin_status?: string | number | null;
-};
-
-type QrPayload = {
-  id: string;
-  name: string;
-  ward: string;
-  bin_capacity: number;
-  bin_type?: string;
-  waste_type?: string;
-  bin_status?: string;
-  is_active: boolean;
-  status: "active" | "inactive";
-  latitude?: number | string;
-  longitude?: number | string;
+  bin_qr?: string | null;
 };
 
 type TableFilters = {
@@ -174,6 +160,7 @@ export default function BinList() {
       unique_id: String(row.unique_id ?? ""),
       bin_name: String(row.bin_name ?? ""),
       bin_capacity: Number(row.bin_capacity ?? 0),
+      bin_qr: row.bin_qr ? String(row.bin_qr) : null,
       company_id: row.company_id ? String(row.company_id) : null,
       company_unique_id: row.company_unique_id ? String(row.company_unique_id) : null,
       company_name: row.company_name ? String(row.company_name) : null,
@@ -285,44 +272,27 @@ export default function BinList() {
     </div>
   );
 
-  const buildBinQrPayload = (bin: Bin): QrPayload => ({
-    id: bin.unique_id,
-    name: bin.bin_name,
-    ward: bin.ward_name || bin.ward || "",
-    bin_capacity: bin.bin_capacity,
-    bin_type: bin.bin_type,
-    waste_type: bin.waste_type_name ?? bin.wastetype_name ?? bin.waste_type,
-    bin_status: bin.bin_status,
-    is_active: bin.is_active,
-    status: bin.is_active ? "active" : "inactive",
-    latitude: bin.latitude,
-    longitude: bin.longitude,
-  });
-
-  const openQrPopup = (payload: QrPayload) => {
+  const openQrPopup = (qrUrl: string) => {
     Swal.fire({
       title: t("admin.bin.qr_title"),
-      html: `<div id="bin-qr-holder" class="flex justify-center"></div>`,
+      html: `<div class="flex justify-center">
+              <img src="${qrUrl}" style="width:200px;height:200px;" />
+            </div>`,
       width: 350,
-      didOpen: () => {
-        const div = document.getElementById("bin-qr-holder");
-        if (div) {
-          const root = ReactDOM.createRoot(div);
-          root.render(<QRCode value={JSON.stringify(payload)} size={200} />);
-        }
-      },
     });
   };
 
   const qrTemplate = (bin: Bin) => {
-    const payload = buildBinQrPayload(bin);
+    if (!bin.bin_qr) {
+      return <span className="text-gray-400 text-xs">No QR</span>;
+    }
     return (
       <button
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
-        onClick={() => openQrPopup(payload)}
+        onClick={() => openQrPopup(bin.bin_qr!)}
         title={t("admin.bin.qr_show")}
       >
-        <QRCode value={JSON.stringify(payload)} size={45} />
+        <img src={bin.bin_qr} alt="QR" className="w-12 h-12 object-contain" />
       </button>
     );
   };

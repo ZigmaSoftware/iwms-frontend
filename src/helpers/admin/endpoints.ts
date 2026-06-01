@@ -124,6 +124,8 @@ export const adminEndpoints = {
    fuels: "transport-masters/fuels",
    dailyTripAssignment: "transport-masters/daily-trip-assignment",
    dailyTripLog: "transport-masters/daily-trip-log",
+   dailyTripCollectionPoint: "transport-masters/daily-trip-collection-point",
+   binCollectionEvent: "transport-masters/bin-collection-event",
 
   /* =========================
      AUDITS
