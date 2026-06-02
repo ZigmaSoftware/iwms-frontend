@@ -88,9 +88,9 @@ export default function CollectionPointListPage() {
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
-  const { encMasters, encCollectionPoints } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encMasters}/${encCollectionPoints}/new`;
-  const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encCollectionPoints}/${id}/edit`;
+  const { encScheduleMasters, encCollectionPoints } = getEncryptedRoute();
+  const ENC_NEW_PATH = `/${encScheduleMasters}/${encCollectionPoints}/new`;
+  const ENC_EDIT_PATH = (id: string) => `/${encScheduleMasters}/${encCollectionPoints}/${id}/edit`;
 
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",

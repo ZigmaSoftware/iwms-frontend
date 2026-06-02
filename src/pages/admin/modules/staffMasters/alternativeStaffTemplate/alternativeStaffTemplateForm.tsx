@@ -137,8 +137,8 @@ export default function AlternativeStaffTemplateForm() {
   const templateSelectedByUser = useRef(false);
   const editDataLoaded = useRef(false);
 
-  const { encStaffMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encStaffMasters}/${encAlternativeStaffTemplate}`;
+  const { encScheduleMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
+  const ENC_LIST_PATH = `/${encScheduleMasters}/${encAlternativeStaffTemplate}`;
 
   const [allAlternativeTemplatesData, setAllAlternativeTemplatesData] = useState<any[]>([]);
   const [selectedStaffTemplateData, setSelectedStaffTemplateData] = useState<any>(null);

@@ -28,16 +28,14 @@ type DailyTripAssignmentRecord = {
   company_unique_id?: string | null;
   project_id?: string | null;
   project_unique_id?: string | null;
-  trip_definition_id?: string;
+  trip_plan_id?: string;
   staff_template_id?: string;
   panchayat_id?: string;
-  collection_point_id?: string;
   waste_type_id?: string;
-  trip_definition?: { unique_id?: string; display_code?: string };
+  trip_plan?: { unique_id?: string; display_code?: string };
   staff_template?: { unique_id?: string; display_code?: string };
   effective_staff?: { unique_id?: string; display_code?: string } | null;
   panchayat?: NamedRef & { panchayat_name?: string };
-  collection_point?: NamedRef & { cp_name?: string; collection_point_name?: string };
   waste_type?: NamedRef & { waste_type_name?: string };
   trip_date?: string;
   scheduled_time?: string;
@@ -48,10 +46,9 @@ type DailyTripAssignmentRecord = {
 };
 
 type FormState = {
-  trip_definition_id: string;
+  trip_plan_id: string;
   staff_template_id: string;
   panchayat_id: string;
-  collection_point_id: string;
   waste_type_id: string;
   trip_date: string;
   scheduled_time: string;
@@ -137,15 +134,14 @@ export default function DailyTripAssignmentForm() {
     initialProjectId: routeState?.projectId,
   });
 
-  const { encTransportMaster, encDailyTripAssignment } = getEncryptedRoute();
-  const LIST_PATH = `/${encTransportMaster}/${encDailyTripAssignment}`;
+  const { encScheduleMasters, encDailyTripAssignment } = getEncryptedRoute();
+  const LIST_PATH = `/${encScheduleMasters}/${encDailyTripAssignment}`;
 
   // ── Form & record state ───────────────────────────────────────────────────
   const [formData, setFormData] = useState<FormState>({
-    trip_definition_id: "",
+    trip_plan_id: "",
     staff_template_id: "",
     panchayat_id: "",
-    collection_point_id: "",
     waste_type_id: "",
     trip_date: "",
     scheduled_time: "",
@@ -160,10 +156,9 @@ export default function DailyTripAssignmentForm() {
 
   // ── Dropdown state ────────────────────────────────────────────────────────
   const [fetching, setFetching] = useState(false);
-  const [tripDefinitions, setTripDefinitions] = useState<SelectOption[]>([]);
+  const [tripPlan, setTripPlan] = useState<SelectOption[]>([]);
   const [staffTemplates, setStaffTemplates] = useState<SelectOption[]>([]);
   const [panchayats, setPanchayats] = useState<SelectOption[]>([]);
-  const [collectionPoints, setCollectionPoints] = useState<SelectOption[]>([]);
   const [wasteTypes, setWasteTypes] = useState<SelectOption[]>([]);
   const [altStaffCache, setAltStaffCache] = useState<any[]>([]);
 
@@ -178,10 +173,9 @@ export default function DailyTripAssignmentForm() {
         setRecordData(res);
         applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
         setFormData({
-          trip_definition_id: res.trip_definition?.unique_id ?? res.trip_definition_id ?? "",
+          trip_plan_id: res.trip_plan?.unique_id ?? res.trip_plan_id ?? "",
           staff_template_id: res.staff_template?.unique_id ?? res.staff_template_id ?? "",
           panchayat_id: res.panchayat?.unique_id ?? res.panchayat_id ?? "",
-          collection_point_id: res.collection_point?.unique_id ?? res.collection_point_id ?? "",
           waste_type_id: res.waste_type?.unique_id ?? res.waste_type_id ?? "",
           trip_date: res.trip_date ?? "",
           scheduled_time: res.scheduled_time ?? "",
@@ -202,10 +196,9 @@ export default function DailyTripAssignmentForm() {
   // ── Load dropdowns when company + project are set ─────────────────────────
   useEffect(() => {
     if (!companyUniqueId || !projectId) {
-      setTripDefinitions([]);
+      setTripPlan([]);
       setStaffTemplates([]);
       setPanchayats([]);
-      setCollectionPoints([]);
       setAltStaffCache([]);
       return;
     }
@@ -213,19 +206,17 @@ export default function DailyTripAssignmentForm() {
     setFetching(true);
     const params = { company_id: companyUniqueId, project_id: projectId };
     Promise.all([
-      adminApi.tripDefinitions.list({ params }),
+      adminApi.tripPlans.list({ params }),
       adminApi.staffTemplateCreation.list({ params }),
       adminApi.panchayats.list({ params }),
-      adminApi.collectionPoints.list({ params }),
       adminApi.wasteTypes.list({ params }),
       adminApi.alternativeStaffTemplate.list({ params }),
     ])
-      .then(([tripRes, staffRes, panchRes, cpRes, wtRes, altRes]) => {
+      .then(([tripRes, staffRes, panchRes, wtRes, altRes]) => {
         if (cancelled) return;
-        setTripDefinitions(buildOptions(filterByCompanyProject(normalizeList(tripRes), companyUniqueId, projectId), "display_code"));
+        setTripPlan(buildOptions(filterByCompanyProject(normalizeList(tripRes), companyUniqueId, projectId), "display_code"));
         setStaffTemplates(buildOptions(filterByCompanyProject(normalizeList(staffRes), companyUniqueId, projectId), "display_code"));
         setPanchayats(buildOptions(filterByCompanyProject(normalizeList(panchRes), companyUniqueId, projectId), "panchayat_name"));
-        setCollectionPoints(buildOptions(filterByCompanyProject(normalizeList(cpRes), companyUniqueId, projectId), ["collection_point_name", "cp_name", "name"]));
         setWasteTypes(buildOptions(normalizeList(wtRes), ["waste_type_name", "name"]));
         setAltStaffCache(normalizeList(altRes));
       })
@@ -246,9 +237,9 @@ export default function DailyTripAssignmentForm() {
   }, [formData.staff_template_id, formData.trip_date, altStaffCache]);
 
   // ── Ensure saved values appear in option lists ────────────────────────────
-  const resolvedTripDefinitions = useMemo(() =>
-    ensureOption(tripDefinitions, formData.trip_definition_id, recordData?.trip_definition?.display_code),
-    [tripDefinitions, formData.trip_definition_id, recordData]
+  const resolvedTripPlan = useMemo(() =>
+    ensureOption(tripPlan, formData.trip_plan_id, recordData?.trip_plan?.display_code),
+    [tripPlan, formData.trip_plan_id, recordData]
   );
   const resolvedStaffTemplates = useMemo(() =>
     ensureOption(staffTemplates, formData.staff_template_id, recordData?.staff_template?.display_code),
@@ -257,10 +248,6 @@ export default function DailyTripAssignmentForm() {
   const resolvedPanchayats = useMemo(() =>
     ensureOption(panchayats, formData.panchayat_id, recordData?.panchayat?.panchayat_name ?? recordData?.panchayat?.name as string | undefined),
     [panchayats, formData.panchayat_id, recordData]
-  );
-  const resolvedCollectionPoints = useMemo(() =>
-    ensureOption(collectionPoints, formData.collection_point_id, (recordData?.collection_point as any)?.cp_name ?? recordData?.collection_point?.name as string | undefined),
-    [collectionPoints, formData.collection_point_id, recordData]
   );
   const resolvedWasteTypes = useMemo(() =>
     ensureOption(wasteTypes, formData.waste_type_id, (recordData?.waste_type as any)?.waste_type_name ?? recordData?.waste_type?.name as string | undefined),
@@ -271,8 +258,8 @@ export default function DailyTripAssignmentForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!companyUniqueId || !projectId ||
-      !formData.trip_definition_id || !formData.staff_template_id ||
-      !formData.panchayat_id || !formData.collection_point_id ||
+      !formData.trip_plan_id || !formData.staff_template_id ||
+      !formData.panchayat_id ||
       !formData.waste_type_id || !formData.trip_date || !formData.scheduled_time) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
@@ -281,10 +268,9 @@ export default function DailyTripAssignmentForm() {
     const payload = {
       company_id_input: companyUniqueId,
       project_id_input: projectId,
-      trip_definition_id: formData.trip_definition_id,
+      trip_plan_id: formData.trip_plan_id,
       staff_template_id: formData.staff_template_id,
       panchayat_id: formData.panchayat_id,
-      collection_point_id: formData.collection_point_id,
       waste_type_id: formData.waste_type_id,
       trip_date: formData.trip_date,
       scheduled_time: formData.scheduled_time,
@@ -387,14 +373,14 @@ export default function DailyTripAssignmentForm() {
               />
             </div>
 
-            {/* Trip Definition */}
+            {/* Trip Plan */}
             <div>
-              <Label>Trip Definition <span className="text-red-500">*</span></Label>
+              <Label>Trip Plan <span className="text-red-500">*</span></Label>
               <Select
-                value={formData.trip_definition_id}
-                onChange={set("trip_definition_id")}
-                options={resolvedTripDefinitions}
-                placeholder="Select trip definition"
+                value={formData.trip_plan_id}
+                onChange={set("trip_plan_id")}
+                options={resolvedTripPlan}
+                placeholder="Select trip plan"
                 disabled={fetching || !projectId}
               />
             </div>
@@ -420,8 +406,8 @@ export default function DailyTripAssignmentForm() {
                     : "border-green-300 bg-green-50 text-green-800"
                 }`}>
                   {resolvedAltStaff
-                    ? `🔄 Alt staff active: ${resolvedAltStaff.display_code ?? resolvedAltStaff.unique_id}`
-                    : `✅ Base staff template: ${staffTemplates.find((s) => s.value === formData.staff_template_id)?.label ?? ""}`}
+                    ? `Alt staff active: ${resolvedAltStaff.display_code ?? resolvedAltStaff.unique_id}`
+                    : `Base staff template: ${staffTemplates.find((s) => s.value === formData.staff_template_id)?.label ?? ""}`}
                 </div>
               </div>
             )}
@@ -434,18 +420,6 @@ export default function DailyTripAssignmentForm() {
                 onChange={set("panchayat_id")}
                 options={resolvedPanchayats}
                 placeholder="Select panchayat"
-                disabled={fetching || !projectId}
-              />
-            </div>
-
-            {/* Collection Point */}
-            <div>
-              <Label>Collection Point <span className="text-red-500">*</span></Label>
-              <Select
-                value={formData.collection_point_id}
-                onChange={set("collection_point_id")}
-                options={resolvedCollectionPoints}
-                placeholder="Select collection point"
                 disabled={fetching || !projectId}
               />
             </div>

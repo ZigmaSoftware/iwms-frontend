@@ -16,13 +16,13 @@ import { normalizeList } from "@/utils/forms";
 type SelectOption = { value: string; label: string };
 
 type TripExceptionLogFormState = {
-  trip_instance_id: string;
+  daily_trip_assignment_id: string;
   exception_type: string;
   remarks: string;
   detected_by: string;
 };
 
-type TripInstanceRecord = {
+type DailyTripAssignmentRecord = {
   unique_id: string;
   trip_no?: string;
   status?: string;
@@ -68,15 +68,15 @@ export default function TripExceptionLogForm() {
   const isEdit = Boolean(id);
 
   const tripExceptionLogApi = adminApi.tripExceptionLogs;
-  const tripInstanceApi = adminApi.tripInstances;
+  const dailyTripAssignmentApi = adminApi.dailyTripAssignment;
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
 
-  const [tripInstanceRecords, setTripInstanceRecords] = useState<TripInstanceRecord[]>([]);
+  const [dailyTripAssignmentRecords, setDailyTripAssignmentRecords] = useState<DailyTripAssignmentRecord[]>([]);
 
   const [formData, setFormData] = useState<TripExceptionLogFormState>({
-    trip_instance_id: "",
+    daily_trip_assignment_id: "",
     exception_type: "",
     remarks: "",
     detected_by: "SYSTEM",
@@ -106,22 +106,22 @@ export default function TripExceptionLogForm() {
 
   useEffect(() => {
     setFetching(true);
-    tripInstanceApi
+    dailyTripAssignmentApi
       .list()
       .then((res) => {
-        setTripInstanceRecords(normalizeList(res));
+        setDailyTripAssignmentRecords(normalizeList(res));
       })
       .catch((error) => {
         const message = extractErrorMessage(error) ?? t("common.load_failed");
         Swal.fire(t("common.error"), message, "error");
       })
       .finally(() => setFetching(false));
-  }, [t, tripInstanceApi]);
+  }, [t, dailyTripAssignmentApi]);
 
   useEffect(() => {
     if (!isEdit || !stateRecord) return;
     setFormData({
-      trip_instance_id: stateRecord?.trip_instance_id ?? "",
+      daily_trip_assignment_id: stateRecord?.daily_trip_assignment_id ?? "",
       exception_type: stateRecord?.exception_type ?? "",
       remarks: stateRecord?.remarks ?? "",
       detected_by: stateRecord?.detected_by ?? "SYSTEM",
@@ -135,7 +135,7 @@ export default function TripExceptionLogForm() {
       .get(id)
       .then((res: any) => {
         setFormData({
-          trip_instance_id: res?.trip_instance_id ?? "",
+          daily_trip_assignment_id: res?.daily_trip_assignment_id ?? "",
           exception_type: res?.exception_type ?? "",
           remarks: res?.remarks ?? "",
           detected_by: res?.detected_by ?? "SYSTEM",
@@ -149,12 +149,12 @@ export default function TripExceptionLogForm() {
 
   const tripOptions = useMemo(() => {
     const list = isEdit
-      ? tripInstanceRecords
-      : tripInstanceRecords.filter((trip) =>
-          trip?.status ? !["COMPLETED", "CANCELLED"].includes(trip.status) : true
+      ? dailyTripAssignmentRecords
+      : dailyTripAssignmentRecords.filter((trip) =>
+          trip?.status ? !["Completed", "Cancelled"].includes(trip.status) : true
         );
     return toOptions(list, "unique_id", "trip_no", "unique_id");
-  }, [isEdit, tripInstanceRecords]);
+  }, [isEdit, dailyTripAssignmentRecords]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -164,7 +164,7 @@ export default function TripExceptionLogForm() {
       return;
     }
 
-    if (!formData.trip_instance_id || !formData.exception_type || !formData.detected_by) {
+    if (!formData.daily_trip_assignment_id || !formData.exception_type || !formData.detected_by) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
@@ -172,7 +172,7 @@ export default function TripExceptionLogForm() {
     setLoading(true);
     try {
       const payload = {
-        trip_instance_id: formData.trip_instance_id,
+        daily_trip_assignment_id: formData.daily_trip_assignment_id,
         exception_type: formData.exception_type,
         remarks: formData.remarks || null,
         detected_by: formData.detected_by,
@@ -203,11 +203,11 @@ export default function TripExceptionLogForm() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div>
-              <Label>{t("admin.trip_exception_log.trip_instance")}</Label>
+              <Label>{t("admin.trip_exception_log.daily_trip_assignment")}</Label>
               <Select
-                value={formData.trip_instance_id}
+                value={formData.daily_trip_assignment_id}
                 onChange={(value) =>
-                  setFormData((prev) => ({ ...prev, trip_instance_id: value }))
+                  setFormData((prev) => ({ ...prev, daily_trip_assignment_id: value }))
                 }
                 options={tripOptions}
                 placeholder={t("common.select_option")}

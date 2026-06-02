@@ -50,10 +50,10 @@
 //     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
 //   });
 
-//   const { encStaffMasters, encStaffTemplate } = getEncryptedRoute();
-//   const ENC_NEW_PATH = `/${encStaffMasters}/${encStaffTemplate}/new`;
-//   const ENC_EDIT_PATH = (id: string) =>
-//     `/${encStaffMasters}/${encStaffTemplate}/${id}/edit`;
+//   const { encScheduleMasters, encStaffTemplate } = getEncryptedRoute();
+//   const ENC_NEW_PATH = `/${encScheduleMasters}/${encStaffTemplate}/new`;
+//   const ENC_EDIT_PATH = (id: string) => `/${encScheduleMasters}/${encStaffTemplate}/${id}/edit`;
+//     `/${encScheduleMasters}/${encStaffTemplate}/${id}/edit`;
 
 //   /* ================= FETCH ================= */
 
@@ -362,10 +362,9 @@ export default function StaffTemplateList() {
     approval_status: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  const { encStaffMasters, encStaffTemplate } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encStaffMasters}/${encStaffTemplate}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encStaffMasters}/${encStaffTemplate}/${id}/edit`;
+  const { encScheduleMasters, encStaffTemplate } = getEncryptedRoute();
+  const ENC_NEW_PATH = `/${encScheduleMasters}/${encStaffTemplate}/new`;
+  const ENC_EDIT_PATH = (id: string) => `/${encScheduleMasters}/${encStaffTemplate}/${id}/edit`;
   const selectedProjectId =
     projectId && projects.some((project) => project.value === projectId)
       ? projectId
@@ -494,10 +493,8 @@ export default function StaffTemplateList() {
       <button
         title={t("common.edit")}
         onClick={() =>
-          navigate(`${ENC_EDIT_PATH(row.unique_id)}?company_unique_id=${encodeURIComponent(
-            companyUniqueId
-          )}&project_id=${encodeURIComponent(selectedProjectId)}`, {
-            state: selectedContext,
+          navigate(ENC_EDIT_PATH(row.unique_id), {
+            state: { ...selectedContext, record: row },
           })
         }
         className="text-blue-600 hover:text-blue-800"
@@ -562,11 +559,7 @@ export default function StaffTemplateList() {
             className="p-button-success p-button-sm"
             disabled={!companyUniqueId || !selectedProjectId}
             onClick={() =>
-              navigate(
-                `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
-                  companyUniqueId
-                )}&project_id=${encodeURIComponent(selectedProjectId)}`
-              )
+              navigate(ENC_NEW_PATH, { state: selectedContext })
             }
           />
         </div>

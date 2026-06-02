@@ -35,7 +35,7 @@ export type CollectionPointRecord = AdminRecord;
 export type WasteTypeRecord = AdminRecord;
 export type VehicleTypeRecord = AdminRecord;
 export type VehicleCreationRecord = AdminRecord;
-export type TripDefinitionRecord = AdminRecord;
+export type TripPlanRecord = AdminRecord;
 export type FuelRecord = AdminRecord;
 export type CustomerCreationRecord = AdminRecord;
 export type FeedbackRecord = AdminRecord;
@@ -68,7 +68,7 @@ export type CollectionPointPayload = Record<string, any>;
 export type WasteTypePayload = Record<string, any>;
 export type VehicleTypePayload = Record<string, any>;
 export type VehicleCreationPayload = Record<string, any>;
-export type TripDefinitionPayload = Record<string, any>;
+export type TripPlanPayload = Record<string, any>;
 export type FuelPayload = Record<string, any>;
 export type CustomerCreationPayload = Record<string, any>;
 export type FeedbackPayload = Record<string, any>;
@@ -378,10 +378,10 @@ export const useDeleteVehicleCreationMutation = () => useDelete("vehicleCreation
 export const useVehicleTypeOptionsQuery = () => useVehicleTypesQuery();
 export const useFuelTypeOptionsQuery = () => useFuelsQuery();
 
-export const useTripDefinitionsQuery = (filters?: Record<string, unknown> | null) => useList<any>("tripDefinitions", filters);
-export const useTripDefinitionQuery = (id: string | number | null | undefined) => useDetail<TripDefinitionRecord>("tripDefinitions", id);
-export const useCreateTripDefinitionMutation = () => useCreate<TripDefinitionPayload, TripDefinitionRecord>("tripDefinitions");
-export const useUpdateTripDefinitionMutation = () => useUpdate<TripDefinitionPayload, TripDefinitionRecord>("tripDefinitions");
+export const useTripPlansQuery = (filters?: Record<string, unknown> | null) => useList<any>("tripPlans", filters);
+export const useTripPlanQuery = (id: string | number | null | undefined) => useDetail<TripPlanRecord>("tripPlans", id);
+export const useCreateTripPlanMutation = () => useCreate<TripPlanPayload, TripPlanRecord>("tripPlans");
+export const useUpdateTripPlanMutation = () => useUpdate<TripPlanPayload, TripPlanRecord>("tripPlans");
 
 export const useFuelsQuery = (filters?: Record<string, unknown> | null) => useList<FuelRecord>("fuels", filters);
 export const useFuelQuery = (id: string | number | null | undefined) => useDetail<FuelRecord>("fuels", id);
@@ -570,14 +570,6 @@ export const useUpdateUnassignedStaffPool = () => useUpdate("unassignedStaffPool
 export const useUsersList = (params?: Record<string, any>) => useList("usersCreation", params);
 export const useZonesList = (params?: Record<string, any>) => useList("zones", params);
 export const useWardsList = (params?: Record<string, any>) => useList("wards", params);
-export const useTripInstancesList = (params?: Record<string, any>) => useList("tripInstances", params);
-
-export const useRoutePlansList = (filters?: Record<string, unknown> | null) => useList("routePlans", filters);
-export const useRoutePlanQuery = (id?: string | number | null) => useDetail("routePlans", id);
-export const useCreateRoutePlanMutation = () => useCreate("routePlans");
-export const useUpdateRoutePlanMutation = () => useUpdate("routePlans");
-export const useDeleteRoutePlanMutation = () => useDelete("routePlans");
-
 export const useZonePropertyLoadTrackerList = (filters?: Record<string, unknown> | null) => useList("zonePropertyLoadTrackers", filters);
 export const useDeleteZonePropertyLoadTracker = () => useDelete("zonePropertyLoadTrackers");
 

@@ -27,16 +27,14 @@ type DailyTripAssignmentRecord = {
   company_unique_id?: string | null;
   project_id?: string | null;
   project_unique_id?: string | null;
-  trip_definition_id?: string;
+  trip_plan_id?: string;
   staff_template_id?: string;
   panchayat_id?: string;
-  collection_point_id?: string;
   waste_type_id?: string;
-  trip_definition?: { unique_id?: string; display_code?: string };
+  trip_plan?: { unique_id?: string; display_code?: string };
   staff_template?: { unique_id?: string; display_code?: string };
   effective_staff?: { unique_id?: string; display_code?: string } | null;
   panchayat?: NamedRef & { panchayat_name?: string };
-  collection_point?: NamedRef & { cp_name?: string };
   waste_type?: NamedRef & { waste_type_name?: string };
   trip_date?: string;
   scheduled_time?: string;
@@ -94,9 +92,9 @@ export default function DailyTripAssignmentList() {
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
-  const { encTransportMaster, encDailyTripAssignment } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encTransportMaster}/${encDailyTripAssignment}/new`;
-  const ENC_EDIT_PATH = (id: string) => `/${encTransportMaster}/${encDailyTripAssignment}/${id}/edit`;
+  const { encScheduleMasters, encDailyTripAssignment } = getEncryptedRoute();
+  const ENC_NEW_PATH = `/${encScheduleMasters}/${encDailyTripAssignment}/new`;
+  const ENC_EDIT_PATH = (id: string) => `/${encScheduleMasters}/${encDailyTripAssignment}/${id}/edit`;
 
   const {
     companyUniqueId, projectId, projects, companies,
@@ -113,7 +111,7 @@ export default function DailyTripAssignmentList() {
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _trip_def: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    _trip_plan: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _staff: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _panchayat: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -146,10 +144,9 @@ export default function DailyTripAssignmentList() {
       })
       .map((rec) => ({
         ...rec,
-        _trip_def: rec.trip_definition?.display_code ?? rec.trip_definition_id ?? "",
+        _trip_plan: rec.trip_plan?.display_code ?? rec.trip_plan_id ?? "",
         _staff: rec.effective_staff?.display_code ?? rec.staff_template?.display_code ?? rec.staff_template_id ?? "",
         _panchayat: rec.panchayat?.panchayat_name ?? rec.panchayat?.name ?? rec.panchayat_id ?? "",
-        _cp: rec.collection_point?.cp_name ?? rec.collection_point_id ?? "",
         _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
       }));
   })();
@@ -268,14 +265,14 @@ export default function DailyTripAssignmentList() {
         showGridlines
         className="p-datatable-sm"
         emptyMessage="No trip assignments found. Select a company and project to load data."
-        globalFilterFields={["unique_id", "_trip_def", "_staff", "_panchayat", "_cp", "_waste", "status", "approval_status", "trip_date"]}
+        globalFilterFields={["unique_id", "_trip_plan", "_staff", "_panchayat", "_waste", "status", "approval_status", "trip_date"]}
       >
         <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 60 }} />
         <Column field="unique_id" header="ID" filter showFilterMatchModes={false} style={{ minWidth: 160 }} />
         <Column
-          field="_trip_def"
-          header="Trip Definition"
-          body={(row: DailyTripAssignmentRecord) => row.trip_definition?.display_code ?? row.trip_definition_id ?? "—"}
+          field="_trip_plan"
+          header="Trip Plan"
+          body={(row: DailyTripAssignmentRecord) => row.trip_plan?.display_code ?? row.trip_plan_id ?? "—"}
           filter showFilterMatchModes={false}
         />
         <Column
@@ -293,11 +290,6 @@ export default function DailyTripAssignmentList() {
           header="Panchayat"
           body={(row: DailyTripAssignmentRecord) => row.panchayat?.panchayat_name ?? row.panchayat?.name ?? row.panchayat_id ?? "—"}
           filter showFilterMatchModes={false}
-        />
-        <Column
-          field="_cp"
-          header="Collection Point"
-          body={(row: DailyTripAssignmentRecord) => row.collection_point?.cp_name ?? row.collection_point_id ?? "—"}
         />
         <Column
           field="_waste"
