@@ -55,7 +55,7 @@ type DailyTripAssignmentRecord = {
   trip_date?: string;
   collection_point?: NamedRef & { cp_name?: string };
   collection_point_id?: string;
-  trip_definition?: { unique_id?: string; display_code?: string };
+  trip_definition?: { unique_id?: string; display_code?: string; vehicle_no?: string; vehicle_capacity_kg?: number | null };
   effective_staff?: { driver?: string; operator?: string };
   [key: string]: unknown;
 };
@@ -223,10 +223,17 @@ export default function DailyTripLogForm() {
       recordData?.trip_assignment_id
   );
 
-  const resolvedBins = (recordData?.bins ?? []).reduce(
-    (acc, b) => ensureOption(acc, String(b.unique_id ?? ""), String((b as any).bin_name ?? b.unique_id ?? "")),
-    bins
+  // Bins that are in formData.bin_ids but NOT in the fresh bins list are soft-deleted
+  const deletedBinIds = new Set(
+    formData.bin_ids.filter((id) => id && !bins.some((b) => b.value === id))
   );
+
+  const resolvedBins = (recordData?.bins ?? []).reduce((acc, b) => {
+    const id = String(b.unique_id ?? "");
+    const rawLabel = String((b as any).bin_name ?? id);
+    const label = deletedBinIds.has(id) ? `${rawLabel} (unavailable — deleted)` : rawLabel;
+    return ensureOption(acc, id, label);
+  }, bins);
 
   const resolvedStaff = (recordData?.extra_operators ?? []).reduce(
     (acc, op) => ensureOption(acc, String(op.staff_unique_id ?? op.unique_id ?? ""), String(op.employee_name ?? op.staff_unique_id ?? op.unique_id ?? "")),
@@ -255,9 +262,33 @@ export default function DailyTripLogForm() {
       Swal.fire(t("common.warning"), "Weight must be greater than 0.", "warning");
       return;
     }
+    const vehicleCapacity = selectedAssignment?.trip_definition?.vehicle_capacity_kg;
+    if (vehicleCapacity != null && Number(formData.collected_weight_kg) > vehicleCapacity) {
+      Swal.fire(t("common.warning"), `Collected weight (${formData.collected_weight_kg} kg) cannot exceed vehicle capacity (${vehicleCapacity} kg).`, "warning");
+      return;
+    }
     if (formData.actual_start_time && formData.actual_end_time && formData.actual_end_time <= formData.actual_start_time) {
       Swal.fire(t("common.warning"), "End time must be after start time.", "warning");
       return;
+    }
+
+    // Strip any bin IDs that are no longer active (soft-deleted bins)
+    const activeBinIds = formData.bin_ids.filter((id) => !deletedBinIds.has(id));
+    if (deletedBinIds.size > 0) {
+      // Auto-remove deleted bins and inform the user before proceeding
+      const removedCount = deletedBinIds.size;
+      const confirmed = await Swal.fire({
+        icon: "warning",
+        title: "Unavailable Bins Removed",
+        html: `<b>${removedCount}</b> bin${removedCount > 1 ? "s" : ""} marked as <em>unavailable (deleted)</em> ${removedCount > 1 ? "have" : "has"} been automatically removed from the selection.<br/><br/>Do you want to continue saving without them?`,
+        showCancelButton: true,
+        confirmButtonText: "Yes, save without them",
+        cancelButtonText: "Cancel",
+      });
+      if (!confirmed.isConfirmed) {
+        setIsSubmitting(false);
+        return;
+      }
     }
 
     const payload = {
@@ -267,7 +298,7 @@ export default function DailyTripLogForm() {
       actual_start_time: formData.actual_start_time || null,
       actual_end_time: formData.actual_end_time || null,
       collected_weight_kg: Number(formData.collected_weight_kg),
-      bin_ids: formData.bin_ids,
+      bin_ids: activeBinIds,
       extra_operator_ids: formData.extra_operator_ids,
       remarks: formData.remarks || undefined,
       log_status: formData.log_status,
@@ -375,11 +406,19 @@ export default function DailyTripLogForm() {
 
             {/* Collected Weight */}
             <div>
-              <Label>Collected Weight (kg) <span className="text-red-500">*</span></Label>
+              <Label>
+                Collected Weight (kg) <span className="text-red-500">*</span>
+                {selectedAssignment?.trip_definition?.vehicle_capacity_kg != null && (
+                  <span className="ml-2 text-xs text-gray-500 font-normal">
+                    (max: {selectedAssignment.trip_definition.vehicle_capacity_kg} kg)
+                  </span>
+                )}
+              </Label>
               <Input
                 type="number"
                 min={0.01}
                 step="0.01"
+                max={selectedAssignment?.trip_definition?.vehicle_capacity_kg ?? undefined}
                 value={formData.collected_weight_kg}
                 onChange={(e) => set("collected_weight_kg")(e.target.value)}
                 disabled={readonly}
@@ -430,7 +469,12 @@ export default function DailyTripLogForm() {
                   formData.trip_assignment_id ??
                   "-"
                 }</div>
-                <div>Vehicle: {recordData?.vehicle?.vehicle_no ?? selectedAssignment?.trip_definition?.display_code ?? "-"}</div>
+                <div>
+                  Vehicle: {recordData?.vehicle?.vehicle_no ?? selectedAssignment?.trip_definition?.vehicle_no ?? "-"}
+                  {selectedAssignment?.trip_definition?.vehicle_capacity_kg != null && (
+                    <span className="ml-1 text-gray-500">(capacity: {selectedAssignment.trip_definition.vehicle_capacity_kg} kg)</span>
+                  )}
+                </div>
                 <div>Driver: {recordData?.driver?.employee_name ?? selectedAssignment?.effective_staff?.driver ?? "-"}</div>
                 <div>Operator: {recordData?.operator?.employee_name ?? selectedAssignment?.effective_staff?.operator ?? "-"}</div>
               </div>
