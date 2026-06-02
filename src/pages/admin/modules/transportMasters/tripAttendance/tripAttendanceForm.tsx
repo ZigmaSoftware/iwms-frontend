@@ -18,7 +18,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 type SelectOption = { value: string; label: string };
 
 type TripAttendanceFormState = {
-  trip_instance_id: string;
+  daily_trip_assignment_id: string;
   staff_id: string;
   vehicle_id: string;
   attendance_time: string;
@@ -27,7 +27,7 @@ type TripAttendanceFormState = {
   source: string;
 };
 
-type TripInstanceRecord = {
+type DailyTripAssignmentRecord = {
   unique_id: string;
   trip_no?: string;
   vehicle_id?: string;
@@ -47,7 +47,7 @@ const sourceOptions: SelectOption[] = [
 ];
 
 const TRIP_ATTENDANCE_FIELDS: Record<string, string[]> = {
-  trip_instance_id: ["trip_instance_id", "trip_instance"],
+  daily_trip_assignment_id: ["daily_trip_assignment_id", "daily_trip_assignment"],
   staff_id: ["staff_id", "staff"],
   vehicle_id: ["vehicle_id", "vehicle"],
   attendance_time: ["attendance_time"],
@@ -94,7 +94,7 @@ export default function TripAttendanceForm() {
   );
 
   const tripAttendanceApi = adminApi.tripAttendances;
-  const tripInstanceApi = adminApi.tripInstances;
+  const dailyTripAssignmentApi = adminApi.dailyTripAssignment;
   const staffTemplateApi = adminApi.staffTemplateCreation;
   const userApi = adminApi.usersCreation;
   const vehicleApi = adminApi.vehicleCreations;
@@ -102,16 +102,16 @@ export default function TripAttendanceForm() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
 
-  const [tripInstanceRecords, setTripInstanceRecords] = useState<TripInstanceRecord[]>([]);
+  const [dailyTripAssignmentRecords, setDailyTripAssignmentRecords] = useState<DailyTripAssignmentRecord[]>([]);
   const [vehicles, setVehicles] = useState<SelectOption[]>([]);
   const [staffRecords, setStaffRecords] = useState<any[]>([]);
   const [staffTemplates, setStaffTemplates] = useState<Record<string, StaffTemplateRecord>>({});
-  const [tripInstanceMeta, setTripInstanceMeta] = useState<
+  const [dailyTripAssignmentMeta, setDailyTripAssignmentMeta] = useState<
     Record<string, { vehicle_id?: string; staff_template_id?: string; status?: string }>
   >({});
 
   // Pending IDs — set when the record loads; applied once options are available
-  const [pendingTripInstanceId, setPendingTripInstanceId] = useState<string | null>(null);
+  const [pendingDailyTripAssignmentId, setPendingDailyTripAssignmentId] = useState<string | null>(null);
   const [pendingStaffId, setPendingStaffId] = useState<string | null>(null);
   const [pendingVehicleId, setPendingVehicleId] = useState<string | null>(null);
 
@@ -120,7 +120,7 @@ export default function TripAttendanceForm() {
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<TripAttendanceFormState>({
-    trip_instance_id: "",
+    daily_trip_assignment_id: "",
     staff_id: "",
     vehicle_id: "",
     attendance_time: "",
@@ -142,16 +142,16 @@ export default function TripAttendanceForm() {
   useEffect(() => {
     setFetching(true);
     Promise.all([
-      tripInstanceApi.list(),
+      dailyTripAssignmentApi.list(),
       staffTemplateApi.list(),
       userApi.list(),
       vehicleApi.list(),
     ])
       .then(([tripRes, staffRes, userRes, vehicleRes]) => {
-        const trips = normalizeList(tripRes) as TripInstanceRecord[];
+        const trips = normalizeList(tripRes) as DailyTripAssignmentRecord[];
         const templates = normalizeList(staffRes) as StaffTemplateRecord[];
 
-        setTripInstanceRecords(trips);
+        setDailyTripAssignmentRecords(trips);
         setVehicles(toOptions(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
         setStaffRecords(normalizeList(userRes));
         setStaffTemplates(
@@ -162,7 +162,7 @@ export default function TripAttendanceForm() {
             return acc;
           }, {})
         );
-        setTripInstanceMeta(
+        setDailyTripAssignmentMeta(
           trips.reduce<Record<string, { vehicle_id?: string; staff_template_id?: string; status?: string }>>(
             (acc, trip) => {
               if (trip?.unique_id) {
@@ -183,21 +183,21 @@ export default function TripAttendanceForm() {
         Swal.fire(t("common.error"), message, "error");
       })
       .finally(() => setFetching(false));
-  }, [staffTemplateApi, t, tripInstanceApi, userApi, vehicleApi]);
+  }, [staffTemplateApi, t, dailyTripAssignmentApi, userApi, vehicleApi]);
 
   useEffect(() => {
     if (!isEdit || !stateRecord) return;
 
-    const tripInstId = stateRecord?.trip_instance_id ?? "";
+    const tripInstId = stateRecord?.daily_trip_assignment_id ?? "";
     const staffId = stateRecord?.staff_id ?? "";
     const vehicleId = stateRecord?.vehicle_id ?? "";
 
-    setPendingTripInstanceId(tripInstId);
+    setPendingDailyTripAssignmentId(tripInstId);
     setPendingStaffId(staffId);
     setPendingVehicleId(vehicleId);
 
     setFormData({
-      trip_instance_id: tripInstId,
+      daily_trip_assignment_id: tripInstId,
       staff_id: staffId,
       vehicle_id: vehicleId,
       attendance_time: stateRecord?.attendance_time ?? "",
@@ -218,16 +218,16 @@ export default function TripAttendanceForm() {
     tripAttendanceApi
       .get(id)
       .then((res: any) => {
-        const tripInstId = res?.trip_instance_id ?? "";
+        const tripInstId = res?.daily_trip_assignment_id ?? "";
         const staffId = res?.staff_id ?? "";
         const vehicleId = res?.vehicle_id ?? "";
 
-        setPendingTripInstanceId(tripInstId);
+        setPendingDailyTripAssignmentId(tripInstId);
         setPendingStaffId(staffId);
         setPendingVehicleId(vehicleId);
 
         setFormData({
-          trip_instance_id: tripInstId,
+          daily_trip_assignment_id: tripInstId,
           staff_id: staffId,
           vehicle_id: vehicleId,
           attendance_time: res?.attendance_time ?? "",
@@ -256,10 +256,10 @@ export default function TripAttendanceForm() {
 
   const tripOptions = useMemo(() => {
     const list = isEdit
-      ? tripInstanceRecords
-      : tripInstanceRecords.filter((trip) => trip.status === "IN_PROGRESS");
+      ? dailyTripAssignmentRecords
+      : dailyTripAssignmentRecords.filter((trip) => trip.status === "In Progress");
     return toOptions(list, "unique_id", "trip_no", "unique_id");
-  }, [isEdit, tripInstanceRecords]);
+  }, [isEdit, dailyTripAssignmentRecords]);
 
   const staffOptions = useMemo(() => {
     const staffByRole = staffRecords.filter((staff) => {
@@ -267,11 +267,11 @@ export default function TripAttendanceForm() {
       return role === "operator" || role === "driver";
     });
 
-    if (!formData.trip_instance_id) {
+    if (!formData.daily_trip_assignment_id) {
       return toOptions(staffByRole, "unique_id", "staff_name", "unique_id");
     }
 
-    const tripMeta = tripInstanceMeta[formData.trip_instance_id];
+    const tripMeta = dailyTripAssignmentMeta[formData.daily_trip_assignment_id];
     const template = tripMeta?.staff_template_id ? staffTemplates[tripMeta.staff_template_id] : undefined;
     const allowedIds = [template?.operator_id, template?.driver_id].filter(Boolean) as string[];
 
@@ -285,15 +285,15 @@ export default function TripAttendanceForm() {
       "staff_name",
       "unique_id"
     );
-  }, [formData.trip_instance_id, staffRecords, staffTemplates, tripInstanceMeta]);
+  }, [formData.daily_trip_assignment_id, staffRecords, staffTemplates, dailyTripAssignmentMeta]);
 
   // Apply pending IDs once the corresponding options array is populated
   useEffect(() => {
-    if (pendingTripInstanceId && tripOptions.length > 0 && tripOptions.some((o) => o.value === pendingTripInstanceId)) {
-      setFormData((prev) => ({ ...prev, trip_instance_id: pendingTripInstanceId }));
-      setPendingTripInstanceId(null);
+    if (pendingDailyTripAssignmentId && tripOptions.length > 0 && tripOptions.some((o) => o.value === pendingDailyTripAssignmentId)) {
+      setFormData((prev) => ({ ...prev, daily_trip_assignment_id: pendingDailyTripAssignmentId }));
+      setPendingDailyTripAssignmentId(null);
     }
-  }, [pendingTripInstanceId, tripOptions]);
+  }, [pendingDailyTripAssignmentId, tripOptions]);
 
   useEffect(() => {
     if (pendingStaffId && staffOptions.length > 0 && staffOptions.some((o) => o.value === pendingStaffId)) {
@@ -312,7 +312,7 @@ export default function TripAttendanceForm() {
   useEffect(() => {
     if (isEdit) return;
 
-    const tripMeta = tripInstanceMeta[formData.trip_instance_id];
+    const tripMeta = dailyTripAssignmentMeta[formData.daily_trip_assignment_id];
     if (!tripMeta?.vehicle_id) return;
 
     setFormData((prev) =>
@@ -320,25 +320,25 @@ export default function TripAttendanceForm() {
         ? prev
         : { ...prev, vehicle_id: tripMeta.vehicle_id ?? "" }
     );
-  }, [formData.trip_instance_id, isEdit, tripInstanceMeta]);
+  }, [formData.daily_trip_assignment_id, isEdit, dailyTripAssignmentMeta]);
 
   useEffect(() => {
-    if (!formData.trip_instance_id || !formData.staff_id) return;
-    const tripMeta = tripInstanceMeta[formData.trip_instance_id];
+    if (!formData.daily_trip_assignment_id || !formData.staff_id) return;
+    const tripMeta = dailyTripAssignmentMeta[formData.daily_trip_assignment_id];
     const template = tripMeta?.staff_template_id ? staffTemplates[tripMeta.staff_template_id] : undefined;
     const allowedIds = [template?.operator_id, template?.driver_id].filter(Boolean) as string[];
 
     if (allowedIds.length && !allowedIds.includes(formData.staff_id)) {
       setFormData((prev) => ({ ...prev, staff_id: "" }));
     }
-  }, [formData.staff_id, formData.trip_instance_id, staffTemplates, tripInstanceMeta]);
+  }, [formData.staff_id, formData.daily_trip_assignment_id, staffTemplates, dailyTripAssignmentMeta]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     if (
       (!isEdit && (
-        (showField("trip_instance_id") && !formData.trip_instance_id) ||
+        (showField("daily_trip_assignment_id") && !formData.daily_trip_assignment_id) ||
         (showField("staff_id") && !formData.staff_id) ||
         (showField("vehicle_id") && !formData.vehicle_id)
       )) ||
@@ -387,7 +387,7 @@ export default function TripAttendanceForm() {
       } else {
         const createBody = new FormData();
         const createPayload = filterPayload({
-          trip_instance_id: formData.trip_instance_id,
+          daily_trip_assignment_id: formData.daily_trip_assignment_id,
           staff_id: formData.staff_id,
           vehicle_id: formData.vehicle_id,
           latitude,
@@ -420,10 +420,10 @@ export default function TripAttendanceForm() {
     }
   };
 
-  const tripMeta = formData.trip_instance_id
-    ? tripInstanceMeta[formData.trip_instance_id]
+  const tripMeta = formData.daily_trip_assignment_id
+    ? dailyTripAssignmentMeta[formData.daily_trip_assignment_id]
     : undefined;
-  const isVehicleLocked = Boolean(isEdit || (tripMeta?.vehicle_id && formData.trip_instance_id));
+  const isVehicleLocked = Boolean(isEdit || (tripMeta?.vehicle_id && formData.daily_trip_assignment_id));
 
   return (
     <div className="p-3">
@@ -437,13 +437,13 @@ export default function TripAttendanceForm() {
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            {showField("trip_instance_id") && (
+            {showField("daily_trip_assignment_id") && (
             <div>
-              <Label>{t("admin.trip_attendance.trip_instance")}</Label>
+              <Label>{t("admin.trip_attendance.daily_trip_assignment")}</Label>
               <Select
-                value={formData.trip_instance_id}
+                value={formData.daily_trip_assignment_id}
                 onChange={(value) =>
-                  setFormData((prev) => ({ ...prev, trip_instance_id: value }))
+                  setFormData((prev) => ({ ...prev, daily_trip_assignment_id: value }))
                 }
                 options={tripOptions}
                 placeholder={t("common.select_option")}

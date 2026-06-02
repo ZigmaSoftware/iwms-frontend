@@ -100,10 +100,10 @@ export default function AlternativeStaffTemplateList() {
     approval_status: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  const { encStaffMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encStaffMasters}/${encAlternativeStaffTemplate}/new`;
+  const { encScheduleMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
+  const ENC_NEW_PATH = `/${encScheduleMasters}/${encAlternativeStaffTemplate}/new`;
   const ENC_EDIT_PATH = (id: string) =>
-    `/${encStaffMasters}/${encAlternativeStaffTemplate}/${id}/edit`;
+    `/${encScheduleMasters}/${encAlternativeStaffTemplate}/${id}/edit`;
   const selectedProjectId =
     projectId && projects.some((project) => project.value === projectId)
       ? projectId

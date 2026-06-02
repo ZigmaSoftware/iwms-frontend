@@ -232,7 +232,7 @@ function CollectionMonitoringForm() {
       tripCollectionPoints.map((item) => {
         const binName = nested(item.bin, ["bin_name", "name"]) || idOf(item.bin_id);
         const cpName = nested(item.collection_point, ["cp_name", "name"]) || idOf(item.collection_point_id);
-        const tripLabel = nested(item.trip_assignment, ["routeplan_display_code", "unique_id"]) || idOf(item.trip_assignment_id);
+        const tripLabel = nested(item.trip_assignment, ["trip_plan_display_code", "unique_id"]) || idOf(item.trip_assignment_id);
         return {
           value: item.unique_id,
           label: `${tripLabel} | ${cpName} | ${binName}`,
@@ -329,7 +329,7 @@ function CollectionMonitoringForm() {
     return nested(waste, ["waste_type_name", "name"]) || "-";
   })();
   const selectedCollectionPointName = nested(selectedTripCp?.collection_point, ["cp_name", "name"]) || collectionPointId;
-  const selectedTripLabel = nested(selectedTripCp?.trip_assignment, ["routeplan_display_code", "unique_id"]) || tripAssignmentId;
+  const selectedTripLabel = nested(selectedTripCp?.trip_assignment, ["trip_plan_display_code", "unique_id"]) || tripAssignmentId;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

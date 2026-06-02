@@ -18,7 +18,7 @@ import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 const TRIP_ATTENDANCE_COLUMN_FIELDS: Record<string, string[]> = {
-  trip_instance_id: ["trip_instance_id", "trip_instance"],
+  daily_trip_assignment_id: ["daily_trip_assignment_id", "daily_trip_assignment"],
   staff_id: ["staff_id", "staff"],
   vehicle_id: ["vehicle_id", "vehicle"],
   attendance_time: ["attendance_time"],
@@ -31,7 +31,7 @@ const TRIP_ATTENDANCE_COLUMN_FIELDS: Record<string, string[]> = {
 
 type TripAttendanceRecord = {
   id: number;
-  trip_instance_id: string;
+  daily_trip_assignment_id: string;
   staff_id: string;
   vehicle_id: string;
   attendance_time: string;
@@ -50,7 +50,7 @@ type TripAttendanceRecord = {
 
 type  TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
-  trip_instance_id?: { value: string | null; matchMode: FilterMatchMode };
+  daily_trip_assignment_id?: { value: string | null; matchMode: FilterMatchMode };
   staff_id?: { value: string | null; matchMode: FilterMatchMode };
   vehicle_id?: { value: string | null; matchMode: FilterMatchMode };
   source?: { value: string | null; matchMode: FilterMatchMode };
@@ -106,7 +106,7 @@ export default function TripAttendanceList() {
   );
 
   const tripAttendanceApi = adminApi.tripAttendances;
-  const tripInstanceApi = adminApi.tripInstances;
+  const dailyTripAssignmentApi = adminApi.dailyTripAssignment;
   const userApi = adminApi.usersCreation;
   const vehicleApi = adminApi.vehicleCreations;
 
@@ -135,7 +135,7 @@ export default function TripAttendanceList() {
 
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    trip_instance_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    daily_trip_assignment_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     staff_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     vehicle_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     source: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -173,7 +173,7 @@ export default function TripAttendanceList() {
 
       const [attendanceRes, tripRes, userRes, vehicleRes] = await Promise.all([
         tripAttendanceApi.list({ params }),
-        tripInstanceApi.list({ params }),
+        dailyTripAssignmentApi.list({ params }),
         userApi.list({ params }),
         vehicleApi.list({ params }),
       ]);
@@ -334,7 +334,7 @@ export default function TripAttendanceList() {
         loading={loading}
         filters={filters}
         globalFilterFields={[
-          ...(showCol("trip_instance_id") ? ["trip_instance_id"] : []),
+          ...(showCol("daily_trip_assignment_id") ? ["daily_trip_assignment_id"] : []),
           ...(showCol("staff_id") ? ["staff_id"] : []),
           ...(showCol("vehicle_id") ? ["vehicle_id"] : []),
           ...(showCol("source") ? ["source"] : []),
@@ -348,11 +348,11 @@ export default function TripAttendanceList() {
         emptyMessage={t("admin.trip_attendance.empty_message")}
       >
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
-        {showCol("trip_instance_id") && (
+        {showCol("daily_trip_assignment_id") && (
           <Column
-            header={t("admin.trip_attendance.trip_instance")}
+            header={t("admin.trip_attendance.daily_trip_assignment")}
             body={(row: TripAttendanceRecord) =>
-              tripLookup[row.trip_instance_id] ?? row.trip_instance_id
+              tripLookup[row.daily_trip_assignment_id] ?? row.daily_trip_assignment_id
             }
             filter
             showFilterMatchModes={false}

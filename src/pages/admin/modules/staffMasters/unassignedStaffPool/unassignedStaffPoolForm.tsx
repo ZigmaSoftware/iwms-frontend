@@ -21,7 +21,7 @@ type UnassignedStaffPoolFormState = {
   zone_id: string;
   ward_id: string;
   status: string;
-  trip_instance_id: string;
+  daily_trip_assignment_id: string;
 };
 
 type UserLocationMeta = {
@@ -36,7 +36,7 @@ const UNASSIGNED_STAFF_POOL_FIELDS: Record<string, string[]> = {
   zone_id: ["zone_id", "zone"],
   ward_id: ["ward_id", "ward"],
   status: ["status"],
-  trip_instance_id: ["trip_instance_id", "trip_instance"],
+  daily_trip_assignment_id: ["daily_trip_assignment_id", "daily_trip_assignment"],
 };
 
 const statusOptions: SelectOption[] = [
@@ -76,7 +76,7 @@ export default function UnassignedStaffPoolForm() {
   const [drivers, setDrivers] = useState<SelectOption[]>([]);
   const [zones, setZones] = useState<SelectOption[]>([]);
   const [wardRecords, setWardRecords] = useState<any[]>([]);
-  const [tripInstances, setTripInstances] = useState<SelectOption[]>([]);
+  const [dailyTripAssignments, setDailyTripAssignments] = useState<SelectOption[]>([]);
   const [userMeta, setUserMeta] = useState<Record<string, UserLocationMeta>>({});
 
   const [role, setRole] = useState<string>("");
@@ -87,7 +87,7 @@ export default function UnassignedStaffPoolForm() {
     zone_id: "",
     ward_id: "",
     status: "AVAILABLE",
-    trip_instance_id: "",
+    daily_trip_assignment_id: "",
   });
 
   const { encStaffMasters, encUnassignedStaffPool } = getEncryptedRoute();
@@ -102,9 +102,9 @@ export default function UnassignedStaffPoolForm() {
       adminApi.usersCreation.list() as Promise<any>,
       adminApi.zones.list() as Promise<any>,
       adminApi.wards.list() as Promise<any>,
-      adminApi.tripInstances.list() as Promise<any>,
+      adminApi.dailyTripAssignment.list() as Promise<any>,
     ])
-      .then(([usersData, zonesData, wardsData, tripInstancesData]: [any, any, any, any]) => {
+      .then(([usersData, zonesData, wardsData, dailyTripAssignmentsData]: [any, any, any, any]) => {
         if (cancelled) return;
         try {
           const users = normalizeList(usersData);
@@ -119,7 +119,7 @@ export default function UnassignedStaffPoolForm() {
           setDrivers(toOptions(driverUsers, "unique_id", "staff_name", "unique_id"));
           setZones(toOptions(normalizeList(zonesData), "unique_id", "name"));
           setWardRecords(normalizeList(wardsData));
-          setTripInstances(toOptions(normalizeList(tripInstancesData), "unique_id", "trip_no"));
+          setDailyTripAssignments(toOptions(normalizeList(dailyTripAssignmentsData), "unique_id", "trip_no"));
           setUserMeta(
             users.reduce<Record<string, UserLocationMeta>>((acc, user: any) => {
               const uid = user?.unique_id;
@@ -157,7 +157,7 @@ export default function UnassignedStaffPoolForm() {
       zone_id: stateRecord?.zone_id ?? "",
       ward_id: stateRecord?.ward_id ?? "",
       status: stateRecord?.status ?? "AVAILABLE",
-      trip_instance_id: stateRecord?.trip_instance_id ?? "",
+      daily_trip_assignment_id: stateRecord?.daily_trip_assignment_id ?? "",
     });
 
     if (operatorId) {
@@ -184,7 +184,7 @@ export default function UnassignedStaffPoolForm() {
           zone_id: res?.zone_id ?? "",
           ward_id: res?.ward_id ?? "",
           status: res?.status ?? "AVAILABLE",
-          trip_instance_id: res?.trip_instance_id ?? "",
+          daily_trip_assignment_id: res?.daily_trip_assignment_id ?? "",
         });
 
         if (operatorId) {
@@ -259,7 +259,7 @@ export default function UnassignedStaffPoolForm() {
         zone_id: formData.zone_id,
         ward_id: formData.ward_id,
         status: formData.status,
-        trip_instance_id: formData.trip_instance_id || null,
+        daily_trip_assignment_id: formData.daily_trip_assignment_id || null,
       };
       const payload = filterPayload(rawPayload);
 
@@ -385,15 +385,15 @@ export default function UnassignedStaffPoolForm() {
             </div>
             )}
 
-            {showField("trip_instance_id") && (
+            {showField("daily_trip_assignment_id") && (
             <div>
-              <Label>{t("admin.unassigned_staff_pool.trip_instance")}</Label>
+              <Label>{t("admin.unassigned_staff_pool.daily_trip_assignment")}</Label>
               <Select
-                value={formData.trip_instance_id}
+                value={formData.daily_trip_assignment_id}
                 onChange={(value) =>
-                  setFormData((prev) => ({ ...prev, trip_instance_id: value }))
+                  setFormData((prev) => ({ ...prev, daily_trip_assignment_id: value }))
                 }
-                options={tripInstances}
+                options={dailyTripAssignments}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
               />

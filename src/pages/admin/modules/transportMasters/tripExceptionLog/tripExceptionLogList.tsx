@@ -17,7 +17,7 @@ import { normalizeList } from "@/utils/forms";
 
 type TripExceptionLogRecord = {
   id: number;
-  trip_instance_id: string;
+  daily_trip_assignment_id: string;
   exception_type: string;
   remarks?: string | null;
   detected_by: string;
@@ -32,7 +32,7 @@ type TripExceptionLogRecord = {
 
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
-  trip_instance_id?: { value: string | null; matchMode: FilterMatchMode };
+  daily_trip_assignment_id?: { value: string | null; matchMode: FilterMatchMode };
   exception_type?: { value: string | null; matchMode: FilterMatchMode };
   detected_by?: { value: string | null; matchMode: FilterMatchMode };
   remarks?: { value: string | null; matchMode: FilterMatchMode };
@@ -85,7 +85,7 @@ export default function TripExceptionLogList() {
   const navigate = useNavigate();
 
   const tripExceptionLogApi = adminApi.tripExceptionLogs;
-  const tripInstanceApi = adminApi.tripInstances;
+  const dailyTripAssignmentApi = adminApi.dailyTripAssignment;
 
   const [records, setRecords] = useState<TripExceptionLogRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,7 +109,7 @@ export default function TripExceptionLogList() {
   // });
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    trip_instance_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },  
+    daily_trip_assignment_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },  
     exception_type: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     detected_by: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     remarks: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -140,7 +140,7 @@ export default function TripExceptionLogList() {
 
       const [logRes, tripRes] = await Promise.all([
         tripExceptionLogApi.list({ params }),
-        tripInstanceApi.list({ params }),
+        dailyTripAssignmentApi.list({ params }),
       ]);
 
       const logRows = filterByCompanyProject(
@@ -259,7 +259,7 @@ export default function TripExceptionLogList() {
         loading={loading}
         filters={filters}
         globalFilterFields={[
-          "trip_instance_id",
+          "daily_trip_assignment_id",
           "exception_type",
           "detected_by",
           "remarks",
@@ -274,9 +274,9 @@ export default function TripExceptionLogList() {
       >
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
         <Column
-          header={t("admin.trip_exception_log.trip_instance")}
+          header={t("admin.trip_exception_log.daily_trip_assignment")}
           body={(row: TripExceptionLogRecord) =>
-            tripLookup[row.trip_instance_id] ?? row.trip_instance_id
+            tripLookup[row.daily_trip_assignment_id] ?? row.daily_trip_assignment_id
           }
           filter
           showFilterMatchModes={false}

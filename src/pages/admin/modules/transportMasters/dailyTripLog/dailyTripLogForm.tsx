@@ -55,7 +55,7 @@ type DailyTripAssignmentRecord = {
   trip_date?: string;
   collection_point?: NamedRef & { cp_name?: string };
   collection_point_id?: string;
-  trip_definition?: { unique_id?: string; display_code?: string };
+  trip_plan?: { unique_id?: string; display_code?: string };
   effective_staff?: { driver?: string; operator?: string };
   [key: string]: unknown;
 };
@@ -122,8 +122,8 @@ export default function DailyTripLogForm() {
     initialProjectId: routeState?.projectId,
   });
 
-  const { encTransportMaster, encDailyTripLog } = getEncryptedRoute();
-  const LIST_PATH = `/${encTransportMaster}/${encDailyTripLog}`;
+  const { encScheduleMasters, encDailyTripLog } = getEncryptedRoute();
+  const LIST_PATH = `/${encScheduleMasters}/${encDailyTripLog}`;
 
   /* ── form state ── */
   const [formData, setFormData] = useState<FormState>({
@@ -430,7 +430,7 @@ export default function DailyTripLogForm() {
                   formData.trip_assignment_id ??
                   "-"
                 }</div>
-                <div>Vehicle: {recordData?.vehicle?.vehicle_no ?? selectedAssignment?.trip_definition?.display_code ?? "-"}</div>
+                <div>Vehicle: {recordData?.vehicle?.vehicle_no ?? selectedAssignment?.trip_plan?.display_code ?? "-"}</div>
                 <div>Driver: {recordData?.driver?.employee_name ?? selectedAssignment?.effective_staff?.driver ?? "-"}</div>
                 <div>Operator: {recordData?.operator?.employee_name ?? selectedAssignment?.effective_staff?.operator ?? "-"}</div>
               </div>
