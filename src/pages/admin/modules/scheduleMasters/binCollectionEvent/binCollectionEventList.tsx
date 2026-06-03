@@ -119,22 +119,6 @@ export default function BinCollectionEventList() {
 
   useEffect(() => { loadRecords(); }, [loadRecords]);
 
-  /* ── summary stats (same pattern as BaseCollectionListPage) ── */
-  const { dailyWeight, overallWeight, totalRecords } = useMemo(() => {
-    let daily = 0;
-    let overall = 0;
-    records.forEach((r) => {
-      const w = Number(r.collected_weight_kg ?? 0);
-      overall += w;
-      if (r.created_at && r.created_at.startsWith(today)) daily += w;
-    });
-    return {
-      dailyWeight: daily.toFixed(2),
-      overallWeight: overall.toFixed(2),
-      totalRecords: records.length,
-    };
-  }, [records]);
-
   const rows = useMemo(
     () =>
       records.map((r) => ({
@@ -150,6 +134,44 @@ export default function BinCollectionEventList() {
       })),
     [records],
   );
+
+  /* ── apply filters locally to get the visible subset ─────────────────────
+     PrimeReact filters internally but doesn't expose the result. We replicate
+     the same CONTAINS logic so the summary pills always match what's on screen. */
+  const GLOBAL_FIELDS = ["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "_ward", "_zone"] as const;
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((row) => {
+      for (const [field, filter] of Object.entries(filters)) {
+        const val = filter.value;
+        if (!val) continue;
+        const needle = String(val).toLowerCase();
+        if (field === "global") {
+          const hit = GLOBAL_FIELDS.some((f) => String(row[f] ?? "").toLowerCase().includes(needle));
+          if (!hit) return false;
+        } else {
+          if (!String(row[field] ?? "").toLowerCase().includes(needle)) return false;
+        }
+      }
+      return true;
+    });
+  }, [rows, filters]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── summary stats — computed from filtered rows only ── */
+  const { dailyWeight, overallWeight, totalRecords } = useMemo(() => {
+    let daily = 0;
+    let overall = 0;
+    filteredRows.forEach((r) => {
+      const w = Number(r.collected_weight_kg ?? 0);
+      overall += w;
+      if (r.created_at && String(r.created_at).startsWith(today)) daily += w;
+    });
+    return {
+      dailyWeight: daily.toFixed(2),
+      overallWeight: overall.toFixed(2),
+      totalRecords: filteredRows.length,
+    };
+  }, [filteredRows]);
 
   const header = (
     <div className="space-y-4">

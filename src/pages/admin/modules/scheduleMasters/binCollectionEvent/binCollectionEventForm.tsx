@@ -170,7 +170,14 @@ export default function BinCollectionEventForm() {
       const wards = normalizeList(wardRes);
       setAllAssignments(assignments);
       setAllRawWards(wards);
-      setAssignmentOptions(toOptions(assignments, "unique_id", "unique_id"));
+      setAssignmentOptions(
+        assignments
+          .map((a: any) => ({
+            value: String(a.unique_id ?? ""),
+            label: `${a.unique_id ?? ""}${a.trip_plan?.display_code ? " — " + a.trip_plan.display_code : ""}`,
+          }))
+          .filter((o: any) => o.value)
+      );
       setBinOptions(toOptions(normalizeList(binRes), "unique_id", "bin_name"));
       setZoneOptions(toOptions(normalizeList(zoneRes), "unique_id", "zone_name"));
       setPanchayatOptions(toOptions(normalizeList(panchRes), "unique_id", "panchayat_name"));
@@ -197,28 +204,43 @@ export default function BinCollectionEventForm() {
       .catch(() => setCollectionPointOptions([]));
   }, [isEdit, form.trip_assignment_id]);
 
-  /* ── ward options filtered by zone ── */
+  /* ── ward options filtered by zone ─────────────────────────────────────────
+     The ward serializer returns zone_id as the zone's integer PK (no to_field),
+     so comparing against filterZone (which is the zone's unique_id string) always
+     fails.  Instead look up the selected zone's zone_name from zoneOptions and
+     compare against rawWard.zone_name which the serializer does populate.        */
   const filteredWardOptions = filterZone
-    ? wardOptions.filter((w) => {
-        const rawWard = allRawWards.find((rw: any) => String(rw.unique_id ?? "") === w.value);
-        if (!rawWard) return true; // can't resolve, show all
-        const zId = String(rawWard.zone_id?.unique_id ?? rawWard.zone_id ?? "");
-        return zId === filterZone;
-      })
+    ? (() => {
+        const selectedZoneName = zoneOptions.find((z) => z.value === filterZone)?.label ?? "";
+        if (!selectedZoneName) return wardOptions; // zone not found — show all
+        return wardOptions.filter((w) => {
+          const rawWard = allRawWards.find((rw: any) => String(rw.unique_id ?? "") === w.value);
+          if (!rawWard) return true; // can't resolve — show all
+          return String(rawWard.zone_name ?? "") === selectedZoneName;
+        });
+      })()
     : wardOptions;
 
-  /* ── filter assignments by selected panchayat or ward ── */
+  /* ── filter assignments by selected panchayat or ward ───────────────────────
+     The serializer exposes nested objects:
+       a.ward      → { unique_id, ward_name }  (SerializerMethodField)
+       a.panchayat → { unique_id, panchayat_name }  (SerializerMethodField)
+     whereas a.ward_id / a.panchayat_id are raw integer PKs — NOT unique_id strings.
+     Always prefer the nested objects so the comparison works.                    */
   const filteredAssignmentOptions = (() => {
     if (!filterPanchayat && !filterWard) return assignmentOptions;
     return allAssignments
       .filter((a: any) => {
-        const aPanchayat = String(a.panchayat_id?.unique_id ?? a.panchayat_id ?? "");
-        const aWard = String(a.ward_id?.unique_id ?? a.ward_id ?? "");
+        const aPanchayat = String(a.panchayat?.unique_id ?? "");
+        const aWard = String(a.ward?.unique_id ?? "");
         if (filterPanchayat && aPanchayat !== filterPanchayat) return false;
         if (filterWard && aWard !== filterWard) return false;
         return true;
       })
-      .map((a: any) => ({ value: String(a.unique_id ?? ""), label: String(a.unique_id ?? "") }))
+      .map((a: any) => ({
+        value: String(a.unique_id ?? ""),
+        label: `${a.unique_id ?? ""}${a.trip_plan?.display_code ? " — " + a.trip_plan.display_code : ""}`,
+      }))
       .filter((o) => o.value);
   })();
 
