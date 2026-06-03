@@ -80,6 +80,14 @@ export default function TripPlanCollectionPointForm() {
   const [collectionPointOptions, setCollectionPointOptions] = useState<SelectOption[]>([]);
   const [binOptions, setBinOptions] = useState<SelectOption[]>([]);
 
+  // Pending IDs — set when record loads, flushed once each option list is ready (Radix pattern)
+  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
+    projectUniqueId: string; projectId: string; projectName: string;
+  } | null>(null);
+  const [pendingTripPlanId, setPendingTripPlanId] = useState("");
+  const [pendingCollectionPointId, setPendingCollectionPointId] = useState("");
+  const [pendingBinId, setPendingBinId] = useState("");
+
   // Load trip plans
   useEffect(() => {
     if (!companyUniqueId) return;
@@ -110,32 +118,78 @@ export default function TripPlanCollectionPointForm() {
     }).catch(() => {});
   }, [form.collection_point_id, companyUniqueId]);
 
-  // Load record for edit
+  // Load record for edit — try route state first, fall back to API
   useEffect(() => {
     if (!isEdit || !id) return;
-    const record = routeState?.record;
-    if (record) {
-      applyCompanyProjectFromRecord(record);
-      setForm({
-        trip_plan_id: String(record.trip_plan_id ?? ""),
-        collection_point_id: String(record.collection_point_id ?? ""),
-        bin_id: String(record.bin_id ?? ""),
-        sequence: String(record.sequence ?? "1"),
-        is_active: record.is_active !== false,
+
+    const applyRecord = (data: any) => {
+      applyCompanyProjectFromRecord(data);
+      setPendingProjectCandidates({
+        projectUniqueId: String(data.project_unique_id ?? data.project?.unique_id ?? ""),
+        projectId: String(data.project_id ?? ""),
+        projectName: String(data.project_name ?? ""),
       });
+      // Store non-select fields immediately
+      setForm((f) => ({
+        ...f,
+        sequence: String(data.sequence ?? "1"),
+        is_active: data.is_active !== false,
+      }));
+      // Store select field IDs as pending — applied only after option lists load
+      const tripPlanId = String(data.trip_plan?.unique_id ?? data.trip_plan_id ?? "");
+      const cpId = String(data.collection_point?.unique_id ?? data.collection_point_id ?? "");
+      const binId = String(data.bin?.unique_id ?? data.bin_id ?? "");
+      if (tripPlanId) setPendingTripPlanId(tripPlanId);
+      if (cpId) setPendingCollectionPointId(cpId);
+      if (binId) setPendingBinId(binId);
+    };
+
+    const stateRecord = routeState?.record;
+    if (stateRecord) {
+      applyRecord(stateRecord);
     } else {
-      tripPlanCollectionPointApi.retrieve(id).then((data: any) => {
-        applyCompanyProjectFromRecord(data);
-        setForm({
-          trip_plan_id: String(data.trip_plan_id ?? ""),
-          collection_point_id: String(data.collection_point_id ?? ""),
-          bin_id: String(data.bin_id ?? ""),
-          sequence: String(data.sequence ?? "1"),
-          is_active: data.is_active !== false,
-        });
-      }).catch(() => {});
+      tripPlanCollectionPointApi.get(id).then((data: any) => applyRecord(data)).catch(() => {});
     }
   }, [isEdit, id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Flush project after hook loads project list
+  useEffect(() => {
+    if (!pendingProjectCandidates || projects.length === 0) return;
+    const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
+    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
+    if (!match) match = projects.find((p) => rawId && p.value === rawId);
+    if (!match && projectName)
+      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
+    if (match) setProjectId(match.value);
+    setPendingProjectCandidates(null);
+  }, [projects, pendingProjectCandidates, setProjectId]);
+
+  // Flush trip plan after options load
+  useEffect(() => {
+    if (!pendingTripPlanId || tripPlanOptions.length === 0) return;
+    if (tripPlanOptions.some((o) => o.value === pendingTripPlanId)) {
+      setForm((f) => ({ ...f, trip_plan_id: pendingTripPlanId }));
+      setPendingTripPlanId("");
+    }
+  }, [pendingTripPlanId, tripPlanOptions]);
+
+  // Flush collection point after options load — also sets collection_point_id which triggers bin load
+  useEffect(() => {
+    if (!pendingCollectionPointId || collectionPointOptions.length === 0) return;
+    if (collectionPointOptions.some((o) => o.value === pendingCollectionPointId)) {
+      setForm((f) => ({ ...f, collection_point_id: pendingCollectionPointId }));
+      setPendingCollectionPointId("");
+    }
+  }, [pendingCollectionPointId, collectionPointOptions]);
+
+  // Flush bin after bins load (bins load after collection_point_id is set)
+  useEffect(() => {
+    if (!pendingBinId || binOptions.length === 0) return;
+    if (binOptions.some((o) => o.value === pendingBinId)) {
+      setForm((f) => ({ ...f, bin_id: pendingBinId }));
+      setPendingBinId("");
+    }
+  }, [pendingBinId, binOptions]);
 
   const set = (field: keyof FormState, value: string | boolean) =>
     setForm((f) => ({ ...f, [field]: value }));
@@ -194,7 +248,7 @@ export default function TripPlanCollectionPointForm() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label required>Trip Plan</Label>
+              <Label>Trip Plan <span className="text-red-500">*</span></Label>
               <Select
                 options={tripPlanOptions}
                 value={form.trip_plan_id}
@@ -203,7 +257,7 @@ export default function TripPlanCollectionPointForm() {
               />
             </div>
             <div>
-              <Label required>Collection Point</Label>
+              <Label>Collection Point <span className="text-red-500">*</span></Label>
               <Select
                 options={collectionPointOptions}
                 value={form.collection_point_id}
@@ -215,7 +269,7 @@ export default function TripPlanCollectionPointForm() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label required>Bin</Label>
+              <Label>Bin <span className="text-red-500">*</span></Label>
               <Select
                 options={binOptions}
                 value={form.bin_id}
@@ -224,7 +278,7 @@ export default function TripPlanCollectionPointForm() {
               />
             </div>
             <div>
-              <Label required>Sequence</Label>
+              <Label>Sequence <span className="text-red-500">*</span></Label>
               <input
                 type="number"
                 min={1}
