@@ -16,6 +16,8 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { dailyTripAssignmentApi } from "@/helpers/admin";
+import { adminApi } from "@/helpers/admin/registry";
+import { normalizeList } from "@/utils/forms";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,17 +32,38 @@ type DailyTripAssignmentRecord = {
   trip_plan_id?: string;
   staff_template_id?: string;
   panchayat_id?: string;
+  ward_id?: string;
   waste_type_id?: string;
-  trip_plan?: { unique_id?: string; display_code?: string };
+  trip_plan?: {
+    unique_id?: string;
+    display_code?: string;
+    zone?: NamedRef & { zone_name?: string };
+    panchayat?: NamedRef & { panchayat_name?: string };
+    ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
+  };
   staff_template?: { unique_id?: string; display_code?: string };
   effective_staff?: { unique_id?: string; display_code?: string } | null;
   panchayat?: NamedRef & { panchayat_name?: string };
+  ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
+  zone?: NamedRef & { zone_name?: string };
   waste_type?: NamedRef & { waste_type_name?: string };
   trip_date?: string;
   scheduled_time?: string;
   status?: string;
   approval_status?: string;
   remarks?: string | null;
+  [key: string]: unknown;
+};
+
+type TripPlanRecord = {
+  unique_id?: string;
+  id?: string;
+  zone_id?: unknown;
+  ward_id?: unknown;
+  panchayat_id?: unknown;
+  zone?: NamedRef & { zone_name?: string };
+  ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
+  panchayat?: NamedRef & { panchayat_name?: string };
   [key: string]: unknown;
 };
 
@@ -81,8 +104,51 @@ const extractError = (error: any): string | null => {
   return null;
 };
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
+const normalizeId = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return normalizeId(record.unique_id ?? record.id ?? record.value);
+  }
+  return String(value).trim();
+};
+
+const getZoneName = (record: any, plan?: TripPlanRecord): string =>
+  String(
+    record?.zone?.zone_name ??
+      record?.zone?.name ??
+      record?.ward?.zone_name ??
+      record?.ward?.zone?.zone_name ??
+      record?.trip_plan?.zone?.zone_name ??
+      plan?.zone?.zone_name ??
+      plan?.zone?.name ??
+      plan?.ward?.zone_name ??
+      ""
+  ).trim();
+
+const getWardName = (record: any, plan?: TripPlanRecord): string =>
+  String(
+    record?.ward?.ward_name ??
+      record?.ward?.name ??
+      record?.trip_plan?.ward?.ward_name ??
+      plan?.ward?.ward_name ??
+      plan?.ward?.name ??
+      record?.ward_id ??
+      plan?.ward_id ??
+      ""
+  ).trim();
+
+const getPanchayatName = (record: any, plan?: TripPlanRecord): string =>
+  String(
+    record?.panchayat?.panchayat_name ??
+      record?.panchayat?.name ??
+      record?.trip_plan?.panchayat?.panchayat_name ??
+      plan?.panchayat?.panchayat_name ??
+      plan?.panchayat?.name ??
+      record?.panchayat_id ??
+      plan?.panchayat_id ??
+      ""
+  ).trim();
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -106,6 +172,7 @@ export default function DailyTripAssignmentList() {
   });
 
   const [allAssignments, setAllAssignments] = useState<DailyTripAssignmentRecord[]>([]);
+  const [tripPlanLookup, setTripPlanLookup] = useState<Record<string, TripPlanRecord>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -113,6 +180,8 @@ export default function DailyTripAssignmentList() {
     unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _trip_plan: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _staff: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    _zone: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    _ward: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _panchayat: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     approval_status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -126,8 +195,20 @@ export default function DailyTripAssignmentList() {
     setIsLoading(true);
     const params: Record<string, string> = { company_id: companyUniqueId };
     if (projectId) params.project_id = projectId;
-    (dailyTripAssignmentApi.list({ params }) as Promise<DailyTripAssignmentRecord[]>)
-      .then((data) => { if (mounted) setAllAssignments(Array.isArray(data) ? data : []); })
+    Promise.all([
+      dailyTripAssignmentApi.list({ params }) as Promise<DailyTripAssignmentRecord[]>,
+      adminApi.tripPlans.list({ params }) as Promise<any>,
+    ])
+      .then(([assignmentData, tripPlanData]) => {
+        if (!mounted) return;
+        setAllAssignments(Array.isArray(assignmentData) ? assignmentData : []);
+        const lookup: Record<string, TripPlanRecord> = {};
+        normalizeList(tripPlanData).forEach((plan: TripPlanRecord) => {
+          const id = normalizeId(plan.unique_id ?? plan.id);
+          if (id) lookup[id] = plan;
+        });
+        setTripPlanLookup(lookup);
+      })
       .catch((err) => { if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) }); })
       .finally(() => { if (mounted) setIsLoading(false); });
     return () => { mounted = false; };
@@ -142,13 +223,18 @@ export default function DailyTripAssignmentList() {
         const rp = normalizeId(row.project_id ?? row.project_unique_id);
         return (!companyUniqueId || rc === companyUniqueId) && (!projectId || rp === projectId);
       })
-      .map((rec) => ({
-        ...rec,
-        _trip_plan: rec.trip_plan?.display_code ?? rec.trip_plan_id ?? "",
-        _staff: rec.effective_staff?.display_code ?? rec.staff_template?.display_code ?? rec.staff_template_id ?? "",
-        _panchayat: rec.panchayat?.panchayat_name ?? rec.panchayat?.name ?? rec.panchayat_id ?? "",
-        _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
-      }));
+      .map((rec) => {
+        const plan = tripPlanLookup[normalizeId(rec.trip_plan?.unique_id ?? rec.trip_plan_id)];
+        return {
+          ...rec,
+          _trip_plan: rec.trip_plan?.display_code ?? rec.trip_plan_id ?? "",
+          _staff: rec.effective_staff?.display_code ?? rec.staff_template?.display_code ?? rec.staff_template_id ?? "",
+          _zone: getZoneName(rec, plan),
+          _ward: getWardName(rec, plan),
+          _panchayat: getPanchayatName(rec, plan),
+          _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
+        };
+      });
   })();
 
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
@@ -265,7 +351,7 @@ export default function DailyTripAssignmentList() {
         showGridlines
         className="p-datatable-sm"
         emptyMessage="No trip assignments found. Select a company and project to load data."
-        globalFilterFields={["unique_id", "_trip_plan", "_staff", "_panchayat", "_waste", "status", "approval_status", "trip_date"]}
+        globalFilterFields={["unique_id", "_trip_plan", "_staff", "_zone", "_ward", "_panchayat", "_waste", "status", "approval_status", "trip_date"]}
       >
         <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 60 }} />
         <Column field="unique_id" header="ID" filter showFilterMatchModes={false} style={{ minWidth: 160 }} />
@@ -286,9 +372,21 @@ export default function DailyTripAssignmentList() {
           filter showFilterMatchModes={false}
         />
         <Column
+          field="_zone"
+          header="Zone"
+          body={(row: any) => row._zone || "—"}
+          filter showFilterMatchModes={false}
+        />
+        <Column
+          field="_ward"
+          header="Ward"
+          body={(row: any) => row._ward || "—"}
+          filter showFilterMatchModes={false}
+        />
+        <Column
           field="_panchayat"
           header="Panchayat"
-          body={(row: DailyTripAssignmentRecord) => row.panchayat?.panchayat_name ?? row.panchayat?.name ?? row.panchayat_id ?? "—"}
+          body={(row: any) => row._panchayat || "—"}
           filter showFilterMatchModes={false}
         />
         <Column
