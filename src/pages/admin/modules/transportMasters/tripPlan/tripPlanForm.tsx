@@ -298,7 +298,6 @@ export default function TripPlanForm() {
     if (!formData.sub_property_id) missingFields.push("Sub Property");
     if (!formData.waste_type_id) missingFields.push("Waste Type");
     if (!formData.scheduled_time) missingFields.push("Scheduled Time");
-    if (!validStops.length) missingFields.push("At least one Collection Point Stop (select both a collection point and a bin)");
     if (missingFields.length) {
       Swal.fire(t("common.warning"), `Please fill: ${missingFields.join(", ")}`, "warning");
       return;
@@ -377,19 +376,6 @@ export default function TripPlanForm() {
             <div><Label>Approval Status</Label><Select value={formData.approval_status} onChange={setField("approval_status")} options={approvalStatusOptions} disabled={loading} /></div>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-800">Collection Point Stops</h3>
-              <button type="button" className="rounded-lg border px-3 py-2 text-sm" onClick={() => setStops((current) => [...current, { collection_point_id: "", bin_id: "", sequence: current.length + 1, is_active: true }])}>Add Stop</button>
-            </div>
-            {stops.map((stop, index) => (
-              <div key={index} className="grid grid-cols-1 gap-3 rounded-lg border p-3 md:grid-cols-[1fr_1fr_auto]">
-                <Select value={stop.collection_point_id} onChange={(value) => setStop(index, { collection_point_id: value, bin_id: "" })} options={options.collectionPoints} disabled={loading || (!formData.panchayat_id && !formData.ward_id)} placeholder="Select collection point" />
-                <Select value={stop.bin_id} onChange={(value) => setStop(index, { bin_id: value })} options={binOptionsFor(stop.collection_point_id)} disabled={loading || !stop.collection_point_id} placeholder={stop.collection_point_id ? (binOptionsFor(stop.collection_point_id).length ? "Select bin" : "No bins for this CP") : "Select a collection point first"} />
-                <button type="button" className="rounded-lg border px-3 py-2 text-sm" disabled={stops.length === 1} onClick={() => setStops((current) => current.filter((_, rowIndex) => rowIndex !== index).map((row, rowIndex) => ({ ...row, sequence: rowIndex + 1 })))}>Remove</button>
-              </div>
-            ))}
-          </div>
 
           <div className="flex justify-end gap-3">
             <button type="submit" disabled={submitting || loading} className="rounded-lg bg-green-custom px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">

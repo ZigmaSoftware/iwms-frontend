@@ -68,6 +68,22 @@ const optionLabel = (item: ApiObject, keys: string[]): string => {
   return idOf(item);
 };
 
+const preferredId = (primary: unknown, fallback: unknown): string => idOf(primary ?? fallback);
+
+const preferredLabel = (...values: Array<unknown>): string | undefined => {
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    if (typeof value === "string" && value.trim() !== "") return value;
+    if (typeof value === "object") {
+      const obj = value as ApiObject;
+      const label = obj.employee_name ?? obj.bin_name ?? obj.cp_name ?? obj.collection_point_name ?? obj.name ?? obj.display_code ?? obj.trip_plan_display_code;
+      if (typeof label === "string" && label.trim() !== "") return label;
+    }
+    if (typeof value !== "object") return String(value);
+  }
+  return undefined;
+};
+
 const toOptions = (items: ApiObject[], keys: string[]): SelectOption[] =>
   items
     .map((item) => ({ value: idOf(item), label: optionLabel(item, keys) }))
@@ -142,15 +158,16 @@ export default function DailyTripCollectionPointForm() {
     dailyTripCollectionPointApi
       .get(id)
       .then((data: DailyTripCollectionPointRecord) => {
+        const recordData = data as ApiObject;
         setRecord(data);
-        applyCompanyProjectFromRecord(data as ApiObject);
-        setTripAssignmentId(idOf(data.trip_assignment_id));
-        setCollectionPointId(idOf(data.collection_point_id));
-        setBinId(idOf(data.bin_id));
+        applyCompanyProjectFromRecord(recordData);
+        setTripAssignmentId(preferredId((recordData.trip_assignment as ApiObject)?.unique_id, recordData.trip_assignment_id));
+        setCollectionPointId(preferredId((recordData.collection_point as ApiObject)?.unique_id, recordData.collection_point_id));
+        setBinId(preferredId((recordData.bin as ApiObject)?.unique_id, recordData.bin_id));
         setSequence(String(data.sequence ?? 1));
         setIsCollected(Boolean(data.is_collected));
         setCollectedAt(data.collected_at ? String(data.collected_at).slice(0, 16) : "");
-        setCollectedBy(idOf(data.collected_by));
+        setCollectedBy(preferredId((recordData.collected_by_staff as ApiObject)?.unique_id, recordData.collected_by));
         setCollectedWeight(data.collected_weight_kg === null || data.collected_weight_kg === undefined ? "" : String(data.collected_weight_kg));
         setStatus(data.status ?? "Pending");
       })
@@ -203,12 +220,30 @@ export default function DailyTripCollectionPointForm() {
     const filtered = collectionPointId
       ? bins.filter((bin) => !bin.collectionPointId || bin.collectionPointId === collectionPointId)
       : bins;
-    return ensureOption(filtered, binId, record?.bin_id);
+    const recBinObj = record as ApiObject;
+    return ensureOption(
+      filtered,
+      binId,
+      preferredLabel((recBinObj?.bin as ApiObject)?.bin_name, (recBinObj?.bin as ApiObject)?.name, record?.bin_id),
+    );
   }, [binId, bins, collectionPointId, record]);
 
-  const assignmentOptions = ensureOption(assignments, tripAssignmentId, record?.trip_assignment_id);
-  const collectionPointOptions = ensureOption(collectionPoints, collectionPointId, record?.collection_point_id);
-  const staffOptions = ensureOption(staff, collectedBy, record?.collected_by ?? undefined);
+  const recObj = record as ApiObject;
+  const assignmentOptions = ensureOption(
+    assignments,
+    tripAssignmentId,
+    preferredLabel((recObj?.trip_assignment as ApiObject)?.trip_plan_display_code, (recObj?.trip_assignment as ApiObject)?.unique_id, record?.trip_assignment_id),
+  );
+  const collectionPointOptions = ensureOption(
+    collectionPoints,
+    collectionPointId,
+    preferredLabel((recObj?.collection_point as ApiObject)?.cp_name, (recObj?.collection_point as ApiObject)?.collection_point_name, record?.collection_point_id),
+  );
+  const staffOptions = ensureOption(
+    staff,
+    collectedBy,
+    preferredLabel((recObj?.collected_by_staff as ApiObject)?.employee_name, record?.collected_by),
+  );
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();

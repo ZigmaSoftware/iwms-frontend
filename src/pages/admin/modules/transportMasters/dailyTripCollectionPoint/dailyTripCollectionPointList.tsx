@@ -148,19 +148,27 @@ export default function DailyTripCollectionPointList() {
           const rowProject = normalizeId(row.project_id ?? row.project_unique_id);
           return (!rowCompany || rowCompany === companyUniqueId) && (!projectId || !rowProject || rowProject === projectId);
         })
-        .map((row) => ({
-          ...row,
-          _trip: nestedText(row.trip_assignment, ["trip_plan_display_code", "unique_id"]) !== "-"
-            ? nestedText(row.trip_assignment, ["trip_plan_display_code", "unique_id"])
-            : text(row.trip_assignment_id),
-          _collection_point: nestedText(row.collection_point, ["cp_name", "name"]) !== "-"
-            ? nestedText(row.collection_point, ["cp_name", "name"])
-            : text(row.collection_point_id),
-          _bin: nestedText(row.bin, ["bin_name", "name"]) !== "-"
-            ? nestedText(row.bin, ["bin_name", "name"])
-            : text(row.bin_id),
-          _waste_type: nestedText(row.bin && typeof row.bin === "object" ? row.bin.waste_type as NamedRef : null, ["waste_type_name", "name"]),
-        })),
+        .map((row) => {
+          const tripAssign = row.trip_assignment as NamedRef;
+          const tripPlan = (tripAssign?.trip_plan as NamedRef) ?? (tripAssign?.trip_plan_id as NamedRef);
+          const collectionPt = row.collection_point as NamedRef;
+          const binObj = row.bin as NamedRef;
+          const wasteType = (binObj?.waste_type as NamedRef) ?? null;
+          
+          return {
+            ...row,
+            _trip: nestedText(tripPlan, ["display_code", "unique_id"]) !== "-"
+              ? nestedText(tripPlan, ["display_code", "unique_id"])
+              : nestedText(tripAssign, ["unique_id"]) !== "-" ? nestedText(tripAssign, ["unique_id"]) : text(row.trip_assignment_id),
+            _collection_point: nestedText(collectionPt, ["cp_name", "collection_point_name", "name"]) !== "-"
+              ? nestedText(collectionPt, ["cp_name", "collection_point_name", "name"])
+              : text(row.collection_point_id),
+            _bin: nestedText(binObj, ["bin_name", "name"]) !== "-"
+              ? nestedText(binObj, ["bin_name", "name"])
+              : text(row.bin_id),
+            _waste_type: nestedText(wasteType, ["waste_type_name", "name"]),
+          };
+        }),
     [companyUniqueId, projectId, records],
   );
 
