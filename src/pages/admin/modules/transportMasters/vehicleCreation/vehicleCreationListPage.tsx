@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -20,13 +20,8 @@ import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { vehicleCreationApi } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
-import {
-  type VehicleCreationPayload,
-  useVehicleCreationsQuery,
-  useUpdateVehicleCreationMutation,
-  useDeleteVehicleCreationMutation,
-} from "@/tanstack/admin";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,7 +66,6 @@ const VEHICLE_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const vehicleCreationApi = adminApi.vehicleCreations;
 const FILE_ICON = "/images/pdfimage/download.png";
 
 const VEHICLE_BULK_TEMPLATE_HEADERS = [
@@ -143,6 +137,12 @@ export default function VehicleCreationListPage() {
     insurance_expiry_date: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
+  const [allVehicles, setAllVehicles] = useState<VehicleCreationRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
+
   // ── Company / Project ─────────────────────────────────────────────────────
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
@@ -162,31 +162,37 @@ export default function VehicleCreationListPage() {
   const ENC_EDIT_PATH = (id: string | number) =>
     `/${encTransportMaster}/${encVehicleCreation}/${id}/edit`;
 
-  // ── TanStack ──────────────────────────────────────────────────────────────
-  const vehicleCreationsQuery = useVehicleCreationsQuery(
-    companyUniqueId
-      ? { company_id: companyUniqueId, project_id: projectId || undefined }
-      : null
-  );
-  const updateMutation = useUpdateVehicleCreationMutation();
-  const deleteMutation = useDeleteVehicleCreationMutation();
+  // ── Load data ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    let mounted = true;
+    setIsLoading(true);
+    vehicleCreationApi.list()
+      .then((data: unknown) => {
+        if (!mounted) return;
+        const list = Array.isArray(data) ? (data as VehicleCreationRecord[]) : [];
+        const seen = new Set<string>();
+        setAllVehicles(list.filter((row) => {
+          const key = row.unique_id?.toString();
+          if (!key || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        }));
+      })
+      .catch((error: unknown) => {
+        if (mounted) {
+          Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
+        }
+      })
+      .finally(() => { if (mounted) setIsLoading(false); });
+    return () => { mounted = false; };
+  }, [t, refetchTrigger]);
 
   // ── Derived rows with client-side filter ──────────────────────────────────
   const rows = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as VehicleCreationRecord[];
     if (!companyUniqueId) return [] as VehicleCreationRecord[];
 
-    const list = Array.isArray(vehicleCreationsQuery.data)
-      ? (vehicleCreationsQuery.data as VehicleCreationRecord[])
-      : [];
-
-    // Deduplicate by unique_id
-    const seen = new Set<string>();
-    return list.filter((row) => {
-      const key = row.unique_id?.toString();
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-
+    return allVehicles.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
       const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
@@ -235,7 +241,7 @@ export default function VehicleCreationListPage() {
     if (projectId) formData.append("project_id_input", projectId);
 
     try {
-      const res = await vehicleCreationApi.action("bulk-upload", formData, {
+      const res = await adminApi.vehicleCreations.action("bulk-upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
@@ -260,8 +266,7 @@ export default function VehicleCreationListPage() {
         html: `<b>Success:</b> ${res.success_count}<br/><b>Errors:</b> ${errors.length}${errorPreview}`,
       });
 
-      // Invalidate so TanStack refetches the list
-      await vehicleCreationsQuery.refetch();
+      setRefetchTrigger((prev) => prev + 1);
     } catch (err) {
       console.error("Vehicle bulk upload failed:", err);
       Swal.fire("Error", "Upload failed", "error");
@@ -283,7 +288,8 @@ export default function VehicleCreationListPage() {
     if (!confirmDelete.isConfirmed) return;
 
     try {
-      await deleteMutation.mutateAsync(id);
+      await vehicleCreationApi.remove(id);
+      setAllVehicles((current) => current.filter((item) => item.unique_id !== id));
       Swal.fire({
         icon: "success",
         title: t("common.deleted_success"),
@@ -325,10 +331,12 @@ export default function VehicleCreationListPage() {
   // ── Status toggle ─────────────────────────────────────────────────────────
   const statusTemplate = (row: VehicleCreationRecord) => {
     const updateStatus = async (value: boolean) => {
+      setPendingStatusId(row.unique_id);
+      setIsUpdating(true);
       try {
-        await updateMutation.mutateAsync({
-          id: row.unique_id,
-          payload: filterPayload({
+        await vehicleCreationApi.update(
+          row.unique_id,
+          filterPayload({
             vehicle_no: row.vehicle_no,
             vehicle_type_id: row.vehicle_type_id ?? null,
             fuel_type_id: row.fuel_type_id ?? null,
@@ -340,8 +348,13 @@ export default function VehicleCreationListPage() {
             vehicle_condition: row.vehicle_condition ?? "NEW",
             fuel_tank_capacity: row.fuel_tank_capacity ?? null,
             is_active: value,
-          }) as unknown as VehicleCreationPayload,
-        });
+          }) as Record<string, unknown>
+        );
+        setAllVehicles((current) =>
+          current.map((item) =>
+            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
+          )
+        );
       } catch (error) {
         console.error("Status update failed:", error);
         Swal.fire({
@@ -349,10 +362,19 @@ export default function VehicleCreationListPage() {
           title: t("common.update_status_failed"),
           text: t("common.request_failed"),
         });
+      } finally {
+        setPendingStatusId(null);
+        setIsUpdating(false);
       }
     };
 
-    return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
+    return (
+      <Switch
+        checked={row.is_active}
+        disabled={isUpdating && pendingStatusId === row.unique_id}
+        onCheckedChange={updateStatus}
+      />
+    );
   };
 
   // ── Action buttons ────────────────────────────────────────────────────────
@@ -494,9 +516,7 @@ export default function VehicleCreationListPage() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={
-          vehicleCreationsQuery.isPending || vehicleCreationsQuery.isFetching
-        }
+        loading={isLoading && rows.length === 0}
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}

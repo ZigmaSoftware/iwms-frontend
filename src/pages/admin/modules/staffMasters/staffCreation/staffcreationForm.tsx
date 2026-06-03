@@ -10,10 +10,6 @@ import Select from "@/components/form/Select";
 import PasswordInput from "@/components/form/input/PasswordInput";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { staffCreationApi } from "@/helpers/admin";
-import {
-  useCreateStaff,
-  useUpdateStaff,
-} from "@/tanstack/admin/queries/masters/staffCreation";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
@@ -92,6 +88,15 @@ const getBloodGroupOptions = () => [
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value);
+
+const normalizeEntityId = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return normalizeId(record.unique_id ?? record.id ?? record.value ?? "");
+  }
+  return normalizeId(value);
+};
 
 const mapLocationOptions = (items: any[]): LocationOption[] =>
   (items ?? [])
@@ -184,6 +189,7 @@ const initialFormData = {
   contact_mobile: "",
   contact_email: "",
   driving_licence_no: "",
+  driving_licence_expiry_date: "",
   // emergency_contact: "",
   // emergency_mobile: "",
 };
@@ -235,6 +241,7 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   contact_mobile: ["contact_mobile", "mobile"],
   contact_email: ["contact_email", "email"],
   driving_licence_no: ["driving_licence_no", "driving_license_no"],
+  driving_licence_expiry_date: ["driving_licence_expiry_date"],
   driving_licence_file: ["driving_licence_file", "driving_license_file"],
 };
 
@@ -272,6 +279,20 @@ export default function StaffCreationForm() {
   const [staffHeadOptions, setStaffHeadOptions] = useState<
     { value: string; label: string; name: string }[]
   >([]);
+
+  // Pending prefill values — set during edit load, applied once the option list arrives
+  const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
+  const [pendingStaffUserTypeId, setPendingStaffUserTypeId] = useState<string | null>(null);
+  const [pendingContractorUserTypeId, setPendingContractorUserTypeId] = useState<string | null>(null);
+  const [pendingDepartmentId, setPendingDepartmentId] = useState<string | null>(null);
+  const [pendingDesignationId, setPendingDesignationId] = useState<string | null>(null);
+  const [pendingPresentState, setPendingPresentState] = useState<string | null>(null);
+  const [pendingPresentDistrict, setPendingPresentDistrict] = useState<string | null>(null);
+  const [pendingPresentCity, setPendingPresentCity] = useState<string | null>(null);
+  const [pendingPermanentState, setPendingPermanentState] = useState<string | null>(null);
+  const [pendingPermanentDistrict, setPendingPermanentDistrict] = useState<string | null>(null);
+  const [pendingPermanentCity, setPendingPermanentCity] = useState<string | null>(null);
+
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { id } = useParams<{ id?: string }>();
@@ -298,8 +319,6 @@ export default function StaffCreationForm() {
 
   const { encStaffMasters, encStaffCreation } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encStaffMasters}/${encStaffCreation}`;
-  const createMutation = useCreateStaff();
-  const updateMutation = useUpdateStaff();
   const backendOrigin =
     api.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "";
 
@@ -314,6 +333,44 @@ export default function StaffCreationForm() {
     { value: "1", label: t("common.active") },
     { value: "0", label: t("common.inactive") },
   ];
+
+  const departmentOptionsWithCurrent = useMemo(() => {
+    if (!formData.department_id) return departmentOptions;
+    if (departmentOptions.some((option) => option.value === formData.department_id)) {
+      return departmentOptions;
+    }
+    const label = formData.department || formData.department_id;
+    return [
+      {
+        value: formData.department_id,
+        label,
+        name: formData.department || label,
+      },
+      ...departmentOptions,
+    ];
+  }, [departmentOptions, formData.department, formData.department_id]);
+
+  const designationOptionsWithCurrent = useMemo(() => {
+    if (!formData.designation_id) return designationOptions;
+    if (designationOptions.some((option) => option.value === formData.designation_id)) {
+      return designationOptions;
+    }
+    const label = formData.designation || formData.designation_id;
+    return [
+      {
+        value: formData.designation_id,
+        label,
+        name: formData.designation || label,
+        departmentId: formData.department_id || undefined,
+      },
+      ...designationOptions,
+    ];
+  }, [
+    designationOptions,
+    formData.department_id,
+    formData.designation,
+    formData.designation_id,
+  ]);
 
   const selectedUserType = staffUserTypeOptions.find(
     (opt) => opt.value === formData.staffusertype_id,
@@ -381,16 +438,24 @@ export default function StaffCreationForm() {
     if (!allowedTypes.includes(file.type)) {
       Swal.fire({
         icon: "warning",
-        title: "Invalid File",
-        text: "Only JPG, JPEG, PNG, PDF allowed",
+        title: "Invalid File Type",
+        text: "Only JPG, JPEG, PNG, or PDF files are allowed.",
+      });
+      return;
+    }
+
+    const MAX_SIZE_MB = 5;
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      Swal.fire({
+        icon: "warning",
+        title: "File Too Large",
+        text: `File size must be under ${MAX_SIZE_MB} MB.`,
       });
       return;
     }
 
     setLicenceFile(file);
-
-    const fileUrl = URL.createObjectURL(file);
-    setLicencePreview(fileUrl);
+    setLicencePreview(URL.createObjectURL(file));
   };
 
   useEffect(() => {
@@ -537,7 +602,7 @@ export default function StaffCreationForm() {
             label: d.designation_name,
             name: d.designation_name,
             group: d.designation_group,
-            departmentId: d.department_id ? String(d.department_id) : undefined,
+            departmentId: normalizeEntityId(d.department_id),
           })),
         );
       })
@@ -559,8 +624,8 @@ export default function StaffCreationForm() {
           doj: staff.doj ?? "",
           department: staff.department ?? "",
           designation: staff.designation ?? "",
-          department_id: staff.department_id ?? "",
-          designation_id: staff.designation_id ?? "",
+          department_id: normalizeEntityId(staff.department_id ?? staff.department ?? staff.department_unique_id),
+          designation_id: normalizeEntityId(staff.designation_id ?? staff.designation_obj ?? staff.designation_unique_id),
           grade: staff.grade ?? "",
           site_name: staff.site_name ?? "",
           staff_head: staff.staff_head ?? "",
@@ -608,18 +673,36 @@ export default function StaffCreationForm() {
           permanent_pincode: staff.permanent_address?.pincode ?? "",
 
           // DRIVER and USER TYPE details
-          staffusertype_id: staff.staffusertype_id ?? "",
-          contractorusertype_id: staff.contractorusertype_id ?? "",
+          staffusertype_id: normalizeEntityId(staff.staffusertype_id),
+          contractorusertype_id: normalizeEntityId(staff.contractorusertype_id),
           driving_licence_no: staff.driving_licence_no ?? "",
+          driving_licence_expiry_date: staff.driving_licence_expiry_date ?? "",
 
           // Company and Project
-          company_id: String(staff.company_id ?? ""),
-          project_id: String(staff.project_id ?? ""),
+          company_id: normalizeEntityId(staff.company_unique_id ?? staff.company_id),
+          project_id: normalizeEntityId(staff.project_unique_id ?? staff.project_id),
 
           // Contact details (FLAT — NOT nested)
           contact_mobile: staff.contact_mobile ?? "",
           contact_email: staff.contact_email ?? "",
         }));
+
+        // Set pending prefill values so dropdowns apply once their option lists load
+        const staffTypeId = normalizeEntityId(staff.staffusertype_id);
+        const contractorTypeId = normalizeEntityId(staff.contractorusertype_id);
+        const departmentId = normalizeEntityId(staff.department_id ?? staff.department ?? staff.department_unique_id);
+        const designationId = normalizeEntityId(staff.designation_id ?? staff.designation_obj ?? staff.designation_unique_id);
+
+        if (staffTypeId) setPendingStaffUserTypeId(staffTypeId);
+        if (contractorTypeId) setPendingContractorUserTypeId(contractorTypeId);
+        if (departmentId) setPendingDepartmentId(departmentId);
+        if (designationId) setPendingDesignationId(designationId);
+        if (staff.present_address?.state) setPendingPresentState(staff.present_address.state);
+        if (staff.present_address?.district) setPendingPresentDistrict(staff.present_address.district);
+        if (staff.present_address?.city) setPendingPresentCity(staff.present_address.city);
+        if (staff.permanent_address?.state) setPendingPermanentState(staff.permanent_address.state);
+        if (staff.permanent_address?.district) setPendingPermanentDistrict(staff.permanent_address.district);
+        if (staff.permanent_address?.city) setPendingPermanentCity(staff.permanent_address.city);
 
         if (staff.driving_licence_file) {
           setLicencePreview(
@@ -637,7 +720,12 @@ export default function StaffCreationForm() {
 
         applyCompanyProjectFromRecord(staff);
 
-        console.log("Fetched staff data:", staff);
+        // Store the project separately so the pending-resolver effect re-applies it
+        // once hookProjects finishes loading (the hook's internal effect can race
+        // and reset projectId to options[0] before the record's project is applied).
+        const recordProjectId = normalizeEntityId(staff.project_unique_id ?? staff.project_id);
+        if (recordProjectId) setPendingProjectId(recordProjectId);
+
         if (staff.photo) {
           setPhotoPreview(
             staff.photo.startsWith("http")
@@ -720,6 +808,121 @@ export default function StaffCreationForm() {
     formData.present_pincode,
   ]);
 
+  // ── Pending-prefill resolution effects ──────────────────────────────────────
+  // Each effect watches [pendingXxx, xOptions]. Once the option list is non-empty
+  // and contains the pending value, it applies the value and clears the pending.
+
+  // Project: re-apply after the hook re-fetches projects for the record's company.
+  // The hook's internal setProjectId((prev) => ...) can race with applyCompanyProjectFromRecord
+  // and select the first project instead of the record's project.
+  useEffect(() => {
+    if (!pendingProjectId || hookProjects.length === 0) return;
+    const match = hookProjects.find((p) => p.value === pendingProjectId);
+    if (match) {
+      hookSetProjectId(pendingProjectId);
+      setPendingProjectId(null);
+    }
+  }, [pendingProjectId, hookProjects, hookSetProjectId]);
+
+  useEffect(() => {
+    if (!pendingStaffUserTypeId || staffUserTypeOptions.length === 0) return;
+    const match = staffUserTypeOptions.find((o) => o.value === pendingStaffUserTypeId);
+    if (match) {
+      setFormData((prev) => ({ ...prev, staffusertype_id: pendingStaffUserTypeId }));
+      setPendingStaffUserTypeId(null);
+    }
+  }, [pendingStaffUserTypeId, staffUserTypeOptions]);
+
+  useEffect(() => {
+    if (!pendingContractorUserTypeId || contractorUserTypeOptions.length === 0) return;
+    const match = contractorUserTypeOptions.find((o) => o.value === pendingContractorUserTypeId);
+    if (match) {
+      setFormData((prev) => ({ ...prev, contractorusertype_id: pendingContractorUserTypeId }));
+      setPendingContractorUserTypeId(null);
+    }
+  }, [contractorUserTypeOptions, pendingContractorUserTypeId]);
+
+  useEffect(() => {
+    if (!pendingDepartmentId || departmentOptions.length === 0) return;
+    const match = departmentOptions.find((o) => o.value === pendingDepartmentId);
+    if (match) {
+      setFormData((prev) => ({
+        ...prev,
+        department_id: pendingDepartmentId,
+        department: match.name,
+      }));
+      setPendingDepartmentId(null);
+    }
+  }, [pendingDepartmentId, departmentOptions]);
+
+  useEffect(() => {
+    if (!pendingDesignationId || designationOptions.length === 0) return;
+    const match = designationOptions.find((o) => o.value === pendingDesignationId);
+    if (match) {
+      setFormData((prev) => ({
+        ...prev,
+        designation_id: pendingDesignationId,
+        designation: match.name,
+      }));
+      setPendingDesignationId(null);
+    }
+  }, [pendingDesignationId, designationOptions]);
+
+  useEffect(() => {
+    if (!pendingPresentState || stateOptions.length === 0) return;
+    const match = stateOptions.find((o) => o.value === pendingPresentState);
+    if (match) {
+      setFormData((prev) => ({ ...prev, present_state: pendingPresentState }));
+      setPendingPresentState(null);
+    }
+  }, [pendingPresentState, stateOptions]);
+
+  useEffect(() => {
+    if (!pendingPresentDistrict || districtOptions.length === 0) return;
+    const match = districtOptions.find((o) => o.value === pendingPresentDistrict);
+    if (match) {
+      setFormData((prev) => ({ ...prev, present_district: pendingPresentDistrict }));
+      setPendingPresentDistrict(null);
+    }
+  }, [pendingPresentDistrict, districtOptions]);
+
+  useEffect(() => {
+    if (!pendingPresentCity || cityOptions.length === 0) return;
+    const match = cityOptions.find((o) => o.value === pendingPresentCity);
+    if (match) {
+      setFormData((prev) => ({ ...prev, present_city: pendingPresentCity }));
+      setPendingPresentCity(null);
+    }
+  }, [pendingPresentCity, cityOptions]);
+
+  useEffect(() => {
+    if (!pendingPermanentState || stateOptions.length === 0) return;
+    const match = stateOptions.find((o) => o.value === pendingPermanentState);
+    if (match) {
+      setFormData((prev) => ({ ...prev, permanent_state: pendingPermanentState }));
+      setPendingPermanentState(null);
+    }
+  }, [pendingPermanentState, stateOptions]);
+
+  useEffect(() => {
+    if (!pendingPermanentDistrict || districtOptions.length === 0) return;
+    const match = districtOptions.find((o) => o.value === pendingPermanentDistrict);
+    if (match) {
+      setFormData((prev) => ({ ...prev, permanent_district: pendingPermanentDistrict }));
+      setPendingPermanentDistrict(null);
+    }
+  }, [pendingPermanentDistrict, districtOptions]);
+
+  useEffect(() => {
+    if (!pendingPermanentCity || cityOptions.length === 0) return;
+    const match = cityOptions.find((o) => o.value === pendingPermanentCity);
+    if (match) {
+      setFormData((prev) => ({ ...prev, permanent_city: pendingPermanentCity }));
+      setPendingPermanentCity(null);
+    }
+  }, [pendingPermanentCity, cityOptions]);
+  // ────────────────────────────────────────────────────────────────────────────
+
   const handleInputChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
@@ -766,7 +969,7 @@ export default function StaffCreationForm() {
         next.permanent_city = "";
       }
       if (field === "department_id") {
-        const department = departmentOptions.find((item) => item.value === value);
+        const department = departmentOptionsWithCurrent.find((item) => item.value === value);
         next.department = department?.name ?? "";
         next.designation_id = "";
         next.designation = "";
@@ -774,7 +977,7 @@ export default function StaffCreationForm() {
         next.staff_head_id = "";
       }
       if (field === "designation_id") {
-        const designation = designationOptions.find((item) => item.value === value);
+        const designation = designationOptionsWithCurrent.find((item) => item.value === value);
         next.designation = designation?.name ?? "";
       }
       if (field === "staffusertype_id" || field === "contractorusertype_id") {
@@ -890,18 +1093,17 @@ export default function StaffCreationForm() {
       return;
     }
 
-    // ✅ DRIVER VALIDATION
+    // ✅ DRIVER VALIDATION — mandatory on create AND on edit when no existing file
     if (
       showField("driving_licence_file") &&
-      showField("driving_licence_no") &&
       isDriverSelected &&
       !licenceFile &&
-      !isEdit
+      !licencePreview
     ) {
       Swal.fire({
         icon: "error",
         title: "Licence Required",
-        text: "Driver must upload driving licence",
+        text: "Please upload the driving licence file (JPG, JPEG, PNG or PDF).",
       });
       return;
     }
@@ -946,20 +1148,16 @@ export default function StaffCreationForm() {
       };
 
       // ✅ Add password if provided
-      console.log("Form password:", formData.password);
-      console.log("Is password truthy?", Boolean(formData.password));
-      console.log("Payload before password:", rawPayload);
       if (formData.password) {
         rawPayload.password = formData.password;
-        console.log("Password added to payload:", rawPayload.password);
-      } else {
-        console.log("No password provided, skipping...");
       }
-      console.log("Payload after password:", rawPayload);
 
-      // ✅ ADD DRIVER FIELD HERE (Correct Placement)
+      // ✅ ADD DRIVER FIELDS
       if (showField("driving_licence_no") && isDriverSelected) {
         rawPayload.driving_licence_no = formData.driving_licence_no || "";
+      }
+      if (showField("driving_licence_expiry_date") && isDriverSelected) {
+        rawPayload.driving_licence_expiry_date = formData.driving_licence_expiry_date || null;
       }
 
       const presentPayload = buildAddressPayload("present");
@@ -971,9 +1169,6 @@ export default function StaffCreationForm() {
       const payload = filterPayload(rawPayload, ["company_id", "project_id"]);
 
       const formBody = new FormData();
-
-      // Debug: Log all payload entries
-      console.log("All payload entries:", Object.entries(payload));
 
       Object.entries(payload).forEach(([key, value]) => {
         if (value === undefined || value === null) return;
@@ -998,9 +1193,9 @@ export default function StaffCreationForm() {
 
       if (isEdit) {
         if (!id) throw new Error("Missing staff id");
-        response = await updateMutation.mutateAsync({ id, payload: formBody });
+        response = await staffCreationApi.uploadUpdate(id, formBody);
       } else {
-        response = await createMutation.mutateAsync(formBody);
+        response = await staffCreationApi.upload(formBody);
       }
 
       Swal.fire({
@@ -1112,7 +1307,7 @@ export default function StaffCreationForm() {
             id="department_id"
             value={formData.department_id}
             onChange={(value) => handleSelectChange("department_id", value)}
-            options={departmentOptions}
+            options={departmentOptionsWithCurrent}
             placeholder={t("common.select_item_placeholder", {
               item: t("admin.staff_creation.department_name"),
             })}
@@ -1129,7 +1324,7 @@ export default function StaffCreationForm() {
             id="designation_id"
             value={formData.designation_id}
             onChange={(value) => handleSelectChange("designation_id", value)}
-            options={designationOptions}
+            options={designationOptionsWithCurrent}
             placeholder={
               formData.department_id
                 ? t("common.select_item_placeholder", { item: t("admin.staff_creation.designation") })
@@ -1238,72 +1433,97 @@ export default function StaffCreationForm() {
               </div>
             )}
 
+            {showField("driving_licence_expiry_date") && (
+              <div>
+                <Label htmlFor="driving_licence_expiry_date">
+                  Driving Licence Expiry Date
+                </Label>
+                <Input
+                  id="driving_licence_expiry_date"
+                  type="date"
+                  value={formData.driving_licence_expiry_date}
+                  onChange={handleInputChange}
+                />
+              </div>
+            )}
+
             {showField("driving_licence_file") && (
               <div className="md:col-span-2">
                 <Label htmlFor="driving_licence">
                   {t("admin.staff_creation.driving_licence_upload")}
+                  <span className="text-red-500 ml-1">*</span>
                 </Label>
-                <div className="flex flex-col gap-2 md:flex-row md:items-center">
-                  <div className="flex items-center gap-3">
+
+                <div className="mt-1 flex items-center gap-3 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 px-4 py-3 transition-colors hover:border-brand-400 dark:border-gray-700 dark:bg-gray-800/40">
+                  <button
+                    type="button"
+                    onClick={() => licenceInputRef.current?.click()}
+                    className="flex shrink-0 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                  >
+                    <span className="material-symbols-outlined text-[18px] leading-none">upload_file</span>
+                    {t("admin.staff_creation.driving_licence_choose")}
+                  </button>
+
+                  <span className="min-w-0 flex-1 truncate text-sm text-gray-500 dark:text-gray-400">
+                    {licenceFile?.name || t("admin.staff_creation.driving_licence_no_file")}
+                  </span>
+
+                  {(licenceFile || licencePreview) && (
                     <button
                       type="button"
-                      onClick={() => licenceInputRef.current?.click()}
-                      className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                      onClick={() => {
+                        setLicenceFile(null);
+                        setLicencePreview("");
+                        if (licenceInputRef.current) licenceInputRef.current.value = "";
+                      }}
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600 transition-colors hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
+                      title="Remove file"
                     >
-                      {t("admin.staff_creation.driving_licence_choose")}
+                      <span className="text-xs font-bold leading-none">✕</span>
                     </button>
-                    <span className="text-sm text-gray-500">
-                      {licenceFile?.name ||
-                        t("admin.staff_creation.driving_licence_no_file")}
-                    </span>
-                  </div>
-                  <input
-                    ref={licenceInputRef}
-                    type="file"
-                    id="driving_licence"
-                    accept=".jpg,.jpeg,.png,.pdf"
-                    className="sr-only"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      handleLicenceUpload(file);
-                      e.target.value = "";
-                    }}
-                  />
-                  {licencePreview ? (
-                    licencePreview.toLowerCase().endsWith(".pdf") ? (
-                      <a
-                        href={licencePreview}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm mt-2 inline-block text-blue-600 hover:underline"
-                      >
-                        Open Licence PDF
-                      </a>
-                    ) : (
-                      <a
-                        href={licencePreview}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2 block"
-                      >
+                  )}
+                </div>
+
+                <p className="mt-1 text-xs text-gray-400">
+                  Accepted: JPG, JPEG, PNG, PDF · Max 5 MB
+                </p>
+
+                <input
+                  ref={licenceInputRef}
+                  type="file"
+                  id="driving_licence"
+                  accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/jpg,image/png,application/pdf"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    handleLicenceUpload(file);
+                    e.target.value = "";
+                  }}
+                />
+
+                {licencePreview && (
+                  licencePreview.toLowerCase().endsWith(".pdf") || licenceFile?.type === "application/pdf" ? (
+                    <a
+                      href={licencePreview}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-blue-600 hover:underline dark:border-gray-700"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+                      View PDF
+                    </a>
+                  ) : (
+                    <div className="mt-2 inline-block">
+                      <a href={licencePreview} target="_blank" rel="noopener noreferrer">
                         <img
                           src={licencePreview}
                           alt="Licence preview"
-                          className="h-32 w-32 border rounded"
+                          className="h-24 w-24 rounded-lg border border-gray-200 object-cover shadow-sm dark:border-gray-700"
                         />
                       </a>
-                    )
-                  ) : licenceFile?.type === "application/pdf" ? (
-                    <a
-                      href={URL.createObjectURL(licenceFile)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm mt-2 inline-block text-blue-600 hover:underline"
-                    >
-                      PDF: {licenceFile.name}
-                    </a>
-                  ) : null}
-                </div>
+                    </div>
+                  )
+                )}
               </div>
             )}
           </>
@@ -1399,57 +1619,77 @@ export default function StaffCreationForm() {
       {showField("photo") && (
         <div className="md:col-span-2">
           <Label htmlFor="photo">{t("admin.staff_creation.photo_label")}</Label>
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
-            <div className="flex items-center gap-3">
+
+          <div className="mt-1 flex items-center gap-3 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 px-4 py-3 transition-colors hover:border-brand-400 dark:border-gray-700 dark:bg-gray-800/40">
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+            >
+              <span className="material-symbols-outlined text-[18px] leading-none">add_photo_alternate</span>
+              {t("admin.staff_creation.photo_choose")}
+            </button>
+
+            <span className="min-w-0 flex-1 truncate text-sm text-gray-500 dark:text-gray-400">
+              {photoFile?.name || t("admin.staff_creation.photo_none")}
+            </span>
+
+            {(photoFile || photoPreview) && (
               <button
                 type="button"
-                onClick={() => photoInputRef.current?.click()}
-                className="rounded border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-              >
-                {t("admin.staff_creation.photo_choose")}
-              </button>
-              <span className="text-sm text-gray-500">
-                {photoFile?.name || t("admin.staff_creation.photo_none")}
-              </span>
-            </div>
-            <input
-              ref={photoInputRef}
-              type="file"
-              id="photo"
-              accept="image/*"
-              className="sr-only"
-              onChange={(event) => {
-                const file = event.target.files?.[0] ?? null;
-                if (!file) {
-                  setPhotoFile(null);
-                  return;
-                }
-                if (!file.type.startsWith("image/")) {
-                  Swal.fire({
-                    icon: "warning",
-                    title: t("admin.staff_creation.invalid_photo_title"),
-                    text: t("admin.staff_creation.invalid_photo_desc"),
-                  });
-                  event.target.value = "";
+                onClick={() => {
                   setPhotoFile(null);
                   setPhotoPreview("");
-                  return;
-                }
-                setPhotoFile(file);
-              }}
-            />
-            {photoPreview ? (
+                  if (photoInputRef.current) photoInputRef.current.value = "";
+                }}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600 transition-colors hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
+                title="Remove photo"
+              >
+                <span className="text-xs font-bold leading-none">✕</span>
+              </button>
+            )}
+          </div>
+
+          <p className="mt-1 text-xs text-gray-400">
+            Accepted: JPG, JPEG, PNG, WEBP · Max 5 MB
+          </p>
+
+          <input
+            ref={photoInputRef}
+            type="file"
+            id="photo"
+            accept="image/*"
+            className="sr-only"
+            onChange={(event) => {
+              const file = event.target.files?.[0] ?? null;
+              if (!file) {
+                setPhotoFile(null);
+                return;
+              }
+              if (!file.type.startsWith("image/")) {
+                Swal.fire({
+                  icon: "warning",
+                  title: t("admin.staff_creation.invalid_photo_title"),
+                  text: t("admin.staff_creation.invalid_photo_desc"),
+                });
+                event.target.value = "";
+                setPhotoFile(null);
+                setPhotoPreview("");
+                return;
+              }
+              setPhotoFile(file);
+            }}
+          />
+
+          {photoPreview && (
+            <div className="mt-2 inline-block">
               <img
                 src={photoPreview}
                 alt={t("admin.staff_creation.photo_preview_alt")}
-                className="h-32 w-32 rounded-lg border object-cover"
+                className="h-24 w-24 rounded-lg border border-gray-200 object-cover shadow-sm dark:border-gray-700"
               />
-            ) : (
-              <div className="flex h-32 w-32 items-center justify-center rounded-lg border border-dashed px-2 text-xs text-gray-500">
-                {t("admin.staff_creation.photo_empty")}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>

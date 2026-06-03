@@ -87,6 +87,7 @@ export default function ProjectForm() {
 
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [companyUniqueId, setCompanyUniqueId] = useState(companyUniqueIdFromQuery ?? "");
+  const [pendingCompanyId, setPendingCompanyId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
@@ -97,32 +98,59 @@ export default function ProjectForm() {
   const [loading, setLoading] = useState(false);
 
   const fetchCompanies = useCallback(async () => {
+    let cancelled = false;
     try {
       const records = await companyApi.list();
+      if (cancelled) return;
       const options = records.map((company) => ({
         unique_id: company.unique_id,
         name: company.name,
       }));
       setCompanies(options);
-      if (!companyUniqueId && options.length === 1) {
-        setCompanyUniqueId(options[0].unique_id);
-      }
+      setCompanyUniqueId((current) => {
+        if (!current && options.length === 1) return options[0].unique_id;
+        return current;
+      });
+      setPendingCompanyId((pending) => {
+        if (pending && options.some((o) => o.unique_id === pending)) {
+          setCompanyUniqueId(pending);
+          return null;
+        }
+        return pending;
+      });
     } catch {
       // Some roles may not have company listing permission.
-      setCompanies([]);
+      if (!cancelled) setCompanies([]);
     }
-  }, [companyUniqueId]);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     fetchCompanies();
   }, [fetchCompanies]);
 
+  // Apply pendingCompanyId once the companies list is loaded.
+  // Handles the common case where the project record resolves after companies.
+  useEffect(() => {
+    if (!pendingCompanyId || companies.length === 0) return;
+    const found = companies.some((c) => c.unique_id === pendingCompanyId);
+    if (found) {
+      setCompanyUniqueId(pendingCompanyId);
+      setPendingCompanyId(null);
+    }
+  }, [pendingCompanyId, companies]);
+
   useEffect(() => {
     if (!isEdit) return;
+
+    let cancelled = false;
 
     projectApi
       .get(id as string)
       .then((response: ProjectRecord | { project?: ProjectRecord }) => {
+        if (cancelled) return;
         let record: ProjectRecord | undefined;
         if (response && typeof response === "object" && "project" in response) {
           record = response.project;
@@ -134,16 +162,21 @@ export default function ProjectForm() {
         }
         setName(record.name ?? "");
         setDescription(record.description ?? "");
-        setCompanyUniqueId(record.company_unique_id ?? "");
+        setPendingCompanyId(record.company_unique_id ?? null);
         setIsActive(normalizeIsActive(record.is_active));
       })
       .catch((error: unknown) => {
+        if (cancelled) return;
         Swal.fire({
           icon: "error",
           title: t("common.error"),
           text: parseApiError(error, t("common.load_failed")),
         });
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [id, isEdit, t]);
 
   const handleSubmit = async (e: React.FormEvent) => {

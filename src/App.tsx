@@ -3,13 +3,14 @@ import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import Auth from "@/pages/Auth";
+import LocalBodyAuth from "@/pages/LocalBodyAuth";
+import LocalBodyDashboard from "@/pages/localbody/LocalBodyDashboard";
 import Dashboard from "@/pages/dashboard/pages/Dashboard";
 import NotFound from "@/pages/dashboard/pages/NotFound";
 import { HomeDashboard } from "@/pages/dashboard/pages/Dashboard/HomeDashboard";
 import AdminHome from "@/pages/admin/AdminHome";
 import AdminEncryptedRouter from "@/layouts/admin/encryptedRouting/AdminEncryptedRouter";
 import CommonAuditList from "@/pages/admin/modules/audits/commonAudit/commonAuditList";
-import RoutePlanListPage from "@/pages/admin/modules/staffMasters/routeplan/routeplanlist";
 import DashboardEncryptedRouter from "@/layouts/dashboard/encryptedRouting/DashboardEncryptedRouter";
 
 import { AdminLayout } from "@/layouts/admin/AdminLayout";
@@ -110,6 +111,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />
+      <Route path="/auth/localbody" element={<LocalBodyAuth />} />
+      <Route path="/localbody" element={<LocalBodyDashboard />} />
       <Route path="/" element={<HomeRedirect />} />
       <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />
       <Route path="/dashboard/overview" element={withDashboard(<Dashboard />)} />
@@ -119,7 +122,6 @@ export default function App() {
       <Route path="/:encMaster/:encModule" element={withAdmin(<AdminEncryptedRouter />)} />
       <Route path="/:encMaster/:encModule/new" element={withAdmin(<AdminEncryptedRouter />)} />
       <Route path="/:encMaster/:encModule/:id/edit" element={withAdmin(<AdminEncryptedRouter />)} />
-      <Route path="/debug/route-plans" element={withAdmin(<RoutePlanListPage />)} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

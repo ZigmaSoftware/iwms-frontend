@@ -19,14 +19,15 @@ export type CityMeta = {
 };
 
 export type AreaTypeRecord = {
+  unique_id?: string | number;
   name?: string;
   area_type_name?: string;
   is_active?: boolean;
   company_unique_id?: string | number | null;
   company_id?: string | number | null;
   project_id?: string | number | null;
+  project_unique_id?: string | number | null;
   state_id?: string | number | null;
   district_id?: string | number | null;
   city_id?: string | number | null;
 };
-

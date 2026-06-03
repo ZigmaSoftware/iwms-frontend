@@ -782,9 +782,11 @@ const enResource = {
           "zone": "Zone",
           "ward": "Ward",
           "collection_point": "Collection Point",
+          "daily_collection_point": "Daily Collection Point",
 
 
           "panchayat": "Panchayat",
+          "panchayat_leader": "Panchayat Leader",
           "area_type": "Area Type",
           "department": "Department Master",
           "designation": "Designation Master",
@@ -829,12 +831,18 @@ const enResource = {
           "main_category": "Main Category",
           "sub_category": "Sub Category",
           "transport_masters": "Transport Masters",
+          "schedule_masters": "Schedule Masters",
           "vehicle_type": "Vehicle Type",
           "vehicle_creation": "Vehicle Creation",
-          "trip_definition": "Trip Definition",
+          "trip_plans": "Trip Plans",
+          "trip_plan_collection_points": "Trip Plan Collection Points",
           "trip_instance": "Trip Instance",
           "trip_attendance": "Trip Attendance",
           "fuel": "Fuel",
+          "daily_trip_assignment": "Daily Trip Assignment",
+          "daily_trip_collection_point": "Daily Trip Collection Point",
+          "bin_collection_event": "Bin Collection Event",
+          "daily_trip_log": "Daily Trip Logs",
           "audit_items": "Audit Items",
           "common_audit": "Common Audit",
           "vehicle_trip_audit": "Vehicle Trip Audit",
@@ -851,7 +859,8 @@ const enResource = {
           "reports": "Reports",
           "trip_summary": "Trip Summary",
           "monthly_distance": "Monthly Distance",
-          "waste_collected_summary": "Waste Collected Summary"
+          "waste_collected_summary": "Waste Collected Summary",
+          "monthly_waste_comparison": "Monthly Waste Comparison"
         },
         "project": {
           "company_id": "Company ID",
@@ -981,13 +990,13 @@ const enResource = {
           "remarks": "Remarks",
           "update_hint": "Updates create a new mapping and deactivate the previous active one."
         },
-        "trip_definition": {
-          "title_add": "Add Trip Definition",
-          "title_edit": "Edit Trip Definition",
+        "trip_plans": {
+          "title_add": "Add Trip Plans",
+          "title_edit": "Edit Trip Plans",
           "subtitle": "Define trip triggers and capacity limits.",
-          "list_title": "Trip Definitions",
+          "list_title": "Trip Planss",
           "list_subtitle": "Trigger rules for route execution",
-          "create_button": "Create Trip Definition",
+          "create_button": "Create Trip Plans",
           "search_placeholder": "Search trip definitions",
           "empty_message": "No trip definitions found",
           "route_plan": "Route Plan",
@@ -1009,7 +1018,7 @@ const enResource = {
           "search_placeholder": "Search trip instances",
           "empty_message": "No trip instances found",
           "trip_no": "Trip No",
-          "trip_definition": "Trip Definition",
+          "trip_plans": "Trip Plans",
           "staff_template": "Staff Template",
           "alt_staff_template": "Alternative Staff Template",
           "zone": "Zone",
@@ -1493,6 +1502,7 @@ const enResource = {
           zone: "Zone",
           vehicle: "Vehicle",
           supervisor: "Supervisor",
+          display_code: "Display Code"
         },
         "customer_creation": {
           "personal_info": "Personal Information",

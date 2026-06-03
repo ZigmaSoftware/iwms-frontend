@@ -54,11 +54,12 @@ const {
   encMonthlyDistance,
   encTripSummary,
   encWasteCollectedSummary,
+  encMonthlyWasteComparison,
   encCitizenGrivence,
   encComplaint,
   encFeedback,
   encTransportMaster,
-  encRoutePlans,
+  encScheduleMasters,
   encFuel,
   encVehicleCreation,
   encVehicleHistory,
@@ -85,11 +86,11 @@ const {
   encCommonAudit,
   encSupervisorZoneMap,
   encSupervisorZoneAccessAudit,
-  encTripDefinition,
+  encTripPlans,
+  encTripPlanCollectionPoints,
   // encCustomerTag,
   // encHouseholdPickupEvent,
   encZonePropertyLoadTracker,
-  encTripInstance,
   encUnassignedStaffPool,
   encTripAttendance,
   encVehicleTripAudit,
@@ -98,9 +99,14 @@ const {
   encProjectCreation,
   encSuperAdminMaster,
   encPanchayats,
+  encPanchayatLeaders,
   encAreaTypes,
   encHierarchies,
-  encBins
+  encBins,
+  encDailyTripAssignment,
+  encDailyTripLog,
+  encDailyTripCollectionPoint,
+  encBinCollectionEvent
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -131,6 +137,7 @@ type SidebarSectionKey =
   | "customerMasters"
   | "citizenGrievance"
   | "transportMasters"
+  | "scheduleMasters"
   | "auditItems"
   | "vehicleTracking"
   | "wasteManagement"
@@ -253,17 +260,17 @@ const masterItems: NavItem[] = [
         screen: "panchayats",
       },
       {
+        nameKey: "admin.nav.panchayat_leader",
+        path: `/${encMasters}/${encPanchayatLeaders}`,
+        module: "masters",
+        screen: "panchayat-leaders",
+      },
+      {
         nameKey: "admin.nav.area_type",
         path: `/${encMasters}/${encAreaTypes}`,
         module: "masters",
         screen: "areatypes",
-      },
-      // {
-      //   nameKey: "admin.nav.hierarchy",
-      //   path: `/${encMasters}/${encHierarchies}`,
-      //   module: "masters",
-      //   screen: "hierarchies",
-      // },
+      }
     ],
   },
 ];
@@ -303,12 +310,6 @@ const assetItems: NavItem[] = [
         path: `/${encMasters}/${encBins}`,
         module: "assets",
         screen: "bins",
-      },
-      {
-        nameKey: "admin.nav.collection_point",
-        path: `/${encMasters}/${encCollectionPoints}`,
-        module: "assets",
-        screen: "collectionpoints",
       },
       {
         nameKey: "common.waste_type", 
@@ -397,24 +398,12 @@ const userCreationMasters: NavItem[] = [
         module: "user-creations",
         screen: "staffcreation",
       },
-      {
-        nameKey: "admin.nav.staff_template",
-        path: `/${encStaffMasters}/${encStaffTemplate}`,
-        module: "user-creations",
-        screen: "stafftemplate-creation",
-      },
-      {
-        nameKey: "admin.nav.alternative_staff_template",
-        path: `/${encStaffMasters}/${encAlternativeStaffTemplate}`,
-        module: "user-creations",
-        screen: "alternative-stafftemplate",
-      },
-      {
-        nameKey: "admin.nav.supervisor_zone_map",
-        path: `/${encStaffMasters}/${encSupervisorZoneMap}`,
-        module: "user-creations",
-        screen: "supervisor-zone-map",
-      },
+      // {
+      //   nameKey: "admin.nav.supervisor_zone_map",
+      //   path: `/${encStaffMasters}/${encSupervisorZoneMap}`,
+      //   module: "user-creations",
+      //   screen: "supervisor-zone-map",
+      // },
       // {
       //   nameKey: "admin.nav.unassigned_staff_pool",
       //   path: `/${encStaffMasters}/${encUnassignedStaffPool}`,
@@ -432,18 +421,12 @@ const processItems: NavItem[] = [
     module: "process",
     screen: "process",
     subItems: [
-      {
-        nameKey: "admin.nav.route_plans",
-        path: `/${encStaffMasters}/${encRoutePlans}`,
-        module: "process",
-        screen: "route-plans",
-      },
-      {
-        nameKey: "admin.nav.zone_property_load_tracker",
-        path: `/${encTransportMaster}/${encZonePropertyLoadTracker}`,
-        module: "process",
-        screen: "zone-property-load-tracker",
-      },
+      // {
+      //   nameKey: "admin.nav.zone_property_load_tracker",
+      //   path: `/${encTransportMaster}/${encZonePropertyLoadTracker}`,
+      //   module: "process",
+      //   screen: "zone-property-load-tracker",
+      // },
     ],
   },
 ];
@@ -531,18 +514,6 @@ const transportMastersItems: NavItem[] = [
         module: "transport-masters",
         screen: "vehicle-creation",
       },
-      {
-        nameKey: "admin.nav.trip_definition",
-        path: `/${encTransportMaster}/${encTripDefinition}`,
-        module: "transport-masters",
-        screen: "trip-definition",
-      },
-      // {
-      //   nameKey: "admin.nav.trip_instance",
-      //   path: `/${encTransportMaster}/${encTripInstance}`,
-      //   module: "transport-masters",
-      //   screen: "trip-instance",
-      // },
       // {
       //   nameKey: "admin.nav.trip_attendance",
       //   path: `/${encTransportMaster}/${encTripAttendance}`,
@@ -554,6 +525,71 @@ const transportMastersItems: NavItem[] = [
         path: `/${encTransportMaster}/${encFuel}`,
         module: "transport-masters",
         screen: "fuels",
+      },
+    ],
+  },
+];
+
+const scheduleMastersItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.schedule_masters",
+    icon: <LayoutGrid size={18} />,
+    module: "schedule-masters",
+    screen: "schedule-masters",
+    subItems: [
+      {
+        nameKey: "admin.nav.staff_template",
+        path: `/${encScheduleMasters}/${encStaffTemplate}`,
+        module: "schedule-masters",
+        screen: "staff-templates",
+      },
+      {
+        nameKey: "admin.nav.alternative_staff_template",
+        path: `/${encScheduleMasters}/${encAlternativeStaffTemplate}`,
+        module: "schedule-masters",
+        screen: "alternative-staff-templates",
+      },
+      {
+        nameKey: "admin.nav.collection_point",
+        path: `/${encScheduleMasters}/${encCollectionPoints}`,
+        module: "schedule-masters",
+        screen: "collection-points",
+      },
+      {
+        nameKey: "admin.nav.trip_plans",
+        path: `/${encScheduleMasters}/${encTripPlans}`,
+        module: "schedule-masters",
+        screen: "trip-plans",
+      },
+      {
+        nameKey: "admin.nav.trip_plan_collection_points",
+        path: `/${encScheduleMasters}/${encTripPlanCollectionPoints}`,
+        module: "schedule-masters",
+        screen: "trip-plan-collection-points",
+      },
+      {
+        nameKey: "admin.nav.daily_trip_assignment",
+        path: `/${encScheduleMasters}/${encDailyTripAssignment}`,
+        module: "schedule-masters",
+        screen: "daily-trip-assignments",
+      },
+      {
+        nameKey: "admin.nav.daily_trip_collection_point",
+        path: `/${encScheduleMasters}/${encDailyTripCollectionPoint}`,
+        module: "schedule-masters",
+        screen: "daily-trip-collection-points",
+      },
+      {
+        nameKey: "admin.nav.bin_collection_event",
+        path: `/${encScheduleMasters}/${encBinCollectionEvent}`,
+        module: "schedule-masters",
+        screen: "bin-collection-events",
+      },
+      {
+        nameKey: "admin.nav.daily_trip_log",
+        path: `/${encScheduleMasters}/${encDailyTripLog}`,
+        module: "schedule-masters",
+        screen: "daily-trip-logs",
       },
     ],
   },
@@ -572,30 +608,30 @@ const auditItems: NavItem[] = [
         module: "audits",
         screen: "common-audit",
       },
-      {
-        nameKey: "admin.nav.vehicle_trip_audit",
-        path: `/${encTransportMaster}/${encVehicleTripAudit}`,
-        module: "audits",
-        screen: "vehicle-trip-audit",
-      },
-      {
-        nameKey: "admin.nav.trip_exception_log",
-        path: `/${encTransportMaster}/${encTripExceptionLog}`,
-        module: "audits",
-        screen: "trip-exception-log",
-      },
-      {
-        nameKey: "admin.nav.supervisor_zone_access_audit",
-        path: `/${encStaffMasters}/${encSupervisorZoneAccessAudit}`,
-        module: "audits",
-        screen: "supervisor-zone-access-audit",
-      },
-      {
-        nameKey: "admin.nav.staff_template_audit",
-        path: `/${encStaffMasters}/${encStaffTemplateAudit}`,
-        module: "audits",
-        screen: "stafftemplate-audit-log",
-      },
+      // {
+      //   nameKey: "admin.nav.vehicle_trip_audit",
+      //   path: `/${encTransportMaster}/${encVehicleTripAudit}`,
+      //   module: "audits",
+      //   screen: "vehicle-trip-audit",
+      // },
+      // {
+      //   nameKey: "admin.nav.trip_exception_log",
+      //   path: `/${encTransportMaster}/${encTripExceptionLog}`,
+      //   module: "audits",
+      //   screen: "trip-exception-log",
+      // },
+      // {
+      //   nameKey: "admin.nav.supervisor_zone_access_audit",
+      //   path: `/${encStaffMasters}/${encSupervisorZoneAccessAudit}`,
+      //   module: "audits",
+      //   screen: "supervisor-zone-access-audit",
+      // },
+      // {
+      //   nameKey: "admin.nav.staff_template_audit",
+      //   path: `/${encStaffMasters}/${encStaffTemplateAudit}`,
+      //   module: "audits",
+      //   screen: "stafftemplate-audit-log",
+      // },
     ],
   },
 ];
@@ -623,34 +659,34 @@ const vehicleTrackingItems: NavItem[] = [
   },
 ];
 
-const wasteManagementMasters: NavItem[] = [
-  {
-    nameKey: "admin.nav.waste_management",
-    icon: <Recycle size={18} />,
-    module: "waste-management",
-    screen: "WasteManagement",
-    subItems: [
-      {
-        nameKey: "admin.nav.collection_monitoring",
-        path: `/${encWasteManagementMaster}/${encCollectionMonitoring}`,
-        module: "waste-management",
-        screen: "CollectionMonitoring",
-      },
-      {
-        nameKey: "admin.nav.panchayat_base_collection",
-        path: `/${encWasteManagementMaster}/${encPanchayatBaseCollection}`,
-        module: "waste-management",
-        screen: "PanchayatBaseCollection",
-      },
-      {
-        nameKey: "admin.nav.ward_base_collection",
-        path: `/${encWasteManagementMaster}/${encWardBaseCollection}`,
-        module: "waste-management",
-        screen: "WardBaseCollection",
-      },
-    ],
-  },
-];
+// const wasteManagementMasters: NavItem[] = [
+//   {
+//     nameKey: "admin.nav.waste_management",
+//     icon: <Recycle size={18} />,
+//     module: "waste-management",
+//     screen: "WasteManagement",
+//     subItems: [
+//       {
+//         nameKey: "admin.nav.collection_monitoring",
+//         path: `/${encWasteManagementMaster}/${encCollectionMonitoring}`,
+//         module: "waste-management",
+//         screen: "CollectionMonitoring",
+//       },
+//       {
+//         nameKey: "admin.nav.panchayat_base_collection",
+//         path: `/${encWasteManagementMaster}/${encPanchayatBaseCollection}`,
+//         module: "waste-management",
+//         screen: "PanchayatBaseCollection",
+//       },
+//       {
+//         nameKey: "admin.nav.ward_base_collection",
+//         path: `/${encWasteManagementMaster}/${encWardBaseCollection}`,
+//         module: "waste-management",
+//         screen: "WardBaseCollection",
+//       },
+//     ],
+//   },
+// ];
 
 const workforceManagements: NavItem[] = [
   {
@@ -693,6 +729,12 @@ const reportItems: NavItem[] = [
         path: `/${encReport}/${encWasteCollectedSummary}`,
         module: "reports",
         screen: "WasteCollectedSummary",
+      },
+      {
+        nameKey: "admin.nav.monthly_waste_comparison",
+        path: `/${encReport}/${encMonthlyWasteComparison}`,
+        module: "reports",
+        screen: "MonthlyWasteComparison",
       },
     ],
   },
@@ -800,9 +842,9 @@ const AppSidebar: React.FC = () => {
         { key: "customerMasters" as const, items: customerMasters },
         { key: "citizenGrievance" as const, items: citizenGrievanceItems },
         { key: "transportMasters" as const, items: transportMastersItems },
+        { key: "scheduleMasters" as const, items: scheduleMastersItems },
         { key: "auditItems" as const, items: auditItems },
         { key: "vehicleTracking" as const, items: vehicleTrackingItems },
-        { key: "wasteManagement" as const, items: wasteManagementMasters },
         { key: "workforceManagement" as const, items: workforceManagements },
         { key: "reports" as const, items: reportItems },
       ];

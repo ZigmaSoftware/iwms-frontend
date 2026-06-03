@@ -19,12 +19,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  usePropertiesQuery,
-  useUpdatePropertyMutation,
-  // PropertyRecord,
-} from "@/tanstack/admin/queries/wastetype/property";
-import type{ PropertyRecord } from "@/tanstack/admin/queries/wastetype/property";
+import { adminApi } from "@/helpers/admin/registry";
+import type { PropertyRecord } from "./types";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -59,6 +55,9 @@ const PROPERTY_COLUMN_FIELDS: Record<string, string[]> = {
 export default function PropertyList() {
   const { t } = useTranslation();
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [properties, setProperties] = useState<PropertyRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -84,35 +83,37 @@ export default function PropertyList() {
   const ENC_EDIT_PATH = (unique_id: string) =>
     `/${encMasters}/${encProperties}/${unique_id}/edit`;
 
-  const propertiesQuery = usePropertiesQuery();
-  const updatePropertyMutation = useUpdatePropertyMutation();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "properties",
     PROPERTY_COLUMN_FIELDS,
   );
 
-  // Handle fetch error
-  useEffect(() => {
-    if (!propertiesQuery.isError) {
-      return;
+  const loadProperties = async () => {
+    setIsLoading(true);
+    try {
+      const response = await adminApi.properties.list();
+      const list = Array.isArray(response)
+        ? response
+        : ((response as { results?: PropertyRecord[] })?.results ?? []);
+      setProperties(list as PropertyRecord[]);
+    } catch (error) {
+      Swal.fire(
+        t("common.error"),
+        extractErrorMessage(error, t("common.fetch_failed")),
+        "error"
+      );
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(propertiesQuery.error, t("common.fetch_failed")),
-      "error"
-    );
-  }, [propertiesQuery.error, propertiesQuery.isError, t]);
+  useEffect(() => {
+    void loadProperties();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Calculate filtered properties based on company and project
   const filteredProperties = (() => {
-    if (!propertiesQuery.data) {
-      return [];
-    }
-
-    const properties = propertiesQuery.data;
-
     if (isSuperAdmin && companies.length === 0) {
       return [];
     }
@@ -174,23 +175,36 @@ export default function PropertyList() {
   const statusTemplate = (row: PropertyRecord) => {
     const updateStatus = async (value: boolean) => {
       try {
-        await updatePropertyMutation.mutateAsync({
-          id: row.unique_id,
-          payload: filterPayload({
-            property_name: row.property_name,
-            is_active: value,
-          }) as PropertyRecord,
-        });
+        setUpdatingStatusId(String(row.unique_id));
+        await adminApi.properties.update(
+          row.unique_id,
+          filterPayload({ is_active: value })
+        );
+        setProperties((current) =>
+          current.map((property) =>
+            property.unique_id === row.unique_id
+              ? { ...property, is_active: value }
+              : property
+          )
+        );
       } catch (err) {
         Swal.fire({
           icon: "error",
           title: t("common.error"),
           text: extractErrorMessage(err, t("common.update_status_failed")),
         });
+      } finally {
+        setUpdatingStatusId(null);
       }
     };
 
-    return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
+    return (
+      <Switch
+        checked={row.is_active}
+        disabled={updatingStatusId === String(row.unique_id)}
+        onCheckedChange={updateStatus}
+      />
+    );
   };
 
   const actionTemplate = (row: PropertyRecord) => (
@@ -276,7 +290,7 @@ export default function PropertyList() {
           paginator
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={propertiesQuery.isLoading}
+          loading={isLoading}
           filters={filters}
           onFilter={onFilter}
           header={renderHeader()}

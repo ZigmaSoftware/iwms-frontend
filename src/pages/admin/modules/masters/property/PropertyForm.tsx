@@ -7,15 +7,10 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
-import {
-  usePropertyQuery,
-  useCreatePropertyMutation,
-  useUpdatePropertyMutation,
-  type PropertyPayload,
-} from "@/tanstack/admin/queries/wastetype/property";
+import { adminApi } from "@/helpers/admin/registry";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import type { PropertyEditorProps } from "./types";
+import type { PropertyEditorProps, PropertyPayload } from "./types";
 
 const { encMasters, encProperties } = getEncryptedRoute();
 
@@ -58,7 +53,7 @@ function PropertyEditor({
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
     useFieldVisibility("masters", "properties", PROPERTY_FIELDS);
-  const [propertyName, setPropertyName] = useState(initialPayload.property_name);
+  const [propertyName, setPropertyName] = useState(initialPayload.property_name ?? "");
   const [isActive, setIsActive] = useState(initialPayload.is_active);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -176,48 +171,42 @@ function PropertyForm() {
     initialProjectId: routeState?.projectId,
   });
 
-  const propertyQuery = usePropertyQuery(id);
-  const createPropertyMutation = useCreatePropertyMutation();
-  const updatePropertyMutation = useUpdatePropertyMutation();
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isSubmitting =
-    createPropertyMutation.isPending || updatePropertyMutation.isPending;
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.properties.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire(
+          t("common.error"),
+          extractErrorMessage(err, t("common.load_failed")),
+          "error"
+        );
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit, applyCompanyProjectFromRecord]);
 
   const title = isEdit
     ? t("common.edit_item", { item: t("admin.nav.property") })
     : t("common.add_item", { item: t("admin.nav.property") });
 
-  // Apply company/project from data
-  useEffect(() => {
-    if (!propertyQuery.data) {
-      return;
-    }
-
-    applyCompanyProjectFromRecord(
-      propertyQuery.data as unknown as Record<string, unknown>
-    );
-  }, [applyCompanyProjectFromRecord, propertyQuery.data]);
-
-  // Handle fetch error
-  useEffect(() => {
-    if (!propertyQuery.isError) {
-      return;
-    }
-
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(propertyQuery.error, t("common.load_failed")),
-      "error"
-    );
-  }, [propertyQuery.error, propertyQuery.isError, t]);
-
   const submitProperty = async (payload: PropertyPayload) => {
+    setIsSubmitting(true);
     try {
       if (isEdit) {
-        await updatePropertyMutation.mutateAsync({
-          id: id as string,
-          payload,
-        });
+        await adminApi.properties.update(id as string, payload);
         Swal.fire({
           icon: "success",
           title: t("common.updated_success"),
@@ -225,7 +214,7 @@ function PropertyForm() {
           showConfirmButton: false,
         });
       } else {
-        await createPropertyMutation.mutateAsync(payload);
+        await adminApi.properties.create(payload);
         Swal.fire({
           icon: "success",
           title: t("common.added_success"),
@@ -241,10 +230,12 @@ function PropertyForm() {
         title: t("common.save_failed"),
         text: extractErrorMessage(error, t("common.save_failed_desc")),
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  if (isEdit && propertyQuery.isPending && !propertyQuery.data) {
+  if (isEdit && loadingRecord && !recordData) {
     return (
       <ComponentCard title={title}>
         <div className="p-6 text-sm text-gray-500">{t("common.loading")}</div>
@@ -252,10 +243,10 @@ function PropertyForm() {
     );
   }
 
-  const initialPayload: PropertyPayload = propertyQuery.data
+  const initialPayload: PropertyPayload = recordData
     ? {
-        property_name: String(propertyQuery.data.property_name ?? ""),
-        is_active: Boolean(propertyQuery.data.is_active),
+        property_name: String(recordData.property_name ?? ""),
+        is_active: Boolean(recordData.is_active),
       }
     : {
         property_name: "",
@@ -263,7 +254,7 @@ function PropertyForm() {
       };
 
   const formKey = isEdit
-    ? String(propertyQuery.data?.unique_id ?? id)
+    ? String(recordData?.unique_id ?? id)
     : "new-property";
 
   return (

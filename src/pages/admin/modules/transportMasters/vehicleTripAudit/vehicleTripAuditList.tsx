@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -13,24 +12,35 @@ import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
-import {
-  type VehicleTripAuditRecord,
-  useVehicleTripAuditsQuery,
-} from "@/tanstack/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 
-const tripInstanceQueryKey = ["masters", "trip_instances"] as const;
-const vehicleCreationQueryKey = ["masters", "vehicle_creations"] as const;
+type VehicleTripAuditRecord = {
+  id: number;
+  daily_trip_assignment_id: string;
+  vehicle_id: string;
+  gps_lat: number[];
+  gps_lon: number[];
+  avg_speed: number;
+  idle_seconds: number;
+  captured_at: string;
+  created_at?: string | null;
+  company_id?: string | null;
+  company_unique_id?: string | null;
+  company_name?: string | null;
+  project_id?: string | null;
+  project_unique_id?: string | null;
+  project_name?: string | null;
+};
 
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
-  trip_instance_id: { value: string | null; matchMode: FilterMatchMode };
+  daily_trip_assignment_id: { value: string | null; matchMode: FilterMatchMode };
   vehicle_id: { value: string | null; matchMode: FilterMatchMode };
 };
 
-type TripInstanceRecord = {
+type DailyTripAssignmentRecord = {
   unique_id: string;
   trip_no?: string;
 };
@@ -111,9 +121,6 @@ export default function VehicleTripAuditList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const tripInstanceApi = adminApi.tripInstances;
-  const vehicleApi = adminApi.vehicleCreations;
-
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
@@ -126,10 +133,15 @@ export default function VehicleTripAuditList() {
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
+  const [audits, setAudits] = useState<VehicleTripAuditRecord[]>([]);
+  const [dailyTripAssignments, setDailyTripAssignments] = useState<DailyTripAssignmentRecord[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    trip_instance_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    daily_trip_assignment_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     vehicle_id: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
@@ -138,103 +150,52 @@ export default function VehicleTripAuditList() {
   const ENC_EDIT_PATH = (id: number) =>
     `/${encTransportMaster}/${encVehicleTripAudit}/${id}/edit`;
 
-  const auditsQuery = useVehicleTripAuditsQuery(
-    companyUniqueId
-      ? { company_id: companyUniqueId, project_id: projectId }
-      : null
-  );
-
-  const tripInstancesQuery = useQuery({
-    queryKey: tripInstanceQueryKey,
-    queryFn: () => {
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
-      return tripInstanceApi.list({ params });
-    },
-    enabled: Boolean(companyUniqueId),
-  });
-
-  const vehiclesQuery = useQuery({
-    queryKey: vehicleCreationQueryKey,
-    queryFn: () => {
-      const params: Record<string, string> = { company_id: companyUniqueId };
-      if (projectId) {
-        params.project_id = projectId;
-      }
-      return vehicleApi.list({ params });
-    },
-    enabled: Boolean(companyUniqueId),
-  });
-
   useEffect(() => {
-    if (
-      !auditsQuery.isError &&
-      !tripInstancesQuery.isError &&
-      !vehiclesQuery.isError
-    ) {
-      return;
-    }
+    if (!companyUniqueId) return;
+    let cancelled = false;
+    setLoading(true);
 
-    const error =
-      auditsQuery.error ?? tripInstancesQuery.error ?? vehiclesQuery.error;
+    const params: Record<string, string> = { company_id: companyUniqueId };
+    if (projectId) params.project_id = projectId;
 
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(error, t("common.fetch_failed")),
-      "error"
-    );
-  }, [
-    auditsQuery.error,
-    auditsQuery.isError,
-    t,
-    tripInstancesQuery.error,
-    tripInstancesQuery.isError,
-    vehiclesQuery.error,
-    vehiclesQuery.isError,
-  ]);
+    Promise.all([
+      adminApi.vehicleTripAudits.list({ params }),
+      adminApi.dailyTripAssignment.list({ params }),
+      adminApi.vehicleCreations.list({ params }),
+    ])
+      .then(([auditsData, tripData, vehicleData]) => {
+        if (cancelled) return;
+        setAudits(normalizeList(auditsData) as VehicleTripAuditRecord[]);
+        setDailyTripAssignments(normalizeList(tripData) as DailyTripAssignmentRecord[]);
+        setVehicles(normalizeList(vehicleData));
+        setLoading(false);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setLoading(false);
+        Swal.fire(
+          t("common.error"),
+          extractErrorMessage(error, t("common.fetch_failed")),
+          "error"
+        );
+      });
 
-  const previousContextRef = useRef(
-    JSON.stringify({
-      companyUniqueId: companyUniqueId ?? "",
-      projectId: projectId ?? "",
-    })
-  );
-
-  useEffect(() => {
-    const nextContext = JSON.stringify({
-      companyUniqueId: companyUniqueId ?? "",
-      projectId: projectId ?? "",
-    });
-
-    if (previousContextRef.current === nextContext) {
-      return;
-    }
-
-    previousContextRef.current = nextContext;
-
-    if (companyUniqueId) {
-      void tripInstancesQuery.refetch();
-      void vehiclesQuery.refetch();
-    }
-  }, [companyUniqueId, projectId, tripInstancesQuery.refetch, vehiclesQuery.refetch]);
+    return () => {
+      cancelled = true;
+    };
+  }, [companyUniqueId, projectId]);
 
   const records = useMemo(
     () =>
-      filterByCompanyProject(
-        normalizeList(auditsQuery.data ?? []),
-        companyUniqueId,
-        projectId
-      ) as VehicleTripAuditRecord[],
-    [auditsQuery.data, companyUniqueId, projectId]
+      filterByCompanyProject(audits, companyUniqueId, projectId) as VehicleTripAuditRecord[],
+    [audits, companyUniqueId, projectId]
   );
 
   const tripLookup = useMemo(
     () =>
       buildLookup(
         filterByCompanyProject(
-          normalizeList(tripInstancesQuery.data ?? []) as TripInstanceRecord[],
+          dailyTripAssignments as any[],
           companyUniqueId,
           projectId
         ),
@@ -242,27 +203,18 @@ export default function VehicleTripAuditList() {
         "trip_no",
         "unique_id"
       ),
-    [companyUniqueId, projectId, tripInstancesQuery.data]
+    [companyUniqueId, projectId, dailyTripAssignments]
   );
 
   const vehicleLookup = useMemo(
     () =>
       buildLookup(
-        filterByCompanyProject(
-          normalizeList(vehiclesQuery.data ?? []),
-          companyUniqueId,
-          projectId
-        ),
+        filterByCompanyProject(vehicles, companyUniqueId, projectId),
         "unique_id",
         "vehicle_no"
       ),
-    [companyUniqueId, projectId, vehiclesQuery.data]
+    [companyUniqueId, projectId, vehicles]
   );
-
-  const loading =
-    (auditsQuery.isPending && records.length === 0) ||
-    (tripInstancesQuery.isPending && !tripInstancesQuery.data) ||
-    (vehiclesQuery.isPending && !vehiclesQuery.data);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);
@@ -371,7 +323,7 @@ export default function VehicleTripAuditList() {
         filters={filters}
         onFilter={onFilter}
         globalFilterFields={[
-          "trip_instance_id",
+          "daily_trip_assignment_id",
           "vehicle_id",
           "company_name",
           "project_name",
@@ -388,9 +340,9 @@ export default function VehicleTripAuditList() {
           style={{ width: 70 }}
         />
         <Column
-          header={t("admin.vehicle_trip_audit.trip_instance")}
+          header={t("admin.vehicle_trip_audit.daily_trip_assignment")}
           body={(row: VehicleTripAuditRecord) =>
-            tripLookup[row.trip_instance_id] ?? row.trip_instance_id
+            tripLookup[row.daily_trip_assignment_id] ?? row.daily_trip_assignment_id
           }
           filter
           showFilterMatchModes={false}

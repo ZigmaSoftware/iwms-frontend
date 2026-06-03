@@ -17,14 +17,21 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import {
-  type MainCategoryRecord,
-  type SubCategoryPayload,
-  useMainCategoriesQuery,
-  useCreateSubCategoryMutation,
-  useSubCategoryQuery,
-  useUpdateSubCategoryMutation,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
+
+type MainCategoryRecord = {
+  unique_id: string | number;
+  main_categoryName: string;
+  is_active: boolean;
+  company_id?: string | null;
+};
+
+type SubCategoryPayload = {
+  name?: string;
+  is_active: boolean;
+  mainCategory?: string | number;
+  company_id?: string;
+};
 
 const { encCitizenGrivence, encSubComplaintCategory } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encCitizenGrivence}/${encSubComplaintCategory}`;
@@ -197,50 +204,64 @@ export default function SubComplaintCategoryForm() {
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
+    projectId,
     loggedInCompanyUniqueId,
     isSuperAdmin,
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
-  const subCategoryQuery = useSubCategoryQuery(id);
-  const mainCategoriesQuery = useMainCategoriesQuery(companyUniqueId);
-  const createSubCategoryMutation = useCreateSubCategoryMutation(companyUniqueId);
-  const updateSubCategoryMutation = useUpdateSubCategoryMutation(companyUniqueId);
-  const isSubmitting =
-    createSubCategoryMutation.isPending || updateSubCategoryMutation.isPending;
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [mainCategoriesList, setMainCategoriesList] = useState<MainCategoryRecord[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  /* ---------------- LOAD RECORD (EDIT MODE) ---------------- */
   useEffect(() => {
-    if (!subCategoryQuery.data) {
-      return;
-    }
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.subCategory.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire(
+          t("common.error"),
+          extractErrorMessage(err, t("common.load_failed")),
+          "error"
+        );
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
-    applyCompanyProjectFromRecord(
-      subCategoryQuery.data as unknown as Record<string, unknown>
-    );
-  }, [applyCompanyProjectFromRecord, subCategoryQuery.data]);
-
+  /* ---------------- LOAD MAIN CATEGORIES ---------------- */
   useEffect(() => {
-    if (!subCategoryQuery.isError && !mainCategoriesQuery.isError) {
-      return;
-    }
-
-    const error = subCategoryQuery.error ?? mainCategoriesQuery.error;
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(error, t("common.load_failed")),
-      "error"
-    );
-  }, [
-    mainCategoriesQuery.error,
-    mainCategoriesQuery.isError,
-    subCategoryQuery.error,
-    subCategoryQuery.isError,
-    t,
-  ]);
+    let cancelled = false;
+    adminApi.mainCategory.list(companyUniqueId ? { params: { company_id: companyUniqueId } } : undefined)
+      .then((res: any) => {
+        if (cancelled) return;
+        const arr = Array.isArray(res) ? res : (res?.results ?? []);
+        setMainCategoriesList(arr);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        Swal.fire(
+          t("common.error"),
+          extractErrorMessage(err, t("common.load_failed")),
+          "error"
+        );
+      });
+    return () => { cancelled = true; };
+  }, [companyUniqueId]);
 
   const mainList = useMemo(
-    () => (mainCategoriesQuery.data ?? []).filter((item) => item.is_active === true),
-    [mainCategoriesQuery.data]
+    () => mainCategoriesList.filter((item) => item.is_active === true),
+    [mainCategoriesList]
   );
 
   const handleSubmit = async (payload: SubCategoryPayload) => {
@@ -255,14 +276,12 @@ export default function SubComplaintCategoryForm() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       if (isEdit) {
-        await updateSubCategoryMutation.mutateAsync({
-          id: id as string,
-          payload: {
-            ...payload,
-            company_id: companyUniqueId,
-          },
+        await adminApi.subCategory.update(id as string, {
+          ...payload,
+          company_id: companyUniqueId,
         });
         Swal.fire({
           icon: "success",
@@ -271,7 +290,7 @@ export default function SubComplaintCategoryForm() {
           showConfirmButton: false,
         });
       } else {
-        await createSubCategoryMutation.mutateAsync({
+        await adminApi.subCategory.create({
           ...payload,
           company_id: companyUniqueId,
         });
@@ -290,10 +309,17 @@ export default function SubComplaintCategoryForm() {
         extractErrorMessage(error, t("admin.citizen_grievance.sub_category_form.save_failed")),
         "error"
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  if (isEdit && subCategoryQuery.isPending && !subCategoryQuery.data) {
+  // In edit mode, wait for both the record and the main-category options list before
+  // mounting SubCategoryEditor. Mounting earlier with an empty mainList causes the
+  // controlled Select to render blank even though mainCategory state is correctly seeded.
+  const mainListReady = !isEdit || mainList.length > 0 || !recordData?.mainCategory;
+
+  if (isEdit && (loadingRecord || !mainListReady) && !recordData) {
     return (
       <ComponentCard
         title={t("admin.citizen_grievance.sub_category_form.title_edit")}
@@ -303,11 +329,21 @@ export default function SubComplaintCategoryForm() {
     );
   }
 
-  const initialPayload = subCategoryQuery.data
+  if (isEdit && recordData && !mainListReady) {
+    return (
+      <ComponentCard
+        title={t("admin.citizen_grievance.sub_category_form.title_edit")}
+      >
+        <div className="p-6 text-sm text-gray-500">{t("common.loading")}</div>
+      </ComponentCard>
+    );
+  }
+
+  const initialPayload = recordData
     ? {
-        name: String(subCategoryQuery.data.name ?? ""),
-        mainCategory: String(subCategoryQuery.data.mainCategory ?? ""),
-        is_active: Boolean(subCategoryQuery.data.is_active),
+        name: String(recordData.name ?? ""),
+        mainCategory: String(recordData.mainCategory ?? ""),
+        is_active: Boolean(recordData.is_active),
         company_id: companyUniqueId,
       }
     : {
@@ -318,7 +354,7 @@ export default function SubComplaintCategoryForm() {
       };
 
   const formKey = isEdit
-    ? String(subCategoryQuery.data?.unique_id ?? id)
+    ? String(recordData?.unique_id ?? id)
     : "new-sub-category";
 
   return (

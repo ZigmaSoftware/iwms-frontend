@@ -25,16 +25,7 @@ import {
 } from "@/helpers/admin/columnPermissionService";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import {
-  useMainScreensQuery,
-  useStaffUserTypesQuery,
-  useContractorUserTypesQuery,
-  useUserTypesQuery,
-  useSyncUserScreenPermissionMutation,
-  useUserScreenActionsQuery,
-  useUserScreenPermissionFormattedQuery,
-  useUserScreensQuery,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
 
 const ENC_LIST_PATH = `/${encryptSegment("admins")}/${encryptSegment(
   "userscreenpermissions"
@@ -199,10 +190,13 @@ export default function UserScreenPermissionForm() {
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
+    projectId,
+    projects,
     companies,
     isSuperAdmin,
     loggedInCompanyUniqueId,
     onCompanyChange,
+    setProjectId,
   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const [staffUserTypeId, setStaffUserTypeId] = useState(() =>
@@ -239,28 +233,14 @@ export default function UserScreenPermissionForm() {
   >({});
 
   const [loading, setLoading] = useState(false);
-  const userTypesQuery = useUserTypesQuery();
-  const staffUserTypesQuery = useStaffUserTypesQuery();
-  const contractorUserTypesQuery = useContractorUserTypesQuery();
-  const mainScreensQuery = useMainScreensQuery();
-  const userScreensQuery = useUserScreensQuery();
-  const userScreenActionsQuery = useUserScreenActionsQuery();
+  const [loadingData, setLoadingData] = useState(true);
+
+  /* Formatted permissions state */
+  const [formattedPermissionData, setFormattedPermissionData] = useState<any>(null);
+  const [formattedPermissionError, setFormattedPermissionError] = useState<any>(null);
+  const [formattedPermissionLoading, setFormattedPermissionLoading] = useState(false);
 
   const effectiveCompanyId = companyIdFromQuery || companyUniqueId;
-
-  const formattedPermissionQuery = useUserScreenPermissionFormattedQuery(
-    effectiveCompanyId,
-    staffUserTypeId,
-    mainScreenId
-  );
-  const syncPermissionMutation = useSyncUserScreenPermissionMutation();
-  const loadingData =
-    userTypesQuery.isPending ||
-    staffUserTypesQuery.isPending ||
-    contractorUserTypesQuery.isPending ||
-    mainScreensQuery.isPending ||
-    userScreensQuery.isPending ||
-    userScreenActionsQuery.isPending;
 
   const isEditContextLocked =
     isEdit && Boolean(companyIdFromQuery) && Boolean(mainScreenIdFromQuery);
@@ -281,54 +261,118 @@ export default function UserScreenPermissionForm() {
   ----------------------------------------------------------- */
 
   useEffect(() => {
-    // UserType category dropdown (staff, contractor, …)
-    setUserTypeOptions(
-      (userTypesQuery.data ?? []).map((x: any) => ({
-        value: toId(x.unique_id),
-        label: String(x.name ?? ""),
-      }))
-    );
+    let cancelled = false;
 
-    // Combined role pool — tag each with its parent usertype_id
-    const staffRoles = (staffUserTypesQuery.data ?? []).map((x: StaffUserType) => ({
-      value: toId(x.unique_id),
-      label: String(x.name ?? ""),
-      userTypeId: toUserTypeId(x),
-    }));
-    const contractorRoles = (contractorUserTypesQuery.data ?? []).map((x: any) => ({
-      value: toId(x.unique_id),
-      label: String(x.name ?? ""),
-      userTypeId: toUserTypeId(x),
-    }));
-    setAllRoleOptions([...staffRoles, ...contractorRoles]);
+    const fetchAll = async () => {
+      try {
+        const [userTypesRes, staffUserTypesRes, contractorUserTypesRes, mainScreensRes, userScreensRes, userScreenActionsRes] = await Promise.allSettled([
+          adminApi.userTypes.list(),
+          adminApi.staffUserTypes.list(),
+          adminApi.contractorUserTypes.list(),
+          adminApi.mainScreens.list(),
+          adminApi.userScreens.list(),
+          adminApi.userScreenActions.list(),
+        ]);
 
-    setMainScreens(
-      (mainScreensQuery.data ?? []).map((x: MainScreen) => ({
-        value: toId(x.unique_id),
-        label: String(x.mainscreen_name ?? ""),
-      }))
-    );
+        if (cancelled) return;
 
-    setAllUserScreens(
-      Array.isArray(userScreensQuery.data)
-        ? (userScreensQuery.data as ApiUserScreen[])
-        : []
-    );
+        const userTypesData = userTypesRes.status === "fulfilled" ? (userTypesRes.value as any[]) : [];
+        const staffUserTypesData = staffUserTypesRes.status === "fulfilled" ? (staffUserTypesRes.value as any[]) : [];
+        const contractorUserTypesData = contractorUserTypesRes.status === "fulfilled" ? (contractorUserTypesRes.value as any[]) : [];
+        const mainScreensData = mainScreensRes.status === "fulfilled" ? (mainScreensRes.value as any[]) : [];
+        const userScreensData = userScreensRes.status === "fulfilled" ? (userScreensRes.value as any[]) : [];
+        const userScreenActionsData = userScreenActionsRes.status === "fulfilled" ? (userScreenActionsRes.value as any[]) : [];
 
-    setActions(
-      (userScreenActionsQuery.data ?? []).map((x: UserScreenAction) => ({
-        value: toId(x.unique_id),
-        label: String(x.action_name ?? ""),
-      }))
-    );
-  }, [
-    userTypesQuery.data,
-    mainScreensQuery.data,
-    staffUserTypesQuery.data,
-    contractorUserTypesQuery.data,
-    userScreenActionsQuery.data,
-    userScreensQuery.data,
-  ]);
+        // Check for 403 errors
+        const firstError =
+          (staffUserTypesRes.status === "rejected" ? staffUserTypesRes.reason : null) ??
+          (mainScreensRes.status === "rejected" ? mainScreensRes.reason : null) ??
+          (userScreensRes.status === "rejected" ? userScreensRes.reason : null) ??
+          (userScreenActionsRes.status === "rejected" ? userScreenActionsRes.reason : null);
+
+        if (firstError) {
+          if (getErrorStatus(firstError) === 403) {
+            Swal.fire({
+              icon: "error",
+              title: t("common.access_denied"),
+              text: t("common.no_permission"),
+              confirmButtonText: t("common.ok"),
+            }).then(() => navigate(ENC_LIST_PATH));
+            return;
+          }
+          Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        }
+
+        setUserTypeOptions(
+          userTypesData.map((x: any) => ({
+            value: toId(x.unique_id),
+            label: String(x.name ?? ""),
+          }))
+        );
+
+        const staffRoles = staffUserTypesData.map((x: StaffUserType) => ({
+          value: toId(x.unique_id),
+          label: String(x.name ?? ""),
+          userTypeId: toUserTypeId(x),
+        }));
+        const contractorRoles = contractorUserTypesData.map((x: any) => ({
+          value: toId(x.unique_id),
+          label: String(x.name ?? ""),
+          userTypeId: toUserTypeId(x),
+        }));
+        setAllRoleOptions([...staffRoles, ...contractorRoles]);
+
+        setMainScreens(
+          mainScreensData.map((x: MainScreen) => ({
+            value: toId(x.unique_id),
+            label: String(x.mainscreen_name ?? ""),
+          }))
+        );
+
+        setAllUserScreens(Array.isArray(userScreensData) ? (userScreensData as ApiUserScreen[]) : []);
+
+        setActions(
+          userScreenActionsData.map((x: UserScreenAction) => ({
+            value: toId(x.unique_id),
+            label: String(x.action_name ?? ""),
+          }))
+        );
+      } finally {
+        if (!cancelled) setLoadingData(false);
+      }
+    };
+
+    fetchAll();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* -----------------------------------------------------------
+     LOAD FORMATTED PERMISSIONS (replaces useUserScreenPermissionFormattedQuery)
+  ----------------------------------------------------------- */
+  useEffect(() => {
+    if (!effectiveCompanyId || !staffUserTypeId || !mainScreenId) return;
+
+    let cancelled = false;
+    setFormattedPermissionLoading(true);
+    setFormattedPermissionData(null);
+    setFormattedPermissionError(null);
+
+    adminApi.companyWiseScreenPermissions.get(
+      `by-staff-format/?company_id=${encodeURIComponent(effectiveCompanyId)}&staffusertype_id=${encodeURIComponent(staffUserTypeId)}&mainscreen_id=${encodeURIComponent(mainScreenId)}`
+    )
+      .then((res: any) => {
+        if (cancelled) return;
+        setFormattedPermissionData(res);
+        setFormattedPermissionLoading(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setFormattedPermissionError(err);
+        setFormattedPermissionLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [effectiveCompanyId, staffUserTypeId, mainScreenId]);
 
   useEffect(() => {
     if (!isEdit || !staffUserTypeId) return;
@@ -337,8 +381,8 @@ export default function UserScreenPermissionForm() {
       (role) => role.value === staffUserTypeId
     );
     const formattedUserTypeId = toId(
-      (formattedPermissionQuery.data as any)?.usertype_id ??
-        (formattedPermissionQuery.data as any)?.userTypeId
+      (formattedPermissionData as any)?.usertype_id ??
+        (formattedPermissionData as any)?.userTypeId
     );
     const nextUserTypeId = matchingRole?.userTypeId || formattedUserTypeId;
 
@@ -348,39 +392,10 @@ export default function UserScreenPermissionForm() {
     setUserTypeId(nextUserTypeId);
   }, [
     allRoleOptions,
-    formattedPermissionQuery.data,
+    formattedPermissionData,
     isEdit,
     selectedUserTypeCategoryId,
     staffUserTypeId,
-  ]);
-
-  useEffect(() => {
-    const error =
-      staffUserTypesQuery.error ??
-      mainScreensQuery.error ??
-      userScreensQuery.error ??
-      userScreenActionsQuery.error;
-
-    if (!error) return;
-
-    if (getErrorStatus(error) === 403) {
-          Swal.fire({
-            icon: "error",
-            title: t("common.access_denied"),
-            text: t("common.no_permission"),
-            confirmButtonText: t("common.ok"),
-          }).then(() => navigate(ENC_LIST_PATH));
-      return;
-    }
-
-    Swal.fire(t("common.error"), t("common.load_failed"), "error");
-  }, [
-    mainScreensQuery.error,
-    navigate,
-    staffUserTypesQuery.error,
-    t,
-    userScreenActionsQuery.error,
-    userScreensQuery.error,
   ]);
 
   /* -----------------------------------------------------------
@@ -422,8 +437,8 @@ export default function UserScreenPermissionForm() {
   useEffect(() => {
     if (!effectiveCompanyId || !staffUserTypeId || !mainScreenId) return;
 
-    if (formattedPermissionQuery.isError) {
-      const err = formattedPermissionQuery.error;
+    if (formattedPermissionError) {
+      const err = formattedPermissionError;
       if (getErrorStatus(err) === 403) {
         Swal.fire({
           icon: "error",
@@ -436,7 +451,7 @@ export default function UserScreenPermissionForm() {
     }
 
     try {
-        const formatted: PermissionResponse = (formattedPermissionQuery.data ??
+        const formatted: PermissionResponse = (formattedPermissionData ??
           ({
             screens: [],
             description: "",
@@ -519,10 +534,9 @@ export default function UserScreenPermissionForm() {
   }, [
     allUserScreens,
     effectiveCompanyId,
-    formattedPermissionQuery.data,
-    formattedPermissionQuery.error,
-    formattedPermissionQuery.isError,
-    formattedPermissionQuery.isPending,
+    formattedPermissionData,
+    formattedPermissionError,
+    formattedPermissionLoading,
     mainScreenId,
     navigate,
     staffUserTypeId,
@@ -773,9 +787,15 @@ export default function UserScreenPermissionForm() {
 
     try {
       if (isEdit) {
-        await syncPermissionMutation.mutateAsync({ staffTypeId: staffUserTypeId, payload, isEdit: true });
+        await adminApi.companyWiseScreenPermissions.action(
+          `update-by-staffusertype/${staffUserTypeId}`,
+          payload
+        );
       } else {
-        await syncPermissionMutation.mutateAsync({ staffTypeId: staffUserTypeId, payload, isEdit: false });
+        await adminApi.companyWiseScreenPermissions.action(
+          `bulk-sync-multi/${staffUserTypeId}`,
+          payload
+        );
       }
 
       // Sync column permissions via dedicated API (create or update, no duplicates).
@@ -908,6 +928,30 @@ export default function UserScreenPermissionForm() {
                 {companyOptions.map((company) => (
                   <SelectItem key={company.value} value={company.value}>
                     {company.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>{t("admin.nav.project")}</Label>
+            <Select
+              value={projectId}
+              onValueChange={setProjectId}
+              disabled={!companyUniqueId || projects.length === 0}
+            >
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={t("common.select_item_placeholder", {
+                    item: t("admin.nav.project"),
+                  })}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.value} value={project.value}>
+                    {project.label}
                   </SelectItem>
                 ))}
               </SelectContent>

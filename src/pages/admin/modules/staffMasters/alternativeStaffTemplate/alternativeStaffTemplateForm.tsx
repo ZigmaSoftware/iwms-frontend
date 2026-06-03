@@ -12,18 +12,7 @@ import InputField from "@/components/form/input/InputField";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  useAlternativeStaffTemplateList,
-  useAlternativeStaffTemplateQuery,
-  useCreateAlternativeStaffTemplate,
-  useUpdateAlternativeStaffTemplate,
-} from "@/tanstack/admin/queries/masters/alternativeStaffTemplate";
-import { useStaffCreationList } from "@/tanstack/admin/queries/masters/staffCreation";
-import {
-  useStaffTemplateList,
-  useStaffTemplateQuery,
-} from "@/tanstack/admin/queries/masters/staffTemplate";
-import { companyApi, projectApi } from "@/helpers/admin";
+import { companyApi, projectApi, staffCreationApi, staffTemplateApi, alternativeStaffTemplateApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 /* ================= TYPES ================= */
@@ -33,7 +22,9 @@ type Option = { value: string; label: string };
 type StaffRecord = {
   unique_id?: string;
   company_id?: string;
+  company_unique_id?: string;
   project_id?: string;
+  project_unique_id?: string;
   staff_name?: string;
   employee_name?: string;
   username?: string;
@@ -146,18 +137,11 @@ export default function AlternativeStaffTemplateForm() {
   const templateSelectedByUser = useRef(false);
   const editDataLoaded = useRef(false);
 
-  const { encStaffMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encStaffMasters}/${encAlternativeStaffTemplate}`;
+  const { encScheduleMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
+  const ENC_LIST_PATH = `/${encScheduleMasters}/${encAlternativeStaffTemplate}`;
 
-  const staffTemplatesQuery = useStaffTemplateList();
-  const staffCreationQuery = useStaffCreationList({ active_status: 1 });
-  const alternativeTemplateQuery = useAlternativeStaffTemplateQuery(id);
-  const selectedStaffTemplateQuery = useStaffTemplateQuery(
-    formData.staff_template || null
-  );
-  const allAlternativeTemplatesQuery = useAlternativeStaffTemplateList();
-  const createMutation = useCreateAlternativeStaffTemplate();
-  const updateMutation = useUpdateAlternativeStaffTemplate();
+  const [allAlternativeTemplatesData, setAllAlternativeTemplatesData] = useState<any[]>([]);
+  const [selectedStaffTemplateData, setSelectedStaffTemplateData] = useState<any>(null);
 
   /* ================= HELPERS ================= */
 
@@ -183,12 +167,12 @@ export default function AlternativeStaffTemplateForm() {
 
   const isDriverRole = (staff: StaffRecord): boolean => {
     const role = getStaffRole(staff);
-    return role === "company driver" || role === "contractor driver";
+    return role === "driver" || role.includes(" driver");
   };
 
   const isOperatorRole = (staff: StaffRecord): boolean => {
     const role = getStaffRole(staff);
-    return role === "company operator" || role === "contractor operator";
+    return role === "operator" || role.includes(" operator");
   };
 
   const isStaffRow = (staff: StaffRecord): boolean => {
@@ -210,10 +194,10 @@ export default function AlternativeStaffTemplateForm() {
   const toText = (value: unknown): string => String(value ?? "").trim();
 
   const getCompanyId = (staff: StaffRecord): string =>
-    toText(staff.company_id) || toText(staff.company_name);
+    toText(staff.company_unique_id) || toText(staff.company_id);
 
   const getProjectId = (staff: StaffRecord): string =>
-    toText(staff.project_id) || toText(staff.project_name);
+    toText(staff.project_unique_id) || toText(staff.project_id);
 
   const getCompanyProjectLabel = (staff: StaffRecord): string => {
     const company = String(staff.company_name ?? "").trim();
@@ -294,34 +278,64 @@ export default function AlternativeStaffTemplateForm() {
   }, [t]);
 
   /* ============================
-     STORE RAW TEMPLATES + STAFF RECORDS
+     LOAD RAW TEMPLATES + STAFF RECORDS
   ============================ */
 
   useEffect(() => {
-    // Store all raw template records for scoped filtering later
-    const templatesPayload: any = staffTemplatesQuery.data;
-    const templateRows: StaffTemplateRaw[] = Array.isArray(templatesPayload)
-      ? templatesPayload
-      : (templatesPayload?.data ?? []);
-    setAllStaffTemplates(templateRows);
+    let cancelled = false;
 
-    // Staff creation records
-    const staffPayload: any = staffCreationQuery.data;
-    const data = Array.isArray(staffPayload)
-      ? staffPayload
-      : Array.isArray(staffPayload?.results)
-        ? staffPayload.results
-        : Array.isArray(staffPayload?.data?.results)
-          ? staffPayload.data.results
-          : Array.isArray(staffPayload?.data)
-            ? staffPayload.data
-            : [];
+    Promise.all([
+      staffTemplateApi.list() as Promise<any>,
+      staffCreationApi.list({ params: { active_status: 1 } }) as Promise<any>,
+      alternativeStaffTemplateApi.list() as Promise<any>,
+    ])
+      .then(([templatesRes, staffRes, altRes]: [any, any, any]) => {
+        if (cancelled) return;
 
-    const staff = data.filter(
-      (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && u.unique_id
-    );
-    setStaffRecords(staff);
-  }, [staffCreationQuery.data, staffTemplatesQuery.data]);
+        // Store all raw template records for scoped filtering later
+        const templateRows: StaffTemplateRaw[] = Array.isArray(templatesRes)
+          ? templatesRes
+          : Array.isArray(templatesRes?.results)
+            ? templatesRes.results
+            : Array.isArray(templatesRes?.data)
+              ? templatesRes.data
+              : Array.isArray(templatesRes?.data?.results)
+                ? templatesRes.data.results
+                : [];
+        setAllStaffTemplates(templateRows);
+
+        // Staff creation records
+        const staffPayload: any = staffRes;
+        const data = Array.isArray(staffPayload)
+          ? staffPayload
+          : Array.isArray(staffPayload?.results)
+            ? staffPayload.results
+            : Array.isArray(staffPayload?.data?.results)
+              ? staffPayload.data.results
+              : Array.isArray(staffPayload?.data)
+                ? staffPayload.data
+                : [];
+        const staff = data.filter(
+          (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && u.unique_id
+        );
+        setStaffRecords(staff);
+
+        // All alternative templates for overlap check
+        const altRows: any[] = Array.isArray(altRes)
+          ? altRes
+          : Array.isArray(altRes?.data)
+            ? altRes.data
+            : Array.isArray(altRes?.results)
+              ? altRes.results
+              : [];
+        setAllAlternativeTemplatesData(altRows);
+      })
+      .catch(() => {
+        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      });
+
+    return () => { cancelled = true; };
+  }, [t]);
 
   /* ============================
      FILTER PROJECTS BY SELECTED COMPANY
@@ -427,51 +441,76 @@ export default function AlternativeStaffTemplateForm() {
   useEffect(() => {
     if (!isEdit || !id || staffRecords.length === 0) return;
 
-    const rec: any = alternativeTemplateQuery.data;
-    if (!rec) return;
-
+    let cancelled = false;
     setLoading(true);
     templateSelectedByUser.current = false;
 
-    // Find the saved driver/operator to derive company/project scope
-    const matchedStaff =
-      staffRecords.find(
-        (staff) => String(staff.unique_id) === String(rec.driver ?? "")
-      ) ??
-      staffRecords.find(
-        (staff) => String(staff.unique_id) === String(rec.operator ?? "")
-      );
+    alternativeStaffTemplateApi
+      .get(id)
+      .then((rec: any) => {
+        if (cancelled) return;
 
-    if (matchedStaff) {
-      setSelectedCompanyId(getCompanyId(matchedStaff));
-      setSelectedProjectId(getProjectId(matchedStaff));
-    }
+        // Find the saved driver/operator to derive company/project scope
+        const matchedStaff =
+          staffRecords.find(
+            (staff) => String(staff.unique_id) === String(rec.driver ?? "")
+          ) ??
+          staffRecords.find(
+            (staff) => String(staff.unique_id) === String(rec.operator ?? "")
+          );
 
-    setFormData({
-      staff_template: String(rec.staff_template ?? ""),
-      effective_date: rec.effective_date ?? "",
-      from_date: rec.from_date ?? "",
-      to_date: rec.to_date ?? "",
-      driver: String(rec.driver ?? ""),
-      operator: String(rec.operator ?? ""),
-      extra_operator: Array.isArray(rec.extra_operator)
-        ? rec.extra_operator.map(String)
-        : [],
-      change_reason: rec.change_reason ?? "",
-      change_remarks: rec.change_remarks ?? "",
-      approval_status: rec.approval_status,
-      display_code: rec.display_code,
-    });
+        if (matchedStaff) {
+          setSelectedCompanyId(getCompanyId(matchedStaff));
+          setSelectedProjectId(getProjectId(matchedStaff));
+        }
 
-    editDataLoaded.current = true;
-    setLoading(false);
-  }, [alternativeTemplateQuery.data, id, isEdit, staffRecords]);
+        setFormData({
+          staff_template: String(rec.staff_template ?? ""),
+          effective_date: rec.effective_date ?? "",
+          from_date: rec.from_date ?? "",
+          to_date: rec.to_date ?? "",
+          driver: String(rec.driver ?? ""),
+          operator: String(rec.operator ?? ""),
+          extra_operator: Array.isArray(rec.extra_operator)
+            ? rec.extra_operator.map(String)
+            : [],
+          change_reason: rec.change_reason ?? "",
+          change_remarks: rec.change_remarks ?? "",
+          approval_status: rec.approval_status,
+          display_code: rec.display_code,
+        });
+
+        editDataLoaded.current = true;
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [id, isEdit, staffRecords, t]);
+
+  /* ============================
+     FETCH SELECTED STAFF TEMPLATE DATA (create mode auto-fill)
+  ============================ */
 
   useEffect(() => {
-    if (!alternativeTemplateQuery.isError) return;
-    Swal.fire(t("common.error"), t("common.load_failed"), "error");
-    setLoading(false);
-  }, [alternativeTemplateQuery.isError, t]);
+    if (!formData.staff_template) {
+      setSelectedStaffTemplateData(null);
+      return;
+    }
+    let cancelled = false;
+    staffTemplateApi
+      .get(formData.staff_template)
+      .then((tpl: any) => {
+        if (cancelled) return;
+        setSelectedStaffTemplateData(tpl);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [formData.staff_template]);
 
   /* ============================
      AUTO FILL FROM TEMPLATE (create mode only)
@@ -479,7 +518,7 @@ export default function AlternativeStaffTemplateForm() {
 
   useEffect(() => {
     if (!templateSelectedByUser.current || !formData.staff_template) return;
-    const tpl: any = selectedStaffTemplateQuery.data;
+    const tpl: any = selectedStaffTemplateData;
     if (!tpl) return;
 
     setFormData((p) => ({
@@ -503,7 +542,7 @@ export default function AlternativeStaffTemplateForm() {
       setSelectedCompanyId(getCompanyId(matchedStaff));
       setSelectedProjectId(getProjectId(matchedStaff));
     }
-  }, [formData.staff_template, selectedStaffTemplateQuery.data, staffRecords]);
+  }, [formData.staff_template, selectedStaffTemplateData, staffRecords]);
 
   /* ============================
      VALIDATE SELECTIONS WHEN OPTIONS CHANGE
@@ -581,13 +620,7 @@ export default function AlternativeStaffTemplateForm() {
 
     // Overlap check: same staff_template, overlapping [from_date, to_date]
     if (formData.from_date && formData.to_date && formData.staff_template) {
-      const allRecords: any[] = (() => {
-        const raw: any = allAlternativeTemplatesQuery.data;
-        if (Array.isArray(raw)) return raw;
-        if (Array.isArray(raw?.data)) return raw.data;
-        if (Array.isArray(raw?.results)) return raw.results;
-        return [];
-      })();
+      const allRecords: any[] = allAlternativeTemplatesData;
 
       const overlapping = allRecords.filter((rec: any) => {
         if (String(rec.staff_template) !== String(formData.staff_template)) return false;
@@ -630,9 +663,9 @@ export default function AlternativeStaffTemplateForm() {
 
     try {
       if (isEdit && id) {
-        await updateMutation.mutateAsync({ id, payload });
+        await alternativeStaffTemplateApi.update(id, payload);
       } else {
-        await createMutation.mutateAsync(payload);
+        await alternativeStaffTemplateApi.create(payload);
       }
 
       Swal.fire("Success", "Saved successfully", "success");
@@ -867,7 +900,7 @@ export default function AlternativeStaffTemplateForm() {
               </div>
             )} */}
 
-            {/* DRIVER — scoped to selected company + project */}
+            {/* DRIVER - scoped to selected company + project */}
             {showField("driver") && (
               <div>
                 <Label>
@@ -886,7 +919,7 @@ export default function AlternativeStaffTemplateForm() {
               </div>
             )}
 
-            {/* OPERATOR — scoped to selected company + project */}
+            {/* OPERATOR - scoped to selected company + project */}
             {showField("operator") && (
               <div>
                 <Label>
@@ -905,7 +938,7 @@ export default function AlternativeStaffTemplateForm() {
               </div>
             )}
 
-            {/* EXTRA OPERATOR — scoped to selected company + project */}
+            {/* EXTRA OPERATOR - scoped to selected company + project */}
             {showField("extra_operator") && (
               <div>
                 <Label>
@@ -915,13 +948,37 @@ export default function AlternativeStaffTemplateForm() {
                   value={formData.extra_operator}
                   options={availableExtraOperatorOptions}
                   onChange={(e) =>
-                    setFormData((p) => ({ ...p, extra_operator: e.value }))
+                    setFormData((p) => ({
+                      ...p,
+                      extra_operator: Array.isArray(e.value)
+                        ? e.value.map(String)
+                        : [],
+                    }))
                   }
                   optionLabel="label"
                   optionValue="value"
-                  display="chip"
+                  maxSelectedLabels={3}
                   placeholder={t("common.select_option")}
-                  className="w-full"
+                  className="!flex !h-10 !w-full !items-center !justify-between !rounded-md !border !border-input !bg-background !px-3 !py-2 !text-sm !shadow-none !ring-offset-background focus:!outline-none focus:!ring-2 focus:!ring-ring focus:!ring-offset-2 disabled:!cursor-not-allowed disabled:!opacity-50"
+                  pt={{
+                    labelContainer: {
+                      className: "!flex !flex-1 !items-center !overflow-hidden",
+                    },
+                    label: {
+                      className:
+                        "!m-0 !block !truncate !p-0 !text-sm !leading-5 !text-gray-900",
+                    },
+                    trigger: {
+                      className:
+                        "!ml-2 !flex !h-4 !w-4 !shrink-0 !items-center !justify-center !text-gray-500",
+                    },
+                    dropdownIcon: {
+                      className: "!h-4 !w-4 !opacity-50",
+                    },
+                    panel: {
+                      className: "!z-[80] !rounded-md !border !bg-white !shadow-md",
+                    },
+                  }}
                   filter
                 />
               </div>

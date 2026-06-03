@@ -16,7 +16,7 @@
 //   useSupervisorZoneMapQuery,
 //   useCreateSupervisorZoneMap,
 //   useUpdateSupervisorZoneMap,
-// } from "@/tanstack/admin/queries/masters/supervisorZoneMap";
+// } from "@/helpers/admin/localHooks";
 // import { getEncryptedRoute } from "@/utils/routeCache";
 // import { normalizeList } from "@/utils/forms";
 // import { useFieldVisibility } from "@/hooks/useFieldVisibility";
@@ -873,14 +873,7 @@ import Label from "@/components/form/Label";
 import Select, { type SelectOption } from "@/components/form/Select";
 
 import { staffCreationApi, companyApi, projectApi } from "@/helpers/admin";
-import {
-  useDistrictsList,
-  useCitiesList,
-  useZonesList,
-  useSupervisorZoneMapQuery,
-  useCreateSupervisorZoneMap,
-  useUpdateSupervisorZoneMap,
-} from "@/tanstack/admin/queries/masters/supervisorZoneMap";
+import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
@@ -1219,13 +1212,10 @@ export default function SupervisorZoneMapForm() {
     return t("common.unexpected_error");
   };
 
-  /* ── tanstack queries ────────────────────────────────────────────────────── */
-  const { data: districtRes } = useDistrictsList();
-  const { data: cityRes } = useCitiesList();
-  const { data: zoneRes } = useZonesList();
-  const recordQuery = useSupervisorZoneMapQuery(id);
-  const createMutation = useCreateSupervisorZoneMap();
-  const updateMutation = useUpdateSupervisorZoneMap();
+  /* ── reference data state ───────────────────────────────────────────────── */
+  const [districtRes, setDistrictRes] = useState<any>(null);
+  const [cityRes, setCityRes] = useState<any>(null);
+  const [zoneRes, setZoneRes] = useState<any>(null);
 
   /* ── 1. Load staff + companies + projects ────────────────────────────────── */
   useEffect(() => {
@@ -1307,37 +1297,65 @@ export default function SupervisorZoneMapForm() {
     }
   }, [selectedCompanyId, allProjects]);
 
-  /* ── 3. Store raw districts, cities, zones ───────────────────────────────── */
+  /* ── 3. Load raw districts, cities, zones ───────────────────────────────── */
   useEffect(() => {
-    setFetching(!districtRes || !cityRes || !zoneRes);
-    try {
-      setAllDistricts(normalizeList(districtRes));
-      setAllCities(normalizeList(cityRes));
-      setAllZones(normalizeList(zoneRes));
-    } finally {
-      setFetching(false);
-    }
-  }, [districtRes, cityRes, zoneRes]);
+    let cancelled = false;
+    setFetching(true);
+
+    Promise.all([
+      adminApi.districts.list() as Promise<any>,
+      adminApi.cities.list() as Promise<any>,
+      adminApi.zones.list() as Promise<any>,
+    ])
+      .then(([dRes, cRes, zRes]: [any, any, any]) => {
+        if (cancelled) return;
+        setDistrictRes(dRes);
+        setCityRes(cRes);
+        setZoneRes(zRes);
+        setAllDistricts(normalizeList(dRes));
+        setAllCities(normalizeList(cRes));
+        setAllZones(normalizeList(zRes));
+        setFetching(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFetching(false);
+      });
+
+    return () => { cancelled = true; };
+  }, []);
 
   /* ── 4. Populate form when editing ──────────────────────────────────────── */
   useEffect(() => {
-    if (!id || !recordQuery.data) return;
-    const res: any = recordQuery.data;
-    setSelectedCompanyId(normalizeId(res?.company_id ?? res?.company_unique_id));
-    setSelectedProjectId(normalizeId(res?.project_id ?? res?.project_unique_id));
-    setForm({
-      supervisor_id: normalizeId(res?.supervisor_id ?? res?.supervisor_unique_id),
-      district_id: normalizeId(res?.district_unique_id ?? res?.district_id),
-      city_id: normalizeId(res?.city_unique_id ?? res?.city_id),
-      status: res?.status ?? "ACTIVE",
-    });
-    setZoneIds(
-      Array.isArray(res?.zone_ids)
-        ? res.zone_ids.map((z: any) => String(z)).filter(Boolean)
-        : []
-    );
-    setRemarks(res?.remarks ?? "");
-  }, [id, recordQuery.data]);
+    if (!isEdit || !id) return;
+    let cancelled = false;
+
+    adminApi.supervisorZoneMap
+      .get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setSelectedCompanyId(normalizeId(res?.company_id ?? res?.company_unique_id));
+        setSelectedProjectId(normalizeId(res?.project_id ?? res?.project_unique_id));
+        setForm({
+          supervisor_id: normalizeId(res?.supervisor_id ?? res?.supervisor_unique_id),
+          district_id: normalizeId(res?.district_unique_id ?? res?.district_id),
+          city_id: normalizeId(res?.city_unique_id ?? res?.city_id),
+          status: res?.status ?? "ACTIVE",
+        });
+        setZoneIds(
+          Array.isArray(res?.zone_ids)
+            ? res.zone_ids.map((z: any) => String(z)).filter(Boolean)
+            : []
+        );
+        setRemarks(res?.remarks ?? "");
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), String(err?.response?.data ?? err?.message ?? t("common.load_failed")), "error");
+      });
+
+    return () => { cancelled = true; };
+  }, [id, isEdit, t]);
 
   /* ════════════════════════════════════════════════════════════════════════════
      Derived filtered option lists
@@ -1460,9 +1478,9 @@ export default function SupervisorZoneMapForm() {
     setSubmitting(true);
     try {
       if (isEdit && id) {
-        await updateMutation.mutateAsync({ id, payload });
+        await adminApi.supervisorZoneMap.update(id, payload);
       } else {
-        await createMutation.mutateAsync(payload);
+        await adminApi.supervisorZoneMap.create(payload);
       }
       Swal.fire(
         t("common.success"),

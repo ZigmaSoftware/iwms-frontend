@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
@@ -11,27 +12,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
 import {
-  type RoleTypeOption,
-  useCreateStaffUserTypeMutation,
-  useRoleTypeChoicesQuery,
-  useStaffUserTypeQuery,
-  useUpdateStaffUserTypeMutation,
-  useUserTypesQuery,
-  useCreateContractorUserTypeMutation,
-  useUpdateContractorUserTypeMutation,
-  useContractorRoleTypesQuery,
-  useContractorUserTypeQuery,
-} from "@/tanstack/admin";
+  contractorRoleTypesApi,
+  contractorUserTypeApi,
+  roleTypesApi,
+  staffUserTypeApi,
+  userTypeApi,
+} from "@/helpers/admin";
 
 const { encAdmins, encStaffUserType } = getEncryptedRoute();
 const ENC_LIST_PATH = `/${encAdmins}/${encStaffUserType}`;
+
+type RoleTypeOption = {
+  value: string;
+  label: string;
+};
 
 type UserType = {
   unique_id: string;
   name: string;
   is_active: boolean;
+};
+
+const normalizeIdValue = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return normalizeIdValue(record.unique_id ?? record.id ?? record.value);
+  }
+  return String(value).trim();
 };
 
 const prettifyRoleLabel = (value: string) =>
@@ -40,6 +49,111 @@ const prettifyRoleLabel = (value: string) =>
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase());
+
+/* ------------------------------------------------------------------
+   Normalize role-choices response (same logic as tanstack roleTypes.ts)
+------------------------------------------------------------------ */
+const toRoleOption = (item: unknown): RoleTypeOption | null => {
+  if (typeof item === "string") {
+    const value = item.trim();
+    if (!value) return null;
+    return { value, label: prettifyRoleLabel(value) };
+  }
+  if (!item || typeof item !== "object") return null;
+  const record = item as Record<string, unknown>;
+  const rawValue =
+    record.value ?? record.key ?? record.id ?? record.unique_id ?? record.name ?? record.code;
+  if (typeof rawValue !== "string" && typeof rawValue !== "number") return null;
+  const value = String(rawValue).trim();
+  if (!value) return null;
+  const rawLabel = record.label ?? record.display_name ?? record.title ?? record.name;
+  const label =
+    typeof rawLabel === "string" && rawLabel.trim() ? rawLabel : prettifyRoleLabel(value);
+  return { value, label };
+};
+
+const normalizeRoleTypes = (raw: unknown): RoleTypeOption[] => {
+  const payload =
+    raw && typeof raw === "object" && raw !== null && "data" in (raw as Record<string, unknown>)
+      ? (raw as Record<string, unknown>).data
+      : raw;
+
+  let source: unknown[] = [];
+
+  if (Array.isArray(payload)) {
+    source = payload;
+  } else if (payload && typeof payload === "object") {
+    const record = payload as Record<string, unknown>;
+    const arrayKeys = ["results", "choices", "role_choices", "items", "data"];
+    for (const key of arrayKeys) {
+      if (Array.isArray(record[key])) {
+        source = record[key] as unknown[];
+        break;
+      }
+    }
+    if (source.length === 0) {
+      const entries = Object.entries(record).filter(
+        ([key]) => !["count", "next", "previous", "detail", "message"].includes(key),
+      );
+      if (entries.length > 0 && entries.every(([, value]) => typeof value === "string")) {
+        source = entries.map(([value, label]) => ({ value, label }));
+      }
+    }
+  }
+
+  const parsed = source.map((item) => toRoleOption(item)).filter((item): item is RoleTypeOption => Boolean(item));
+  const unique = new Map<string, RoleTypeOption>();
+  for (const option of parsed) {
+    if (!unique.has(option.value)) unique.set(option.value, option);
+  }
+  return Array.from(unique.values());
+};
+
+const normalizeContractorRoleTypes = (raw: unknown): RoleTypeOption[] => {
+  const payload =
+    raw && typeof raw === "object" && "data" in (raw as Record<string, unknown>)
+      ? (raw as Record<string, unknown>).data
+      : raw;
+
+  let source: unknown[] = [];
+
+  if (Array.isArray(payload)) {
+    source = payload;
+  } else if (payload && typeof payload === "object") {
+    const record = payload as Record<string, unknown>;
+    for (const key of ["results", "choices", "items", "data"]) {
+      if (Array.isArray(record[key])) {
+        source = record[key] as unknown[];
+        break;
+      }
+    }
+  }
+
+  return source
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+    .map((item) => ({
+      value: String(item.value ?? "").trim(),
+      label: String(item.label ?? item.value ?? "").trim(),
+    }))
+    .filter((opt) => opt.value);
+};
+
+const ensureRoleOption = (
+  roles: RoleTypeOption[],
+  roleValue: string
+): RoleTypeOption[] => {
+  if (!roleValue || roles.some((role) => role.value === roleValue)) {
+    return roles;
+  }
+
+  return [
+    ...roles,
+    {
+      value: roleValue,
+      label: prettifyRoleLabel(roleValue),
+    },
+  ];
+};
 
 export default function StaffUserTypeForm() {
   const { t } = useTranslation();
@@ -53,35 +167,139 @@ export default function StaffUserTypeForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const skipUserTypeResetRef = useRef(false);
 
   const selectedUserTypeName = userTypes
     .find((u) => u.unique_id === selectedUserType)
     ?.name?.toLowerCase() ?? "";
   const isContractor = selectedUserTypeName === "contractor";
 
-  const userTypesQuery = useUserTypesQuery();
-  const staffRoleChoicesQuery = useRoleTypeChoicesQuery();
-  const contractorRoleChoicesQuery = useContractorRoleTypesQuery();
-  const roleTypeChoicesQuery = isContractor ? contractorRoleChoicesQuery : staffRoleChoicesQuery;
+  /* -------------------------------------------------------
+     Loaded data state
+  ------------------------------------------------------- */
+  const [staffRoleChoices, setStaffRoleChoices] = useState<RoleTypeOption[]>([]);
+  const [contractorRoleChoices, setContractorRoleChoices] = useState<RoleTypeOption[]>([]);
+  const [staffRecordData, setStaffRecordData] = useState<any>(null);
+  const [contractorRecordData, setContractorRecordData] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const staffUserTypeQuery = useStaffUserTypeQuery(!isContractor && isEdit ? (id as string) : null);
-  const contractorUserTypeQuery = useContractorUserTypeQuery(isContractor && isEdit ? (id as string) : null);
+  /* -------------------------------------------------------
+     Loading flags for init guard
+  ------------------------------------------------------- */
+  const [userTypesLoaded, setUserTypesLoaded] = useState(false);
+  const [staffRolesLoaded, setStaffRolesLoaded] = useState(false);
+  const [contractorRolesLoaded, setContractorRolesLoaded] = useState(false);
+  const [editRecordLoaded, setEditRecordLoaded] = useState(!isEdit);
 
-  const createStaffUserTypeMutation = useCreateStaffUserTypeMutation();
-  const updateStaffUserTypeMutation = useUpdateStaffUserTypeMutation();
-  const createContractorUserTypeMutation = useCreateContractorUserTypeMutation();
-  const updateContractorUserTypeMutation = useUpdateContractorUserTypeMutation();
+  /* -------------------------------------------------------
+     FETCH DROPDOWNS
+  ------------------------------------------------------- */
+  useEffect(() => {
+    let cancelled = false;
+    userTypeApi.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        setUserTypes(Array.isArray(res) ? res : (res?.results ?? []));
+        setUserTypesLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) setUserTypesLoaded(true);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
-  const loading = isContractor
-    ? createContractorUserTypeMutation.isPending || updateContractorUserTypeMutation.isPending
-    : createStaffUserTypeMutation.isPending || updateStaffUserTypeMutation.isPending;
+  useEffect(() => {
+    let cancelled = false;
+    roleTypesApi.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        setStaffRoleChoices(normalizeRoleTypes(res));
+        setStaffRolesLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) setStaffRolesLoaded(true);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    contractorRoleTypesApi.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        setContractorRoleChoices(normalizeContractorRoleTypes(res));
+        setContractorRolesLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) setContractorRolesLoaded(true);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  /* -------------------------------------------------------
+     FETCH EDIT RECORD (staff or contractor — we don't know
+     which until userTypes are loaded, so try both and use
+     whichever returns a valid record)
+  ------------------------------------------------------- */
+  useEffect(() => {
+    if (!isEdit || !id) {
+      setEditRecordLoaded(true);
+      return;
+    }
+    const normalizedId = String(id).toUpperCase();
+    const primaryApi = normalizedId.startsWith("STUSRTYPE-")
+      ? staffUserTypeApi
+      : normalizedId.startsWith("CNTUSRTYPE-")
+        ? contractorUserTypeApi
+        : null;
+
+    let cancelled = false;
+
+    if (primaryApi) {
+      primaryApi
+        .get(id)
+        .then((record: any) => {
+          if (cancelled) return;
+          if (normalizedId.startsWith("CNTUSRTYPE-")) {
+            setContractorRecordData(record);
+          } else {
+            setStaffRecordData(record);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setEditRecordLoaded(true);
+        });
+
+      return () => { cancelled = true; };
+    }
+
+    Promise.allSettled([staffUserTypeApi.get(id), contractorUserTypeApi.get(id)])
+      .then(([staffResult, contractorResult]) => {
+        if (cancelled) return;
+        if (staffResult.status === "fulfilled" && staffResult.value) {
+          setStaffRecordData(staffResult.value);
+        }
+        if (contractorResult.status === "fulfilled" && contractorResult.value) {
+          setContractorRecordData(contractorResult.value);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setEditRecordLoaded(true);
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
   /* =========================
      Swap role choices when user type changes (after page is ready)
   ========================= */
   useEffect(() => {
     if (!pageReady) return;
-    const roles = roleTypeChoicesQuery.data ?? [];
+    const roles = isContractor ? contractorRoleChoices : staffRoleChoices;
+    if (skipUserTypeResetRef.current) {
+      skipUserTypeResetRef.current = false;
+      return;
+    }
     setRoleTypes(roles);
     setName(roles[0]?.value ?? "");
   }, [selectedUserType]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -91,45 +309,46 @@ export default function StaffUserTypeForm() {
   ========================= */
   useEffect(() => {
     if (pageReady) return;
+    if (!userTypesLoaded || !staffRolesLoaded || !contractorRolesLoaded || !editRecordLoaded) return;
 
-    const editQuery = isContractor ? contractorUserTypeQuery : staffUserTypeQuery;
-
-    if (userTypesQuery.isError || staffRoleChoicesQuery.isError || contractorRoleChoicesQuery.isError || editQuery.isError) {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      navigate(ENC_LIST_PATH);
-      return;
-    }
-
-    if (userTypesQuery.isPending || staffRoleChoicesQuery.isPending || contractorRoleChoicesQuery.isPending) return;
-    if (isEdit && editQuery.isPending) return;
-
-    const ut = (userTypesQuery.data ?? []) as unknown as UserType[];
-    setUserTypes(ut);
-
-    if (ut.length > 0 && !selectedUserType) {
+    const ut = userTypes;
+    if (!isEdit && ut.length > 0 && !selectedUserType) {
       setSelectedUserType(ut[0].unique_id);
     }
 
-    const roles = roleTypeChoicesQuery.data ?? [];
+    const editData = staffRecordData ?? contractorRecordData;
+    const isContractorRecord = Boolean(contractorRecordData && !staffRecordData);
+    const fallbackUserTypeId =
+      ut.find((u) => u.name?.toLowerCase?.().trim() === (isContractorRecord ? "contractor" : "staff"))
+        ?.unique_id ?? "";
+
+    // Determine role choices based on record (or default staff)
+    const roles = isContractorRecord ? contractorRoleChoices : staffRoleChoices;
     setRoleTypes(roles);
 
     if (isEdit) {
-      const data = editQuery.data as any;
-      if (!data) return;
+      const data = editData as any;
+      if (!data) {
+        setPageReady(true);
+        return;
+      }
 
       const roleValue = String(data.name ?? "").trim();
+      const recordUserTypeId = normalizeIdValue(data.usertype_id ?? data.usertype);
       setName(roleValue);
       setIsActive(Boolean(data.is_active));
 
-      if (data.usertype_id) {
-        setSelectedUserType(data.usertype_id);
-      }
-
-      if (roleValue && !roles.some((role: RoleTypeOption) => role.value === roleValue)) {
-        setRoleTypes((prev) => [
-          ...prev,
-          { value: roleValue, label: prettifyRoleLabel(roleValue) },
-        ]);
+      if (recordUserTypeId || fallbackUserTypeId) {
+        const nextUserTypeId = recordUserTypeId || fallbackUserTypeId;
+        skipUserTypeResetRef.current = true;
+        setSelectedUserType(nextUserTypeId);
+        // Re-derive roles based on the record's user type
+        const matchedUt = ut.find((u) => u.unique_id === nextUserTypeId);
+        const matchedIsContractor = matchedUt?.name?.toLowerCase() === "contractor";
+        const matchedRoles = matchedIsContractor ? contractorRoleChoices : staffRoleChoices;
+        setRoleTypes(ensureRoleOption(matchedRoles, roleValue));
+      } else {
+        setRoleTypes(ensureRoleOption(roles, roleValue));
       }
     } else {
       if (!name && roles.length > 0) {
@@ -138,31 +357,7 @@ export default function StaffUserTypeForm() {
     }
 
     setPageReady(true);
-  }, [
-    isEdit,
-    isContractor,
-    name,
-    navigate,
-    pageReady,
-    staffRoleChoicesQuery.data,
-    staffRoleChoicesQuery.isError,
-    staffRoleChoicesQuery.isPending,
-    contractorRoleChoicesQuery.data,
-    contractorRoleChoicesQuery.isError,
-    contractorRoleChoicesQuery.isPending,
-    roleTypeChoicesQuery.data,
-    selectedUserType,
-    staffUserTypeQuery.data,
-    staffUserTypeQuery.isError,
-    staffUserTypeQuery.isPending,
-    contractorUserTypeQuery.data,
-    contractorUserTypeQuery.isError,
-    contractorUserTypeQuery.isPending,
-    t,
-    userTypesQuery.data,
-    userTypesQuery.isError,
-    userTypesQuery.isPending,
-  ]);
+  }, [userTypesLoaded, staffRolesLoaded, contractorRolesLoaded, editRecordLoaded, pageReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* =========================
      SUBMIT
@@ -181,18 +376,19 @@ export default function StaffUserTypeForm() {
       is_active: isActive,
     };
 
+    setIsSubmitting(true);
     try {
       if (isContractor) {
         if (isEdit) {
-          await updateContractorUserTypeMutation.mutateAsync({ id: id as string, payload });
+          await contractorUserTypeApi.update(id as string, payload);
         } else {
-          await createContractorUserTypeMutation.mutateAsync(payload);
+          await contractorUserTypeApi.create(payload);
         }
       } else {
         if (isEdit) {
-          await updateStaffUserTypeMutation.mutateAsync({ id: id as string, payload });
+          await staffUserTypeApi.update(id as string, payload);
         } else {
-          await createStaffUserTypeMutation.mutateAsync(payload);
+          await staffUserTypeApi.create(payload);
         }
       }
 
@@ -206,6 +402,8 @@ export default function StaffUserTypeForm() {
           t("common.invalid_data"),
         "error"
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -313,8 +511,8 @@ export default function StaffUserTypeForm() {
 
           {/* BUTTONS */}
           <div className="flex justify-end gap-3 mt-6">
-            <Button type="submit" disabled={loading}>
-              {loading
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting
                 ? isEdit
                   ? t("common.updating")
                   : t("common.saving")

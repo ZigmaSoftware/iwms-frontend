@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -13,30 +13,25 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
+import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 
-import {
-  useDeleteMainScreenTypeMutation,
-  useMainScreenTypesQuery,
-  useUpdateMainScreenTypeMutation,
-} from "@/tanstack/admin";
+import { mainScreenTypeApi } from "@/helpers/admin";
 
 import type { MainScreenType } from "../types/admin.types"; 
 
 
 export default function MainScreenTypeList() {
   const { t } = useTranslation();
-  const mainScreenTypesQuery = useMainScreenTypesQuery();
-  const updateMutation = useUpdateMainScreenTypeMutation();
-  const deleteMutation = useDeleteMainScreenTypeMutation();
-  const mainScreenTypes = (mainScreenTypesQuery.data ?? []) as MainScreenType[];
+  const [mainScreenTypes, setMainScreenTypes] = useState<MainScreenType[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState('');
   const [filters, setFilters] = useState({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH }
+    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH }
   });
 
   const navigate = useNavigate();
@@ -46,35 +41,28 @@ export default function MainScreenTypeList() {
   const ENC_EDIT_PATH = (unique_id: string) => `/${encAdmins}/${encMainScreenType}/${unique_id}/edit`;
 
   useEffect(() => {
-    if (!mainScreenTypesQuery.isError) return;
-    Swal.fire(t("common.error"), t("common.load_failed"), "error");
-  }, [mainScreenTypesQuery.isError, t]);
+    let mounted = true;
 
-  const handleDelete = async (unique_id: string) => {
-    const confirmDelete = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: t("common.confirm_delete_button"),
-    });
+    const loadMainScreenTypes = async () => {
+      setIsLoading(true);
+      try {
+        const data = await mainScreenTypeApi.list();
+        if (mounted) setMainScreenTypes(data as MainScreenType[]);
+      } catch {
+        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
 
-    if (!confirmDelete.isConfirmed) return;
+    void loadMainScreenTypes();
 
-    await deleteMutation.mutateAsync(unique_id);
+    return () => {
+      mounted = false;
+    };
+  }, [t]);
 
-    Swal.fire({
-      icon: "success",
-      title: t("common.deleted_success"),
-      timer: 1500,
-      showConfirmButton: false,
-    });
-
-  };
-
-  const onGlobalFilterChange = (e: any) => {
+  const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     const _filters = { ...filters };
     _filters["global"].value = value;
@@ -107,15 +95,27 @@ export default function MainScreenTypeList() {
 
   const statusTemplate = (row: MainScreenType) => {
     const updateStatus = async (value: boolean) => {
-      await updateMutation.mutateAsync({ id: row.unique_id, payload: {
-        type_name: row.type_name,
-        is_active: value,
-      }});
+      const id = String(row.unique_id);
+      setPendingStatusId(id);
+
+      try {
+        await mainScreenTypeApi.update(row.unique_id, { is_active: value });
+        setMainScreenTypes((current) =>
+          current.map((item) =>
+            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
+          )
+        );
+      } catch {
+        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+      } finally {
+        setPendingStatusId(null);
+      }
     };
 
     return (
       <Switch
         checked={row.is_active}
+        disabled={pendingStatusId === String(row.unique_id)}
         onCheckedChange={updateStatus}
       />
     );
@@ -167,7 +167,7 @@ export default function MainScreenTypeList() {
           value={mainScreenTypes}
           paginator
           rows={10}
-          loading={mainScreenTypesQuery.isPending}
+          loading={isLoading}
           filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
           globalFilterFields={["type_name"]}

@@ -274,7 +274,7 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { type StateRecord, useStatesQuery, useUpdateStateMutation } from "@/tanstack/admin";
+import { stateApi } from "@/helpers/admin";
 
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
@@ -287,6 +287,15 @@ type ErrorWithResponse = {
   response?: {
     data?: unknown;
   };
+};
+
+type StateRecord = {
+  unique_id: string | number;
+  name?: string;
+  label?: string;
+  country_name?: string;
+  is_active: boolean;
+  [key: string]: unknown;
 };
 
 const STATE_COLUMN_FIELDS: Record<string, string[]> = {
@@ -318,9 +327,9 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 export default function StateList() {
   const { t } = useTranslation();
 
-  const statesQuery = useStatesQuery();
-  const updateStateMutation = useUpdateStateMutation();
-  const states = statesQuery.data ?? [];
+  const [states, setStates] = useState<StateRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
@@ -346,13 +355,32 @@ export default function StateList() {
     `/${encMasters}/${encStates}/${id}/edit`;
 
   useEffect(() => {
-    if (!statesQuery.isError) return;
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(statesQuery.error, t("common.fetch_failed")),
-      "error"
-    );
-  }, [statesQuery.error, statesQuery.isError, t]);
+    let mounted = true;
+
+    const loadStates = async () => {
+      setIsLoading(true);
+      try {
+        const data = await stateApi.list();
+        if (mounted) setStates(data as StateRecord[]);
+      } catch (error) {
+        if (mounted) {
+          Swal.fire(
+            t("common.error"),
+            extractErrorMessage(error, t("common.fetch_failed")),
+            "error"
+          );
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadStates();
+
+    return () => {
+      mounted = false;
+    };
+  }, [t]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);
@@ -391,26 +419,32 @@ export default function StateList() {
   const updateStatus = async (row: StateRecord, checked: boolean) => {
     const stateId = String(row.unique_id);
     setPendingStatusId(stateId);
+    setIsUpdating(true);
 
     try {
-      await updateStateMutation.mutateAsync({
-        id: row.unique_id,
-        payload: filterPayload({ name: row.name, is_active: checked }) as {
-          name: string;
+      await stateApi.update(
+        row.unique_id,
+        filterPayload({ is_active: checked }) as {
           is_active: boolean;
-        },
-      });
+        }
+      );
+      setStates((current) =>
+        current.map((item) =>
+          item.unique_id === row.unique_id ? { ...item, is_active: checked } : item
+        )
+      );
     } catch {
       Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
     } finally {
       setPendingStatusId(null);
+      setIsUpdating(false);
     }
   };
 
   const statusTemplate = (row: StateRecord) => {
     const stateId = String(row.unique_id);
     return (
-      <Switch checked={row.is_active} disabled={updateStateMutation.isPending && pendingStatusId === stateId} onCheckedChange={(checked) => void updateStatus(row, checked)} />
+      <Switch checked={row.is_active} disabled={isUpdating && pendingStatusId === stateId} onCheckedChange={(checked) => void updateStatus(row, checked)} />
     );
   };
 
@@ -460,7 +494,7 @@ export default function StateList() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={statesQuery.isPending && states.length === 0}
+        loading={isLoading && states.length === 0}
         filters={filters}
         onFilter={onFilter}
         header={header}

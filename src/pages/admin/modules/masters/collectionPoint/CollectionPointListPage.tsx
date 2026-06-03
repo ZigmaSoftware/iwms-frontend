@@ -14,11 +14,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  useCollectionPointsQuery,
-  useUpdateCollectionPointMutation,
-  type CollectionPointRecord,
-} from "@/tanstack/admin";
+import { collectionPointApi } from "@/helpers/admin";
 
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
@@ -32,8 +28,17 @@ type TableFilters = {
   ward_name: { value: string | null; matchMode: FilterMatchMode };
 };
 
+type CollectionPointRecord = {
+  unique_id: string | number;
+  is_active: boolean;
+  [key: string]: unknown;
+};
+
 const toDisplay = (value: unknown): string =>
   value === null || value === undefined || String(value).trim() === "" ? "-" : String(value);
+
+const toOptionalString = (value: unknown): string | null =>
+  value === null || value === undefined ? null : String(value);
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -56,6 +61,9 @@ export default function CollectionPointListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [records, setRecords] = useState<CollectionPointRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -80,14 +88,10 @@ export default function CollectionPointListPage() {
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
-  const { encMasters, encCollectionPoints } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encMasters}/${encCollectionPoints}/new`;
-  const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encCollectionPoints}/${id}/edit`;
+  const { encScheduleMasters, encCollectionPoints } = getEncryptedRoute();
+  const ENC_NEW_PATH = `/${encScheduleMasters}/${encCollectionPoints}/new`;
+  const ENC_EDIT_PATH = (id: string) => `/${encScheduleMasters}/${encCollectionPoints}/${id}/edit`;
 
-  const collectionPointsQuery = useCollectionPointsQuery(
-    companyUniqueId ? { company_id: companyUniqueId, project_id: projectId || undefined } : null
-  );
-  const updateCollectionPointMutation = useUpdateCollectionPointMutation();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "collection-points",
@@ -95,15 +99,38 @@ export default function CollectionPointListPage() {
   );
 
   useEffect(() => {
-    if (!collectionPointsQuery.isError) return;
-    console.error("Failed to fetch collection points", collectionPointsQuery.error);
-  }, [collectionPointsQuery.error, collectionPointsQuery.isError]);
+    let mounted = true;
+
+    const loadCollectionPoints = async () => {
+      if (!companyUniqueId) {
+        setRecords([]);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const data = await collectionPointApi.list({
+          params: { company_id: companyUniqueId, project_id: projectId || undefined },
+        });
+        if (mounted) setRecords(data as CollectionPointRecord[]);
+      } catch (error) {
+        console.error("Failed to fetch collection points", error);
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadCollectionPoints();
+
+    return () => {
+      mounted = false;
+    };
+  }, [companyUniqueId, projectId]);
 
   const rows = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as CollectionPointRecord[];
     if (!companyUniqueId) return [] as CollectionPointRecord[];
 
-    const records = Array.isArray(collectionPointsQuery.data) ? collectionPointsQuery.data : [];
     return records.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
@@ -145,7 +172,11 @@ export default function CollectionPointListPage() {
   const actionTemplate = (row: CollectionPointRecord) => (
     <div className="flex gap-3 justify-center">
       <button
-        onClick={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
+        onClick={() =>
+          navigate(ENC_EDIT_PATH(String(row.unique_id)), {
+            state: { companyUniqueId, projectId },
+          })
+        }
         className="text-blue-600 hover:text-blue-800"
         title={t("common.edit")}
       >
@@ -158,21 +189,28 @@ export default function CollectionPointListPage() {
     const updateStatus = async (value: boolean) => {
       try {
         setPendingStatusId(String(row.unique_id));
-        await updateCollectionPointMutation.mutateAsync({
-          id: row.unique_id,
-          payload: filterPayload({ is_active: value }) as { is_active: boolean },
-        });
+        setIsUpdating(true);
+        await collectionPointApi.update(
+          row.unique_id,
+          filterPayload({ is_active: value }) as { is_active: boolean }
+        );
+        setRecords((current) =>
+          current.map((item) =>
+            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
+          )
+        );
       } catch (error) {
         console.error("Failed to update collection point status", error);
       } finally {
         setPendingStatusId(null);
+        setIsUpdating(false);
       }
     };
 
     return (
       <Switch
         checked={Boolean(row.is_active)}
-        disabled={updateCollectionPointMutation.isPending && pendingStatusId === String(row.unique_id)}
+        disabled={isUpdating && pendingStatusId === String(row.unique_id)}
         onCheckedChange={updateStatus}
       />
     );
@@ -239,7 +277,7 @@ export default function CollectionPointListPage() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={collectionPointsQuery.isPending || collectionPointsQuery.isFetching}
+        loading={isLoading}
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}
@@ -274,7 +312,7 @@ export default function CollectionPointListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => cap(row.cp_name ?? row.collection_point_name ?? null)}
+            body={(row: CollectionPointRecord) => cap(toOptionalString(row.cp_name ?? row.collection_point_name))}
           />
         )}
         {showCol("company_name") && (
@@ -284,7 +322,7 @@ export default function CollectionPointListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => cap(row.company_name ?? null)}
+            body={(row: CollectionPointRecord) => cap(toOptionalString(row.company_name))}
           />
         )}
         {showCol("project_name") && (
@@ -294,7 +332,7 @@ export default function CollectionPointListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => cap(row.project_name ?? null)}
+            body={(row: CollectionPointRecord) => cap(toOptionalString(row.project_name))}
           />
         )}
         {showCol("state_name") && (
@@ -304,7 +342,7 @@ export default function CollectionPointListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => cap(row.state_name ?? null)}
+            body={(row: CollectionPointRecord) => cap(toOptionalString(row.state_name))}
           />
         )}
         {showCol("district_name") && (
@@ -314,7 +352,7 @@ export default function CollectionPointListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => cap(row.district_name ?? null)}
+            body={(row: CollectionPointRecord) => cap(toOptionalString(row.district_name))}
           />
         )}
         {showCol("city_name") && (
@@ -324,7 +362,7 @@ export default function CollectionPointListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => cap(row.city_name ?? null)}
+            body={(row: CollectionPointRecord) => cap(toOptionalString(row.city_name))}
           />
         )}
         {showCol("panchayat_name") && (

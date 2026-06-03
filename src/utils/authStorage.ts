@@ -169,6 +169,11 @@ export const clearAuthSession = (): void => {
   localStorage.removeItem("unique_id");
   localStorage.removeItem("user_name");
   localStorage.removeItem("user_email");
+  // Company context keys (used by useCompanyProjectSelection)
+  localStorage.removeItem("company_unique_id");
+  localStorage.removeItem("current_company_unique_id");
+  localStorage.removeItem("selected_company_unique_id");
+  // Project context keys
   localStorage.removeItem("project_id");
   localStorage.removeItem("project_unique_id");
   localStorage.removeItem("current_project_id");

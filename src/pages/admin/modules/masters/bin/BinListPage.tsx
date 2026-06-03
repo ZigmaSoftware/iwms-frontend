@@ -7,8 +7,6 @@ import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
-import ReactDOM from "react-dom/client";
-import QRCode from "react-qr-code";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -20,12 +18,13 @@ import { encryptSegment } from "@/utils/routeCrypto";
 import { PencilIcon } from "@/icons";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { useBinsQuery, useUpdateBinMutation, type BinRecord } from "@/tanstack/admin";
+import { binApi } from "@/helpers/admin";
 
 type Bin = {
   unique_id: string;
   bin_name: string;
   bin_capacity: number;
+  bin_qr?: string | null;
   company_id?: string | null;
   company_unique_id?: string | null;
   company_name?: string | null;
@@ -46,22 +45,11 @@ type Bin = {
   is_active: boolean;
 };
 
-type BinApiRow = BinRecord & {
+type BinApiRow = Record<string, unknown> & {
+  unique_id?: string | number;
+  is_active?: boolean;
   bin_status?: string | number | null;
-};
-
-type QrPayload = {
-  id: string;
-  name: string;
-  ward: string;
-  bin_capacity: number;
-  bin_type?: string;
-  waste_type?: string;
-  bin_status?: string;
-  is_active: boolean;
-  status: "active" | "inactive";
-  latitude?: number | string;
-  longitude?: number | string;
+  bin_qr?: string | null;
 };
 
 type TableFilters = {
@@ -119,8 +107,9 @@ export default function BinList() {
   });
 
   const navigate = useNavigate();
-  const binsQuery = useBinsQuery(companyUniqueId ? { company_id: companyUniqueId, project_id: projectId || undefined } : null);
-  const updateBinMutation = useUpdateBinMutation();
+  const [binRows, setBinRows] = useState<BinApiRow[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "assets",
     "bins",
@@ -128,20 +117,50 @@ export default function BinList() {
   );
 
   useEffect(() => {
-    if (!binsQuery.isError) return;
-    const data = (binsQuery.error as { response?: { data?: unknown } })?.response?.data;
-    Swal.fire(t("common.error"), String(data ?? binsQuery.error), "error");
-  }, [binsQuery.error, binsQuery.isError, t]);
+    let mounted = true;
+
+    const loadBins = async () => {
+      if (!companyUniqueId) {
+        setBinRows([]);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const data = await binApi.list({
+          params: {
+            company_id: companyUniqueId,
+            project_id: projectId || undefined,
+          },
+        });
+        if (mounted) setBinRows(data as BinApiRow[]);
+      } catch (error) {
+        if (mounted) {
+          const data = (error as { response?: { data?: unknown } })?.response?.data;
+          Swal.fire(t("common.error"), String(data ?? error), "error");
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadBins();
+
+    return () => {
+      mounted = false;
+    };
+  }, [companyUniqueId, projectId, t]);
 
   const bins = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as Bin[];
     if (!companyUniqueId) return [] as Bin[];
 
-    const rows = Array.isArray(binsQuery.data) ? (binsQuery.data as BinApiRow[]) : [];
+    const rows = Array.isArray(binRows) ? binRows : [];
     const mapped: Bin[] = rows.map((row) => ({
       unique_id: String(row.unique_id ?? ""),
       bin_name: String(row.bin_name ?? ""),
       bin_capacity: Number(row.bin_capacity ?? 0),
+      bin_qr: row.bin_qr ? String(row.bin_qr) : null,
       company_id: row.company_id ? String(row.company_id) : null,
       company_unique_id: row.company_unique_id ? String(row.company_unique_id) : null,
       company_name: row.company_name ? String(row.company_name) : null,
@@ -188,25 +207,34 @@ export default function BinList() {
     const updateStatus = async (checked: boolean) => {
       try {
         setPendingStatusId(row.unique_id);
-        await updateBinMutation.mutateAsync({
-          id: row.unique_id,
-          payload: filterPayload({
+        setIsUpdating(true);
+        await binApi.update(
+          row.unique_id,
+          filterPayload({
             bin_name: row.bin_name,
             bin_capacity: row.bin_capacity,
             is_active: checked,
-          }) as { bin_name: string; bin_capacity: number; is_active: boolean },
-        });
+          }) as { bin_name: string; bin_capacity: number; is_active: boolean }
+        );
+        setBinRows((current) =>
+          current.map((item) =>
+            String(item.unique_id ?? "") === row.unique_id
+              ? { ...item, is_active: checked }
+              : item
+          )
+        );
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
       } finally {
         setPendingStatusId(null);
+        setIsUpdating(false);
       }
     };
 
     return (
       <Switch
         checked={row.is_active}
-        disabled={updateBinMutation.isPending && pendingStatusId === row.unique_id}
+        disabled={isUpdating && pendingStatusId === row.unique_id}
         onCheckedChange={updateStatus}
       />
     );
@@ -215,7 +243,11 @@ export default function BinList() {
   const actionBodyTemplate = (row: Bin) => (
     <div className="flex gap-3 justify-center">
       <button
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onClick={() =>
+          navigate(ENC_EDIT_PATH(row.unique_id), {
+            state: { companyUniqueId, projectId },
+          })
+        }
         className="text-blue-600 hover:text-blue-800"
         title={t("common.edit")}
       >
@@ -240,44 +272,27 @@ export default function BinList() {
     </div>
   );
 
-  const buildBinQrPayload = (bin: Bin): QrPayload => ({
-    id: bin.unique_id,
-    name: bin.bin_name,
-    ward: bin.ward_name || bin.ward || "",
-    bin_capacity: bin.bin_capacity,
-    bin_type: bin.bin_type,
-    waste_type: bin.waste_type_name ?? bin.wastetype_name ?? bin.waste_type,
-    bin_status: bin.bin_status,
-    is_active: bin.is_active,
-    status: bin.is_active ? "active" : "inactive",
-    latitude: bin.latitude,
-    longitude: bin.longitude,
-  });
-
-  const openQrPopup = (payload: QrPayload) => {
+  const openQrPopup = (qrUrl: string) => {
     Swal.fire({
       title: t("admin.bin.qr_title"),
-      html: `<div id="bin-qr-holder" class="flex justify-center"></div>`,
+      html: `<div class="flex justify-center">
+              <img src="${qrUrl}" style="width:200px;height:200px;" />
+            </div>`,
       width: 350,
-      didOpen: () => {
-        const div = document.getElementById("bin-qr-holder");
-        if (div) {
-          const root = ReactDOM.createRoot(div);
-          root.render(<QRCode value={JSON.stringify(payload)} size={200} />);
-        }
-      },
     });
   };
 
   const qrTemplate = (bin: Bin) => {
-    const payload = buildBinQrPayload(bin);
+    if (!bin.bin_qr) {
+      return <span className="text-gray-400 text-xs">No QR</span>;
+    }
     return (
       <button
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
-        onClick={() => openQrPopup(payload)}
+        onClick={() => openQrPopup(bin.bin_qr!)}
         title={t("admin.bin.qr_show")}
       >
-        <QRCode value={JSON.stringify(payload)} size={45} />
+        <img src={bin.bin_qr} alt="QR" className="w-12 h-12 object-contain" />
       </button>
     );
   };
@@ -363,7 +378,7 @@ export default function BinList() {
         header={header}
         stripedRows
         showGridlines
-        loading={binsQuery.isPending || binsQuery.isFetching}
+        loading={isLoading}
         className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />

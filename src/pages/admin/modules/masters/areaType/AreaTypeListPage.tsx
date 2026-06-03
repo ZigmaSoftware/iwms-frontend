@@ -13,12 +13,8 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  type AreaTypePayload,
-  type AreaTypeRecord,
-  useAreaTypesQuery,
-  useUpdateAreaTypeMutation,
-} from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
+import type { AreaTypeRecord } from "./types";
 import Swal from "sweetalert2";
 
 const normalizeId = (value: unknown): string =>
@@ -59,6 +55,8 @@ export default function AreaTypeListPage() {
   const { t } = useTranslation();
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [areaTypes, setAreaTypes] = useState<AreaTypeRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -74,8 +72,6 @@ export default function AreaTypeListPage() {
     setProjectId,
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
-  const areaTypesQuery = useAreaTypesQuery();
-  const updateAreaTypeMutation = useUpdateAreaTypeMutation();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "area-types",
@@ -87,7 +83,7 @@ export default function AreaTypeListPage() {
   const ENC_NEW_PATH = `/${encMasters}/${encAreaTypes}/new`;
   const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encAreaTypes}/${id}/edit`;
 
-  const records = (areaTypesQuery.data ?? []).filter((row) => {
+  const records = areaTypes.filter((row) => {
     const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
     const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
 
@@ -97,17 +93,25 @@ export default function AreaTypeListPage() {
     return companyMatches && projectMatches;
   });
 
-  useEffect(() => {
-    if (!areaTypesQuery.isError) {
-      return;
+  const loadAreaTypes = async () => {
+    setIsLoading(true);
+    try {
+      const response = await adminApi.areatypes.list();
+      setAreaTypes(Array.isArray(response) ? response : []);
+    } catch (error) {
+      Swal.fire(
+        t("common.error"),
+        extractErrorMessage(error, t("common.fetch_failed")),
+        "error"
+      );
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(areaTypesQuery.error, t("common.fetch_failed")),
-      "error"
-    );
-  }, [areaTypesQuery.error, areaTypesQuery.isError, t]);
+  useEffect(() => {
+    void loadAreaTypes();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as DataTableFilterMeta);
@@ -144,28 +148,17 @@ export default function AreaTypeListPage() {
       setPendingStatusId(areaTypeId);
 
       try {
-        const rawPayload = {
-          name: row.name ?? row.area_type_name ?? "",
-          is_active: value,
-          state_id: String(row.state_id ?? ""),
-          district_id: String(row.district_id ?? ""),
-          city_id: String(row.city_id ?? ""),
-          company_id: String(
-            row.company_id ?? row.company_unique_id ?? companyUniqueId ?? ""
-          ),
-          project_id: String(
-            row.project_id ?? row.project_unique_id ?? projectId ?? ""
-          ),
-        };
-        const payload = filterPayload(rawPayload, [
-          "company_id",
-          "project_id",
-        ]) as AreaTypePayload;
-
-        await updateAreaTypeMutation.mutateAsync({
-          id: row.unique_id,
-          payload,
-        });
+        await adminApi.areatypes.update(
+          row.unique_id as string | number,
+          filterPayload({ is_active: value })
+        );
+        setAreaTypes((current) =>
+          current.map((item) =>
+            item.unique_id === row.unique_id
+              ? { ...item, is_active: value }
+              : item
+          )
+        );
       } catch (error) {
         Swal.fire(
           t("common.error"),
@@ -181,7 +174,6 @@ export default function AreaTypeListPage() {
       <Switch
         checked={Boolean(row.is_active)}
         disabled={
-          updateAreaTypeMutation.isPending &&
           pendingStatusId === String(row.unique_id)
         }
         onCheckedChange={updateStatus}
@@ -272,7 +264,7 @@ export default function AreaTypeListPage() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={areaTypesQuery.isPending && records.length === 0}
+        loading={isLoading && records.length === 0}
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}

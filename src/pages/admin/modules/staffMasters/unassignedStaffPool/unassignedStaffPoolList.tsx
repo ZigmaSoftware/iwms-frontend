@@ -16,15 +16,13 @@ import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-
 import {
-  useUnassignedStaffPoolList,
-  useUsersList,
-  useZonesList,
-  useWardsList,
-  useTripInstancesList,
-  useUpdateUnassignedStaffPool,
-} from "@/tanstack/admin/queries/masters/unassignedStaffPool";
+  unassignedStaffPoolApi,
+  userCreationApi,
+  zoneApi,
+  wardApi,
+  dailyTripAssignmentApi,
+} from "@/helpers/admin";
 
 const UNASSIGNED_STAFF_POOL_COLUMN_FIELDS: Record<string, string[]> = {
   operator: ["operator_id", "operator"],
@@ -32,7 +30,7 @@ const UNASSIGNED_STAFF_POOL_COLUMN_FIELDS: Record<string, string[]> = {
   zone: ["zone_id", "zone"],
   ward: ["ward_id", "ward"],
   status: ["status"],
-  trip_instance: ["trip_instance_id", "trip_instance"],
+  daily_trip_assignment: ["daily_trip_assignment_id", "daily_trip_assignment"],
   created_at: ["created_at"],
 };
 
@@ -49,14 +47,14 @@ type UnassignedStaffPoolRecord = {
   zone_id: string;
   ward_id: string;
   status: string;
-  trip_instance_id?: string | null;
+  daily_trip_assignment_id?: string | null;
   created_at?: string | null;
   // Enriched name fields for filtering
   _operator_name?: string;
   _driver_name?: string;
   _zone_name?: string;
   _ward_name?: string;
-  _trip_instance_name?: string;
+  _daily_trip_assignment_name?: string;
   [key: string]: unknown;
 };
 
@@ -67,7 +65,7 @@ type TableFilters = {
   _driver_name: { value: string | null; matchMode: FilterMatchMode };
   _zone_name: { value: string | null; matchMode: FilterMatchMode };
   _ward_name: { value: string | null; matchMode: FilterMatchMode };
-  _trip_instance_name: { value: string | null; matchMode: FilterMatchMode };
+  _daily_trip_assignment_name: { value: string | null; matchMode: FilterMatchMode };
 };
 
 const normalizeId = (value: unknown): string =>
@@ -128,24 +126,15 @@ export default function UnassignedStaffPoolList() {
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
-  const listParams: Record<string, string> = { company_id: companyUniqueId };
-  if (projectId) listParams.project_id = projectId;
-
-  const { data: poolRes } = useUnassignedStaffPoolList(listParams) as any;
-  const { data: userRes } = useUsersList(listParams) as any;
-  const { data: zoneRes } = useZonesList(listParams) as any;
-  const { data: wardRes } = useWardsList(listParams) as any;
-  const { data: tripRes } = useTripInstancesList(listParams) as any;
-
-  const updateMutation = useUpdateUnassignedStaffPool();
-
   const [records, setRecords] = useState<UnassignedStaffPoolRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<number | null>(null);
 
   const [userLookup, setUserLookup] = useState<Record<string, string>>({});
   const [zoneLookup, setZoneLookup] = useState<Record<string, string>>({});
   const [wardLookup, setWardLookup] = useState<Record<string, string>>({});
-  const [tripInstanceLookup, setTripInstanceLookup] = useState<Record<string, string>>({});
+  const [dailyTripAssignmentLookup, setDailyTripAssignmentLookup] = useState<Record<string, string>>({});
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
@@ -155,7 +144,7 @@ export default function UnassignedStaffPoolList() {
     _driver_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _zone_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _ward_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _trip_instance_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    _daily_trip_assignment_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
   const { encStaffMasters, encUnassignedStaffPool } = getEncryptedRoute();
@@ -163,56 +152,71 @@ export default function UnassignedStaffPoolList() {
   const ENC_EDIT_PATH = (id: number) =>
     `/${encStaffMasters}/${encUnassignedStaffPool}/${id}/edit`;
 
-  const fetchRecords = async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
-    if (!companyUniqueId) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const poolRows = filterByCompanyProject(normalizeList(poolRes), companyUniqueId, projectId);
-      const userRows = filterByCompanyProject(normalizeList(userRes), companyUniqueId, projectId);
-      const zoneRows = filterByCompanyProject(normalizeList(zoneRes), companyUniqueId, projectId);
-      const wardRows = filterByCompanyProject(normalizeList(wardRes), companyUniqueId, projectId);
-      const tripRows = filterByCompanyProject(normalizeList(tripRes), companyUniqueId, projectId);
-
-      const uLookup = buildLookup(userRows, "unique_id", "staff_name", "unique_id");
-      const znLookup = buildLookup(zoneRows, "unique_id", "name");
-      const wLookup = buildLookup(wardRows, "unique_id", "name");
-      const tLookup = buildLookup(tripRows, "unique_id", "trip_no");
-
-      const enriched = poolRows.map((rec: any) => ({
-        ...rec,
-        _operator_name: rec.operator_id ? (uLookup[rec.operator_id] ?? rec.operator_id) : "",
-        _driver_name: rec.driver_id ? (uLookup[rec.driver_id] ?? rec.driver_id) : "",
-        _zone_name: znLookup[rec.zone_id] ?? rec.zone_id,
-        _ward_name: wLookup[rec.ward_id] ?? rec.ward_id,
-        _trip_instance_name: rec.trip_instance_id ? (tLookup[rec.trip_instance_id] ?? rec.trip_instance_id) : "",
-      }));
-
-      setRecords(enriched);
-      setUserLookup(uLookup);
-      setZoneLookup(znLookup);
-      setWardLookup(wLookup);
-      setTripInstanceLookup(tLookup);
-    } catch {
-      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchRecords();
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+    let mounted = true;
+
+    const fetchRecords = async () => {
+      if (isSuperAdmin && companies.length === 0) {
+        if (mounted) { setRecords([]); setLoading(false); }
+        return;
+      }
+
+      if (!companyUniqueId) {
+        if (mounted) { setRecords([]); setLoading(false); }
+        return;
+      }
+
+      if (mounted) setLoading(true);
+      try {
+        const listParams: Record<string, string> = { company_id: companyUniqueId };
+        if (projectId) listParams.project_id = projectId;
+
+        const [poolRes, userRes, zoneRes, wardRes, tripRes] = await Promise.all([
+          unassignedStaffPoolApi.list({ params: listParams }),
+          userCreationApi.list({ params: listParams }),
+          zoneApi.list({ params: listParams }),
+          wardApi.list({ params: listParams }),
+          dailyTripAssignmentApi.list({ params: listParams }),
+        ]);
+
+        const poolRows = filterByCompanyProject(normalizeList(poolRes), companyUniqueId, projectId);
+        const userRows = filterByCompanyProject(normalizeList(userRes), companyUniqueId, projectId);
+        const zoneRows = filterByCompanyProject(normalizeList(zoneRes), companyUniqueId, projectId);
+        const wardRows = filterByCompanyProject(normalizeList(wardRes), companyUniqueId, projectId);
+        const tripRows = filterByCompanyProject(normalizeList(tripRes), companyUniqueId, projectId);
+
+        const uLookup = buildLookup(userRows, "unique_id", "staff_name", "unique_id");
+        const znLookup = buildLookup(zoneRows, "unique_id", "name");
+        const wLookup = buildLookup(wardRows, "unique_id", "name");
+        const tLookup = buildLookup(tripRows, "unique_id", "trip_no");
+
+        const enriched = poolRows.map((rec: any) => ({
+          ...rec,
+          _operator_name: rec.operator_id ? (uLookup[rec.operator_id] ?? rec.operator_id) : "",
+          _driver_name: rec.driver_id ? (uLookup[rec.driver_id] ?? rec.driver_id) : "",
+          _zone_name: znLookup[rec.zone_id] ?? rec.zone_id,
+          _ward_name: wLookup[rec.ward_id] ?? rec.ward_id,
+          _daily_trip_assignment_name: rec.daily_trip_assignment_id ? (tLookup[rec.daily_trip_assignment_id] ?? rec.daily_trip_assignment_id) : "",
+        }));
+
+        if (mounted) {
+          setRecords(enriched);
+          setUserLookup(uLookup);
+          setZoneLookup(znLookup);
+          setWardLookup(wLookup);
+          setDailyTripAssignmentLookup(tLookup);
+        }
+      } catch {
+        if (mounted) Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    void fetchRecords();
+
+    return () => { mounted = false; };
+  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);
@@ -229,20 +233,28 @@ export default function UnassignedStaffPoolList() {
 
   const statusBodyTemplate = (row: UnassignedStaffPoolRecord) => {
     const updateStatus = async (checked: boolean) => {
+      setPendingStatusId(row.id);
+      setIsUpdating(true);
       try {
-        await updateMutation.mutateAsync({
-          id: row.id,
-          payload: filterPayload({ status: checked ? "AVAILABLE" : "ASSIGNED" }),
-        });
+        await unassignedStaffPoolApi.update(row.id, filterPayload({ status: checked ? "AVAILABLE" : "ASSIGNED" }));
+        setRecords((current) =>
+          current.map((item) =>
+            item.id === row.id ? { ...item, status: checked ? "AVAILABLE" : "ASSIGNED" } : item
+          )
+        );
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+      } finally {
+        setPendingStatusId(null);
+        setIsUpdating(false);
       }
     };
 
     return (
       <Switch
         checked={row.status === "AVAILABLE"}
-        onCheckedChange={updateStatus}
+        disabled={isUpdating && pendingStatusId === row.id}
+        onCheckedChange={(checked) => void updateStatus(checked)}
       />
     );
   };
@@ -353,7 +365,7 @@ export default function UnassignedStaffPoolList() {
           ...(showCol("zone") ? ["_zone_name"] : []),
           ...(showCol("ward") ? ["_ward_name"] : []),
           ...(showCol("status") ? ["status"] : []),
-          ...(showCol("trip_instance") ? ["_trip_instance_name"] : []),
+          ...(showCol("daily_trip_assignment") ? ["_daily_trip_assignment_name"] : []),
           "company_name",
           "project_name",
         ]}
@@ -426,13 +438,13 @@ export default function UnassignedStaffPoolList() {
           />
         )}
 
-        {showCol("trip_instance") && (
+        {showCol("daily_trip_assignment") && (
           <Column
-            field="_trip_instance_name"
-            header={t("admin.unassigned_staff_pool.trip_instance")}
+            field="_daily_trip_assignment_name"
+            header={t("admin.unassigned_staff_pool.daily_trip_assignment")}
             body={(row: UnassignedStaffPoolRecord) =>
-              row.trip_instance_id
-                ? tripInstanceLookup[row.trip_instance_id] ?? row.trip_instance_id
+              row.daily_trip_assignment_id
+                ? dailyTripAssignmentLookup[row.daily_trip_assignment_id] ?? row.daily_trip_assignment_id
                 : "-"
             }
             filter

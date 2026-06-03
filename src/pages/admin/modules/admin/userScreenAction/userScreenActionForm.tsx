@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -14,27 +14,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 import { encryptSegment } from "@/utils/routeCrypto";
-
-import {
-  useCreateUserScreenActionMutation,
-  useUpdateUserScreenActionMutation,
-  useUserScreenActionQuery,
-} from "@/tanstack/admin";
-
-const firstErrorMessage = (value: unknown): string | undefined => {
-  if (Array.isArray(value) && typeof value[0] === "string") {
-    return value[0];
-  }
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  return undefined;
-};
+import { adminApi } from "@/helpers/admin/registry";
 
 /* ------------------------------
     ROUTES
@@ -43,8 +25,14 @@ const encAdmins = encryptSegment("admins");
 const encUserScreenAction = encryptSegment("userscreen-action");
 const ENC_LIST_PATH = `/${encAdmins}/${encUserScreenAction}`;
 
+const firstErrorMessage = (value: unknown): string | undefined => {
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  if (typeof value === "string") return value;
+  return undefined;
+};
+
 /* ==========================================================
-    COMPONENT START
+    COMPONENT
 ========================================================== */
 export default function UserScreenActionForm() {
   const { t } = useTranslation();
@@ -55,40 +43,39 @@ export default function UserScreenActionForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
-  const userScreenActionQuery = useUserScreenActionQuery(isEdit ? id : null);
-  const createMutation = useCreateUserScreenActionMutation();
-  const updateMutation = useUpdateUserScreenActionMutation();
-  const loading = createMutation.isPending || updateMutation.isPending;
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    companies,
-    projects,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
+
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   /* ==========================================================
       FETCH EDIT DATA
   ========================================================== */
   useEffect(() => {
-    if (!userScreenActionQuery.data) return;
-    const data = userScreenActionQuery.data;
-    applyCompanyProjectFromRecord(data as Record<string, unknown>);
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.userScreenActions.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? "Load failed") });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
+
+  useEffect(() => {
+    if (!recordData) return;
+    const data = recordData;
     setActionName(data.action_name || "");
     setVariableName(data.variable_name || "");
     setIsActive(Boolean(data.is_active));
-  }, [userScreenActionQuery.data, applyCompanyProjectFromRecord]);
-
-  useEffect(() => {
-    if (!userScreenActionQuery.isError) return;
-    Swal.fire(t("common.error"), t("common.load_failed"), "error");
-  }, [userScreenActionQuery.isError, t]);
+  }, [recordData]);
 
   /* ==========================================================
       SUBMIT HANDLER
@@ -96,43 +83,42 @@ export default function UserScreenActionForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!companyUniqueId || !projectId || !actionName.trim() || !variableName.trim()) {
+    if (!actionName.trim() || !variableName.trim()) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
 
     const payload = {
-      company_id: companyUniqueId,
-      project_id: projectId,
       action_name: actionName.trim(),
       variable_name: variableName.trim(),
       is_active: isActive,
     };
 
+    setIsSubmitting(true);
     try {
       if (isEdit && id) {
-        await updateMutation.mutateAsync({ id, payload });
+        await adminApi.userScreenActions.update(id, payload);
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await createMutation.mutateAsync(payload);
+        await adminApi.userScreenActions.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(ENC_LIST_PATH);
     } catch (err: unknown) {
       const errorData =
         (err as { response?: { data?: Record<string, unknown> } })?.response
           ?.data ?? {};
 
       const message =
-        firstErrorMessage(errorData.company_id) ||
-        firstErrorMessage(errorData.project_id) ||
         firstErrorMessage(errorData.action_name) ||
         firstErrorMessage(errorData.variable_name) ||
         firstErrorMessage(errorData.detail) ||
         t("common.unexpected_error");
 
       Swal.fire(t("common.save_failed"), message, "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -148,62 +134,7 @@ export default function UserScreenActionForm() {
       }
     >
       <form onSubmit={handleSubmit} noValidate>
-        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Company */}
-          <div>
-            <Label>{t("admin.nav.company")} *</Label>
-            <Select
-              value={companyUniqueId}
-              onValueChange={onCompanyChange}
-              disabled={
-                Boolean(loggedInCompanyUniqueId) ||
-                (!isSuperAdmin && !loggedInCompanyUniqueId) ||
-                companies.length === 0
-              }
-            >
-              <SelectTrigger className="input-validate w-full">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.company"),
-                  })}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {companies.map((company) => (
-                  <SelectItem key={company.value} value={company.value}>
-                    {company.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Project */}
-          <div>
-            <Label>{t("admin.nav.project")} *</Label>
-            <Select
-              value={projectId}
-              onValueChange={setProjectId}
-              disabled={!companyUniqueId || projects.length === 0}
-            >
-              <SelectTrigger className="input-validate w-full">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.project"),
-                  })}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.value} value={project.value}>
-                    {project.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* Action Name */}
           <div>
             <Label>{t("common.action_name")} *</Label>
@@ -244,30 +175,28 @@ export default function UserScreenActionForm() {
               </SelectContent>
             </Select>
           </div>
-
         </div>
 
         {/* Actions */}
         <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={loading}>
-            {loading
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting
               ? isEdit
                 ? t("common.updating")
                 : t("common.saving")
               : isEdit
-              ? t("common.update")
-              : t("common.save")}
+                ? t("common.update")
+                : t("common.save")}
           </Button>
 
           <Button
             type="button"
             variant="destructive"
-            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_LIST_PATH)}
           >
             {t("common.cancel")}
           </Button>
         </div>
-
       </form>
     </ComponentCard>
   );

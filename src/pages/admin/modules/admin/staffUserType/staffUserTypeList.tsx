@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -16,22 +17,49 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
+import { contractorUserTypeApi, staffUserTypeApi } from "@/helpers/admin";
 
 import type { StaffUserType } from "../types/admin.types";
-import {
-  useStaffUserTypesQuery,
-  useUpdateStaffUserTypeMutation,
-  useContractorUserTypesQuery,
-  useUpdateContractorUserTypeMutation,
-} from "@/tanstack/admin";
+
+type StaffUserTypeRow = StaffUserType & {
+  category: "Staff" | "Contractor";
+  usertype_name?: string;
+};
+
+const toRecordList = (value: unknown): StaffUserType[] => {
+  if (Array.isArray(value)) return value as StaffUserType[];
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.results)) return record.results as StaffUserType[];
+    if (Array.isArray(record.data)) return record.data as StaffUserType[];
+  }
+  return [];
+};
+
+const extractErrorMessage = (error: unknown, fallback: string) => {
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+
+  if (typeof data === "string") return data;
+  if (Array.isArray(data)) return data.join(", ");
+  if (data && typeof data === "object") {
+    return Object.entries(data as Record<string, unknown>)
+      .map(([key, value]) =>
+        `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
+      )
+      .join("\n");
+  }
+
+  return fallback;
+};
 
 
 export default function StaffUserTypeList() {
   const { t } = useTranslation();
-  const staffUserTypesQuery = useStaffUserTypesQuery();
-  const contractorUserTypesQuery = useContractorUserTypesQuery();
-  const updateStaffUserTypeMutation = useUpdateStaffUserTypeMutation();
-  const updateContractorUserTypeMutation = useUpdateContractorUserTypeMutation();
+  const [staffUserTypes, setStaffUserTypes] = useState<StaffUserType[]>([]);
+  const [contractorUserTypes, setContractorUserTypes] = useState<StaffUserType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUpdatingStaff, setIsUpdatingStaff] = useState(false);
+  const [isUpdatingContractor, setIsUpdatingContractor] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
@@ -49,15 +77,29 @@ export default function StaffUserTypeList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encAdmins}/${encStaffUserType}/${id}/edit`;
 
-  useEffect(() => {
-    if (staffUserTypesQuery.isError || contractorUserTypesQuery.isError) {
+  const loadRecords = async () => {
+    setIsLoading(true);
+    try {
+      const [staffRes, contractorRes] = await Promise.all([
+        staffUserTypeApi.list(),
+        contractorUserTypeApi.list(),
+      ]);
+      setStaffUserTypes(toRecordList(staffRes));
+      setContractorUserTypes(toRecordList(contractorRes));
+    } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+    } finally {
+      setIsLoading(false);
     }
-  }, [staffUserTypesQuery.isError, contractorUserTypesQuery.isError, t]);
+  };
+
+  useEffect(() => {
+    void loadRecords();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const records = useMemo(() => {
-    const normalize = (list: any[], category: string) =>
-      (list ?? []).map((item: any) => ({
+    const normalize = (list: StaffUserType[], category: "Staff" | "Contractor") =>
+      (list ?? []).map((item) => ({
         ...item,
         usertype_id: item.usertype_id ?? item.usertype?.unique_id ?? null,
         usertype_name: item.usertype_name ?? item.usertype?.name ?? t("common.unknown"),
@@ -65,10 +107,10 @@ export default function StaffUserTypeList() {
       }));
 
     return [
-      ...normalize(staffUserTypesQuery.data ?? [], "Staff"),
-      ...normalize(contractorUserTypesQuery.data ?? [], "Contractor"),
+      ...normalize(staffUserTypes, "Staff"),
+      ...normalize(contractorUserTypes, "Contractor"),
     ];
-  }, [staffUserTypesQuery.data, contractorUserTypesQuery.data, t]);
+  }, [staffUserTypes, contractorUserTypes, t]);
 
   /* -----------------------------------------------------------
      STATUS SWITCH
@@ -77,22 +119,25 @@ export default function StaffUserTypeList() {
     const id = String(row.unique_id);
     setPendingStatusId(id);
 
-    const payload = {
-      usertype_id: row.usertype_id as string,
-      name: row.name,
-      is_active: checked,
-    };
-
     try {
       if (row.category === "Contractor") {
-        await updateContractorUserTypeMutation.mutateAsync({ id: row.unique_id, payload });
+        setIsUpdatingContractor(true);
+        await contractorUserTypeApi.update(row.unique_id, { is_active: checked });
       } else {
-        await updateStaffUserTypeMutation.mutateAsync({ id: row.unique_id, payload });
+        setIsUpdatingStaff(true);
+        await staffUserTypeApi.update(row.unique_id, { is_active: checked });
       }
+      await loadRecords();
     } catch (error: any) {
       console.error("Update Status Error:", error?.response?.data || error);
-      Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+      Swal.fire(
+        t("common.error"),
+        extractErrorMessage(error, t("common.update_status_failed")),
+        "error"
+      );
     } finally {
+      setIsUpdatingContractor(false);
+      setIsUpdatingStaff(false);
       setPendingStatusId(null);
     }
   };
@@ -101,8 +146,8 @@ export default function StaffUserTypeList() {
     const id = String(row.unique_id);
     const isPending =
       (row.category === "Contractor"
-        ? updateContractorUserTypeMutation.isPending
-        : updateStaffUserTypeMutation.isPending) && pendingStatusId === id;
+        ? isUpdatingContractor
+        : isUpdatingStaff) && pendingStatusId === id;
     return (
       <Switch
         checked={row.is_active}
@@ -112,23 +157,10 @@ export default function StaffUserTypeList() {
     );
   };
 
-  const categoryTemplate = (row: any) => (
-    <span
-      className={`px-2 py-0.5 rounded text-xs font-medium ${
-        row.category === "Contractor"
-          ? "bg-orange-100 text-orange-700"
-          : "bg-blue-100 text-blue-700"
-      }`}
-    >
-      {row.category}
-    </span>
-  );
-
-
   /* -----------------------------------------------------------
      ACTION BUTTONS
   ----------------------------------------------------------- */
-  const actionTemplate = (row: StaffUserType) => (
+  const actionTemplate = (row: StaffUserTypeRow) => (
     <div className="flex gap-2 justify-center">
       <button
         title={t("common.edit")}
@@ -213,7 +245,7 @@ export default function StaffUserTypeList() {
           value={records}
           paginator
           rows={10}
-          loading={(staffUserTypesQuery.isPending || contractorUserTypesQuery.isPending) && records.length === 0}
+          loading={isLoading && records.length === 0}
           filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
           globalFilterFields={["name", "usertype_name", "category"]}

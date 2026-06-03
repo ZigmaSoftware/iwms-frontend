@@ -25,6 +25,10 @@ type UseCompanyProjectSelectionArgs = {
 
 const toStringId = (value: unknown): string => {
   if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return toStringId(record.unique_id ?? record.id ?? record.value);
+  }
   return String(value);
 };
 
@@ -278,7 +282,13 @@ export const useCompanyProjectSelection = ({
         setCompanyUniqueId(recordCompanyId);
       }
 
-      setProjectId(toStringId(projectCandidate));
+      // Only override projectId when the record actually has a project value.
+      // If the record has null/empty project (e.g. saved before project was required),
+      // keep whatever is already selected (e.g. from route state / initialProjectId).
+      const recordProjectId = toStringId(projectCandidate);
+      if (recordProjectId) {
+        setProjectId(recordProjectId);
+      }
     },
     [isSuperAdmin, loggedInCompanyUniqueId]
   );

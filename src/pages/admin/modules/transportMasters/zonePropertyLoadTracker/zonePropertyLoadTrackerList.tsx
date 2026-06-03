@@ -217,7 +217,7 @@
 // }
 
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
@@ -231,7 +231,6 @@ import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
-import { useZonePropertyLoadTrackerList, useDeleteZonePropertyLoadTracker } from "@/tanstack/admin/queries/masters/zonePropertyLoadTracker";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
@@ -314,13 +313,28 @@ export default function ZonePropertyLoadTrackerList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encTransportMaster}/${encZonePropertyLoadTracker}/${id}/edit`;
 
-  const apiFilters = companyUniqueId ? { company_id: companyUniqueId, project_id: projectId ?? undefined } : null;
-  const trackersQ = useZonePropertyLoadTrackerList(apiFilters);
-
   useEffect(() => {
-    setLoading(trackersQ.isLoading);
-    setRecords(normalizeList(trackersQ.data ?? []));
-  }, [trackersQ.data, trackersQ.isLoading]);
+    if (!companyUniqueId) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
+    let mounted = true;
+    const params = { company_id: companyUniqueId, project_id: projectId ?? undefined };
+    setLoading(true);
+    adminApi.zonePropertyLoadTrackers.list({ params })
+      .then((res) => {
+        if (mounted) setRecords(normalizeList(res ?? []));
+      })
+      .catch(() => {
+        if (mounted) Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => { mounted = false; };
+  }, [companyUniqueId, projectId, t]);
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);

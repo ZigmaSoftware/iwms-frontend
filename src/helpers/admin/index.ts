@@ -30,6 +30,7 @@ export const designationApi = adminApi.designations;
 export const collectionPointApi = adminApi.collectionPoints;
 export const wasteTypeApi = adminApi.wasteTypes;
 export const panchayatApi = adminApi.panchayats;
+export const panchayatLeaderApi = adminApi.panchayatLeaders;
 export const areaTypeApi = adminApi.areatypes;
 export const hierarchyApi = adminApi.hierarchies;
 
@@ -76,7 +77,6 @@ export const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
 /* =========================
    PROCESS
 ========================= */
-export const routePlanApi = adminApi.routePlans;
 export const zonePropertyLoadTrackerApi = adminApi.zonePropertyLoadTrackers;
 
 /* =========================
@@ -93,6 +93,7 @@ export const wasteCollectionApi = adminApi.wasteCollections;
 export const panchayatWiseCollectionApi = adminApi.panchayatWiseCollections;
 export const wardWiseCollectionApi = adminApi.wardWiseCollections;
 export const feedbackApi = adminApi.feedbacks;
+// export const collectionMonitoringApi = adminApi.pointCollections;
 
 /* =========================
    GRIEVANCES
@@ -106,10 +107,14 @@ export const subCategoryApi = adminApi.subCategory;
 ========================= */
 export const vehicleTypeApi = adminApi.vehicleTypes;
 export const vehicleCreationApi = adminApi.vehicleCreations;
-export const tripDefinitionApi = adminApi.tripDefinitions;
-export const tripInstanceApi = adminApi.tripInstances;
+export const tripPlanApi = adminApi.tripPlans;
+export const tripPlanCollectionPointApi = adminApi.tripPlanCollectionPoints;
 export const tripAttendanceApi = adminApi.tripAttendances;
 export const fuelApi = adminApi.fuels;
+export const dailyTripAssignmentApi = adminApi.dailyTripAssignment;
+export const dailyTripLogApi = adminApi.dailyTripLog;
+export const dailyTripCollectionPointApi = adminApi.dailyTripCollectionPoint;
+export const binCollectionEventApi = adminApi.binCollectionEvent;
 
 /* =========================
    AUDITS
@@ -120,6 +125,7 @@ export const binLoadLogApi = adminApi.binLoadLogs;
 export const supervisorZoneAccessAuditApi = adminApi.supervisorZoneAccessAudits;
 export const staffTemplateAuditLogApi = adminApi.staffTemplateAuditLogs;
 export const commonAuditApi = adminApi.commonAudits;
+export const monthlyWasteComparisonApi = adminApi.monthlyWasteComparison;
 
 /* =========================
    UTILITIES

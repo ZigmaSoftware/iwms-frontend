@@ -7,15 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
 
 import { encryptSegment } from "@/utils/routeCrypto";
+import { adminApi } from "@/helpers/admin/registry";
 
 /* -----------------------------------------
    ROUTES
@@ -24,350 +25,284 @@ const encAdmins = encryptSegment("admins");
 const encUserScreen = encryptSegment("userscreens");
 const ENC_LIST_PATH = `/${encAdmins}/${encUserScreen}`;
 
-/* -----------------------------------------
-   APIS
------------------------------------------ */
-
-import {
-  useCreateUserScreenMutation,
-  useMainScreensQuery,
-  useUpdateUserScreenMutation,
-  useUserScreenQuery,
-} from "@/tanstack/admin";
-
 type MainScreenOption = {
-    value: string;
-    label: string;
-    companyId: string;
-    projectId: string;
-    companyName: string;
-    projectName: string;
+  value: string;
+  label: string;
 };
 
 const toText = (value: unknown): string => {
-    if (value === null || value === undefined) return "";
-    return String(value).trim();
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
 };
 
 const firstErrorMessage = (value: unknown): string | undefined => {
-    if (Array.isArray(value) && typeof value[0] === "string") {
-        return value[0];
-    }
-
-    if (typeof value === "string") {
-        return value;
-    }
-
-    return undefined;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  if (typeof value === "string") return value;
+  return undefined;
 };
-
 
 /* =========================================
     FORM COMPONENT
 ========================================= */
 export default function UserScreenForm() {
-    const { t } = useTranslation();
-    /* FORM FIELDS */
-    const [mainscreenId, setMainscreenId] = useState("");
-    const [userScreenName, setUserScreenName] = useState("");
-    const [folderName, setFolderName] = useState("");
-    const [orderNo, setOrderNo] = useState("");
-    const [description, setDescription] = useState("");
-    const [fallbackCompanyId, setFallbackCompanyId] = useState("");
-    const [fallbackProjectId, setFallbackProjectId] = useState("");
-    const [fallbackCompanyName, setFallbackCompanyName] = useState("");
-    const [fallbackProjectName, setFallbackProjectName] = useState("");
-    const [isActive, setIsActive] = useState(true);
+  const { t } = useTranslation();
 
-    const [loading, setLoading] = useState(false);
+  const [mainscreenId, setMainscreenId] = useState("");
+  const [userScreenName, setUserScreenName] = useState("");
+  const [folderName, setFolderName] = useState("");
+  const [orderNo, setOrderNo] = useState("");
+  const [description, setDescription] = useState("");
+  const [isActive, setIsActive] = useState(true);
 
-    const navigate = useNavigate();
-    const { id } = useParams<{ id: string }>();
-    const isEdit = Boolean(id);
-    const mainScreensQuery = useMainScreensQuery();
-    const userScreenQuery = useUserScreenQuery(isEdit ? id : null);
-    const createMutation = useCreateUserScreenMutation();
-    const updateMutation = useUpdateUserScreenMutation();
-    const isSubmitting = createMutation.isPending || updateMutation.isPending;
-    const mainScreens = useMemo<MainScreenOption[]>(
-        () =>
-            (mainScreensQuery.data ?? [])
-                .filter((x) => Boolean(x.is_active))
-                .map((x) => ({
-                    value: toText(x.unique_id),
-                    label: toText(x.mainscreen_name),
-                    companyId: toText(x.company_id),
-                    projectId: toText(x.project_id),
-                    companyName: toText(x.company_name),
-                    projectName: toText(x.project_name),
-                })),
-        [mainScreensQuery.data]
-    );
-    const selectedMainScreen = useMemo(
-        () => mainScreens.find((x) => x.value === mainscreenId),
-        [mainScreens, mainscreenId]
-    );
-    const resolvedCompanyId = selectedMainScreen
-        ? selectedMainScreen.companyId
-        : fallbackCompanyId;
-    const resolvedProjectId = selectedMainScreen
-        ? selectedMainScreen.projectId
-        : fallbackProjectId;
-    const resolvedCompanyName = selectedMainScreen
-        ? selectedMainScreen.companyName
-        : fallbackCompanyName;
-    const resolvedProjectName = selectedMainScreen
-        ? selectedMainScreen.projectName
-        : fallbackProjectName;
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEdit = Boolean(id);
 
-    /* =========================================
-        LOAD MAINSCREENS FOR DROPDOWN
-    ========================================= */
-    /* =========================================
-        EDIT MODE — LOAD EXISTING RECORD
-    ========================================= */
-    useEffect(() => {
-        if (!userScreenQuery.data) return;
-        const data = userScreenQuery.data;
-        setMainscreenId(data.mainscreen_id ?? "");
-        setUserScreenName(data.userscreen_name ?? "");
-        setFolderName(data.folder_name ?? "");
-        setOrderNo(String(data.order_no ?? ""));
-        setDescription(data.description ?? "");
-        setFallbackCompanyId(toText(data.company_id));
-        setFallbackProjectId(toText(data.project_id));
-        setFallbackCompanyName(toText(data.company_name));
-        setFallbackProjectName(toText(data.project_name));
-        setIsActive(Boolean(data.is_active));
-    }, [userScreenQuery.data]);
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [mainScreensList, setMainScreensList] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    useEffect(() => {
-        if (!userScreenQuery.isError && !mainScreensQuery.isError) return;
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
-    }, [mainScreensQuery.isError, userScreenQuery.isError, t]);
+  /* =========================================
+      FETCH MAIN SCREENS (dropdown)
+  ========================================= */
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.mainScreens.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        setMainScreensList(Array.isArray(res) ? res : (res?.results ?? []));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
-    /* =========================================
-        SUBMIT HANDLER
-    ========================================= */
-    const handleSubmit = async (e: FormEvent) => {
-        e.preventDefault();
+  /* =========================================
+      EDIT MODE — LOAD EXISTING RECORD
+  ========================================= */
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.userScreens.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? "Load failed") });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
-        if (!mainscreenId || !userScreenName.trim() || !folderName.trim()) {
-            Swal.fire(
-                t("common.warning"),
-                t("common.missing_fields"),
-                "warning"
-            );
-            return;
-        }
+  // Prefill plain fields as soon as the record arrives.
+  useEffect(() => {
+    if (!recordData) return;
+    const data = recordData;
+    setUserScreenName(data.userscreen_name ?? "");
+    setFolderName(data.folder_name ?? "");
+    setOrderNo(String(data.order_no ?? ""));
+    setDescription(data.description ?? "");
+    setIsActive(Boolean(data.is_active));
+  }, [recordData]);
 
-        try {
-            const payload = {
-                mainscreen_id: mainscreenId,
-                company_id: resolvedCompanyId || null,
-                project_id: resolvedProjectId || null,
-                userscreen_name: userScreenName.trim(),
-                folder_name: folderName.trim(),
-                description: description.trim(),
-                is_active: isActive,
-            };
+  // Prefill the Select only once both the record AND the options list are ready
+  // to avoid the race where the list arrives after the record (value renders blank).
+  useEffect(() => {
+    if (!recordData || mainScreensList.length === 0) return;
+    setMainscreenId(String(recordData.mainscreen_id ?? ""));
+  }, [recordData, mainScreensList]);
 
-            if (isEdit && id) {
-                await updateMutation.mutateAsync({ id, payload: {
-                    ...payload,
-                    order_no: Number(orderNo) || 0,
-                }});
-                Swal.fire(t("common.success"), t("common.updated_success"), "success");
-            } else {
-                await createMutation.mutateAsync(payload);
-                Swal.fire(t("common.success"), t("common.added_success"), "success");
-            }
+  const mainScreens = useMemo<MainScreenOption[]>(
+    () =>
+      mainScreensList
+        .filter((x) => Boolean(x.is_active))
+        .map((x) => ({
+          value: toText(x.unique_id),
+          label: toText(x.mainscreen_name),
+        })),
+    [mainScreensList]
+  );
 
-            navigate(ENC_LIST_PATH);
-        } catch (err: unknown) {
-            const errorData =
-                (err as { response?: { data?: Record<string, unknown> } })?.response
-                    ?.data ?? {};
+  /* =========================================
+      SUBMIT HANDLER
+  ========================================= */
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
 
-            Swal.fire(
-                t("common.save_failed"),
-                firstErrorMessage(errorData.detail) ||
-                    firstErrorMessage(errorData.company_id) ||
-                    firstErrorMessage(errorData.project_id) ||
-                    t("common.save_failed_desc"),
-                "error"
-            );
-        }
-    };
+    if (!mainscreenId || !userScreenName.trim() || !folderName.trim()) {
+      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+      return;
+    }
 
-    /* =========================================
-        JSX
-    ========================================= */
-    return (
-        <ComponentCard
-            title={
-                isEdit
-                    ? t("common.edit_item", { item: t("admin.nav.user_screen") })
-                    : t("common.add_item", { item: t("admin.nav.user_screen") })
-            }
-        >
-            <form onSubmit={handleSubmit} noValidate>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Company (from MainScreen) */}
-                    <div>
-                        <Label>{t("admin.nav.company")}</Label>
-                        <Input
-                            value={resolvedCompanyName}
-                            placeholder={t("common.select_item_placeholder", {
-                                item: t("admin.nav.main_screen"),
-                            })}
-                            className="input-validate w-full"
-                            readOnly
-                            disabled
-                        />
-                    </div>
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        mainscreen_id: mainscreenId,
+        userscreen_name: userScreenName.trim(),
+        folder_name: folderName.trim(),
+        description: description.trim(),
+        is_active: isActive,
+      };
 
-                    {/* Project (from MainScreen) */}
-                    <div>
-                        <Label>{t("admin.nav.project")}</Label>
-                        <Input
-                            value={resolvedProjectName}
-                            placeholder={t("common.select_item_placeholder", {
-                                item: t("admin.nav.main_screen"),
-                            })}
-                            className="input-validate w-full"
-                            readOnly
-                            disabled
-                        />
-                    </div>
+      if (isEdit && id) {
+        await adminApi.userScreens.update(id, { ...payload, order_no: Number(orderNo) || 0 });
+        Swal.fire(t("common.success"), t("common.updated_success"), "success");
+      } else {
+        await adminApi.userScreens.create(payload);
+        Swal.fire(t("common.success"), t("common.added_success"), "success");
+      }
 
-                    {/* Mainscreen */}
-                    <div>
-                        <Label>{t("admin.nav.main_screen")} *</Label>
-                        <Select
-                            value={mainscreenId}
-                            onValueChange={(val) => setMainscreenId(val)}
-                        >
-                            <SelectTrigger className="input-validate w-full">
-                                <SelectValue
-                                    placeholder={t("common.select_item_placeholder", {
-                                        item: t("admin.nav.main_screen"),
-                                    })}
-                                />
-                            </SelectTrigger>
+      navigate(ENC_LIST_PATH);
+    } catch (err: unknown) {
+      const errorData =
+        (err as { response?: { data?: Record<string, unknown> } })?.response
+          ?.data ?? {};
 
-                            <SelectContent>
-                                {mainScreens.map((opt) => (
-                                    <SelectItem key={opt.value} value={opt.value}>
-                                        {opt.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+      Swal.fire(
+        t("common.save_failed"),
+        firstErrorMessage(errorData.detail) ||
+          firstErrorMessage(errorData.userscreen_name) ||
+          t("common.save_failed_desc"),
+        "error"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-                    {/* User Screen Name */}
-                    <div>
-                        <Label>
-                            {t("common.item_name", {
-                                item: t("admin.nav.user_screen"),
-                            })}{" "}
-                            *
-                        </Label>
-                        <Input
-                            value={userScreenName}
-                            onChange={(e) => setUserScreenName(e.target.value)}
-                            placeholder={t("common.enter_item_name", {
-                                item: t("admin.nav.user_screen"),
-                            })}
-                            required
-                            className="input-validate w-full"
-                        />
-                    </div>
+  /* =========================================
+      JSX
+  ========================================= */
+  return (
+    <ComponentCard
+      title={
+        isEdit
+          ? t("common.edit_item", { item: t("admin.nav.user_screen") })
+          : t("common.add_item", { item: t("admin.nav.user_screen") })
+      }
+    >
+      <form onSubmit={handleSubmit} noValidate>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Mainscreen */}
+          <div>
+            <Label>{t("admin.nav.main_screen")} *</Label>
+            <Select
+              value={mainscreenId}
+              onValueChange={(val) => setMainscreenId(val)}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue
+                  placeholder={t("common.select_item_placeholder", {
+                    item: t("admin.nav.main_screen"),
+                  })}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {mainScreens.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-                    {/* Folder Name */}
-                    <div>
-                        <Label>{t("common.folder_path")} *</Label>
-                        <Input
-                            value={folderName}
-                            onChange={(e) => setFolderName(e.target.value)}
-                            placeholder={t("common.folder_path_placeholder")}
-                            required
-                            className="input-validate w-full"
-                        />
-                    </div>
+          {/* User Screen Name */}
+          <div>
+            <Label>
+              {t("common.item_name", { item: t("admin.nav.user_screen") })} *
+            </Label>
+            <Input
+              value={userScreenName}
+              onChange={(e) => setUserScreenName(e.target.value)}
+              placeholder={t("common.enter_item_name", {
+                item: t("admin.nav.user_screen"),
+              })}
+              required
+              className="input-validate w-full"
+            />
+          </div>
 
-                    {/* Icon Name removed: backend-controlled */}
+          {/* Folder Name */}
+          <div>
+            <Label>{t("common.folder_path")} *</Label>
+            <Input
+              value={folderName}
+              onChange={(e) => setFolderName(e.target.value)}
+              placeholder={t("common.folder_path_placeholder")}
+              required
+              className="input-validate w-full"
+            />
+          </div>
 
-                    {/* Order No (backend-controlled) */}
-                    {isEdit ? (
-                        <div>
-                            <Label>{t("common.order_no")}</Label>
-                            <Input
-                                type="number"
-                                value={orderNo}
-                                onChange={(e) => setOrderNo(e.target.value)}
-                                placeholder={t("common.order_no_placeholder")}
-                                className="input-validate w-full"
-                            />
-                        </div>
-                    ) : null}
+          {/* Order No (edit only — backend auto-assigns on create) */}
+          {isEdit ? (
+            <div>
+              <Label>{t("common.order_no")}</Label>
+              <Input
+                type="number"
+                value={orderNo}
+                onChange={(e) => setOrderNo(e.target.value)}
+                placeholder={t("common.order_no_placeholder")}
+                className="input-validate w-full"
+              />
+            </div>
+          ) : null}
 
-                    {/* Description */}
-                    <div className="md:col-span-2">
-                        <Label>{t("common.description")}</Label>
-                        <Input
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder={t("common.description_optional")}
-                            className="input-validate w-full"
-                        />
-                    </div>
+          {/* Description */}
+          <div className="md:col-span-2">
+            <Label>{t("common.description")}</Label>
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder={t("common.description_optional")}
+              className="input-validate w-full"
+            />
+          </div>
 
-                    {/* Status */}
-                    <div>
-                        <Label>{t("common.status")} *</Label>
-                        <Select
-                            value={isActive ? "true" : "false"}
-                            onValueChange={(v) => setIsActive(v === "true")}
-                        >
-                            <SelectTrigger className="input-validate w-full">
-                                <SelectValue placeholder={t("common.select_status")} />
-                            </SelectTrigger>
+          {/* Status */}
+          <div>
+            <Label>{t("common.status")} *</Label>
+            <Select
+              value={isActive ? "true" : "false"}
+              onValueChange={(v) => setIsActive(v === "true")}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_status")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">{t("common.active")}</SelectItem>
+                <SelectItem value="false">{t("common.inactive")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
-                            <SelectContent>
-                                <SelectItem value="true">
-                                    {t("common.active")}
-                                </SelectItem>
-                                <SelectItem value="false">
-                                    {t("common.inactive")}
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-
-                {/* Buttons */}
-                <div className="flex justify-end gap-3 mt-6">
+        {/* Buttons */}
+        <div className="flex justify-end gap-3 mt-6">
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting
-                            ? isEdit
-                                ? t("common.updating")
-                                : t("common.saving")
-                            : isEdit
-                                ? t("common.update")
-                                : t("common.save")}
-                    </Button>
+              ? isEdit
+                ? t("common.updating")
+                : t("common.saving")
+              : isEdit
+                ? t("common.update")
+                : t("common.save")}
+          </Button>
 
-                    <Button
-                        type="button"
-                        variant="destructive"
-                        onClick={() => navigate(ENC_LIST_PATH)}
-                    >
-                        {t("common.cancel")}
-                    </Button>
-                </div>
-            </form>
-        </ComponentCard>
-    );
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => navigate(ENC_LIST_PATH)}
+          >
+            {t("common.cancel")}
+          </Button>
+        </div>
+      </form>
+    </ComponentCard>
+  );
 }

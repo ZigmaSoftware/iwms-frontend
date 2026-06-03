@@ -9,7 +9,15 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
 
-import { adminApi } from "@/helpers/admin/registry";
+import {
+  createCrudHelpers,
+  customerCreationApi,
+  propertiesApi,
+  subPropertiesApi,
+  userCreationApi,
+  vehicleCreationApi,
+  zoneApi,
+} from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
@@ -40,6 +48,10 @@ type HouseholdPickupEventRecord = {
   vehicle_id: string;
   source: string;
 };
+
+const householdPickupEventApi = createCrudHelpers<HouseholdPickupEventRecord>(
+  "customer-masters/household-pickup-events"
+);
 
 const sourceOptions: SelectOption[] = [
   { value: "HOUSEHOLD_WASTE", label: "Household Waste" },
@@ -78,14 +90,6 @@ export default function HouseholdPickupEventForm() {
   const { id } = useParams<{ id?: string }>();
   const location = useLocation();
   const isEdit = Boolean(id);
-
-  const householdPickupEventApi = adminApi.householdPickupEvents;
-  const customerApi = adminApi.customerCreations;
-  const zoneApi = adminApi.zones;
-  const propertyApi = adminApi.properties;
-  const subPropertyApi = adminApi.subProperties;
-  const userApi = adminApi.usersCreation;
-  const vehicleApi = adminApi.vehicleCreations;
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
@@ -131,12 +135,12 @@ export default function HouseholdPickupEventForm() {
   useEffect(() => {
     setFetching(true);
     Promise.all([
-      customerApi.list(),
+      customerCreationApi.list(),
       zoneApi.list(),
-      propertyApi.list(),
-      subPropertyApi.list(),
-      userApi.list(),
-      vehicleApi.list(),
+      propertiesApi.list(),
+      subPropertiesApi.list(),
+      userCreationApi.list(),
+      vehicleCreationApi.list(),
     ])
       .then(([customerRes, zoneRes, propertyRes, subPropertyRes, userRes, vehicleRes]) => {
         const staffUsers = normalizeList(userRes).filter(
@@ -154,23 +158,28 @@ export default function HouseholdPickupEventForm() {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       })
       .finally(() => setFetching(false));
-  }, [customerApi, propertyApi, subPropertyApi, t, userApi, vehicleApi, zoneApi]);
+  }, [t]);
 
   useEffect(() => {
     if (!isEdit || !id) return;
+    let cancelled = false;
 
     householdPickupEventApi
       .get(id)
       .then((res: any) => {
+        if (cancelled) return;
         const nextState = toFormState(res);
         if (nextState) {
           setFormData(nextState);
         }
       })
       .catch(() => {
+        if (cancelled) return;
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       });
-  }, [householdPickupEventApi, id, isEdit, t]);
+
+    return () => { cancelled = true; };
+  }, [id, isEdit, t]);
 
   useEffect(() => {
     if (!isEdit || !stateRecord) return;

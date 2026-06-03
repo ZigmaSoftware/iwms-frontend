@@ -22,14 +22,7 @@ import {
   normalizeCustomerArray,
 } from "@/utils/customerUtils";
 
-import {
-  customerCreationApi,
-  zoneApi,
-  wardApi,
-  mainCategoryApi,
-  subCategoryApi,
-} from "@/helpers/admin";
-import { useCreateComplaint } from "@/tanstack/admin/queries/masters/complaint";
+import { adminApi } from "@/helpers/admin/registry";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
@@ -71,6 +64,7 @@ export default function ComplaintAddForm() {
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
+    projectId,
     loggedInCompanyUniqueId,
     isSuperAdmin,
   } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
@@ -103,85 +97,65 @@ export default function ComplaintAddForm() {
   const [previewUrl, setPreviewUrl] = useState("");
   const [isPreviewImage, setIsPreviewImage] = useState(false);
 
-  const createMutation = useCreateComplaint();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   /* ---------------- INIT LOAD ---------------- */
   useEffect(() => {
-    console.log("=== Loading Initial Data ===");
-    console.log("Company Unique ID:", companyUniqueId);
+    let cancelled = false;
 
-    customerCreationApi.list().then((res) => {
+    adminApi.customerCreations.list().then((res: any) => {
+      if (cancelled) return;
       const normalized = normalizeCustomerArray(res);
-      console.log("Customers loaded:", normalized);
       setCustomers(filterActiveCustomers(normalized));
-    });
+    }).catch(() => {});
 
-    mainCategoryApi.list({ params: { company_id: companyUniqueId } })
-      .then((res) => {
+    adminApi.mainCategory.list({ params: { company_id: companyUniqueId } })
+      .then((res: any) => {
+        if (cancelled) return;
         const normalized = listFromResponse(res);
         setMainCategories(filterActiveRecords(normalized));
-      });
+      }).catch(() => {});
 
-    subCategoryApi.list({ params: { company_id: companyUniqueId } }).then((res) => {
-      const normalized = listFromResponse(res);
-      setAllSubCategories(filterActiveRecords(normalized));
-    });
+    adminApi.subCategory.list({ params: { company_id: companyUniqueId } })
+      .then((res: any) => {
+        if (cancelled) return;
+        const normalized = listFromResponse(res);
+        setAllSubCategories(filterActiveRecords(normalized));
+      }).catch(() => {});
+
+    return () => { cancelled = true; };
   }, [companyUniqueId]);
 
   /* ---------------- CUSTOMER → ZONE → WARD ---------------- */
 
   const loadZones = async (cid: string) => {
     try {
-      console.log("=== Loading Zones ===");
-      console.log("Customer ID:", cid);
-      const res = await zoneApi.list({ params: { customer_id: cid } });
-      console.log("Zone API raw response:", res);
+      const res = await adminApi.zones.list({ params: { customer_id: cid } });
       const normalized = listFromResponse(res);
-      console.log("Normalized zones:", normalized);
       const filtered = filterActiveRecords(normalized);
-      console.log("Filtered active zones:", filtered);
       setZones(filtered);
-    } catch (error) {
-      console.error("Failed to load zones:", error);
+    } catch {
       setZones([]);
     }
   };
 
   const loadWards = async (zid: string) => {
     try {
-      console.log("=== Loading Wards ===");
-      console.log("Zone ID:", zid);
-      const res = await wardApi.list({ params: { zone_id: zid } });
-
-      console.log("Ward API raw response:", res);
+      const res = await adminApi.wards.list({ params: { zone_id: zid } });
       const normalized = listFromResponse(res);
-      console.log("Normalized wards:", normalized);
       const filtered = filterActiveRecords(normalized);
-      console.log("Filtered active wards:", filtered);
       setWards(filtered);
-    } catch (error) {
-      console.error("Failed to load wards:", error);
+    } catch {
       setWards([]);
     }
   };
 
-
-  console.log('ward', wards);
-  console.log('zone', zones);
-  console.log('maincategory', mainCategories);
-  console.log('sub category', subCategories);
-
   const onCustomerChange = (id: string) => {
     const c = customers.find((x) => resolveCustomerId(x) === id);
-    console.log("=== Customer Selected ===");
-    console.log("Selected Customer ID:", id);
-    console.log("Full Customer Object:", c);
-    console.log("Customer Fields:", Object.keys(c || {}));
     setCustomer(c);
 
     // Try different field names for contact
     const contactNo = c?.contact_no || c?.contact || c?.phone || c?.mobile || c?.phone_number || "";
-    console.log("Contact No:", contactNo);
     setContact(contactNo);
 
     // Build address from available fields
@@ -195,7 +169,6 @@ export default function ComplaintAddForm() {
     if (c?.pincode) addressParts.push(c.pincode);
 
     const fullAddress = addressParts.join(", ");
-    console.log("Full Address:", fullAddress);
     setAddress(fullAddress);
 
     setZone("");
@@ -339,8 +312,11 @@ export default function ComplaintAddForm() {
     fd.append("priority", priority);
     if (file) fd.append("image", file);
 
+    setIsSubmitting(true);
     try {
-      await createMutation.mutateAsync(fd);
+      await adminApi.complaints.create(fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       Swal.fire(
         t("admin.citizen_grievance.complaints_form.saved_title"),
         t("admin.citizen_grievance.complaints_form.saved_message"),
@@ -353,6 +329,8 @@ export default function ComplaintAddForm() {
         t("admin.citizen_grievance.complaints_form.save_failed"),
         "error"
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -519,7 +497,11 @@ export default function ComplaintAddForm() {
         </div>
 
         <div className="flex justify-end gap-3 mt-6">
-          <button className="bg-green-custom text-white px-4 py-2 rounded">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="bg-green-custom text-white px-4 py-2 rounded"
+          >
             {t("common.save")}
           </button>
           <button type="button"

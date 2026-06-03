@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -13,23 +14,28 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
+import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import {
-  useDeleteMainScreenMutation,
-  useMainScreensQuery,
-  useUpdateMainScreenMutation,
-} from "@/tanstack/admin";
+import { mainScreenApi } from "@/helpers/admin";
 
 import type { MainScreen } from "../types/admin.types"; // Correct import
 
+const toRecordList = (value: unknown): MainScreen[] => {
+  if (Array.isArray(value)) return value as MainScreen[];
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (Array.isArray(record.results)) return record.results as MainScreen[];
+    if (Array.isArray(record.data)) return record.data as MainScreen[];
+  }
+  return [];
+};
+
 export default function MainScreenList() {
   const { t } = useTranslation();
-  const mainScreensQuery = useMainScreensQuery();
-  const updateMutation = useUpdateMainScreenMutation();
-  const deleteMutation = useDeleteMainScreenMutation();
-  const records = (mainScreensQuery.data ?? []) as MainScreen[];
+  const [records, setRecords] = useState<MainScreen[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState({
@@ -43,59 +49,58 @@ export default function MainScreenList() {
   const ENC_EDIT_PATH = (id: string) =>
     `/${encAdmins}/${encMainScreen}/${id}/edit`;
 
-  /* ------------------------------
-      Extract data uniformly
-  ------------------------------ */
-  useEffect(() => {
-    if (!mainScreensQuery.isError) return;
-    Swal.fire(t("common.error"), t("common.load_failed"), "error");
-  }, [mainScreensQuery.isError, t]);
-
-  /* ------------------------------
-      DELETE
-  ------------------------------ */
-  const handleDelete = async (id: string) => {
-    const confirm = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-      confirmButtonText: t("common.confirm_delete_button"),
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    await deleteMutation.mutateAsync(id);
-
-    Swal.fire({
-      icon: "success",
-      title: t("common.deleted_success"),
-      showConfirmButton: false,
-      timer: 1200,
-    });
-
+  const loadRecords = async () => {
+    setIsLoading(true);
+    try {
+      const response = await mainScreenApi.list();
+      setRecords(toRecordList(response));
+    } catch {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  useEffect(() => {
+    void loadRecords();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ------------------------------
       STATUS SWITCH
   ------------------------------ */
   const statusTemplate = (row: MainScreen) => {
     const updateStatus = async (value: boolean) => {
-      await updateMutation.mutateAsync({ id: row.unique_id, payload: {
-        mainscreen_name: row.mainscreen_name,
-        mainscreentype_id: row.mainscreentype_id,
-        company_id: row.company_id,
-        project_id: row.project_id,
-        icon_name: row.icon_name,
-        order_no: row.order_no,
-        description: row.description,
-        is_active: value,
-      }});
+      setUpdatingStatusId(row.unique_id);
+      try {
+        await mainScreenApi.update(row.unique_id, {
+          mainscreen_name: row.mainscreen_name,
+          mainscreentype_id: row.mainscreentype_id,
+          icon_name: row.icon_name,
+          order_no: row.order_no,
+          description: row.description,
+          is_active: value,
+        });
+        setRecords((current) =>
+          current.map((item) =>
+            item.unique_id === row.unique_id
+              ? { ...item, is_active: value }
+              : item
+          )
+        );
+      } catch {
+        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+      } finally {
+        setUpdatingStatusId(null);
+      }
     };
 
-    return <Switch checked={row.is_active} onCheckedChange={updateStatus} />;
+    return (
+      <Switch
+        checked={row.is_active}
+        disabled={updatingStatusId === row.unique_id}
+        onCheckedChange={updateStatus}
+      />
+    );
   };
 
   /* ------------------------------
@@ -177,7 +182,7 @@ export default function MainScreenList() {
           value={records}
           paginator
           rows={10}
-          loading={mainScreensQuery.isPending}
+          loading={isLoading}
           filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
           globalFilterFields={[

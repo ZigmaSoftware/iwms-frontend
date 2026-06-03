@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -15,21 +16,12 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
-import type { ErrorWithResponse } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  type CountryPayload,
-  useCountryQuery,
-  useCreateCountryMutation,
-  useUpdateCountryMutation,
-  useContinentsQuery,
-} from "@/tanstack/admin";
-
+import { continentApi, countryApi } from "@/helpers/admin";
 
 const { encMasters, encCountries } = getEncryptedRoute();
-
 const ENC_LIST_PATH = `/${encMasters}/${encCountries}`;
 
 const COUNTRY_FIELDS: Record<string, string[]> = {
@@ -40,176 +32,128 @@ const COUNTRY_FIELDS: Record<string, string[]> = {
   is_active: ["is_active"],
 };
 
-const normalizeNullableId = (
-  value: string | number | { unique_id?: string | number; id?: string | number } | null | undefined
+const normalizeNull = (v: any): string | null => {
+  if (v === undefined || v === null) return null;
+  if (typeof v === "object") return normalizeNull(v.unique_id ?? v.id ?? v.value);
+  const s = String(v).trim();
+  return s || null;
+};
+
+/** Try ID match first; fall back to label/name match */
+const resolveId = (
+  items: SelectOption[],
+  id: string | null,
+  name?: string | null
 ): string | null => {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  if (typeof value === "object") {
-    return normalizeNullableId(value.unique_id ?? value.id);
-  }
-  return String(value);
+  if (id && items.some((x) => x.value === id)) return id;
+  if (!name) return id;
+  const normalName = name.trim().toLowerCase();
+  return items.find((x) => x.label.trim().toLowerCase() === normalName)?.value ?? id;
 };
 
-type CountryWithContinent = CountryPayload & {
-  continent?: string | number | { unique_id?: string | number; id?: string | number } | null;
-  continent_name?: string | null;
-  continent_unique_id?: string | number | null;
-};
-
-function CountryForm() {
+export default function CountryForm() {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
     useFieldVisibility("masters", "countries", COUNTRY_FIELDS);
-  const [name, setName] = useState("");
-  const [mobCode, setMobCode] = useState("");
-  const [currency, setCurrency] = useState("");
-  const [continentId, setContinentId] = useState("");
-  const [continents, setContinents] = useState<SelectOption[]>([]);
-  const [isActive, setIsActive] = useState(true);
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
-  const {
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit });
+  const { applyCompanyProjectFromRecord } = useCompanyProjectSelection({ isEdit });
 
-  const extractErrorMessage = useCallback((error: unknown) => {
-    if (!error) return t("common.request_failed");
-    if (typeof error === "string") return error;
+  /* ── form fields ── */
+  const [name, setName] = useState("");
+  const [mobCode, setMobCode] = useState("");
+  const [currency, setCurrency] = useState("");
+  const [isActive, setIsActive] = useState(true);
+  const [continentId, setContinentId] = useState("");
 
-    const withResponse = error as ErrorWithResponse;
-    const data = withResponse.response?.data;
+  /* ── dropdown data ── */
+  const [continents, setContinents] = useState<SelectOption[]>([]);
 
-    if (typeof data === "string") {
-      return data;
+  /* ── pending for edit prefill ── */
+  const [pendingContinentId, setPendingContinentId] = useState("");
+  const [pendingContinentName, setPendingContinentName] = useState("");
+
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  /* ── load continents ── */
+  useEffect(() => {
+    let cancelled = false;
+    continentApi.list()
+      .then((res: any) => {
+        if (cancelled) return;
+        const data: any[] = Array.isArray(res) ? res : (res?.results ?? []);
+        setContinents(
+          data
+            .filter((c) => c.is_active)
+            .map((c) => ({ value: String(c.unique_id), label: String(c.name ?? "") }))
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  /* ── apply pending continent once options load ── */
+  useEffect(() => {
+    if (!pendingContinentId || continents.length === 0) return;
+    const resolved = resolveId(continents, pendingContinentId, pendingContinentName);
+    if (resolved) {
+      setContinentId(resolved);
+      setPendingContinentId("");
+      setPendingContinentName("");
     }
+  }, [pendingContinentId, pendingContinentName, continents]);
 
-    if (Array.isArray(data)) {
-      return data.join(", ");
-    }
+  /* ── edit mode: fetch record ── */
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    countryApi.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        setName(res.name ?? "");
+        setIsActive(Boolean(res.is_active));
+        setMobCode(res.mob_code ?? "");
+        setCurrency(res.currency ?? "");
+        applyCompanyProjectFromRecord(res as Record<string, unknown>);
 
-    if (data && typeof data === "object") {
-      return Object.entries(data as Record<string, unknown>)
-        .map(([key, value]) => {
-          if (Array.isArray(value)) {
-            return `${key}: ${value.join(", ")}`;
+        const rawContId = normalizeNull(
+          res.continent_id ?? res.continent_unique_id ?? res.continent
+        );
+        const contName = res.continent_name ?? null;
+
+        if (rawContId) {
+          /* Try immediate resolve if continents already loaded */
+          const resolved = resolveId(continents, rawContId, contName);
+          if (resolved && continents.length > 0) {
+            setContinentId(resolved);
+          } else {
+            setPendingContinentId(rawContId);
+            setPendingContinentName(contName ?? "");
           }
-          return `${key}: ${String(value)}`;
-        })
-        .join("\n");
-    }
+        }
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? t("common.load_failed")) });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
 
-    if (error instanceof Error && error.message) {
-      return error.message;
-    }
-
-    return t("common.request_failed");
-  }, [t]);
-
-  const continentsQuery = useContinentsQuery();
-  const countryQuery = useCountryQuery(id);
-
-  useEffect(() => {
-    if (continentsQuery.isError) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(continentsQuery.error) });
-      return;
-    }
-
-    const selectedCountry = countryQuery.data as CountryWithContinent | undefined;
-    const selectedContinentId = normalizeNullableId(
-      selectedCountry?.continent_id ??
-        selectedCountry?.continent_unique_id ??
-        selectedCountry?.continent
-    );
-    const selectedContinentName = selectedCountry?.continent_name;
-    const data = continentsQuery.data ?? [];
-    const active = data
-      .filter((continent) => continent.is_active)
-      .map<SelectOption>((continent) => ({ value: String(continent.unique_id), label: continent.name }));
-
-    if (
-      selectedContinentId &&
-      selectedContinentName &&
-      !active.some((continent) => continent.value === selectedContinentId)
-    ) {
-      setContinents([
-        ...active,
-        { value: selectedContinentId, label: selectedContinentName },
-      ]);
-      return;
-    }
-
-    setContinents(active);
-  }, [
-    continentsQuery.data,
-    continentsQuery.error,
-    continentsQuery.isError,
-    countryQuery.data,
-    extractErrorMessage,
-    t,
-  ]);
-
-  const createCountryMutation = useCreateCountryMutation();
-  const updateCountryMutation = useUpdateCountryMutation();
-  const isSubmitting = createCountryMutation.isPending || updateCountryMutation.isPending;
-
-  useEffect(() => {
-    if (!countryQuery.data) return;
-    const data = countryQuery.data as CountryWithContinent;
-
-    setName(data.name ?? "");
-    setIsActive(Boolean(data.is_active));
-    setMobCode(data.mob_code ?? "");
-    setCurrency(data.currency ?? "");
-
-    const resolvedContinentId = normalizeNullableId(
-      data.continent_id ?? data.continent_unique_id ?? data.continent
-    );
-    setContinentId(resolvedContinentId ?? "");
-    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-  }, [countryQuery.data, applyCompanyProjectFromRecord]);
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
-    const fieldValues: Record<string, unknown> = {
-      name: name.trim(),
-      continent_id: continentId,
-    };
-
-    if (
-      getMissingRequiredFields(["name", "continent_id"], (fieldKey) => fieldValues[fieldKey])
-        .length > 0
-    ) {
-      Swal.fire({
-        icon: "warning",
-        title: t("common.warning"),
-        text: t("common.missing_fields"),
-        confirmButtonColor: "#3085d6",
-      });
+    const fieldValues: Record<string, unknown> = { name: name.trim(), continent_id: continentId };
+    if (getMissingRequiredFields(["name", "continent_id"], (k) => fieldValues[k]).length > 0) {
+      Swal.fire({ icon: "warning", title: t("common.warning"), text: t("common.missing_fields") });
       return;
     }
 
-    // if (!companyUniqueId) {
-    //   Swal.fire(
-    //     "Error",
-    //     !loggedInCompanyUniqueId && !isSuperAdmin
-    //       ? "Company is not mapped to this login. Only super admin can choose a company."
-    //       : "Company is required",
-    //     "error"
-    //   );
-    //   return;
-    // }
-
-    // if (!projectId) {
-    //   Swal.fire("Error", "Project is required", "error");
-    //   return;
-    // }
-
-    // mutations are declared at component top-level
-
+    setIsSubmitting(true);
     try {
       const rawPayload = {
         name: name.trim(),
@@ -218,22 +162,24 @@ function CountryForm() {
         mob_code: mobCode.trim(),
         currency: currency.trim(),
       };
-      const payload = filterPayload(rawPayload) as CountryPayload;
+      const payload = filterPayload(rawPayload) as typeof rawPayload;
 
       if (isEdit && id) {
-        await updateCountryMutation.mutateAsync({ id, payload });
+        await countryApi.update(id, payload);
         Swal.fire({ icon: "success", title: t("common.updated_success"), timer: 1500, showConfirmButton: false });
       } else {
-        await createCountryMutation.mutateAsync(payload);
+        await countryApi.create(payload);
         Swal.fire({ icon: "success", title: t("common.added_success"), timer: 1500, showConfirmButton: false });
       }
-
       navigate(ENC_LIST_PATH);
-    } catch (error) {
-      console.error("Failed to save:", error);
-      Swal.fire({ icon: "error", title: t("common.save_failed"), text: extractErrorMessage(error) });
+    } catch (error: any) {
+      const data = error?.response?.data;
+      const msg = typeof data === "string" ? data :
+        data && typeof data === "object" ? Object.entries(data as Record<string, unknown>).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`).join("\n") :
+        error?.message ?? t("common.save_failed_desc");
+      Swal.fire({ icon: "error", title: t("common.save_failed"), text: msg });
     } finally {
-      // no-op: mutation hook loading state drives UI
+      setIsSubmitting(false);
     }
   };
 
@@ -245,187 +191,86 @@ function CountryForm() {
           : t("common.add_item", { item: t("admin.nav.country") })
       }
     >
-      <form onSubmit={handleSubmit} noValidate>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* <div>
-            <Label>Company *</Label>
-            <Select
-              value={companyUniqueId}
-              onValueChange={onCompanyChange}
-              disabled={
-                Boolean(loggedInCompanyUniqueId) ||
-                (!isSuperAdmin && !loggedInCompanyUniqueId) ||
-                companies.length === 0
-              }
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={
-                    loggedInCompanyUniqueId
-                      ? "Company from logged-in profile"
-                      : isSuperAdmin
-                        ? "Select Company"
-                        : "Only super admin can select company"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {companies.map((company) => (
-                  <SelectItem key={company.value} value={company.value}>
-                    {company.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!loggedInCompanyUniqueId && !isSuperAdmin && (
-              <p className="mt-1 text-xs text-red-500">
-                Company is not mapped to this login. Only super admin can view
-                all companies.
-              </p>
-            )}
-            {isSuperAdmin && !loggedInCompanyUniqueId && companies.length === 0 && (
-              <p className="mt-1 text-xs text-red-500">No companies found.</p>
-            )}
-          </div>
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6" noValidate>
 
+        {showField("continent_id") && (
           <div>
-            <Label>Project *</Label>
-            <Select
-              value={projectId}
-              onValueChange={setProjectId}
-              disabled={!companyUniqueId || projects.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select Project" />
+            <Label htmlFor="continent">
+              {t("admin.nav.continent")} <span className="text-red-500">*</span>
+            </Label>
+            <Select value={continentId} onValueChange={setContinentId}>
+              <SelectTrigger id="continent">
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.continent") })} />
               </SelectTrigger>
               <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.value} value={project.value}>
-                    {project.label}
-                  </SelectItem>
+                {continents.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {companyUniqueId && projects.length === 0 && (
-              <p className="mt-1 text-xs text-red-500">
-                No projects found for this company.
-              </p>
-            )}
-          </div> */}
+          </div>
+        )}
 
-          {showField("continent_id") && (
-            <div>
-              <Label htmlFor="continent">
-                {t("common.item_name", { item: t("admin.nav.continent") })}{" "}
-                <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={continentId || undefined}
-                onValueChange={(val) => setContinentId(val)}
-              >
-                <SelectTrigger className="input-validate w-full" id="continent">
-                  <SelectValue
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("admin.nav.continent"),
-                    })}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {continents.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+        {showField("name") && (
+          <div>
+            <Label htmlFor="countryName">
+              {t("common.item_name", { item: t("admin.nav.country") })} <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="countryName"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t("common.enter_item_name", { item: t("admin.nav.country") })}
+              required
+            />
+          </div>
+        )}
 
-          {showField("name") && (
-            <div>
-              <Label htmlFor="countryName">
-                {t("common.item_name", { item: t("admin.nav.country") })}{" "}
-                <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="countryName"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t("common.enter_item_name", {
-                  item: t("admin.nav.country"),
-                })}
-                className="input-validate w-full"
-                required
-              />
-            </div>
-          )}
+        {showField("mob_code") && (
+          <div>
+            <Label htmlFor="mobile_code">
+              {t("common.mobile_code")} <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="mobile_code"
+              type="number"
+              value={mobCode}
+              onChange={(e) => setMobCode(e.target.value)}
+              placeholder={t("common.mobile_code_placeholder")}
+            />
+          </div>
+        )}
 
-          {showField("mob_code") && (
-            <div>
-              <Label htmlFor="mobile_code">
-                {t("common.mobile_code")} <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="mobile_code"
-                type="number"
-                value={mobCode}
-                onChange={(e) => setMobCode(e.target.value)}
-                placeholder={t("common.mobile_code_placeholder")}
-                className="input-validate w-full"
-                required
-              />
-            </div>
-          )}
+        {showField("currency") && (
+          <div>
+            <Label htmlFor="currency">
+              {t("common.currency")} <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="currency"
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              placeholder={t("common.currency_placeholder")}
+            />
+          </div>
+        )}
 
-          {showField("currency") && (
-            <div>
-              <Label htmlFor="currency">
-                {t("common.currency")} <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="currency"
-                type="text"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                placeholder={t("common.currency_placeholder")}
-                className="input-validate w-full"
-                required
-              />
-            </div>
-          )}
+        {showField("is_active") && (
+          <div>
+            <Label>{t("common.status")} <span className="text-red-500">*</span></Label>
+            <Select value={isActive ? "true" : "false"} onValueChange={(v) => setIsActive(v === "true")}>
+              <SelectTrigger><SelectValue placeholder={t("common.select_status")} /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">{t("common.active")}</SelectItem>
+                <SelectItem value="false">{t("common.inactive")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
-          {showField("is_active") && (
-            <div>
-              <Label htmlFor="isActive">
-                {t("common.status")} <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={isActive ? "true" : "false"}
-                onValueChange={(val) => setIsActive(val === "true")}
-              >
-                <SelectTrigger className="input-validate w-full" id="isActive">
-                  <SelectValue placeholder={t("common.select_status")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">{t("common.active")}</SelectItem>
-                  <SelectItem value="false">{t("common.inactive")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
-
-        {/*  Buttons */}
-        <div className="flex justify-end gap-3 mt-6">
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting
-              ? isEdit
-                ? t("common.updating")
-                : t("common.saving")
-              : isEdit
-                ? t("common.update")
-                : t("common.save")}
+        <div className="md:col-span-2 flex justify-end gap-3 mt-2">
+          <Button type="submit" disabled={isSubmitting || loadingRecord}>
+            {isEdit ? t("common.update") : t("common.save")}
           </Button>
           <Button type="button" variant="destructive" onClick={() => navigate(ENC_LIST_PATH)}>
             {t("common.cancel")}
@@ -435,5 +280,3 @@ function CountryForm() {
     </ComponentCard>
   );
 }
-
-export default CountryForm;

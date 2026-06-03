@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -12,22 +11,23 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 import { adminApi } from "@/helpers/admin/registry";
-import {
-  type VehicleTripAuditPayload,
-  useVehicleTripAuditQuery,
-  useCreateVehicleTripAuditMutation,
-  useUpdateVehicleTripAuditMutation,
-} from "@/tanstack/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 
-const tripInstanceQueryKey = ["masters", "trip_instances"] as const;
-const vehicleCreationQueryKey = ["masters", "vehicle_creations"] as const;
-
 type SelectOption = { value: string; label: string };
 
+type VehicleTripAuditPayload = {
+  daily_trip_assignment_id?: string;
+  vehicle_id?: string;
+  gps_lat?: number[];
+  gps_lon?: number[];
+  avg_speed?: number;
+  idle_seconds?: number;
+  captured_at?: string;
+};
+
 type VehicleTripAuditFormState = {
-  trip_instance_id: string;
+  daily_trip_assignment_id: string;
   vehicle_id: string;
   gps_lat: string;
   gps_lon: string;
@@ -36,7 +36,7 @@ type VehicleTripAuditFormState = {
   captured_at: string;
 };
 
-type TripInstanceRecord = {
+type DailyTripAssignmentRecord = {
   unique_id: string;
   trip_no?: string;
   vehicle_id?: string;
@@ -139,10 +139,10 @@ function VehicleTripAuditEditor({
     <form onSubmit={onSubmit} className="space-y-6">
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div>
-          <Label>{t("admin.vehicle_trip_audit.trip_instance")}</Label>
+          <Label>{t("admin.vehicle_trip_audit.daily_trip_assignment")}</Label>
           <Select
-            value={formData.trip_instance_id}
-            onChange={(value) => onChange({ trip_instance_id: value })}
+            value={formData.daily_trip_assignment_id}
+            onChange={(value) => onChange({ daily_trip_assignment_id: value })}
             options={tripOptions}
             placeholder={t("common.select_option")}
             disabled={fetching || isEdit}
@@ -233,6 +233,16 @@ function VehicleTripAuditEditor({
   );
 }
 
+const emptyFormState: VehicleTripAuditFormState = {
+  daily_trip_assignment_id: "",
+  vehicle_id: "",
+  gps_lat: "",
+  gps_lon: "",
+  avg_speed: "",
+  idle_seconds: "",
+  captured_at: "",
+};
+
 export default function VehicleTripAuditForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -240,140 +250,117 @@ export default function VehicleTripAuditForm() {
   const location = useLocation();
   const isEdit = Boolean(id);
 
-  const vehicleTripAuditQuery = useVehicleTripAuditQuery(id);
-  const createVehicleTripAuditMutation = useCreateVehicleTripAuditMutation();
-  const updateVehicleTripAuditMutation = useUpdateVehicleTripAuditMutation();
-  const isSubmitting =
-    createVehicleTripAuditMutation.isPending ||
-    updateVehicleTripAuditMutation.isPending;
-
-  const tripInstanceApi = adminApi.tripInstances;
-  const vehicleApi = adminApi.vehicleCreations;
-
-  const tripInstancesQuery = useQuery({
-    queryKey: tripInstanceQueryKey,
-    queryFn: () => tripInstanceApi.list(),
-  });
-
-  const vehiclesQuery = useQuery({
-    queryKey: vehicleCreationQueryKey,
-    queryFn: () => vehicleApi.list(),
-  });
-
-  const fetching =
-    tripInstancesQuery.isPending ||
-    vehiclesQuery.isPending;
-
-  const tripInstanceRecords = (normalizeList(
-    tripInstancesQuery.data ?? []
-  ) as TripInstanceRecord[]) ?? [];
-  const vehicles = toOptions(
-    normalizeList(vehiclesQuery.data ?? []),
-    "unique_id",
-    "vehicle_no"
-  );
-
-  const tripInstanceMeta = useMemo(
-    () =>
-      tripInstanceRecords.reduce<
-        Record<string, { vehicle_id?: string; status?: string }>
-      >((acc, trip) => {
-        if (trip?.unique_id) {
-          acc[String(trip.unique_id)] = {
-            vehicle_id: trip.vehicle_id ?? undefined,
-            status: trip.status ?? undefined,
-          };
-        }
-        return acc;
-      }, {}),
-    [tripInstanceRecords]
-  );
-
-  const { encTransportMaster, encVehicleTripAudit } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleTripAudit}`;
   const stateRecord = (
     location.state as { record?: Partial<VehicleTripAuditFormState> } | null
   )?.record;
 
+  const [dailyTripAssignmentRecords, setDailyTripAssignmentRecords] = useState<DailyTripAssignmentRecord[]>([]);
+  const [vehicleOptions, setVehicleOptions] = useState<SelectOption[]>([]);
+  const [fetching, setFetching] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [formData, setFormData] = useState<VehicleTripAuditFormState>(() => ({
+    ...emptyFormState,
+    daily_trip_assignment_id: stateRecord?.daily_trip_assignment_id ?? "",
+    vehicle_id: stateRecord?.vehicle_id ?? "",
+    gps_lat: formatGpsArray(stateRecord?.gps_lat),
+    gps_lon: formatGpsArray(stateRecord?.gps_lon),
+    avg_speed: stateRecord?.avg_speed != null ? String(stateRecord.avg_speed) : "",
+    idle_seconds: stateRecord?.idle_seconds != null ? String(stateRecord.idle_seconds) : "",
+    captured_at: stateRecord?.captured_at ?? "",
+  }));
+
+  const { encTransportMaster, encVehicleTripAudit } = getEncryptedRoute();
+  const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleTripAudit}`;
+
   useEffect(() => {
-    if (!vehicleTripAuditQuery.isError && !tripInstancesQuery.isError && !vehiclesQuery.isError) {
-      return;
-    }
+    let cancelled = false;
+    setFetching(true);
 
-    const error =
-      vehicleTripAuditQuery.error ??
-      tripInstancesQuery.error ??
-      vehiclesQuery.error;
+    Promise.all([
+      adminApi.dailyTripAssignment.list(),
+      adminApi.vehicleCreations.list(),
+    ])
+      .then(([tripData, vehicleData]) => {
+        if (cancelled) return;
+        setDailyTripAssignmentRecords(normalizeList(tripData) as DailyTripAssignmentRecord[]);
+        setVehicleOptions(toOptions(normalizeList(vehicleData), "unique_id", "vehicle_no"));
+        setFetching(false);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setFetching(false);
+        Swal.fire(
+          t("common.error"),
+          extractErrorMessage(error) ?? t("common.load_failed"),
+          "error"
+        );
+      });
 
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(error) ?? t("common.load_failed"),
-      "error"
-    );
-  }, [
-    t,
-    tripInstancesQuery.error,
-    tripInstancesQuery.isError,
-    vehicleTripAuditQuery.error,
-    vehicleTripAuditQuery.isError,
-    vehiclesQuery.error,
-    vehiclesQuery.isError,
-  ]);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const initialFormData: VehicleTripAuditFormState = vehicleTripAuditQuery.data
-    ? {
-        trip_instance_id: vehicleTripAuditQuery.data.trip_instance_id ?? "",
-        vehicle_id: vehicleTripAuditQuery.data.vehicle_id ?? "",
-        gps_lat: formatGpsArray(vehicleTripAuditQuery.data.gps_lat),
-        gps_lon: formatGpsArray(vehicleTripAuditQuery.data.gps_lon),
-        avg_speed:
-          vehicleTripAuditQuery.data.avg_speed !== undefined &&
-          vehicleTripAuditQuery.data.avg_speed !== null
-            ? String(vehicleTripAuditQuery.data.avg_speed)
-            : "",
-        idle_seconds:
-          vehicleTripAuditQuery.data.idle_seconds !== undefined &&
-          vehicleTripAuditQuery.data.idle_seconds !== null
-            ? String(vehicleTripAuditQuery.data.idle_seconds)
-            : "",
-        captured_at: vehicleTripAuditQuery.data.captured_at ?? "",
-      }
-    : {
-        trip_instance_id: stateRecord?.trip_instance_id ?? "",
-        vehicle_id: stateRecord?.vehicle_id ?? "",
-        gps_lat: formatGpsArray(stateRecord?.gps_lat),
-        gps_lon: formatGpsArray(stateRecord?.gps_lon),
-        avg_speed:
-          stateRecord?.avg_speed !== undefined && stateRecord?.avg_speed !== null
-            ? String(stateRecord.avg_speed)
-            : "",
-        idle_seconds:
-          stateRecord?.idle_seconds !== undefined &&
-          stateRecord?.idle_seconds !== null
-            ? String(stateRecord.idle_seconds)
-            : "",
-        captured_at: stateRecord?.captured_at ?? "",
-      };
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
 
-  const [formData, setFormData] = useState<VehicleTripAuditFormState>(
-    initialFormData
+    adminApi.vehicleTripAudits.get(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setFormData({
+          daily_trip_assignment_id: res.daily_trip_assignment_id ?? "",
+          vehicle_id: res.vehicle_id ?? "",
+          gps_lat: formatGpsArray(res.gps_lat),
+          gps_lon: formatGpsArray(res.gps_lon),
+          avg_speed: res.avg_speed != null ? String(res.avg_speed) : "",
+          idle_seconds: res.idle_seconds != null ? String(res.idle_seconds) : "",
+          captured_at: res.captured_at ?? "",
+        });
+      })
+      .catch((error: any) => {
+        if (cancelled) return;
+        Swal.fire(
+          t("common.error"),
+          extractErrorMessage(error) ?? t("common.load_failed"),
+          "error"
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isEdit]);
+
+  const dailyTripAssignmentMeta = useMemo(
+    () =>
+      dailyTripAssignmentRecords.reduce<Record<string, { vehicle_id?: string; status?: string }>>(
+        (acc, trip) => {
+          if (trip?.unique_id) {
+            acc[String(trip.unique_id)] = {
+              vehicle_id: trip.vehicle_id ?? undefined,
+              status: trip.status ?? undefined,
+            };
+          }
+          return acc;
+        },
+        {}
+      ),
+    [dailyTripAssignmentRecords]
   );
-
-  useEffect(() => {
-    setFormData(initialFormData);
-  }, [id, stateRecord, vehicleTripAuditQuery.data]);
 
   const tripOptions = useMemo(() => {
     const list = isEdit
-      ? tripInstanceRecords
-      : tripInstanceRecords.filter((trip) => trip.status === "IN_PROGRESS");
+      ? dailyTripAssignmentRecords
+      : dailyTripAssignmentRecords.filter((trip) => trip.status === "In Progress");
     return toOptions(list, "unique_id", "trip_no", "unique_id");
-  }, [isEdit, tripInstanceRecords]);
+  }, [isEdit, dailyTripAssignmentRecords]);
 
   useEffect(() => {
     if (isEdit) return;
 
-    const tripMeta = tripInstanceMeta[formData.trip_instance_id];
+    const tripMeta = dailyTripAssignmentMeta[formData.daily_trip_assignment_id];
     if (!tripMeta?.vehicle_id) return;
 
     setFormData((prev) =>
@@ -381,13 +368,13 @@ export default function VehicleTripAuditForm() {
         ? prev
         : { ...prev, vehicle_id: tripMeta.vehicle_id ?? "" }
     );
-  }, [formData.trip_instance_id, isEdit, tripInstanceMeta]);
+  }, [formData.daily_trip_assignment_id, isEdit, dailyTripAssignmentMeta]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     if (
-      !formData.trip_instance_id ||
+      !formData.daily_trip_assignment_id ||
       !formData.vehicle_id ||
       !formData.gps_lat ||
       !formData.gps_lon ||
@@ -426,6 +413,7 @@ export default function VehicleTripAuditForm() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       if (isEdit && id) {
         const payload: VehicleTripAuditPayload = {
@@ -433,16 +421,16 @@ export default function VehicleTripAuditForm() {
           gps_lon: lonValues,
           avg_speed: avgSpeed,
         };
-        await updateVehicleTripAuditMutation.mutateAsync({ id, payload });
+        await adminApi.vehicleTripAudits.update(id, payload);
       } else {
         const payload: VehicleTripAuditPayload = {
-          trip_instance_id: formData.trip_instance_id,
+          daily_trip_assignment_id: formData.daily_trip_assignment_id,
           vehicle_id: formData.vehicle_id,
           gps_lat: latValues,
           gps_lon: lonValues,
           avg_speed: avgSpeed,
         };
-        await createVehicleTripAuditMutation.mutateAsync(payload);
+        await adminApi.vehicleTripAudits.create(payload);
       }
 
       Swal.fire(
@@ -454,19 +442,19 @@ export default function VehicleTripAuditForm() {
     } catch (error: any) {
       const message = extractErrorMessage(error) ?? t("common.save_failed_desc");
       Swal.fire(t("common.save_failed"), message, "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const tripMeta = formData.trip_instance_id
-    ? tripInstanceMeta[formData.trip_instance_id]
+  const tripMeta = formData.daily_trip_assignment_id
+    ? dailyTripAssignmentMeta[formData.daily_trip_assignment_id]
     : undefined;
   const isVehicleLocked = Boolean(
-    isEdit || (tripMeta?.vehicle_id && formData.trip_instance_id)
+    isEdit || (tripMeta?.vehicle_id && formData.daily_trip_assignment_id)
   );
 
-  const formKey = isEdit
-    ? String(vehicleTripAuditQuery.data?.id ?? id)
-    : "new-vehicle-trip-audit";
+  const formKey = isEdit ? String(id) : "new-vehicle-trip-audit";
 
   return (
     <div className="p-3">
@@ -482,7 +470,7 @@ export default function VehicleTripAuditForm() {
           key={formKey}
           formData={formData}
           tripOptions={tripOptions}
-          vehicles={vehicles}
+          vehicles={vehicleOptions}
           fetching={fetching}
           isEdit={isEdit}
           isSubmitting={isSubmitting}

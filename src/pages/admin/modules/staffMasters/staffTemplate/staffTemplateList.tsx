@@ -50,10 +50,10 @@
 //     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
 //   });
 
-//   const { encStaffMasters, encStaffTemplate } = getEncryptedRoute();
-//   const ENC_NEW_PATH = `/${encStaffMasters}/${encStaffTemplate}/new`;
-//   const ENC_EDIT_PATH = (id: string) =>
-//     `/${encStaffMasters}/${encStaffTemplate}/${id}/edit`;
+//   const { encScheduleMasters, encStaffTemplate } = getEncryptedRoute();
+//   const ENC_NEW_PATH = `/${encScheduleMasters}/${encStaffTemplate}/new`;
+//   const ENC_EDIT_PATH = (id: string) => `/${encScheduleMasters}/${encStaffTemplate}/${id}/edit`;
+//     `/${encScheduleMasters}/${encStaffTemplate}/${id}/edit`;
 
 //   /* ================= FETCH ================= */
 
@@ -254,7 +254,7 @@
 
 
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -266,11 +266,7 @@ import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
-import { staffCreationApi, staffTemplateApi } from "@/helpers/admin";
-import {
-  useStaffTemplateList,
-  useUpdateStaffTemplate,
-} from "@/tanstack/admin/queries/masters/staffTemplate";
+import { staffTemplateApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
@@ -335,6 +331,7 @@ export default function StaffTemplateList() {
     STAFF_TEMPLATE_COLUMN_FIELDS
   );
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
     companyUniqueId,
@@ -344,10 +341,17 @@ export default function StaffTemplateList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    initialCompanyId:
+      restoredState?.companyUniqueId ?? searchParams.get("company_unique_id") ?? undefined,
+    initialProjectId: restoredState?.projectId ?? searchParams.get("project_id") ?? undefined,
+  });
 
   const [templates, setTemplates] = useState<StaffTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
   const [datatableFilters, setDatatableFilters] = useState<TableFilters>({
@@ -358,38 +362,45 @@ export default function StaffTemplateList() {
     approval_status: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  const { encStaffMasters, encStaffTemplate } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encStaffMasters}/${encStaffTemplate}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encStaffMasters}/${encStaffTemplate}/${id}/edit`;
+  const { encScheduleMasters, encStaffTemplate } = getEncryptedRoute();
+  const ENC_NEW_PATH = `/${encScheduleMasters}/${encStaffTemplate}/new`;
+  const ENC_EDIT_PATH = (id: string) => `/${encScheduleMasters}/${encStaffTemplate}/${id}/edit`;
+  const selectedProjectId =
+    projectId && projects.some((project) => project.value === projectId)
+      ? projectId
+      : projects[0]?.value ?? "";
+  const selectedContext = { companyUniqueId, projectId: selectedProjectId };
+
+  useEffect(() => {
+    if (!projectId && selectedProjectId) {
+      setProjectId(selectedProjectId);
+    }
+  }, [projectId, selectedProjectId, setProjectId]);
 
   const normalizeId = (value: unknown): string =>
     value === null || value === undefined ? "" : String(value).trim();
 
   /* ================= FETCH ================= */
 
-  const updateMutation = useUpdateStaffTemplate();
-
-  const requestParams = companyUniqueId ? { company_id: companyUniqueId, ...(projectId ? { project_id: projectId } : {}) } : undefined;
-
-  const { data: rawData, isLoading: isQueryLoading } = useStaffTemplateList(requestParams as any);
-
   useEffect(() => {
-    const load = () => {
+    let mounted = true;
+
+    const load = async () => {
       if (isSuperAdmin && companies.length === 0) {
-        setTemplates([]);
-        setLoading(false);
+        if (mounted) { setTemplates([]); setLoading(false); }
         return;
       }
 
       if (!companyUniqueId) {
-        setTemplates([]);
-        setLoading(false);
+        if (mounted) { setTemplates([]); setLoading(false); }
         return;
       }
 
-      setLoading(true);
+      if (mounted) setLoading(true);
       try {
+        const requestParams: Record<string, string> = { company_id: companyUniqueId };
+        if (selectedProjectId) requestParams.project_id = selectedProjectId;
+        const rawData = await staffTemplateApi.list({ params: requestParams });
         const payload: any = rawData ?? [];
         const data =
           Array.isArray(payload) ? payload :
@@ -404,7 +415,7 @@ export default function StaffTemplateList() {
         });
 
         if (!hasContextFields) {
-          setTemplates(rows);
+          if (mounted) setTemplates(rows);
           return;
         }
 
@@ -412,20 +423,22 @@ export default function StaffTemplateList() {
           const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
           const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
           const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-          const projectMatches = !projectId || rowProjectId === projectId;
+          const projectMatches = !selectedProjectId || rowProjectId === selectedProjectId;
           return companyMatches && projectMatches;
         });
 
-        setTemplates(filtered);
+        if (mounted) setTemplates(filtered);
       } catch {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
-    load();
-  }, [rawData, companyUniqueId, companies.length, isSuperAdmin, projectId]);
+    void load();
+
+    return () => { mounted = false; };
+  }, [companyUniqueId, companies.length, isSuperAdmin, selectedProjectId, t]);
 
   /* ================= FILTERS ================= */
 
@@ -446,20 +459,29 @@ export default function StaffTemplateList() {
 
   const statusBodyTemplate = (row: StaffTemplate) => {
     const updateStatus = async (checked: boolean) => {
+      const id = row.unique_id;
+      setPendingStatusId(id);
+      setIsUpdating(true);
       try {
-        await updateMutation.mutateAsync({
-          id: row.unique_id,
-          payload: filterPayload({ status: checked ? "ACTIVE" : "INACTIVE" }),
-        });
+        await staffTemplateApi.update(id, filterPayload({ status: checked ? "ACTIVE" : "INACTIVE" }));
+        setTemplates((current) =>
+          current.map((item) =>
+            item.unique_id === id ? { ...item, status: checked ? "ACTIVE" : "INACTIVE" } : item
+          )
+        );
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+      } finally {
+        setPendingStatusId(null);
+        setIsUpdating(false);
       }
     };
 
     return (
       <Switch
         checked={row.status === "ACTIVE"}
-        onCheckedChange={updateStatus}
+        disabled={isUpdating && pendingStatusId === row.unique_id}
+        onCheckedChange={(checked) => void updateStatus(checked)}
       />
     );
   };
@@ -470,7 +492,11 @@ export default function StaffTemplateList() {
     <div className="flex justify-center">
       <button
         title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onClick={() =>
+          navigate(ENC_EDIT_PATH(row.unique_id), {
+            state: { ...selectedContext, record: row },
+          })
+        }
         className="text-blue-600 hover:text-blue-800"
       >
         <PencilIcon className="size-5" />
@@ -512,7 +538,7 @@ export default function StaffTemplateList() {
           </select>
 
           <select
-            value={projectId || ""}
+            value={selectedProjectId}
             onChange={(e) => setProjectId(e.target.value)}
             disabled={!companyUniqueId || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
@@ -522,7 +548,7 @@ export default function StaffTemplateList() {
             </option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
-                {project.label}
+                {project.label || project.value}
               </option>
             ))}
           </select>
@@ -531,13 +557,9 @@ export default function StaffTemplateList() {
             label={t("admin.staff_template.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !projectId}
+            disabled={!companyUniqueId || !selectedProjectId}
             onClick={() =>
-              navigate(
-                `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
-                  companyUniqueId
-                )}&project_id=${encodeURIComponent(projectId)}`
-              )
+              navigate(ENC_NEW_PATH, { state: selectedContext })
             }
           />
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 
@@ -19,19 +19,19 @@ import { Switch } from "@/components/ui/switch";
 
 import type { UserType } from "../types/admin.types"; 
 
-import { useUpdateUserTypeMutation, useUserTypesQuery } from "@/tanstack/admin";
+import { userTypeApi } from "@/helpers/admin";
 
 export default function UserTypePage() {
   const { t } = useTranslation();
-  const userTypesQuery = useUserTypesQuery();
-  const updateUserTypeMutation = useUpdateUserTypeMutation();
-  const userTypes = userTypesQuery.data ?? [];
+  const [userTypes, setUserTypes] = useState<UserType[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const navigate = useNavigate();
@@ -42,11 +42,30 @@ export default function UserTypePage() {
     `/${encAdmins}/${encUserType}/${unique_id}/edit`;
 
   useEffect(() => {
-    if (!userTypesQuery.isError) return;
-    Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-  }, [t, userTypesQuery.isError]);
+    let mounted = true;
 
-  const onGlobalFilterChange = (e: any) => {
+    const loadUserTypes = async () => {
+      setIsLoading(true);
+      try {
+        const data = await userTypeApi.list();
+        if (mounted) setUserTypes(data as UserType[]);
+      } catch {
+        if (mounted) {
+          Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadUserTypes();
+
+    return () => {
+      mounted = false;
+    };
+  }, [t]);
+
+  const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     const _filters = { ...filters };
     _filters["global"].value = value;
@@ -80,16 +99,20 @@ export default function UserTypePage() {
   const updateStatus = async (row: UserType, checked: boolean) => {
     const id = String(row.unique_id);
     setPendingStatusId(id);
+    setIsUpdating(true);
 
     try {
-      await updateUserTypeMutation.mutateAsync({
-        id: row.unique_id,
-        payload: { name: row.name, is_active: checked },
-      });
+      await userTypeApi.update(row.unique_id, { is_active: checked });
+      setUserTypes((current) =>
+        current.map((item) =>
+          item.unique_id === row.unique_id ? { ...item, is_active: checked } : item
+        )
+      );
     } catch {
       Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
     } finally {
       setPendingStatusId(null);
+      setIsUpdating(false);
     }
   };
 
@@ -98,7 +121,7 @@ export default function UserTypePage() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={updateUserTypeMutation.isPending && pendingStatusId === id}
+        disabled={isUpdating && pendingStatusId === id}
         onCheckedChange={(checked) => void updateStatus(row, checked)}
       />
     );
@@ -147,7 +170,7 @@ export default function UserTypePage() {
           value={userTypes}
           paginator
           rows={10}
-          loading={userTypesQuery.isPending && userTypes.length === 0}
+          loading={isLoading && userTypes.length === 0}
           filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
           globalFilterFields={["name"]}

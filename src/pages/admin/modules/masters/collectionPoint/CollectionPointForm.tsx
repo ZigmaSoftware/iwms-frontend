@@ -17,6 +17,8 @@ import {
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { stateApi, districtApi, cityApi, panchayatApi, zoneApi, wardApi, collectionPointApi } from "@/helpers/admin";
+import { adminApi } from "@/helpers/admin/registry";
 import type { SelectOption } from "@/types";
 import type {
   UnknownRecord,
@@ -26,17 +28,6 @@ import type {
   WithStateIdOption,
   ZoneOption,
 } from "./types";
-import {
-  useCitiesQuery,
-  useCollectionPointQuery,
-  useCreateCollectionPointMutation,
-  useDistrictsQuery,
-  usePanchayatsQuery,
-  useStatesQuery,
-  useUpdateCollectionPointMutation,
-  useWardsQuery,
-  useZonesQuery,
-} from "@/tanstack/admin";
 
 const normalizeIdValue = (value: unknown): string => {
   if (value === null || value === undefined) return "";
@@ -81,8 +72,27 @@ const ensureSelectedOption = (options: SelectOption[], selectedValue: string): S
   return [...options, { value: selectedValue, label: selectedValue }];
 };
 
-const { encMasters, encCollectionPoints } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encMasters}/${encCollectionPoints}`;
+const toRecordList = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (item): item is Record<string, unknown> =>
+        !!item && typeof item === "object" && !Array.isArray(item)
+    );
+  }
+  if (value && typeof value === "object") {
+    const maybeResults = (value as { results?: unknown }).results;
+    if (Array.isArray(maybeResults)) {
+      return maybeResults.filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === "object" && !Array.isArray(item)
+      );
+    }
+  }
+  return [];
+};
+
+const { encScheduleMasters, encCollectionPoints } = getEncryptedRoute();
+const ENC_LIST_PATH = `/${encScheduleMasters}/${encCollectionPoints}`;
 
 const COLLECTION_POINT_FIELDS: Record<string, string[]> = {
   state_id: ["state_id", "state"],
@@ -100,7 +110,7 @@ const COLLECTION_POINT_FIELDS: Record<string, string[]> = {
 export default function CollectionPointForm() {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
-    useFieldVisibility("masters", "collection-points", COLLECTION_POINT_FIELDS);
+    useFieldVisibility("schedule-masters", "collection-points", COLLECTION_POINT_FIELDS);
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
@@ -139,16 +149,40 @@ export default function CollectionPointForm() {
     [t]
   );
 
+  // ── Bins state ──────────────────────────────────────────────────────────────
+  type BinRow = { waste_type_id: string; bin_name: string; bin_capacity: string; bin_type: string };
+  type ExistingBin = BinRow & { unique_id: string };
+  const emptyBinRow = (): BinRow => ({ waste_type_id: "", bin_name: "", bin_capacity: "240", bin_type: "medium" });
+
+  const [wasteTypeOptions, setWasteTypeOptions] = useState<SelectOption[]>([]);
+  const [existingBins, setExistingBins] = useState<ExistingBin[]>([]);
+  const [newBins, setNewBins] = useState<BinRow[]>([emptyBinRow()]);
+  const [binsToDelete, setBinsToDelete] = useState<string[]>([]);
+  // ────────────────────────────────────────────────────────────────────────────
+
   const [stateId, setStateId] = useState("");
   const [districtId, setDistrictId] = useState("");
   const [cityId, setCityId] = useState("");
   const [panchayatId, setPanchayatId] = useState("");
   const [zoneId, setZoneId] = useState("");
   const [wardId, setWardId] = useState("");
+
+  /* pending IDs for edit-mode prefill race condition:
+     set when record loads, cleared once the option list is available */
+  const [pendingStateId, setPendingStateId] = useState("");
+  const [pendingDistrictId, setPendingDistrictId] = useState("");
+  const [pendingCityId, setPendingCityId] = useState("");
+  const [pendingPanchayatId, setPendingPanchayatId] = useState("");
+  const [pendingZoneId, setPendingZoneId] = useState("");
+  const [pendingWardId, setPendingWardId] = useState("");
+  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
+    projectUniqueId: string; projectId: string; projectName: string;
+  } | null>(null);
   const [cpName, setCpName] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [states, setStates] = useState<SelectOption[]>([]);
   const [districts, setDistricts] = useState<WithStateIdOption[]>([]);
@@ -160,16 +194,6 @@ export default function CollectionPointForm() {
   const isPanchayatSelected = Boolean(panchayatId);
   const isZoneSelected = Boolean(zoneId);
   const isWardSelected = Boolean(wardId);
-  const tenantFilters = useMemo(
-    () =>
-      companyUniqueId && projectId
-        ? {
-            company_id: companyUniqueId,
-            project_id: projectId,
-          }
-        : null,
-    [companyUniqueId, projectId]
-  );
 
   const resetLocationFields = useCallback(() => {
     setStateId("");
@@ -180,16 +204,280 @@ export default function CollectionPointForm() {
     setWardId("");
   }, []);
 
-  const statesQuery = useStatesQuery();
-  const districtsQuery = useDistrictsQuery(tenantFilters);
-  const citiesQuery = useCitiesQuery(tenantFilters);
-  const panchayatsQuery = usePanchayatsQuery(tenantFilters);
-  const zonesQuery = useZonesQuery(tenantFilters);
-  const wardsQuery = useWardsQuery(tenantFilters);
-  const collectionPointQuery = useCollectionPointQuery(id);
-  const createCollectionPointMutation = useCreateCollectionPointMutation();
-  const updateCollectionPointMutation = useUpdateCollectionPointMutation();
-  const isSubmitting = createCollectionPointMutation.isPending || updateCollectionPointMutation.isPending;
+  /* ==========================================================
+      LOAD STATES (global, no tenant filter)
+  ========================================================== */
+  useEffect(() => {
+    let cancelled = false;
+    stateApi.list()
+      .then((data: unknown) => {
+        if (cancelled) return;
+        setStates(
+          toRecordList(data)
+            .filter((item) => item.is_active !== false)
+            .map((item) => ({
+              value: normalizeIdValue(item.unique_id),
+              label: toStringOrEmpty(item.name ?? item.unique_id),
+            }))
+            .filter((item) => item.value && item.label)
+            .sort((a, b) => a.label.localeCompare(b.label))
+        );
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), extractErr(err), "error");
+      });
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ==========================================================
+      LOAD TENANT-FILTERED DROPDOWNS (districts, cities, panchayats, zones, wards)
+  ========================================================== */
+  useEffect(() => {
+    if (!companyUniqueId || !projectId) return;
+    let cancelled = false;
+    const params = { company_id: companyUniqueId, project_id: projectId };
+    Promise.all([
+      districtApi.list({ params }),
+      cityApi.list({ params }),
+      panchayatApi.list({ params }),
+      zoneApi.list({ params }),
+      wardApi.list({ params }),
+    ])
+      .then(([distData, cityData, panData, zoneData, wardData]) => {
+        if (cancelled) return;
+
+        setDistricts(
+          toRecordList(distData)
+            .filter((item) => item.is_active !== false)
+            .map((item) => ({
+              value: normalizeIdValue(item.unique_id),
+              label: toStringOrEmpty(item.name ?? item.unique_id),
+              stateId: normalizeIdValue(item.state_id),
+            }))
+            .filter((item) => item.value && item.label)
+        );
+
+        setCities(
+          toRecordList(cityData)
+            .filter((item) => item.is_active !== false)
+            .map((item) => ({
+              value: normalizeIdValue(item.unique_id),
+              label: toStringOrEmpty(item.name ?? item.unique_id),
+              stateId: normalizeIdValue(item.state_id),
+              districtId: normalizeIdValue(item.district_id ?? item.district),
+            }))
+            .filter((item) => item.value && item.label)
+        );
+
+        setPanchayats(
+          toRecordList(panData)
+            .filter((item) => item.is_active !== false)
+            .map((item) => ({
+              value: normalizeIdValue(item.unique_id),
+              label: toStringOrEmpty(item.panchayat_name ?? item.name ?? item.unique_id),
+              stateId: normalizeIdValue(item.state_id),
+              districtId: normalizeIdValue(item.district_id),
+              cityId: normalizeIdValue(item.city_id),
+            }))
+            .filter((item) => item.value && item.label)
+        );
+
+        setZoneOptions(
+          toRecordList(zoneData)
+            .filter((item) => item.is_active !== false)
+            .map((item) => ({
+              value: normalizeIdValue(item.unique_id),
+              label: toStringOrEmpty(item.zone_name ?? item.name ?? item.unique_id),
+              stateId: normalizeIdValue(item.state_id),
+              districtId: normalizeIdValue(item.district_id),
+              cityId: normalizeIdValue(item.city_id),
+            }))
+            .filter((item) => item.value && item.label)
+        );
+
+        setWards(
+          toRecordList(wardData)
+            .filter((item) => item.is_active !== false)
+            .map((item) => ({
+              value: normalizeIdValue(item.unique_id),
+              label: toStringOrEmpty(item.ward_name ?? item.name ?? item.unique_id),
+              stateId: normalizeIdValue(item.state_id),
+              districtId: normalizeIdValue(item.district_id ?? item.district),
+              cityId: normalizeIdValue(item.city_id ?? item.city),
+              panchayatId: normalizeIdValue(item.panchayat_id ?? item.panchayat),
+              zoneId: normalizeIdValue(item.zone_id ?? item.zone),
+            }))
+            .filter((item) => item.value && item.label)
+        );
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), extractErr(err), "error");
+      });
+    return () => { cancelled = true; };
+  }, [companyUniqueId, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ==========================================================
+      LOAD COLLECTION POINT DATA (edit mode)
+  ========================================================== */
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    collectionPointApi.get(id)
+      .then((data: unknown) => {
+        if (cancelled) return;
+        const record = data as UnknownRecord;
+        const _stateId = normalizeIdValue(record.state_id ?? record.state);
+        const _districtId = normalizeIdValue(record.district_id ?? record.district);
+        const _cityId = normalizeIdValue(record.city_id ?? record.city);
+        const _panchayatId = normalizeIdValue(record.panchayat_id ?? record.panchayat);
+        const _zoneId = normalizeIdValue(record.zone_id ?? record.zone);
+        const _wardId = normalizeIdValue(record.ward_id ?? record.ward);
+
+        setStateId(_stateId);
+        setPendingStateId(_stateId);
+        setDistrictId(_districtId);
+        setPendingDistrictId(_districtId);
+        setCityId(_cityId);
+        setPendingCityId(_cityId);
+        setPanchayatId(_panchayatId);
+        setPendingPanchayatId(_panchayatId);
+        setZoneId(_zoneId);
+        setPendingZoneId(_zoneId);
+        setWardId(_wardId);
+        setPendingWardId(_wardId);
+        setCpName(toStringOrEmpty(record.cp_name ?? record.collection_point_name));
+        setLatitude(toStringOrEmpty(record.latitude));
+        setLongitude(toStringOrEmpty(record.longitude));
+        setIsActive(toBoolean(record.is_active, true));
+
+        applyCompanyProjectFromRecord(record);
+        setPendingProjectCandidates({
+          projectUniqueId: toStringOrEmpty((record as any).project_unique_id ?? (record as any).project?.unique_id ?? ""),
+          projectId: toStringOrEmpty((record as any).project_id ?? ""),
+          projectName: toStringOrEmpty((record as any).project_name ?? ""),
+        });
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), extractErr(err), "error");
+      });
+    return () => { cancelled = true; };
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ==========================================================
+      LOAD WASTE TYPES + EXISTING BINS
+  ========================================================== */
+  useEffect(() => {
+    if (!companyUniqueId) return;
+    let cancelled = false;
+    adminApi.wasteTypes.list({ params: { company_id: companyUniqueId } })
+      .then((data: unknown) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : (data as any)?.data ?? (data as any)?.results ?? [];
+        setWasteTypeOptions(
+          (list as any[]).map((wt: any) => ({
+            value: String(wt.unique_id ?? ""),
+            label: String(wt.waste_type_name ?? wt.name ?? wt.unique_id ?? ""),
+          })).filter((o: SelectOption) => o.value)
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [companyUniqueId]);
+
+  useEffect(() => {
+    if (!isEdit || !id || !companyUniqueId) return;
+    let cancelled = false;
+    adminApi.bins.list({ params: { company_id: companyUniqueId, collection_point_id: id } })
+      .then((data: unknown) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : (data as any)?.data ?? (data as any)?.results ?? [];
+        setExistingBins(
+          (list as any[]).map((b: any) => ({
+            unique_id: String(b.unique_id ?? ""),
+            waste_type_id: String(b.wastetype_id ?? b.waste_type_id ?? b.waste_type?.unique_id ?? ""),
+            bin_name: String(b.bin_name ?? ""),
+            bin_capacity: String(b.bin_capacity ?? "240"),
+            bin_type: String(b.bin_type ?? "medium"),
+          })).filter((b: ExistingBin) => b.unique_id)
+        );
+        setNewBins([emptyBinRow()]);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isEdit, id, companyUniqueId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ==========================================================
+      APPLY PENDING IDs once option lists have loaded
+  ========================================================== */
+
+  // Apply pending stateId once the global states list is available
+  useEffect(() => {
+    if (!pendingStateId) return;
+    if (states.length > 0 && states.some((s) => s.value === pendingStateId)) {
+      setStateId(pendingStateId);
+      setPendingStateId("");
+    }
+  }, [pendingStateId, states]);
+
+  // Apply pending districtId once the tenant-filtered districts list is available
+  useEffect(() => {
+    if (!pendingDistrictId) return;
+    if (districts.length > 0 && districts.some((d) => d.value === pendingDistrictId)) {
+      setDistrictId(pendingDistrictId);
+      setPendingDistrictId("");
+    }
+  }, [pendingDistrictId, districts]);
+
+  // Apply pending cityId once the tenant-filtered cities list is available
+  useEffect(() => {
+    if (!pendingCityId) return;
+    if (cities.length > 0 && cities.some((c) => c.value === pendingCityId)) {
+      setCityId(pendingCityId);
+      setPendingCityId("");
+    }
+  }, [pendingCityId, cities]);
+
+  // Apply pending panchayatId once the tenant-filtered panchayats list is available
+  useEffect(() => {
+    if (!pendingPanchayatId) return;
+    if (panchayats.length > 0 && panchayats.some((p) => p.value === pendingPanchayatId)) {
+      setPanchayatId(pendingPanchayatId);
+      setPendingPanchayatId("");
+    }
+  }, [pendingPanchayatId, panchayats]);
+
+  // Apply pending zoneId once the tenant-filtered zones list is available
+  useEffect(() => {
+    if (!pendingZoneId) return;
+    if (zoneOptions.length > 0 && zoneOptions.some((z) => z.value === pendingZoneId)) {
+      setZoneId(pendingZoneId);
+      setPendingZoneId("");
+    }
+  }, [pendingZoneId, zoneOptions]);
+
+  // Apply pending wardId once the tenant-filtered wards list is available
+  useEffect(() => {
+    if (!pendingWardId) return;
+    if (wards.length > 0 && wards.some((w) => w.value === pendingWardId)) {
+      setWardId(pendingWardId);
+      setPendingWardId("");
+    }
+  }, [pendingWardId, wards]);
+
+  // Re-apply project after the hook loads the project list
+  useEffect(() => {
+    if (!pendingProjectCandidates || projects.length === 0) return;
+    const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
+    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
+    if (!match) match = projects.find((p) => rawId && p.value === rawId);
+    if (!match && projectName)
+      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
+    if (match) setProjectId(match.value);
+    setPendingProjectCandidates(null);
+  }, [projects, pendingProjectCandidates, setProjectId]);
 
   const districtOptions = useMemo(() => {
     const filtered = districts
@@ -246,131 +534,6 @@ export default function CollectionPointForm() {
       .map((option) => ({ value: option.value, label: option.label }));
     return ensureSelectedOption(filtered, wardId);
   }, [cityId, districtId, panchayatId, stateId, wardId, wards, zoneId]);
-
-  useEffect(() => {
-    const queryError =
-      statesQuery.error ??
-      districtsQuery.error ??
-      citiesQuery.error ??
-      panchayatsQuery.error ??
-      zonesQuery.error ??
-      wardsQuery.error;
-
-    if (queryError) {
-      Swal.fire(t("common.error"), extractErr(queryError), "error");
-    }
-  }, [citiesQuery.error, districtsQuery.error, extractErr, panchayatsQuery.error, statesQuery.error, t, wardsQuery.error, zonesQuery.error]);
-
-  useEffect(() => {
-    const data = statesQuery.data ?? [];
-    setStates(
-      data
-        .filter((item) => item.is_active !== false)
-        .map((item) => ({
-          value: normalizeIdValue(item.unique_id),
-          label: toStringOrEmpty(item.name ?? item.unique_id),
-        }))
-        .filter((item) => item.value && item.label)
-        .sort((a, b) => a.label.localeCompare(b.label))
-    );
-  }, [statesQuery.data]);
-
-  useEffect(() => {
-    const data = districtsQuery.data ?? [];
-    setDistricts(
-      data
-        .filter((item) => item.is_active !== false)
-        .map((item) => ({
-          value: normalizeIdValue(item.unique_id),
-          label: toStringOrEmpty(item.name ?? item.unique_id),
-          stateId: normalizeIdValue(item.state_id),
-        }))
-        .filter((item) => item.value && item.label)
-    );
-  }, [districtsQuery.data]);
-
-  useEffect(() => {
-    const data = citiesQuery.data ?? [];
-    setCities(
-      data
-        .filter((item) => item.is_active !== false)
-        .map((item) => ({
-          value: normalizeIdValue(item.unique_id),
-          label: toStringOrEmpty(item.name ?? item.unique_id),
-          stateId: normalizeIdValue(item.state_id),
-          districtId: normalizeIdValue(item.district_id ?? item.district),
-        }))
-        .filter((item) => item.value && item.label)
-    );
-  }, [citiesQuery.data]);
-
-  useEffect(() => {
-    const data = panchayatsQuery.data ?? [];
-    setPanchayats(
-      data
-        .filter((item) => item.is_active !== false)
-        .map((item) => ({
-          value: normalizeIdValue(item.unique_id),
-          label: toStringOrEmpty(item.panchayat_name ?? item.name ?? item.unique_id),
-          stateId: normalizeIdValue(item.state_id),
-          districtId: normalizeIdValue(item.district_id),
-          cityId: normalizeIdValue(item.city_id),
-        }))
-        .filter((item) => item.value && item.label)
-    );
-  }, [panchayatsQuery.data]);
-
-  useEffect(() => {
-    const data = zonesQuery.data ?? [];
-    setZoneOptions(
-      data
-        .filter((item) => item.is_active !== false)
-        .map((item) => ({
-          value: normalizeIdValue(item.unique_id),
-          label: toStringOrEmpty(item.zone_name ?? item.name ?? item.unique_id),
-          stateId: normalizeIdValue(item.state_id),
-          districtId: normalizeIdValue(item.district_id),
-          cityId: normalizeIdValue(item.city_id),
-        }))
-        .filter((item) => item.value && item.label)
-    );
-  }, [zonesQuery.data]);
-
-  useEffect(() => {
-    const data = wardsQuery.data ?? [];
-    setWards(
-      data
-        .filter((item) => item.is_active !== false)
-        .map((item) => ({
-          value: normalizeIdValue(item.unique_id),
-          label: toStringOrEmpty(item.ward_name ?? item.name ?? item.unique_id),
-          stateId: normalizeIdValue(item.state_id),
-          districtId: normalizeIdValue(item.district_id ?? item.district),
-          cityId: normalizeIdValue(item.city_id ?? item.city),
-          panchayatId: normalizeIdValue(item.panchayat_id ?? item.panchayat),
-          zoneId: normalizeIdValue(item.zone_id ?? item.zone),
-        }))
-        .filter((item) => item.value && item.label)
-    );
-  }, [wardsQuery.data]);
-
-  useEffect(() => {
-    if (!collectionPointQuery.data) return;
-
-    const data = collectionPointQuery.data as UnknownRecord;
-    setStateId(normalizeIdValue(data.state_id ?? data.state));
-    setDistrictId(normalizeIdValue(data.district_id ?? data.district));
-    setCityId(normalizeIdValue(data.city_id ?? data.city));
-    setPanchayatId(normalizeIdValue(data.panchayat_id ?? data.panchayat));
-    setZoneId(normalizeIdValue(data.zone_id ?? data.zone));
-    setWardId(normalizeIdValue(data.ward_id ?? data.ward));
-    setCpName(toStringOrEmpty(data.cp_name ?? data.collection_point_name));
-    setLatitude(toStringOrEmpty(data.latitude));
-    setLongitude(toStringOrEmpty(data.longitude));
-    setIsActive(toBoolean(data.is_active, true));
-
-    applyCompanyProjectFromRecord(data);
-  }, [applyCompanyProjectFromRecord, collectionPointQuery.data]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -440,17 +603,43 @@ export default function CollectionPointForm() {
     const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
     try {
+      setIsSubmitting(true);
+      let cpId = id ?? "";
+
       if (isEdit && id) {
-        await updateCollectionPointMutation.mutateAsync({ id, payload });
-        Swal.fire(t("common.success"), t("common.updated_success"), "success");
+        await collectionPointApi.update(id, payload);
+        // Delete removed bins
+        await Promise.all(binsToDelete.map((binId) => adminApi.bins.remove(binId)));
       } else {
-        await createCollectionPointMutation.mutateAsync(payload);
-        Swal.fire(t("common.success"), t("common.added_success"), "success");
+        const created = await collectionPointApi.create(payload);
+        cpId = (created as any)?.unique_id ?? (created as any)?.data?.unique_id ?? "";
       }
 
+      // Create new bins (those with all required fields filled)
+      const validNewBins = newBins.filter(
+        (b) => b.waste_type_id && b.bin_name.trim() && b.bin_capacity && b.bin_type
+      );
+      await Promise.all(
+        validNewBins.map((b) =>
+          adminApi.bins.create({
+            company_id: companyUniqueId,
+            project_id: projectId,
+            collection_point_id: cpId,
+            wastetype_id: b.waste_type_id,
+            bin_name: b.bin_name.trim(),
+            bin_capacity: parseInt(b.bin_capacity, 10),
+            bin_type: b.bin_type,
+            bin_image: "default.png",
+          })
+        )
+      );
+
+      Swal.fire(t("common.success"), isEdit ? t("common.updated_success") : t("common.added_success"), "success");
       navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error) {
       Swal.fire(t("common.save_failed"), extractErr(error), "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -714,6 +903,107 @@ export default function CollectionPointForm() {
             </Select>
           </div>
         )}
+
+        {/* ── BINS SECTION ────────────────────────────────────────────────── */}
+        <div className="md:col-span-2 space-y-3">
+          <div className="flex items-center justify-between border-b pb-2">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800">Bins at this Collection Point</h3>
+              <p className="text-xs text-gray-500">Each bin is linked to a specific waste type. QR code is auto-generated.</p>
+            </div>
+          </div>
+
+          {/* Existing bins (edit mode) */}
+          {existingBins.map((bin, idx) => (
+            <div key={bin.unique_id} className={`grid grid-cols-1 gap-3 rounded-lg border p-3 md:grid-cols-[1fr_1fr_100px_120px_auto] ${binsToDelete.includes(bin.unique_id) ? "opacity-40 line-through" : ""}`}>
+              <div>
+                <Label className="text-xs text-gray-500">Waste Type</Label>
+                <Select
+                  value={bin.waste_type_id}
+                  onValueChange={(v) => setExistingBins((prev) => prev.map((b, i) => i === idx ? { ...b, waste_type_id: v } : b))}
+                  disabled={binsToDelete.includes(bin.unique_id)}
+                >
+                  <SelectTrigger className="w-full h-9 text-sm"><SelectValue placeholder="Waste Type" /></SelectTrigger>
+                  <SelectContent>
+                    {wasteTypeOptions.map((wt) => <SelectItem key={wt.value} value={String(wt.value)}>{wt.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500">Bin Name</Label>
+                <Input value={bin.bin_name} onChange={(e) => setExistingBins((prev) => prev.map((b, i) => i === idx ? { ...b, bin_name: e.target.value } : b))} disabled={binsToDelete.includes(bin.unique_id)} className="h-9 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500">Capacity (L)</Label>
+                <Input type="number" min={1} value={bin.bin_capacity} onChange={(e) => setExistingBins((prev) => prev.map((b, i) => i === idx ? { ...b, bin_capacity: e.target.value } : b))} disabled={binsToDelete.includes(bin.unique_id)} className="h-9 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500">Type</Label>
+                <Select value={bin.bin_type} onValueChange={(v) => setExistingBins((prev) => prev.map((b, i) => i === idx ? { ...b, bin_type: v } : b))} disabled={binsToDelete.includes(bin.unique_id)}>
+                  <SelectTrigger className="w-full h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="small">Small</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="large">Large</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                {binsToDelete.includes(bin.unique_id) ? (
+                  <button type="button" className="rounded border px-3 py-1.5 text-xs text-blue-600" onClick={() => setBinsToDelete((prev) => prev.filter((uid) => uid !== bin.unique_id))}>Undo</button>
+                ) : (
+                  <button type="button" className="rounded border px-3 py-1.5 text-xs text-red-600" onClick={() => setBinsToDelete((prev) => [...prev, bin.unique_id])}>Remove</button>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* New bins to add */}
+          {newBins.map((bin, idx) => (
+            <div key={idx} className="grid grid-cols-1 gap-3 rounded-lg border border-dashed border-blue-300 bg-blue-50/40 p-3 md:grid-cols-[1fr_1fr_100px_120px_auto]">
+              <div>
+                <Label className="text-xs text-gray-500">Waste Type *</Label>
+                <Select value={bin.waste_type_id} onValueChange={(v) => setNewBins((prev) => prev.map((b, i) => i === idx ? { ...b, waste_type_id: v } : b))}>
+                  <SelectTrigger className="w-full h-9 text-sm"><SelectValue placeholder="Select waste type" /></SelectTrigger>
+                  <SelectContent>
+                    {wasteTypeOptions.map((wt) => <SelectItem key={wt.value} value={String(wt.value)}>{wt.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500">Bin Name *</Label>
+                <Input placeholder="e.g. Bin 1" value={bin.bin_name} onChange={(e) => setNewBins((prev) => prev.map((b, i) => i === idx ? { ...b, bin_name: e.target.value } : b))} className="h-9 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500">Capacity (L)</Label>
+                <Input type="number" min={1} value={bin.bin_capacity} onChange={(e) => setNewBins((prev) => prev.map((b, i) => i === idx ? { ...b, bin_capacity: e.target.value } : b))} className="h-9 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500">Type</Label>
+                <Select value={bin.bin_type} onValueChange={(v) => setNewBins((prev) => prev.map((b, i) => i === idx ? { ...b, bin_type: v } : b))}>
+                  <SelectTrigger className="w-full h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="small">Small</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="large">Large</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <button type="button" className="rounded border px-3 py-1.5 text-xs text-red-500 disabled:opacity-30" disabled={newBins.length === 1} onClick={() => setNewBins((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => setNewBins((prev) => [...prev, emptyBinRow()])}
+            className="flex items-center gap-1.5 rounded-lg border border-dashed border-gray-400 px-4 py-2 text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600"
+          >
+            <span className="text-lg leading-none">+</span> Add Bin
+          </button>
+        </div>
+        {/* ── END BINS SECTION ─────────────────────────────────────────────── */}
 
         <div className="md:col-span-2 flex justify-end gap-3">
           <Button type="submit" disabled={isSubmitting}>

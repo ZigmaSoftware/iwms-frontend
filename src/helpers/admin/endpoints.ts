@@ -28,6 +28,7 @@ export const adminEndpoints = {
   
   wasteTypes: "assets/waste-types",
   panchayats: "masters/panchayat",
+  panchayatLeaders: "masters/panchayat-leaders",
   areatypes: "masters/areatypes",
   hierarchies: "masters/hierarchy",
 
@@ -41,7 +42,7 @@ export const adminEndpoints = {
      ASSETS
   ========================= */
   bins: "assets/bins",
-  collectionPoints: "assets/collection-point",
+  collectionPoints: "schedule-masters/collection-points",
  
 //   bins: "bp-palakkad/bins",
 
@@ -70,16 +71,15 @@ export const adminEndpoints = {
   ========================= */
   usersCreation: "user-creations/users-creation",
   staffCreation: "user-creations/staffcreation",
-  staffTemplateCreation: "user-creations/stafftemplate-creation",
+  staffTemplateCreation: "schedule-masters/staff-templates",
   alternativeStaffTemplate:
-    "user-creations/alternative-stafftemplate",
+    "schedule-masters/alternative-staff-templates",
   supervisorZoneMap: "user-creations/supervisor-zone-map",
   unassignedStaffPool: "user-creations/unassigned-staff-pool",
 
   /* =========================
      PROCESS
   ========================= */
-  routePlans: "process-items/route-plans",
   zonePropertyLoadTrackers:
     "process-items/zone-property-load-tracker",
 
@@ -101,7 +101,7 @@ export const adminEndpoints = {
   /* =========================
      CUSTOMERS
   ========================= */
-   pointCollections: "collections/point-collection",
+   // pointCollections: "collections/point-collection",
    panchayatWiseCollections: "collections/panchayat-wise",
    wardWiseCollections: "collections/ward-wise",
 
@@ -117,10 +117,14 @@ export const adminEndpoints = {
   ========================= */
   vehicleTypes: "transport-masters/vehicle-type",
   vehicleCreations: "transport-masters/vehicle-creation",
-  tripDefinitions: "transport-masters/trip-definition",
-  tripInstances: "transport-masters/trip-instance",
-  tripAttendances: "transport-masters/trip-attendance",
-  fuels: "transport-masters/fuels",
+  tripPlans: "schedule-masters/trip-plans",
+  tripPlanCollectionPoints: "schedule-masters/trip-plan-collection-points",
+   tripAttendances: "transport-masters/trip-attendance",
+   fuels: "transport-masters/fuels",
+   dailyTripAssignment: "schedule-masters/daily-trip-assignments",
+   dailyTripLog: "schedule-masters/daily-trip-logs",
+   dailyTripCollectionPoint: "schedule-masters/daily-trip-collection-points",
+   binCollectionEvent: "schedule-masters/bin-collection-events",
 
   /* =========================
      AUDITS
@@ -133,6 +137,7 @@ export const adminEndpoints = {
   staffTemplateAuditLogs:
     "audits/stafftemplate-audit-log",
   commonAudits: "audits/common-audit",
+  monthlyWasteComparison: "reports/monthly-waste-comparison",
 } as const;
 
 export type AdminEntity = keyof typeof adminEndpoints;

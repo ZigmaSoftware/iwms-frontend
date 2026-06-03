@@ -15,21 +15,11 @@ import {
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
 
-import { wasteTypeApi } from "@/helpers/admin";
+import { wasteTypeApi, districtApi, cityApi, panchayatApi, zoneApi, wardApi, collectionPointApi, binApi } from "@/helpers/admin";
+
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { encryptSegment } from "@/utils/routeCrypto";
-import {
-  useBinQuery,
-  useCreateBinMutation,
-  useUpdateBinMutation,
-  useCollectionPointsQuery,
-  useCitiesQuery,
-  useDistrictsQuery,
-  usePanchayatsQuery,
-  useWardsQuery,
-  useZonesQuery,
-} from "@/tanstack/admin";
 import type { BinRecord, CityOption, CollectionPointOption, LocationOption, WardOption } from "./types";
 
 const encMasters = encryptSegment("masters");
@@ -152,7 +142,6 @@ export default function BinForm() {
   const [binCapacity, setBinCapacity] = useState<number | "">("");
   const [binType, setBinType] = useState("medium");
   const [binImage, setBinImage] = useState("default.png");
-  const [binQr, setBinQr] = useState("");
   const [isActive, setIsActive] = useState(true);
 
   const [zones, setZones] = useState<LocationOption[]>([]);
@@ -162,39 +151,25 @@ export default function BinForm() {
   const [panchayats, setPanchayats] = useState<LocationOption[]>([]);
   const [collectionPoints, setCollectionPoints] = useState<CollectionPointOption[]>([]);
   const [wasteTypes, setWasteTypes] = useState<SelectOption[]>([]);
+  // Pending IDs — set when the record loads, flushed once the option list is ready.
+  // This ensures Radix Select re-renders with a valid matching option (panchayat pattern).
+  const [pendingDistrictId, setPendingDistrictId] = useState("");
+  const [pendingCityId, setPendingCityId] = useState("");
+  const [pendingZoneId, setPendingZoneId] = useState("");
+  const [pendingCollectionPointId, setPendingCollectionPointId] = useState("");
   const [pendingWard, setPendingWard] = useState("");
   const [pendingPanchayat, setPendingPanchayat] = useState("");
   const [pendingWasteType, setPendingWasteType] = useState("");
+  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
+    projectUniqueId: string; projectId: string; projectName: string;
+  } | null>(null);
   const [lookupsLoading, setLookupsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isPanchayatSelected = Boolean(panchayatId);
   const isZoneSelected = Boolean(zoneId);
   const isWardSelected = Boolean(wardId);
-  const tenantFilters = useMemo(
-    () =>
-      companyUniqueId && projectId
-        ? {
-            company_id: companyUniqueId,
-            project_id: projectId,
-          }
-        : null,
-    [companyUniqueId, projectId]
-  );
-  const collectionPointFilters = useMemo(
-    () =>
-      companyUniqueId && projectId && (wardId || panchayatId)
-        ? {
-            company_id: companyUniqueId,
-            project_id: projectId,
-            district: districtId || null,
-            city: cityId || null,
-            zone: zoneId || null,
-            ward: wardId || null,
-            panchayat: panchayatId || null,
-          }
-        : null,
-    [cityId, companyUniqueId, districtId, panchayatId, projectId, wardId, zoneId]
-  );
+
   const resetLocationFields = useCallback(() => {
     setDistrictId("");
     setCityId("");
@@ -204,24 +179,9 @@ export default function BinForm() {
     setCollectionPointId("");
   }, []);
 
-  const districtsQuery = useDistrictsQuery(tenantFilters);
-  const citiesQuery = useCitiesQuery(tenantFilters);
-  const panchayatsQuery = usePanchayatsQuery(tenantFilters);
-  const zonesQuery = useZonesQuery(tenantFilters);
-  const wardsQuery = useWardsQuery(tenantFilters);
-  const collectionPointsQuery = useCollectionPointsQuery(collectionPointFilters);
-  const binQuery = useBinQuery(id);
-  const createBinMutation = useCreateBinMutation();
-  const updateBinMutation = useUpdateBinMutation();
-  const isSubmitting = createBinMutation.isPending || updateBinMutation.isPending;
-
-  useEffect(() => {
-    if (districtsQuery.isError || citiesQuery.isError || panchayatsQuery.isError || zonesQuery.isError || wardsQuery.isError || collectionPointsQuery.isError) {
-      const error = districtsQuery.error ?? citiesQuery.error ?? panchayatsQuery.error ?? zonesQuery.error ?? wardsQuery.error ?? collectionPointsQuery.error;
-      Swal.fire(t("common.error"), extractErr(error), "error");
-    }
-  }, [citiesQuery.error, citiesQuery.isError, collectionPointsQuery.error, collectionPointsQuery.isError, districtsQuery.error, districtsQuery.isError, extractErr, panchayatsQuery.error, panchayatsQuery.isError, t, wardsQuery.error, wardsQuery.isError, zonesQuery.error, zonesQuery.isError]);
-
+  /* ==========================================================
+      LOAD WASTE TYPES (direct API call, kept as-is)
+  ========================================================== */
   useEffect(() => {
     setLookupsLoading(true);
 
@@ -245,96 +205,257 @@ export default function BinForm() {
       .finally(() => setLookupsLoading(false));
   }, [extractErr, t]);
 
+  /* ==========================================================
+      LOAD TENANT-FILTERED DROPDOWNS (districts, cities, panchayats, zones, wards)
+  ========================================================== */
   useEffect(() => {
-    const data = districtsQuery.data ?? [];
-    setDistricts(
-      data
-        .filter((d) => d.is_active !== false)
-        .map((d) => ({
-          value: normalizeIdValue(d.unique_id),
-          label: String(d.name ?? d.unique_id ?? ""),
-        }))
-        .filter((d) => d.value && d.label)
-    );
-  }, [districtsQuery.data]);
+    if (!companyUniqueId || !projectId) return;
+    let cancelled = false;
+    const params = { company_id: companyUniqueId, project_id: projectId };
+    Promise.all([
+      districtApi.list({ params }),
+      cityApi.list({ params }),
+      panchayatApi.list({ params }),
+      zoneApi.list({ params }),
+      wardApi.list({ params }),
+    ])
+      .then(([distData, cityData, panData, zoneData, wardData]) => {
+        if (cancelled) return;
+
+        setDistricts(
+          toRecordList(distData)
+            .filter((d) => d.is_active !== false)
+            .map((d) => ({
+              value: normalizeIdValue(d.unique_id),
+              label: String(d.name ?? d.unique_id ?? ""),
+            }))
+            .filter((d) => d.value && d.label)
+        );
+
+        setCities(
+          toRecordList(cityData)
+            .filter((c) => c.is_active !== false)
+            .map((c) => ({
+              value: normalizeIdValue(c.unique_id),
+              label: String(c.name ?? c.unique_id ?? ""),
+              districtId: normalizeIdValue(c.district_id ?? c.district),
+            }))
+            .filter((c) => c.value && c.label)
+        );
+
+        setPanchayats(
+          toRecordList(panData)
+            .filter((p) => p.is_active !== false)
+            .map((p) => ({
+              value: normalizeIdValue(p.unique_id),
+              label: String(p.panchayat_name ?? p.name ?? p.unique_id ?? ""),
+              districtId: normalizeIdValue(p.district_id ?? p.district),
+              cityId: normalizeIdValue(p.city_id ?? p.city),
+            }))
+            .filter((p) => p.value && p.label)
+        );
+
+        setZones(
+          toRecordList(zoneData)
+            .filter((z) => z.is_active !== false)
+            .map((z) => ({
+              value: normalizeIdValue(z.unique_id),
+              label: String(z.zone_name ?? z.name ?? z.unique_id ?? ""),
+              districtId: normalizeIdValue(z.district_id),
+              cityId: normalizeIdValue(z.city_id),
+            }))
+            .filter((z) => z.value && z.label)
+        );
+
+        setWardRecords(
+          toRecordList(wardData)
+            .filter((w) => w.is_active !== false)
+            .map((w) => ({
+              value: normalizeIdValue(w.unique_id),
+              label: String(w.ward_name ?? w.name ?? w.unique_id ?? ""),
+              districtId: normalizeIdValue(w.district_id ?? w.district),
+              cityId: normalizeIdValue(w.city_id ?? w.city),
+              panchayatId: normalizeIdValue(w.panchayat_id ?? w.panchayat),
+              zoneId: normalizeIdValue(w.zone_id ?? w.zone),
+            }))
+            .filter((w) => w.value && w.label)
+        );
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), extractErr(err), "error");
+      });
+    return () => { cancelled = true; };
+  }, [companyUniqueId, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ==========================================================
+      LOAD COLLECTION POINTS (re-fetches when ward/panchayat changes)
+  ========================================================== */
+  useEffect(() => {
+    if (!companyUniqueId || !projectId || (!wardId && !panchayatId)) return;
+    let cancelled = false;
+    const params: Record<string, string> = { company_id: companyUniqueId, project_id: projectId };
+    if (districtId) params.district = districtId;
+    if (cityId) params.city = cityId;
+    if (zoneId) params.zone = zoneId;
+    if (wardId) params.ward = wardId;
+    if (panchayatId) params.panchayat = panchayatId;
+    collectionPointApi.list({ params })
+      .then((res: unknown) => {
+        if (cancelled) return;
+        setCollectionPoints(
+          toRecordList(res)
+            .filter((cp) => cp.is_active !== false)
+            .map((cp) => ({
+              value: normalizeIdValue(cp.unique_id),
+              label: String(cp.cp_name ?? cp.collection_point_name ?? cp.unique_id ?? ""),
+              districtId: normalizeIdValue(cp.district_id),
+              cityId: normalizeIdValue(cp.city_id),
+              panchayatId: normalizeIdValue(cp.panchayat_id),
+              wardId: normalizeIdValue(cp.ward_id),
+            }))
+            .filter((cp) => cp.value && cp.label)
+        );
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), extractErr(err), "error");
+      });
+    return () => { cancelled = true; };
+  }, [companyUniqueId, projectId, wardId, panchayatId, districtId, cityId, zoneId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ==========================================================
+      LOAD BIN DATA (edit mode)
+  ========================================================== */
+  useEffect(() => {
+    if (!id || !isEdit) return;
+    let cancelled = false;
+    binApi.get(id)
+      .then((data: unknown) => {
+        if (cancelled) return;
+        const record = data as BinRecord;
+        setBinName(toStringOrEmpty(record.bin_name));
+        setBinType(toStringOrEmpty(record.bin_type) || "medium");
+        setBinCapacity(toNumberOrEmpty(record.bin_capacity ?? record.capacity_liters));
+        setBinImage(toStringOrEmpty(record.bin_image) || "default.png");
+        setIsActive(Boolean(record.is_active));
+        applyCompanyProjectFromRecord(record);
+        setPendingProjectCandidates({
+          projectUniqueId: toStringOrEmpty((record as any).project_unique_id ?? (record as any).project?.unique_id ?? ""),
+          projectId: toStringOrEmpty((record as any).project_id ?? ""),
+          projectName: toStringOrEmpty((record as any).project_name ?? ""),
+        });
+
+        // Set all cascade IDs via pending so Radix Select re-renders once options load
+        const districtCandidate = normalizeIdValue(record.district_id ?? record.district);
+        if (districtCandidate) { setDistrictId(districtCandidate); setPendingDistrictId(districtCandidate); }
+
+        const cityCandidate = normalizeIdValue(record.city_id ?? record.city);
+        if (cityCandidate) { setCityId(cityCandidate); setPendingCityId(cityCandidate); }
+
+        const zoneCandidate = normalizeIdValue(record.zone_id ?? record.zone);
+        if (zoneCandidate) { setZoneId(zoneCandidate); setPendingZoneId(zoneCandidate); }
+
+        const cpCandidate = normalizeIdValue(record.collection_point_id ?? record.collection_point);
+        if (cpCandidate) { setCollectionPointId(cpCandidate); setPendingCollectionPointId(cpCandidate); }
+
+        const panchayatCandidate = normalizeIdValue(record.panchayat_id ?? record.panchayat);
+        const wardCandidate = normalizeIdValue(record.ward_id ?? record.ward);
+
+        if (wardCandidate) {
+          setPendingWard(wardCandidate);
+          setPendingPanchayat("");
+        } else if (panchayatCandidate) {
+          setPendingPanchayat(panchayatCandidate);
+          setPendingWard("");
+        }
+
+        const wasteTypeCandidate = normalizeIdValue(
+          record.wastetype_id ?? record.waste_type_id ?? record.waste_type
+        );
+        if (wasteTypeCandidate) setPendingWasteType(wasteTypeCandidate);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        Swal.fire(t("common.error"), extractErr(err), "error");
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Flush district once the districts list is loaded
+  useEffect(() => {
+    if (!pendingDistrictId || districts.length === 0) return;
+    if (districts.some((d) => d.value === pendingDistrictId)) {
+      setDistrictId(pendingDistrictId);
+      setPendingDistrictId("");
+    }
+  }, [pendingDistrictId, districts]);
+
+  // Flush city once the cities list is loaded (city must match the district filter)
+  useEffect(() => {
+    if (!pendingCityId || cities.length === 0) return;
+    if (cities.some((c) => c.value === pendingCityId)) {
+      setCityId(pendingCityId);
+      setPendingCityId("");
+    }
+  }, [pendingCityId, cities]);
+
+  // Flush zone once the zones list is loaded
+  useEffect(() => {
+    if (!pendingZoneId || zones.length === 0) return;
+    if (zones.some((z) => z.value === pendingZoneId)) {
+      setZoneId(pendingZoneId);
+      setPendingZoneId("");
+    }
+  }, [pendingZoneId, zones]);
+
+  // Flush collection point once the collection points list is loaded
+  useEffect(() => {
+    if (!pendingCollectionPointId || collectionPoints.length === 0) return;
+    if (collectionPoints.some((cp) => cp.value === pendingCollectionPointId)) {
+      setCollectionPointId(pendingCollectionPointId);
+      setPendingCollectionPointId("");
+    }
+  }, [pendingCollectionPointId, collectionPoints]);
 
   useEffect(() => {
-    const data = citiesQuery.data ?? [];
-    setCities(
-      data
-        .filter((c) => c.is_active !== false)
-        .map((c) => ({
-          value: normalizeIdValue(c.unique_id),
-          label: String(c.name ?? c.unique_id ?? ""),
-          districtId: normalizeIdValue(c.district_id ?? c.district),
-        }))
-        .filter((c) => c.value && c.label)
-    );
-  }, [citiesQuery.data]);
+    if (!pendingWard || wardRecords.length === 0) return;
+    if (!wardRecords.some((w) => w.value === pendingWard)) {
+      setWardRecords((prev) => [...prev, { value: pendingWard, label: pendingWard, districtId: "", cityId: "", panchayatId: "", zoneId: "" }]);
+    }
+    setWardId(pendingWard);
+    setPendingWard("");
+  }, [pendingWard, wardRecords]);
 
   useEffect(() => {
-    const data = panchayatsQuery.data ?? [];
-    setPanchayats(
-      data
-        .filter((p) => p.is_active !== false)
-        .map((p) => ({
-          value: normalizeIdValue(p.unique_id),
-          label: String(p.panchayat_name ?? p.name ?? p.unique_id ?? ""),
-          districtId: normalizeIdValue(p.district_id ?? p.district),
-          cityId: normalizeIdValue(p.city_id ?? p.city),
-        }))
-        .filter((p) => p.value && p.label)
-    );
-  }, [panchayatsQuery.data]);
+    if (!pendingPanchayat || panchayats.length === 0) return;
+    if (!panchayats.some((p) => p.value === pendingPanchayat)) {
+      setPanchayats((prev) => [...prev, { value: pendingPanchayat, label: pendingPanchayat, districtId: "", cityId: "" }]);
+    }
+    setPanchayatId(pendingPanchayat);
+    setPendingPanchayat("");
+  }, [pendingPanchayat, panchayats]);
 
   useEffect(() => {
-    const data = zonesQuery.data ?? [];
-    setZones(
-      data
-        .filter((z) => z.is_active !== false)
-        .map((z) => ({
-          value: normalizeIdValue(z.unique_id),
-          label: String(z.zone_name ?? z.name ?? z.unique_id ?? ""),
-          districtId: normalizeIdValue(z.district_id),
-          cityId: normalizeIdValue(z.city_id),
-        }))
-        .filter((z) => z.value && z.label)
-    );
-  }, [zonesQuery.data]);
+    if (!pendingWasteType || wasteTypes.length === 0) return;
+    if (!wasteTypes.some((w) => w.value === pendingWasteType)) {
+      setWasteTypes((prev) => [...prev, { value: pendingWasteType, label: pendingWasteType }]);
+    }
+    setWasteTypeId(pendingWasteType);
+    setPendingWasteType("");
+  }, [pendingWasteType, wasteTypes]);
 
+  /* ── re-apply project after hook loads project list ── */
   useEffect(() => {
-    const data = wardsQuery.data ?? [];
-    setWardRecords(
-      data
-        .filter((w) => w.is_active !== false)
-        .map((w) => ({
-          value: normalizeIdValue(w.unique_id),
-          label: String(w.ward_name ?? w.name ?? w.unique_id ?? ""),
-          districtId: normalizeIdValue(w.district_id ?? w.district),
-          cityId: normalizeIdValue(w.city_id ?? w.city),
-          panchayatId: normalizeIdValue(w.panchayat_id ?? w.panchayat),
-          zoneId: normalizeIdValue(w.zone_id ?? w.zone),
-        }))
-        .filter((w) => w.value && w.label)
-    );
-  }, [wardsQuery.data]);
-
-  useEffect(() => {
-    const data = collectionPointsQuery.data ?? [];
-    setCollectionPoints(
-      data
-        .filter((cp) => cp.is_active !== false)
-        .map((cp) => ({
-          value: normalizeIdValue(cp.unique_id),
-          label: String(cp.cp_name ?? cp.collection_point_name ?? cp.unique_id ?? ""),
-          districtId: normalizeIdValue(cp.district_id),
-          cityId: normalizeIdValue(cp.city_id),
-          panchayatId: normalizeIdValue(cp.panchayat_id),
-          wardId: normalizeIdValue(cp.ward_id),
-        }))
-        .filter((cp) => cp.value && cp.label)
-    );
-  }, [collectionPointsQuery.data]);
+    if (!pendingProjectCandidates || projects.length === 0) return;
+    const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
+    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
+    if (!match) match = projects.find((p) => rawId && p.value === rawId);
+    if (!match && projectName)
+      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
+    if (match) setProjectId(match.value);
+    setPendingProjectCandidates(null);
+  }, [projects, pendingProjectCandidates, setProjectId]);
 
   const wardOptions = useMemo(() => {
     const filtered = wardRecords
@@ -403,81 +524,6 @@ export default function BinForm() {
   }, [cityId, collectionPointId, collectionPoints, districtId, panchayatId, wardId]);
 
   useEffect(() => {
-    if (!binQuery.data) return;
-
-    const record = binQuery.data as BinRecord;
-    setBinName(toStringOrEmpty(record.bin_name));
-    setBinType(toStringOrEmpty(record.bin_type) || "medium");
-    setBinCapacity(toNumberOrEmpty(record.bin_capacity ?? record.capacity_liters));
-    setDistrictId(normalizeIdValue(record.district_id ?? record.district));
-    setCityId(normalizeIdValue(record.city_id ?? record.city));
-    setCollectionPointId(normalizeIdValue(record.collection_point_id ?? record.collection_point));
-    setBinImage(toStringOrEmpty(record.bin_image) || "default.png");
-    setBinQr(toStringOrEmpty(record.bin_qr));
-    setIsActive(Boolean(record.is_active));
-    applyCompanyProjectFromRecord(record);
-
-    const zoneCandidate = normalizeIdValue(record.zone_id ?? record.zone);
-    if (zoneCandidate) setZoneId(zoneCandidate);
-
-    const panchayatCandidate = normalizeIdValue(record.panchayat_id ?? record.panchayat);
-    const wardCandidate = normalizeIdValue(record.ward_id ?? record.ward);
-
-    if (wardCandidate) {
-      setPendingWard(wardCandidate);
-      setPendingPanchayat("");
-    } else if (panchayatCandidate) {
-      setPendingPanchayat(panchayatCandidate);
-      setPendingWard("");
-    }
-
-    const wasteTypeCandidate = normalizeIdValue(
-      record.wastetype_id ?? record.waste_type_id ?? record.waste_type
-    );
-    if (wasteTypeCandidate) setPendingWasteType(wasteTypeCandidate);
-  }, [applyCompanyProjectFromRecord, binQuery.data]);
-
-  useEffect(() => {
-    if (!pendingWard || wardRecords.length === 0) return;
-    if (!wardRecords.some((w) => w.value === pendingWard)) {
-      setWardRecords((prev) => [...prev, { value: pendingWard, label: pendingWard, districtId: "", cityId: "", panchayatId: "", zoneId: "" }]);
-    }
-    setWardId(pendingWard);
-    setPendingWard("");
-  }, [pendingWard, wardRecords]);
-
-  useEffect(() => {
-    if (!pendingPanchayat || panchayats.length === 0) return;
-    if (!panchayats.some((p) => p.value === pendingPanchayat)) {
-      setPanchayats((prev) => [...prev, { value: pendingPanchayat, label: pendingPanchayat, districtId: "", cityId: "" }]);
-    }
-    setPanchayatId(pendingPanchayat);
-    setPendingPanchayat("");
-  }, [pendingPanchayat, panchayats]);
-
-  useEffect(() => {
-    if (!pendingWasteType || wasteTypes.length === 0) return;
-    if (!wasteTypes.some((w) => w.value === pendingWasteType)) {
-      setWasteTypes((prev) => [...prev, { value: pendingWasteType, label: pendingWasteType }]);
-    }
-    setWasteTypeId(pendingWasteType);
-    setPendingWasteType("");
-  }, [pendingWasteType, wasteTypes]);
-
-  const cityOptions = useMemo(() => {
-    const filtered = cities
-      .filter((city) => {
-        if (districtId) return city.districtId === districtId;
-        return true;
-      })
-      .map((city) => ({ value: city.value, label: city.label }));
-
-    if (!cityId) return filtered;
-    if (filtered.some((city) => city.value === cityId)) return filtered;
-    return [...filtered, { value: cityId, label: cityId }];
-  }, [cities, cityId, districtId]);
-
-  useEffect(() => {
     if (!collectionPointId) return;
 
     const selectedCp = collectionPoints.find((cp) => cp.value === collectionPointId);
@@ -505,6 +551,19 @@ export default function BinForm() {
       setCollectionPointId("");
     }
   }, [cityId, collectionPointId, collectionPoints, districtId, panchayatId, wardId]);
+
+  const cityOptions = useMemo(() => {
+    const filtered = cities
+      .filter((city) => {
+        if (districtId) return city.districtId === districtId;
+        return true;
+      })
+      .map((city) => ({ value: city.value, label: city.label }));
+
+    if (!cityId) return filtered;
+    if (filtered.some((city) => city.value === cityId)) return filtered;
+    return [...filtered, { value: cityId, label: cityId }];
+  }, [cities, cityId, districtId]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -569,24 +628,26 @@ export default function BinForm() {
       bin_name: binName.trim(),
       bin_type: binType,
       bin_image: binImage.trim() || "default.png",
-      bin_qr: binQr.trim() || null,
       wastetype_id: wasteTypeId,
       is_active: isActive,
     };
     const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
     try {
+      setIsSubmitting(true);
       if (isEdit && id) {
-        await updateBinMutation.mutateAsync({ id, payload });
+        await binApi.update(id, payload);
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        await createBinMutation.mutateAsync(payload);
+        await binApi.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
       navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (err: unknown) {
       Swal.fire(t("common.save_failed"), extractErr(err), "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -871,14 +932,7 @@ export default function BinForm() {
           </div>
         )}
 
-        {showField("bin_qr") && (
-          <div>
-            <Label>Bin QR</Label>
-            <Input value={binQr} onChange={(e) => setBinQr(e.target.value)} placeholder="QR-BIN-001" />
-          </div>
-        )}
-
-        {showField("is_active") && (
+{showField("is_active") && (
           <div>
             <Label>{t("common.status")}</Label>
             <Select value={isActive ? "true" : "false"} onValueChange={(v) => setIsActive(v === "true")}>

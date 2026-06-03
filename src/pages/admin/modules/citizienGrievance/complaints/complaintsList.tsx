@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { PencilIcon } from "@/icons";
@@ -13,7 +13,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
-import { useComplaintsList } from "@/tanstack/admin/queries/masters/complaint";
+import { complaintApi } from "@/helpers/admin";
 import { useTranslation } from "react-i18next";
 
 type Complaint = {
@@ -39,18 +39,12 @@ type Complaint = {
   complaint_closed_at?: string | null;
 };
 
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  customer_name?: { value: string | null; matchMode: FilterMatchMode };
-  contact_no?: { value: string | null; matchMode: FilterMatchMode };
-};
-
-
 export default function ComplaintsList() {
   const { t } = useTranslation();
-  const { data: complaints = [], isLoading: loading } = useComplaintsList();
+  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [loading, setLoading] = useState(false);
   const [modalImage, setModalImage] = useState<string | null>(null);
-  const [expandedRows, setExpandedRows] = useState<any>(null);
+  const [expandedRows, setExpandedRows] = useState<Complaint[] | Record<string, boolean> | undefined>(undefined);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<{
     global: { value: string | null; matchMode: FilterMatchMode };
@@ -69,7 +63,25 @@ export default function ComplaintsList() {
   
   
 
-  // Data is loaded via `useComplaintsList` tanstack hook
+  useEffect(() => {
+    let mounted = true;
+
+    const loadComplaints = async () => {
+      setLoading(true);
+      try {
+        const data = await complaintApi.list();
+        if (mounted) setComplaints(data as Complaint[]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    void loadComplaints();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // ==========================================================
   // DATE FORMATTER → DD-MM-YYYY HH:MM AM/PM

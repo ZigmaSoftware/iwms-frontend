@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Switch } from "@/components/ui/switch";
-import { type ContinentRecord, useContinentsQuery, useUpdateContinentMutation } from "@/tanstack/admin";
+import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { PencilIcon } from "@/icons";
 import { Button } from "primereact/button";
@@ -18,6 +18,7 @@ import Swal from "sweetalert2";
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
+import type { ContinentRecord } from "./types";
 
 type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
@@ -67,30 +68,37 @@ export default function ContinentList() {
   const navigate = useNavigate();
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [continents, setContinents] = useState<ContinentRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
-  const continentsQuery = useContinentsQuery();
-  const updateContinentMutation = useUpdateContinentMutation();
-  const continents = continentsQuery.data ?? [];
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "continents",
     CONTINENT_COLUMN_FIELDS,
   );
 
-  useEffect(() => {
-    if (!continentsQuery.isError) {
-      return;
+  const loadContinents = async () => {
+    setIsLoading(true);
+    try {
+      const response = await adminApi.continents.list();
+      setContinents(Array.isArray(response) ? response : []);
+    } catch (error) {
+      Swal.fire(
+        t("common.error"),
+        extractErrorMessage(error, t("common.fetch_failed")),
+        "error"
+      );
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    Swal.fire(
-      t("common.error"),
-      extractErrorMessage(continentsQuery.error, t("common.fetch_failed")),
-      "error"
-    );
-  }, [continentsQuery.error, continentsQuery.isError, t]);
+  useEffect(() => {
+    void loadContinents();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as TableFilters);
@@ -114,13 +122,17 @@ export default function ContinentList() {
     setPendingStatusId(continentId);
 
     try {
-      await updateContinentMutation.mutateAsync({
-        id: continent.unique_id,
-        payload: filterPayload({
-          name: continent.name,
-          is_active: checked,
-        }) as { name: string; is_active: boolean },
-      });
+      await adminApi.continents.update(
+        continent.unique_id,
+        filterPayload({ is_active: checked })
+      );
+      setContinents((current) =>
+        current.map((row) =>
+          row.unique_id === continent.unique_id
+            ? { ...row, is_active: checked }
+            : row
+        )
+      );
     } catch (error) {
       Swal.fire(
         t("common.error"),
@@ -139,7 +151,7 @@ export default function ContinentList() {
       <Switch
         checked={row.is_active}
         disabled={
-          updateContinentMutation.isPending && pendingStatusId === continentId
+          pendingStatusId === continentId
         }
         onCheckedChange={(checked) => {
           void updateStatus(row, checked);
@@ -211,7 +223,7 @@ export default function ContinentList() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={continentsQuery.isPending && continents.length === 0}
+        loading={isLoading && continents.length === 0}
         filters={filters}
         onFilter={onFilter}
         globalFilterFields={["name"]}

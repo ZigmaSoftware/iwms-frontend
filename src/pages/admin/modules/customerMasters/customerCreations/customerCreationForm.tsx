@@ -3,19 +3,17 @@ import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
 
 import {
-  useCitiesQuery,
-  useCountriesQuery,
-  useCustomerCreationQuery,
-  useCreateCustomerCreationMutation,
-  useDistrictsQuery,
-  usePanchayatsQuery,
-  usePropertiesQuery,
-  useStatesQuery,
-  useSubPropertiesQuery,
-  useUpdateCustomerCreationMutation,
-  useWardsQuery,
-  useZonesQuery,
-} from "@/tanstack/admin";
+  cityApi,
+  countryApi,
+  customerCreationApi,
+  districtApi,
+  panchayatApi,
+  propertiesApi,
+  stateApi,
+  subPropertiesApi,
+  wardApi,
+  zoneApi,
+} from "@/helpers/admin";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -37,6 +35,15 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
    TYPES
 ================================ */
 type Option = { value: string; label: string };
+
+const normalizeEntityId = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return String(record.unique_id ?? record.id ?? record.value ?? "").trim();
+  }
+  return String(value).trim();
+};
 
 const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   customer_name: ["customer_name", "name"],
@@ -289,7 +296,7 @@ const PropertySelectionStep = ({
   t: any;
 }) => {
   const filteredSubProps = subProperties.filter(
-    (sp: any) => !selectedProperty || String(sp.property_id ?? sp.property) === selectedProperty
+    (sp: any) => !selectedProperty || normalizeEntityId(sp.property_id ?? sp.property) === selectedProperty
   );
 
   const isStepComplete =
@@ -372,10 +379,6 @@ export default function CustomerCreationForm() {
   const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
   const ENC_LIST_PATH = `/${encCustomerMaster}/${encCustomerCreation}`;
 
-  // TanStack Query hooks
-  const customerQuery = useCustomerCreationQuery(isEdit ? id : null);
-  const createMutation = useCreateCustomerCreationMutation();
-  const updateMutation = useUpdateCustomerCreationMutation();
   const location = useLocation();
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
@@ -433,6 +436,17 @@ export default function CustomerCreationForm() {
     industry_type: "",
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dropdownsLoaded, setDropdownsLoaded] = useState(false);
+  const [pendingEditData, setPendingEditData] = useState<any>(null);
+  // Holds the raw project candidates from the record so we can re-apply after the
+  // hook finishes loading the project list (the hook may auto-select options[0] otherwise)
+  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
+    projectUniqueId: string;
+    projectId: string;
+    projectName: string;
+  } | null>(null);
+
   const resolveId = (o: any) => String(o?.unique_id ?? o?.id ?? "");
   const normalize = (arr: any[]) =>
     arr.filter((i) => i?.is_active !== false && i?.is_deleted !== true);
@@ -441,80 +455,134 @@ export default function CustomerCreationForm() {
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
+  /* resolve a raw API id (integer PK or unique_id) to the option value used in dropdowns */
+  const resolveOptionValue = (items: any[], rawId: any, nameField: string, nameValue?: string): string => {
+    const strId = String(rawId ?? "").trim();
+    if (!strId && !nameValue) return "";
+    if (strId) {
+      const byUniqueId = items.find((item) => String(item.unique_id ?? "") === strId);
+      if (byUniqueId) return String(byUniqueId.unique_id ?? byUniqueId.id ?? "");
+      const byId = items.find((item) => String(item.id ?? "") === strId);
+      if (byId) return String(byId.unique_id ?? byId.id ?? "");
+    }
+    if (nameValue) {
+      const lower = nameValue.toLowerCase();
+      const byName = items.find((item) => String(item[nameField] ?? "").toLowerCase() === lower);
+      if (byName) return String(byName.unique_id ?? byName.id ?? "");
+    }
+    return strId;
+  };
+
   /* ===============================
      DROPDOWNS
   ================================ */
-  const wardsQuery = useWardsQuery();
-  const zonesQuery = useZonesQuery();
-  const citiesQuery = useCitiesQuery();
-  const districtsQuery = useDistrictsQuery();
-  const statesQuery = useStatesQuery();
-  const countriesQuery = useCountriesQuery();
-  const propertiesQuery = usePropertiesQuery();
-  const subPropertiesQuery = useSubPropertiesQuery();
-  const panchayatsQuery = usePanchayatsQuery();
+  const [rawWards, setRawWards] = useState<any[]>([]);
+  const [rawZones, setRawZones] = useState<any[]>([]);
+  const [rawCities, setRawCities] = useState<any[]>([]);
+  const [rawDistricts, setRawDistricts] = useState<any[]>([]);
+  const [rawStates, setRawStates] = useState<any[]>([]);
+  const [rawCountries, setRawCountries] = useState<any[]>([]);
+  const [rawProperties, setRawProperties] = useState<any[]>([]);
+  const [rawSubProperties, setRawSubProperties] = useState<any[]>([]);
+  const [rawPanchayats, setRawPanchayats] = useState<any[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([
+      wardApi.list(),
+      zoneApi.list(),
+      cityApi.list(),
+      districtApi.list(),
+      stateApi.list(),
+      countryApi.list(),
+      propertiesApi.list(),
+      subPropertiesApi.list(),
+      panchayatApi.list(),
+    ])
+      .then(([wards, zones, cities, districts, states, countries, properties, subProperties, panchayats]) => {
+        if (cancelled) return;
+        setRawWards(Array.isArray(wards) ? wards : (wards as any)?.results ?? []);
+        setRawZones(Array.isArray(zones) ? zones : (zones as any)?.results ?? []);
+        setRawCities(Array.isArray(cities) ? cities : (cities as any)?.results ?? []);
+        setRawDistricts(Array.isArray(districts) ? districts : (districts as any)?.results ?? []);
+        setRawStates(Array.isArray(states) ? states : (states as any)?.results ?? []);
+        setRawCountries(Array.isArray(countries) ? countries : (countries as any)?.results ?? []);
+        setRawProperties(Array.isArray(properties) ? properties : (properties as any)?.results ?? []);
+        setRawSubProperties(Array.isArray(subProperties) ? subProperties : (subProperties as any)?.results ?? []);
+        setRawPanchayats(Array.isArray(panchayats) ? panchayats : (panchayats as any)?.results ?? []);
+        setDropdownsLoaded(true);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to fetch customer dropdowns:", err);
+        Swal.fire("Error", "Failed to load customer form data", "error");
+      });
+
+    return () => { cancelled = true; };
+  }, []);
 
   const dropdowns = useMemo(
     () => ({
-      wards: normalize(wardsQuery.data ?? []),
-      zones: normalize(zonesQuery.data ?? []),
-      cities: normalize(citiesQuery.data ?? []),
-      districts: normalize(districtsQuery.data ?? []),
-      states: normalize(statesQuery.data ?? []),
-      countries: normalize(countriesQuery.data ?? []),
-      properties: normalize(propertiesQuery.data ?? []),
-      subProperties: normalize(subPropertiesQuery.data ?? []),
-      panchayats: normalize(panchayatsQuery.data ?? []),
+      wards: normalize(rawWards),
+      zones: normalize(rawZones),
+      cities: normalize(rawCities),
+      districts: normalize(rawDistricts),
+      states: normalize(rawStates),
+      countries: normalize(rawCountries),
+      properties: normalize(rawProperties),
+      subProperties: normalize(rawSubProperties),
+      panchayats: normalize(rawPanchayats),
     }),
-    [
-      wardsQuery.data,
-      zonesQuery.data,
-      citiesQuery.data,
-      districtsQuery.data,
-      statesQuery.data,
-      countriesQuery.data,
-      propertiesQuery.data,
-      subPropertiesQuery.data,
-      panchayatsQuery.data,
-    ]
+    [rawWards, rawZones, rawCities, rawDistricts, rawStates, rawCountries, rawProperties, rawSubProperties, rawPanchayats]
   );
-
-  useEffect(() => {
-    const failedQuery = [
-      wardsQuery,
-      zonesQuery,
-      citiesQuery,
-      districtsQuery,
-      statesQuery,
-      countriesQuery,
-      propertiesQuery,
-      subPropertiesQuery,
-      panchayatsQuery,
-    ].find((query) => query.isError);
-
-    if (!failedQuery) return;
-
-    console.error("Failed to fetch customer dropdowns:", failedQuery.error);
-    Swal.fire("Error", "Failed to load customer form data", "error");
-  }, [
-    wardsQuery.isError,
-    zonesQuery.isError,
-    citiesQuery.isError,
-    districtsQuery.isError,
-    statesQuery.isError,
-    countriesQuery.isError,
-    propertiesQuery.isError,
-    subPropertiesQuery.isError,
-    panchayatsQuery.isError,
-  ]);
 
   /* ===============================
      LOAD EXISTING DATA (EDIT MODE)
+     Store raw API data as pending — applied after dropdowns finish loading
   ================================ */
   useEffect(() => {
-    if (!customerQuery.data) return;
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    customerCreationApi.get(id)
+      .then((data: any) => {
+        if (cancelled) return;
+        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+        setPendingEditData(data);
+        // Store all project identifiers so we can re-apply the correct one after
+        // the hook finishes loading the project list for this company
+        setPendingProjectCandidates({
+          projectUniqueId: String(data.project_unique_id ?? data.project?.unique_id ?? ""),
+          projectId: String(data.project_id ?? ""),
+          projectName: String(data.project_name ?? data.project?.name ?? ""),
+        });
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        console.error("Failed to load customer:", err);
+        Swal.fire(t("common.error") || "Error", t("admin.customer_creation.save_failed") || "Failed to load customer", "error");
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit, applyCompanyProjectFromRecord, t]);
 
-    const data = customerQuery.data;
+  /* ===============================
+     FLUSH PENDING EDIT DATA
+     Applied only after dropdown options are ready so Radix Select can match values
+  ================================ */
+  useEffect(() => {
+    if (!pendingEditData || !dropdownsLoaded) return;
+    const data = pendingEditData;
+
+    const countryId  = resolveOptionValue(rawCountries,  data.country_id,  "name",          data.country_name);
+    const stateId    = resolveOptionValue(rawStates,     data.state_id,    "name",          data.state_name);
+    const districtId = resolveOptionValue(rawDistricts,  data.district_id, "name",          data.district_name);
+    const cityId     = resolveOptionValue(rawCities,     data.city_id,     "name",          data.city_name ?? data.city);
+    const zoneId     = resolveOptionValue(rawZones,      data.zone_id,     "zone_name",     data.zone_name);
+    const wardId     = resolveOptionValue(rawWards,      data.ward_id,     "ward_name",     data.ward_name);
+    const panchayatId = resolveOptionValue(rawPanchayats, data.panchayat_id, "panchayat_name", data.panchayat_name);
+    const propertyId    = resolveOptionValue(rawProperties,    data.property_id,     "property_name",     data.property_name);
+    const subPropertyId = resolveOptionValue(rawSubProperties, data.sub_property_id, "sub_property_name", data.sub_property_name);
+
     setFormData((prev) => ({
       ...prev,
       customer_name: String(data.customer_name ?? ""),
@@ -529,17 +597,17 @@ export default function CustomerCreationForm() {
       latitude: String(data.latitude ?? ""),
       longitude: String(data.longitude ?? ""),
       sqft: String(data.sqft ?? ""),
-      property_id: String(data.property_id ?? ""),
-      sub_property_id: String(data.sub_property_id ?? ""),
+      property_id: propertyId,
+      sub_property_id: subPropertyId,
       id_proof_type: String(data.id_proof_type ?? ""),
       id_no: String(data.id_no ?? ""),
-      country_id: String(data.country_id ?? ""),
-      state_id: String(data.state_id ?? ""),
-      district_id: String(data.district_id ?? ""),
-      city_id: String(data.city_id ?? ""),
-      zone_id: String(data.zone_id ?? ""),
-      ward_id: String(data.ward_id ?? ""),
-      panchayat_id: String(data.panchayat_id ?? ""),
+      country_id: countryId,
+      state_id: stateId,
+      district_id: districtId,
+      city_id: cityId,
+      zone_id: zoneId,
+      ward_id: wardId,
+      panchayat_id: panchayatId,
       company_id: String(data.company_id ?? ""),
       project_id: String(data.project_id ?? ""),
       is_active: Boolean(data.is_active),
@@ -551,34 +619,56 @@ export default function CustomerCreationForm() {
       industry_name: String(data.industry_name ?? ""),
       industry_type: String(data.industry_type ?? ""),
     }));
-    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-  }, [applyCompanyProjectFromRecord, customerQuery.data]);
+    setPendingEditData(null);
+  }, [pendingEditData, dropdownsLoaded, rawCountries, rawStates, rawDistricts, rawCities, rawZones, rawWards, rawPanchayats, rawProperties, rawSubProperties]);
+
+  /* ===============================
+     RE-APPLY PROJECT AFTER HOOK LOADS PROJECT LIST
+     The hook auto-selects options[0] when the stored projectId doesn't match any
+     option (format mismatch: integer PK vs unique_id). Re-apply the correct one
+     using unique_id → id → name fallback once the project list is available.
+  ================================ */
+  useEffect(() => {
+    if (!pendingProjectCandidates || projects.length === 0) return;
+    const { projectUniqueId, projectId: rawProjectId, projectName } = pendingProjectCandidates;
+
+    // Try unique_id match first (most reliable)
+    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
+    // Then try integer PK match
+    if (!match) match = projects.find((p) => rawProjectId && p.value === rawProjectId);
+    // Finally fall back to name match
+    if (!match && projectName)
+      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
+
+    if (match) setProjectId(match.value);
+    setPendingProjectCandidates(null);
+  }, [projects, pendingProjectCandidates, setProjectId]);
 
   /* ===============================
      FILTERS
   ================================ */
   const filteredStates = useMemo(
-    () => dropdowns.states.filter((s: any) => !formData.country_id || String(s.country_id ?? s.country) === formData.country_id),
+    () => dropdowns.states.filter((s: any) => !formData.country_id || normalizeEntityId(s.country_id ?? s.country) === formData.country_id),
     [dropdowns.states, formData.country_id]
   );
 
   const filteredDistricts = useMemo(
-    () => dropdowns.districts.filter((d: any) => !formData.state_id || String(d.state_id ?? d.state) === formData.state_id),
+    () => dropdowns.districts.filter((d: any) => !formData.state_id || normalizeEntityId(d.state_id ?? d.state) === formData.state_id),
     [dropdowns.districts, formData.state_id]
   );
 
   const filteredCities = useMemo(
-    () => dropdowns.cities.filter((c: any) => !formData.district_id || String(c.district_id ?? c.district) === formData.district_id),
+    () => dropdowns.cities.filter((c: any) => !formData.district_id || normalizeEntityId(c.district_id ?? c.district) === formData.district_id),
     [dropdowns.cities, formData.district_id]
   );
 
   const filteredZones = useMemo(
-    () => dropdowns.zones.filter((z: any) => !formData.city_id || String(z.city_id ?? z.city) === formData.city_id),
+    () => dropdowns.zones.filter((z: any) => !formData.city_id || normalizeEntityId(z.city_id ?? z.city) === formData.city_id),
     [dropdowns.zones, formData.city_id]
   );
 
   const filteredWards = useMemo(
-    () => dropdowns.wards.filter((w: any) => !formData.zone_id || String(w.zone_id ?? w.zone) === formData.zone_id),
+    () => dropdowns.wards.filter((w: any) => !formData.zone_id || normalizeEntityId(w.zone_id ?? w.zone) === formData.zone_id),
     [dropdowns.wards, formData.zone_id]
   );
 
@@ -586,8 +676,8 @@ export default function CustomerCreationForm() {
     () =>
       dropdowns.panchayats.filter(
         (p: any) =>
-          (!formData.district_id || String(p.district_id ?? p.district) === formData.district_id) &&
-          (!formData.city_id || String(p.city_id ?? p.city) === formData.city_id)
+          (!formData.district_id || normalizeEntityId(p.district_id ?? p.district) === formData.district_id) &&
+          (!formData.city_id || normalizeEntityId(p.city_id ?? p.city) === formData.city_id)
       ),
     [dropdowns.panchayats, formData.district_id, formData.city_id]
   );
@@ -612,8 +702,6 @@ export default function CustomerCreationForm() {
   const isPanchayatSelected = Boolean(formData.panchayat_id);
   const isZoneOrWardSelected = Boolean(formData.zone_id || formData.ward_id);
 
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
-
   /* ===============================
      VALIDATION
   ================================ */
@@ -622,7 +710,7 @@ export default function CustomerCreationForm() {
     const requiredFields = [
       "customer_name", "contact_no", "email", "username",
        "pincode", "latitude", "longitude", "sqft", "id_proof_type", "id_no",
-      "country_id", "state_id", "district_id", "city_id",  
+      "country_id", "state_id", "district_id", "city_id",
       "property_id", "sub_property_id",
       ...(!isEdit ? ["password"] : []),
     ].flat();
@@ -721,14 +809,12 @@ export default function CustomerCreationForm() {
     };
     const payload = filterPayload(rawPayload, ["company_id", "project_id"]);
 
+    setIsSubmitting(true);
     try {
       if (isEdit) {
-        await updateMutation.mutateAsync({
-          id: id as string,
-          payload: payload as any,
-        });
+        await customerCreationApi.update(id as string, payload as any);
       } else {
-        await createMutation.mutateAsync(payload as any);
+        await customerCreationApi.create(payload as any);
       }
 
       Swal.fire(
@@ -740,6 +826,8 @@ export default function CustomerCreationForm() {
     } catch (err) {
       console.error("Submit error:", err);
       Swal.fire(t("common.error") || "Error", t("admin.customer_creation.save_failed") || "Failed to save", "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -826,7 +914,7 @@ export default function CustomerCreationForm() {
               type="email"
             />
           )}
-          
+
           {showField("password") && (
             <PasswordInput
               label={t("login.password") || "Password"}
@@ -1010,7 +1098,7 @@ export default function CustomerCreationForm() {
                     <p className="text-sm text-gray-600">
                       {t("admin.customer_creation.selected_property") || "Selected Property"}:{" "}
                       <span className="font-semibold text-gray-800">
-                        {dropdowns.properties.find((p: any) => String(p?.unique_id ?? p?.id ?? "") === formData.property_id)?.property_name || "-"}
+                        {dropdowns.properties.find((p: any) => resolveId(p) === formData.property_id)?.property_name || "-"}
                       </span>
                     </p>
                   )}
@@ -1018,7 +1106,7 @@ export default function CustomerCreationForm() {
                     <p className="text-sm text-gray-600">
                       {t("admin.customer_creation.selected_sub_property") || "Selected Sub-Property"}:{" "}
                       <span className="font-semibold text-gray-800">
-                        {dropdowns.subProperties.find((sp: any) => String(sp?.unique_id ?? sp?.id ?? "") === formData.sub_property_id)?.sub_property_name || "-"}
+                        {dropdowns.subProperties.find((sp: any) => resolveId(sp) === formData.sub_property_id)?.sub_property_name || "-"}
                       </span>
                     </p>
                   )}

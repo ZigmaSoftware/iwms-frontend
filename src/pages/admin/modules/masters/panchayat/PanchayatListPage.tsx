@@ -12,7 +12,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import Swal from "sweetalert2";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
-import { usePanchayatsQuery, useUpdatePanchayatMutation } from "@/tanstack/admin";
+import { panchayatApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { PanchayatListRecord } from "./types";
@@ -33,14 +33,14 @@ const PANCHAYAT_COLUMN_FIELDS: Record<string, string[]> = {
 
 export default function PanchayatListPage() {
   const { t } = useTranslation();
-  const panchayatsQuery = usePanchayatsQuery();
-  const updatePanchayatMutation = useUpdatePanchayatMutation();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "panchayats",
     PANCHAYAT_COLUMN_FIELDS,
   );
-  const allPanchayats = panchayatsQuery.data ?? [];
+  const [allPanchayats, setAllPanchayats] = useState<PanchayatListRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -93,10 +93,28 @@ export default function PanchayatListPage() {
     `/${encMasters}/${encPanchayats}/${id}/edit`;
 
   useEffect(() => {
-    if (panchayatsQuery.isError) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: String(panchayatsQuery.error) });
-    }
-  }, [panchayatsQuery.error, panchayatsQuery.isError, t]);
+    let mounted = true;
+
+    const loadPanchayats = async () => {
+      setIsLoading(true);
+      try {
+        const data = await panchayatApi.list();
+        if (mounted) setAllPanchayats(data as PanchayatListRecord[]);
+      } catch (error) {
+        if (mounted) {
+          Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadPanchayats();
+
+    return () => {
+      mounted = false;
+    };
+  }, [t]);
 
   const data = ((): PanchayatListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
@@ -169,23 +187,30 @@ export default function PanchayatListPage() {
     const updateStatus = async (value: boolean) => {
       const id = String(row.unique_id);
       setPendingStatusId(id);
+      setIsUpdating(true);
 
       try {
-        await updatePanchayatMutation.mutateAsync({
-          id: row.unique_id,
-          payload: filterPayload({ is_active: value }) as { is_active: boolean },
-        });
+        await panchayatApi.update(
+          row.unique_id,
+          filterPayload({ is_active: value }) as { is_active: boolean }
+        );
+        setAllPanchayats((current) =>
+          current.map((item) =>
+            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
+          )
+        );
       } catch (error) {
         console.error("Failed to update panchayat status", error);
       } finally {
         setPendingStatusId(null);
+        setIsUpdating(false);
       }
     };
 
     return (
       <Switch
         checked={Boolean(row.is_active)}
-        disabled={updatePanchayatMutation.isPending && pendingStatusId === String(row.unique_id)}
+        disabled={isUpdating && pendingStatusId === String(row.unique_id)}
         onCheckedChange={(checked) => void updateStatus(checked)}
       />
     );
@@ -258,7 +283,7 @@ export default function PanchayatListPage() {
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={panchayatsQuery.isPending && data.length === 0}
+        loading={isLoading && data.length === 0}
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}

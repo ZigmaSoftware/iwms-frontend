@@ -9,11 +9,7 @@ import { Dropdown } from "primereact/dropdown";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
-import {
-  type CommonAuditJsonValue,
-  type CommonAuditRecord,
-  useCommonAuditsQuery,
-} from "@/tanstack/admin/queries/audits/commonAudit";
+import { commonAuditApi } from "@/helpers/admin";
 import { normalizeList } from "@/utils/forms";
 
 type TableFilters = {
@@ -25,16 +21,34 @@ type ModuleFilterOption = {
   value: string;
 };
 
+type CommonAuditJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | CommonAuditJsonValue[]
+  | { [key: string]: CommonAuditJsonValue };
+
+type CommonAuditRecord = {
+  uuid?: string | number;
+  module_name?: string;
+  endpoint_name?: string;
+  method?: string;
+  object_id?: string | number;
+  createdBy?: string;
+  createdAt?: string;
+  previous_data?: CommonAuditJsonValue;
+  new_data?: CommonAuditJsonValue;
+  [key: string]: unknown;
+};
+
 const ALL_MODULES = "__all__";
 
 const formatDateTime = (value?: string | null) =>
   value ? new Date(value).toLocaleString() : "-";
 
 const formatJson = (value?: CommonAuditJsonValue) => {
-  if (value === undefined || value === null) {
-    return "-";
-  }
-
+  if (value === undefined || value === null) return "-";
   return JSON.stringify(value, null, 2);
 };
 
@@ -53,21 +67,149 @@ const JsonViewer = ({
   </div>
 );
 
+function getChangedPaths(
+  prev: CommonAuditJsonValue,
+  next: CommonAuditJsonValue,
+  prefix = ""
+): Set<string> {
+  const changed = new Set<string>();
+  const isLeaf = (v: CommonAuditJsonValue) =>
+    v === null || typeof v !== "object" || Array.isArray(v);
+
+  if (isLeaf(prev) || isLeaf(next)) {
+    if (JSON.stringify(prev) !== JSON.stringify(next)) changed.add(prefix);
+    return changed;
+  }
+
+  const p = prev as Record<string, CommonAuditJsonValue>;
+  const n = next as Record<string, CommonAuditJsonValue>;
+  for (const key of Object.keys(n)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (!(key in p)) {
+      changed.add(path);
+    } else {
+      getChangedPaths(p[key], n[key], path).forEach((cp) => changed.add(cp));
+    }
+  }
+  return changed;
+}
+
+type DiffLine = { content: string; changed: boolean };
+
+function buildDiffLines(
+  value: CommonAuditJsonValue,
+  changedPaths: Set<string>,
+  currentPath: string,
+  indent: number,
+  isLast: boolean
+): DiffLine[] {
+  const pad = "  ".repeat(indent);
+  const childPad = "  ".repeat(indent + 1);
+  const suffix = isLast ? "" : ",";
+
+  if (value === null || typeof value !== "object") {
+    return [{ content: pad + JSON.stringify(value) + suffix, changed: changedPaths.has(currentPath) }];
+  }
+
+  if (Array.isArray(value)) {
+    const isChanged = changedPaths.has(currentPath);
+    const formatted = JSON.stringify(value, null, 2).split("\n");
+    const result: DiffLine[] = formatted.map((line) => ({ content: pad + line, changed: isChanged }));
+    if (result.length > 0) {
+      result[result.length - 1] = { ...result[result.length - 1], content: result[result.length - 1].content + suffix };
+    }
+    return result;
+  }
+
+  const obj = value as Record<string, CommonAuditJsonValue>;
+  const entries = Object.entries(obj);
+  const lines: DiffLine[] = [{ content: pad + "{", changed: false }];
+
+  entries.forEach(([key, val], i) => {
+    const childPath = currentPath ? `${currentPath}.${key}` : key;
+    const isChildLast = i === entries.length - 1;
+
+    if (val === null || typeof val !== "object") {
+      lines.push({
+        content: `${childPad}"${key}": ${JSON.stringify(val)}${isChildLast ? "" : ","}`,
+        changed: changedPaths.has(childPath),
+      });
+    } else if (Array.isArray(val)) {
+      const isChanged = changedPaths.has(childPath);
+      const formatted = JSON.stringify(val, null, 2).split("\n");
+      if (formatted.length === 1) {
+        lines.push({ content: `${childPad}"${key}": ${formatted[0]}${isChildLast ? "" : ","}`, changed: isChanged });
+      } else {
+        lines.push({ content: `${childPad}"${key}": ${formatted[0]}`, changed: isChanged });
+        for (let j = 1; j < formatted.length - 1; j++) {
+          lines.push({ content: childPad + formatted[j], changed: isChanged });
+        }
+        lines.push({ content: `${childPad}${formatted[formatted.length - 1]}${isChildLast ? "" : ","}`, changed: isChanged });
+      }
+    } else {
+      const childLines = buildDiffLines(val, changedPaths, childPath, indent + 1, isChildLast);
+      if (childLines.length > 0) {
+        childLines[0] = { ...childLines[0], content: `${childPad}"${key}": ${childLines[0].content.trimStart()}` };
+      }
+      lines.push(...childLines);
+    }
+  });
+
+  lines.push({ content: pad + "}" + suffix, changed: false });
+  return lines;
+}
+
+const DiffJsonViewer = ({
+  title,
+  newData,
+  previousData,
+}: {
+  title: string;
+  newData?: CommonAuditJsonValue;
+  previousData?: CommonAuditJsonValue;
+}) => {
+  const lines = useMemo(() => {
+    if (newData === undefined || newData === null) return null;
+    const changedPaths =
+      previousData !== undefined && previousData !== null
+        ? getChangedPaths(previousData, newData)
+        : new Set<string>();
+    return buildDiffLines(newData, changedPaths, "", 0, true);
+  }, [newData, previousData]);
+
+  return (
+    <div className="min-w-0">
+      <h3 className="mb-2 text-sm font-semibold text-gray-700">{title}</h3>
+      {lines === null ? (
+        <pre className="max-h-[420px] overflow-auto rounded-md border bg-gray-50 p-3 text-xs leading-relaxed text-gray-800">-</pre>
+      ) : (
+        <div className="max-h-[420px] overflow-auto rounded-md border bg-gray-50 p-3 text-xs leading-relaxed text-gray-800 font-mono whitespace-pre">
+          {lines.map((line, i) => (
+            <div key={i} className={line.changed ? "bg-green-200 rounded" : ""}>
+              {line.content || " "}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function CommonAuditList() {
   const { t } = useTranslation();
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [moduleFilter, setModuleFilter] = useState(ALL_MODULES);
   const [selectedRecord, setSelectedRecord] = useState<CommonAuditRecord | null>(null);
+  const [auditRows, setAuditRows] = useState<CommonAuditRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  const auditsQuery = useCommonAuditsQuery();
-
   const records = useMemo(
-    () => normalizeList<CommonAuditRecord>(auditsQuery.data ?? []),
-    [auditsQuery.data]
+    () => normalizeList<CommonAuditRecord>(auditRows),
+    [auditRows]
   );
 
   const moduleOptions = useMemo<ModuleFilterOption[]>(() => {
@@ -96,7 +238,7 @@ export default function CommonAuditList() {
     return records.filter((record) => record.module_name === moduleFilter);
   }, [moduleFilter, records]);
 
-  const loading = auditsQuery.isPending && records.length === 0;
+  const loading = isLoading && records.length === 0;
 
   const onGlobalFilterChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -135,10 +277,26 @@ export default function CommonAuditList() {
   );
 
   useEffect(() => {
-    if (auditsQuery.isError) {
-      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-    }
-  }, [auditsQuery.isError, t]);
+    let mounted = true;
+
+    const loadAudits = async () => {
+      setIsLoading(true);
+      try {
+        const data = await commonAuditApi.list();
+        if (mounted) setAuditRows(data as CommonAuditRecord[]);
+      } catch {
+        if (mounted) Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    void loadAudits();
+
+    return () => {
+      mounted = false;
+    };
+  }, [t]);
 
   return (
     <div className="p-3">
@@ -249,9 +407,10 @@ export default function CommonAuditList() {
               title={t("admin.common_audit.previous_data")}
               value={selectedRecord?.previous_data}
             />
-            <JsonViewer
+            <DiffJsonViewer
               title={t("admin.common_audit.new_data")}
-              value={selectedRecord?.new_data}
+              newData={selectedRecord?.new_data}
+              previousData={selectedRecord?.previous_data}
             />
           </div>
         </DialogContent>
