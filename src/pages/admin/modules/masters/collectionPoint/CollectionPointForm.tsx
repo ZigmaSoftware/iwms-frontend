@@ -18,6 +18,7 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { stateApi, districtApi, cityApi, panchayatApi, zoneApi, wardApi, collectionPointApi } from "@/helpers/admin";
+import { adminApi } from "@/helpers/admin/registry";
 import type { SelectOption } from "@/types";
 import type {
   UnknownRecord,
@@ -90,8 +91,8 @@ const toRecordList = (value: unknown): Record<string, unknown>[] => {
   return [];
 };
 
-const { encMasters, encCollectionPoints } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encMasters}/${encCollectionPoints}`;
+const { encScheduleMasters, encCollectionPoints } = getEncryptedRoute();
+const ENC_LIST_PATH = `/${encScheduleMasters}/${encCollectionPoints}`;
 
 const COLLECTION_POINT_FIELDS: Record<string, string[]> = {
   state_id: ["state_id", "state"],
@@ -109,7 +110,7 @@ const COLLECTION_POINT_FIELDS: Record<string, string[]> = {
 export default function CollectionPointForm() {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
-    useFieldVisibility("masters", "collection-points", COLLECTION_POINT_FIELDS);
+    useFieldVisibility("schedule-masters", "collection-points", COLLECTION_POINT_FIELDS);
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
@@ -147,6 +148,17 @@ export default function CollectionPointForm() {
     },
     [t]
   );
+
+  // ── Bins state ──────────────────────────────────────────────────────────────
+  type BinRow = { waste_type_id: string; bin_name: string; bin_capacity: string; bin_type: string };
+  type ExistingBin = BinRow & { unique_id: string };
+  const emptyBinRow = (): BinRow => ({ waste_type_id: "", bin_name: "", bin_capacity: "240", bin_type: "medium" });
+
+  const [wasteTypeOptions, setWasteTypeOptions] = useState<SelectOption[]>([]);
+  const [existingBins, setExistingBins] = useState<ExistingBin[]>([]);
+  const [newBins, setNewBins] = useState<BinRow[]>([emptyBinRow()]);
+  const [binsToDelete, setBinsToDelete] = useState<string[]>([]);
+  // ────────────────────────────────────────────────────────────────────────────
 
   const [stateId, setStateId] = useState("");
   const [districtId, setDistrictId] = useState("");
@@ -355,6 +367,49 @@ export default function CollectionPointForm() {
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ==========================================================
+      LOAD WASTE TYPES + EXISTING BINS
+  ========================================================== */
+  useEffect(() => {
+    if (!companyUniqueId) return;
+    let cancelled = false;
+    adminApi.wasteTypes.list({ params: { company_id: companyUniqueId } })
+      .then((data: unknown) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : (data as any)?.data ?? (data as any)?.results ?? [];
+        setWasteTypeOptions(
+          (list as any[]).map((wt: any) => ({
+            value: String(wt.unique_id ?? ""),
+            label: String(wt.waste_type_name ?? wt.name ?? wt.unique_id ?? ""),
+          })).filter((o: SelectOption) => o.value)
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [companyUniqueId]);
+
+  useEffect(() => {
+    if (!isEdit || !id || !companyUniqueId) return;
+    let cancelled = false;
+    adminApi.bins.list({ params: { company_id: companyUniqueId, collection_point_id: id } })
+      .then((data: unknown) => {
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : (data as any)?.data ?? (data as any)?.results ?? [];
+        setExistingBins(
+          (list as any[]).map((b: any) => ({
+            unique_id: String(b.unique_id ?? ""),
+            waste_type_id: String(b.wastetype_id ?? b.waste_type_id ?? b.waste_type?.unique_id ?? ""),
+            bin_name: String(b.bin_name ?? ""),
+            bin_capacity: String(b.bin_capacity ?? "240"),
+            bin_type: String(b.bin_type ?? "medium"),
+          })).filter((b: ExistingBin) => b.unique_id)
+        );
+        setNewBins([emptyBinRow()]);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isEdit, id, companyUniqueId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ==========================================================
       APPLY PENDING IDs once option lists have loaded
   ========================================================== */
 
@@ -549,14 +604,37 @@ export default function CollectionPointForm() {
 
     try {
       setIsSubmitting(true);
+      let cpId = id ?? "";
+
       if (isEdit && id) {
         await collectionPointApi.update(id, payload);
-        Swal.fire(t("common.success"), t("common.updated_success"), "success");
+        // Delete removed bins
+        await Promise.all(binsToDelete.map((binId) => adminApi.bins.remove(binId)));
       } else {
-        await collectionPointApi.create(payload);
-        Swal.fire(t("common.success"), t("common.added_success"), "success");
+        const created = await collectionPointApi.create(payload);
+        cpId = (created as any)?.unique_id ?? (created as any)?.data?.unique_id ?? "";
       }
 
+      // Create new bins (those with all required fields filled)
+      const validNewBins = newBins.filter(
+        (b) => b.waste_type_id && b.bin_name.trim() && b.bin_capacity && b.bin_type
+      );
+      await Promise.all(
+        validNewBins.map((b) =>
+          adminApi.bins.create({
+            company_id: companyUniqueId,
+            project_id: projectId,
+            collection_point_id: cpId,
+            wastetype_id: b.waste_type_id,
+            bin_name: b.bin_name.trim(),
+            bin_capacity: parseInt(b.bin_capacity, 10),
+            bin_type: b.bin_type,
+            bin_image: "default.png",
+          })
+        )
+      );
+
+      Swal.fire(t("common.success"), isEdit ? t("common.updated_success") : t("common.added_success"), "success");
       navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (error) {
       Swal.fire(t("common.save_failed"), extractErr(error), "error");
@@ -825,6 +903,107 @@ export default function CollectionPointForm() {
             </Select>
           </div>
         )}
+
+        {/* ── BINS SECTION ────────────────────────────────────────────────── */}
+        <div className="md:col-span-2 space-y-3">
+          <div className="flex items-center justify-between border-b pb-2">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800">Bins at this Collection Point</h3>
+              <p className="text-xs text-gray-500">Each bin is linked to a specific waste type. QR code is auto-generated.</p>
+            </div>
+          </div>
+
+          {/* Existing bins (edit mode) */}
+          {existingBins.map((bin, idx) => (
+            <div key={bin.unique_id} className={`grid grid-cols-1 gap-3 rounded-lg border p-3 md:grid-cols-[1fr_1fr_100px_120px_auto] ${binsToDelete.includes(bin.unique_id) ? "opacity-40 line-through" : ""}`}>
+              <div>
+                <Label className="text-xs text-gray-500">Waste Type</Label>
+                <Select
+                  value={bin.waste_type_id}
+                  onValueChange={(v) => setExistingBins((prev) => prev.map((b, i) => i === idx ? { ...b, waste_type_id: v } : b))}
+                  disabled={binsToDelete.includes(bin.unique_id)}
+                >
+                  <SelectTrigger className="w-full h-9 text-sm"><SelectValue placeholder="Waste Type" /></SelectTrigger>
+                  <SelectContent>
+                    {wasteTypeOptions.map((wt) => <SelectItem key={wt.value} value={String(wt.value)}>{wt.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500">Bin Name</Label>
+                <Input value={bin.bin_name} onChange={(e) => setExistingBins((prev) => prev.map((b, i) => i === idx ? { ...b, bin_name: e.target.value } : b))} disabled={binsToDelete.includes(bin.unique_id)} className="h-9 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500">Capacity (L)</Label>
+                <Input type="number" min={1} value={bin.bin_capacity} onChange={(e) => setExistingBins((prev) => prev.map((b, i) => i === idx ? { ...b, bin_capacity: e.target.value } : b))} disabled={binsToDelete.includes(bin.unique_id)} className="h-9 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500">Type</Label>
+                <Select value={bin.bin_type} onValueChange={(v) => setExistingBins((prev) => prev.map((b, i) => i === idx ? { ...b, bin_type: v } : b))} disabled={binsToDelete.includes(bin.unique_id)}>
+                  <SelectTrigger className="w-full h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="small">Small</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="large">Large</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                {binsToDelete.includes(bin.unique_id) ? (
+                  <button type="button" className="rounded border px-3 py-1.5 text-xs text-blue-600" onClick={() => setBinsToDelete((prev) => prev.filter((uid) => uid !== bin.unique_id))}>Undo</button>
+                ) : (
+                  <button type="button" className="rounded border px-3 py-1.5 text-xs text-red-600" onClick={() => setBinsToDelete((prev) => [...prev, bin.unique_id])}>Remove</button>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* New bins to add */}
+          {newBins.map((bin, idx) => (
+            <div key={idx} className="grid grid-cols-1 gap-3 rounded-lg border border-dashed border-blue-300 bg-blue-50/40 p-3 md:grid-cols-[1fr_1fr_100px_120px_auto]">
+              <div>
+                <Label className="text-xs text-gray-500">Waste Type *</Label>
+                <Select value={bin.waste_type_id} onValueChange={(v) => setNewBins((prev) => prev.map((b, i) => i === idx ? { ...b, waste_type_id: v } : b))}>
+                  <SelectTrigger className="w-full h-9 text-sm"><SelectValue placeholder="Select waste type" /></SelectTrigger>
+                  <SelectContent>
+                    {wasteTypeOptions.map((wt) => <SelectItem key={wt.value} value={String(wt.value)}>{wt.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500">Bin Name *</Label>
+                <Input placeholder="e.g. Bin 1" value={bin.bin_name} onChange={(e) => setNewBins((prev) => prev.map((b, i) => i === idx ? { ...b, bin_name: e.target.value } : b))} className="h-9 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500">Capacity (L)</Label>
+                <Input type="number" min={1} value={bin.bin_capacity} onChange={(e) => setNewBins((prev) => prev.map((b, i) => i === idx ? { ...b, bin_capacity: e.target.value } : b))} className="h-9 text-sm" />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-500">Type</Label>
+                <Select value={bin.bin_type} onValueChange={(v) => setNewBins((prev) => prev.map((b, i) => i === idx ? { ...b, bin_type: v } : b))}>
+                  <SelectTrigger className="w-full h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="small">Small</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="large">Large</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <button type="button" className="rounded border px-3 py-1.5 text-xs text-red-500 disabled:opacity-30" disabled={newBins.length === 1} onClick={() => setNewBins((prev) => prev.filter((_, i) => i !== idx))}>Remove</button>
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => setNewBins((prev) => [...prev, emptyBinRow()])}
+            className="flex items-center gap-1.5 rounded-lg border border-dashed border-gray-400 px-4 py-2 text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600"
+          >
+            <span className="text-lg leading-none">+</span> Add Bin
+          </button>
+        </div>
+        {/* ── END BINS SECTION ─────────────────────────────────────────────── */}
 
         <div className="md:col-span-2 flex justify-end gap-3">
           <Button type="submit" disabled={isSubmitting}>

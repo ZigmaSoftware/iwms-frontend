@@ -35,7 +35,7 @@ export default function Select({
   required,
 }: SelectProps) {
   const normalizedValue = value === null || value === undefined ? "" : String(value);
-  const finalPlaceholder = placeholder ?? options[0]?.label ?? "Select an option";
+  const finalPlaceholder = placeholder ?? "Select an option";
   const optionValues = options.map((option) => String(option.value));
   let placeholderValue = "__placeholder__";
 

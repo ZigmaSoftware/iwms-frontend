@@ -122,8 +122,8 @@ export default function StaffTemplateForm() {
   const [pendingExtraIds, setPendingExtraIds] = useState<string[] | null>(null);
   const [pendingApprovedBy, setPendingApprovedBy] = useState<string | null>(null);
 
-  const { encStaffMasters, encStaffTemplate } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encStaffMasters}/${encStaffTemplate}`;
+  const { encScheduleMasters, encStaffTemplate } = getEncryptedRoute();
+  const ENC_LIST_PATH = `/${encScheduleMasters}/${encStaffTemplate}`;
 
   const statusOptions = [
     { value: "ACTIVE", label: t("common.active") },

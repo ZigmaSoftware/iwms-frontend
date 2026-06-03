@@ -29,7 +29,7 @@ type BinCollectionEventRecord = {
   panchayat_id?: string;
   bin?: NestedRef;
   waste_type?: NestedRef;
-  routeplan?: NestedRef;
+  trip_plan?: NestedRef;
   vehicle?: NestedRef;
   collected_weight_kg?: string | number;
   driver_latitude?: string | number | null;
@@ -155,7 +155,7 @@ export default function CollectionMonitoringListPage() {
           ? nestedText(row.bin, ["collection_point_name"])
           : text(row.collection_point_id),
         _vehicle: nestedText(row.vehicle, ["vehicle_no", "name"]),
-        _route: nestedText(row.routeplan, ["display_code", "unique_id"]),
+        _route: nestedText(row.trip_plan, ["display_code", "unique_id"]),
       })),
     [records],
   );

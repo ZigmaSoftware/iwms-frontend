@@ -116,8 +116,8 @@ export default function DailyTripCollectionPointForm() {
     initialProjectId: routeState?.projectId,
   });
 
-  const { encTransportMaster, encDailyTripCollectionPoint } = getEncryptedRoute();
-  const LIST_PATH = `/${encTransportMaster}/${encDailyTripCollectionPoint}`;
+  const { encScheduleMasters, encDailyTripCollectionPoint } = getEncryptedRoute();
+  const LIST_PATH = `/${encScheduleMasters}/${encDailyTripCollectionPoint}`;
 
   const [tripAssignmentId, setTripAssignmentId] = useState("");
   const [collectionPointId, setCollectionPointId] = useState("");

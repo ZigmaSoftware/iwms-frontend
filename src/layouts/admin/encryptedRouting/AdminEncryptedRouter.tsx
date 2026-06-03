@@ -74,10 +74,8 @@ import VehicleTypeCreation from "@/pages/admin/modules/transportMasters/vehicleT
 import VehicleTypeCreationForm from "@/pages/admin/modules/transportMasters/vehicleTypecreation/vechicle-typeCreationForm";
 import VehicleCreationListPage from "@/pages/admin/modules/transportMasters/vehicleCreation/vehicleCreationListPage";
 import VehicleCreationForm from "@/pages/admin/modules/transportMasters/vehicleCreation/vehicleCreationForm";
-import TripDefinitionList from "@/pages/admin/modules/transportMasters/tripDefinition/tripDefinitionList";
-import TripDefinitionForm from "@/pages/admin/modules/transportMasters/tripDefinition/tripDefinitionForm";
-import TripInstanceList from "@/pages/admin/modules/transportMasters/tripInstance/tripInstanceList";
-import TripInstanceForm from "@/pages/admin/modules/transportMasters/tripInstance/tripInstanceForm";
+import TripPlanList from "@/pages/admin/modules/transportMasters/tripPlan/tripPlanList";
+import TripPlanForm from "@/pages/admin/modules/transportMasters/tripPlan/tripPlanForm";
 import ZonePropertyLoadTrackerList from "@/pages/admin/modules/transportMasters/zonePropertyLoadTracker/zonePropertyLoadTrackerList";
 import ZonePropertyLoadTrackerForm from "@/pages/admin/modules/transportMasters/zonePropertyLoadTracker/zonePropertyLoadTrackerForm";
 import TripAttendanceList from "@/pages/admin/modules/transportMasters/tripAttendance/tripAttendanceList";
@@ -86,8 +84,6 @@ import VehicleTripAuditList from "@/pages/admin/modules/transportMasters/vehicle
 import VehicleTripAuditForm from "@/pages/admin/modules/transportMasters/vehicleTripAudit/vehicleTripAuditForm";
 import TripExceptionLogList from "@/pages/admin/modules/transportMasters/tripExceptionLog/tripExceptionLogList";
 import TripExceptionLogForm from "@/pages/admin/modules/transportMasters/tripExceptionLog/tripExceptionLogForm";
-import RoutePlanListPage from "@/pages/admin/modules/staffMasters/routeplan/routeplanlist";
-import RoutePlanForm from "@/pages/admin/modules/staffMasters/routeplan/routeplanform";
 import VehicleTracking from "@/pages/admin/modules/vehicletracking/vehicletrack/vehicletracking";
 import VehicleHistory from "@/pages/admin/modules/vehicletracking/vehiclehistory/vehiclehistory";
 import WorkforceManagement from "@/pages/admin/modules/workforcemanagement/workforcemanagement";
@@ -100,8 +96,8 @@ import DailyTripCollectionPointForm from "@/pages/admin/modules/transportMasters
 import DailyTripLogList from "@/pages/admin/modules/transportMasters/dailyTripLog/dailyTripLogList";
 import DailyTripLogForm from "@/pages/admin/modules/transportMasters/dailyTripLog/dailyTripLogForm";
 
-import CollectionMonitoringListPage from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringListPage";
-import CollectionMonitoringForm from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringForm";
+// import CollectionMonitoringListPage from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringListPage";
+// import CollectionMonitoringForm from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringForm";
 import PanchayatBaseCollectionListPage from "@/pages/admin/modules/wasteManagementMasters/panchayatbasecollection/PanchayatBaseCollectionListPage";
 import WardBaseCollectionListPage from "@/pages/admin/modules/wasteManagementMasters/wardbasecollection/WardBaseCollectionListPage";
 import WasteCollectedDataList from "@/pages/admin/modules/wasteManagementMasters/wasteCollectedData/wasteCollectedDataListPage";
@@ -127,6 +123,10 @@ import StaffTemplateList from "@/pages/admin/modules/staffMasters/staffTemplate/
 import StaffTemplateForm from "@/pages/admin/modules/staffMasters/staffTemplate/staffTemplateForm";
 import AlternativeStaffTemplateList from "@/pages/admin/modules/staffMasters/alternativeStaffTemplate/alternativeStaffTemplateList";
 import AlternativeStaffTemplateForm from "@/pages/admin/modules/staffMasters/alternativeStaffTemplate/alternativeStaffTemplateForm";
+import TripPlanCollectionPointList from "@/pages/admin/modules/scheduleMasters/tripPlanCollectionPoint/tripPlanCollectionPointList";
+import TripPlanCollectionPointForm from "@/pages/admin/modules/scheduleMasters/tripPlanCollectionPoint/tripPlanCollectionPointForm";
+import BinCollectionEventList from "@/pages/admin/modules/scheduleMasters/binCollectionEvent/binCollectionEventList";
+import BinCollectionEventForm from "@/pages/admin/modules/scheduleMasters/binCollectionEvent/binCollectionEventForm";
 import StaffTemplateAuditList from "@/pages/admin/modules/staffMasters/staffTemplateAudit/staffTemplateAuditList";
 import StaffTemplateAuditForm from "@/pages/admin/modules/staffMasters/staffTemplateAudit/staffTemplateAuditForm";
 import SupervisorZoneMapList from "@/pages/admin/modules/staffMasters/supervisorZoneMap/supervisorZoneMapList";
@@ -178,7 +178,6 @@ const ROUTES: RouteMap = {
     departments: { list: DepartmentList, form: DepartmentForm },
     designations: { list: DesignationList, form: DesignationForm },
     bins: { list: BinListPage, form: BinForm },
-    "collection-points": { list: CollectionPointListPage, form: CollectionPointForm },
     "waste-types": { list: WasteTypeListPage, form: WasteTypeForm },
     // bins: { list: BinListPage, form: BinForm },
 
@@ -194,10 +193,7 @@ const ROUTES: RouteMap = {
   },
   "staff-masters": {
     "staff-creation": { list: StaffCreationList, form: StaffCreationForm },
-    "staff-template": {list: StaffTemplateList, form: StaffTemplateForm},
-    "alternative-staff-template": {list: AlternativeStaffTemplateList, form: AlternativeStaffTemplateForm},
     "staff-template-audit": { list: StaffTemplateAuditList, form: StaffTemplateAuditForm },
-    "route-plans": { list: RoutePlanListPage, form: RoutePlanForm },
     "supervisor-zone-map": { list: SupervisorZoneMapList, form: SupervisorZoneMapForm },
     "supervisor-zone-access-audit": { list: SupervisorZoneAccessAuditList, form: SupervisorZoneAccessAuditForm },
     "unassigned-staff-pool": { list: UnassignedStaffPoolList, form: UnassignedStaffPoolForm },
@@ -206,14 +202,20 @@ const ROUTES: RouteMap = {
     fuel: { list: FuelList, form: FuelForm },
     "vehicle-type": { list: VehicleTypeCreation, form: VehicleTypeCreationForm },
     "vehicle-creation": { list: VehicleCreationListPage, form: VehicleCreationForm },
-    "trip-definition": { list: TripDefinitionList, form: TripDefinitionForm },
-    "trip-instance": { list: TripInstanceList, form: TripInstanceForm },
     "zone-property-load-tracker": { list: ZonePropertyLoadTrackerList, form: ZonePropertyLoadTrackerForm },
     "trip-attendance": { list: TripAttendanceList, form: TripAttendanceForm },
     "vehicle-trip-audit": { list: VehicleTripAuditList, form: VehicleTripAuditForm },
     "trip-exception-log": { list: TripExceptionLogList, form: TripExceptionLogForm },
+  },
+  "schedule-masters": {
+    "staff-template": {list: StaffTemplateList, form: StaffTemplateForm},
+    "alternative-staff-template": {list: AlternativeStaffTemplateList, form: AlternativeStaffTemplateForm},
+    "collection-points": { list: CollectionPointListPage, form: CollectionPointForm },
+    "trip-plans": { list: TripPlanList, form: TripPlanForm },
+    "trip-plan-collection-points": { list: TripPlanCollectionPointList, form: TripPlanCollectionPointForm },
     "daily-trip-assignment": { list: DailyTripAssignmentList, form: DailyTripAssignmentForm },
     "daily-trip-collection-point": { list: DailyTripCollectionPointList, form: DailyTripCollectionPointForm },
+    "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
     "daily-trip-log": { list: DailyTripLogList, form: DailyTripLogForm },
   },
   "customer-master": {
@@ -227,7 +229,7 @@ const ROUTES: RouteMap = {
   },
   "waste-management": {
     "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
-    "collection-monitoring": { list: CollectionMonitoringListPage, form: CollectionMonitoringForm },
+    // "collection-monitoring": { list: CollectionMonitoringListPage, form: CollectionMonitoringForm },
     "panchayat-base-collection": { list: PanchayatBaseCollectionListPage },
     "ward-base-collection": { list: WardBaseCollectionListPage },
   },
@@ -258,6 +260,7 @@ const MASTER_ALIASES: Record<string, string[]> = {
   "role-assigns": ["admins"],
   "customer-masters": ["customer-master"],
   "transport-masters": ["transport-master"],
+  "schedule-masters": ["schedule-masters"],
   "user-creations": ["staff-masters"],
   "process-items": ["staff-masters"],
   audits: ["staff-masters"],
@@ -286,6 +289,12 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "company-creation": ["company"],
   "project-creation": ["project"],
   "customer-creation": ["customercreations"],
+  "staff-templates": ["staff-template"],
+  "alternative-staff-templates": ["alternative-staff-template"],
+  "daily-trip-assignments": ["daily-trip-assignment"],
+  "daily-trip-collection-points": ["daily-trip-collection-point"],
+  "bin-collection-events": ["bin-collection-event"],
+  "daily-trip-logs": ["daily-trip-log"],
 };
 
 const resolveRouteConfig = (

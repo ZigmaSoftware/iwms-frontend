@@ -21,7 +21,7 @@ import {
   userCreationApi,
   zoneApi,
   wardApi,
-  tripInstanceApi,
+  dailyTripAssignmentApi,
 } from "@/helpers/admin";
 
 const UNASSIGNED_STAFF_POOL_COLUMN_FIELDS: Record<string, string[]> = {
@@ -30,7 +30,7 @@ const UNASSIGNED_STAFF_POOL_COLUMN_FIELDS: Record<string, string[]> = {
   zone: ["zone_id", "zone"],
   ward: ["ward_id", "ward"],
   status: ["status"],
-  trip_instance: ["trip_instance_id", "trip_instance"],
+  daily_trip_assignment: ["daily_trip_assignment_id", "daily_trip_assignment"],
   created_at: ["created_at"],
 };
 
@@ -47,14 +47,14 @@ type UnassignedStaffPoolRecord = {
   zone_id: string;
   ward_id: string;
   status: string;
-  trip_instance_id?: string | null;
+  daily_trip_assignment_id?: string | null;
   created_at?: string | null;
   // Enriched name fields for filtering
   _operator_name?: string;
   _driver_name?: string;
   _zone_name?: string;
   _ward_name?: string;
-  _trip_instance_name?: string;
+  _daily_trip_assignment_name?: string;
   [key: string]: unknown;
 };
 
@@ -65,7 +65,7 @@ type TableFilters = {
   _driver_name: { value: string | null; matchMode: FilterMatchMode };
   _zone_name: { value: string | null; matchMode: FilterMatchMode };
   _ward_name: { value: string | null; matchMode: FilterMatchMode };
-  _trip_instance_name: { value: string | null; matchMode: FilterMatchMode };
+  _daily_trip_assignment_name: { value: string | null; matchMode: FilterMatchMode };
 };
 
 const normalizeId = (value: unknown): string =>
@@ -134,7 +134,7 @@ export default function UnassignedStaffPoolList() {
   const [userLookup, setUserLookup] = useState<Record<string, string>>({});
   const [zoneLookup, setZoneLookup] = useState<Record<string, string>>({});
   const [wardLookup, setWardLookup] = useState<Record<string, string>>({});
-  const [tripInstanceLookup, setTripInstanceLookup] = useState<Record<string, string>>({});
+  const [dailyTripAssignmentLookup, setDailyTripAssignmentLookup] = useState<Record<string, string>>({});
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
@@ -144,7 +144,7 @@ export default function UnassignedStaffPoolList() {
     _driver_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _zone_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _ward_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _trip_instance_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    _daily_trip_assignment_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
   const { encStaffMasters, encUnassignedStaffPool } = getEncryptedRoute();
@@ -176,7 +176,7 @@ export default function UnassignedStaffPoolList() {
           userCreationApi.list({ params: listParams }),
           zoneApi.list({ params: listParams }),
           wardApi.list({ params: listParams }),
-          tripInstanceApi.list({ params: listParams }),
+          dailyTripAssignmentApi.list({ params: listParams }),
         ]);
 
         const poolRows = filterByCompanyProject(normalizeList(poolRes), companyUniqueId, projectId);
@@ -196,7 +196,7 @@ export default function UnassignedStaffPoolList() {
           _driver_name: rec.driver_id ? (uLookup[rec.driver_id] ?? rec.driver_id) : "",
           _zone_name: znLookup[rec.zone_id] ?? rec.zone_id,
           _ward_name: wLookup[rec.ward_id] ?? rec.ward_id,
-          _trip_instance_name: rec.trip_instance_id ? (tLookup[rec.trip_instance_id] ?? rec.trip_instance_id) : "",
+          _daily_trip_assignment_name: rec.daily_trip_assignment_id ? (tLookup[rec.daily_trip_assignment_id] ?? rec.daily_trip_assignment_id) : "",
         }));
 
         if (mounted) {
@@ -204,7 +204,7 @@ export default function UnassignedStaffPoolList() {
           setUserLookup(uLookup);
           setZoneLookup(znLookup);
           setWardLookup(wLookup);
-          setTripInstanceLookup(tLookup);
+          setDailyTripAssignmentLookup(tLookup);
         }
       } catch {
         if (mounted) Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
@@ -365,7 +365,7 @@ export default function UnassignedStaffPoolList() {
           ...(showCol("zone") ? ["_zone_name"] : []),
           ...(showCol("ward") ? ["_ward_name"] : []),
           ...(showCol("status") ? ["status"] : []),
-          ...(showCol("trip_instance") ? ["_trip_instance_name"] : []),
+          ...(showCol("daily_trip_assignment") ? ["_daily_trip_assignment_name"] : []),
           "company_name",
           "project_name",
         ]}
@@ -438,13 +438,13 @@ export default function UnassignedStaffPoolList() {
           />
         )}
 
-        {showCol("trip_instance") && (
+        {showCol("daily_trip_assignment") && (
           <Column
-            field="_trip_instance_name"
-            header={t("admin.unassigned_staff_pool.trip_instance")}
+            field="_daily_trip_assignment_name"
+            header={t("admin.unassigned_staff_pool.daily_trip_assignment")}
             body={(row: UnassignedStaffPoolRecord) =>
-              row.trip_instance_id
-                ? tripInstanceLookup[row.trip_instance_id] ?? row.trip_instance_id
+              row.daily_trip_assignment_id
+                ? dailyTripAssignmentLookup[row.daily_trip_assignment_id] ?? row.daily_trip_assignment_id
                 : "-"
             }
             filter

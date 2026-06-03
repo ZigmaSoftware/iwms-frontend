@@ -59,7 +59,7 @@ const {
   encComplaint,
   encFeedback,
   encTransportMaster,
-  encRoutePlans,
+  encScheduleMasters,
   encFuel,
   encVehicleCreation,
   encVehicleHistory,
@@ -86,11 +86,11 @@ const {
   encCommonAudit,
   encSupervisorZoneMap,
   encSupervisorZoneAccessAudit,
-  encTripDefinition,
+  encTripPlans,
+  encTripPlanCollectionPoints,
   // encCustomerTag,
   // encHouseholdPickupEvent,
   encZonePropertyLoadTracker,
-  encTripInstance,
   encUnassignedStaffPool,
   encTripAttendance,
   encVehicleTripAudit,
@@ -105,7 +105,8 @@ const {
   encBins,
   encDailyTripAssignment,
   encDailyTripLog,
-  encDailyTripCollectionPoint
+  encDailyTripCollectionPoint,
+  encBinCollectionEvent
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -136,6 +137,7 @@ type SidebarSectionKey =
   | "customerMasters"
   | "citizenGrievance"
   | "transportMasters"
+  | "scheduleMasters"
   | "auditItems"
   | "vehicleTracking"
   | "wasteManagement"
@@ -316,12 +318,6 @@ const assetItems: NavItem[] = [
         screen: "bins",
       },
       {
-        nameKey: "admin.nav.collection_point",
-        path: `/${encMasters}/${encCollectionPoints}`,
-        module: "assets",
-        screen: "collectionpoints",
-      },
-      {
         nameKey: "common.waste_type", 
         path: `/${encMasters}/${encWasteTypes}`,
         module: "assets",
@@ -408,18 +404,6 @@ const userCreationMasters: NavItem[] = [
         module: "user-creations",
         screen: "staffcreation",
       },
-      {
-        nameKey: "admin.nav.staff_template",
-        path: `/${encStaffMasters}/${encStaffTemplate}`,
-        module: "user-creations",
-        screen: "stafftemplate-creation",
-      },
-      {
-        nameKey: "admin.nav.alternative_staff_template",
-        path: `/${encStaffMasters}/${encAlternativeStaffTemplate}`,
-        module: "user-creations",
-        screen: "alternative-stafftemplate",
-      },
       // {
       //   nameKey: "admin.nav.supervisor_zone_map",
       //   path: `/${encStaffMasters}/${encSupervisorZoneMap}`,
@@ -443,12 +427,6 @@ const processItems: NavItem[] = [
     module: "process",
     screen: "process",
     subItems: [
-      {
-        nameKey: "admin.nav.route_plans",
-        path: `/${encStaffMasters}/${encRoutePlans}`,
-        module: "process",
-        screen: "route-plans",
-      },
       // {
       //   nameKey: "admin.nav.zone_property_load_tracker",
       //   path: `/${encTransportMaster}/${encZonePropertyLoadTracker}`,
@@ -542,18 +520,6 @@ const transportMastersItems: NavItem[] = [
         module: "transport-masters",
         screen: "vehicle-creation",
       },
-      {
-        nameKey: "admin.nav.trip_definition",
-        path: `/${encTransportMaster}/${encTripDefinition}`,
-        module: "transport-masters",
-        screen: "trip-definition",
-      },
-      // {
-      //   nameKey: "admin.nav.trip_instance",
-      //   path: `/${encTransportMaster}/${encTripInstance}`,
-      //   module: "transport-masters",
-      //   screen: "trip-instance",
-      // },
       // {
       //   nameKey: "admin.nav.trip_attendance",
       //   path: `/${encTransportMaster}/${encTripAttendance}`,
@@ -566,24 +532,71 @@ const transportMastersItems: NavItem[] = [
         module: "transport-masters",
         screen: "fuels",
       },
+    ],
+  },
+];
+
+const scheduleMastersItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.schedule_masters",
+    icon: <LayoutGrid size={18} />,
+    module: "schedule-masters",
+    screen: "schedule-masters",
+    subItems: [
+      {
+        nameKey: "admin.nav.staff_template",
+        path: `/${encScheduleMasters}/${encStaffTemplate}`,
+        module: "schedule-masters",
+        screen: "staff-templates",
+      },
+      {
+        nameKey: "admin.nav.alternative_staff_template",
+        path: `/${encScheduleMasters}/${encAlternativeStaffTemplate}`,
+        module: "schedule-masters",
+        screen: "alternative-staff-templates",
+      },
+      {
+        nameKey: "admin.nav.collection_point",
+        path: `/${encScheduleMasters}/${encCollectionPoints}`,
+        module: "schedule-masters",
+        screen: "collection-points",
+      },
+      {
+        nameKey: "admin.nav.trip_plans",
+        path: `/${encScheduleMasters}/${encTripPlans}`,
+        module: "schedule-masters",
+        screen: "trip-plans",
+      },
+      {
+        nameKey: "admin.nav.trip_plan_collection_points",
+        path: `/${encScheduleMasters}/${encTripPlanCollectionPoints}`,
+        module: "schedule-masters",
+        screen: "trip-plan-collection-points",
+      },
       {
         nameKey: "admin.nav.daily_trip_assignment",
-        path: `/${encTransportMaster}/${encDailyTripAssignment}`,
-        module: "transport-masters",
-        screen: "daily-trip-assignment",
+        path: `/${encScheduleMasters}/${encDailyTripAssignment}`,
+        module: "schedule-masters",
+        screen: "daily-trip-assignments",
       },
       {
         nameKey: "admin.nav.daily_trip_collection_point",
-        path: `/${encTransportMaster}/${encDailyTripCollectionPoint}`,
-        module: "transport-masters",
-        screen: "daily-trip-collection-point",
+        path: `/${encScheduleMasters}/${encDailyTripCollectionPoint}`,
+        module: "schedule-masters",
+        screen: "daily-trip-collection-points",
+      },
+      {
+        nameKey: "admin.nav.bin_collection_event",
+        path: `/${encScheduleMasters}/${encBinCollectionEvent}`,
+        module: "schedule-masters",
+        screen: "bin-collection-events",
       },
       {
         nameKey: "admin.nav.daily_trip_log",
-        path: `/${encTransportMaster}/${encDailyTripLog}`,
-        module: "transport-masters",
-        screen: "daily-trip-log",
-      }
+        path: `/${encScheduleMasters}/${encDailyTripLog}`,
+        module: "schedule-masters",
+        screen: "daily-trip-logs",
+      },
     ],
   },
 ];
@@ -835,6 +848,7 @@ const AppSidebar: React.FC = () => {
         { key: "customerMasters" as const, items: customerMasters },
         { key: "citizenGrievance" as const, items: citizenGrievanceItems },
         { key: "transportMasters" as const, items: transportMastersItems },
+        { key: "scheduleMasters" as const, items: scheduleMastersItems },
         { key: "auditItems" as const, items: auditItems },
         { key: "vehicleTracking" as const, items: vehicleTrackingItems },
         { key: "wasteManagement" as const, items: wasteManagementMasters },

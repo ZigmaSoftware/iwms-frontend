@@ -43,7 +43,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     encComplaint,
     encFeedback,
     encTransportMaster,
-    encRoutePlans,
     encFuel,
     encVehicleCreation,
     encVehicleHistory,
@@ -70,7 +69,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encCommonAudit,
     encSupervisorZoneMap,
     encSupervisorZoneAccessAudit,
-    encTripDefinition,
+    encTripPlans,
     encZonePropertyLoadTracker,
     encVehicleTripAudit,
     encTripExceptionLog,
@@ -122,7 +121,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encStaffMasters}/${encAlternativeStaffTemplate}`, nameKey: "admin.nav.alternative_staff_template", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encSupervisorZoneMap}`, nameKey: "admin.nav.supervisor_zone_map", parentNameKey: "admin.nav.user_creations" },
     // Process Items
-    { path: `/${encStaffMasters}/${encRoutePlans}`, nameKey: "admin.nav.route_plans", parentNameKey: "admin.nav.process_items" },
     { path: `/${encTransportMaster}/${encZonePropertyLoadTracker}`, nameKey: "admin.nav.zone_property_load_tracker", parentNameKey: "admin.nav.process_items" },
     // Customer Masters
     { path: `/${encCustomerMaster}/${encCustomerCreation}`, nameKey: "admin.nav.customer_creation", parentNameKey: "admin.nav.customer_masters" },
@@ -136,7 +134,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     // Transport Masters
     { path: `/${encTransportMaster}/${encVehicleType}`, nameKey: "admin.nav.vehicle_type", parentNameKey: "admin.nav.transport_masters" },
     { path: `/${encTransportMaster}/${encVehicleCreation}`, nameKey: "admin.nav.vehicle_creation", parentNameKey: "admin.nav.transport_masters" },
-    { path: `/${encTransportMaster}/${encTripDefinition}`, nameKey: "admin.nav.trip_definition", parentNameKey: "admin.nav.transport_masters" },
+    { path: `/${encTransportMaster}/${encTripPlans}`, nameKey: "admin.nav.trip_plans", parentNameKey: "admin.nav.transport_masters" },
     { path: `/${encTransportMaster}/${encFuel}`, nameKey: "admin.nav.fuel", parentNameKey: "admin.nav.transport_masters" },
     // Audits
     { path: `/${encAudits}/${encCommonAudit}`, nameKey: "admin.nav.common_audit", parentNameKey: "admin.nav.audit_items" },

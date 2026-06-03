@@ -88,9 +88,9 @@ export default function DailyTripCollectionPointList() {
   const navigate = useNavigate();
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const { encTransportMaster, encDailyTripCollectionPoint } = getEncryptedRoute();
-  const NEW_PATH = `/${encTransportMaster}/${encDailyTripCollectionPoint}/new`;
-  const EDIT_PATH = (id: string) => `/${encTransportMaster}/${encDailyTripCollectionPoint}/${id}/edit`;
+  const { encScheduleMasters, encDailyTripCollectionPoint } = getEncryptedRoute();
+  const NEW_PATH = `/${encScheduleMasters}/${encDailyTripCollectionPoint}/new`;
+  const EDIT_PATH = (id: string) => `/${encScheduleMasters}/${encDailyTripCollectionPoint}/${id}/edit`;
 
   const {
     companyUniqueId,
@@ -150,8 +150,8 @@ export default function DailyTripCollectionPointList() {
         })
         .map((row) => ({
           ...row,
-          _trip: nestedText(row.trip_assignment, ["routeplan_display_code", "unique_id"]) !== "-"
-            ? nestedText(row.trip_assignment, ["routeplan_display_code", "unique_id"])
+          _trip: nestedText(row.trip_assignment, ["trip_plan_display_code", "unique_id"]) !== "-"
+            ? nestedText(row.trip_assignment, ["trip_plan_display_code", "unique_id"])
             : text(row.trip_assignment_id),
           _collection_point: nestedText(row.collection_point, ["cp_name", "name"]) !== "-"
             ? nestedText(row.collection_point, ["cp_name", "name"])

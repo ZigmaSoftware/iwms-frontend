@@ -86,9 +86,9 @@ export default function DailyTripLogList() {
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
-  const { encTransportMaster, encDailyTripLog } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encTransportMaster}/${encDailyTripLog}/new`;
-  const ENC_EDIT_PATH = (id: string) => `/${encTransportMaster}/${encDailyTripLog}/${id}/edit`;
+  const { encScheduleMasters, encDailyTripLog } = getEncryptedRoute();
+  const ENC_NEW_PATH = `/${encScheduleMasters}/${encDailyTripLog}/new`;
+  const ENC_EDIT_PATH = (id: string) => `/${encScheduleMasters}/${encDailyTripLog}/${id}/edit`;
 
   const {
     companyUniqueId, projectId, projects, companies,
@@ -169,7 +169,7 @@ export default function DailyTripLogList() {
     if (!result.isConfirmed) return;
     setIsVerifying(true);
     try {
-      await api.patch(`/transport-masters/daily-trip-log/${row.unique_id}/verify/`, {});
+      await api.patch(`/schedule-masters/daily-trip-logs/${row.unique_id}/verify/`, {});
       setAllLogs((current) =>
         current.map((item) =>
           item.unique_id === row.unique_id ? { ...item, log_status: "Verified" } : item
