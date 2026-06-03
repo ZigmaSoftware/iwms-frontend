@@ -147,6 +147,14 @@ export default function DailyTripCollectionPointForm() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [record, setRecord] = useState<DailyTripCollectionPointRecord | null>(null);
+  // Pending IDs — flushed once their option list is ready (Radix re-sync pattern)
+  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
+    projectUniqueId: string; projectId: string; projectName: string;
+  } | null>(null);
+  const [pendingAssignmentId, setPendingAssignmentId] = useState("");
+  const [pendingCollectionPointId, setPendingCollectionPointId] = useState("");
+  const [pendingBinId, setPendingBinId] = useState("");
+  const [pendingCollectedBy, setPendingCollectedBy] = useState("");
   const [assignments, setAssignments] = useState<SelectOption[]>([]);
   const [collectionPoints, setCollectionPoints] = useState<SelectOption[]>([]);
   const [bins, setBins] = useState<(SelectOption & { collectionPointId?: string })[]>([]);
@@ -161,19 +169,78 @@ export default function DailyTripCollectionPointForm() {
         const recordData = data as ApiObject;
         setRecord(data);
         applyCompanyProjectFromRecord(recordData);
-        setTripAssignmentId(preferredId((recordData.trip_assignment as ApiObject)?.unique_id, recordData.trip_assignment_id));
-        setCollectionPointId(preferredId((recordData.collection_point as ApiObject)?.unique_id, recordData.collection_point_id));
-        setBinId(preferredId((recordData.bin as ApiObject)?.unique_id, recordData.bin_id));
+        setPendingProjectCandidates({
+          projectUniqueId: String((recordData.project as ApiObject)?.unique_id ?? recordData.project_unique_id ?? ""),
+          projectId: String(recordData.project_id ?? ""),
+          projectName: String(recordData.project_name ?? ""),
+        });
+        // Set non-select fields immediately (no Radix timing issue)
         setSequence(String(data.sequence ?? 1));
         setIsCollected(Boolean(data.is_collected));
         setCollectedAt(data.collected_at ? String(data.collected_at).slice(0, 16) : "");
-        setCollectedBy(preferredId((recordData.collected_by_staff as ApiObject)?.unique_id, recordData.collected_by));
         setCollectedWeight(data.collected_weight_kg === null || data.collected_weight_kg === undefined ? "" : String(data.collected_weight_kg));
         setStatus(data.status ?? "Pending");
+        // Store select IDs as pending — applied after option lists load
+        const aId = preferredId((recordData.trip_assignment as ApiObject)?.unique_id, recordData.trip_assignment_id);
+        const cpId = preferredId((recordData.collection_point as ApiObject)?.unique_id, recordData.collection_point_id);
+        const bId = preferredId((recordData.bin as ApiObject)?.unique_id, recordData.bin_id);
+        const cbId = preferredId((recordData.collected_by_staff as ApiObject)?.unique_id, recordData.collected_by);
+        if (aId) setPendingAssignmentId(aId);
+        if (cpId) setPendingCollectionPointId(cpId);
+        if (bId) setPendingBinId(bId);
+        if (cbId) setPendingCollectedBy(cbId);
       })
       .catch((error: unknown) => Swal.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error"))
       .finally(() => setLoading(false));
   }, [applyCompanyProjectFromRecord, id, isEdit, t]);
+
+  // Re-apply project after hook loads the project list
+  useEffect(() => {
+    if (!pendingProjectCandidates || projects.length === 0) return;
+    const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
+    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
+    if (!match) match = projects.find((p) => rawId && p.value === rawId);
+    if (!match && projectName)
+      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
+    if (match) setProjectId(match.value);
+    setPendingProjectCandidates(null);
+  }, [projects, pendingProjectCandidates, setProjectId]);
+
+  // Flush trip assignment after assignments list loads
+  useEffect(() => {
+    if (!pendingAssignmentId || assignments.length === 0) return;
+    if (assignments.some((o) => o.value === pendingAssignmentId)) {
+      setTripAssignmentId(pendingAssignmentId);
+      setPendingAssignmentId("");
+    }
+  }, [pendingAssignmentId, assignments]);
+
+  // Flush collection point after list loads
+  useEffect(() => {
+    if (!pendingCollectionPointId || collectionPoints.length === 0) return;
+    if (collectionPoints.some((o) => o.value === pendingCollectionPointId)) {
+      setCollectionPointId(pendingCollectionPointId);
+      setPendingCollectionPointId("");
+    }
+  }, [pendingCollectionPointId, collectionPoints]);
+
+  // Flush bin after bins list loads
+  useEffect(() => {
+    if (!pendingBinId || bins.length === 0) return;
+    if (bins.some((o) => o.value === pendingBinId)) {
+      setBinId(pendingBinId);
+      setPendingBinId("");
+    }
+  }, [pendingBinId, bins]);
+
+  // Flush collected-by after staff list loads
+  useEffect(() => {
+    if (!pendingCollectedBy || staff.length === 0) return;
+    if (staff.some((o) => o.value === pendingCollectedBy)) {
+      setCollectedBy(pendingCollectedBy);
+      setPendingCollectedBy("");
+    }
+  }, [pendingCollectedBy, staff]);
 
   useEffect(() => {
     if (!companyUniqueId || !projectId) {
@@ -324,7 +391,7 @@ export default function DailyTripCollectionPointForm() {
                 onChange={setTripAssignmentId}
                 options={assignmentOptions}
                 placeholder="Select trip assignment"
-                disabled={fetching || !projectId || (isEdit && Boolean(tripAssignmentId))}
+                disabled={fetching || !projectId}
               />
             </div>
 
@@ -338,7 +405,7 @@ export default function DailyTripCollectionPointForm() {
                 }}
                 options={collectionPointOptions}
                 placeholder="Select collection point"
-                disabled={fetching || !projectId || (isEdit && Boolean(collectionPointId))}
+                disabled={fetching || !projectId}
               />
             </div>
 
@@ -349,7 +416,7 @@ export default function DailyTripCollectionPointForm() {
                 onChange={setBinId}
                 options={binOptions}
                 placeholder="Select bin"
-                disabled={fetching || !collectionPointId || (isEdit && Boolean(binId))}
+                disabled={fetching || !collectionPointId}
               />
             </div>
 
