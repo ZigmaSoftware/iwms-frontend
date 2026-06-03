@@ -354,12 +354,27 @@ export default function DailyTripAssignmentForm() {
   const resolvedAltStaff = useMemo(() => {
     if (!formData.staff_template_id || !formData.trip_date) return null;
     return altStaffCache.find((alt) => {
-      const templateId = String(alt?.staff_template?.unique_id ?? alt?.staff_template_id ?? "");
+      const templateId = String(alt?.staff_template?.unique_id ?? alt?.staff_template ?? alt?.staff_template_id ?? "");
       return templateId === formData.staff_template_id &&
         alt.from_date <= formData.trip_date &&
         formData.trip_date <= alt.to_date;
     }) ?? null;
   }, [formData.staff_template_id, formData.trip_date, altStaffCache]);
+
+  // ── Alt staff options filtered by selected staff template ────────────────
+  const altStaffOptions = useMemo<SelectOption[]>(() => {
+    if (!formData.staff_template_id) return [];
+    return altStaffCache
+      .filter((alt) => {
+        const templateId = String(alt?.staff_template?.unique_id ?? alt?.staff_template ?? alt?.staff_template_id ?? "");
+        return templateId === formData.staff_template_id;
+      })
+      .map((alt) => ({
+        value: String(alt?.unique_id ?? ""),
+        label: String(alt?.display_code ?? alt?.unique_id ?? ""),
+      }))
+      .filter((o) => o.value);
+  }, [formData.staff_template_id, altStaffCache]);
 
   // ── Ensure saved values appear in option lists ────────────────────────────
   const resolvedTripPlan = useMemo(() =>
@@ -369,6 +384,14 @@ export default function DailyTripAssignmentForm() {
   const resolvedStaffTemplates = useMemo(() =>
     ensureOption(staffTemplates, formData.staff_template_id, recordData?.staff_template?.display_code),
     [staffTemplates, formData.staff_template_id, recordData]
+  );
+  const resolvedAltStaffOptions = useMemo(() =>
+    ensureOption(
+      altStaffOptions,
+      formData.alt_staff_template_id,
+      recordData?.effective_staff?.display_code,
+    ),
+    [altStaffOptions, formData.alt_staff_template_id, recordData]
   );
   const resolvedPanchayats = useMemo(() =>
     ensureOption(panchayats, formData.panchayat_id, recordData?.panchayat?.panchayat_name ?? recordData?.panchayat?.name as string | undefined),
@@ -445,7 +468,11 @@ export default function DailyTripAssignmentForm() {
   };
 
   const set = (field: keyof FormState) => (value: string) =>
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+      ...(field === "staff_template_id" ? { alt_staff_template_id: "" } : {}),
+    }));
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -542,6 +569,21 @@ export default function DailyTripAssignmentForm() {
                 options={resolvedStaffTemplates}
                 placeholder="Select staff template"
                 disabled={fetching || !projectId}
+              />
+            </div>
+
+            {/* Alternative Staff Template */}
+            <div className="md:col-span-2">
+              <Label>
+                Alternative Staff Template{" "}
+                <span className="text-xs font-normal text-gray-400">(Optional — auto-resolved from date range if left blank)</span>
+              </Label>
+              <Select
+                value={formData.alt_staff_template_id}
+                onChange={set("alt_staff_template_id")}
+                options={resolvedAltStaffOptions}
+                placeholder="Select staff template first"
+                disabled={fetching || !projectId || !formData.staff_template_id}
               />
             </div>
 

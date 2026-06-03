@@ -270,13 +270,7 @@ const masterItems: NavItem[] = [
         path: `/${encMasters}/${encAreaTypes}`,
         module: "masters",
         screen: "areatypes",
-      },
-      // {
-      //   nameKey: "admin.nav.hierarchy",
-      //   path: `/${encMasters}/${encHierarchies}`,
-      //   module: "masters",
-      //   screen: "hierarchies",
-      // },
+      }
     ],
   },
 ];
@@ -665,34 +659,34 @@ const vehicleTrackingItems: NavItem[] = [
   },
 ];
 
-const wasteManagementMasters: NavItem[] = [
-  {
-    nameKey: "admin.nav.waste_management",
-    icon: <Recycle size={18} />,
-    module: "waste-management",
-    screen: "WasteManagement",
-    subItems: [
-      {
-        nameKey: "admin.nav.collection_monitoring",
-        path: `/${encWasteManagementMaster}/${encCollectionMonitoring}`,
-        module: "waste-management",
-        screen: "CollectionMonitoring",
-      },
-      {
-        nameKey: "admin.nav.panchayat_base_collection",
-        path: `/${encWasteManagementMaster}/${encPanchayatBaseCollection}`,
-        module: "waste-management",
-        screen: "PanchayatBaseCollection",
-      },
-      {
-        nameKey: "admin.nav.ward_base_collection",
-        path: `/${encWasteManagementMaster}/${encWardBaseCollection}`,
-        module: "waste-management",
-        screen: "WardBaseCollection",
-      },
-    ],
-  },
-];
+// const wasteManagementMasters: NavItem[] = [
+//   {
+//     nameKey: "admin.nav.waste_management",
+//     icon: <Recycle size={18} />,
+//     module: "waste-management",
+//     screen: "WasteManagement",
+//     subItems: [
+//       {
+//         nameKey: "admin.nav.collection_monitoring",
+//         path: `/${encWasteManagementMaster}/${encCollectionMonitoring}`,
+//         module: "waste-management",
+//         screen: "CollectionMonitoring",
+//       },
+//       {
+//         nameKey: "admin.nav.panchayat_base_collection",
+//         path: `/${encWasteManagementMaster}/${encPanchayatBaseCollection}`,
+//         module: "waste-management",
+//         screen: "PanchayatBaseCollection",
+//       },
+//       {
+//         nameKey: "admin.nav.ward_base_collection",
+//         path: `/${encWasteManagementMaster}/${encWardBaseCollection}`,
+//         module: "waste-management",
+//         screen: "WardBaseCollection",
+//       },
+//     ],
+//   },
+// ];
 
 const workforceManagements: NavItem[] = [
   {
@@ -851,7 +845,6 @@ const AppSidebar: React.FC = () => {
         { key: "scheduleMasters" as const, items: scheduleMastersItems },
         { key: "auditItems" as const, items: auditItems },
         { key: "vehicleTracking" as const, items: vehicleTrackingItems },
-        { key: "wasteManagement" as const, items: wasteManagementMasters },
         { key: "workforceManagement" as const, items: workforceManagements },
         { key: "reports" as const, items: reportItems },
       ];
