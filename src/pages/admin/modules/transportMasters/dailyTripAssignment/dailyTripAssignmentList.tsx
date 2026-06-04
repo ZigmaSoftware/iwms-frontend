@@ -30,11 +30,13 @@ type DailyTripAssignmentRecord = {
   trip_plan_id?: string;
   staff_template_id?: string;
   panchayat_id?: string;
+  ward_id?: string;
   waste_type_id?: string;
   trip_plan?: { unique_id?: string; display_code?: string };
   staff_template?: { unique_id?: string; display_code?: string };
   effective_staff?: { unique_id?: string; display_code?: string } | null;
   panchayat?: NamedRef & { panchayat_name?: string };
+  ward?: NamedRef & { ward_name?: string };
   waste_type?: NamedRef & { waste_type_name?: string };
   trip_date?: string;
   scheduled_time?: string;
@@ -113,7 +115,7 @@ export default function DailyTripAssignmentList() {
     unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _trip_plan: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _staff: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _panchayat: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    _location: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     approval_status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     trip_date: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -146,7 +148,7 @@ export default function DailyTripAssignmentList() {
         ...rec,
         _trip_plan: rec.trip_plan?.display_code ?? rec.trip_plan_id ?? "",
         _staff: rec.effective_staff?.display_code ?? rec.staff_template?.display_code ?? rec.staff_template_id ?? "",
-        _panchayat: rec.panchayat?.panchayat_name ?? rec.panchayat?.name ?? rec.panchayat_id ?? "",
+        _location: rec.panchayat?.panchayat_name ?? (rec.ward as any)?.ward_name ?? rec.panchayat_id ?? rec.ward_id ?? "",
         _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
       }));
   })();
@@ -265,7 +267,7 @@ export default function DailyTripAssignmentList() {
         showGridlines
         className="p-datatable-sm"
         emptyMessage="No trip assignments found. Select a company and project to load data."
-        globalFilterFields={["unique_id", "_trip_plan", "_staff", "_panchayat", "_waste", "status", "approval_status", "trip_date"]}
+        globalFilterFields={["unique_id", "_trip_plan", "_staff", "_location", "_waste", "status", "approval_status", "trip_date"]}
       >
         <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 60 }} />
         <Column field="unique_id" header="ID" filter showFilterMatchModes={false} style={{ minWidth: 160 }} />
@@ -286,10 +288,30 @@ export default function DailyTripAssignmentList() {
           filter showFilterMatchModes={false}
         />
         <Column
-          field="_panchayat"
-          header="Panchayat"
-          body={(row: DailyTripAssignmentRecord) => row.panchayat?.panchayat_name ?? row.panchayat?.name ?? row.panchayat_id ?? "—"}
-          filter showFilterMatchModes={false}
+          field="_location"
+          header="Location"
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 170 }}
+          body={(row: DailyTripAssignmentRecord) => {
+            if (row.panchayat?.panchayat_name) {
+              return (
+                <span className="text-sm text-gray-800">
+                  {row.panchayat.panchayat_name}
+                  <span className="ml-1 text-xs text-indigo-500 font-medium">(Panchayat)</span>
+                </span>
+              );
+            }
+            if ((row.ward as any)?.ward_name) {
+              return (
+                <span className="text-sm text-gray-800">
+                  {(row.ward as any).ward_name}
+                  <span className="ml-1 text-xs text-teal-500 font-medium">(Ward)</span>
+                </span>
+              );
+            }
+            return <span className="text-sm text-gray-400">—</span>;
+          }}
         />
         <Column
           field="_waste"

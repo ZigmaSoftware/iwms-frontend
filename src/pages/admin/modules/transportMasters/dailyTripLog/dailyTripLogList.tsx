@@ -37,7 +37,10 @@ type StaffTemplateInfo = {
 type DailyTripLogRecord = {
   unique_id: string;
   trip_assignment_id?: string;
-  trip_assignment?: NamedRef & { display_code?: string };
+  trip_assignment?: NamedRef & {
+    display_code?: string;
+    zone?: { unique_id?: string; zone_name?: string } | null;
+  };
   staff_template?: StaffTemplateInfo | null;
   company_id?: string | null;
   company_unique_id?: string | null;
@@ -45,6 +48,8 @@ type DailyTripLogRecord = {
   project_id?: string | null;
   project_unique_id?: string | null;
   project_name?: string | null;
+  panchayat?: { unique_id?: string; panchayat_name?: string } | null;
+  ward?: { unique_id?: string; ward_name?: string } | null;
   collection_points?: {
     unique_id?: string;
     cp_name?: string;
@@ -197,7 +202,7 @@ function TripLogModal({
           <div className="flex flex-col gap-1.5">
             <InfoRow
               label="Trip Assignment"
-              value={(row.trip_assignment as any)?.display_code ?? row.trip_assignment_id}
+              value={row.trip_assignment?.display_code ?? row.trip_assignment_id}
             />
             <InfoRow label="Date" value={row.trip_date} />
             <InfoRow label="Waste Type" value={wasteTypeName} />
@@ -206,6 +211,30 @@ function TripLogModal({
             {row.actual_end_time && <InfoRow label="End Time" value={row.actual_end_time} />}
             {(row.vehicle as any)?.vehicle_no && (
               <InfoRow label="Vehicle" value={(row.vehicle as any).vehicle_no} />
+            )}
+
+            {/* Location — panchayat or ward */}
+            {row.panchayat?.panchayat_name ? (
+              <div className="flex gap-2 text-sm">
+                <span className="text-gray-500 w-36 shrink-0">Location</span>
+                <span className="font-medium text-gray-800">
+                  {row.panchayat.panchayat_name}
+                  <span className="ml-1.5 text-xs text-indigo-500 font-semibold">(Panchayat)</span>
+                </span>
+              </div>
+            ) : row.ward?.ward_name ? (
+              <div className="flex gap-2 text-sm">
+                <span className="text-gray-500 w-36 shrink-0">Location</span>
+                <span className="font-medium text-gray-800">
+                  {row.ward.ward_name}
+                  <span className="ml-1.5 text-xs text-teal-500 font-semibold">(Ward)</span>
+                </span>
+              </div>
+            ) : null}
+
+            {/* Zone */}
+            {row.trip_assignment?.zone?.zone_name && (
+              <InfoRow label="Zone" value={row.trip_assignment.zone.zone_name} />
             )}
           </div>
         </div>
@@ -375,6 +404,7 @@ export default function DailyTripLogList() {
     _waste: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _base_template: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _alt_template: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    _location: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     log_status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     trip_date: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
   });
@@ -416,6 +446,7 @@ export default function DailyTripLogList() {
     _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
     _base_template: rec.staff_template?.base?.display_code ?? "",
     _alt_template: rec.staff_template?.alt?.display_code ?? "",
+    _location: rec.panchayat?.panchayat_name ?? rec.ward?.ward_name ?? "",
     _driver: rec.driver?.employee_name ?? "",
     _operator: rec.operator?.employee_name ?? "",
   }));
@@ -637,6 +668,7 @@ export default function DailyTripLogList() {
           "company_name",
           "project_name",
           "_assignment",
+          "_location",
           "_waste",
           "_base_template",
           "_alt_template",
@@ -683,6 +715,32 @@ export default function DailyTripLogList() {
           filter
           showFilterMatchModes={false}
           style={{ minWidth: 170 }}
+        />
+        <Column
+          field="_location"
+          header="Location"
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 170 }}
+          body={(row: DailyTripLogRecord) => {
+            if (row.panchayat?.panchayat_name) {
+              return (
+                <span className="text-sm text-gray-800">
+                  {row.panchayat.panchayat_name}
+                  <span className="ml-1 text-xs text-indigo-500 font-medium">(Panchayat)</span>
+                </span>
+              );
+            }
+            if (row.ward?.ward_name) {
+              return (
+                <span className="text-sm text-gray-800">
+                  {row.ward.ward_name}
+                  <span className="ml-1 text-xs text-teal-500 font-medium">(Ward)</span>
+                </span>
+              );
+            }
+            return <span className="text-sm text-gray-400">-</span>;
+          }}
         />
         <Column
           field="_base_template"
