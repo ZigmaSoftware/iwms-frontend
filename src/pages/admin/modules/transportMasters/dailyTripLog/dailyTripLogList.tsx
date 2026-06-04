@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 
@@ -12,12 +12,9 @@ import { InputText } from "primereact/inputtext";
 import { InputTextarea } from "primereact/inputtextarea";
 import { Dialog } from "primereact/dialog";
 import { Divider } from "primereact/divider";
-import { Menu } from "primereact/menu";
-import type { MenuItem } from "primereact/menuitem";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
-import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { dailyTripLogApi } from "@/helpers/admin";
 import { api } from "@/api";
@@ -48,7 +45,13 @@ type DailyTripLogRecord = {
   project_id?: string | null;
   project_unique_id?: string | null;
   project_name?: string | null;
-  collection_points?: { unique_id?: string; cp_name?: string; sequence?: number; is_collected?: boolean }[];
+  collection_points?: {
+    unique_id?: string;
+    cp_name?: string;
+    sequence?: number;
+    is_collected?: boolean;
+    collected_weight_kg?: string | number | null;
+  }[];
   waste_type?: NamedRef & { waste_type_name?: string };
   waste_type_id?: string;
   trip_date?: string;
@@ -75,7 +78,11 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const Badge = ({ value }: { value?: string }) => (
-  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[value ?? ""] ?? "bg-gray-100 text-gray-600"}`}>
+  <span
+    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+      STATUS_STYLES[value ?? ""] ?? "bg-gray-100 text-gray-600"
+    }`}
+  >
     {value ?? "-"}
   </span>
 );
@@ -128,7 +135,8 @@ function TripLogModal({
   const collectedCount = cps.filter((cp) => cp.is_collected).length;
   const st = row.staff_template;
   const wasteTypeName = (row.waste_type as any)?.waste_type_name ?? row.waste_type_id ?? "-";
-  const weight = row.collected_weight_kg != null ? `${Number(row.collected_weight_kg).toFixed(2)} kg` : "-";
+  const weight =
+    row.collected_weight_kg != null ? `${Number(row.collected_weight_kg).toFixed(2)} kg` : "-";
 
   const footer = (
     <div className="flex justify-end gap-2 pt-2">
@@ -167,7 +175,11 @@ function TripLogModal({
             <p className="text-lg font-bold text-gray-800">{title}</p>
             <p className="text-xs text-gray-400 font-normal mt-0.5">{row.unique_id}</p>
           </div>
-          <span className={`mt-1 text-xs font-semibold uppercase tracking-wide ${statusColor[row.log_status ?? ""] ?? "text-gray-500"}`}>
+          <span
+            className={`mt-1 text-xs font-semibold uppercase tracking-wide ${
+              statusColor[row.log_status ?? ""] ?? "text-gray-500"
+            }`}
+          >
             {row.log_status}
           </span>
         </div>
@@ -179,12 +191,14 @@ function TripLogModal({
       resizable={false}
     >
       <div className="flex flex-col gap-5 pt-1">
-
         {/* Trip details */}
         <div>
           <SectionLabel>Trip Details</SectionLabel>
           <div className="flex flex-col gap-1.5">
-            <InfoRow label="Trip Assignment" value={(row.trip_assignment as any)?.display_code ?? row.trip_assignment_id} />
+            <InfoRow
+              label="Trip Assignment"
+              value={(row.trip_assignment as any)?.display_code ?? row.trip_assignment_id}
+            />
             <InfoRow label="Date" value={row.trip_date} />
             <InfoRow label="Waste Type" value={wasteTypeName} />
             <InfoRow label="Total Weight" value={weight} />
@@ -221,8 +235,7 @@ function TripLogModal({
           {st?.alt && (
             <div>
               <p className="text-xs text-orange-500 mb-1.5">
-                Alt Template{" "}
-                <span className="text-orange-400">(Substitute)</span>:{" "}
+                Alt Template <span className="text-orange-400">(Substitute)</span>:{" "}
                 <span className="font-semibold text-orange-700">{st.alt.display_code}</span>
               </p>
               <div className="flex flex-col gap-1 pl-3 border-l-2 border-orange-200">
@@ -250,26 +263,38 @@ function TripLogModal({
           ) : (
             <ul className="flex flex-col gap-2">
               {cps.map((cp) => (
-                <li key={cp.unique_id} className="flex items-center gap-2 text-sm">
-                  {cp.is_collected ? (
-                    <i className="pi pi-check-circle text-green-500 text-base" />
-                  ) : (
-                    <i className="pi pi-times-circle text-red-400 text-base" />
-                  )}
-                  <span className={cp.is_collected ? "text-gray-800" : "text-gray-400"}>
-                    {cp.sequence != null ? `${cp.sequence}. ` : ""}
-                    {cp.cp_name ?? cp.unique_id}
-                  </span>
-                  {!cp.is_collected && (
-                    <span className="text-xs text-red-400 ml-1">(Not collected)</span>
-                  )}
+                <li
+                  key={cp.unique_id}
+                  className="flex items-center justify-between gap-2 text-sm"
+                >
+                  <div className="flex items-center gap-2">
+                    {cp.is_collected ? (
+                      <i className="pi pi-check-circle text-green-500 text-base" />
+                    ) : (
+                      <i className="pi pi-times-circle text-red-400 text-base" />
+                    )}
+                    <span className={cp.is_collected ? "text-gray-800" : "text-gray-400"}>
+                      {cp.sequence != null ? `${cp.sequence}. ` : ""}
+                      {cp.cp_name ?? cp.unique_id}
+                    </span>
+                    {!cp.is_collected && (
+                      <span className="text-xs text-red-400">(Not collected)</span>
+                    )}
+                  </div>
+                  {cp.collected_weight_kg != null ? (
+                    <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full shrink-0">
+                      {Number(cp.collected_weight_kg).toFixed(2)} kg
+                    </span>
+                  ) : cp.is_collected ? (
+                    <span className="text-xs text-gray-400 shrink-0">— kg</span>
+                  ) : null}
                 </li>
               ))}
             </ul>
           )}
         </div>
 
-        {/* Remarks — editable for verify, read-only for view */}
+        {/* Remarks */}
         {(mode === "verify" || row.remarks) && (
           <>
             <Divider className="!my-0" />
@@ -293,7 +318,7 @@ function TripLogModal({
           </>
         )}
 
-        {/* Verified by — only in view mode when verified */}
+        {/* Verified by */}
         {mode === "view" && row.log_status === "Verified" && row.verified_by_name && (
           <>
             <Divider className="!my-0" />
@@ -306,7 +331,6 @@ function TripLogModal({
             </div>
           </>
         )}
-
       </div>
     </Dialog>
   );
@@ -317,16 +341,17 @@ function TripLogModal({
 ───────────────────────────────────────────────────── */
 export default function DailyTripLogList() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
-  const { encScheduleMasters, encDailyTripLog } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encScheduleMasters}/${encDailyTripLog}/new`;
-
   const {
-    companyUniqueId, projectId, projects, companies,
-    isSuperAdmin, setProjectId, onCompanyChange,
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    setProjectId,
+    onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
     initialCompanyId: restoredState?.companyUniqueId,
@@ -335,7 +360,10 @@ export default function DailyTripLogList() {
 
   const [allLogs, setAllLogs] = useState<DailyTripLogRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [modalState, setModalState] = useState<{ row: DailyTripLogRecord; mode: "view" | "verify" } | null>(null);
+  const [modalState, setModalState] = useState<{
+    row: DailyTripLogRecord;
+    mode: "view" | "verify";
+  } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -345,48 +373,64 @@ export default function DailyTripLogList() {
     project_name: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _assignment: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _waste: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _staff_template: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    _base_template: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    _alt_template: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     log_status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     trip_date: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  /* shared menu ref — one menu instance, positioned on click */
-  const menuRef = useRef<Menu>(null);
-  const menuRowRef = useRef<DailyTripLogRecord | null>(null);
-
   /* ── load logs ── */
   useEffect(() => {
-    if (!companyUniqueId) { setAllLogs([]); return; }
+    if (!companyUniqueId) {
+      setAllLogs([]);
+      return;
+    }
     let mounted = true;
     setIsLoading(true);
     const params: Record<string, string> = { company_id: companyUniqueId };
     if (projectId) params.project_id = projectId;
     (dailyTripLogApi.list({ params }) as Promise<DailyTripLogRecord[]>)
-      .then((data) => { if (mounted) setAllLogs(Array.isArray(data) ? data : []); })
-      .catch((err) => { if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) }); })
-      .finally(() => { if (mounted) setIsLoading(false); });
-    return () => { mounted = false; };
+      .then((data) => {
+        if (mounted) setAllLogs(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        if (mounted)
+          Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, [companyUniqueId, projectId, t]);
 
   /* ── enrich rows ── */
   const rows = allLogs.map((rec) => ({
     ...rec,
-    _assignment: rec.trip_assignment?.display_code ?? rec.trip_assignment?.unique_id ?? rec.trip_assignment_id ?? "",
+    _assignment:
+      rec.trip_assignment?.display_code ??
+      rec.trip_assignment?.unique_id ??
+      rec.trip_assignment_id ??
+      "",
     _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
-    _staff_template: rec.staff_template?.effective_display_code ?? "",
+    _base_template: rec.staff_template?.base?.display_code ?? "",
+    _alt_template: rec.staff_template?.alt?.display_code ?? "",
     _driver: rec.driver?.employee_name ?? "",
     _operator: rec.operator?.employee_name ?? "",
   }));
 
-  /* ── filter by company+project ── */
+  /* ── filter by company + project ── */
   const data = (() => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId) return [];
     return rows.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      return (!companyUniqueId || rowCompanyId === companyUniqueId) &&
-             (!projectId || rowProjectId === projectId);
+      return (
+        (!companyUniqueId || rowCompanyId === companyUniqueId) &&
+        (!projectId || rowProjectId === projectId)
+      );
     });
   })();
 
@@ -398,18 +442,30 @@ export default function DailyTripLogList() {
     setGlobalFilterValue(value);
   };
 
+  /* ── verify confirm (from modal) ── */
   const handleVerifyConfirm = async (remarks: string) => {
     if (!modalState) return;
     setIsVerifying(true);
     try {
-      await api.patch(`/schedule-masters/daily-trip-logs/${modalState.row.unique_id}/verify/`, { remarks });
+      await api.patch(
+        `/schedule-masters/daily-trip-logs/${modalState.row.unique_id}/verify/`,
+        { remarks }
+      );
       setAllLogs((current) =>
         current.map((item) =>
-          item.unique_id === modalState.row.unique_id ? { ...item, log_status: "Verified" } : item
+          item.unique_id === modalState.row.unique_id
+            ? { ...item, log_status: "Verified" }
+            : item
         )
       );
       setModalState(null);
-      Swal.fire({ icon: "success", title: "Verified", text: "Trip log has been verified.", timer: 2000, showConfirmButton: false });
+      Swal.fire({
+        icon: "success",
+        title: "Verified",
+        text: "Trip log has been verified.",
+        timer: 2000,
+        showConfirmButton: false,
+      });
     } catch (err: any) {
       Swal.fire(t("common.error"), extractError(err) ?? "Failed to verify trip log", "error");
     } finally {
@@ -417,14 +473,14 @@ export default function DailyTripLogList() {
     }
   };
 
+  /* ── inline status change (Draft ↔ Verify) ── */
   const handleStatusChange = async (row: DailyTripLogRecord, newStatus: string) => {
-    const label = newStatus === "Draft" ? "Draft" : newStatus === "Submitted" ? "Submitted" : "Verified";
     const result = await Swal.fire({
-      title: `Change status to ${label}?`,
-      text: `This will move the log from "${row.log_status}" to "${label}".`,
+      title: `Change status to ${newStatus}?`,
+      text: `This will move the log from "${row.log_status}" to "${newStatus}".`,
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: `Yes, change to ${label}`,
+      confirmButtonText: `Yes, change to ${newStatus}`,
     });
     if (!result.isConfirmed) return;
     try {
@@ -436,59 +492,76 @@ export default function DailyTripLogList() {
       setAllLogs((current) =>
         current.map((item) =>
           item.unique_id === row.unique_id
-            ? { ...item, log_status: updated.log_status ?? newStatus, verified_by_name: updated.verified_by_name ?? null, verified_at: updated.verified_at ?? null }
+            ? {
+                ...item,
+                log_status: updated.log_status ?? newStatus,
+                verified_by_name: updated.verified_by_name ?? null,
+                verified_at: updated.verified_at ?? null,
+              }
             : item
         )
       );
-      Swal.fire({ icon: "success", title: "Done", text: `Status changed to ${label}.`, timer: 2000, showConfirmButton: false });
+      Swal.fire({
+        icon: "success",
+        title: "Done",
+        text: `Status changed to ${newStatus}.`,
+        timer: 2000,
+        showConfirmButton: false,
+      });
     } catch (err: any) {
       Swal.fire(t("common.error"), extractError(err) ?? "Failed to change status", "error");
     }
   };
 
-  /* build menu items for the currently-targeted row */
-  const buildMenuItems = (row: DailyTripLogRecord): MenuItem[] => {
-    const items: MenuItem[] = [
-      {
-        label: "View",
-        icon: "pi pi-eye",
-        command: () => setModalState({ row, mode: "view" }),
-      },
-      { separator: true },
-    ];
+  /* ── inline action buttons ── */
+  const actionTemplate = (row: DailyTripLogRecord) => {
+    const isVerified = row.log_status === "Verified";
+    const isDraft = row.log_status === "Draft";
 
-    if (row.log_status !== "Draft") {
-      items.push({
-        label: "Change to Draft",
-        icon: "pi pi-undo",
-        command: () => handleStatusChange(row, "Draft"),
-      });
-    }
+    return (
+      <div className="flex items-center gap-1.5">
+        {/* View */}
+        <button
+          title="View details"
+          onClick={() => setModalState({ row, mode: "view" })}
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+        >
+          <i className="pi pi-eye text-xs" />
+          View
+        </button>
 
-    if (row.log_status !== "Verified") {
-      items.push({
-        label: "Verify",
-        icon: "pi pi-check-circle",
-        command: () => setModalState({ row, mode: "verify" }),
-      });
-    }
+        {/* Verify — disabled when already Verified */}
+        <button
+          title={isVerified ? "Already verified" : "Verify this log"}
+          disabled={isVerified}
+          onClick={() => setModalState({ row, mode: "verify" })}
+          className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+            isVerified
+              ? "bg-green-50 text-green-400 cursor-not-allowed opacity-60"
+              : "bg-green-100 text-green-700 hover:bg-green-200"
+          }`}
+        >
+          <i className="pi pi-check-circle text-xs" />
+          Verify
+        </button>
 
-    return items;
+        {/* Draft — disabled when already Draft */}
+        <button
+          title={isDraft ? "Already in draft" : "Revert to draft"}
+          disabled={isDraft}
+          onClick={() => handleStatusChange(row, "Draft")}
+          className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+            isDraft
+              ? "bg-gray-50 text-gray-300 cursor-not-allowed opacity-60"
+              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+          }`}
+        >
+          <i className="pi pi-undo text-xs" />
+          Draft
+        </button>
+      </div>
+    );
   };
-
-  const actionTemplate = (row: DailyTripLogRecord) => (
-    <div className="flex items-center justify-center">
-      <Button
-        icon="pi pi-ellipsis-v"
-        className="p-button-text p-button-secondary p-button-sm"
-        onClick={(e) => {
-          menuRowRef.current = row;
-          menuRef.current?.show(e);
-        }}
-        aria-label="Actions"
-      />
-    </div>
-  );
 
   const renderHeader = () => (
     <div className="flex justify-end items-center">
@@ -522,7 +595,9 @@ export default function DailyTripLogList() {
               {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
             </option>
             {companies.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
             ))}
           </select>
 
@@ -536,26 +611,13 @@ export default function DailyTripLogList() {
               {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
             </option>
             {projects.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
             ))}
           </select>
-
-          <Button
-            label="New Log"
-            icon="pi pi-plus"
-            className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
-          />
         </div>
       </div>
-
-      {/* Shared popup menu — single instance, repositioned per row click */}
-      <Menu
-        ref={menuRef}
-        popup
-        model={menuRowRef.current ? buildMenuItems(menuRowRef.current) : []}
-      />
 
       <DataTable
         value={data}
@@ -570,37 +632,105 @@ export default function DailyTripLogList() {
         stripedRows
         showGridlines
         emptyMessage="No trip logs found. Select a company and project to load data."
-        globalFilterFields={["unique_id", "company_name", "project_name", "_assignment", "_waste", "_staff_template", "_driver", "_operator", "log_status", "trip_date"]}
+        globalFilterFields={[
+          "unique_id",
+          "company_name",
+          "project_name",
+          "_assignment",
+          "_waste",
+          "_base_template",
+          "_alt_template",
+          "_driver",
+          "_operator",
+          "log_status",
+          "trip_date",
+        ]}
         className="p-datatable-sm"
       >
-        <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 60 }} />
-        <Column field="unique_id" header="ID" sortable filter showFilterMatchModes={false} style={{ minWidth: 150 }} />
-        <Column field="company_name" header="Company" sortable filter showFilterMatchModes={false} style={{ minWidth: 140 }} />
-        <Column field="project_name" header="Project" sortable filter showFilterMatchModes={false} style={{ minWidth: 140 }} />
-        <Column field="_assignment" header="Trip Assignment" sortable filter showFilterMatchModes={false} style={{ minWidth: 170 }} />
         <Column
-          field="_staff_template"
+          header={t("common.s_no")}
+          body={(_: any, { rowIndex }: any) => rowIndex + 1}
+          style={{ width: 60 }}
+        />
+        <Column
+          field="unique_id"
+          header="ID"
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 150 }}
+        />
+        <Column
+          field="company_name"
+          header="Company"
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 140 }}
+        />
+        <Column
+          field="project_name"
+          header="Project"
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 140 }}
+        />
+        <Column
+          field="_assignment"
+          header="Trip Assignment"
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 170 }}
+        />
+        <Column
+          field="_base_template"
           header="Staff Template"
           filter
           showFilterMatchModes={false}
           style={{ minWidth: 160 }}
           body={(row: DailyTripLogRecord) => (
-            <span>
-              {row.staff_template?.effective_display_code ?? "-"}
-              {row.staff_template?.is_alt && (
-                <span className="ml-1 text-xs text-orange-600 font-medium">(Alt)</span>
-              )}
+            <span className="text-sm text-gray-800">
+              {row.staff_template?.base?.display_code ?? "-"}
             </span>
           )}
         />
-        <Column field="_waste" header="Waste Type" filter showFilterMatchModes={false} />
+        <Column
+          field="_alt_template"
+          header="Alt Staff Template"
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 170 }}
+          body={(row: DailyTripLogRecord) =>
+            row.staff_template?.alt ? (
+              <span className="text-sm font-medium text-orange-700">
+                {row.staff_template.alt.display_code}
+              </span>
+            ) : (
+              <span className="text-sm text-gray-400">-</span>
+            )
+          }
+        />
+        <Column
+          field="_waste"
+          header="Waste Type"
+          filter
+          showFilterMatchModes={false}
+        />
         <Column
           field="collected_weight_kg"
-          header="Total Weight (kg)"
+          header="Collection Weight (kg)"
           sortable
-          style={{ minWidth: 140 }}
+          style={{ minWidth: 155 }}
           body={(row: DailyTripLogRecord) =>
-            row.collected_weight_kg != null ? Number(row.collected_weight_kg).toFixed(2) : "-"
+            row.collected_weight_kg != null ? (
+              <span className="font-semibold text-gray-800">
+                {Number(row.collected_weight_kg).toFixed(2)}
+              </span>
+            ) : (
+              "-"
+            )
           }
         />
         <Column
@@ -610,11 +740,23 @@ export default function DailyTripLogList() {
           sortable
           filter
           showFilterMatchModes={false}
+          style={{ minWidth: 110 }}
         />
-        <Column field="_driver" header="Driver" />
-        <Column field="_operator" header="Operator" />
-        <Column field="trip_date" header="Trip Date" sortable filter showFilterMatchModes={false} style={{ minWidth: 110 }} />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 80 }} />
+        <Column field="_driver" header="Driver" style={{ minWidth: 130 }} />
+        <Column field="_operator" header="Operator" style={{ minWidth: 130 }} />
+        <Column
+          field="trip_date"
+          header="Trip Date"
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 110 }}
+        />
+        <Column
+          header={t("common.actions")}
+          body={actionTemplate}
+          style={{ minWidth: 210 }}
+        />
       </DataTable>
 
       {modalState && (
