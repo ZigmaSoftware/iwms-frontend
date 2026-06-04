@@ -219,7 +219,7 @@ function TripLogModal({
                 <span className="text-gray-500 w-36 shrink-0">Location</span>
                 <span className="font-medium text-gray-800">
                   {row.panchayat.panchayat_name}
-                  <span className="ml-1.5 text-xs text-indigo-500 font-semibold">(Panchayat)</span>
+                  <span className="ml-1.5 text-xs text-indigo-500 font-semibold">(PLB)</span>
                 </span>
               </div>
             ) : row.ward?.ward_name ? (
@@ -727,7 +727,7 @@ export default function DailyTripLogList() {
               return (
                 <span className="text-sm text-gray-800">
                   {row.panchayat.panchayat_name}
-                  <span className="ml-1 text-xs text-indigo-500 font-medium">(Panchayat)</span>
+                  <span className="ml-1 text-xs text-indigo-500 font-medium">(PLB)</span>
                 </span>
               );
             }
