@@ -346,7 +346,7 @@ export default function LocalBodyDashboard() {
           <div>
             <p className="text-sm font-bold text-gray-800 leading-tight">Zigma IWMS</p>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-500 leading-tight">
-              Panchayat Leader Portal
+              PLB Leader Portal
             </p>
           </div>
         </div>
@@ -367,7 +367,7 @@ export default function LocalBodyDashboard() {
         {/* ── Page header + shared filters ── */}
         <div className="flex flex-wrap justify-between items-start gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">Panchayat Dashboard</h1>
+            <h1 className="text-2xl font-bold text-gray-800">PLB Dashboard</h1>
             <p className="text-sm text-gray-500 mt-0.5">
               {panchayatName ? `${panchayatName} · Waste collection analytics` : "Waste collection analytics"}
             </p>

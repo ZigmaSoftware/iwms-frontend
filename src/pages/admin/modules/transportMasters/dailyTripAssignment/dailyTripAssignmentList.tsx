@@ -374,7 +374,7 @@ export default function DailyTripAssignmentList() {
               return (
                 <span className="text-sm text-gray-800">
                   {row.panchayat.panchayat_name}
-                  <span className="ml-1 text-xs text-indigo-500 font-medium">(Panchayat)</span>
+                  <span className="ml-1 text-xs text-indigo-500 font-medium">(PLB)</span>
                 </span>
               );
             }

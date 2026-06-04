@@ -361,7 +361,7 @@ export default function BinCollectionEventForm() {
                 />
               </div>
               <div>
-                <Label>Panchayat</Label>
+                <Label>PLB (Participating Local Bodies)</Label>
                 <Select
                   options={panchayatOptions}
                   value={filterPanchayat}
@@ -371,7 +371,7 @@ export default function BinCollectionEventForm() {
                     set("trip_assignment_id")("");
                     set("trip_collection_point_id")("");
                   }}
-                  placeholder="Select Panchayat"
+                  placeholder="Select PLB"
                   disabled={fetchingDropdowns || !projectId || Boolean(filterZone) || Boolean(filterWard)}
                 />
               </div>

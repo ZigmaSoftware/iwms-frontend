@@ -447,7 +447,7 @@ export default function MonthlyWasteComparisonListPage() {
         </div>
 
         <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Panchayat Performance (Top 8)</h2>
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">PLB Performance (Top 8)</h2>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={panchayatComparison.slice(0, 8)}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -479,7 +479,7 @@ export default function MonthlyWasteComparisonListPage() {
           <Column header="S.No" body={(_, opts) => opts.rowIndex + 1} style={{ width: "60px" }} />
           <Column field="month" header="Month" sortable />
           <Column field="panchayat_id" header="Panchayat ID" sortable />
-          <Column field="panchayat_name" header="Panchayat" sortable />
+          <Column field="panchayat_name" header="PLB" sortable />
           <Column field="waste_type" header="Waste Type" sortable />
           <Column field="total_agreed_weight" header="Agreed (kg)" body={(r) => formatNumber(r.total_agreed_weight)} sortable />
           <Column field="total_actual_weight" header="Actual (kg)" body={(r) => formatNumber(r.total_actual_weight)} sortable />

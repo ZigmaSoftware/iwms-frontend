@@ -331,7 +331,7 @@ export default function BaseCollectionListPage({ scope }: Props) {
   const indexTemplate = (_: unknown, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
-  const scopeLabel = scope === "panchayat" ? "Panchayat" : "Ward";
+  const scopeLabel = scope === "panchayat" ? "PLB (Participating Local Bodies)" : "Ward";
   const isWard = scope === "ward";
   const locationField = scope === "panchayat" ? "panchayat_name" : "ward_name";
   const weightField =
