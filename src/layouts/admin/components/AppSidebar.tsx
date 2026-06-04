@@ -14,7 +14,6 @@ import {
   Truck,
   Navigation,
   AlertTriangle,
-  Building2,
   BarChart3,
   Search,
   X,
@@ -470,12 +469,6 @@ const transportMastersItems: NavItem[] = [
         module: "transport-masters",
         screen: "vehicle-creation",
       },
-      // {
-      //   nameKey: "admin.nav.trip_attendance",
-      //   path: `/${encTransportMaster}/${encTripAttendance}`,
-      //   module: "transport-masters",
-      //   screen: "trip-attendance",
-      // },
       {
         nameKey: "admin.nav.fuel",
         path: `/${encTransportMaster}/${encFuel}`,
@@ -553,6 +546,12 @@ const scheduleMastersItems: NavItem[] = [
         module: "schedule-masters",
         screen: "daily-waste-comparisons",
       },
+      {
+        nameKey: "admin.nav.monthly_waste_comparison",
+        path: `/${encScheduleMasters}/${encMonthlyWasteComparison}`,
+        module: "schedule-masters",
+        screen: "MonthlyWasteComparison",
+      },
     ],
   },
 ];
@@ -622,12 +621,6 @@ const reportItems: NavItem[] = [
         path: `/${encReport}/${encWasteCollectedSummary}`,
         module: "reports",
         screen: "WasteCollectedSummary",
-      },
-      {
-        nameKey: "admin.nav.monthly_waste_comparison",
-        path: `/${encReport}/${encMonthlyWasteComparison}`,
-        module: "reports",
-        screen: "MonthlyWasteComparison",
       },
       {
         nameKey: "admin.nav.workforce_management",
