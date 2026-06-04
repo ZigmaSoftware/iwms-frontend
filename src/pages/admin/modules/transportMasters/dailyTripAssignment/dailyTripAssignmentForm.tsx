@@ -49,7 +49,6 @@ type DailyTripAssignmentRecord = {
   trip_date?: string;
   scheduled_time?: string;
   status?: string;
-  approval_status?: string;
   remarks?: string | null;
   [key: string]: unknown;
 };
@@ -57,6 +56,7 @@ type DailyTripAssignmentRecord = {
 type FormState = {
   trip_plan_id: string;
   staff_template_id: string;
+  alt_staff_template_id: string;
   zone_id: string;
   panchayat_id: string;
   ward_id: string;
@@ -64,7 +64,6 @@ type FormState = {
   trip_date: string;
   scheduled_time: string;
   status: string;
-  approval_status: string;
   remarks: string;
 };
 
@@ -75,12 +74,6 @@ const STATUS_OPTIONS: SelectOption[] = [
   { value: "In Progress", label: "In Progress" },
   { value: "Completed", label: "Completed" },
   { value: "Cancelled", label: "Cancelled" },
-];
-
-const APPROVAL_OPTIONS: SelectOption[] = [
-  { value: "Pending", label: "Pending" },
-  { value: "Approved", label: "Approved" },
-  { value: "Rejected", label: "Rejected" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -196,6 +189,7 @@ export default function DailyTripAssignmentForm() {
   const [formData, setFormData] = useState<FormState>({
     trip_plan_id: "",
     staff_template_id: "",
+    alt_staff_template_id: "",
     zone_id: "",
     panchayat_id: "",
     ward_id: "",
@@ -203,7 +197,6 @@ export default function DailyTripAssignmentForm() {
     trip_date: "",
     scheduled_time: "",
     status: "Scheduled",
-    approval_status: "Pending",
     remarks: "",
   });
 
@@ -305,6 +298,7 @@ export default function DailyTripAssignmentForm() {
     setFormData({
       trip_plan_id: tripPlanId,
       staff_template_id: rec.staff_template?.unique_id ?? String(rec.staff_template_id ?? ""),
+      alt_staff_template_id: "",
       zone_id: getZoneIdFromRecord(rec) || getZoneIdFromRecord(plan),
       panchayat_id: rec.panchayat?.unique_id ?? String(rec.panchayat_id ?? ""),
       ward_id: getWardIdFromRecord(rec) || getWardIdFromRecord(plan),
@@ -312,7 +306,6 @@ export default function DailyTripAssignmentForm() {
       trip_date: rec.trip_date ?? "",
       scheduled_time: rec.scheduled_time ?? "",
       status: rec.status ?? "Scheduled",
-      approval_status: rec.approval_status ?? "Pending",
       remarks: String(rec.remarks ?? ""),
     });
     setPendingRecord(null);   // clear so this effect doesn't re-fire
@@ -446,7 +439,6 @@ export default function DailyTripAssignmentForm() {
       trip_date: formData.trip_date,
       scheduled_time: formData.scheduled_time,
       status: formData.status,
-      approval_status: formData.approval_status,
       remarks: formData.remarks || undefined,
     };
 
@@ -671,19 +663,6 @@ export default function DailyTripAssignmentForm() {
                   onChange={set("status")}
                   options={STATUS_OPTIONS}
                   placeholder="Select status"
-                />
-              </div>
-            )}
-
-            {/* Approval Status — edit only */}
-            {isEdit && (
-              <div>
-                <Label>Approval Status</Label>
-                <Select
-                  value={formData.approval_status}
-                  onChange={set("approval_status")}
-                  options={APPROVAL_OPTIONS}
-                  placeholder="Select approval status"
                 />
               </div>
             )}

@@ -50,7 +50,6 @@ type DailyTripAssignmentRecord = {
   trip_date?: string;
   scheduled_time?: string;
   status?: string;
-  approval_status?: string;
   remarks?: string | null;
   [key: string]: unknown;
 };
@@ -74,12 +73,6 @@ const STATUS_STYLES: Record<string, string> = {
   "In Progress": "bg-yellow-100 text-yellow-800",
   Completed: "bg-green-100 text-green-800",
   Cancelled: "bg-red-100 text-red-800",
-};
-
-const APPROVAL_STYLES: Record<string, string> = {
-  Pending: "bg-gray-100 text-gray-700",
-  Approved: "bg-green-100 text-green-800",
-  Rejected: "bg-red-100 text-red-800",
 };
 
 const Badge = ({ value, styleMap }: { value?: string; styleMap: Record<string, string> }) => (
@@ -184,7 +177,6 @@ export default function DailyTripAssignmentList() {
     _ward: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _panchayat: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    approval_status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     trip_date: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
   });
 
@@ -250,10 +242,6 @@ export default function DailyTripAssignmentList() {
     <Badge value={row.status} styleMap={STATUS_STYLES} />
   );
 
-  const approvalTemplate = (row: DailyTripAssignmentRecord) => (
-    <Badge value={row.approval_status} styleMap={APPROVAL_STYLES} />
-  );
-
   const actionTemplate = (row: DailyTripAssignmentRecord) => {
     const rowId = row.unique_id ?? String((row as any).id ?? "");
     return (
@@ -263,8 +251,8 @@ export default function DailyTripAssignmentList() {
           onClick={() =>
             navigate(ENC_EDIT_PATH(rowId), {
               state: {
-                companyUniqueId: row.company_unique_id ?? row.company_id,
-                projectId: row.project_unique_id ?? row.project_id,
+                companyUniqueId: (row.company_unique_id ?? row.company_id) as string | undefined,
+                projectId: (row.project_unique_id ?? row.project_id) as string | undefined,
               },
             })
           }
@@ -351,7 +339,7 @@ export default function DailyTripAssignmentList() {
         showGridlines
         className="p-datatable-sm"
         emptyMessage="No trip assignments found. Select a company and project to load data."
-        globalFilterFields={["unique_id", "_trip_plan", "_staff", "_zone", "_ward", "_panchayat", "_waste", "status", "approval_status", "trip_date"]}
+        globalFilterFields={["unique_id", "_trip_plan", "_staff", "_zone", "_ward", "_panchayat", "_waste", "status", "trip_date"]}
       >
         <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 60 }} />
         <Column field="unique_id" header="ID" filter showFilterMatchModes={false} style={{ minWidth: 160 }} />
@@ -402,13 +390,6 @@ export default function DailyTripAssignmentList() {
           body={statusTemplate}
           filter showFilterMatchModes={false}
           style={{ minWidth: 160 }}
-        />
-        <Column
-          field="approval_status"
-          header="Approval"
-          body={approvalTemplate}
-          filter showFilterMatchModes={false}
-          style={{ minWidth: 140 }}
         />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 80 }} />
       </DataTable>

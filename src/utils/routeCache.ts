@@ -69,6 +69,7 @@ export type EncryptedRoutes = {
   encDailyTripCollectionPoint: string;
   encDailyTripLog: string;
   encBinCollectionEvent: string;
+  encDailyWasteComparison: string;
   encBinLoadLog: string;
   encCustomerTag: string;
   encHouseholdPickupEvent: string;
@@ -174,6 +175,7 @@ const plainRoutes: EncryptedRoutes = {
   encDailyTripCollectionPoint: "daily-trip-collection-point",
   encDailyTripLog: "daily-trip-log",
   encBinCollectionEvent: "bin-collection-event",
+  encDailyWasteComparison: "daily-waste-comparisons",
   encBinLoadLog: "bin-load-log",
   encCustomerTag: "customer-tag",
   encHouseholdPickupEvent: "household-pickup-event",

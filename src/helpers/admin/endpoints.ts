@@ -125,6 +125,7 @@ export const adminEndpoints = {
    dailyTripLog: "schedule-masters/daily-trip-logs",
    dailyTripCollectionPoint: "schedule-masters/daily-trip-collection-points",
    binCollectionEvent: "schedule-masters/bin-collection-events",
+   dailyWasteComparison: "schedule-masters/daily-waste-comparisons",
 
   /* =========================
      AUDITS

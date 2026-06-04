@@ -115,6 +115,7 @@ export const dailyTripAssignmentApi = adminApi.dailyTripAssignment;
 export const dailyTripLogApi = adminApi.dailyTripLog;
 export const dailyTripCollectionPointApi = adminApi.dailyTripCollectionPoint;
 export const binCollectionEventApi = adminApi.binCollectionEvent;
+export const dailyWasteComparisonApi = adminApi.dailyWasteComparison;
 
 /* =========================
    AUDITS
