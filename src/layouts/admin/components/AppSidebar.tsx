@@ -89,7 +89,8 @@ const {
   encDailyTripAssignment,
   encDailyTripLog,
   encDailyTripCollectionPoint,
-  encBinCollectionEvent
+  encBinCollectionEvent,
+  encDailyWasteComparison
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -545,6 +546,12 @@ const scheduleMastersItems: NavItem[] = [
         path: `/${encScheduleMasters}/${encDailyTripLog}`,
         module: "schedule-masters",
         screen: "daily-trip-logs",
+      },
+      {
+        nameKey: "Daily Waste Comparison",
+        path: `/${encScheduleMasters}/${encDailyWasteComparison}`,
+        module: "schedule-masters",
+        screen: "daily-waste-comparisons",
       },
     ],
   },

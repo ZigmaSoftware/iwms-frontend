@@ -126,6 +126,8 @@ import TripPlanCollectionPointList from "@/pages/admin/modules/scheduleMasters/t
 import TripPlanCollectionPointForm from "@/pages/admin/modules/scheduleMasters/tripPlanCollectionPoint/tripPlanCollectionPointForm";
 import BinCollectionEventList from "@/pages/admin/modules/scheduleMasters/binCollectionEvent/binCollectionEventList";
 import BinCollectionEventForm from "@/pages/admin/modules/scheduleMasters/binCollectionEvent/binCollectionEventForm";
+import DailyWasteComparisonList from "@/pages/admin/modules/scheduleMasters/dailyWasteComparison/dailyWasteComparisonList";
+import DailyWasteComparisonForm from "@/pages/admin/modules/scheduleMasters/dailyWasteComparison/dailyWasteComparisonForm";
 import StaffTemplateAuditList from "@/pages/admin/modules/staffMasters/staffTemplateAudit/staffTemplateAuditList";
 import StaffTemplateAuditForm from "@/pages/admin/modules/staffMasters/staffTemplateAudit/staffTemplateAuditForm";
 import SupervisorZoneMapList from "@/pages/admin/modules/staffMasters/supervisorZoneMap/supervisorZoneMapList";
@@ -216,6 +218,7 @@ const ROUTES: RouteMap = {
     "daily-trip-collection-point": { list: DailyTripCollectionPointList, form: DailyTripCollectionPointForm },
     "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
     "daily-trip-log": { list: DailyTripLogList },
+    "daily-waste-comparisons": { list: DailyWasteComparisonList, form: DailyWasteComparisonForm },
   },
   "customer-master": {
     "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },

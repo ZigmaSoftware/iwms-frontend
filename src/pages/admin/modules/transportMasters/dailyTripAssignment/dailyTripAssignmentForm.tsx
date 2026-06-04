@@ -32,15 +32,23 @@ type DailyTripAssignmentRecord = {
   staff_template_id?: string;
   panchayat_id?: string;
   waste_type_id?: string;
-  trip_plan?: { unique_id?: string; display_code?: string };
+  trip_plan?: {
+    unique_id?: string;
+    display_code?: string;
+    scheduled_time?: string;
+    zone?: NamedRef & { zone_name?: string };
+    panchayat?: NamedRef & { panchayat_name?: string };
+    ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
+  };
   staff_template?: { unique_id?: string; display_code?: string };
   effective_staff?: { unique_id?: string; display_code?: string } | null;
   panchayat?: NamedRef & { panchayat_name?: string };
+  ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
+  zone?: NamedRef & { zone_name?: string };
   waste_type?: NamedRef & { waste_type_name?: string };
   trip_date?: string;
   scheduled_time?: string;
   status?: string;
-  approval_status?: string;
   remarks?: string | null;
   [key: string]: unknown;
 };
@@ -49,12 +57,13 @@ type FormState = {
   trip_plan_id: string;
   staff_template_id: string;
   alt_staff_template_id: string;
+  zone_id: string;
   panchayat_id: string;
+  ward_id: string;
   waste_type_id: string;
   trip_date: string;
   scheduled_time: string;
   status: string;
-  approval_status: string;
   remarks: string;
 };
 
@@ -65,12 +74,6 @@ const STATUS_OPTIONS: SelectOption[] = [
   { value: "In Progress", label: "In Progress" },
   { value: "Completed", label: "Completed" },
   { value: "Cancelled", label: "Cancelled" },
-];
-
-const APPROVAL_OPTIONS: SelectOption[] = [
-  { value: "Pending", label: "Pending" },
-  { value: "Approved", label: "Approved" },
-  { value: "Rejected", label: "Rejected" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -85,12 +88,21 @@ const buildOptions = (items: any[], labelKey: string | string[]): SelectOption[]
     })
     .filter((o) => o.value);
 
+const toEntityId = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return toEntityId(record.unique_id ?? record.id ?? record.value);
+  }
+  return String(value).trim();
+};
+
 const filterByCompanyProject = (items: any[], companyId: string, projectId: string) => {
   const hasContext = items.some((item) => item?.company_id || item?.company_unique_id);
   if (!hasContext) return items;
   return items.filter((item) => {
-    const c = String(item?.company_id ?? item?.company_unique_id ?? "");
-    const p = String(item?.project_id ?? item?.project_unique_id ?? "");
+    const c = toEntityId(item?.company_id ?? item?.company_unique_id);
+    const p = toEntityId(item?.project_id ?? item?.project_unique_id);
     return (!companyId || c === companyId) && (!projectId || p === projectId);
   });
 };
@@ -100,6 +112,41 @@ const ensureOption = (options: SelectOption[], value: string, label?: string): S
   if (options.some((o) => String(o.value) === value)) return options;
   return [...options, { value, label: label ?? value }];
 };
+
+const getZoneIdFromRecord = (record: any): string =>
+  toEntityId(
+    record?.zone?.unique_id ??
+      record?.zone_id ??
+      record?.ward?.zone_id ??
+      record?.ward?.zone?.unique_id ??
+      record?.trip_plan?.zone?.unique_id ??
+      record?.trip_plan?.zone_id ??
+      record?.trip_plan?.ward?.zone_id
+  );
+
+const getZoneLabelFromRecord = (record: any): string | undefined =>
+  String(
+    record?.zone?.zone_name ??
+      record?.zone?.name ??
+      record?.ward?.zone_name ??
+      record?.ward?.zone?.zone_name ??
+      record?.trip_plan?.zone?.zone_name ??
+      record?.trip_plan?.zone?.name ??
+      record?.trip_plan?.ward?.zone_name ??
+      ""
+  ).trim() || undefined;
+
+const getWardIdFromRecord = (record: any): string =>
+  toEntityId(record?.ward?.unique_id ?? record?.ward_id ?? record?.trip_plan?.ward?.unique_id ?? record?.trip_plan?.ward_id);
+
+const getWardLabelFromRecord = (record: any): string | undefined =>
+  String(
+    record?.ward?.ward_name ??
+      record?.ward?.name ??
+      record?.trip_plan?.ward?.ward_name ??
+      record?.trip_plan?.ward?.name ??
+      ""
+  ).trim() || undefined;
 
 const extractError = (error: any): string | null => {
   const data = error?.response?.data;
@@ -143,28 +190,34 @@ export default function DailyTripAssignmentForm() {
     trip_plan_id: "",
     staff_template_id: "",
     alt_staff_template_id: "",
+    zone_id: "",
     panchayat_id: "",
+    ward_id: "",
     waste_type_id: "",
     trip_date: "",
     scheduled_time: "",
     status: "Scheduled",
-    approval_status: "Pending",
     remarks: "",
   });
 
   const [recordData, setRecordData] = useState<DailyTripAssignmentRecord | null>(null);
+  // Holds raw record until lookups are ready — avoids Radix Select blank-value bug
+  const [pendingRecord, setPendingRecord] = useState<DailyTripAssignmentRecord | null>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ── Dropdown state ────────────────────────────────────────────────────────
   const [fetching, setFetching] = useState(false);
+  const [tripPlanRecords, setTripPlanRecords] = useState<any[]>([]);
+  const [wardRecords, setWardRecords] = useState<any[]>([]);
   const [tripPlan, setTripPlan] = useState<SelectOption[]>([]);
   const [staffTemplates, setStaffTemplates] = useState<SelectOption[]>([]);
+  const [zones, setZones] = useState<SelectOption[]>([]);
   const [panchayats, setPanchayats] = useState<SelectOption[]>([]);
   const [wasteTypes, setWasteTypes] = useState<SelectOption[]>([]);
   const [altStaffCache, setAltStaffCache] = useState<any[]>([]);
 
-  // ── Load record in edit mode ──────────────────────────────────────────────
+  // ── Step 1: Load record — store in pendingRecord, do NOT hydrate form yet ─
   useEffect(() => {
     if (!isEdit || !id) return;
     let cancelled = false;
@@ -173,22 +226,8 @@ export default function DailyTripAssignmentForm() {
       .then((res) => {
         if (cancelled) return;
         setRecordData(res);
+        setPendingRecord(res);                                     // defer form fill
         applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
-        setFormData({
-          trip_plan_id: res.trip_plan?.unique_id ?? res.trip_plan_id ?? "",
-          staff_template_id: res.staff_template?.unique_id ?? res.staff_template_id ?? "",
-          alt_staff_template_id:
-            (res.effective_staff as any)?.source === "alternative"
-              ? ((res.effective_staff as any)?.unique_id ?? "")
-              : "",
-          panchayat_id: res.panchayat?.unique_id ?? res.panchayat_id ?? "",
-          waste_type_id: res.waste_type?.unique_id ?? res.waste_type_id ?? "",
-          trip_date: res.trip_date ?? "",
-          scheduled_time: res.scheduled_time ?? "",
-          status: res.status ?? "Scheduled",
-          approval_status: res.approval_status ?? "Pending",
-          remarks: String(res.remarks ?? ""),
-        });
         setLoadingRecord(false);
       })
       .catch((err) => {
@@ -204,7 +243,10 @@ export default function DailyTripAssignmentForm() {
     if (!companyUniqueId || !projectId) {
       setTripPlan([]);
       setStaffTemplates([]);
+      setZones([]);
       setPanchayats([]);
+      setTripPlanRecords([]);
+      setWardRecords([]);
       setAltStaffCache([]);
       return;
     }
@@ -214,14 +256,21 @@ export default function DailyTripAssignmentForm() {
     Promise.all([
       adminApi.tripPlans.list({ params }),
       adminApi.staffTemplateCreation.list({ params }),
+      adminApi.zones.list({ params }),
       adminApi.panchayats.list({ params }),
+      adminApi.wards.list({ params }),
       adminApi.wasteTypes.list({ params }),
       adminApi.alternativeStaffTemplate.list({ params }),
     ])
-      .then(([tripRes, staffRes, panchRes, wtRes, altRes]) => {
+      .then(([tripRes, staffRes, zoneRes, panchRes, wardRes, wtRes, altRes]) => {
         if (cancelled) return;
-        setTripPlan(buildOptions(filterByCompanyProject(normalizeList(tripRes), companyUniqueId, projectId), "display_code"));
+        const tripRows = filterByCompanyProject(normalizeList(tripRes), companyUniqueId, projectId);
+        const wardRows = filterByCompanyProject(normalizeList(wardRes), companyUniqueId, projectId);
+        setTripPlanRecords(tripRows);
+        setWardRecords(wardRows);
+        setTripPlan(buildOptions(tripRows, "display_code"));
         setStaffTemplates(buildOptions(filterByCompanyProject(normalizeList(staffRes), companyUniqueId, projectId), "display_code"));
+        setZones(buildOptions(filterByCompanyProject(normalizeList(zoneRes), companyUniqueId, projectId), ["zone_name", "name"]));
         setPanchayats(buildOptions(filterByCompanyProject(normalizeList(panchRes), companyUniqueId, projectId), "panchayat_name"));
         setWasteTypes(buildOptions(normalizeList(wtRes), ["waste_type_name", "name"]));
         setAltStaffCache(normalizeList(altRes));
@@ -230,6 +279,69 @@ export default function DailyTripAssignmentForm() {
       .finally(() => { if (!cancelled) setFetching(false); });
     return () => { cancelled = true; };
   }, [companyUniqueId, projectId, t]);
+
+  // ── Step 2: Hydrate form once dropdowns are ready ─────────────────────────
+  // This fires after the lookup effect resolves and populates at least one list.
+  // Using tripPlan.length > 0 as the "lookups ready" signal (same principle as
+  // tripPlanForm.tsx) so the Select components always receive their value WITH
+  // the matching option present — preventing the Radix blank-value bug.
+  useEffect(() => {
+    if (!pendingRecord) return;
+    const lookupsReady = tripPlan.length > 0 || staffTemplates.length > 0 ||
+      zones.length > 0 || panchayats.length > 0 || wardRecords.length > 0 ||
+      wasteTypes.length > 0;
+    if (!lookupsReady) return;
+
+    const rec = pendingRecord;
+    const tripPlanId = rec.trip_plan?.unique_id ?? String(rec.trip_plan_id ?? "");
+    const plan = tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === tripPlanId);
+    setFormData({
+      trip_plan_id: tripPlanId,
+      staff_template_id: rec.staff_template?.unique_id ?? String(rec.staff_template_id ?? ""),
+      alt_staff_template_id: "",
+      zone_id: getZoneIdFromRecord(rec) || getZoneIdFromRecord(plan),
+      panchayat_id: rec.panchayat?.unique_id ?? String(rec.panchayat_id ?? ""),
+      ward_id: getWardIdFromRecord(rec) || getWardIdFromRecord(plan),
+      waste_type_id: (rec.waste_type as any)?.unique_id ?? String(rec.waste_type_id ?? ""),
+      trip_date: rec.trip_date ?? "",
+      scheduled_time: rec.scheduled_time ?? "",
+      status: rec.status ?? "Scheduled",
+      remarks: String(rec.remarks ?? ""),
+    });
+    setPendingRecord(null);   // clear so this effect doesn't re-fire
+  }, [pendingRecord, tripPlan, tripPlanRecords, staffTemplates, zones, panchayats, wardRecords, wasteTypes]);
+
+  const handleTripPlanChange = (value: string) => {
+    const plan = tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === value);
+    setFormData((prev) => {
+      const next = { ...prev, trip_plan_id: value };
+      if (!plan) return next;
+
+      const planStaff = toEntityId(plan?.staff_template?.unique_id ?? plan?.staff_template_id);
+      const planWaste = toEntityId(plan?.waste_type?.unique_id ?? plan?.waste_type_id);
+      const planPanchayat = toEntityId(plan?.panchayat?.unique_id ?? plan?.panchayat_id);
+      const planWard = getWardIdFromRecord(plan);
+      const planZone = getZoneIdFromRecord(plan);
+
+      if (planStaff) next.staff_template_id = planStaff;
+      if (planWaste) next.waste_type_id = planWaste;
+      if (planZone) next.zone_id = planZone;
+      if (planPanchayat) {
+        next.panchayat_id = planPanchayat;
+        next.ward_id = "";
+      }
+      if (planWard) {
+        next.ward_id = planWard;
+        next.panchayat_id = "";
+      }
+      if (plan?.scheduled_time) next.scheduled_time = String(plan.scheduled_time).slice(0, 5);
+      return next;
+    });
+  };
+
+  const handleZoneChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, zone_id: value, ward_id: "" }));
+  };
 
   // ── Effective alt-staff resolution ───────────────────────────────────────
   const resolvedAltStaff = useMemo(() => {
@@ -278,6 +390,28 @@ export default function DailyTripAssignmentForm() {
     ensureOption(panchayats, formData.panchayat_id, recordData?.panchayat?.panchayat_name ?? recordData?.panchayat?.name as string | undefined),
     [panchayats, formData.panchayat_id, recordData]
   );
+  const resolvedZones = useMemo(() =>
+    ensureOption(
+      zones,
+      formData.zone_id,
+      getZoneLabelFromRecord(recordData) ||
+        getZoneLabelFromRecord(tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === formData.trip_plan_id))
+    ),
+    [zones, formData.zone_id, formData.trip_plan_id, recordData, tripPlanRecords]
+  );
+  const resolvedWards = useMemo(() => {
+    const filtered = wardRecords.filter((ward) => {
+      if (!formData.zone_id) return true;
+      return toEntityId(ward?.zone_id ?? ward?.zone) === formData.zone_id;
+    });
+    const options = buildOptions(filtered.length ? filtered : wardRecords, ["ward_name", "name"]);
+    return ensureOption(
+      options,
+      formData.ward_id,
+      getWardLabelFromRecord(recordData) ||
+        getWardLabelFromRecord(tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === formData.trip_plan_id))
+    );
+  }, [formData.zone_id, formData.ward_id, formData.trip_plan_id, recordData, tripPlanRecords, wardRecords]);
   const resolvedWasteTypes = useMemo(() =>
     ensureOption(wasteTypes, formData.waste_type_id, (recordData?.waste_type as any)?.waste_type_name ?? recordData?.waste_type?.name as string | undefined),
     [wasteTypes, formData.waste_type_id, recordData]
@@ -288,7 +422,7 @@ export default function DailyTripAssignmentForm() {
     e.preventDefault();
     if (!companyUniqueId || !projectId ||
       !formData.trip_plan_id || !formData.staff_template_id ||
-      !formData.panchayat_id ||
+      (!formData.panchayat_id && !formData.ward_id) ||
       !formData.waste_type_id || !formData.trip_date || !formData.scheduled_time) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
@@ -299,13 +433,12 @@ export default function DailyTripAssignmentForm() {
       project_id_input: projectId,
       trip_plan_id: formData.trip_plan_id,
       staff_template_id: formData.staff_template_id,
-      alt_staff_template_id: formData.alt_staff_template_id || undefined,
-      panchayat_id: formData.panchayat_id,
+      panchayat_id: formData.panchayat_id || undefined,
+      ward_id: formData.ward_id || undefined,
       waste_type_id: formData.waste_type_id,
       trip_date: formData.trip_date,
       scheduled_time: formData.scheduled_time,
       status: formData.status,
-      approval_status: formData.approval_status,
       remarks: formData.remarks || undefined,
     };
 
@@ -412,7 +545,7 @@ export default function DailyTripAssignmentForm() {
               <Label>Trip Plan <span className="text-red-500">*</span></Label>
               <Select
                 value={formData.trip_plan_id}
-                onChange={set("trip_plan_id")}
+                onChange={handleTripPlanChange}
                 options={resolvedTripPlan}
                 placeholder="Select trip plan"
                 disabled={fetching || !projectId}
@@ -461,15 +594,51 @@ export default function DailyTripAssignmentForm() {
               </div>
             )}
 
+            {/* Zone */}
+            <div>
+              <Label>Zone</Label>
+              <Select
+                value={formData.zone_id}
+                onChange={handleZoneChange}
+                options={resolvedZones}
+                placeholder="Select zone"
+                disabled={fetching || !projectId}
+              />
+            </div>
+
+            {/* Ward */}
+            <div>
+              <Label>Ward</Label>
+              <Select
+                value={formData.ward_id}
+                onChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    ward_id: value,
+                    panchayat_id: value ? "" : prev.panchayat_id,
+                  }))
+                }
+                options={resolvedWards}
+                placeholder="Select ward"
+                disabled={fetching || !projectId || Boolean(formData.panchayat_id)}
+              />
+            </div>
+
             {/* Panchayat */}
             <div>
               <Label>Panchayat <span className="text-red-500">*</span></Label>
               <Select
                 value={formData.panchayat_id}
-                onChange={set("panchayat_id")}
+                onChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    panchayat_id: value,
+                    ward_id: value ? "" : prev.ward_id,
+                  }))
+                }
                 options={resolvedPanchayats}
                 placeholder="Select panchayat"
-                disabled={fetching || !projectId}
+                disabled={fetching || !projectId || Boolean(formData.ward_id)}
               />
             </div>
 
@@ -494,19 +663,6 @@ export default function DailyTripAssignmentForm() {
                   onChange={set("status")}
                   options={STATUS_OPTIONS}
                   placeholder="Select status"
-                />
-              </div>
-            )}
-
-            {/* Approval Status — edit only */}
-            {isEdit && (
-              <div>
-                <Label>Approval Status</Label>
-                <Select
-                  value={formData.approval_status}
-                  onChange={set("approval_status")}
-                  options={APPROVAL_OPTIONS}
-                  placeholder="Select approval status"
                 />
               </div>
             )}
