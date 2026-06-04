@@ -89,7 +89,8 @@ const {
   encDailyTripAssignment,
   encDailyTripLog,
   encDailyTripCollectionPoint,
-  encBinCollectionEvent
+  encBinCollectionEvent,
+  encLoginAudits,
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -590,6 +591,12 @@ const auditItems: NavItem[] = [
         path: `/${encAudits}/${encCommonAudit}`,
         module: "audits",
         screen: "common-audit",
+      },
+      {
+        nameKey: "admin.nav.login_audit",
+        path: `/${encAudits}/${encLoginAudits}`,
+        module: "audits",
+        screen: "login-audit",
       },
       // {
       //   nameKey: "admin.nav.vehicle_trip_audit",

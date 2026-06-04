@@ -845,6 +845,7 @@ const enResource = {
           "daily_trip_log": "Daily Trip Logs",
           "audit_items": "Audit Items",
           "common_audit": "Common Audit",
+          "login_audit": "Login Audit",
           "vehicle_trip_audit": "Vehicle Trip Audit",
           "trip_exception_log": "Trip Exception Log",
           "bin_load_log": "Bin Load Log",

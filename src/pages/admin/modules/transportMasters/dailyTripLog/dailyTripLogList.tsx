@@ -119,6 +119,16 @@ const extractError = (error: any): string | null => {
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
+const computeCollectedWeight = (collectionPoints?: DailyTripLogRecord["collection_points"]): number => {
+  return (collectionPoints ?? []).reduce((sum, cp) => {
+    if (cp?.collected_weight_kg === null || cp?.collected_weight_kg === undefined) {
+      return sum;
+    }
+    const weight = Number(cp.collected_weight_kg);
+    return sum + (Number.isFinite(weight) ? weight : 0);
+  }, 0);
+};
+
 /* ─────────────────────────────────────────────────────
    Trip Log Modal  (mode="view" | "verify")
 ───────────────────────────────────────────────────── */
@@ -140,8 +150,15 @@ function TripLogModal({
   const collectedCount = cps.filter((cp) => cp.is_collected).length;
   const st = row.staff_template;
   const wasteTypeName = (row.waste_type as any)?.waste_type_name ?? row.waste_type_id ?? "-";
-  const weight =
-    row.collected_weight_kg != null ? `${Number(row.collected_weight_kg).toFixed(2)} kg` : "-";
+  const collectedWeightFromPoints = computeCollectedWeight(cps);
+  const hasPointWeights = cps.some(
+    (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+  );
+  const weight = hasPointWeights
+    ? `${collectedWeightFromPoints.toFixed(2)} kg`
+    : row.collected_weight_kg != null
+    ? `${Number(row.collected_weight_kg).toFixed(2)} kg`
+    : "-";
 
   const footer = (
     <div className="flex justify-end gap-2 pt-2">
@@ -449,6 +466,10 @@ export default function DailyTripLogList() {
     _location: rec.panchayat?.panchayat_name ?? rec.ward?.ward_name ?? "",
     _driver: rec.driver?.employee_name ?? "",
     _operator: rec.operator?.employee_name ?? "",
+    _computed_weight: computeCollectedWeight(rec.collection_points),
+    _has_point_weights: (rec.collection_points ?? []).some(
+      (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+    ),
   }));
 
   /* ── filter by company + project ── */
@@ -781,15 +802,18 @@ export default function DailyTripLogList() {
           header="Collection Weight (kg)"
           sortable
           style={{ minWidth: 155 }}
-          body={(row: DailyTripLogRecord) =>
-            row.collected_weight_kg != null ? (
+          body={(row: DailyTripLogRecord & { _computed_weight?: number; _has_point_weights?: boolean }) => {
+            const weight = row._has_point_weights
+              ? row._computed_weight
+              : row.collected_weight_kg;
+            return weight != null ? (
               <span className="font-semibold text-gray-800">
-                {Number(row.collected_weight_kg).toFixed(2)}
+                {Number(weight).toFixed(2)}
               </span>
             ) : (
               "-"
-            )
-          }
+            );
+          }}
         />
         <Column
           field="log_status"
