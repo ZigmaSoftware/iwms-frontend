@@ -94,7 +94,6 @@ import DailyTripAssignmentForm from "@/pages/admin/modules/transportMasters/dail
 import DailyTripCollectionPointList from "@/pages/admin/modules/transportMasters/dailyTripCollectionPoint/dailyTripCollectionPointList";
 import DailyTripCollectionPointForm from "@/pages/admin/modules/transportMasters/dailyTripCollectionPoint/dailyTripCollectionPointForm";
 import DailyTripLogList from "@/pages/admin/modules/transportMasters/dailyTripLog/dailyTripLogList";
-import DailyTripLogForm from "@/pages/admin/modules/transportMasters/dailyTripLog/dailyTripLogForm";
 
 // import CollectionMonitoringListPage from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringListPage";
 // import CollectionMonitoringForm from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringForm";
@@ -218,8 +217,7 @@ const ROUTES: RouteMap = {
     "daily-trip-assignment": { list: DailyTripAssignmentList, form: DailyTripAssignmentForm },
     "daily-trip-collection-point": { list: DailyTripCollectionPointList, form: DailyTripCollectionPointForm },
     "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
-    "daily-trip-log": { list: DailyTripLogList, form: DailyTripLogForm },
-    "daily-waste-comparisons": { list: DailyWasteComparisonList, form: DailyWasteComparisonForm },
+    "daily-trip-log": { list: DailyTripLogList },
   },
   "customer-master": {
     "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },
