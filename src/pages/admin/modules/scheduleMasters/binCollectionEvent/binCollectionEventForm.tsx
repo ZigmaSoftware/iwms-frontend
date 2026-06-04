@@ -21,8 +21,13 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 
-type BinCEDetail = {
+type BinCERecord = {
   unique_id?: string;
+  trip_assignment_id?: string;
+  trip_collection_point_id?: string | null;
+  bin_id?: string | null;
+  collection_point_id?: string | null;
+  panchayat_id?: string | null;
   trip_plan?: { display_code?: string };
   collection_point?: { cp_name?: string };
   bin?: { bin_name?: string; bin_capacity?: number; bin_type?: string };
@@ -35,7 +40,12 @@ type BinCEDetail = {
   notes?: string | null;
   created_at?: string;
   company_name?: string;
+  company_id?: string;
   project_name?: string;
+  project_id?: string;
+  panchayat_name?: string | null;
+  ward_name?: string | null;
+  zone_name?: string | null;
   [key: string]: unknown;
 };
 
@@ -49,21 +59,6 @@ type FormState = {
   driver_latitude: string;
   driver_longitude: string;
   notes: string;
-};
-
-const field = (label: string, value: unknown) => (
-  <div className="flex flex-col gap-1">
-    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</span>
-    <span className="text-sm text-gray-800 font-medium">{String(value ?? "-")}</span>
-  </div>
-);
-
-const formatDate = (val?: string) => {
-  if (!val) return "-";
-  return new Date(val).toLocaleString("en-IN", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
 };
 
 const extractError = (error: any): string | null => {
@@ -89,7 +84,7 @@ export default function BinCollectionEventForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const location = useLocation();
-  const routeState = location.state as { record?: BinCEDetail; companyUniqueId?: string; projectId?: string } | null;
+  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const isEdit = Boolean(id);
 
   const {
@@ -105,11 +100,11 @@ export default function BinCollectionEventForm() {
   const { encScheduleMasters, encBinCollectionEvent } = getEncryptedRoute();
   const LIST_PATH = `/${encScheduleMasters}/${encBinCollectionEvent}`;
 
-  /* ── view mode state ── */
-  const [record, setRecord] = useState<BinCEDetail | null>(routeState?.record ?? null);
-  const [loading, setLoading] = useState(isEdit && !routeState?.record);
+  /* ── record loading (edit mode) ── */
+  const [record, setRecord] = useState<BinCERecord | null>(null);
+  const [loadingRecord, setLoadingRecord] = useState(isEdit);
 
-  /* ── create mode state ── */
+  /* ── form state ── */
   const [form, setForm] = useState<FormState>({
     trip_assignment_id: "",
     trip_collection_point_id: "",
@@ -121,7 +116,7 @@ export default function BinCollectionEventForm() {
   });
   const [saving, setSaving] = useState(false);
 
-  /* ── location filter state (zone → panchayat/ward to filter assignments) ── */
+  /* ── location filter state ── */
   const [filterZone, setFilterZone] = useState("");
   const [filterPanchayat, setFilterPanchayat] = useState("");
   const [filterWard, setFilterWard] = useState("");
@@ -137,26 +132,61 @@ export default function BinCollectionEventForm() {
   const [binOptions, setBinOptions] = useState<SelectOption[]>([]);
   const [fetchingDropdowns, setFetchingDropdowns] = useState(false);
 
-  /* ── load view record ── */
+  /* ── pending IDs/names for edit pre-fill (applied once option lists load) ── */
+  const [pendingAssignmentId, setPendingAssignmentId] = useState("");
+  const [pendingCollectionPointId, setPendingCollectionPointId] = useState("");
+  const [pendingBinId, setPendingBinId] = useState("");
+  /* location filters — matched once option lists are ready */
+  const [pendingPanchayatId, setPendingPanchayatId] = useState("");
+  const [pendingWardName, setPendingWardName] = useState("");
+  const [pendingZoneName, setPendingZoneName] = useState("");
+
+  /* ── load record in edit mode ── */
   useEffect(() => {
     if (!isEdit || !id) return;
-    if (routeState?.record) {
-      applyCompanyProjectFromRecord(routeState.record);
-      return;
-    }
-    setLoading(true);
+    setLoadingRecord(true);
     (binCollectionEventApi.get(id) as Promise<any>)
       .then((data: any) => {
         setRecord(data);
         applyCompanyProjectFromRecord(data);
       })
       .catch(() => Swal.fire(t("common.error"), t("common.fetch_failed"), "error"))
-      .finally(() => setLoading(false));
+      .finally(() => setLoadingRecord(false));
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── load dropdown options for create ── */
+  /* ── pre-fill form from record (edit mode) ── */
   useEffect(() => {
-    if (isEdit || !companyUniqueId || !projectId) return;
+    if (!isEdit || !record) return;
+
+    const assignmentId = String(record.trip_assignment_id ?? "");
+    const cpId = String(record.trip_collection_point_id ?? "");
+    const binId = String(record.bin_id ?? "");
+
+    setForm((prev) => ({
+      ...prev,
+      trip_assignment_id: assignmentId,
+      collected_weight_kg: String(record.collected_weight_kg ?? ""),
+      driver_latitude: String(record.driver_latitude ?? ""),
+      driver_longitude: String(record.driver_longitude ?? ""),
+      notes: String(record.notes ?? ""),
+    }));
+
+    if (assignmentId) setPendingAssignmentId(assignmentId);
+    if (cpId) setPendingCollectionPointId(cpId);
+    if (binId) setPendingBinId(binId);
+
+    /* store location values as pending — option lists may not be ready yet */
+    if (record.panchayat_id) {
+      setPendingPanchayatId(String(record.panchayat_id));
+    } else {
+      if (record.ward_name) setPendingWardName(String(record.ward_name));
+      if (record.zone_name) setPendingZoneName(String(record.zone_name));
+    }
+  }, [isEdit, record]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── load dropdown options (runs for both create and edit) ── */
+  useEffect(() => {
+    if (!companyUniqueId || !projectId) return;
     setFetchingDropdowns(true);
     const params = { company_id: companyUniqueId, project_id: projectId };
     Promise.all([
@@ -183,11 +213,11 @@ export default function BinCollectionEventForm() {
       setPanchayatOptions(toOptions(normalizeList(panchRes), "unique_id", "panchayat_name"));
       setWardOptions(toOptions(wards, "unique_id", "ward_name"));
     }).finally(() => setFetchingDropdowns(false));
-  }, [isEdit, companyUniqueId, projectId]);
+  }, [companyUniqueId, projectId]);
 
   /* ── load collection points when assignment changes ── */
   useEffect(() => {
-    if (isEdit || !form.trip_assignment_id) {
+    if (!form.trip_assignment_id) {
       setCollectionPointOptions([]);
       return;
     }
@@ -202,31 +232,82 @@ export default function BinCollectionEventForm() {
         );
       })
       .catch(() => setCollectionPointOptions([]));
-  }, [isEdit, form.trip_assignment_id]);
+  }, [form.trip_assignment_id]);
 
-  /* ── ward options filtered by zone ─────────────────────────────────────────
-     The ward serializer returns zone_id as the zone's integer PK (no to_field),
-     so comparing against filterZone (which is the zone's unique_id string) always
-     fails.  Instead look up the selected zone's zone_name from zoneOptions and
-     compare against rawWard.zone_name which the serializer does populate.        */
+  /* ── apply pending assignment once assignment options load ── */
+  useEffect(() => {
+    if (!pendingAssignmentId || assignmentOptions.length === 0) return;
+    if (assignmentOptions.some((o) => o.value === pendingAssignmentId)) {
+      setForm((prev) => ({ ...prev, trip_assignment_id: pendingAssignmentId }));
+      setPendingAssignmentId("");
+    }
+  }, [pendingAssignmentId, assignmentOptions]);
+
+  /* ── apply pending collection point once collection point options load ── */
+  useEffect(() => {
+    if (!pendingCollectionPointId || collectionPointOptions.length === 0) return;
+    if (collectionPointOptions.some((o) => o.value === pendingCollectionPointId)) {
+      setForm((prev) => ({ ...prev, trip_collection_point_id: pendingCollectionPointId }));
+      setPendingCollectionPointId("");
+    }
+  }, [pendingCollectionPointId, collectionPointOptions]);
+
+  /* ── apply pending bin once bin options load ── */
+  useEffect(() => {
+    if (!pendingBinId || binOptions.length === 0) return;
+    if (binOptions.some((o) => o.value === pendingBinId)) {
+      setForm((prev) => ({ ...prev, bin_id: pendingBinId }));
+      setPendingBinId("");
+    }
+  }, [pendingBinId, binOptions]);
+
+  /* ── apply pending panchayat filter once panchayat options load ── */
+  useEffect(() => {
+    if (!pendingPanchayatId || panchayatOptions.length === 0) return;
+    if (panchayatOptions.some((o) => o.value === pendingPanchayatId)) {
+      setFilterPanchayat(pendingPanchayatId);
+      setPendingPanchayatId("");
+    }
+  }, [pendingPanchayatId, panchayatOptions]);
+
+  /* ── apply pending zone filter once zone options load ── */
+  useEffect(() => {
+    if (!pendingZoneName || zoneOptions.length === 0) return;
+    const matched = zoneOptions.find(
+      (o) => o.label.trim().toLowerCase() === pendingZoneName.trim().toLowerCase()
+    );
+    if (matched) {
+      setFilterZone(matched.value);
+      setPendingZoneName("");
+    }
+  }, [pendingZoneName, zoneOptions]);
+
+  /* ── apply pending ward filter once ward options load ── */
+  useEffect(() => {
+    if (!pendingWardName || wardOptions.length === 0) return;
+    const matched = wardOptions.find(
+      (o) => o.label.trim().toLowerCase() === pendingWardName.trim().toLowerCase()
+    );
+    if (matched) {
+      setFilterWard(matched.value);
+      setPendingWardName("");
+    }
+  }, [pendingWardName, wardOptions]);
+
+  /* ── ward options filtered by zone ── */
   const filteredWardOptions = filterZone
     ? (() => {
         const selectedZoneName = zoneOptions.find((z) => z.value === filterZone)?.label ?? "";
-        if (!selectedZoneName) return wardOptions; // zone not found — show all
+        if (!selectedZoneName) return wardOptions;
         return wardOptions.filter((w) => {
           const rawWard = allRawWards.find((rw: any) => String(rw.unique_id ?? "") === w.value);
-          if (!rawWard) return true; // can't resolve — show all
+          if (!rawWard) return true;
           return String(rawWard.zone_name ?? "") === selectedZoneName;
         });
       })()
     : wardOptions;
 
-  /* ── filter assignments by selected panchayat or ward ───────────────────────
-     The serializer exposes nested objects:
-       a.ward      → { unique_id, ward_name }  (SerializerMethodField)
-       a.panchayat → { unique_id, panchayat_name }  (SerializerMethodField)
-     whereas a.ward_id / a.panchayat_id are raw integer PKs — NOT unique_id strings.
-     Always prefer the nested objects so the comparison works.                    */
+  /* ── filter assignments by selected panchayat or ward ── */
   const filteredAssignmentOptions = (() => {
     if (!filterPanchayat && !filterWard) return assignmentOptions;
     return allAssignments
@@ -257,7 +338,6 @@ export default function BinCollectionEventForm() {
       Swal.fire(t("common.warning"), "Trip Assignment and Bin are required.", "warning");
       return;
     }
-    // Zone and Ward must be filled together; panchayat is standalone
     if (filterZone && !filterWard) {
       Swal.fire(t("common.warning"), "Please select a Ward when Zone is selected.", "warning");
       return;
@@ -280,8 +360,13 @@ export default function BinCollectionEventForm() {
       if (form.driver_longitude) payload.driver_longitude = form.driver_longitude;
       if (form.notes) payload.notes = form.notes;
 
-      await binCollectionEventApi.create(payload);
-      Swal.fire({ icon: "success", title: t("common.success"), text: t("common.added_success"), timer: 1500, showConfirmButton: false });
+      if (isEdit && id) {
+        await binCollectionEventApi.update(id, payload);
+        Swal.fire({ icon: "success", title: t("common.success"), text: t("common.updated_success"), timer: 1500, showConfirmButton: false });
+      } else {
+        await binCollectionEventApi.create(payload);
+        Swal.fire({ icon: "success", title: t("common.success"), text: t("common.added_success"), timer: 1500, showConfirmButton: false });
+      }
       navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (err: any) {
       Swal.fire(t("common.error"), extractError(err) ?? t("common.save_failed_desc"), "error");
@@ -290,198 +375,8 @@ export default function BinCollectionEventForm() {
     }
   };
 
-  /* ── create form ── */
-  if (!isEdit) {
-    return (
-      <div className="p-4 space-y-4">
-        <ComponentCard title="Add Bin Collection Event" desc="Record a bin collection scan event manually">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Company / Project (superadmin) */}
-            {isSuperAdmin && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>{t("admin.nav.company")}</Label>
-                  <select
-                    value={companyUniqueId || ""}
-                    onChange={(e) => onCompanyChange(e.target.value)}
-                    disabled={Boolean(loggedInCompanyUniqueId) || companies.length === 0}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:opacity-50"
-                  >
-                    <option value="">{t("common.select_item_placeholder", { item: t("admin.nav.company") })}</option>
-                    {companies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <Label>{t("admin.nav.project")}</Label>
-                  <select
-                    value={projectId || ""}
-                    onChange={(e) => setProjectId(e.target.value)}
-                    disabled={!companyUniqueId || projects.length === 0}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:opacity-50"
-                  >
-                    <option value="">{companyUniqueId ? t("common.select_item_placeholder", { item: t("admin.nav.project") }) : "Select a company first"}</option>
-                    {projects.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {/* Location filters:
-                  • Panchayat alone is sufficient (Zone + Ward not needed)
-                  • Zone + Ward must be selected together (both required if either is picked)
-                  • Panchayat and Zone/Ward are mutually exclusive                     */}
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label>Zone {filterZone && !filterPanchayat ? <span className="text-red-500">*</span> : null}</Label>
-                <Select
-                  options={zoneOptions}
-                  value={filterZone}
-                  onChange={(v) => {
-                    setFilterZone(v);
-                    setFilterWard("");          // zone change resets ward
-                    set("trip_assignment_id")("");
-                    set("trip_collection_point_id")("");
-                  }}
-                  placeholder={fetchingDropdowns ? "Loading..." : "Select Zone"}
-                  disabled={fetchingDropdowns || !projectId || Boolean(filterPanchayat)}
-                />
-              </div>
-              <div>
-                <Label>Ward {filterZone && !filterPanchayat ? <span className="text-red-500">*</span> : null}</Label>
-                <Select
-                  options={filteredWardOptions}
-                  value={filterWard}
-                  onChange={(v) => {
-                    setFilterWard(v);
-                    set("trip_assignment_id")("");
-                    set("trip_collection_point_id")("");
-                  }}
-                  placeholder={filterZone ? "Select Ward" : "Select Zone first"}
-                  disabled={fetchingDropdowns || !projectId || !filterZone || Boolean(filterPanchayat)}
-                />
-              </div>
-              <div>
-                <Label>Panchayat</Label>
-                <Select
-                  options={panchayatOptions}
-                  value={filterPanchayat}
-                  onChange={(v) => {
-                    setFilterPanchayat(v);
-                    if (v) { setFilterZone(""); setFilterWard(""); } // panchayat clears zone+ward
-                    set("trip_assignment_id")("");
-                    set("trip_collection_point_id")("");
-                  }}
-                  placeholder="Select Panchayat"
-                  disabled={fetchingDropdowns || !projectId || Boolean(filterZone) || Boolean(filterWard)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Trip Assignment <span className="text-red-500">*</span></Label>
-                <Select
-                  options={filteredAssignmentOptions}
-                  value={form.trip_assignment_id}
-                  onChange={(v) => { set("trip_assignment_id")(v); set("trip_collection_point_id")(""); }}
-                  placeholder={fetchingDropdowns ? "Loading..." : "Select Trip Assignment"}
-                  disabled={fetchingDropdowns || !projectId}
-                />
-              </div>
-              <div>
-                <Label>Collection Point</Label>
-                <Select
-                  options={collectionPointOptions}
-                  value={form.trip_collection_point_id}
-                  onChange={set("trip_collection_point_id")}
-                  placeholder={form.trip_assignment_id ? "Select Collection Point" : "Select assignment first"}
-                  disabled={!form.trip_assignment_id}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Bin <span className="text-red-500">*</span></Label>
-                <Select
-                  options={binOptions}
-                  value={form.bin_id}
-                  onChange={set("bin_id")}
-                  placeholder={fetchingDropdowns ? "Loading..." : "Select Bin"}
-                  disabled={fetchingDropdowns || !projectId}
-                />
-              </div>
-              <div>
-                <Label>Collected Weight (kg)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={form.collected_weight_kg}
-                  onChange={(e) => set("collected_weight_kg")(e.target.value)}
-                  placeholder="e.g. 12.5"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>GPS Latitude</Label>
-                <Input
-                  type="number"
-                  step="any"
-                  value={form.driver_latitude}
-                  onChange={(e) => set("driver_latitude")(e.target.value)}
-                  placeholder="e.g. 11.1271"
-                />
-              </div>
-              <div>
-                <Label>GPS Longitude</Label>
-                <Input
-                  type="number"
-                  step="any"
-                  value={form.driver_longitude}
-                  onChange={(e) => set("driver_longitude")(e.target.value)}
-                  placeholder="e.g. 78.6569"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label>Notes</Label>
-              <textarea
-                value={form.notes}
-                onChange={(e) => set("notes")(e.target.value)}
-                rows={3}
-                placeholder="Optional notes..."
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
-                className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
-              >
-                {t("common.cancel")}
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="rounded-lg bg-green-custom px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {saving ? t("common.saving") : t("common.save")}
-              </button>
-            </div>
-          </form>
-        </ComponentCard>
-      </div>
-    );
-  }
-
-  /* ── view mode ── */
-  if (loading) {
+  /* ── loading spinner while fetching record ── */
+  if (loadingRecord) {
     return (
       <div className="flex items-center justify-center p-10">
         <i className="pi pi-spin pi-spinner text-2xl text-blue-600" />
@@ -489,56 +384,190 @@ export default function BinCollectionEventForm() {
     );
   }
 
-  if (!record) {
-    return (
-      <div className="p-4">
-        <p className="text-gray-500">Record not found.</p>
-        <button
-          onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
-          className="mt-3 text-blue-600 underline text-sm"
-        >
-          Back to list
-        </button>
-      </div>
-    );
-  }
-
-  const staffTemplate = record.effective_staff_template as any;
-  const driverName = staffTemplate?.driver_id?.employee_name ?? staffTemplate?.driver?.employee_name ?? "-";
-  const operatorName = staffTemplate?.operator_id?.employee_name ?? staffTemplate?.operator?.employee_name ?? "-";
+  const title = isEdit
+    ? `Edit Bin Collection Event${record?.unique_id ? ` — ${record.unique_id}` : ""}`
+    : "Add Bin Collection Event";
 
   return (
     <div className="p-4 space-y-4">
-      <ComponentCard title={`Bin Collection Event — ${record.unique_id ?? ""}`}>
-        <div className="grid grid-cols-2 gap-6 sm:grid-cols-3">
-          {field("Event ID", record.unique_id)}
-          {field("Trip Plan", record.trip_plan?.display_code)}
-          {field("Collection Point", record.collection_point?.cp_name ?? (record.collection_point as any)?.cp_name)}
-          {field("Bin", record.bin?.bin_name)}
-          {field("Bin Type", record.bin?.bin_type)}
-          {field("Bin Capacity (L)", record.bin?.bin_capacity)}
-          {field("Waste Type", record.waste_type?.waste_type_name)}
-          {field("Vehicle", record.vehicle?.vehicle_no)}
-          {field("Driver", driverName)}
-          {field("Operator", operatorName)}
-          {field("Collected Weight (kg)", record.collected_weight_kg)}
-          {field("GPS Latitude", record.driver_latitude ?? "-")}
-          {field("GPS Longitude", record.driver_longitude ?? "-")}
-          {field("Notes", record.notes ?? "-")}
-          {field("Company", record.company_name)}
-          {field("Project", record.project_name)}
-          {field("Scanned At", formatDate(record.created_at))}
-        </div>
+      <ComponentCard title={title} desc={isEdit ? "Update the bin collection scan record" : "Record a bin collection scan event manually"}>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Company / Project (superadmin) */}
+          {isSuperAdmin && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>{t("admin.nav.company")}</Label>
+                <select
+                  value={companyUniqueId || ""}
+                  onChange={(e) => onCompanyChange(e.target.value)}
+                  disabled={Boolean(loggedInCompanyUniqueId) || companies.length === 0}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:opacity-50"
+                >
+                  <option value="">{t("common.select_item_placeholder", { item: t("admin.nav.company") })}</option>
+                  {companies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>{t("admin.nav.project")}</Label>
+                <select
+                  value={projectId || ""}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  disabled={!companyUniqueId || projects.length === 0}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:opacity-50"
+                >
+                  <option value="">{companyUniqueId ? t("common.select_item_placeholder", { item: t("admin.nav.project") }) : "Select a company first"}</option>
+                  {projects.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
 
-        <div className="mt-6 flex justify-end">
-          <button
-            type="button"
-            onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
-            className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
-          >
-            {t("common.back")}
-          </button>
-        </div>
+          {/* Location filters */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <Label>Zone {filterZone && !filterPanchayat ? <span className="text-red-500">*</span> : null}</Label>
+              <Select
+                options={zoneOptions}
+                value={filterZone}
+                onChange={(v) => {
+                  setFilterZone(v);
+                  setFilterWard("");
+                  set("trip_assignment_id")("");
+                  set("trip_collection_point_id")("");
+                }}
+                placeholder={fetchingDropdowns ? "Loading..." : "Select Zone"}
+                disabled={fetchingDropdowns || !projectId || Boolean(filterPanchayat)}
+              />
+            </div>
+            <div>
+              <Label>Ward {filterZone && !filterPanchayat ? <span className="text-red-500">*</span> : null}</Label>
+              <Select
+                options={filteredWardOptions}
+                value={filterWard}
+                onChange={(v) => {
+                  setFilterWard(v);
+                  set("trip_assignment_id")("");
+                  set("trip_collection_point_id")("");
+                }}
+                placeholder={filterZone ? "Select Ward" : "Select Zone first"}
+                disabled={fetchingDropdowns || !projectId || !filterZone || Boolean(filterPanchayat)}
+              />
+            </div>
+            <div>
+              <Label>Panchayat</Label>
+              <Select
+                options={panchayatOptions}
+                value={filterPanchayat}
+                onChange={(v) => {
+                  setFilterPanchayat(v);
+                  if (v) { setFilterZone(""); setFilterWard(""); }
+                  set("trip_assignment_id")("");
+                  set("trip_collection_point_id")("");
+                }}
+                placeholder="Select Panchayat"
+                disabled={fetchingDropdowns || !projectId || Boolean(filterZone) || Boolean(filterWard)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Trip Assignment <span className="text-red-500">*</span></Label>
+              <Select
+                options={filteredAssignmentOptions}
+                value={form.trip_assignment_id}
+                onChange={(v) => { set("trip_assignment_id")(v); set("trip_collection_point_id")(""); }}
+                placeholder={fetchingDropdowns ? "Loading..." : "Select Trip Assignment"}
+                disabled={fetchingDropdowns || !projectId}
+              />
+            </div>
+            <div>
+              <Label>Collection Point</Label>
+              <Select
+                options={collectionPointOptions}
+                value={form.trip_collection_point_id}
+                onChange={set("trip_collection_point_id")}
+                placeholder={form.trip_assignment_id ? "Select Collection Point" : "Select assignment first"}
+                disabled={!form.trip_assignment_id}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Bin <span className="text-red-500">*</span></Label>
+              <Select
+                options={binOptions}
+                value={form.bin_id}
+                onChange={set("bin_id")}
+                placeholder={fetchingDropdowns ? "Loading..." : "Select Bin"}
+                disabled={fetchingDropdowns || !projectId}
+              />
+            </div>
+            <div>
+              <Label>Collected Weight (kg)</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={form.collected_weight_kg}
+                onChange={(e) => set("collected_weight_kg")(e.target.value)}
+                placeholder="e.g. 12.5"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>GPS Latitude</Label>
+              <Input
+                type="number"
+                step="any"
+                value={form.driver_latitude}
+                onChange={(e) => set("driver_latitude")(e.target.value)}
+                placeholder="e.g. 11.1271"
+              />
+            </div>
+            <div>
+              <Label>GPS Longitude</Label>
+              <Input
+                type="number"
+                step="any"
+                value={form.driver_longitude}
+                onChange={(e) => set("driver_longitude")(e.target.value)}
+                placeholder="e.g. 78.6569"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Label>Notes</Label>
+            <textarea
+              value={form.notes}
+              onChange={(e) => set("notes")(e.target.value)}
+              rows={3}
+              placeholder="Optional notes..."
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
+              className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            >
+              {t("common.cancel")}
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-green-custom px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {saving ? t("common.saving") : isEdit ? t("common.update") : t("common.save")}
+            </button>
+          </div>
+        </form>
       </ComponentCard>
     </div>
   );
