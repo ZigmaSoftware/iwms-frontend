@@ -221,6 +221,45 @@ export default function LocalBodyDashboard() {
     });
   }, [dayWiseBreakdown]);
 
+  /* ── chart data derived from monthly rows ── */
+  const monthlyWasteTypeKeys = useMemo(
+    () => [...new Set(rows.map((r) => r.waste_type))].sort(),
+    [rows],
+  );
+
+  // Stacked weight per month × waste type
+  const monthlyWeightChartData = useMemo(() => {
+    const months = [...new Set(rows.map((r) => r.month))].sort();
+    return months.map((month) => {
+      const row: Record<string, string | number> = { month };
+      rows.filter((r) => r.month === month).forEach((r) => {
+        row[r.waste_type] = r.total_actual_weight;
+      });
+      return row;
+    });
+  }, [rows]);
+
+  // Grouped trips per month × waste type
+  const monthlyTripsChartData = useMemo(() => {
+    const months = [...new Set(rows.map((r) => r.month))].sort();
+    return months.map((month) => {
+      const row: Record<string, string | number> = { month };
+      rows.filter((r) => r.month === month).forEach((r) => {
+        row[r.waste_type] = r.total_trips;
+      });
+      return row;
+    });
+  }, [rows]);
+
+  // Points per month — MAX across waste types (same physical points)
+  const monthlyPointsChartData = useMemo(() => {
+    const months = [...new Set(rows.map((r) => r.month))].sort();
+    return months.map((month) => {
+      const pts = rows.filter((r) => r.month === month).map((r) => r.collection_points_covered);
+      return { month, points_covered: pts.length ? Math.max(...pts) : 0 };
+    });
+  }, [rows]);
+
   /* ── helpers ── */
   const fmt = (v?: number | null, suffix = "") => {
     const n = Number(v);
@@ -391,36 +430,179 @@ export default function LocalBodyDashboard() {
               ))}
             </div>
 
-            {/* Monthly Charts */}
+            {/* ══ Chart 1 — Stacked weight by waste type per month ══ */}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 pt-4 pb-2 border-b border-gray-50">
+                <h2 className="text-sm font-bold text-gray-800">Collected Weight by Waste Type</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Stacked bars — each colour = one waste type's actual weight per month</p>
+              </div>
+              <div className="p-4">
+                {monthlyWeightChartData.length === 0
+                  ? <div className="flex h-52 items-center justify-center text-sm text-gray-400">No data for the selected period</div>
+                  : (
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={monthlyWeightChartData} margin={{ top: 8, right: 20, left: 8, bottom: 0 }} barCategoryGap="35%">
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                        <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
+                        <YAxis tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} unit=" kg" />
+                        <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
+                          formatter={(v: number, name: string) => [`${v.toLocaleString()} kg`, name]}
+                          cursor={{ fill: "rgba(0,0,0,0.04)" }} />
+                        <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                        {monthlyWasteTypeKeys.map((wt, i) => (
+                          <Bar key={wt} dataKey={wt} stackId="w" fill={PIE_COLORS[i % PIE_COLORS.length]}
+                            radius={i === monthlyWasteTypeKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )
+                }
+              </div>
+            </div>
+
+            {/* ══ Charts 2 + 3 — Trips per waste type | Points per month ══ */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                <h2 className="text-sm font-semibold text-gray-700 mb-3">Monthly Collection Trend</h2>
-                <ResponsiveContainer width="100%" height={240}>
-                  <LineChart data={monthlyTrends}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="total_agreed_weight" name="Agreed" stroke="#2563eb" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="total_actual_weight" name="Actual"  stroke="#16a34a" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
+
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-5 pt-4 pb-2 border-b border-gray-50">
+                  <h2 className="text-sm font-bold text-gray-800">Trips per Waste Type</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">Grouped bars — trips per waste type each month</p>
+                </div>
+                <div className="p-4">
+                  {monthlyTripsChartData.length === 0
+                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No data</div>
+                    : (
+                      <ResponsiveContainer width="100%" height={240}>
+                        <BarChart data={monthlyTripsChartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }} barCategoryGap="30%">
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                          <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
+                          <YAxis tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
+                          <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
+                            formatter={(v: number, name: string) => [`${v} trips`, name]}
+                            cursor={{ fill: "rgba(0,0,0,0.04)" }} />
+                          <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                          {monthlyWasteTypeKeys.map((wt, i) => (
+                            <Bar key={wt} dataKey={wt} name={wt} fill={PIE_COLORS[i % PIE_COLORS.length]} radius={[4, 4, 0, 0]} />
+                          ))}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )
+                  }
+                </div>
               </div>
 
-              <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                <h2 className="text-sm font-semibold text-gray-700 mb-3">Waste Type Comparison</h2>
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={wasteBreakdown.slice(0, 8)}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="waste_type" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="total_actual_weight"  name="Actual kg"  fill="#16a34a" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="total_agreed_weight"  name="Agreed kg"  fill="#2563eb" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-5 pt-4 pb-2 border-b border-gray-50">
+                  <h2 className="text-sm font-bold text-gray-800">Collection Points Covered</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">Unique physical points covered each month</p>
+                </div>
+                <div className="p-4">
+                  {monthlyPointsChartData.length === 0
+                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No data</div>
+                    : (
+                      <ResponsiveContainer width="100%" height={240}>
+                        <BarChart data={monthlyPointsChartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }} barCategoryGap="40%">
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                          <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
+                          <YAxis tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
+                          <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
+                            formatter={(v: number) => [`${v} points`, "Covered"]}
+                            cursor={{ fill: "rgba(0,0,0,0.04)" }} />
+                          <Bar dataKey="points_covered" name="Points Covered" fill="#7c3aed" radius={[4, 4, 0, 0]}>
+                            {monthlyPointsChartData.map((_, idx) => (
+                              <Cell key={idx} fill={`hsl(${262 + idx * 12}, 70%, ${52 - idx * 2}%)`} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )
+                  }
+                </div>
+              </div>
+            </div>
+
+            {/* ══ Charts 4 + 5 — Waste type donut | Agreed vs Actual trend ══ */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+              {/* Waste type donut with progress bars */}
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-5 pt-4 pb-2 border-b border-gray-50">
+                  <h2 className="text-sm font-bold text-gray-800">Period Total — by Waste Type</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">Proportion of total actual weight per waste category</p>
+                </div>
+                <div className="p-4">
+                  {wasteBreakdown.length === 0
+                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No data</div>
+                    : (
+                      <div className="flex gap-6 items-center">
+                        <ResponsiveContainer width="48%" height={210}>
+                          <PieChart>
+                            <Pie data={wasteBreakdown} dataKey="total_actual_weight" nameKey="waste_type"
+                              cx="50%" cy="50%" outerRadius={85} innerRadius={44} paddingAngle={3}>
+                              {wasteBreakdown.map((_, i) => (
+                                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
+                              formatter={(v: number) => [`${Number(v).toLocaleString()} kg`]} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="flex-1 space-y-3">
+                          {wasteBreakdown.map((wt: any, i: number) => {
+                            const total = wasteBreakdown.reduce((s: number, r: any) => s + Number(r.total_actual_weight), 0);
+                            const share = total ? Math.round((Number(wt.total_actual_weight) / total) * 100) : 0;
+                            return (
+                              <div key={String(wt.waste_type)}>
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                                    <span className="text-xs font-semibold text-gray-700">{String(wt.waste_type)}</span>
+                                  </div>
+                                  <span className="text-xs font-bold text-gray-800">{share}%</span>
+                                </div>
+                                <div className="h-1.5 w-full rounded-full bg-gray-100">
+                                  <div className="h-full rounded-full" style={{ width: `${share}%`, backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
+                                </div>
+                                <p className="text-[11px] text-gray-400 mt-0.5">{Number(wt.total_actual_weight).toLocaleString()} kg actual · {Number(wt.total_agreed_weight).toLocaleString()} kg agreed</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )
+                  }
+                </div>
+              </div>
+
+              {/* Agreed vs Actual trend line per month */}
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-5 pt-4 pb-2 border-b border-gray-50">
+                  <h2 className="text-sm font-bold text-gray-800">Agreed vs Actual — Monthly Trend</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">Compare committed targets against actual collection each month</p>
+                </div>
+                <div className="p-4">
+                  {monthlyTrends.length === 0
+                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No data</div>
+                    : (
+                      <ResponsiveContainer width="100%" height={210}>
+                        <LineChart data={monthlyTrends} margin={{ top: 8, right: 20, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                          <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
+                          <YAxis tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} unit=" kg" />
+                          <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
+                            formatter={(v: number, name: string) => [`${Number(v).toLocaleString()} kg`, name]} />
+                          <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                          <Line type="monotone" dataKey="total_agreed_weight" name="Agreed"
+                            stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 4"
+                            dot={{ r: 3, fill: "#94a3b8", strokeWidth: 2, stroke: "#fff" }} />
+                          <Line type="monotone" dataKey="total_actual_weight" name="Actual"
+                            stroke="#2563eb" strokeWidth={2.5}
+                            dot={{ r: 4, fill: "#2563eb", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 6 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    )
+                  }
+                </div>
               </div>
             </div>
 

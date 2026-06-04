@@ -218,6 +218,7 @@ const ROUTES: RouteMap = {
     "daily-trip-collection-point": { list: DailyTripCollectionPointList, form: DailyTripCollectionPointForm },
     "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
     "daily-trip-log": { list: DailyTripLogList },
+    "daily-waste-comparisons": { list: DailyWasteComparisonList, form: DailyWasteComparisonForm },
   },
   "customer-master": {
     "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },
