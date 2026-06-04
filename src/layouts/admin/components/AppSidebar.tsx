@@ -382,38 +382,10 @@ const userCreationMasters: NavItem[] = [
         module: "user-creations",
         screen: "staffcreation",
       },
-      // {
-      //   nameKey: "admin.nav.supervisor_zone_map",
-      //   path: `/${encStaffMasters}/${encSupervisorZoneMap}`,
-      //   module: "user-creations",
-      //   screen: "supervisor-zone-map",
-      // },
-      // {
-      //   nameKey: "admin.nav.unassigned_staff_pool",
-      //   path: `/${encStaffMasters}/${encUnassignedStaffPool}`,
-      //   module: "user-creations",
-      //   screen: "unassigned-staff-pool",
-      // },
     ],
   },
 ];
 
-const processItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.process_items",
-    icon: <Truck size={18} />,
-    module: "process",
-    screen: "process",
-    subItems: [
-      // {
-      //   nameKey: "admin.nav.zone_property_load_tracker",
-      //   path: `/${encTransportMaster}/${encZonePropertyLoadTracker}`,
-      //   module: "process",
-      //   screen: "zone-property-load-tracker",
-      // },
-    ],
-  },
-];
 
 const customerMasters: NavItem[] = [
   {
@@ -575,6 +547,12 @@ const scheduleMastersItems: NavItem[] = [
         module: "schedule-masters",
         screen: "daily-trip-logs",
       },
+      {
+        nameKey: "Daily Waste Comparison",
+        path: `/${encScheduleMasters}/${encDailyWasteComparison}`,
+        module: "schedule-masters",
+        screen: "daily-waste-comparisons",
+      },
     ],
   },
 ];
@@ -649,51 +627,6 @@ const vehicleTrackingItems: NavItem[] = [
   },
 ];
 
-// const wasteManagementMasters: NavItem[] = [
-//   {
-//     nameKey: "admin.nav.waste_management",
-//     icon: <Recycle size={18} />,
-//     module: "waste-management",
-//     screen: "WasteManagement",
-//     subItems: [
-//       {
-//         nameKey: "admin.nav.collection_monitoring",
-//         path: `/${encWasteManagementMaster}/${encCollectionMonitoring}`,
-//         module: "waste-management",
-//         screen: "CollectionMonitoring",
-//       },
-//       {
-//         nameKey: "admin.nav.panchayat_base_collection",
-//         path: `/${encWasteManagementMaster}/${encPanchayatBaseCollection}`,
-//         module: "waste-management",
-//         screen: "PanchayatBaseCollection",
-//       },
-//       {
-//         nameKey: "admin.nav.ward_base_collection",
-//         path: `/${encWasteManagementMaster}/${encWardBaseCollection}`,
-//         module: "waste-management",
-//         screen: "WardBaseCollection",
-//       },
-//     ],
-//   },
-// ];
-
-const workforceManagements: NavItem[] = [
-  {
-    nameKey: "admin.nav.workforce_management",
-    icon: <Building2 size={18} />,
-    module: "workforce",
-    screen: "WorkforceManagement",
-    subItems: [
-      {
-        nameKey: "admin.nav.workforce_management",
-        path: `/${encWorkforceManagement}/${encWorkforceManagement}`,
-        module: "workforce",
-        screen: "WorkforceManagement",
-      },
-    ],
-  },
-];
 
 const reportItems: NavItem[] = [
   {
@@ -726,6 +659,12 @@ const reportItems: NavItem[] = [
         module: "reports",
         screen: "MonthlyWasteComparison",
       },
+      {
+        nameKey: "admin.nav.workforce_management",
+        path: `/${encWorkforceManagement}/${encWorkforceManagement}`,
+        module: "workforce",
+        screen: "WorkforceManagement",
+      },
     ],
   },
 ];
@@ -743,7 +682,7 @@ const subMenuActiveClasses =
 const subMenuInactiveClasses =
   "block rounded-lg px-3 py-1.5 text-sm text-gray-600 hover:bg-green-50 hover:text-green-700";
 
-// ✅ Helper: Check if user is superadmin
+// Helper: Check if user is superadmin
 const isSuperAdminUser = (): boolean => {
   const roleFromStorage = localStorage.getItem("user_role");
   return roleFromStorage === "superadmin" || roleFromStorage === "super_admin";
@@ -756,10 +695,10 @@ const AppSidebar: React.FC = () => {
   const { hasPermission } = usePermission();
   const showFullSidebar = isExpanded || isMobileOpen;
 
-  // ✅ Detect if current user is superadmin
+  //  Detect if current user is superadmin
   const isSuperAdmin = useMemo(() => isSuperAdminUser(), []);
 
-  // ✅ Check permission with proper logging
+  // Check permission with proper logging
   const checkPermission = useCallback(
     (module: string | undefined, screen: string | undefined): boolean => {
       if (!module || !screen) return true;
@@ -769,7 +708,7 @@ const AppSidebar: React.FC = () => {
     [hasPermission]
   );
 
-  // ✅ Filter sub-items: only show items with permission
+  // Filter sub-items: only show items with permission
   const filterSubItems = (
     subItems: NavItem["subItems"]
   ): NavItem["subItems"] => {
@@ -788,7 +727,7 @@ const AppSidebar: React.FC = () => {
     });
   };
 
-  // ✅ Check if menu item should be shown
+  // Check if menu item should be shown
   const hasVisibleContent = (
     item: NavItem,
     filteredSubItems: NavItem["subItems"]
@@ -815,7 +754,7 @@ const AppSidebar: React.FC = () => {
     return hasChildren;
   };
 
-  // ✅ Build sidebar sections with strict filtering
+  // Build sidebar sections with strict filtering
   const sidebarSections = useMemo(
     () => {
       const allSections = [
@@ -828,24 +767,22 @@ const AppSidebar: React.FC = () => {
         { key: "screenManagement" as const, items: screenManagementItems },
         { key: "roleAssigns" as const, items: roleAssignsItems },
         { key: "userCreations" as const, items: userCreationMasters },
-        { key: "processItems" as const, items: processItems },
         { key: "customerMasters" as const, items: customerMasters },
         { key: "citizenGrievance" as const, items: citizenGrievanceItems },
         { key: "transportMasters" as const, items: transportMastersItems },
         { key: "scheduleMasters" as const, items: scheduleMastersItems },
         { key: "auditItems" as const, items: auditItems },
-        { key: "vehicleTracking" as const, items: vehicleTrackingItems },
-        { key: "workforceManagement" as const, items: workforceManagements },
+        { key: "vehicleTracking" as const, items: vehicleTrackingItems},
         { key: "reports" as const, items: reportItems },
       ];
 
-      // ✅ If superadmin, show ALL sections with ALL items
+      // If superadmin, show ALL sections with ALL items
       if (isSuperAdmin) {
         console.log("[Sidebar] SuperAdmin detected - showing all sections");
         return allSections.filter((section) => section.items.length > 0);
       }
 
-      // ✅ For regular users: strict filtering
+      // For regular users: strict filtering
       console.log("[Sidebar] Regular user - applying permission filters");
       return allSections
         .map((section) => {
