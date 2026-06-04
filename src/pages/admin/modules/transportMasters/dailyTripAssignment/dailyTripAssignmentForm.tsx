@@ -626,7 +626,7 @@ export default function DailyTripAssignmentForm() {
 
             {/* Panchayat */}
             <div>
-              <Label>Panchayat <span className="text-red-500">*</span></Label>
+              <Label>PLB (Participating Local Bodies) <span className="text-red-500">*</span></Label>
               <Select
                 value={formData.panchayat_id}
                 onChange={(value) =>
@@ -637,7 +637,7 @@ export default function DailyTripAssignmentForm() {
                   }))
                 }
                 options={resolvedPanchayats}
-                placeholder="Select panchayat"
+                placeholder="Select PLB"
                 disabled={fetching || !projectId || Boolean(formData.ward_id)}
               />
             </div>

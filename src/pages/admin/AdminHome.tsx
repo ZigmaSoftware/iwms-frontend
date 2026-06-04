@@ -213,7 +213,7 @@ const MASTER_CATEGORIES: Array<{
     group: "Geography",
   },
   {
-    label: "Panchayats",
+    label: "PLBs (Participating Local Bodies)",
     key: "panchayats",
     color: "#eab308",
     icon: Home,

@@ -264,8 +264,8 @@ export default function PanchayatLeaderForm() {
   return (
     <div className="p-6">
       <ComponentCard
-        title={isEdit ? "Edit Panchayat Leader" : "Add Panchayat Leader"}
-        desc="Manage login credentials for a panchayat local body leader."
+        title={isEdit ? "Edit PLB Leader" : "Add PLB Leader"}
+        desc="Manage login credentials for a PLB (Participating Local Bodies) leader."
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -330,7 +330,7 @@ export default function PanchayatLeaderForm() {
             {/* ── Panchayat ── */}
             <div>
               <Label htmlFor="panchayat_id">
-                Panchayat <span className="text-red-500 ml-1">*</span>
+                PLB (Participating Local Bodies) <span className="text-red-500 ml-1">*</span>
               </Label>
               <Select
                 id="panchayat_id"
@@ -344,8 +344,8 @@ export default function PanchayatLeaderForm() {
                   !companyUniqueId || !projectId
                     ? "Select company & project first"
                     : panchayatOptions.length === 0
-                      ? "No panchayats found"
-                      : "Select panchayat"
+                      ? "No PLBs found"
+                      : "Select PLB"
                 }
                 disabled={fetching || !companyUniqueId || !projectId}
               />
@@ -355,14 +355,14 @@ export default function PanchayatLeaderForm() {
               {!checkingPanchayat && panchayatTakenBy && (
                 <p className="mt-1 text-xs font-medium text-red-600 flex items-center gap-1">
                   <span>⚠</span>
-                  This panchayat already has a leader —{" "}
+                  This PLB already has a leader —{" "}
                   <span className="font-semibold">{panchayatTakenBy}</span>.
-                  Each panchayat can have only one leader.
+                  Each PLB can have only one leader.
                 </p>
               )}
               {!checkingPanchayat && formData.panchayat_id && !panchayatTakenBy && (
                 <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
-                  <span>✓</span> Panchayat is available
+                  <span>✓</span> PLB is available
                 </p>
               )}
             </div>

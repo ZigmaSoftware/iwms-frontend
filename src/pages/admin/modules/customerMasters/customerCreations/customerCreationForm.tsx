@@ -1323,7 +1323,7 @@ export default function CustomerCreationForm() {
           {/* ── PANCHAYAT ── */}
           {showField("panchayat_id") && (
             <ShadcnSelect
-              label={t("admin.nav.panchayat") || "Panchayat"}
+              label={t("admin.nav.panchayat") || "PLB (Participating Local Bodies)"}
               value={formData.panchayat_id || "__none__"}
               disabled={isZoneOrWardSelected}
               onChange={(v: string) => {

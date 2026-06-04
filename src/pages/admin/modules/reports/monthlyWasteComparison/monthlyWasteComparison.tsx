@@ -256,7 +256,7 @@ export default function MonthlyWasteComparison() {
         </div>
 
         <div className="mwc-panel">
-          <h2>Panchayat Performance</h2>
+          <h2>PLB Performance</h2>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={panchayatComparison.slice(0, 8)}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -292,7 +292,7 @@ export default function MonthlyWasteComparison() {
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
         <Column field="month" header="Month" sortable />
         <Column field="panchayat_id" header="Panchayat ID" sortable />
-        <Column field="panchayat_name" header="Panchayat" sortable />
+        <Column field="panchayat_name" header="PLB" sortable />
         <Column field="waste_type" header="Waste Type" sortable />
         <Column field="total_agreed_weight" header="Agreed Weight" body={(row) => formatNumber(row.total_agreed_weight)} sortable />
         <Column field="total_actual_weight" header="Actual Weight" body={(row) => formatNumber(row.total_actual_weight)} sortable />
