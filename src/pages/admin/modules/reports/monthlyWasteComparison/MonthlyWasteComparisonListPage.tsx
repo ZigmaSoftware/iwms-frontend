@@ -109,8 +109,8 @@ export default function MonthlyWasteComparisonListPage() {
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  const { encReport, encMonthlyWasteComparison } = getEncryptedRoute();
-  const NEW_PATH = `/${encReport}/${encMonthlyWasteComparison}/new`;
+  const { encScheduleMasters, encMonthlyWasteComparison } = getEncryptedRoute();
+  const NEW_PATH = `/${encScheduleMasters}/${encMonthlyWasteComparison}/new`;
 
   const fetchReport = async () => {
     if (isSuperAdmin && companies.length === 0) return;
@@ -192,7 +192,7 @@ export default function MonthlyWasteComparisonListPage() {
     <div className="flex gap-2 justify-center">
       <button
         onClick={() =>
-          navigate(`/${encReport}/${encMonthlyWasteComparison}/${row.unique_id}/edit`, {
+          navigate(`/${encScheduleMasters}/${encMonthlyWasteComparison}/${row.unique_id}/edit`, {
             state: {
               record: row,
               companyUniqueId: row.company_id,
