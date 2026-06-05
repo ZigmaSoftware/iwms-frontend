@@ -233,10 +233,30 @@ export default function TripPlanForm() {
 
   const options = useMemo(() => ({
     districts: buildOptions(lookups.districts ?? [], ["name", "district_name"]),
-    cities: buildOptions(lookups.cities ?? [], ["name", "city_name"]),
-    zones: buildOptions(lookups.zones ?? [], ["name", "zone_name"]),
-    panchayats: buildOptions(lookups.panchayats ?? [], ["panchayat_name", "name"]),
-    wards: buildOptions(lookups.wards ?? [], ["ward_name", "name"]),
+    cities: buildOptions(
+      (lookups.cities ?? []).filter((item) =>
+        !formData.district_id || String(item?.district_id ?? "") === formData.district_id
+      ),
+      ["name", "city_name"]
+    ),
+    zones: buildOptions(
+      (lookups.zones ?? []).filter((item) =>
+        !formData.city_id || String(item?.city_id ?? "") === formData.city_id
+      ),
+      ["name", "zone_name"]
+    ),
+    panchayats: buildOptions(
+      (lookups.panchayats ?? []).filter((item) =>
+        !formData.city_id || String(item?.city_id ?? "") === formData.city_id
+      ),
+      ["panchayat_name", "name"]
+    ),
+    wards: buildOptions(
+      (lookups.wards ?? []).filter((item) =>
+        !formData.zone_id || String(item?.zone_id ?? "") === formData.zone_id
+      ),
+      ["ward_name", "name"]
+    ),
     staffTemplates: buildOptions(lookups.staffTemplates ?? [], ["display_code"]),
     vehicles: buildOptions(lookups.vehicles ?? [], ["vehicle_no"]),
     staff: buildOptions(lookups.staff ?? [], ["employee_name", "username"]),
@@ -254,7 +274,7 @@ export default function TripPlanForm() {
       }),
       ["cp_name", "collection_point_name", "name"]
     ),
-  }), [formData.panchayat_id, formData.property_id, formData.ward_id, lookups]);
+  }), [formData.district_id, formData.city_id, formData.zone_id, formData.panchayat_id, formData.ward_id, formData.property_id, lookups]);
 
   const binOptionsFor = (collectionPointId: string) =>
     buildOptions(
@@ -266,11 +286,18 @@ export default function TripPlanForm() {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
+      // Cascade: district → clear city + everything below
+      ...(field === "district_id" ? { city_id: "", zone_id: "", panchayat_id: "", ward_id: "" } : {}),
+      // Cascade: city → clear zone + panchayat + ward
+      ...(field === "city_id" ? { zone_id: "", panchayat_id: "", ward_id: "" } : {}),
+      // Cascade: zone → clear ward
+      ...(field === "zone_id" ? { ward_id: "" } : {}),
+      // Mutual exclusion: panchayat ↔ ward
       ...(field === "panchayat_id" && value ? { ward_id: "" } : {}),
       ...(field === "ward_id" && value ? { panchayat_id: "" } : {}),
+      // Cascade: property → clear sub-property
       ...(field === "property_id" ? { sub_property_id: "" } : {}),
     }));
-    // Reset stops when location changes so stale collection points don't remain
     if (field === "panchayat_id" || field === "ward_id") {
       setStops([{ collection_point_id: "", bin_id: "", sequence: 1, is_active: true }]);
     }
@@ -359,10 +386,10 @@ export default function TripPlanForm() {
               </select>
             </div>
             <div><Label>District</Label><Select value={formData.district_id} onChange={setField("district_id")} options={options.districts} disabled={loading || !projectId} /></div>
-            <div><Label>City</Label><Select value={formData.city_id} onChange={setField("city_id")} options={options.cities} disabled={loading || !projectId} /></div>
-            <div><Label>Zone</Label><Select value={formData.zone_id} onChange={setField("zone_id")} options={options.zones} disabled={loading || !projectId} /></div>
-            <div><Label>PLB (Participating Local Bodies)</Label><Select value={formData.panchayat_id} onChange={setField("panchayat_id")} options={options.panchayats} disabled={loading || !projectId || Boolean(formData.ward_id)} /></div>
-            <div><Label>Ward</Label><Select value={formData.ward_id} onChange={setField("ward_id")} options={options.wards} disabled={loading || !projectId || Boolean(formData.panchayat_id)} /></div>
+            <div><Label>City</Label><Select value={formData.city_id} onChange={setField("city_id")} options={options.cities} disabled={loading || !formData.district_id} /></div>
+            <div><Label>Zone</Label><Select value={formData.zone_id} onChange={setField("zone_id")} options={options.zones} disabled={loading || !formData.city_id || Boolean(formData.panchayat_id)} /></div>
+            <div><Label>PLB (Participating Local Bodies)</Label><Select value={formData.panchayat_id} onChange={setField("panchayat_id")} options={options.panchayats} disabled={loading || !formData.city_id || Boolean(formData.ward_id)} /></div>
+            <div><Label>Ward</Label><Select value={formData.ward_id} onChange={setField("ward_id")} options={options.wards} disabled={loading || !formData.zone_id || Boolean(formData.panchayat_id)} /></div>
             <div><Label>Staff Template</Label><Select value={formData.staff_template_id} onChange={setField("staff_template_id")} options={options.staffTemplates} disabled={loading || !projectId} /></div>
             <div><Label>Vehicle</Label><Select value={formData.vehicle_id} onChange={setField("vehicle_id")} options={options.vehicles} disabled={loading || !projectId} /></div>
             <div><Label>Supervisor</Label><Select value={formData.supervisor_id} onChange={setField("supervisor_id")} options={options.staff} disabled={loading || !projectId} /></div>
