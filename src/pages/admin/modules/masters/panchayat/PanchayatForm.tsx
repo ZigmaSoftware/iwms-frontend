@@ -375,7 +375,7 @@ export default function PanchayatForm() {
   };
 
   return (
-    <ComponentCard title={isEdit ? "Edit Panchayat" : "Add Panchayat"}>
+    <ComponentCard title={isEdit ? "Edit PLB" : "Add PLB"}>
       <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6">
 
         {/* Company */}
@@ -530,7 +530,7 @@ export default function PanchayatForm() {
         {/* Panchayat Name */}
         {showField("panchayat_name") && (
           <div>
-            <Label>Panchayat Name *</Label>
+            <Label>PLB Name *</Label>
             <Input
               value={panchayatName}
               onChange={(e) => setPanchayatName(e.target.value)}

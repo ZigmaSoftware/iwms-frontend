@@ -1,23 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import {
-  Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart,
-  Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from "recharts";
-import { DataTable } from "@/components/common/SafeDataTable";
-import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
-import { Building2, Download, LogOut, Search } from "lucide-react";
+  ArrowLeft, Calendar, ClipboardList, Download,
+  FileBarChart2, LogOut, Printer, TrendingUp,
+} from "lucide-react";
 import ZigmaLogo from "../../images/logo.png";
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Dedicated axios instance — reads lb_access_token so it never conflicts
-   with the admin panel's session token
-───────────────────────────────────────────────────────────────────────── */
+/* ─── axios instance ─────────────────────────────────────────────────── */
 const IS_PROD = import.meta.env.VITE_PROD === "true";
 const API_ROOT = IS_PROD ? import.meta.env.VITE_API_PROD : import.meta.env.VITE_API_LOCAL;
 
@@ -28,10 +20,7 @@ lbApi.interceptors.request.use((config) => {
   return config;
 });
 
-/* ─── palette for waste-type pie chart ───────────────────────────────── */
-const PIE_COLORS = ["#2563eb", "#16a34a", "#f97316", "#8b5cf6", "#06b6d4", "#ec4899", "#14b8a6", "#f59e0b"];
-
-/* ─── types ──────────────────────────────────────────────────────────── */
+/* ─── types (unchanged) ──────────────────────────────────────────────── */
 type MonthlyRow = {
   unique_id: string; month: string; waste_type: string;
   total_agreed_weight: number; total_actual_weight: number;
@@ -40,52 +29,34 @@ type MonthlyRow = {
   collection_efficiency_percent: number; coverage_efficiency_percent?: number;
   average_weight_per_trip: number;
 };
-
 type DailyComparisonRow = {
-  unique_id: string;
-  collection_date: string;
-  waste_type: string;
-  agreed_weight_kg: number;
-  actual_weight_kg: number;
-  variance_kg: number;
-  variance_percent: number;
-  report_status: string;
-  total_trips: number;
-  collection_points_covered: number;
+  unique_id: string; collection_date: string; waste_type: string;
+  agreed_weight_kg: number; actual_weight_kg: number;
+  variance_kg: number; variance_percent: number; report_status: string;
+  total_trips: number; collection_points_covered: number;
 };
-
-type DayWise = { date: string; collected_weight_kg: number; trip_count: number; points_covered?: number };
-type WasteTypeStat = { waste_type: string; collected_weight_kg: number; trip_count: number };
 type DayWiseBreakdown = {
-  date: string; waste_type: string;
-  actual_weight_kg: number; agreed_weight_kg: number;
-  trip_count: number; points_covered: number;
+  date: string; waste_type: string; actual_weight_kg: number;
+  agreed_weight_kg: number; trip_count: number; points_covered: number;
 };
-
 type Kpis = {
   total_agreed_weight: number; total_actual_weight: number; variance_kg: number;
   collection_efficiency_percent: number; average_weight_per_trip: number;
   coverage_efficiency_percent: number; total_trips: number;
   collection_points_covered: number; report_status: string;
 };
-
 type DailyKpis = {
-  total_actual_kg: number;
-  total_agreed_kg: number;
-  variance_kg: number;
-  collection_efficiency_percent: number;
-  total_trips: number;
+  total_actual_kg: number; total_agreed_kg: number; variance_kg: number;
+  collection_efficiency_percent: number; total_trips: number;
   collection_points_covered: number;
 };
-
 type ApiResponse = {
-  panchayat_name: string;
-  results: MonthlyRow[];
+  panchayat_name: string; results: MonthlyRow[];
   monthly_trends: Array<Record<string, number | string>>;
   waste_type_breakdown: Array<Record<string, number | string>>;
   kpis: Kpis;
-  day_wise_collection: DayWise[];
-  trip_waste_types: WasteTypeStat[];
+  day_wise_collection: Array<{ date: string; collected_weight_kg: number; trip_count: number }>;
+  trip_waste_types: Array<{ waste_type: string; collected_weight_kg: number; trip_count: number }>;
   day_wise_breakdown: DayWiseBreakdown[];
   daily_rows: DailyComparisonRow[];
   daily_kpis: DailyKpis;
@@ -97,33 +68,49 @@ const ZERO_KPIS: Kpis = {
   coverage_efficiency_percent: 0, total_trips: 0, collection_points_covered: 0,
   report_status: "On Target",
 };
-
 const ZERO_DAILY_KPIS: DailyKpis = {
-  total_actual_kg: 0,
-  total_agreed_kg: 0,
-  variance_kg: 0,
-  collection_efficiency_percent: 0,
-  total_trips: 0,
-  collection_points_covered: 0,
+  total_actual_kg: 0, total_agreed_kg: 0, variance_kg: 0,
+  collection_efficiency_percent: 0, total_trips: 0, collection_points_covered: 0,
 };
 
 const currentMonth = () => {
   const t = new Date();
   return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}`;
 };
+const todayStr = () => new Date().toISOString().split("T")[0];
 
 function clearLocalBodySession() {
   ["lb_access_token","lb_panchayat_unique_id","lb_panchayat_name","lb_leader_name","lb_role"]
     .forEach((k) => localStorage.removeItem(k));
 }
 
-type Tab = "monthly" | "daily";
+type View = "home" | "daily" | "monthly";
 
-/* ─── component ──────────────────────────────────────────────────────── */
+/* ─── small helpers ──────────────────────────────────────────────────── */
+const fmt = (v?: number | null, dec = 3) =>
+  v == null ? "—" : Number(v).toLocaleString("en-IN", { maximumFractionDigits: dec });
+
+const StatusBadge = ({ s }: { s: string }) => {
+  const cls = s === "Surplus"
+    ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+    : s === "Deficit"
+    ? "bg-red-50 text-red-700 ring-red-200"
+    : "bg-blue-50 text-blue-700 ring-blue-200";
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ring-1 ${cls}`}>
+      {s || "—"}
+    </span>
+  );
+};
+
+/* ════════════════════════════════════════════════════════════
+    COMPONENT
+════════════════════════════════════════════════════════════ */
 export default function LocalBodyDashboard() {
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
   const leaderName    = localStorage.getItem("lb_leader_name") ?? "Leader";
   const panchayatName = localStorage.getItem("lb_panchayat_name") ?? "";
+  const printRef  = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const role  = localStorage.getItem("lb_role");
@@ -131,759 +118,566 @@ export default function LocalBodyDashboard() {
     if (role !== "panchayat_leader" || !token) navigate("/auth/localbody", { replace: true });
   }, [navigate]);
 
-  /* ── filters ── */
-  const [tab,          setTab]          = useState<Tab>("monthly");
-  const [monthValue,   setMonthValue]   = useState(currentMonth());
+  /* ── view / filters ── */
+  const [view,      setView]      = useState<View>("home");
   const [appliedMonth, setAppliedMonth] = useState(currentMonth());
-  const [sortMode,     setSortMode]     = useState("absolute");
+
+  const [fromDate, setFromDate]   = useState(todayStr());
+  const [toDate,   setToDate]     = useState(todayStr());
+  const [appliedFrom, setAppliedFrom] = useState("");
+  const [appliedTo,   setAppliedTo]   = useState("");
+
+  const [monthValue, setMonthValue] = useState(currentMonth());
+  const [appliedMonthFilter, setAppliedMonthFilter] = useState("");
 
   /* ── data ── */
-  const [rows,          setRows]          = useState<MonthlyRow[]>([]);
-  const [monthlyTrends, setMonthlyTrends] = useState<ApiResponse["monthly_trends"]>([]);
-  const [wasteBreakdown,setWasteBreakdown]= useState<ApiResponse["waste_type_breakdown"]>([]);
-  const [kpis,          setKpis]          = useState<Kpis>(ZERO_KPIS);
-  const [dayWise,          setDayWise]          = useState<DayWise[]>([]);
-  const [tripWasteTypes,   setTripWasteTypes]   = useState<WasteTypeStat[]>([]);
-  const [dayWiseBreakdown, setDayWiseBreakdown] = useState<DayWiseBreakdown[]>([]);
-  const [dailyRows,        setDailyRows]        = useState<DailyComparisonRow[]>([]);
-  const [dailyKpis,        setDailyKpis]        = useState<DailyKpis>(ZERO_DAILY_KPIS);
-  const [loading,       setLoading]       = useState(false);
-  const [error,         setError]         = useState("");
+  const [rows,      setRows]      = useState<MonthlyRow[]>([]);
+  const [dailyRows, setDailyRows] = useState<DailyComparisonRow[]>([]);
+  const [kpis,      setKpis]      = useState<Kpis>(ZERO_KPIS);
+  const [dailyKpis, setDailyKpis] = useState<DailyKpis>(ZERO_DAILY_KPIS);
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState("");
 
-  /* ── table filters ── */
-  const [monthlySearch,   setMonthlySearch]   = useState("");
-  const [monthlyFilters,  setMonthlyFilters]  = useState<any>({ global: { value: null, matchMode: FilterMatchMode.CONTAINS } });
-  const [tripSearch,      setTripSearch]      = useState("");
-  const [tripFilters,     setTripFilters]     = useState<any>({ global: { value: null, matchMode: FilterMatchMode.CONTAINS } });
-
-  /* ── fetch ── */
+  /* ── fetch (unchanged) ── */
   const fetchData = async () => {
     setLoading(true); setError("");
     try {
-      const params: Record<string, string> = { sort: sortMode };
+      const params: Record<string, string> = {};
       if (appliedMonth) params.month = appliedMonth;
       const { data } = await lbApi.get<ApiResponse>("/localbody/dashboard/", { params });
       setRows(Array.isArray(data?.results) ? data.results : []);
-      setMonthlyTrends(Array.isArray(data?.monthly_trends) ? data.monthly_trends : []);
-      setWasteBreakdown(Array.isArray(data?.waste_type_breakdown) ? data.waste_type_breakdown : []);
       setKpis(data?.kpis ?? ZERO_KPIS);
-      setDayWise(Array.isArray(data?.day_wise_collection) ? data.day_wise_collection : []);
-      setTripWasteTypes(Array.isArray(data?.trip_waste_types) ? data.trip_waste_types : []);
-      setDayWiseBreakdown(Array.isArray(data?.day_wise_breakdown) ? data.day_wise_breakdown : []);
       setDailyRows(Array.isArray(data?.daily_rows) ? data.daily_rows : []);
       setDailyKpis(data?.daily_kpis ?? ZERO_DAILY_KPIS);
     } catch {
-      setRows([]); setMonthlyTrends([]); setWasteBreakdown([]); setKpis(ZERO_KPIS);
-      setDayWise([]); setTripWasteTypes([]); setDailyRows([]); setDailyKpis(ZERO_DAILY_KPIS);
-      setError("Unable to load dashboard data. Please try again.");
+      setRows([]); setKpis(ZERO_KPIS); setDailyRows([]); setDailyKpis(ZERO_DAILY_KPIS);
+      setError("Unable to load data. Please try again.");
     } finally { setLoading(false); }
   };
+  useEffect(() => { void fetchData(); }, [appliedMonth]);
 
-  useEffect(() => { void fetchData(); }, [appliedMonth, sortMode]);
-
-  /* ── chart data derived from day_wise_breakdown ── */
-  const wasteTypeKeys = useMemo(
-    () => [...new Set(dayWiseBreakdown.map((r) => r.waste_type))].sort(),
-    [dayWiseBreakdown],
-  );
-
-  // Stacked weight chart: one entry per date, one key per waste type
-  const weightChartData = useMemo(() => {
-    const dates = [...new Set(dayWiseBreakdown.map((r) => r.date))].sort();
-    return dates.map((date) => {
-      const row: Record<string, string | number> = { date };
-      dayWiseBreakdown.filter((r) => r.date === date).forEach((r) => {
-        row[r.waste_type] = r.actual_weight_kg;
-      });
-      return row;
+  /* ── filtered rows (client-side) ── */
+  const filteredDailyRows = useMemo(() => {
+    if (!appliedFrom && !appliedTo) return dailyRows;
+    return dailyRows.filter((r) => {
+      const d = r.collection_date;
+      if (appliedFrom && d < appliedFrom) return false;
+      if (appliedTo   && d > appliedTo)   return false;
+      return true;
     });
-  }, [dayWiseBreakdown]);
+  }, [dailyRows, appliedFrom, appliedTo]);
 
-  // Grouped trips chart: one entry per date, one key per waste type
-  const tripsChartData = useMemo(() => {
-    const dates = [...new Set(dayWiseBreakdown.map((r) => r.date))].sort();
-    return dates.map((date) => {
-      const row: Record<string, string | number> = { date };
-      dayWiseBreakdown.filter((r) => r.date === date).forEach((r) => {
-        row[r.waste_type] = r.trip_count;
-      });
-      return row;
-    });
-  }, [dayWiseBreakdown]);
+  const filteredMonthlyRows = useMemo(() => {
+    if (!appliedMonthFilter) return rows;
+    return rows.filter((r) => r.month === appliedMonthFilter);
+  }, [rows, appliedMonthFilter]);
 
-  // Points chart: MAX per date — collection points are the SAME physical locations
-  // for all waste types on a given day, so SUM would double-count them.
-  const pointsChartData = useMemo(() => {
-    const dates = [...new Set(dayWiseBreakdown.map((r) => r.date))].sort();
-    return dates.map((date) => {
-      const points = dayWiseBreakdown.filter((r) => r.date === date).map((r) => r.points_covered);
-      return { date, points_covered: points.length ? Math.max(...points) : 0 };
-    });
-  }, [dayWiseBreakdown]);
+  /* ── totals ── */
+  const dailyTotal = useMemo(() => ({
+    agreed:   filteredDailyRows.reduce((s, r) => s + Number(r.agreed_weight_kg), 0),
+    actual:   filteredDailyRows.reduce((s, r) => s + Number(r.actual_weight_kg), 0),
+    variance: filteredDailyRows.reduce((s, r) => s + Number(r.variance_kg), 0),
+    trips:    filteredDailyRows.reduce((s, r) => s + r.total_trips, 0),
+    points:   filteredDailyRows.reduce((s, r) => s + r.collection_points_covered, 0),
+  }), [filteredDailyRows]);
 
-  /* ── chart data derived from monthly rows ── */
-  const monthlyWasteTypeKeys = useMemo(
-    () => [...new Set(rows.map((r) => r.waste_type))].sort(),
-    [rows],
-  );
+  const monthlyTotal = useMemo(() => ({
+    agreed:   filteredMonthlyRows.reduce((s, r) => s + Number(r.total_agreed_weight), 0),
+    actual:   filteredMonthlyRows.reduce((s, r) => s + Number(r.total_actual_weight), 0),
+    variance: filteredMonthlyRows.reduce((s, r) => s + Number(r.variance_kg), 0),
+    trips:    filteredMonthlyRows.reduce((s, r) => s + r.total_trips, 0),
+    points:   filteredMonthlyRows.reduce((s, r) => s + r.collection_points_covered, 0),
+  }), [filteredMonthlyRows]);
 
-  // Stacked weight per month × waste type
-  const monthlyWeightChartData = useMemo(() => {
-    const months = [...new Set(rows.map((r) => r.month))].sort();
-    return months.map((month) => {
-      const row: Record<string, string | number> = { month };
-      rows.filter((r) => r.month === month).forEach((r) => {
-        row[r.waste_type] = r.total_actual_weight;
-      });
-      return row;
-    });
-  }, [rows]);
+  /* ── actions ── */
+  const handlePrint = () => window.print();
 
-  // Grouped trips per month × waste type
-  const monthlyTripsChartData = useMemo(() => {
-    const months = [...new Set(rows.map((r) => r.month))].sort();
-    return months.map((month) => {
-      const row: Record<string, string | number> = { month };
-      rows.filter((r) => r.month === month).forEach((r) => {
-        row[r.waste_type] = r.total_trips;
-      });
-      return row;
-    });
-  }, [rows]);
-
-  // Points per month — MAX across waste types (same physical points)
-  const monthlyPointsChartData = useMemo(() => {
-    const months = [...new Set(rows.map((r) => r.month))].sort();
-    return months.map((month) => {
-      const pts = rows.filter((r) => r.month === month).map((r) => r.collection_points_covered);
-      return { month, points_covered: pts.length ? Math.max(...pts) : 0 };
-    });
-  }, [rows]);
-
-  /* ── helpers ── */
-  const fmt = (v?: number | null, suffix = "") => {
-    const n = Number(v);
-    if (Number.isNaN(n)) return "—";
-    return `${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}${suffix}`;
+  const downloadDaily = () => {
+    const ws = XLSX.utils.json_to_sheet(filteredDailyRows.map((r, i) => ({
+      "S.No": i + 1, "Date": r.collection_date, "Waste Type": r.waste_type,
+      "Agreed (Kg)": r.agreed_weight_kg, "Actual (Kg)": r.actual_weight_kg,
+      "Variance (Kg)": r.variance_kg, "Variance %": r.variance_percent,
+      "Status": r.report_status, "Trips": r.total_trips, "Points": r.collection_points_covered,
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Daily Report");
+    saveAs(new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })]),
+      `daily-report-${panchayatName}.xlsx`);
   };
 
-  const statusBadge = (row: MonthlyRow) => {
-    const s = String(row.report_status || "On Target");
-    const cls = s === "Surplus" ? "bg-green-100 text-green-800 border-green-200"
-      : s === "Deficit" ? "bg-red-100 text-red-800 border-red-200"
-      : "bg-blue-100 text-blue-800 border-blue-200";
-    return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${cls}`}>{s}</span>;
-  };
-
-  const dailyStatusBadge = (row: DailyComparisonRow) => {
-    const s = String(row.report_status || "On Target");
-    const cls = s === "Surplus" ? "bg-green-100 text-green-800 border-green-200"
-      : s === "Deficit" ? "bg-red-100 text-red-800 border-red-200"
-      : "bg-blue-100 text-blue-800 border-blue-200";
-    return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${cls}`}>{s}</span>;
-  };
-
-  /* ── downloads ── */
-  const handleMonthlyDownload = () => {
-    const ws = XLSX.utils.json_to_sheet(rows.map((r) => ({
-      month: r.month, waste_type: r.waste_type,
-      agreed_kg: r.total_agreed_weight, actual_kg: r.total_actual_weight,
-      variance_kg: r.variance_kg, variance_pct: r.variance_percent,
-      status: r.report_status, trips: r.total_trips,
-      points: r.collection_points_covered,
-      coll_eff_pct: r.collection_efficiency_percent,
-      avg_per_trip: r.average_weight_per_trip,
+  const downloadMonthly = () => {
+    const ws = XLSX.utils.json_to_sheet(filteredMonthlyRows.map((r, i) => ({
+      "S.No": i + 1, "Month": r.month, "Waste Type": r.waste_type,
+      "Agreed (Kg)": r.total_agreed_weight, "Actual (Kg)": r.total_actual_weight,
+      "Variance (Kg)": r.variance_kg, "Status": r.report_status,
+      "Trips": r.total_trips, "Points": r.collection_points_covered,
     })));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Monthly Report");
     saveAs(new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })]),
-      `monthly-report-${panchayatName}-${appliedMonth || "all"}.xlsx`);
+      `monthly-report-${panchayatName}.xlsx`);
   };
 
-  const handleDailyDownload = () => {
-    const ws = XLSX.utils.json_to_sheet(dailyRows.map((r) => ({
-      collection_date: r.collection_date, waste_type: r.waste_type,
-      agreed_kg: r.agreed_weight_kg, actual_kg: r.actual_weight_kg,
-      variance_kg: r.variance_kg, variance_pct: r.variance_percent,
-      status: r.report_status, trips: r.total_trips,
-      points_covered: r.collection_points_covered,
-    })));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Daily Waste Comparison");
-    saveAs(new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })]),
-      `daily-waste-comparison-${panchayatName}-${appliedMonth || "all"}.xlsx`);
-  };
+  /* ── shared header ── */
+  const Header = (
+    <header
+      className="print:hidden sticky top-0 z-20 flex items-center justify-between px-6 shadow-sm"
+      style={{ height: 64, background: "linear-gradient(90deg,#1a8a44 0%,#22a855 100%)" }}
+    >
+      <div className="flex items-center gap-3">
+        <div className="h-9 w-9 rounded-lg bg-white/20 flex items-center justify-center">
+          <img src={ZigmaLogo} className="h-7 w-7 object-contain" alt="Zigma" />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-white leading-tight">IWMS Portal</p>
+          <p className="text-[11px] text-white/70 leading-tight">Panchayat Leader Dashboard</p>
+        </div>
+      </div>
 
-  /* ── KPI cards ── */
-  const monthlyKpiCards = [
-    { label: "Collection Efficiency", value: fmt(kpis.collection_efficiency_percent, "%"),  color: "border-l-blue-500",   text: "text-blue-700"   },
-    { label: "Avg Weight / Trip",     value: fmt(kpis.average_weight_per_trip, " kg"),      color: "border-l-green-500",  text: "text-green-700"  },
-    { label: "Coverage Efficiency",   value: fmt(kpis.coverage_efficiency_percent, "%"),    color: "border-l-purple-500", text: "text-purple-700" },
-    { label: "Total Variance",        value: fmt(kpis.variance_kg, " kg"),                  color: "border-l-orange-500", text: "text-orange-700" },
-    { label: "Total Trips",           value: fmt(kpis.total_trips),                         color: "border-l-teal-500",   text: "text-teal-700"   },
-    { label: "Points Covered",        value: fmt(kpis.collection_points_covered),           color: "border-l-pink-500",   text: "text-pink-700"   },
-    { label: "Agreed Weight",         value: fmt(kpis.total_agreed_weight, " kg"),          color: "border-l-indigo-500", text: "text-indigo-700" },
-    { label: "Actual Weight",         value: fmt(kpis.total_actual_weight, " kg"),          color: "border-l-cyan-500",   text: "text-cyan-700"   },
-  ];
+      <p className="text-sm font-semibold text-white hidden md:block tracking-wide">
+        {panchayatName} — Waste Collection Analytics
+      </p>
 
-  const dailyKpiCards = [
-    { label: "Actual Weight",          value: fmt(dailyKpis.total_actual_kg, " kg"),             color: "border-l-cyan-500",   text: "text-cyan-700"   },
-    { label: "Agreed Weight",          value: fmt(dailyKpis.total_agreed_kg, " kg"),             color: "border-l-indigo-500", text: "text-indigo-700" },
-    { label: "Variance",               value: fmt(dailyKpis.variance_kg, " kg"),                 color: "border-l-orange-500", text: "text-orange-700" },
-    { label: "Collection Efficiency",  value: fmt(dailyKpis.collection_efficiency_percent, "%"), color: "border-l-blue-500",   text: "text-blue-700"   },
-    { label: "Total Trips",            value: fmt(dailyKpis.total_trips),                        color: "border-l-teal-500",   text: "text-teal-700"   },
-    { label: "Points Covered",         value: fmt(dailyKpis.collection_points_covered),          color: "border-l-pink-500",   text: "text-pink-700"   },
-  ];
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 bg-white/15 rounded-lg px-3 py-1.5">
+          <span className="h-6 w-6 rounded-full bg-white/30 flex items-center justify-center text-xs font-bold text-white">
+            {(leaderName[0] ?? "L").toUpperCase()}
+          </span>
+          <span className="text-xs font-semibold text-white hidden sm:block">{leaderName}</span>
+        </div>
+        <button
+          onClick={() => { clearLocalBodySession(); navigate("/auth/localbody", { replace: true }); }}
+          className="flex items-center gap-1.5 bg-red-500/90 hover:bg-red-600 text-white rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+        >
+          <LogOut className="h-3.5 w-3.5" /> Logout
+        </button>
+      </div>
+    </header>
+  );
 
-  /* ── render ── */
+  /* ── print-only company header ── */
+  const PrintHeader = (
+    <div className="hidden print:block mb-6">
+      <div className="flex items-center justify-between pb-3 border-b-2" style={{ borderColor: "#22a855" }}>
+        <div className="flex items-center gap-3">
+          <img src={ZigmaLogo} className="h-12 w-12 object-contain" alt="Zigma" />
+          <div>
+            <p className="text-base font-bold text-gray-900">ZIGMA Global Environ Solutions Pvt. Ltd.</p>
+            <p className="text-sm text-gray-500">{panchayatName} — IWMS Panchayat Leader Portal</p>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400">Printed: {new Date().toLocaleString("en-IN")}</p>
+      </div>
+    </div>
+  );
+
+  /* ── stat card ── */
+  const StatCard = ({
+    label, value, accent, icon,
+  }: { label: string; value: string; accent: string; icon: React.ReactNode }) => (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
+      <div className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: accent + "18" }}>
+        <span style={{ color: accent }}>{icon}</span>
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs text-gray-400 font-medium truncate">{label}</p>
+        <p className="text-lg font-bold text-gray-800 mt-0.5">{loading ? "—" : value}</p>
+      </div>
+    </div>
+  );
+
+  /* ── action button ── */
+  const ActionBtn = ({
+    label, icon, onClick, color = "#22a855",
+  }: { label: string; icon: React.ReactNode; onClick: () => void; color?: string }) => (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold border transition-all hover:shadow-sm print:hidden"
+      style={{ borderColor: color + "60", color, background: color + "0d" }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = color + "1a"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = color + "0d"; }}
+    >
+      {icon} {label}
+    </button>
+  );
+
+  /* ── table header column ── */
+  const TH = ({ children, right }: { children: React.ReactNode; right?: boolean }) => (
+    <th
+      className={`px-3 py-3 text-xs font-semibold border-r border-white/20 last:border-0 ${right ? "text-right" : "text-left"}`}
+      style={{ background: "linear-gradient(180deg,#22a855 0%,#1a8a44 100%)", color: "#fff" }}
+    >
+      {children}
+    </th>
+  );
+  const TH_B = ({ children, right }: { children: React.ReactNode; right?: boolean }) => (
+    <th
+      className={`px-3 py-3 text-xs font-semibold border-r border-white/20 last:border-0 ${right ? "text-right" : "text-left"}`}
+      style={{ background: "linear-gradient(180deg,#2563eb 0%,#1d4ed8 100%)", color: "#fff" }}
+    >
+      {children}
+    </th>
+  );
+
+  /* ════════════════════════════════════════════════════════════
+      HOME
+  ════════════════════════════════════════════════════════════ */
+  if (view === "home") {
+    return (
+      <div className="min-h-screen font-sans" style={{ background: "#f4f7f5" }}>
+        {Header}
+        <main className="p-6 space-y-6 max-w-7xl mx-auto">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
+          )}
+
+          {/* ── Welcome strip ── */}
+          <div
+            className="rounded-2xl px-6 py-5 flex flex-wrap items-center justify-between gap-4 shadow-sm"
+            style={{ background: "linear-gradient(135deg,#e8f8ee 0%,#d1f5df 100%)", border: "1px solid #b2e8c4" }}
+          >
+            <div>
+              <h1 className="text-xl font-bold text-gray-800">
+                Welcome, <span style={{ color: "#22a855" }}>{leaderName}</span>
+              </h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {panchayatName} · Waste Collection Report Portal
+              </p>
+            </div>
+            <div className="text-sm text-gray-500 flex items-center gap-1.5">
+              <Calendar className="h-4 w-4" style={{ color: "#22a855" }} />
+              {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+            </div>
+          </div>
+
+          {/* ── Stats ── */}
+          <section>
+            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">
+              Input Waste Statistics
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-3">
+              <StatCard label="Total Records (Daily)"     value={fmt(dailyRows.length, 0)}                              accent="#22a855" icon={<ClipboardList  className="h-5 w-5" />} />
+              <StatCard label="Actual Weight (Kg)"        value={fmt(dailyKpis.total_actual_kg)}                         accent="#2563eb" icon={<TrendingUp      className="h-5 w-5" />} />
+              <StatCard label="Agreed Weight (Kg)"        value={fmt(dailyKpis.total_agreed_kg)}                         accent="#7c3aed" icon={<FileBarChart2   className="h-5 w-5" />} />
+              <StatCard label="Collection Efficiency"     value={`${fmt(dailyKpis.collection_efficiency_percent, 2)}%`}  accent="#f97316" icon={<TrendingUp      className="h-5 w-5" />} />
+              <StatCard label="Total Trips"               value={fmt(dailyKpis.total_trips, 0)}                          accent="#0891b2" icon={<ClipboardList  className="h-5 w-5" />} />
+              <StatCard label="Points Covered"            value={fmt(dailyKpis.collection_points_covered, 0)}            accent="#16a34a" icon={<FileBarChart2   className="h-5 w-5" />} />
+              <StatCard label="Total Variance (Kg)"       value={fmt(dailyKpis.variance_kg)}                             accent="#dc2626" icon={<TrendingUp      className="h-5 w-5" />} />
+              <StatCard label="Monthly Records"           value={fmt(rows.length, 0)}                                    accent="#9333ea" icon={<ClipboardList  className="h-5 w-5" />} />
+            </div>
+          </section>
+
+          {/* ── Report cards ── */}
+          <section>
+            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-3">Reports</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {/* Day Wise */}
+              <button
+                onClick={() => { setAppliedFrom(""); setAppliedTo(""); setFromDate(todayStr()); setToDate(todayStr()); setView("daily"); }}
+                className="group bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-left hover:shadow-md hover:border-green-200 transition-all"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="h-14 w-14 rounded-xl flex items-center justify-center shrink-0 transition-colors group-hover:scale-105"
+                    style={{ background: "#e8f8ee" }}>
+                    <ClipboardList className="h-7 w-7" style={{ color: "#22a855" }} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-base font-bold text-gray-800 group-hover:text-green-700 transition-colors">
+                      Day Wise Report
+                    </p>
+                    <p className="text-sm text-gray-400 mt-1 leading-relaxed">
+                      View daily waste collection comparison records with date range filter, totals and print support.
+                    </p>
+                    <span
+                      className="inline-block mt-3 text-xs font-semibold px-3 py-1 rounded-full"
+                      style={{ background: "#e8f8ee", color: "#22a855" }}
+                    >
+                      Click Here →
+                    </span>
+                  </div>
+                </div>
+              </button>
+
+              {/* Monthly */}
+              <button
+                onClick={() => { setAppliedMonthFilter(""); setMonthValue(currentMonth()); setView("monthly"); }}
+                className="group bg-white rounded-2xl border border-gray-100 shadow-sm p-6 text-left hover:shadow-md hover:border-blue-200 transition-all"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="h-14 w-14 rounded-xl flex items-center justify-center shrink-0 transition-colors group-hover:scale-105"
+                    style={{ background: "#dbeafe" }}>
+                    <FileBarChart2 className="h-7 w-7 text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-base font-bold text-gray-800 group-hover:text-blue-700 transition-colors">
+                      Monthly Report
+                    </p>
+                    <p className="text-sm text-gray-400 mt-1 leading-relaxed">
+                      View monthly waste comparison, performance metrics and variance analysis with print support.
+                    </p>
+                    <span className="inline-block mt-3 text-xs font-semibold px-3 py-1 rounded-full bg-blue-50 text-blue-600">
+                      Click Here →
+                    </span>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </section>
+        </main>
+
+        <footer className="text-center text-xs text-gray-400 py-5">
+          Copyright © 2017–2026 ZIGMA Global Environ Solutions · All Rights Reserved.
+        </footer>
+      </div>
+    );
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+      SHARED TABLE WRAPPER
+  ═══════════════════════════════════════════════════════════ */
+  const isDaily    = view === "daily";
+  const accentHex  = isDaily ? "#22a855" : "#2563eb";
+  const accentSoft = isDaily ? "#e8f8ee" : "#dbeafe";
+  const title      = isDaily ? "Day Wise Report" : "Monthly Report";
+  const theRows    = isDaily ? filteredDailyRows : filteredMonthlyRows;
+  const theTotal   = isDaily ? dailyTotal : monthlyTotal;
+
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="min-h-screen font-sans" style={{ background: "#f4f7f5" }} ref={printRef}>
+      {Header}
 
-      {/* ── Navbar ── */}
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-6 shadow-sm" style={{ height: "85px" }}>
-        <div className="flex items-center gap-3">
-          <img src={ZigmaLogo} className="h-8 w-8 object-contain" alt="Zigma" />
-          <div>
-            <p className="text-sm font-bold text-gray-800 leading-tight">Zigma IWMS</p>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-500 leading-tight">
-              Panchayat Leader Portal
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5">
-            <Building2 className="h-3.5 w-3.5 text-blue-600" />
-            <span className="text-xs font-semibold text-blue-700">{panchayatName || leaderName}</span>
-          </div>
-          <button onClick={() => { clearLocalBodySession(); navigate("/auth/localbody", { replace: true }); }}
-            className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors">
-            <LogOut className="h-3.5 w-3.5" /> Logout
+      <main className="p-6 space-y-5 max-w-screen-2xl mx-auto">
+
+        {/* ── Breadcrumb + title ── */}
+        <div className="flex items-center gap-3 print:hidden">
+          <button
+            onClick={() => setView("home")}
+            className="flex items-center gap-1.5 text-sm font-medium rounded-lg px-3 py-1.5 border border-gray-200 bg-white text-gray-600 hover:text-gray-900 hover:border-gray-300 shadow-sm transition-all"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back
           </button>
-        </div>
-      </header>
-
-      <main className="p-4 space-y-5">
-
-        {/* ── Page header + shared filters ── */}
-        <div className="flex flex-wrap justify-between items-start gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">Panchayat Dashboard</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {panchayatName ? `${panchayatName} · Waste collection analytics` : "Waste collection analytics"}
-            </p>
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 text-sm">/</span>
+            <h1 className="text-xl font-bold" style={{ color: accentHex }}>{title}</h1>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <input type="month" value={monthValue} max={currentMonth()}
-              onChange={(e) => setMonthValue(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            {tab === "monthly" && (
-              <select value={sortMode} onChange={(e) => setSortMode(e.target.value)}
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="absolute">Highest variance</option>
-                <option value="deficit">Highest deficit</option>
-                <option value="surplus">Highest surplus</option>
-              </select>
+        </div>
+
+        {/* ── Filter card ── */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 print:hidden">
+          <div className="flex flex-wrap items-end gap-4">
+            {isDaily ? (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">From Date</label>
+                  <input
+                    type="date" value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 transition-all"
+                    style={{ focusRingColor: accentHex } as React.CSSProperties}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">To Date</label>
+                  <input
+                    type="date" value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 transition-all"
+                  />
+                </div>
+                <button
+                  onClick={() => { setAppliedFrom(fromDate); setAppliedTo(toDate); }}
+                  className="text-white font-semibold px-6 py-2 rounded-lg text-sm shadow-sm hover:opacity-90 transition-opacity"
+                  style={{ background: accentHex }}
+                >GO</button>
+                <button
+                  onClick={() => { setAppliedFrom(""); setAppliedTo(""); setFromDate(todayStr()); setToDate(todayStr()); }}
+                  className="bg-gray-600 hover:bg-gray-700 text-white font-semibold px-4 py-2 rounded-lg text-sm shadow-sm transition-colors"
+                >All Dates</button>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Month</label>
+                  <input
+                    type="month" value={monthValue}
+                    onChange={(e) => setMonthValue(e.target.value)}
+                    className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                  />
+                </div>
+                <button
+                  onClick={() => { setAppliedMonthFilter(monthValue); setAppliedMonth(monthValue); }}
+                  className="text-white font-semibold px-6 py-2 rounded-lg text-sm shadow-sm hover:opacity-90 transition-opacity"
+                  style={{ background: accentHex }}
+                >GO</button>
+                <button
+                  onClick={() => { setAppliedMonthFilter(""); setAppliedMonth(""); setMonthValue(currentMonth()); }}
+                  className="bg-gray-600 hover:bg-gray-700 text-white font-semibold px-4 py-2 rounded-lg text-sm shadow-sm transition-colors"
+                >All Months</button>
+              </>
             )}
-            <button onClick={() => setAppliedMonth(monthValue)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">Go</button>
-            <button onClick={() => { setMonthValue(""); setAppliedMonth(""); }}
-              className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">All Months</button>
-            <button onClick={tab === "monthly" ? handleMonthlyDownload : handleDailyDownload}
-              disabled={tab === "monthly" ? !rows.length : !dailyRows.length}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
-              <Download size={15} /> Download
-            </button>
+
+            <div className="ml-auto flex items-center gap-2">
+              <ActionBtn
+                label="Download" icon={<Download className="h-3.5 w-3.5" />}
+                onClick={isDaily ? downloadDaily : downloadMonthly}
+                color={accentHex}
+              />
+              <ActionBtn
+                label="Print" icon={<Printer className="h-3.5 w-3.5" />}
+                onClick={handlePrint}
+                color="#64748b"
+              />
+            </div>
           </div>
         </div>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
+        {/* ── Summary pills ── */}
+        {theRows.length > 0 && (
+          <div className="flex flex-wrap gap-2 print:hidden">
+            {[
+              { label: "Records",       v: `${theRows.length}`,        c: accentHex  },
+              { label: "Agreed Kg",     v: fmt(theTotal.agreed),       c: "#7c3aed"  },
+              { label: "Actual Kg",     v: fmt(theTotal.actual),       c: accentHex  },
+              { label: "Variance Kg",   v: fmt(theTotal.variance),     c: theTotal.variance < 0 ? "#dc2626" : "#16a34a" },
+              { label: "Total Trips",   v: fmt(theTotal.trips, 0),     c: "#0891b2"  },
+              { label: "Points",        v: fmt(theTotal.points, 0),    c: "#9333ea"  },
+            ].map((p) => (
+              <span
+                key={p.label}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full border"
+                style={{ color: p.c, background: p.c + "12", borderColor: p.c + "30" }}
+              >
+                {p.label}: {p.v}
+              </span>
+            ))}
+          </div>
         )}
 
-        {/* ── Tabs ── */}
-        <div className="flex gap-1 rounded-xl bg-gray-100 p-1 w-fit">
-          {([["monthly", "📊 Monthly Report"], ["daily", "📅 Daily Collection"]] as [Tab, string][]).map(([key, label]) => (
-            <button key={key} onClick={() => setTab(key)}
-              className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-                tab === key
-                  ? "bg-white text-blue-700 shadow-sm"
-                  : "text-gray-600 hover:text-gray-800"
-              }`}>
-              {label}
-            </button>
-          ))}
+        {/* ── Print header ── */}
+        {PrintHeader}
+        <div className="hidden print:flex gap-8 text-sm mb-4 font-medium text-gray-600">
+          {isDaily ? (
+            <>
+              <span>From: <strong>{appliedFrom || "All"}</strong></span>
+              <span>To: <strong>{appliedTo || "All"}</strong></span>
+            </>
+          ) : (
+            <span>Month: <strong>{appliedMonthFilter || "All"}</strong></span>
+          )}
+          <span>Panchayat: <strong>{panchayatName}</strong></span>
         </div>
 
-        {/* ════════════════════════════════════════════════════════════
-            TAB 1 — MONTHLY REPORT
-        ════════════════════════════════════════════════════════════ */}
-        {tab === "monthly" && (
-          <div className="space-y-5">
-
-            {/* Monthly KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-              {monthlyKpiCards.map((kpi) => (
-                <div key={kpi.label} className={`bg-white rounded-lg border border-gray-200 border-l-4 ${kpi.color} p-3 shadow-sm`}>
-                  <p className="text-xs text-gray-500 font-medium truncate">{kpi.label}</p>
-                  <p className={`text-lg font-bold mt-1 ${kpi.text}`}>{kpi.value}</p>
-                </div>
-              ))}
+        {/* ── Table ── */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          {loading ? (
+            <div className="flex items-center justify-center h-48 text-gray-400 text-sm gap-2">
+              <span className="animate-spin h-5 w-5 border-2 border-gray-200 border-t-green-500 rounded-full" />
+              Loading data…
             </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    {isDaily ? (
+                      <>
+                        <TH>S.No</TH><TH>Date</TH><TH>Waste Type</TH>
+                        <TH right>Agreed (Kg)</TH><TH right>Actual (Kg)</TH>
+                        <TH right>Variance (Kg)</TH><TH right>Variance %</TH>
+                        <TH>Status</TH><TH right>Trips</TH><TH right>Points</TH>
+                      </>
+                    ) : (
+                      <>
+                        <TH_B>S.No</TH_B><TH_B>Month</TH_B><TH_B>Waste Type</TH_B>
+                        <TH_B right>Agreed (Kg)</TH_B><TH_B right>Actual (Kg)</TH_B>
+                        <TH_B right>Variance (Kg)</TH_B><TH_B right>Variance %</TH_B>
+                        <TH_B>Status</TH_B><TH_B right>Trips</TH_B><TH_B right>Points</TH_B>
+                      </>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {theRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="text-center py-12 text-gray-400 text-sm">
+                        No records found for the selected period.
+                      </td>
+                    </tr>
+                  ) : theRows.map((r: any, i) => (
+                    <tr
+                      key={r.unique_id}
+                      className="border-t border-gray-50 transition-colors"
+                      style={{ background: i % 2 === 0 ? "#fff" : "#fafafa" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = accentSoft)}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = i % 2 === 0 ? "#fff" : "#fafafa")}
+                    >
+                      <td className="px-3 py-2.5 text-gray-400 text-xs font-medium w-12">{i + 1}</td>
+                      <td className="px-3 py-2.5 font-semibold text-gray-700">
+                        {isDaily ? r.collection_date : r.month}
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-600">{r.waste_type}</td>
+                      <td className="px-3 py-2.5 text-right text-gray-600">
+                        {fmt(isDaily ? r.agreed_weight_kg : r.total_agreed_weight)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-bold" style={{ color: accentHex }}>
+                        {fmt(isDaily ? r.actual_weight_kg : r.total_actual_weight)}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right font-semibold ${r.variance_kg < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                        {fmt(r.variance_kg)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-gray-500">{fmt(r.variance_percent, 2)}%</td>
+                      <td className="px-3 py-2.5"><StatusBadge s={r.report_status} /></td>
+                      <td className="px-3 py-2.5 text-right text-gray-600">{r.total_trips}</td>
+                      <td className="px-3 py-2.5 text-right text-gray-600">{r.collection_points_covered}</td>
+                    </tr>
+                  ))}
+                </tbody>
 
-            {/* ══ Chart 1 — Stacked weight by waste type per month ══ */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-5 pt-4 pb-2 border-b border-gray-50">
-                <h2 className="text-sm font-bold text-gray-800">Collected Weight by Waste Type</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Stacked bars — each colour = one waste type's actual weight per month</p>
-              </div>
-              <div className="p-4">
-                {monthlyWeightChartData.length === 0
-                  ? <div className="flex h-52 items-center justify-center text-sm text-gray-400">No data for the selected period</div>
-                  : (
-                    <ResponsiveContainer width="100%" height={280}>
-                      <BarChart data={monthlyWeightChartData} margin={{ top: 8, right: 20, left: 8, bottom: 0 }} barCategoryGap="35%">
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                        <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
-                        <YAxis tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} unit=" kg" />
-                        <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
-                          formatter={(v: number, name: string) => [`${v.toLocaleString()} kg`, name]}
-                          cursor={{ fill: "rgba(0,0,0,0.04)" }} />
-                        <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                        {monthlyWasteTypeKeys.map((wt, i) => (
-                          <Bar key={wt} dataKey={wt} stackId="w" fill={PIE_COLORS[i % PIE_COLORS.length]}
-                            radius={i === monthlyWasteTypeKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
-                        ))}
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )
-                }
-              </div>
+                {theRows.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t-2" style={{ borderColor: accentHex + "40", background: accentSoft }}>
+                      <td colSpan={3} className="px-3 py-3 text-right text-sm font-bold text-gray-700">Total</td>
+                      <td className="px-3 py-3 text-right font-bold text-gray-700">{fmt(theTotal.agreed)}</td>
+                      <td className="px-3 py-3 text-right font-bold" style={{ color: accentHex }}>{fmt(theTotal.actual)}</td>
+                      <td className={`px-3 py-3 text-right font-bold ${theTotal.variance < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                        {fmt(theTotal.variance)}
+                      </td>
+                      <td className="px-3 py-3" />
+                      <td className="px-3 py-3" />
+                      <td className="px-3 py-3 text-right font-bold text-gray-700">{theTotal.trips}</td>
+                      <td className="px-3 py-3 text-right font-bold text-gray-700">{theTotal.points}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
             </div>
+          )}
+        </div>
 
-            {/* ══ Charts 2 + 3 — Trips per waste type | Points per month ══ */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-5 pt-4 pb-2 border-b border-gray-50">
-                  <h2 className="text-sm font-bold text-gray-800">Trips per Waste Type</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Grouped bars — trips per waste type each month</p>
-                </div>
-                <div className="p-4">
-                  {monthlyTripsChartData.length === 0
-                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No data</div>
-                    : (
-                      <ResponsiveContainer width="100%" height={240}>
-                        <BarChart data={monthlyTripsChartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }} barCategoryGap="30%">
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                          <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
-                          <YAxis tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
-                          <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
-                            formatter={(v: number, name: string) => [`${v} trips`, name]}
-                            cursor={{ fill: "rgba(0,0,0,0.04)" }} />
-                          <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                          {monthlyWasteTypeKeys.map((wt, i) => (
-                            <Bar key={wt} dataKey={wt} name={wt} fill={PIE_COLORS[i % PIE_COLORS.length]} radius={[4, 4, 0, 0]} />
-                          ))}
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )
-                  }
-                </div>
-              </div>
-
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-5 pt-4 pb-2 border-b border-gray-50">
-                  <h2 className="text-sm font-bold text-gray-800">Collection Points Covered</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Unique physical points covered each month</p>
-                </div>
-                <div className="p-4">
-                  {monthlyPointsChartData.length === 0
-                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No data</div>
-                    : (
-                      <ResponsiveContainer width="100%" height={240}>
-                        <BarChart data={monthlyPointsChartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }} barCategoryGap="40%">
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                          <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
-                          <YAxis tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
-                          <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
-                            formatter={(v: number) => [`${v} points`, "Covered"]}
-                            cursor={{ fill: "rgba(0,0,0,0.04)" }} />
-                          <Bar dataKey="points_covered" name="Points Covered" fill="#7c3aed" radius={[4, 4, 0, 0]}>
-                            {monthlyPointsChartData.map((_, idx) => (
-                              <Cell key={idx} fill={`hsl(${262 + idx * 12}, 70%, ${52 - idx * 2}%)`} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )
-                  }
-                </div>
-              </div>
-            </div>
-
-            {/* ══ Charts 4 + 5 — Waste type donut | Agreed vs Actual trend ══ */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-              {/* Waste type donut with progress bars */}
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-5 pt-4 pb-2 border-b border-gray-50">
-                  <h2 className="text-sm font-bold text-gray-800">Period Total — by Waste Type</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Proportion of total actual weight per waste category</p>
-                </div>
-                <div className="p-4">
-                  {wasteBreakdown.length === 0
-                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No data</div>
-                    : (
-                      <div className="flex gap-6 items-center">
-                        <ResponsiveContainer width="48%" height={210}>
-                          <PieChart>
-                            <Pie data={wasteBreakdown} dataKey="total_actual_weight" nameKey="waste_type"
-                              cx="50%" cy="50%" outerRadius={85} innerRadius={44} paddingAngle={3}>
-                              {wasteBreakdown.map((_, i) => (
-                                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
-                              formatter={(v: number) => [`${Number(v).toLocaleString()} kg`]} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                        <div className="flex-1 space-y-3">
-                          {wasteBreakdown.map((wt: any, i: number) => {
-                            const total = wasteBreakdown.reduce((s: number, r: any) => s + Number(r.total_actual_weight), 0);
-                            const share = total ? Math.round((Number(wt.total_actual_weight) / total) * 100) : 0;
-                            return (
-                              <div key={String(wt.waste_type)}>
-                                <div className="flex items-center justify-between mb-1">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
-                                    <span className="text-xs font-semibold text-gray-700">{String(wt.waste_type)}</span>
-                                  </div>
-                                  <span className="text-xs font-bold text-gray-800">{share}%</span>
-                                </div>
-                                <div className="h-1.5 w-full rounded-full bg-gray-100">
-                                  <div className="h-full rounded-full" style={{ width: `${share}%`, backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
-                                </div>
-                                <p className="text-[11px] text-gray-400 mt-0.5">{Number(wt.total_actual_weight).toLocaleString()} kg actual · {Number(wt.total_agreed_weight).toLocaleString()} kg agreed</p>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )
-                  }
-                </div>
-              </div>
-
-              {/* Agreed vs Actual trend line per month */}
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-5 pt-4 pb-2 border-b border-gray-50">
-                  <h2 className="text-sm font-bold text-gray-800">Agreed vs Actual — Monthly Trend</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Compare committed targets against actual collection each month</p>
-                </div>
-                <div className="p-4">
-                  {monthlyTrends.length === 0
-                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No data</div>
-                    : (
-                      <ResponsiveContainer width="100%" height={210}>
-                        <LineChart data={monthlyTrends} margin={{ top: 8, right: 20, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                          <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
-                          <YAxis tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} unit=" kg" />
-                          <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
-                            formatter={(v: number, name: string) => [`${Number(v).toLocaleString()} kg`, name]} />
-                          <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                          <Line type="monotone" dataKey="total_agreed_weight" name="Agreed"
-                            stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 4"
-                            dot={{ r: 3, fill: "#94a3b8", strokeWidth: 2, stroke: "#fff" }} />
-                          <Line type="monotone" dataKey="total_actual_weight" name="Actual"
-                            stroke="#2563eb" strokeWidth={2.5}
-                            dot={{ r: 4, fill: "#2563eb", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 6 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    )
-                  }
-                </div>
-              </div>
-            </div>
-
-            {/* Monthly Table */}
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-              <DataTable value={rows} paginator rows={10} rowsPerPageOptions={[5, 10, 25, 50]}
-                filters={monthlyFilters} loading={loading} stripedRows showGridlines
-                emptyMessage="No monthly comparison data found." className="p-datatable-sm"
-                globalFilterFields={["month", "waste_type", "report_status"]}
-                header={
-                  <div className="flex justify-end">
-                    <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-                      <Search size={15} className="text-gray-500" />
-                      <InputText value={monthlySearch}
-                        onChange={(e) => { setMonthlySearch(e.target.value); setMonthlyFilters({ global: { value: e.target.value, matchMode: FilterMatchMode.CONTAINS } }); }}
-                        placeholder="Search report..." className="p-inputtext-sm !border-0 !shadow-none" />
-                    </div>
-                  </div>
-                }>
-                <Column header="S.No" body={(_: any, opts: any) => opts.rowIndex + 1} style={{ width: "60px" }} />
-                <Column field="month"                          header="Month"        sortable />
-                <Column field="waste_type"                     header="Waste Type"   sortable />
-                <Column field="total_agreed_weight"            header="Agreed (kg)"  body={(r: MonthlyRow) => fmt(r.total_agreed_weight)} sortable />
-                <Column field="total_actual_weight"            header="Actual (kg)"  body={(r: MonthlyRow) => fmt(r.total_actual_weight)}  sortable />
-                <Column field="variance_kg"                    header="Variance (kg)"body={(r: MonthlyRow) => fmt(r.variance_kg)}          sortable />
-                <Column field="variance_percent"               header="Variance %"   body={(r: MonthlyRow) => fmt(r.variance_percent, "%")} sortable />
-                <Column field="report_status"                  header="Status"       body={statusBadge}                                     sortable />
-                <Column field="total_trips"                    header="Trips"        sortable />
-                <Column field="collection_efficiency_percent"  header="Coll. Eff. %" body={(r: MonthlyRow) => fmt(r.collection_efficiency_percent, "%")} sortable />
-                <Column field="average_weight_per_trip"        header="Avg/Trip"     body={(r: MonthlyRow) => fmt(r.average_weight_per_trip)} sortable />
-              </DataTable>
-            </div>
-          </div>
+        {theRows.length > 0 && (
+          <p className="text-xs text-gray-400 print:hidden">
+            Showing {theRows.length} record{theRows.length !== 1 ? "s" : ""}
+          </p>
         )}
-
-        {/* ════════════════════════════════════════════════════════════
-            TAB 2 — DAILY COLLECTION
-        ════════════════════════════════════════════════════════════ */}
-        {tab === "daily" && (
-          <div className="space-y-5">
-
-            {/* Daily KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-              {dailyKpiCards.map((kpi) => (
-                <div key={kpi.label} className={`bg-white rounded-lg border border-gray-200 border-l-4 ${kpi.color} p-3 shadow-sm`}>
-                  <p className="text-xs text-gray-500 font-medium truncate">{kpi.label}</p>
-                  <p className={`text-lg font-bold mt-1 ${kpi.text}`}>{kpi.value}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* ══════════════════════════════════════════════════════════
-                CHART 1 — Stacked weight by waste type per date
-            ══════════════════════════════════════════════════════════ */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-5 pt-4 pb-2 border-b border-gray-50">
-                <h2 className="text-sm font-bold text-gray-800">Collected Weight by Waste Type</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Stacked bars — each colour = one waste type's weight on that date</p>
-              </div>
-              <div className="p-4">
-                {weightChartData.length === 0
-                  ? <div className="flex h-52 items-center justify-center text-sm text-gray-400">No data for the selected period</div>
-                  : (
-                    <ResponsiveContainer width="100%" height={280}>
-                      <BarChart data={weightChartData} margin={{ top: 8, right: 20, left: 8, bottom: 0 }} barCategoryGap="35%">
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                        <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
-                        <YAxis tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} unit=" kg" />
-                        <Tooltip
-                          contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
-                          formatter={(v: number, name: string) => [`${v.toLocaleString()} kg`, name]}
-                          cursor={{ fill: "rgba(0,0,0,0.04)" }}
-                        />
-                        <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                        {wasteTypeKeys.map((wt, i) => (
-                          <Bar key={wt} dataKey={wt} stackId="w" fill={PIE_COLORS[i % PIE_COLORS.length]}
-                            radius={i === wasteTypeKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
-                        ))}
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )
-                }
-              </div>
-            </div>
-
-            {/* ══════════════════════════════════════════════════════════
-                CHARTS 2 + 3 — Trips per waste type  |  Points per date
-            ══════════════════════════════════════════════════════════ */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-              {/* 2 — Grouped trips */}
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-5 pt-4 pb-2 border-b border-gray-50">
-                  <h2 className="text-sm font-bold text-gray-800">Trips per Waste Type</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Grouped bars — Dry Waste vs Wet Waste trips each day</p>
-                </div>
-                <div className="p-4">
-                  {tripsChartData.length === 0
-                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No data for the selected period</div>
-                    : (
-                      <ResponsiveContainer width="100%" height={240}>
-                        <BarChart data={tripsChartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }} barCategoryGap="30%">
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                          <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
-                          <YAxis tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
-                          <Tooltip
-                            contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
-                            formatter={(v: number, name: string) => [`${v} trips`, name]}
-                            cursor={{ fill: "rgba(0,0,0,0.04)" }}
-                          />
-                          <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                          {wasteTypeKeys.map((wt, i) => (
-                            <Bar key={wt} dataKey={wt} name={`${wt}`} fill={PIE_COLORS[i % PIE_COLORS.length]} radius={[4, 4, 0, 0]} />
-                          ))}
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )
-                  }
-                </div>
-              </div>
-
-              {/* 3 — Collection points (unique per day) */}
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-5 pt-4 pb-2 border-b border-gray-50">
-                  <h2 className="text-sm font-bold text-gray-800">Collection Points Covered</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Unique physical points covered each date (shared by all waste types)</p>
-                </div>
-                <div className="p-4">
-                  {pointsChartData.length === 0
-                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No data for the selected period</div>
-                    : (
-                      <ResponsiveContainer width="100%" height={240}>
-                        <BarChart data={pointsChartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }} barCategoryGap="40%">
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                          <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
-                          <YAxis tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
-                          <Tooltip
-                            contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
-                            formatter={(v: number) => [`${v} points`, "Covered"]}
-                            cursor={{ fill: "rgba(0,0,0,0.04)" }}
-                          />
-                          <Bar dataKey="points_covered" name="Points Covered" fill="#7c3aed" radius={[4, 4, 0, 0]}>
-                            {pointsChartData.map((_, idx) => (
-                              <Cell key={idx} fill={`hsl(${262 + idx * 8}, 70%, ${52 - idx * 2}%)`} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )
-                  }
-                </div>
-              </div>
-            </div>
-
-            {/* ══════════════════════════════════════════════════════════
-                CHARTS 4 + 5 — Waste type totals (pie)  |  Trend line
-            ══════════════════════════════════════════════════════════ */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-              {/* 4 — Waste type donut */}
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-5 pt-4 pb-2 border-b border-gray-50">
-                  <h2 className="text-sm font-bold text-gray-800">Period Total — by Waste Type</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Proportion of total weight collected per waste category</p>
-                </div>
-                <div className="p-4">
-                  {tripWasteTypes.length === 0
-                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No waste type data</div>
-                    : (
-                      <div className="flex gap-6 items-center">
-                        <ResponsiveContainer width="48%" height={210}>
-                          <PieChart>
-                            <Pie data={tripWasteTypes} dataKey="collected_weight_kg" nameKey="waste_type"
-                              cx="50%" cy="50%" outerRadius={85} innerRadius={44} paddingAngle={3}>
-                              {tripWasteTypes.map((_, i) => (
-                                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip
-                              contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
-                              formatter={(v: number) => [`${v.toLocaleString()} kg`]}
-                            />
-                          </PieChart>
-                        </ResponsiveContainer>
-                        <div className="flex-1 space-y-3">
-                          {tripWasteTypes.map((wt, i) => {
-                            const pct = tripWasteTypes.reduce((s, r) => s + r.collected_weight_kg, 0);
-                            const share = pct ? Math.round((wt.collected_weight_kg / pct) * 100) : 0;
-                            return (
-                              <div key={wt.waste_type}>
-                                <div className="flex items-center justify-between mb-1">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
-                                    <span className="text-xs font-semibold text-gray-700">{wt.waste_type}</span>
-                                  </div>
-                                  <span className="text-xs font-bold text-gray-800">{share}%</span>
-                                </div>
-                                <div className="h-1.5 w-full rounded-full bg-gray-100">
-                                  <div className="h-full rounded-full" style={{ width: `${share}%`, backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
-                                </div>
-                                <p className="text-[11px] text-gray-400 mt-0.5">{wt.collected_weight_kg.toLocaleString()} kg · {wt.trip_count} trips</p>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )
-                  }
-                </div>
-              </div>
-
-              {/* 5 — Daily trend line */}
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-5 pt-4 pb-2 border-b border-gray-50">
-                  <h2 className="text-sm font-bold text-gray-800">Daily Collection Trend</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Total weight collected (all waste types combined) day by day</p>
-                </div>
-                <div className="p-4">
-                  {dayWise.length === 0
-                    ? <div className="flex h-48 items-center justify-center text-sm text-gray-400">No data for the selected period</div>
-                    : (
-                      <ResponsiveContainer width="100%" height={210}>
-                        <LineChart data={dayWise} margin={{ top: 8, right: 20, left: 0, bottom: 0 }}>
-                          <defs>
-                            <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#2563eb" stopOpacity={0.15} />
-                              <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                          <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
-                          <YAxis tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} unit=" kg" />
-                          <Tooltip
-                            contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }}
-                            formatter={(v: number) => [`${v.toLocaleString()} kg`, "Total Collected"]}
-                          />
-                          <Line type="monotone" dataKey="collected_weight_kg" name="Total Collected"
-                            stroke="#2563eb" strokeWidth={2.5} dot={{ r: 4, fill: "#2563eb", strokeWidth: 2, stroke: "#fff" }}
-                            activeDot={{ r: 6 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    )
-                  }
-                </div>
-              </div>
-            </div>
-
-            {/* Daily Waste Comparison Table */}
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-              <DataTable value={dailyRows} paginator rows={10} rowsPerPageOptions={[5, 10, 25, 50]}
-                filters={tripFilters} loading={loading} stripedRows showGridlines
-                emptyMessage="No daily waste comparison data found." className="p-datatable-sm"
-                globalFilterFields={["collection_date", "waste_type", "report_status"]}
-                header={
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-gray-700">Daily Waste Comparison</span>
-                    <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-                      <Search size={15} className="text-gray-500" />
-                      <InputText value={tripSearch}
-                        onChange={(e) => { setTripSearch(e.target.value); setTripFilters({ global: { value: e.target.value, matchMode: FilterMatchMode.CONTAINS } }); }}
-                        placeholder="Search records..." className="p-inputtext-sm !border-0 !shadow-none" />
-                    </div>
-                  </div>
-                }>
-                <Column header="S.No" body={(_: any, opts: any) => opts.rowIndex + 1} style={{ width: "60px" }} />
-                <Column field="collection_date"           header="Date"             sortable />
-                <Column field="waste_type"                header="Waste Type"       sortable />
-                <Column field="agreed_weight_kg"          header="Agreed (kg)"      body={(r: DailyComparisonRow) => fmt(r.agreed_weight_kg)}  sortable />
-                <Column field="actual_weight_kg"          header="Actual (kg)"      body={(r: DailyComparisonRow) => fmt(r.actual_weight_kg)}   sortable />
-                <Column field="variance_kg"               header="Variance (kg)"    body={(r: DailyComparisonRow) => fmt(r.variance_kg)}        sortable />
-                <Column field="variance_percent"          header="Variance %"       body={(r: DailyComparisonRow) => fmt(r.variance_percent, "%")} sortable />
-                <Column field="report_status"             header="Status"           body={dailyStatusBadge}                                     sortable />
-                <Column field="total_trips"               header="Trips"            sortable />
-                <Column field="collection_points_covered" header="Points Covered"   sortable />
-              </DataTable>
-            </div>
-
-          </div>
-        )}
-
       </main>
+
+      <footer className="text-center text-xs text-gray-400 py-5 print:mt-8">
+        Copyright © 2017–2026 ZIGMA Global Environ Solutions · All Rights Reserved.
+      </footer>
+
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .print\\:hidden { display: none !important; }
+          main, main * { visibility: visible; }
+          main { position: absolute; left: 0; top: 0; width: 100%; padding: 24px; }
+          table { font-size: 11px; border-collapse: collapse; }
+          th, td { padding: 5px 8px !important; border: 1px solid #e5e7eb; }
+          thead th { background: #22a855 !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          tr:nth-child(even) { background: #f9fafb !important; }
+          tfoot tr { background: #e8f8ee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      `}</style>
     </div>
   );
 }

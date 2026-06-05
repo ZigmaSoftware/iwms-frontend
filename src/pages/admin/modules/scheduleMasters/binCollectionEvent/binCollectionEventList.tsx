@@ -253,7 +253,7 @@ export default function BinCollectionEventList() {
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 60 }} />
         <Column field="_trip_plan" header="Trip Plan" filter showFilterMatchModes={false} />
         <Column field="_collection_point" header="Collection Point" filter showFilterMatchModes={false} />
-        <Column field="_panchayat" header="Panchayat" filter showFilterMatchModes={false} />
+        <Column field="_panchayat" header="PLB" filter showFilterMatchModes={false} />
         <Column field="_ward" header="Ward" filter showFilterMatchModes={false} />
         <Column field="_zone" header="Zone" filter showFilterMatchModes={false} />
         <Column field="_bin" header="Bin" filter showFilterMatchModes={false} />

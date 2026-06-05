@@ -444,7 +444,7 @@ export default function DailyWasteComparisonList() {
 
         <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-gray-700 mb-3">
-            Panchayat Performance (Top 8)
+            PLB Performance (Top 8)
           </h2>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={panchayatComparison.slice(0, 8)}>
@@ -488,7 +488,7 @@ export default function DailyWasteComparisonList() {
           <Column header="S.No" body={(_, opts) => opts.rowIndex + 1} style={{ width: "60px" }} />
           <Column field="collection_date" header="Date" sortable />
           <Column field="panchayat_id" header="Panchayat ID" sortable />
-          <Column field="panchayat_name" header="Panchayat" sortable />
+          <Column field="panchayat_name" header="PLB" sortable />
           <Column field="waste_type" header="Waste Type" sortable />
           <Column
             field="agreed_weight_kg"

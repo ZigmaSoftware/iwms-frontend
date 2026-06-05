@@ -94,7 +94,7 @@ export default function LocalBodyAuth() {
             <div className="lb-blob-b pointer-events-none absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-teal-200/50 blur-2xl" />
 
             <p className="relative z-10 w-full text-center text-[10px] font-bold uppercase tracking-[0.25em] text-blue-700/60">
-              Panchayat Local Body Portal
+              PLB (Participating Local Bodies) Portal
             </p>
 
             <div className="relative z-10 flex flex-1 items-center justify-center w-full py-4">
@@ -107,7 +107,7 @@ export default function LocalBodyAuth() {
                 </div>
                 <div className="relative z-10 flex items-center justify-center gap-2 rounded-full bg-blue-100 px-4 py-2">
                   <Building2 className="h-4 w-4 text-blue-600" />
-                  <span className="text-xs font-semibold text-blue-700">Panchayat Management</span>
+                  <span className="text-xs font-semibold text-blue-700">PLB Management</span>
                 </div>
               </div>
             </div>
@@ -153,10 +153,10 @@ export default function LocalBodyAuth() {
 
             <div className="mb-7">
               <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-                Panchayat Leader Login
+                PLB Leader Login
               </h1>
               <p className="mt-1 text-sm text-gray-500 leading-relaxed">
-                Sign in to access your panchayat dashboard
+                Sign in to access your PLB dashboard
               </p>
             </div>
 

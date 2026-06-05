@@ -361,7 +361,7 @@ export default function TripPlanForm() {
             <div><Label>District</Label><Select value={formData.district_id} onChange={setField("district_id")} options={options.districts} disabled={loading || !projectId} /></div>
             <div><Label>City</Label><Select value={formData.city_id} onChange={setField("city_id")} options={options.cities} disabled={loading || !projectId} /></div>
             <div><Label>Zone</Label><Select value={formData.zone_id} onChange={setField("zone_id")} options={options.zones} disabled={loading || !projectId} /></div>
-            <div><Label>Panchayat</Label><Select value={formData.panchayat_id} onChange={setField("panchayat_id")} options={options.panchayats} disabled={loading || !projectId || Boolean(formData.ward_id)} /></div>
+            <div><Label>PLB (Participating Local Bodies)</Label><Select value={formData.panchayat_id} onChange={setField("panchayat_id")} options={options.panchayats} disabled={loading || !projectId || Boolean(formData.ward_id)} /></div>
             <div><Label>Ward</Label><Select value={formData.ward_id} onChange={setField("ward_id")} options={options.wards} disabled={loading || !projectId || Boolean(formData.panchayat_id)} /></div>
             <div><Label>Staff Template</Label><Select value={formData.staff_template_id} onChange={setField("staff_template_id")} options={options.staffTemplates} disabled={loading || !projectId} /></div>
             <div><Label>Vehicle</Label><Select value={formData.vehicle_id} onChange={setField("vehicle_id")} options={options.vehicles} disabled={loading || !projectId} /></div>

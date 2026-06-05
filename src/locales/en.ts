@@ -785,8 +785,8 @@ const enResource = {
           "daily_collection_point": "Daily Collection Point",
 
 
-          "panchayat": "Panchayat",
-          "panchayat_leader": "Panchayat Leader",
+          "panchayat": "PLB (Participating Local Bodies)",
+          "panchayat_leader": "PLB Leader",
           "area_type": "Area Type",
           "department": "Department Master",
           "designation": "Designation Master",
@@ -854,7 +854,7 @@ const enResource = {
           "vehicle_history": "Vehicle History",
           "waste_management": "Waste Management",
           "collection_monitoring": "Collection Monitoring",
-          "panchayat_base_collection": "Panchayat Base Collection",
+          "panchayat_base_collection": "PLB Base Collection",
           "ward_base_collection": "Ward Base Collection",
           "workforce_management": "Workforce Management",
           "reports": "Reports",

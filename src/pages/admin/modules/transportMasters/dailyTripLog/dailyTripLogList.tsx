@@ -71,6 +71,7 @@ type DailyTripLogRecord = {
   bins?: (NamedRef & { bin_name?: string })[];
   remarks?: string | null;
   log_status?: string;
+  collection_status?: string;
   verified_by_name?: string | null;
   verified_at?: string | null;
   [key: string]: unknown;
@@ -82,10 +83,26 @@ const STATUS_STYLES: Record<string, string> = {
   Verified: "bg-green-100 text-green-800",
 };
 
+const COLLECTION_STATUS_STYLES: Record<string, string> = {
+  "Not Started": "bg-red-50 text-red-600",
+  "In Progress": "bg-yellow-50 text-yellow-700",
+  "Completed": "bg-green-100 text-green-700",
+};
+
 const Badge = ({ value }: { value?: string }) => (
   <span
     className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
       STATUS_STYLES[value ?? ""] ?? "bg-gray-100 text-gray-600"
+    }`}
+  >
+    {value ?? "-"}
+  </span>
+);
+
+const CollectionStatusBadge = ({ value }: { value?: string }) => (
+  <span
+    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+      COLLECTION_STATUS_STYLES[value ?? ""] ?? "bg-gray-100 text-gray-500"
     }`}
   >
     {value ?? "-"}
@@ -222,6 +239,10 @@ function TripLogModal({
               value={row.trip_assignment?.display_code ?? row.trip_assignment_id}
             />
             <InfoRow label="Date" value={row.trip_date} />
+            <div className="flex gap-2 text-sm">
+              <span className="text-gray-500 w-36 shrink-0">Collection Status</span>
+              <CollectionStatusBadge value={row.collection_status} />
+            </div>
             <InfoRow label="Waste Type" value={wasteTypeName} />
             <InfoRow label="Total Weight" value={weight} />
             {row.actual_start_time && <InfoRow label="Start Time" value={row.actual_start_time} />}
@@ -236,7 +257,7 @@ function TripLogModal({
                 <span className="text-gray-500 w-36 shrink-0">Location</span>
                 <span className="font-medium text-gray-800">
                   {row.panchayat.panchayat_name}
-                  <span className="ml-1.5 text-xs text-indigo-500 font-semibold">(Panchayat)</span>
+                  <span className="ml-1.5 text-xs text-indigo-500 font-semibold">(PLB)</span>
                 </span>
               </div>
             ) : row.ward?.ward_name ? (
@@ -696,6 +717,7 @@ export default function DailyTripLogList() {
           "_driver",
           "_operator",
           "log_status",
+          "collection_status",
           "trip_date",
         ]}
         className="p-datatable-sm"
@@ -748,7 +770,7 @@ export default function DailyTripLogList() {
               return (
                 <span className="text-sm text-gray-800">
                   {row.panchayat.panchayat_name}
-                  <span className="ml-1 text-xs text-indigo-500 font-medium">(Panchayat)</span>
+                  <span className="ml-1 text-xs text-indigo-500 font-medium">(PLB)</span>
                 </span>
               );
             }
@@ -817,12 +839,21 @@ export default function DailyTripLogList() {
         />
         <Column
           field="log_status"
-          header="Status"
+          header="Log Status"
           body={(row: DailyTripLogRecord) => <Badge value={row.log_status} />}
           sortable
           filter
           showFilterMatchModes={false}
           style={{ minWidth: 110 }}
+        />
+        <Column
+          field="collection_status"
+          header="Collection Status"
+          body={(row: DailyTripLogRecord) => <CollectionStatusBadge value={row.collection_status} />}
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 145 }}
         />
         <Column field="_driver" header="Driver" style={{ minWidth: 130 }} />
         <Column field="_operator" header="Operator" style={{ minWidth: 130 }} />
