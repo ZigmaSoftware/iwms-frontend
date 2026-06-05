@@ -103,7 +103,7 @@ export default function DailyWasteComparisonList() {
 
   const fetchReport = async () => {
     if (isSuperAdmin && companies.length === 0) return;
-    if (!companyUniqueId) {
+    if (!companyUniqueId && !isSuperAdmin) {
       setRows([]);
       setDateTrends([]);
       setPanchayatComparison([]);
@@ -318,9 +318,7 @@ export default function DailyWasteComparisonList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((c) => (
               <option key={c.value} value={c.value}>
                 {c.label}
@@ -331,12 +329,10 @@ export default function DailyWasteComparisonList() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((p) => (
               <option key={p.value} value={p.value}>
                 {p.label}

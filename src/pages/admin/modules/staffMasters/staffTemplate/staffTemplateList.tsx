@@ -343,6 +343,7 @@ export default function StaffTemplateList() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
+    defaultToAll: true,
     initialCompanyId:
       restoredState?.companyUniqueId ?? searchParams.get("company_unique_id") ?? undefined,
     initialProjectId: restoredState?.projectId ?? searchParams.get("project_id") ?? undefined,
@@ -368,14 +369,8 @@ export default function StaffTemplateList() {
   const selectedProjectId =
     projectId && projects.some((project) => project.value === projectId)
       ? projectId
-      : projects[0]?.value ?? "";
+      : "";
   const selectedContext = { companyUniqueId, projectId: selectedProjectId };
-
-  useEffect(() => {
-    if (!projectId && selectedProjectId) {
-      setProjectId(selectedProjectId);
-    }
-  }, [projectId, selectedProjectId, setProjectId]);
 
   const normalizeId = (value: unknown): string =>
     value === null || value === undefined ? "" : String(value).trim();
@@ -391,14 +386,15 @@ export default function StaffTemplateList() {
         return;
       }
 
-      if (!companyUniqueId) {
+      if (!companyUniqueId && !isSuperAdmin) {
         if (mounted) { setTemplates([]); setLoading(false); }
         return;
       }
 
       if (mounted) setLoading(true);
       try {
-        const requestParams: Record<string, string> = { company_id: companyUniqueId };
+        const requestParams: Record<string, string> = {};
+        if (companyUniqueId) requestParams.company_id = companyUniqueId;
         if (selectedProjectId) requestParams.project_id = selectedProjectId;
         const rawData = await staffTemplateApi.list({ params: requestParams });
         const payload: any = rawData ?? [];
@@ -527,9 +523,7 @@ export default function StaffTemplateList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -540,12 +534,10 @@ export default function StaffTemplateList() {
           <select
             value={selectedProjectId}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label || project.value}

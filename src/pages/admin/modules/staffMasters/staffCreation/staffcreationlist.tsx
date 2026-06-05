@@ -88,7 +88,9 @@ export default function StaffCreationList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [filterParams, setFilterParams] = useState({
     salary_type: "",
@@ -141,7 +143,7 @@ export default function StaffCreationList() {
         return;
       }
 
-      if (!companyUniqueId) {
+      if (!companyUniqueId && !isSuperAdmin) {
         if (mounted) { setStaffs([]); setLoading(false); }
         return;
       }
@@ -297,9 +299,7 @@ export default function StaffCreationList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="h-10 rounded-lg border px-3 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -310,12 +310,10 @@ export default function StaffCreationList() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="h-10 rounded-lg border px-3 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}

@@ -80,6 +80,7 @@ export default function BinCollectionEventList() {
     isSuperAdmin, setProjectId, onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
+    defaultToAll: true,
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
@@ -103,9 +104,10 @@ export default function BinCollectionEventList() {
   });
 
   const loadRecords = useCallback(() => {
-    if (!companyUniqueId) { setRecords([]); return; }
+    if (!companyUniqueId && !isSuperAdmin) { setRecords([]); return; }
     setLoading(true);
-    const params: Record<string, string> = { company_id: companyUniqueId };
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     binCollectionEventApi
       .list({ params })
@@ -139,6 +141,9 @@ export default function BinCollectionEventList() {
      PrimeReact filters internally but doesn't expose the result. We replicate
      the same CONTAINS logic so the summary pills always match what's on screen. */
   const GLOBAL_FIELDS = ["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "_ward", "_zone"] as const;
+  type FilterableField = (typeof GLOBAL_FIELDS)[number];
+  const isFilterableField = (field: string): field is FilterableField =>
+    (GLOBAL_FIELDS as readonly string[]).includes(field);
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
@@ -149,7 +154,7 @@ export default function BinCollectionEventList() {
         if (field === "global") {
           const hit = GLOBAL_FIELDS.some((f) => String(row[f] ?? "").toLowerCase().includes(needle));
           if (!hit) return false;
-        } else {
+        } else if (isFilterableField(field)) {
           if (!String(row[field] ?? "").toLowerCase().includes(needle)) return false;
         }
       }
@@ -187,16 +192,16 @@ export default function BinCollectionEventList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="rounded border px-3 py-2 text-sm"
           >
-            <option value="" disabled>{t("common.select_item_placeholder", { item: t("admin.nav.company") })}</option>
+            <option value="">All Companies</option>
             {companies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="rounded border px-3 py-2 text-sm"
           >
-            <option value="" disabled>{t("common.select_item_placeholder", { item: t("admin.nav.project") })}</option>
+            <option value="">All Projects</option>
             {projects.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
           <Button

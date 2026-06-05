@@ -383,6 +383,7 @@ export default function DailyTripLogList() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
+    defaultToAll: true,
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
@@ -411,13 +412,14 @@ export default function DailyTripLogList() {
 
   /* ── load logs ── */
   useEffect(() => {
-    if (!companyUniqueId) {
+    if (!companyUniqueId && !isSuperAdmin) {
       setAllLogs([]);
       return;
     }
     let mounted = true;
     setIsLoading(true);
-    const params: Record<string, string> = { company_id: companyUniqueId };
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     (dailyTripLogApi.list({ params }) as Promise<DailyTripLogRecord[]>)
       .then((data) => {
@@ -454,7 +456,7 @@ export default function DailyTripLogList() {
   /* ── filter by company + project ── */
   const data = (() => {
     if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId) return [];
+    if (!companyUniqueId && !isSuperAdmin) return [];
     return rows.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
@@ -622,9 +624,7 @@ export default function DailyTripLogList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((c) => (
               <option key={c.value} value={c.value}>
                 {c.label}
@@ -635,12 +635,10 @@ export default function DailyTripLogList() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((p) => (
               <option key={p.value} value={p.value}>
                 {p.label}

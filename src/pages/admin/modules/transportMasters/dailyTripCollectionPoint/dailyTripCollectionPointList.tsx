@@ -102,6 +102,7 @@ export default function DailyTripCollectionPointList() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
+    defaultToAll: true,
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
@@ -119,12 +120,13 @@ export default function DailyTripCollectionPointList() {
   });
 
   const loadRecords = useCallback(() => {
-    if (!companyUniqueId) {
+    if (!companyUniqueId && !isSuperAdmin) {
       setRecords([]);
       return;
     }
     setLoading(true);
-    const params: Record<string, string> = { company_id: companyUniqueId };
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     dailyTripCollectionPointApi
       .list({ params })
@@ -195,7 +197,7 @@ export default function DailyTripCollectionPointList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>{t("common.select_item_placeholder", { item: t("admin.nav.company") })}</option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>{company.label}</option>
             ))}
@@ -203,10 +205,10 @@ export default function DailyTripCollectionPointList() {
           <select
             value={projectId || ""}
             onChange={(event) => setProjectId(event.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>{t("common.select_item_placeholder", { item: t("admin.nav.project") })}</option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>{project.label}</option>
             ))}
