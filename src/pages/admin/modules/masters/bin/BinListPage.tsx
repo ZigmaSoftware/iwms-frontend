@@ -95,7 +95,9 @@ export default function BinList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -120,7 +122,7 @@ export default function BinList() {
     let mounted = true;
 
     const loadBins = async () => {
-      if (!companyUniqueId) {
+      if (!companyUniqueId && !isSuperAdmin) {
         setBinRows([]);
         return;
       }
@@ -153,7 +155,7 @@ export default function BinList() {
 
   const bins = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as Bin[];
-    if (!companyUniqueId) return [] as Bin[];
+    if (!companyUniqueId && !isSuperAdmin) return [] as Bin[];
 
     const rows = Array.isArray(binRows) ? binRows : [];
     const mapped: Bin[] = rows.map((row) => ({
@@ -320,9 +322,7 @@ export default function BinList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -333,12 +333,10 @@ export default function BinList() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}

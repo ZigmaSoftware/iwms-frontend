@@ -4,47 +4,32 @@ import { api } from "@/api";
 import { adminApi } from "@/helpers/admin/registry";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
-import { Download, Plus, Search, Pencil, Trash2 } from "lucide-react";
+import {
+  Activity, BarChart3, Calendar, Download, MapPin, Plus,
+  Scale, TrendingDown, TrendingUp, Truck,
+} from "lucide-react";
 import Swal from "sweetalert2";
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell,
+  Legend, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { DataTable } from "@/components/common/SafeDataTable";
-import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
+/* ── Types ──────────────────────────────────────────────────────── */
 type ReportRow = {
   unique_id: string;
-  company_id: string;
-  company_name?: string;
-  project_id: string;
-  project_name?: string;
+  company_id: string; company_name?: string;
+  project_id: string; project_name?: string;
   month: string;
-  panchayat_id: string;
-  panchayat_name?: string;
+  panchayat_id: string; panchayat_name?: string;
   waste_type: string;
-  total_agreed_weight: number;
-  total_actual_weight: number;
-  variance_kg: number;
-  variance_percent: number;
-  report_status: "Surplus" | "Deficit" | "On Target" | string;
-  total_trips: number;
-  collection_points_covered: number;
-  collection_efficiency_percent: number;
-  coverage_efficiency_percent?: number;
+  total_agreed_weight: number; total_actual_weight: number;
+  variance_kg: number; variance_percent: number;
+  report_status: string;
+  total_trips: number; collection_points_covered: number;
+  collection_efficiency_percent: number; coverage_efficiency_percent?: number;
   average_weight_per_trip: number;
 };
 
@@ -53,134 +38,179 @@ type ReportResponse = {
   monthly_trends: Array<Record<string, number | string>>;
   panchayat_comparison: Array<Record<string, number | string>>;
   kpis: {
-    total_agreed_weight: number;
-    total_actual_weight: number;
-    variance_kg: number;
-    collection_efficiency_percent: number;
-    average_weight_per_trip: number;
-    coverage_efficiency_percent: number;
-    total_trips: number;
-    collection_points_covered: number;
+    total_agreed_weight: number; total_actual_weight: number;
+    variance_kg: number; collection_efficiency_percent: number;
+    average_weight_per_trip: number; coverage_efficiency_percent: number;
+    total_trips: number; collection_points_covered: number;
     report_status: string;
   };
 };
 
 const initialKpis: ReportResponse["kpis"] = {
-  total_agreed_weight: 0,
-  total_actual_weight: 0,
-  variance_kg: 0,
-  collection_efficiency_percent: 0,
-  average_weight_per_trip: 0,
-  coverage_efficiency_percent: 0,
-  total_trips: 0,
-  collection_points_covered: 0,
+  total_agreed_weight: 0, total_actual_weight: 0, variance_kg: 0,
+  collection_efficiency_percent: 0, average_weight_per_trip: 0,
+  coverage_efficiency_percent: 0, total_trips: 0, collection_points_covered: 0,
   report_status: "On Target",
 };
 
 const currentMonth = () => {
-  const today = new Date();
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
 
+/* ── Helpers ─────────────────────────────────────────────────────── */
+const fmtKg = (v?: number | string | null, dec = 2) => {
+  const n = Number(v);
+  return Number.isNaN(n) ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: dec });
+};
+const fmtAxis = (v: number) =>
+  Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
+
+const effColor = (e: number) =>
+  e >= 90 ? { text: "text-green-600", bg: "bg-green-500", ring: "border-green-200 bg-green-50" }
+  : e >= 70 ? { text: "text-amber-600", bg: "bg-amber-400", ring: "border-amber-200 bg-amber-50" }
+  : { text: "text-red-600", bg: "bg-red-500", ring: "border-red-200 bg-red-50" };
+
+const statusBadgeCls = (s: string) =>
+  s === "Surplus"
+    ? "bg-green-100 text-green-800 border-green-200"
+    : s === "Deficit"
+      ? "bg-red-100 text-red-800 border-red-200"
+      : "bg-blue-100 text-blue-800 border-blue-200";
+
+/* ── Mini Stat Cell ─────────────────────────────────────────────── */
+const StatCell = ({ label, value, color }: { label: string; value: string; color: string }) => (
+  <div className={`rounded-xl border p-4 flex flex-col gap-1 ${color}`}>
+    <span className="text-xs font-medium text-gray-500">{label}</span>
+    <span className="text-2xl font-bold text-gray-800 leading-none">{value}</span>
+  </div>
+);
+
+/* ── PLB Efficiency Row ─────────────────────────────────────────── */
+const PlbEffRow = ({ plb }: { plb: any }) => {
+  const eff = Math.min(Number(plb.collection_efficiency_percent ?? 0), 100);
+  const c = effColor(eff);
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
+      <div className="w-24 shrink-0">
+        <p className="text-xs font-semibold text-gray-800 truncate">{plb.panchayat_name ?? plb.panchayat_id}</p>
+        <p className="text-[10px] text-gray-400 mt-0.5">{fmtKg(plb.total_actual_weight)} / {fmtKg(plb.total_agreed_weight)} kg</p>
+      </div>
+      <div className="flex-1">
+        <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-700 ${c.bg}`}
+            style={{ width: `${eff}%` }}
+          />
+        </div>
+      </div>
+      <div className="w-14 text-right shrink-0">
+        <span className={`text-xs font-bold ${c.text}`}>{eff.toFixed(1)}%</span>
+      </div>
+      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${statusBadgeCls(plb.report_status)}`}>
+        {plb.report_status}
+      </span>
+    </div>
+  );
+};
+
+/* ── Tooltip components ──────────────────────────────────────────── */
+const MonthTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-xl p-3 text-xs min-w-[140px]">
+      <p className="font-semibold text-gray-700 mb-2 flex items-center gap-1">
+        <Calendar className="h-3 w-3" /> {label}
+      </p>
+      {payload.map((p: any) => (
+        <div key={p.dataKey} className="flex justify-between gap-4 mt-1">
+          <span style={{ color: p.stroke ?? p.fill }}>{p.name}</span>
+          <span className="font-bold">{fmtKg(p.value)} kg</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const PLBTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-xl p-3 text-xs min-w-[160px]">
+      <p className="font-semibold text-gray-700 mb-2">{label}</p>
+      {payload.map((p: any) => (
+        <div key={p.dataKey} className="flex justify-between gap-4 mt-1">
+          <span style={{ color: p.fill }}>{p.name}</span>
+          <span className="font-bold">{fmtKg(p.value)} kg</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════════════════════
+    MAIN PAGE
+══════════════════════════════════════════════════════════════════ */
 export default function MonthlyWasteComparisonListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
+    companyUniqueId, projectId, projects, companies,
+    isSuperAdmin, setProjectId, onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false });
 
-  const [monthValue, setMonthValue] = useState(currentMonth());
-  const [appliedMonth, setAppliedMonth] = useState(currentMonth());
-  const [sortMode, setSortMode] = useState("absolute");
-  const [rows, setRows] = useState<ReportRow[]>([]);
-  const [monthlyTrends, setMonthlyTrends] = useState<ReportResponse["monthly_trends"]>([]);
-  const [panchayatComparison, setPanchayatComparison] = useState<ReportResponse["panchayat_comparison"]>([]);
-  const [kpis, setKpis] = useState<ReportResponse["kpis"]>(initialKpis);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [monthValue,     setMonthValue]     = useState(currentMonth());
+  const [appliedMonth,   setAppliedMonth]   = useState(currentMonth());
+  const [sortMode,       setSortMode]       = useState("absolute");
+  const [rows,           setRows]           = useState<ReportRow[]>([]);
+  const [monthlyTrends,  setMonthlyTrends]  = useState<ReportResponse["monthly_trends"]>([]);
+  const [plbComparison,  setPlbComparison]  = useState<ReportResponse["panchayat_comparison"]>([]);
+  const [kpis,           setKpis]           = useState<ReportResponse["kpis"]>(initialKpis);
+  const [loading,        setLoading]        = useState(false);
+  const [error,          setError]          = useState("");
 
   const { encScheduleMasters, encMonthlyWasteComparison } = getEncryptedRoute();
-  const NEW_PATH = `/${encScheduleMasters}/${encMonthlyWasteComparison}/new`;
 
+  /* ── fetch ── */
   const fetchReport = async () => {
     if (isSuperAdmin && companies.length === 0) return;
-    if (!companyUniqueId) { setRows([]); setMonthlyTrends([]); setPanchayatComparison([]); setKpis(initialKpis); return; }
-
-    setLoading(true);
-    setError("");
+    if (!companyUniqueId && !isSuperAdmin) {
+      setRows([]); setMonthlyTrends([]); setPlbComparison([]); setKpis(initialKpis);
+      return;
+    }
+    setLoading(true); setError("");
     try {
       const params: Record<string, string> = { sort: sortMode };
-      if (appliedMonth) params.month = appliedMonth;
+      if (appliedMonth)    params.month      = appliedMonth;
       if (companyUniqueId) params.company_id = companyUniqueId;
-      if (projectId) params.project_id = projectId;
+      if (projectId)       params.project_id = projectId;
 
-      const { data } = await api.get<ReportResponse>("/reports/monthly-waste-comparison/", {
-        params,
-      });
+      const { data } = await api.get<ReportResponse>("/reports/monthly-waste-comparison/", { params });
       setRows(Array.isArray(data?.results) ? data.results : []);
       setMonthlyTrends(Array.isArray(data?.monthly_trends) ? data.monthly_trends : []);
-      setPanchayatComparison(Array.isArray(data?.panchayat_comparison) ? data.panchayat_comparison : []);
+      setPlbComparison(Array.isArray(data?.panchayat_comparison) ? data.panchayat_comparison : []);
       setKpis(data?.kpis ?? initialKpis);
     } catch {
-      setRows([]);
-      setMonthlyTrends([]);
-      setPanchayatComparison([]);
-      setKpis(initialKpis);
+      setRows([]); setMonthlyTrends([]); setPlbComparison([]); setKpis(initialKpis);
       setError("Unable to load monthly waste comparison report.");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    void fetchReport();
-  }, [appliedMonth, sortMode, companyUniqueId, projectId, companies.length]);
+  useEffect(() => { void fetchReport(); }, [appliedMonth, sortMode, companyUniqueId, projectId, companies.length]);
 
-  const formatNumber = (value?: number | string | null, suffix = "") => {
-    const numeric = Number(value);
-    if (Number.isNaN(numeric)) return "-";
-    return `${numeric.toLocaleString(undefined, { maximumFractionDigits: 2 })}${suffix}`;
-  };
-
-  const statusBadge = (row: ReportRow) => {
-    const status = String(row.report_status || "On Target");
-    const cls =
-      status === "Surplus"
-        ? "bg-green-100 text-green-800 border border-green-200"
-        : status === "Deficit"
-          ? "bg-red-100 text-red-800 border border-red-200"
-          : "bg-blue-100 text-blue-800 border border-blue-200";
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cls}`}>
-        {status}
-      </span>
-    );
-  };
-
-  const handleDelete = async (row: ReportRow) => {
-    const result = await Swal.fire({
+  /* ── delete ── */
+  const handleDelete = async (uniqueId: string, label: string) => {
+    const res = await Swal.fire({
       title: t("common.are_you_sure"),
-      text: `Delete record for ${row.panchayat_name ?? row.panchayat_id} — ${row.month}?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#ef4444",
-      cancelButtonColor: "#6b7280",
-      confirmButtonText: t("common.delete"),
-      cancelButtonText: t("common.cancel"),
+      text: `Delete record for ${label}?`,
+      icon: "warning", showCancelButton: true,
+      confirmButtonColor: "#ef4444", cancelButtonColor: "#6b7280",
+      confirmButtonText: t("common.delete"), cancelButtonText: t("common.cancel"),
     });
-    if (!result.isConfirmed) return;
+    if (!res.isConfirmed) return;
     try {
-      await adminApi.monthlyWasteComparison.remove(row.unique_id);
+      await adminApi.monthlyWasteComparison.remove(uniqueId);
       await fetchReport();
       Swal.fire(t("common.success"), t("common.deleted_success"), "success");
     } catch {
@@ -188,74 +218,34 @@ export default function MonthlyWasteComparisonListPage() {
     }
   };
 
-  const actionTemplate = (row: ReportRow) => (
-    <div className="flex gap-2 justify-center">
-      <button
-        onClick={() =>
-          navigate(`/${encScheduleMasters}/${encMonthlyWasteComparison}/${row.unique_id}/edit`, {
-            state: {
-              record: row,
-              companyUniqueId: row.company_id,
-              projectId: row.project_id,
-            },
-          })
-        }
-        className="inline-flex items-center justify-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
-        title={t("common.edit")}
-      >
-        <Pencil size={15} />
-      </button>
-      <button
-        onClick={() => handleDelete(row)}
-        className="inline-flex items-center justify-center p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
-        title={t("common.delete")}
-      >
-        <Trash2 size={15} />
-      </button>
-    </div>
-  );
-
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <Search size={15} className="text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={(e) => {
-            const value = e.target.value;
-            setGlobalFilterValue(value);
-            setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
-          }}
-          placeholder="Search report..."
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
-    </div>
-  );
-
-  const exportRows = useMemo(
+  /* ── derived ── */
+  const eff = Number(kpis.collection_efficiency_percent ?? 0);
+  const effC = effColor(eff);
+  const plbChartData = useMemo(
     () =>
-      rows.map((row) => ({
-        month: row.month,
-        panchayat_id: row.panchayat_id,
-        panchayat_name: row.panchayat_name,
-        waste_type: row.waste_type,
-        total_agreed_weight: row.total_agreed_weight,
-        total_actual_weight: row.total_actual_weight,
-        variance_kg: row.variance_kg,
-        variance_percent: row.variance_percent,
-        report_status: row.report_status,
-        total_trips: row.total_trips,
-        collection_points_covered: row.collection_points_covered,
-        collection_efficiency_percent: row.collection_efficiency_percent,
-        coverage_efficiency_percent: row.coverage_efficiency_percent,
-        average_weight_per_trip: row.average_weight_per_trip,
+      (plbComparison as any[]).slice(0, 8).map((p) => ({
+        name: String(p.panchayat_name ?? p.panchayat_id).replace("Panchayat ", "PLB "),
+        Agreed: Number(p.total_agreed_weight ?? 0),
+        Actual: Number(p.total_actual_weight ?? 0),
+        eff: Number(p.collection_efficiency_percent ?? 0),
       })),
-    [rows],
+    [plbComparison],
   );
 
   const handleDownload = () => {
-    const ws = XLSX.utils.json_to_sheet(exportRows);
+    const ws = XLSX.utils.json_to_sheet(
+      rows.map((r) => ({
+        Month: r.month, PLB: r.panchayat_name ?? r.panchayat_id,
+        "Waste Type": r.waste_type,
+        "Agreed (kg)": r.total_agreed_weight, "Actual (kg)": r.total_actual_weight,
+        "Variance (kg)": r.variance_kg, "Variance %": r.variance_percent,
+        Status: r.report_status, Trips: r.total_trips,
+        Points: r.collection_points_covered,
+        "Coll. Eff. %": r.collection_efficiency_percent,
+        "Coverage %": r.coverage_efficiency_percent,
+        "Avg/Trip (kg)": r.average_weight_per_trip,
+      })),
+    );
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Monthly Waste Comparison");
     saveAs(
@@ -264,116 +254,50 @@ export default function MonthlyWasteComparisonListPage() {
     );
   };
 
-  const kpiCards = [
-    {
-      label: "Collection Efficiency",
-      value: formatNumber(kpis.collection_efficiency_percent, "%"),
-      color: "border-l-blue-500",
-      bg: "bg-blue-50",
-      text: "text-blue-700",
-    },
-    {
-      label: "Average Weight / Trip",
-      value: formatNumber(kpis.average_weight_per_trip, " kg"),
-      color: "border-l-green-500",
-      bg: "bg-green-50",
-      text: "text-green-700",
-    },
-    {
-      label: "Coverage Efficiency",
-      value: formatNumber(kpis.coverage_efficiency_percent, "%"),
-      color: "border-l-purple-500",
-      bg: "bg-purple-50",
-      text: "text-purple-700",
-    },
-    {
-      label: "Total Variance",
-      value: formatNumber(kpis.variance_kg, " kg"),
-      color: "border-l-orange-500",
-      bg: "bg-orange-50",
-      text: "text-orange-700",
-    },
-    {
-      label: "Total Trips",
-      value: formatNumber(kpis.total_trips),
-      color: "border-l-teal-500",
-      bg: "bg-teal-50",
-      text: "text-teal-700",
-    },
-    {
-      label: "Points Covered",
-      value: formatNumber(kpis.collection_points_covered),
-      color: "border-l-pink-500",
-      bg: "bg-pink-50",
-      text: "text-pink-700",
-    },
-    {
-      label: "Agreed Weight",
-      value: formatNumber(kpis.total_agreed_weight, " kg"),
-      color: "border-l-indigo-500",
-      bg: "bg-indigo-50",
-      text: "text-indigo-700",
-    },
-    {
-      label: "Actual Weight",
-      value: formatNumber(kpis.total_actual_weight, " kg"),
-      color: "border-l-cyan-500",
-      bg: "bg-cyan-50",
-      text: "text-cyan-700",
-    },
-  ];
-
+  /* ══════════════════════════════════════════════════════════════
+      RENDER
+  ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="p-4 space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap justify-between items-start gap-4">
+    <div className="p-5 space-y-5 bg-gray-50 min-h-screen font-sans">
+
+      {/* ── Header ── */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Monthly Waste Collection Comparison</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Agreed vs actual collection by month, panchayat, and waste type.
+          <h1 className="text-xl font-bold text-gray-800">Monthly Waste Collection Comparison</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Monthly aggregate — agreed vs actual by PLB and waste type
           </p>
         </div>
-
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-
+          {isSuperAdmin && (
+            <select
+              value={companyUniqueId || ""}
+              onChange={(e) => onCompanyChange(e.target.value)}
+              disabled={companies.length === 0}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              <option value="">All Companies</option>
+              {companies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          )}
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
           >
-            <option value="">
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
+            <option value="">All Projects</option>
+            {projects.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
-
           <input
-            type="month"
-            value={monthValue}
-            max={currentMonth()}
+            type="month" value={monthValue} max={currentMonth()}
             onChange={(e) => setMonthValue(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
           <select
             value={sortMode}
             onChange={(e) => setSortMode(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
           >
             <option value="absolute">Highest variance</option>
             <option value="deficit">Highest deficit</option>
@@ -381,119 +305,283 @@ export default function MonthlyWasteComparisonListPage() {
           </select>
           <button
             onClick={() => setAppliedMonth(monthValue)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-          >
-            Go
-          </button>
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+          >Go</button>
           <button
             onClick={() => { setMonthValue(""); setAppliedMonth(""); }}
-            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+          >All Months</button>
+          <button
+            onClick={handleDownload} disabled={!rows.length}
+            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
           >
-            All Months
+            <Download className="h-4 w-4" /> Download
           </button>
           <button
-            onClick={handleDownload}
-            disabled={!rows.length}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+            onClick={() => navigate(`/${encScheduleMasters}/${encMonthlyWasteComparison}/new`)}
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
           >
-            <Download size={15} />
-            Download
-          </button>
-          <button
-            onClick={() => navigate(NEW_PATH)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-          >
-            <Plus size={15} />
-            Add Record
+            <Plus className="h-4 w-4" /> Add Record
           </button>
         </div>
       </div>
 
-      {/* Error */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-          {error}
-        </div>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{error}</div>
       )}
 
-      {/* KPI Cards */}
+      {/* ── 8 KPI cards ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-        {kpiCards.map((kpi) => (
-          <div
-            key={kpi.label}
-            className={`bg-white rounded-lg border border-gray-200 border-l-4 ${kpi.color} p-3 shadow-sm`}
-          >
-            <p className="text-xs text-gray-500 font-medium truncate">{kpi.label}</p>
-            <p className={`text-lg font-bold mt-1 ${kpi.text}`}>{kpi.value}</p>
+        {[
+          { label: "Collection Efficiency", value: `${fmtKg(kpis.collection_efficiency_percent)}%`,  accent: "border-t-blue-500",   icon: <Activity className="h-4 w-4" /> },
+          { label: "Avg Weight / Trip",      value: `${fmtKg(kpis.average_weight_per_trip)} kg`,      accent: "border-t-green-500",  icon: <Scale className="h-4 w-4" /> },
+          { label: "Coverage Efficiency",    value: `${fmtKg(kpis.coverage_efficiency_percent)}%`,    accent: "border-t-purple-500", icon: <BarChart3 className="h-4 w-4" /> },
+          { label: "Total Variance",         value: `${fmtKg(kpis.variance_kg)} kg`,                  accent: Number(kpis.variance_kg) >= 0 ? "border-t-emerald-500" : "border-t-red-500", icon: Number(kpis.variance_kg) >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" /> },
+          { label: "Total Trips",            value: fmtKg(kpis.total_trips, 0),                       accent: "border-t-teal-500",   icon: <Truck className="h-4 w-4" /> },
+          { label: "Points Covered",         value: fmtKg(kpis.collection_points_covered, 0),         accent: "border-t-pink-500",   icon: <MapPin className="h-4 w-4" /> },
+          { label: "Agreed Weight",          value: `${fmtKg(kpis.total_agreed_weight)} kg`,          accent: "border-t-indigo-500", icon: <BarChart3 className="h-4 w-4" /> },
+          { label: "Actual Weight",          value: `${fmtKg(kpis.total_actual_weight)} kg`,          accent: "border-t-cyan-500",   icon: <TrendingUp className="h-4 w-4" /> },
+        ].map((k) => (
+          <div key={k.label} className={`bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden border-t-4 ${k.accent} flex flex-col gap-2 p-4`}>
+            <div className="flex items-start justify-between">
+              <p className="text-xs font-medium text-gray-500 leading-tight">{k.label}</p>
+              <span className="text-gray-400">{k.icon}</span>
+            </div>
+            <p className="text-xl font-bold text-gray-800 leading-none">{loading ? "—" : k.value}</p>
           </div>
         ))}
       </div>
 
-      {/* Charts */}
+      {/* ── Charts row ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Monthly Trend</h2>
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={monthlyTrends}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="total_agreed_weight" name="Agreed" stroke="#2563eb" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="total_actual_weight" name="Actual" stroke="#16a34a" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+
+        {/* Monthly Trend — Area chart */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-semibold text-gray-800">Monthly Trend</h2>
+          <p className="text-xs text-gray-400 mt-0.5 mb-4">Agreed vs Actual collection weight per month</p>
+          {monthlyTrends.length === 0 ? (
+            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">No trend data yet.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={monthlyTrends} margin={{ top: 6, right: 20, left: 0, bottom: 4 }}>
+                <defs>
+                  <linearGradient id="gradAgreed" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#2563eb" stopOpacity={0.18} />
+                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="gradActual" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#16a34a" stopOpacity={0.22} />
+                    <stop offset="95%" stopColor="#16a34a" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickFormatter={fmtAxis} />
+                <Tooltip content={<MonthTooltip />} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                <Area type="monotone" dataKey="total_agreed_weight" name="Agreed" stroke="#2563eb" strokeWidth={2} strokeDasharray="5 3" fill="url(#gradAgreed)" dot={{ r: 4, fill: "#2563eb", stroke: "#fff", strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                <Area type="monotone" dataKey="total_actual_weight"  name="Actual"  stroke="#16a34a" strokeWidth={2.5} fill="url(#gradActual)" dot={{ r: 4, fill: "#16a34a", stroke: "#fff", strokeWidth: 2 }} activeDot={{ r: 6 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
-        <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">PLB Performance (Top 8)</h2>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={panchayatComparison.slice(0, 8)}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="panchayat_name" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="variance_kg" name="Variance kg" fill="#f97316" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+        {/* PLB Efficiency — progress bars (no up/down bars) */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-semibold text-gray-800">PLB Collection Efficiency</h2>
+          <p className="text-xs text-gray-400 mt-0.5 mb-4">Actual ÷ Agreed — per PLB (Participating Local Body)</p>
+          {plbComparison.length === 0 ? (
+            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">No PLB data yet.</div>
+          ) : (
+            <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
+              {(plbComparison as any[]).slice(0, 10).map((p, i) => (
+                <PlbEffRow key={i} plb={p} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* PLB Agreed vs Actual — grouped bar (full width) */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 lg:col-span-2">
+          <h2 className="text-sm font-semibold text-gray-800">PLB Collection — Agreed vs Actual</h2>
+          <p className="text-xs text-gray-400 mt-0.5 mb-4">
+            Side-by-side monthly totals per PLB&nbsp;·&nbsp;
+            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-300 mr-1 align-middle" />Agreed&nbsp;&nbsp;
+            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-600 mr-1 align-middle" />Actual
+          </p>
+          {plbChartData.length === 0 ? (
+            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">No data.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={plbChartData} margin={{ top: 6, right: 16, left: 0, bottom: 56 }} barCategoryGap="30%" barGap={4}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#9ca3af", angle: -35, textAnchor: "end" }} axisLine={false} tickLine={false} interval={0} />
+                <YAxis tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} tickFormatter={fmtAxis} />
+                <Tooltip content={<PLBTooltip />} />
+                <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 11, paddingTop: 14 }} />
+                <Bar dataKey="Agreed" fill="#93c5fd" maxBarSize={36} radius={[3, 3, 0, 0]}>
+                  {plbChartData.map((_, i) => <Cell key={i} fill="#93c5fd" />)}
+                </Bar>
+                <Bar dataKey="Actual" fill="#16a34a" maxBarSize={36} radius={[3, 3, 0, 0]}>
+                  {plbChartData.map((e, i) => (
+                    <Cell key={i} fill={e.Actual >= e.Agreed ? "#16a34a" : "#f97316"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 
-      {/* Data Table */}
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-        <DataTable
-          value={rows}
-          paginator
-          rows={10}
-          rowsPerPageOptions={[5, 10, 25, 50]}
-          filters={filters}
-          header={renderHeader()}
-          loading={loading}
-          stripedRows
-          showGridlines
-          emptyMessage="No monthly comparison data found."
-          globalFilterFields={["month", "panchayat_id", "panchayat_name", "waste_type", "report_status"]}
-          className="p-datatable-sm"
-        >
-          <Column header="S.No" body={(_, opts) => opts.rowIndex + 1} style={{ width: "60px" }} />
-          <Column field="month" header="Month" sortable />
-          <Column field="panchayat_id" header="Panchayat ID" sortable />
-          <Column field="panchayat_name" header="PLB" sortable />
-          <Column field="waste_type" header="Waste Type" sortable />
-          <Column field="total_agreed_weight" header="Agreed (kg)" body={(r) => formatNumber(r.total_agreed_weight)} sortable />
-          <Column field="total_actual_weight" header="Actual (kg)" body={(r) => formatNumber(r.total_actual_weight)} sortable />
-          <Column field="variance_kg" header="Variance (kg)" body={(r) => formatNumber(r.variance_kg)} sortable />
-          <Column field="variance_percent" header="Variance %" body={(r) => formatNumber(r.variance_percent, "%")} sortable />
-          <Column field="report_status" header="Status" body={statusBadge} sortable />
-          <Column field="total_trips" header="Trips" sortable />
-          <Column field="collection_points_covered" header="Points" sortable />
-          <Column field="collection_efficiency_percent" header="Coll. Eff. %" body={(r) => formatNumber(r.collection_efficiency_percent, "%")} sortable />
-          <Column field="coverage_efficiency_percent" header="Coverage %" body={(r) => formatNumber(r.coverage_efficiency_percent, "%")} sortable />
-          <Column field="average_weight_per_trip" header="Avg/Trip" body={(r) => formatNumber(r.average_weight_per_trip)} sortable />
-          <Column header="Actions" body={actionTemplate} style={{ width: "90px" }} />
-        </DataTable>
-      </div>
+      {/* ══════════════════════════════════════════════════════
+          SINGLE MONTHLY SUMMARY RECORD
+      ══════════════════════════════════════════════════════ */}
+      {!loading && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+
+          {/* Card header */}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-5 border-b border-gray-100"
+            style={{ background: "linear-gradient(135deg,#eff6ff 0%,#e0f2fe 100%)" }}>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-sm">
+                <BarChart3 className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <p className="text-base font-bold text-gray-800">Monthly Collection Summary</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Overall aggregate for&nbsp;
+                  <span className="font-semibold text-blue-700">
+                    {appliedMonth || "All Months"}
+                  </span>
+                  &nbsp;·&nbsp;{rows.length} record{rows.length !== 1 ? "s" : ""} combined
+                </p>
+              </div>
+            </div>
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${statusBadgeCls(kpis.report_status)}`}>
+              {kpis.report_status === "Deficit" && <TrendingDown className="h-3 w-3" />}
+              {kpis.report_status === "Surplus" && <TrendingUp className="h-3 w-3" />}
+              {kpis.report_status}
+            </span>
+          </div>
+
+          {/* Main stats grid */}
+          <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCell
+              label="Total Agreed Weight"
+              value={`${fmtKg(kpis.total_agreed_weight)} kg`}
+              color="border-blue-100 bg-blue-50"
+            />
+            <StatCell
+              label="Total Actual Weight"
+              value={`${fmtKg(kpis.total_actual_weight)} kg`}
+              color="border-green-100 bg-green-50"
+            />
+            <StatCell
+              label="Total Variance"
+              value={`${fmtKg(kpis.variance_kg)} kg`}
+              color={Number(kpis.variance_kg) >= 0 ? "border-emerald-100 bg-emerald-50" : "border-red-100 bg-red-50"}
+            />
+            <StatCell
+              label="Collection Efficiency"
+              value={`${fmtKg(kpis.collection_efficiency_percent)}%`}
+              color={`${effC.ring} border`}
+            />
+          </div>
+
+          {/* Efficiency progress bar */}
+          <div className="px-6 pb-5">
+            <div className="flex justify-between text-xs text-gray-500 mb-1.5">
+              <span className="font-medium">Actual vs Agreed Target</span>
+              <span className={`font-bold ${effC.text}`}>{fmtKg(eff)}%</span>
+            </div>
+            <div className="h-4 rounded-full bg-gray-100 overflow-hidden relative">
+              <div
+                className={`h-full rounded-full transition-all duration-1000 ${effC.bg}`}
+                style={{ width: `${Math.min(eff, 100)}%` }}
+              />
+              {eff >= 10 && (
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+                  {fmtKg(kpis.total_actual_weight)} / {fmtKg(kpis.total_agreed_weight)} kg
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Secondary stats footer */}
+          <div className="border-t border-gray-100 px-6 py-4 grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50/60">
+            {[
+              { label: "Total Trips",         value: fmtKg(kpis.total_trips, 0),                     icon: <Truck   className="h-4 w-4 text-teal-500" /> },
+              { label: "Points Covered",       value: fmtKg(kpis.collection_points_covered, 0),        icon: <MapPin  className="h-4 w-4 text-pink-500" /> },
+              { label: "Coverage Efficiency",  value: `${fmtKg(kpis.coverage_efficiency_percent)}%`, icon: <Activity className="h-4 w-4 text-purple-500" /> },
+              { label: "Avg Weight / Trip",    value: `${fmtKg(kpis.average_weight_per_trip)} kg`,   icon: <Scale   className="h-4 w-4 text-indigo-500" /> },
+            ].map((s) => (
+              <div key={s.label} className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center shrink-0 shadow-sm">
+                  {s.icon}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] text-gray-400 font-medium">{s.label}</p>
+                  <p className="text-sm font-bold text-gray-800 leading-tight">{s.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* PLB breakdown cards */}
+          {plbComparison.length > 0 && (
+            <div className="border-t border-gray-100 px-6 py-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
+                PLB Breakdown — {plbComparison.length} Participating Local Bodies
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {(plbComparison as any[]).slice(0, 8).map((p, i) => {
+                  const pEff = Number(p.collection_efficiency_percent ?? 0);
+                  const pc = effColor(Math.min(pEff, 100));
+                  return (
+                    <div key={i} className="bg-white rounded-xl border border-gray-200 p-3.5 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="text-xs font-bold text-gray-800">{p.panchayat_name ?? p.panchayat_id}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">{p.waste_type ?? "All types"}</p>
+                        </div>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${statusBadgeCls(p.report_status)}`}>
+                          {p.report_status}
+                        </span>
+                      </div>
+                      <div className="mb-2">
+                        <div className="flex justify-between text-[10px] text-gray-400 mb-1">
+                          <span>Efficiency</span>
+                          <span className={`font-bold ${pc.text}`}>{pEff.toFixed(1)}%</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                          <div className={`h-full rounded-full ${pc.bg}`} style={{ width: `${Math.min(pEff, 100)}%` }} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <div className="text-center bg-blue-50 rounded-lg py-1.5">
+                          <p className="text-[10px] text-blue-500 font-medium">Agreed</p>
+                          <p className="text-xs font-bold text-blue-700">{fmtKg(p.total_agreed_weight)} kg</p>
+                        </div>
+                        <div className="text-center bg-green-50 rounded-lg py-1.5">
+                          <p className="text-[10px] text-green-500 font-medium">Actual</p>
+                          <p className="text-xs font-bold text-green-700">{fmtKg(p.total_actual_weight)} kg</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {loading && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-12 flex items-center justify-center gap-3 text-gray-400">
+          <span className="animate-spin h-5 w-5 border-2 border-gray-200 border-t-blue-500 rounded-full" />
+          Loading monthly data…
+        </div>
+      )}
     </div>
   );
 }

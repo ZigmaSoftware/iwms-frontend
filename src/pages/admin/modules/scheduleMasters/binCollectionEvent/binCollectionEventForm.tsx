@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -28,6 +28,8 @@ type BinCERecord = {
   bin_id?: string | null;
   collection_point_id?: string | null;
   panchayat_id?: string | null;
+  ward_id?: string | null;
+  zone_id?: string | null;
   trip_plan?: { display_code?: string };
   collection_point?: { cp_name?: string };
   bin?: { bin_name?: string; bin_capacity?: number; bin_type?: string };
@@ -116,28 +118,40 @@ export default function BinCollectionEventForm() {
   });
   const [saving, setSaving] = useState(false);
 
-  /* ── location filter state ── */
+  /* ── location cascade filter state ── */
+  const [filterDistrict, setFilterDistrict] = useState("");
+  const [filterCity, setFilterCity] = useState("");
   const [filterZone, setFilterZone] = useState("");
   const [filterPanchayat, setFilterPanchayat] = useState("");
   const [filterWard, setFilterWard] = useState("");
+
+  /* ── raw data for client-side filtering ── */
   const [allAssignments, setAllAssignments] = useState<any[]>([]);
   const [allRawWards, setAllRawWards] = useState<any[]>([]);
+  const [allRawBins, setAllRawBins] = useState<any[]>([]);
+  const [allRawCities, setAllRawCities] = useState<any[]>([]);
+  const [allRawZones, setAllRawZones] = useState<any[]>([]);
+  const [allRawPanchayats, setAllRawPanchayats] = useState<any[]>([]);
+  const [rawTripCPs, setRawTripCPs] = useState<any[]>([]);
+
+  /* ── dropdown option lists ── */
+  const [districtOptions, setDistrictOptions] = useState<SelectOption[]>([]);
   const [zoneOptions, setZoneOptions] = useState<SelectOption[]>([]);
   const [panchayatOptions, setPanchayatOptions] = useState<SelectOption[]>([]);
   const [wardOptions, setWardOptions] = useState<SelectOption[]>([]);
-
-  /* ── dropdown options ── */
   const [assignmentOptions, setAssignmentOptions] = useState<SelectOption[]>([]);
   const [collectionPointOptions, setCollectionPointOptions] = useState<SelectOption[]>([]);
   const [binOptions, setBinOptions] = useState<SelectOption[]>([]);
   const [fetchingDropdowns, setFetchingDropdowns] = useState(false);
 
-  /* ── pending IDs/names for edit pre-fill (applied once option lists load) ── */
+  /* ── pending IDs for edit pre-fill ── */
   const [pendingAssignmentId, setPendingAssignmentId] = useState("");
   const [pendingCollectionPointId, setPendingCollectionPointId] = useState("");
   const [pendingBinId, setPendingBinId] = useState("");
-  /* location filters — matched once option lists are ready */
   const [pendingPanchayatId, setPendingPanchayatId] = useState("");
+  const [pendingZoneId, setPendingZoneId] = useState("");
+  const [pendingWardId, setPendingWardId] = useState("");
+  // name-based fallbacks used when API doesn't return IDs
   const [pendingWardName, setPendingWardName] = useState("");
   const [pendingZoneName, setPendingZoneName] = useState("");
 
@@ -154,7 +168,7 @@ export default function BinCollectionEventForm() {
       .finally(() => setLoadingRecord(false));
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── pre-fill form from record (edit mode) ── */
+  /* ── pre-fill form from record ── */
   useEffect(() => {
     if (!isEdit || !record) return;
 
@@ -175,16 +189,20 @@ export default function BinCollectionEventForm() {
     if (cpId) setPendingCollectionPointId(cpId);
     if (binId) setPendingBinId(binId);
 
-    /* store location values as pending — option lists may not be ready yet */
     if (record.panchayat_id) {
       setPendingPanchayatId(String(record.panchayat_id));
+    } else if (record.ward_id) {
+      setPendingWardId(String(record.ward_id));
+    } else if (record.zone_id) {
+      setPendingZoneId(String(record.zone_id));
     } else {
-      if (record.ward_name) setPendingWardName(String(record.ward_name));
+      // fallback: name-based matching when only display names are available
       if (record.zone_name) setPendingZoneName(String(record.zone_name));
+      if (record.ward_name) setPendingWardName(String(record.ward_name));
     }
   }, [isEdit, record]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── load dropdown options (runs for both create and edit) ── */
+  /* ── load all dropdown data ── */
   useEffect(() => {
     if (!companyUniqueId || !projectId) return;
     setFetchingDropdowns(true);
@@ -192,14 +210,18 @@ export default function BinCollectionEventForm() {
     Promise.all([
       (dailyTripAssignmentApi.list({ params }) as Promise<any[]>).catch(() => []),
       (adminApi.bins.list({ params }) as Promise<any[]>).catch(() => []),
+      (adminApi.districts.list({ params }) as Promise<any[]>).catch(() => []),
+      (adminApi.cities.list({ params }) as Promise<any[]>).catch(() => []),
       (zoneApi.list({ params }) as Promise<any[]>).catch(() => []),
       (panchayatApi.list({ params }) as Promise<any[]>).catch(() => []),
       (wardApi.list({ params }) as Promise<any[]>).catch(() => []),
-    ]).then(([assignRes, binRes, zoneRes, panchRes, wardRes]) => {
+    ]).then(([assignRes, binRes, districtRes, cityRes, zoneRes, panchRes, wardRes]) => {
       const assignments = normalizeList(assignRes);
       const wards = normalizeList(wardRes);
+      const bins = normalizeList(binRes);
       setAllAssignments(assignments);
       setAllRawWards(wards);
+      setAllRawBins(bins);
       setAssignmentOptions(
         assignments
           .map((a: any) => ({
@@ -208,8 +230,13 @@ export default function BinCollectionEventForm() {
           }))
           .filter((o: any) => o.value)
       );
-      setBinOptions(toOptions(normalizeList(binRes), "unique_id", "bin_name"));
+      setBinOptions(toOptions(bins, "unique_id", "bin_name"));
+      setDistrictOptions(toOptions(normalizeList(districtRes), "unique_id", "name"));
+      setAllRawCities(normalizeList(cityRes));
       setZoneOptions(toOptions(normalizeList(zoneRes), "unique_id", "zone_name"));
+      setAllRawZones(normalizeList(zoneRes));
+      setPanchayatOptions(toOptions(normalizeList(panchRes), "unique_id", "panchayat_name"));
+      setAllRawPanchayats(normalizeList(panchRes));
       setPanchayatOptions(toOptions(normalizeList(panchRes), "unique_id", "panchayat_name"));
       setWardOptions(toOptions(wards, "unique_id", "ward_name"));
     }).finally(() => setFetchingDropdowns(false));
@@ -219,11 +246,13 @@ export default function BinCollectionEventForm() {
   useEffect(() => {
     if (!form.trip_assignment_id) {
       setCollectionPointOptions([]);
+      setRawTripCPs([]);
       return;
     }
     (dailyTripCollectionPointApi.list({ params: { trip_assignment_id: form.trip_assignment_id } }) as Promise<any[]>)
       .then((res) => {
         const list = normalizeList(res);
+        setRawTripCPs(list);
         setCollectionPointOptions(
           list.map((cp: any) => ({
             value: String(cp.unique_id ?? ""),
@@ -231,10 +260,10 @@ export default function BinCollectionEventForm() {
           })).filter((o) => o.value)
         );
       })
-      .catch(() => setCollectionPointOptions([]));
+      .catch(() => { setCollectionPointOptions([]); setRawTripCPs([]); });
   }, [form.trip_assignment_id]);
 
-  /* ── apply pending assignment once assignment options load ── */
+  /* ── pending flush effects ── */
   useEffect(() => {
     if (!pendingAssignmentId || assignmentOptions.length === 0) return;
     if (assignmentOptions.some((o) => o.value === pendingAssignmentId)) {
@@ -243,7 +272,6 @@ export default function BinCollectionEventForm() {
     }
   }, [pendingAssignmentId, assignmentOptions]);
 
-  /* ── apply pending collection point once collection point options load ── */
   useEffect(() => {
     if (!pendingCollectionPointId || collectionPointOptions.length === 0) return;
     if (collectionPointOptions.some((o) => o.value === pendingCollectionPointId)) {
@@ -252,7 +280,6 @@ export default function BinCollectionEventForm() {
     }
   }, [pendingCollectionPointId, collectionPointOptions]);
 
-  /* ── apply pending bin once bin options load ── */
   useEffect(() => {
     if (!pendingBinId || binOptions.length === 0) return;
     if (binOptions.some((o) => o.value === pendingBinId)) {
@@ -261,61 +288,124 @@ export default function BinCollectionEventForm() {
     }
   }, [pendingBinId, binOptions]);
 
-  /* ── apply pending panchayat filter once panchayat options load ── */
+  // Helper: given a city_id, resolve and set district + city filters
+  const applyCity = (cityId: string) => {
+    if (!cityId) return;
+    const city = allRawCities.find((c: any) => String(c.unique_id ?? "") === cityId);
+    if (city) setFilterDistrict(String(city.district_id ?? ""));
+    setFilterCity(cityId);
+  };
+
+  // Panchayat → resolve city (→ district) then set panchayat filter
   useEffect(() => {
-    if (!pendingPanchayatId || panchayatOptions.length === 0) return;
+    if (!pendingPanchayatId || allRawPanchayats.length === 0) return;
+    const panchayat = allRawPanchayats.find((p: any) => String(p.unique_id ?? "") === pendingPanchayatId);
+    if (!panchayat) return;
+    applyCity(String(panchayat.city_id ?? ""));
     if (panchayatOptions.some((o) => o.value === pendingPanchayatId)) {
       setFilterPanchayat(pendingPanchayatId);
       setPendingPanchayatId("");
     }
-  }, [pendingPanchayatId, panchayatOptions]);
+  }, [pendingPanchayatId, allRawPanchayats, allRawCities, panchayatOptions]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── apply pending zone filter once zone options load ── */
+  // Zone by ID → resolve city (→ district) then set zone filter
   useEffect(() => {
-    if (!pendingZoneName || zoneOptions.length === 0) return;
-    const matched = zoneOptions.find(
-      (o) => o.label.trim().toLowerCase() === pendingZoneName.trim().toLowerCase()
-    );
-    if (matched) {
-      setFilterZone(matched.value);
-      setPendingZoneName("");
-    }
-  }, [pendingZoneName, zoneOptions]);
+    if (!pendingZoneId || allRawZones.length === 0) return;
+    const zone = allRawZones.find((z: any) => String(z.unique_id ?? "") === pendingZoneId);
+    if (!zone) return;
+    applyCity(String(zone.city_id ?? ""));
+    setFilterZone(pendingZoneId);
+    setPendingZoneId("");
+  }, [pendingZoneId, allRawZones, allRawCities]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── apply pending ward filter once ward options load ── */
+  // Ward by ID → resolve zone + city (→ district) then set ward filter
   useEffect(() => {
-    if (!pendingWardName || wardOptions.length === 0) return;
-    const matched = wardOptions.find(
-      (o) => o.label.trim().toLowerCase() === pendingWardName.trim().toLowerCase()
-    );
-    if (matched) {
-      setFilterWard(matched.value);
-      setPendingWardName("");
+    if (!pendingWardId || allRawWards.length === 0) return;
+    const ward = allRawWards.find((w: any) => String(w.unique_id ?? "") === pendingWardId);
+    if (!ward) return;
+    applyCity(String(ward.city_id ?? ""));
+    if (ward.zone_id) setFilterZone(String(ward.zone_id));
+    if (wardOptions.some((o) => o.value === pendingWardId)) {
+      setFilterWard(pendingWardId);
+      setPendingWardId("");
     }
-  }, [pendingWardName, wardOptions]);
+  }, [pendingWardId, allRawWards, allRawCities, wardOptions]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── ward options filtered by zone ── */
-  const filteredWardOptions = filterZone
-    ? (() => {
-        const selectedZoneName = zoneOptions.find((z) => z.value === filterZone)?.label ?? "";
-        if (!selectedZoneName) return wardOptions;
-        return wardOptions.filter((w) => {
-          const rawWard = allRawWards.find((rw: any) => String(rw.unique_id ?? "") === w.value);
-          if (!rawWard) return true;
-          return String(rawWard.zone_name ?? "") === selectedZoneName;
-        });
-      })()
-    : wardOptions;
+  // Zone by name (fallback) → resolve city (→ district) then set zone filter
+  useEffect(() => {
+    if (!pendingZoneName || allRawZones.length === 0) return;
+    const zone = allRawZones.find((z: any) =>
+      String(z.zone_name ?? z.name ?? "").trim().toLowerCase() === pendingZoneName.trim().toLowerCase()
+    );
+    if (!zone) return;
+    applyCity(String(zone.city_id ?? ""));
+    setFilterZone(String(zone.unique_id ?? ""));
+    setPendingZoneName("");
+  }, [pendingZoneName, allRawZones, allRawCities]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── filter assignments by selected panchayat or ward ── */
-  const filteredAssignmentOptions = (() => {
+  // Ward by name (fallback) → resolve zone + city (→ district) then set ward filter
+  useEffect(() => {
+    if (!pendingWardName || allRawWards.length === 0) return;
+    const ward = allRawWards.find((w: any) =>
+      String(w.ward_name ?? w.name ?? "").trim().toLowerCase() === pendingWardName.trim().toLowerCase()
+    );
+    if (!ward) return;
+    applyCity(String(ward.city_id ?? ""));
+    if (ward.zone_id) setFilterZone(String(ward.zone_id));
+    setFilterWard(String(ward.unique_id ?? ""));
+    setPendingWardName("");
+  }, [pendingWardName, allRawWards, allRawCities]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const cascadedCities = useMemo(() =>
+    allRawCities.filter((c) => !filterDistrict || String(c?.district_id ?? "") === filterDistrict)
+      .map((c) => ({ value: String(c?.unique_id ?? ""), label: String(c?.city_name ?? c?.name ?? "") }))
+      .filter((o) => o.value),
+    [allRawCities, filterDistrict]
+  );
+
+  const cascadedZones = useMemo(() =>
+    allRawZones.filter((z) => !filterCity || String(z?.city_id ?? "") === filterCity)
+      .map((z) => ({ value: String(z?.unique_id ?? ""), label: String(z?.zone_name ?? z?.name ?? "") }))
+      .filter((o) => o.value),
+    [allRawZones, filterCity]
+  );
+
+  const cascadedPanchayats = useMemo(() =>
+    allRawPanchayats.filter((p) => !filterCity || String(p?.city_id ?? "") === filterCity)
+      .map((p) => ({ value: String(p?.unique_id ?? ""), label: String(p?.panchayat_name ?? p?.name ?? "") }))
+      .filter((o) => o.value),
+    [allRawPanchayats, filterCity]
+  );
+
+  const cascadedWards = useMemo(() =>
+    allRawWards.filter((w) => !filterZone || String(w?.zone_id ?? "") === filterZone)
+      .map((w) => ({ value: String(w?.unique_id ?? ""), label: String(w?.ward_name ?? w?.name ?? "") }))
+      .filter((o) => o.value),
+    [allRawWards, filterZone]
+  );
+
+  /* ── bins filtered by selected collection point (trip CP) ── */
+  const filteredBinOptions = useMemo(() => {
+    if (!form.trip_collection_point_id) return binOptions;
+    const selectedTripCP = rawTripCPs.find((cp: any) => String(cp.unique_id ?? "") === form.trip_collection_point_id);
+    if (!selectedTripCP) return binOptions;
+    const cpId = String(selectedTripCP.collection_point_id ?? selectedTripCP.collection_point?.unique_id ?? "");
+    if (!cpId) return binOptions;
+    const filtered = allRawBins.filter((bin: any) =>
+      String(bin.collection_point_id ?? bin.collection_point?.unique_id ?? "") === cpId
+    );
+    return filtered.length
+      ? filtered.map((b: any) => ({ value: String(b.unique_id ?? ""), label: String(b.bin_name ?? b.unique_id ?? "") })).filter((o) => o.value)
+      : binOptions;
+  }, [form.trip_collection_point_id, rawTripCPs, allRawBins, binOptions]);
+
+  /* ── assignments filtered by location ── */
+  const filteredAssignmentOptions = useMemo(() => {
     if (!filterPanchayat && !filterWard) return assignmentOptions;
     return allAssignments
       .filter((a: any) => {
-        const aPanchayat = String(a.panchayat?.unique_id ?? "");
-        const aWard = String(a.ward?.unique_id ?? "");
-        if (filterPanchayat && aPanchayat !== filterPanchayat) return false;
-        if (filterWard && aWard !== filterWard) return false;
+        if (filterPanchayat && String(a.panchayat?.unique_id ?? "") !== filterPanchayat) return false;
+        if (filterWard && String(a.ward?.unique_id ?? "") !== filterWard) return false;
         return true;
       })
       .map((a: any) => ({
@@ -323,10 +413,14 @@ export default function BinCollectionEventForm() {
         label: `${a.unique_id ?? ""}${a.trip_plan?.display_code ? " — " + a.trip_plan.display_code : ""}`,
       }))
       .filter((o) => o.value);
-  })();
+  }, [allAssignments, assignmentOptions, filterPanchayat, filterWard]);
 
   const set = (field: keyof FormState) => (value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));
+
+  const resetAssignment = () => {
+    setForm((prev) => ({ ...prev, trip_assignment_id: "", trip_collection_point_id: "", bin_id: "" }));
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -340,10 +434,6 @@ export default function BinCollectionEventForm() {
     }
     if (filterZone && !filterWard) {
       Swal.fire(t("common.warning"), "Please select a Ward when Zone is selected.", "warning");
-      return;
-    }
-    if (filterWard && !filterZone) {
-      Swal.fire(t("common.warning"), "Please select a Zone when Ward is selected.", "warning");
       return;
     }
     setSaving(true);
@@ -375,7 +465,7 @@ export default function BinCollectionEventForm() {
     }
   };
 
-  /* ── loading spinner while fetching record ── */
+
   if (loadingRecord) {
     return (
       <div className="flex items-center justify-center p-10">
@@ -392,6 +482,7 @@ export default function BinCollectionEventForm() {
     <div className="p-4 space-y-4">
       <ComponentCard title={title} desc={isEdit ? "Update the bin collection scan record" : "Record a bin collection scan event manually"}>
         <form onSubmit={handleSubmit} className="space-y-5">
+
           {/* Company / Project (superadmin) */}
           {isSuperAdmin && (
             <div className="grid grid-cols-2 gap-4">
@@ -422,61 +513,105 @@ export default function BinCollectionEventForm() {
             </div>
           )}
 
-          {/* Location filters */}
-          <div className="grid grid-cols-3 gap-4">
+          {/* Location filters — cascade: District → City → Zone → Ward (or Panchayat) */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* District */}
+            <div>
+              <Label>District</Label>
+              <Select
+                options={districtOptions}
+                value={filterDistrict}
+                onChange={(v) => {
+                  setFilterDistrict(v);
+                  setFilterCity("");
+                  setFilterZone("");
+                  setFilterWard("");
+                  setFilterPanchayat("");
+                  resetAssignment();
+                }}
+                placeholder={fetchingDropdowns ? "Loading..." : "Select District"}
+                disabled={fetchingDropdowns || !projectId}
+              />
+            </div>
+
+            {/* City */}
+            <div>
+              <Label>City</Label>
+              <Select
+                options={cascadedCities}
+                value={filterCity}
+                onChange={(v) => {
+                  setFilterCity(v);
+                  setFilterZone("");
+                  setFilterWard("");
+                  setFilterPanchayat("");
+                  resetAssignment();
+                }}
+                placeholder={filterDistrict ? "Select City" : "Select District first"}
+                disabled={fetchingDropdowns || !filterDistrict}
+              />
+            </div>
+
+            {/* Zone */}
             <div>
               <Label>Zone {filterZone && !filterPanchayat ? <span className="text-red-500">*</span> : null}</Label>
               <Select
-                options={zoneOptions}
+                options={cascadedZones}
                 value={filterZone}
                 onChange={(v) => {
                   setFilterZone(v);
                   setFilterWard("");
-                  set("trip_assignment_id")("");
-                  set("trip_collection_point_id")("");
+                  resetAssignment();
                 }}
-                placeholder={fetchingDropdowns ? "Loading..." : "Select Zone"}
-                disabled={fetchingDropdowns || !projectId || Boolean(filterPanchayat)}
+                placeholder={filterCity ? "Select Zone" : "Select City first"}
+                disabled={fetchingDropdowns || !filterCity || Boolean(filterPanchayat)}
               />
             </div>
+
+            {/* Ward */}
             <div>
               <Label>Ward {filterZone && !filterPanchayat ? <span className="text-red-500">*</span> : null}</Label>
               <Select
-                options={filteredWardOptions}
+                options={cascadedWards}
                 value={filterWard}
                 onChange={(v) => {
                   setFilterWard(v);
-                  set("trip_assignment_id")("");
-                  set("trip_collection_point_id")("");
+                  resetAssignment();
                 }}
                 placeholder={filterZone ? "Select Ward" : "Select Zone first"}
-                disabled={fetchingDropdowns || !projectId || !filterZone || Boolean(filterPanchayat)}
+                disabled={fetchingDropdowns || !filterZone || Boolean(filterPanchayat)}
               />
             </div>
+
+            {/* Panchayat (mutually exclusive with zone/ward) */}
             <div>
               <Label>Panchayat</Label>
               <Select
-                options={panchayatOptions}
+                options={cascadedPanchayats}
                 value={filterPanchayat}
                 onChange={(v) => {
                   setFilterPanchayat(v);
                   if (v) { setFilterZone(""); setFilterWard(""); }
-                  set("trip_assignment_id")("");
-                  set("trip_collection_point_id")("");
+                  resetAssignment();
                 }}
-                placeholder="Select Panchayat"
-                disabled={fetchingDropdowns || !projectId || Boolean(filterZone) || Boolean(filterWard)}
+                placeholder={filterCity ? "Select Panchayat" : "Select City first"}
+                disabled={fetchingDropdowns || !filterCity || Boolean(filterZone) || Boolean(filterWard)}
               />
             </div>
           </div>
 
+          {/* Trip Assignment & Collection Point */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Trip Assignment <span className="text-red-500">*</span></Label>
               <Select
                 options={filteredAssignmentOptions}
                 value={form.trip_assignment_id}
-                onChange={(v) => { set("trip_assignment_id")(v); set("trip_collection_point_id")(""); }}
+                onChange={(v) => {
+                  set("trip_assignment_id")(v);
+                  set("trip_collection_point_id")("");
+                  set("bin_id")("");
+                }}
                 placeholder={fetchingDropdowns ? "Loading..." : "Select Trip Assignment"}
                 disabled={fetchingDropdowns || !projectId}
               />
@@ -486,21 +621,31 @@ export default function BinCollectionEventForm() {
               <Select
                 options={collectionPointOptions}
                 value={form.trip_collection_point_id}
-                onChange={set("trip_collection_point_id")}
+                onChange={(v) => {
+                  set("trip_collection_point_id")(v);
+                  set("bin_id")("");   // clear bin when collection point changes
+                }}
                 placeholder={form.trip_assignment_id ? "Select Collection Point" : "Select assignment first"}
                 disabled={!form.trip_assignment_id}
               />
             </div>
           </div>
 
+          {/* Bin (filtered by selected collection point) */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Bin <span className="text-red-500">*</span></Label>
               <Select
-                options={binOptions}
+                options={filteredBinOptions}
                 value={form.bin_id}
                 onChange={set("bin_id")}
-                placeholder={fetchingDropdowns ? "Loading..." : "Select Bin"}
+                placeholder={
+                  form.trip_collection_point_id
+                    ? "Select Bin"
+                    : form.trip_assignment_id
+                      ? "Select Collection Point first"
+                      : fetchingDropdowns ? "Loading..." : "Select Bin"
+                }
                 disabled={fetchingDropdowns || !projectId}
               />
             </div>
@@ -517,6 +662,7 @@ export default function BinCollectionEventForm() {
             </div>
           </div>
 
+          {/* GPS */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>GPS Latitude</Label>

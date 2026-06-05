@@ -87,6 +87,7 @@ export default function CollectionMonitoringListPage() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
+    defaultToAll: true,
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
@@ -114,7 +115,7 @@ export default function CollectionMonitoringListPage() {
       setLoading(false);
       return;
     }
-    if (!companyUniqueId) {
+    if (!companyUniqueId && !isSuperAdmin) {
       setRecords([]);
       setLoading(false);
       return;
@@ -122,7 +123,8 @@ export default function CollectionMonitoringListPage() {
 
     try {
       setLoading(true);
-      const params: Record<string, string> = { company_id: companyUniqueId };
+      const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
       const response = await binCollectionEventApi.list({ params });
       const data = normalizeList(response);
@@ -212,7 +214,7 @@ export default function CollectionMonitoringListPage() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>{t("common.select_item_placeholder", { item: t("admin.nav.company") })}</option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>{company.label}</option>
             ))}
@@ -220,10 +222,10 @@ export default function CollectionMonitoringListPage() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>{t("common.select_item_placeholder", { item: t("admin.nav.project") })}</option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>{project.label}</option>
             ))}

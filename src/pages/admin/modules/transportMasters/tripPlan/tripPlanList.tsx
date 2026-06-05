@@ -74,6 +74,7 @@ export default function TripPlanList() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
+    defaultToAll: true,
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
@@ -97,13 +98,14 @@ export default function TripPlanList() {
   });
 
   useEffect(() => {
-    if (!companyUniqueId) {
+    if (!companyUniqueId && !isSuperAdmin) {
       setRecords([]);
       return;
     }
     let mounted = true;
     setLoading(true);
-    const params: Record<string, string> = { company_id: companyUniqueId };
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     tripPlanApi.list({ params })
       .then((data) => {
@@ -148,11 +150,11 @@ export default function TripPlanList() {
         </div>
         <div className="flex items-center gap-3">
           <select value={companyUniqueId || ""} onChange={(e) => onCompanyChange(e.target.value)} disabled={!isSuperAdmin || companies.length === 0} className="rounded border px-3 py-2 text-sm">
-            <option value="" disabled>{t("common.select_item_placeholder", { item: t("admin.nav.company") })}</option>
+            <option value="">All Companies</option>
             {companies.map((company) => <option key={company.value} value={company.value}>{company.label}</option>)}
           </select>
-          <select value={projectId || ""} onChange={(e) => setProjectId(e.target.value)} disabled={!companyUniqueId || projects.length === 0} className="rounded border px-3 py-2 text-sm">
-            <option value="" disabled>{t("common.select_item_placeholder", { item: t("admin.nav.project") })}</option>
+          <select value={projectId || ""} onChange={(e) => setProjectId(e.target.value)} disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} className="rounded border px-3 py-2 text-sm">
+            <option value="">All Projects</option>
             {projects.map((project) => <option key={project.value} value={project.value}>{project.label}</option>)}
           </select>
           <Button label="Add Trip Plan" icon="pi pi-plus" className="p-button-success p-button-sm" disabled={!companyUniqueId || !projectId} onClick={() => navigate(newPath, { state: { companyUniqueId, projectId } })} />
