@@ -135,6 +135,7 @@ import SupervisorZoneMapForm from "@/pages/admin/modules/staffMasters/supervisor
 import SupervisorZoneAccessAuditList from "@/pages/admin/modules/staffMasters/supervisorZoneAccessAudit/supervisorZoneAccessAuditList";
 import SupervisorZoneAccessAuditForm from "@/pages/admin/modules/staffMasters/supervisorZoneAccessAudit/supervisorZoneAccessAuditForm";
 import CommonAuditList from "@/pages/admin/modules/audits/commonAudit/commonAuditList";
+import LoginAuditList from "@/pages/admin/modules/audits/loginAudit/loginAuditList";
 import UnassignedStaffPoolList from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolList";
 import UnassignedStaffPoolForm from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolForm";
 import CompanyList from "@/pages/admin/modules/superadminMasters/company/companyListPage";
@@ -219,6 +220,7 @@ const ROUTES: RouteMap = {
     "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
     "daily-trip-log": { list: DailyTripLogList },
     "daily-waste-comparisons": { list: DailyWasteComparisonList, form: DailyWasteComparisonForm },
+    "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage, form: MonthlyWasteComparisonForm },
   },
   "customer-master": {
     "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },
@@ -248,6 +250,8 @@ const ROUTES: RouteMap = {
   },
   audits: {
     "common-audit": { list: CommonAuditList },
+    "login-audit": { list: LoginAuditList },
+    "login-audits": { list: LoginAuditList },
   },
   reports: {
     "trip-summary": { component: TripSummary },

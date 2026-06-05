@@ -14,7 +14,6 @@ import {
   Truck,
   Navigation,
   AlertTriangle,
-  Building2,
   BarChart3,
   Search,
   X,
@@ -90,6 +89,7 @@ const {
   encDailyTripLog,
   encDailyTripCollectionPoint,
   encBinCollectionEvent,
+  encLoginAudits,
   encDailyWasteComparison
 } = getEncryptedRoute();
 
@@ -470,12 +470,6 @@ const transportMastersItems: NavItem[] = [
         module: "transport-masters",
         screen: "vehicle-creation",
       },
-      // {
-      //   nameKey: "admin.nav.trip_attendance",
-      //   path: `/${encTransportMaster}/${encTripAttendance}`,
-      //   module: "transport-masters",
-      //   screen: "trip-attendance",
-      // },
       {
         nameKey: "admin.nav.fuel",
         path: `/${encTransportMaster}/${encFuel}`,
@@ -553,6 +547,12 @@ const scheduleMastersItems: NavItem[] = [
         module: "schedule-masters",
         screen: "daily-waste-comparisons",
       },
+      {
+        nameKey: "admin.nav.monthly_waste_comparison",
+        path: `/${encScheduleMasters}/${encMonthlyWasteComparison}`,
+        module: "schedule-masters",
+        screen: "MonthlyWasteComparison",
+      },
     ],
   },
 ];
@@ -569,7 +569,37 @@ const auditItems: NavItem[] = [
         path: `/${encAudits}/${encCommonAudit}`,
         module: "audits",
         screen: "common-audit",
-      }
+      },
+      {
+        nameKey: "admin.nav.login_audit",
+        path: `/${encAudits}/${encLoginAudits}`,
+        module: "audits",
+        screen: "login-audit",
+      },
+      // {
+      //   nameKey: "admin.nav.vehicle_trip_audit",
+      //   path: `/${encTransportMaster}/${encVehicleTripAudit}`,
+      //   module: "audits",
+      //   screen: "vehicle-trip-audit",
+      // },
+      // {
+      //   nameKey: "admin.nav.trip_exception_log",
+      //   path: `/${encTransportMaster}/${encTripExceptionLog}`,
+      //   module: "audits",
+      //   screen: "trip-exception-log",
+      // },
+      // {
+      //   nameKey: "admin.nav.supervisor_zone_access_audit",
+      //   path: `/${encStaffMasters}/${encSupervisorZoneAccessAudit}`,
+      //   module: "audits",
+      //   screen: "supervisor-zone-access-audit",
+      // },
+      // {
+      //   nameKey: "admin.nav.staff_template_audit",
+      //   path: `/${encStaffMasters}/${encStaffTemplateAudit}`,
+      //   module: "audits",
+      //   screen: "stafftemplate-audit-log",
+      // },
     ],
   },
 ];
@@ -622,12 +652,6 @@ const reportItems: NavItem[] = [
         path: `/${encReport}/${encWasteCollectedSummary}`,
         module: "reports",
         screen: "WasteCollectedSummary",
-      },
-      {
-        nameKey: "admin.nav.monthly_waste_comparison",
-        path: `/${encReport}/${encMonthlyWasteComparison}`,
-        module: "reports",
-        screen: "MonthlyWasteComparison",
       },
       {
         nameKey: "admin.nav.workforce_management",

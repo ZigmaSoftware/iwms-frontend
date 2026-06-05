@@ -205,8 +205,8 @@ export default function MonthlyWasteComparisonForm() {
     initialProjectId: routeState?.projectId,
   });
 
-  const { encReport, encMonthlyWasteComparison } = getEncryptedRoute();
-  const LIST_PATH = `/${encReport}/${encMonthlyWasteComparison}`;
+  const { encScheduleMasters, encMonthlyWasteComparison } = getEncryptedRoute();
+  const LIST_PATH = `/${encScheduleMasters}/${encMonthlyWasteComparison}`;
 
   /* field state */
   const [panchayatId, setPanchayatId] = useState("");
