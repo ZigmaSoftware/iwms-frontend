@@ -9,7 +9,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
-import { EyeIcon } from "@/icons";
+import { PencilIcon } from "@/icons";
 import { binCollectionEventApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -274,11 +274,11 @@ export default function BinCollectionEventList() {
           style={{ width: 90 }}
           body={(row: BinCERecord) => (
             <button
-              title="View"
-              onClick={() => navigate(VIEW_PATH(row.unique_id), { state: { record: row, companyUniqueId, projectId } })}
+              title="Edit"
+              onClick={() => navigate(VIEW_PATH(row.unique_id), { state: { companyUniqueId, projectId } })}
               className="text-blue-600 hover:text-blue-800"
             >
-              <EyeIcon className="size-5" />
+              <PencilIcon className="size-5" />
             </button>
           )}
         />

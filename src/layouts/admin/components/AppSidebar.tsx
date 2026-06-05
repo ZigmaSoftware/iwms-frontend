@@ -89,6 +89,7 @@ const {
   encDailyTripLog,
   encDailyTripCollectionPoint,
   encBinCollectionEvent,
+  encLoginAudits,
   encDailyWasteComparison
 } = getEncryptedRoute();
 
@@ -568,7 +569,37 @@ const auditItems: NavItem[] = [
         path: `/${encAudits}/${encCommonAudit}`,
         module: "audits",
         screen: "common-audit",
-      }
+      },
+      {
+        nameKey: "admin.nav.login_audit",
+        path: `/${encAudits}/${encLoginAudits}`,
+        module: "audits",
+        screen: "login-audit",
+      },
+      // {
+      //   nameKey: "admin.nav.vehicle_trip_audit",
+      //   path: `/${encTransportMaster}/${encVehicleTripAudit}`,
+      //   module: "audits",
+      //   screen: "vehicle-trip-audit",
+      // },
+      // {
+      //   nameKey: "admin.nav.trip_exception_log",
+      //   path: `/${encTransportMaster}/${encTripExceptionLog}`,
+      //   module: "audits",
+      //   screen: "trip-exception-log",
+      // },
+      // {
+      //   nameKey: "admin.nav.supervisor_zone_access_audit",
+      //   path: `/${encStaffMasters}/${encSupervisorZoneAccessAudit}`,
+      //   module: "audits",
+      //   screen: "supervisor-zone-access-audit",
+      // },
+      // {
+      //   nameKey: "admin.nav.staff_template_audit",
+      //   path: `/${encStaffMasters}/${encStaffTemplateAudit}`,
+      //   module: "audits",
+      //   screen: "stafftemplate-audit-log",
+      // },
     ],
   },
 ];
