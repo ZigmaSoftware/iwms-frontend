@@ -58,8 +58,8 @@ const getSalaryTypeOptions = (t: (key: string) => string) => [
 ];
 
 const getYesNoOptions = (t: (key: string) => string) => [
-  { value: "Yes", label: t("common.yes") },
-  { value: "No", label: t("common.no") },
+  { value: "1", label: t("common.yes") },
+  { value: "0", label: t("common.no") },
 ];
 
 const getMaritalStatusOptions = (t: (key: string) => string) => [
@@ -162,6 +162,7 @@ const initialFormData = {
   contractorusertype_id: "",
   username: "", // ← username field
   password: "",
+  login_enabled: "0",
   office_email: "",
   company_id: "",
   project_id: "",
@@ -211,6 +212,7 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   staffusertype_id: ["staffusertype_id", "staff_user_type", "staffusertype"],
   username: ["username"],
   password: ["password"],
+  login_enabled: ["login_enabled"],
   photo: ["photo"],
   company_id: ["company_id", "company"],
   project_id: ["project_id", "project"],
@@ -483,7 +485,6 @@ export default function StaffCreationForm() {
             label: item.name,
           }));
         };
-
         const [staffRes, contractorRes] = await Promise.all([
           staffUserTypeApi.list(),
           contractorUserTypeApi.list(),
@@ -633,11 +634,11 @@ export default function StaffCreationForm() {
           employee_known: staff.employee_known ?? "",
           salary_type: staff.salary_type ?? "",
           active_status: staff.active_status ? "1" : "0",
+          login_enabled: staff.login_enabled ? "1" : "0",
 
           // Auth
           username: staff.username ?? "", // ← populate on edit
-          password:
-            staff.password ?? staff.user_password ?? staff.staff_password ?? "",
+          password: "",
 
           // Personal details (FLAT — NOT nested)
           marital_status:
@@ -1136,6 +1137,7 @@ export default function StaffCreationForm() {
             ? formData.contractorusertype_id || null
             : null,
         username: formData.username || null, // ← username in payload
+        login_enabled: formData.login_enabled === "1",
 
         // Personal
         marital_status: formData.marital_status,
@@ -1411,7 +1413,40 @@ export default function StaffCreationForm() {
             label={t("admin.staff_creation.password")}
             value={formData.password}
             onChange={handleInputChange}
-            placeholder={t("admin.staff_creation.password_placeholder")}
+            placeholder={
+              isEdit
+                ? t(
+                    "admin.staff_creation.password_edit_placeholder",
+                    "Leave blank to keep the current password",
+                  )
+                : t(
+                    "admin.staff_creation.password_placeholder",
+                    "Enter password",
+                  )
+            }
+          />
+          {isEdit && (
+            <p className="text-xs text-gray-500 mt-1">
+              {t(
+                "admin.staff_creation.password_edit_hint",
+                "Enter a new password only if you want to change it.",
+              )}
+            </p>
+          )}
+        </div>
+      )}
+
+      {showField("login_enabled") && (
+        <div>
+          <Label htmlFor="login_enabled">
+            {t("admin.staff_creation.login_enabled")}
+          </Label>
+          <Select
+            id="login_enabled"
+            value={formData.login_enabled}
+            onChange={(value) => handleSelectChange("login_enabled", value)}
+            options={getYesNoOptions(t)}
+            placeholder={t("admin.staff_creation.login_enabled_placeholder")}
           />
         </div>
       )}

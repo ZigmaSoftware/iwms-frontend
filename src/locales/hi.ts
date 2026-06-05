@@ -1337,7 +1337,9 @@ const hiResource = {
           "driving_licence_choose": "फ़ाइल चुनें",
           "driving_licence_no_file": "कोई फ़ाइल नहीं चुनी गई",
           "password": "पासवर्ड",
-          "password_placeholder": "पासवर्ड दर्ज करें"
+          "password_placeholder": "पासवर्ड दर्ज करें",
+          "password_edit_placeholder": "मौजूदा पासवर्ड रखने के लिए खाली छोड़ दें",
+          "password_edit_hint": "यदि आप पासवर्ड बदलना चाहते हैं तो नया पासवर्ड दर्ज करें।"
         },
         "dashboard_home": {
           "title": "संचालन अवलोकन",
