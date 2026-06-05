@@ -71,6 +71,7 @@ type DailyTripLogRecord = {
   bins?: (NamedRef & { bin_name?: string })[];
   remarks?: string | null;
   log_status?: string;
+  collection_status?: string;
   verified_by_name?: string | null;
   verified_at?: string | null;
   [key: string]: unknown;
@@ -82,10 +83,26 @@ const STATUS_STYLES: Record<string, string> = {
   Verified: "bg-green-100 text-green-800",
 };
 
+const COLLECTION_STATUS_STYLES: Record<string, string> = {
+  "Not Started": "bg-red-50 text-red-600",
+  "In Progress": "bg-yellow-50 text-yellow-700",
+  "Completed": "bg-green-100 text-green-700",
+};
+
 const Badge = ({ value }: { value?: string }) => (
   <span
     className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
       STATUS_STYLES[value ?? ""] ?? "bg-gray-100 text-gray-600"
+    }`}
+  >
+    {value ?? "-"}
+  </span>
+);
+
+const CollectionStatusBadge = ({ value }: { value?: string }) => (
+  <span
+    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+      COLLECTION_STATUS_STYLES[value ?? ""] ?? "bg-gray-100 text-gray-500"
     }`}
   >
     {value ?? "-"}
@@ -119,6 +136,16 @@ const extractError = (error: any): string | null => {
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
+const computeCollectedWeight = (collectionPoints?: DailyTripLogRecord["collection_points"]): number => {
+  return (collectionPoints ?? []).reduce((sum, cp) => {
+    if (cp?.collected_weight_kg === null || cp?.collected_weight_kg === undefined) {
+      return sum;
+    }
+    const weight = Number(cp.collected_weight_kg);
+    return sum + (Number.isFinite(weight) ? weight : 0);
+  }, 0);
+};
+
 /* ─────────────────────────────────────────────────────
    Trip Log Modal  (mode="view" | "verify")
 ───────────────────────────────────────────────────── */
@@ -140,8 +167,15 @@ function TripLogModal({
   const collectedCount = cps.filter((cp) => cp.is_collected).length;
   const st = row.staff_template;
   const wasteTypeName = (row.waste_type as any)?.waste_type_name ?? row.waste_type_id ?? "-";
-  const weight =
-    row.collected_weight_kg != null ? `${Number(row.collected_weight_kg).toFixed(2)} kg` : "-";
+  const collectedWeightFromPoints = computeCollectedWeight(cps);
+  const hasPointWeights = cps.some(
+    (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+  );
+  const weight = hasPointWeights
+    ? `${collectedWeightFromPoints.toFixed(2)} kg`
+    : row.collected_weight_kg != null
+    ? `${Number(row.collected_weight_kg).toFixed(2)} kg`
+    : "-";
 
   const footer = (
     <div className="flex justify-end gap-2 pt-2">
@@ -205,6 +239,10 @@ function TripLogModal({
               value={row.trip_assignment?.display_code ?? row.trip_assignment_id}
             />
             <InfoRow label="Date" value={row.trip_date} />
+            <div className="flex gap-2 text-sm">
+              <span className="text-gray-500 w-36 shrink-0">Collection Status</span>
+              <CollectionStatusBadge value={row.collection_status} />
+            </div>
             <InfoRow label="Waste Type" value={wasteTypeName} />
             <InfoRow label="Total Weight" value={weight} />
             {row.actual_start_time && <InfoRow label="Start Time" value={row.actual_start_time} />}
@@ -449,6 +487,10 @@ export default function DailyTripLogList() {
     _location: rec.panchayat?.panchayat_name ?? rec.ward?.ward_name ?? "",
     _driver: rec.driver?.employee_name ?? "",
     _operator: rec.operator?.employee_name ?? "",
+    _computed_weight: computeCollectedWeight(rec.collection_points),
+    _has_point_weights: (rec.collection_points ?? []).some(
+      (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+    ),
   }));
 
   /* ── filter by company + project ── */
@@ -675,6 +717,7 @@ export default function DailyTripLogList() {
           "_driver",
           "_operator",
           "log_status",
+          "collection_status",
           "trip_date",
         ]}
         className="p-datatable-sm"
@@ -781,24 +824,36 @@ export default function DailyTripLogList() {
           header="Collection Weight (kg)"
           sortable
           style={{ minWidth: 155 }}
-          body={(row: DailyTripLogRecord) =>
-            row.collected_weight_kg != null ? (
+          body={(row: DailyTripLogRecord & { _computed_weight?: number; _has_point_weights?: boolean }) => {
+            const weight = row._has_point_weights
+              ? row._computed_weight
+              : row.collected_weight_kg;
+            return weight != null ? (
               <span className="font-semibold text-gray-800">
-                {Number(row.collected_weight_kg).toFixed(2)}
+                {Number(weight).toFixed(2)}
               </span>
             ) : (
               "-"
-            )
-          }
+            );
+          }}
         />
         <Column
           field="log_status"
-          header="Status"
+          header="Log Status"
           body={(row: DailyTripLogRecord) => <Badge value={row.log_status} />}
           sortable
           filter
           showFilterMatchModes={false}
           style={{ minWidth: 110 }}
+        />
+        <Column
+          field="collection_status"
+          header="Collection Status"
+          body={(row: DailyTripLogRecord) => <CollectionStatusBadge value={row.collection_status} />}
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 145 }}
         />
         <Column field="_driver" header="Driver" style={{ minWidth: 130 }} />
         <Column field="_operator" header="Operator" style={{ minWidth: 130 }} />
