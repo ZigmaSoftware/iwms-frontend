@@ -637,8 +637,8 @@ export default function StaffCreationForm() {
           login_enabled: staff.login_enabled ? "1" : "0",
 
           // Auth
-          username: staff.username ?? "", // ← populate on edit
-          password: "",
+          username: staff.username ?? "",
+          password: staff.password ?? "",
 
           // Personal details (FLAT — NOT nested)
           marital_status:

@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import Auth from "@/pages/Auth";
+import ForgotPassword from "@/pages/auth/ForgotPassword";
+import VerifyOTP from "@/pages/auth/VerifyOTP";
+import ResetPassword from "@/pages/auth/ResetPassword";
 import LocalBodyAuth from "@/pages/LocalBodyAuth";
 import LocalBodyDashboard from "@/pages/localbody/LocalBodyDashboard";
 import Dashboard from "@/pages/dashboard/pages/Dashboard";
@@ -111,6 +114,9 @@ export default function App() {
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />
+      <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+      <Route path="/auth/verify-otp" element={<VerifyOTP />} />
+      <Route path="/auth/reset-password" element={<ResetPassword />} />
       <Route path="/auth/localbody" element={<LocalBodyAuth />} />
       <Route path="/localbody" element={<LocalBodyDashboard />} />
       <Route path="/" element={<HomeRedirect />} />
