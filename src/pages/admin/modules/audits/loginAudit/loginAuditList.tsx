@@ -89,16 +89,16 @@ export default function LoginAuditList() {
     const params: Record<string, string> = { company_id: companyUniqueId };
     if (projectId) params.project_id = projectId;
 
-    adminApi.loginAudits
-      .list({ params })
-      .then((data) => {
-        if (!mounted) return;
-        setRows(normalizeList(data) as LoginAuditRecord[]);
-      })
-      .catch((err) => {
-        if (!mounted) return;
-        Swal.fire(t("common.error"), String(err), "error");
-      })
+     adminApi.loginAudits
+       .list({ params })
+       .then((data: LoginAuditRecord[]) => {
+         if (!mounted) return;
+         setRows(normalizeList(data) as LoginAuditRecord[]);
+       })
+       .catch((err: unknown) => {
+         if (!mounted) return;
+         Swal.fire(t("common.error"), String(err), "error");
+       })
       .finally(() => {
         if (mounted) setIsLoading(false);
       });
