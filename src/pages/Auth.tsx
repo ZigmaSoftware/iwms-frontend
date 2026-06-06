@@ -1,5 +1,5 @@
-import { useState, type ChangeEvent, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, type ChangeEvent, type FormEvent } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { api } from "@/api";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -25,26 +25,6 @@ import {
 } from "@/utils/authStorage";
 import { ArrowRight, Eye, EyeOff, Lock, User } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
-
-type Profile = {
-  user_type: string;
-  unique_id: string;
-  name: string;
-  role: string;
-  email: string;
-  company_unique_id: string;
-  company_name: string;
-  staff_unique_id: string;
-  employee_id: string;
-  employee_name: string;
-  emp_id: string;
-  staffusertype_unique_id: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project?: {
-    unique_id?: string;
-  };
-};
 
 type LoginResponse = LoginEnvelope;
 
@@ -80,9 +60,19 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { t } = useTranslation();
   const { setUser } = useUser();
+
+  // Show success toast once when redirected from reset-password
+  useEffect(() => {
+    const successMessage = (location.state as { successMessage?: string } | null)?.successMessage;
+    if (successMessage) {
+      toast({ title: "Password Reset", description: successMessage });
+      window.history.replaceState({}, "");
+    }
+  }, []);
 
   // ✅ Get updatePermissions so we can force React state sync after login
   const { updatePermissions } = usePermission();
@@ -319,9 +309,7 @@ export default function Auth() {
                 <button
                   type="button"
                   className="text-[11px] font-semibold text-green-600 hover:underline"
-                  onClick={() =>
-                    toast({ title: t("login.forgot_password"), description: "Password recovery is being implemented." })
-                  }
+                  onClick={() => navigate("/auth/forgot-password")}
                 >
                   {t("login.forgot_password")}
                 </button>
