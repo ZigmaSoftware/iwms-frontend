@@ -62,6 +62,7 @@ export default function FeedBackFormList() {
     isSuperAdmin, setProjectId, onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
+    defaultToAll: true,
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
@@ -79,10 +80,11 @@ export default function FeedBackFormList() {
 
   /* ── load feedbacks ── */
   useEffect(() => {
-    if (!companyUniqueId) { setFeedbackList([]); return; }
+    if (!companyUniqueId && !isSuperAdmin) { setFeedbackList([]); return; }
     let mounted = true;
     setIsLoading(true);
-    const params: Record<string, string> = { company_id: companyUniqueId };
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     adminApi.feedbacks.list({ params })
       .then((res: any) => {
@@ -172,9 +174,7 @@ export default function FeedBackFormList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((c) => (
               <option key={c.value} value={c.value}>{c.label}</option>
             ))}
@@ -183,12 +183,10 @@ export default function FeedBackFormList() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}

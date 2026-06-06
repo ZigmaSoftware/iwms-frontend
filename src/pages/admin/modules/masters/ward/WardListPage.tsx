@@ -91,7 +91,9 @@ export default function WardList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const navigate = useNavigate();
 
@@ -157,7 +159,7 @@ export default function WardList() {
 
   const wards = ((): WardListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId) return [];
+    if (!companyUniqueId && !isSuperAdmin) return [];
 
     const rows = Array.isArray(allWards)
       ? (allWards as unknown as WardListRecord[])
@@ -298,9 +300,7 @@ export default function WardList() {
               disabled={!isSuperAdmin || companies.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
-              <option value="" disabled>
-                {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-              </option>
+              <option value="">All Companies</option>
               {companies.map((company) => (
                 <option key={company.value} value={company.value}>
                   {company.label}
@@ -311,12 +311,10 @@ export default function WardList() {
             <select
               value={projectId || ""}
               onChange={(e) => onFilterProjectChange(e.target.value)}
-              disabled={!companyUniqueId || projects.length === 0}
+              disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
-              <option value="" disabled>
-                {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-              </option>
+              <option value="">All Projects</option>
               {projects.map((project) => (
                 <option key={project.value} value={project.value}>
                   {project.label}

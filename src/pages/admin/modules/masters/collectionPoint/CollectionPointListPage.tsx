@@ -86,7 +86,9 @@ export default function CollectionPointListPage() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const { encScheduleMasters, encCollectionPoints } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encScheduleMasters}/${encCollectionPoints}/new`;
@@ -102,7 +104,7 @@ export default function CollectionPointListPage() {
     let mounted = true;
 
     const loadCollectionPoints = async () => {
-      if (!companyUniqueId) {
+      if (!companyUniqueId && !isSuperAdmin) {
         setRecords([]);
         return;
       }
@@ -129,7 +131,7 @@ export default function CollectionPointListPage() {
 
   const rows = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as CollectionPointRecord[];
-    if (!companyUniqueId) return [] as CollectionPointRecord[];
+    if (!companyUniqueId && !isSuperAdmin) return [] as CollectionPointRecord[];
 
     return records.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
@@ -235,9 +237,7 @@ export default function CollectionPointListPage() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -248,12 +248,10 @@ export default function CollectionPointListPage() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}

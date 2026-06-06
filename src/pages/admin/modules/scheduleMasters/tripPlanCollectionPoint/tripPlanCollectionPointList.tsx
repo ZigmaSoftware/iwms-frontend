@@ -65,6 +65,7 @@ export default function TripPlanCollectionPointList() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
+    defaultToAll: true,
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
@@ -84,12 +85,13 @@ export default function TripPlanCollectionPointList() {
   });
 
   const loadRecords = useCallback(() => {
-    if (!companyUniqueId) {
+    if (!companyUniqueId && !isSuperAdmin) {
       setRecords([]);
       return;
     }
     setLoading(true);
-    const params: Record<string, string> = { company_id: companyUniqueId };
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     tripPlanCollectionPointApi
       .list({ params })
@@ -130,16 +132,16 @@ export default function TripPlanCollectionPointList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="rounded border px-3 py-2 text-sm"
           >
-            <option value="" disabled>{t("common.select_item_placeholder", { item: t("admin.nav.company") })}</option>
+            <option value="">All Companies</option>
             {companies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="rounded border px-3 py-2 text-sm"
           >
-            <option value="" disabled>{t("common.select_item_placeholder", { item: t("admin.nav.project") })}</option>
+            <option value="">All Projects</option>
             {projects.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
           <Button

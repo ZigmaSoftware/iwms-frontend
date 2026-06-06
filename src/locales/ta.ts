@@ -1337,7 +1337,9 @@ const taResource = {
           "driving_licence_choose": "கோப்பைத் தேர்ந்தெடுக்கவும்",
           "driving_licence_no_file": "கோப்பு தேர்ந்தெடுக்கப்படவில்லை",
           "password": "கடவுச்சொல்",
-          "password_placeholder": "கடவுச்சொல்லை உள்ளிடவும்"
+          "password_placeholder": "கடவுச்சொல்லை உள்ளிடவும்",
+          "password_edit_placeholder": "தற்போதைய கடவுச்சொல்லை வைத்திருக்க காலியாக விடவும்",
+          "password_edit_hint": "மாற்ற விரும்பினால் மட்டும் புதிய கடவுச்சொல்லை உள்ளிடவும்."
         },
         "dashboard_home": {
           "title": "செயற்பாட்டு மேலோட்டம்",

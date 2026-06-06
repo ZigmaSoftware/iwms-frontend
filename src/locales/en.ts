@@ -1347,8 +1347,12 @@ const enResource = {
           "driving_licence_no_file": "No file selected",
           "password": "Password",
           "password_placeholder": "Enter password",
+          "password_edit_placeholder": "Leave blank to keep the current password",
+          "password_edit_hint": "Enter a new password only if you want to change it.",
           "username": "Username",
-          "username_placeholder": "Enter username"
+          "username_placeholder": "Enter username",
+          "login_enabled": "Login Enabled",
+          "login_enabled_placeholder": "Select login enabled"
         },
         "dashboard_home": {
           "title": "Operations Overview",

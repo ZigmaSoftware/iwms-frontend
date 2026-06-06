@@ -205,13 +205,13 @@ const masterItems: NavItem[] = [
         nameKey: "admin.nav.department",
         path: `/${encMasters}/${encDepartments}`,
         module: "masters",
-        screen: "departments",
+        screen: "department-masters",
       },
       {
         nameKey: "admin.nav.designation",
         path: `/${encMasters}/${encDesignations}`,
         module: "masters",
-        screen: "designations",
+        screen: "designation-masters",
       },
       {
         nameKey: "admin.nav.district",
