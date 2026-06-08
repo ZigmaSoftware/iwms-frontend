@@ -589,34 +589,86 @@ export default function DailyWasteComparisonList() {
             </div>
           )}
 
-          {/* Delete actions for each record (hidden visually but accessible) */}
+          {/* Waste-type breakdown table */}
           {rows.length > 0 && (
-            <div className="border-t border-gray-100 px-6 py-3 bg-gray-50/40">
-              <p className="text-xs text-gray-400 mb-2 font-medium">Record Actions</p>
-              <div className="flex flex-wrap gap-2">
-                {rows.map((r) => (
-                  <div key={r.unique_id} className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs">
-                    <span className="text-gray-600 font-medium">{r.panchayat_name ?? r.panchayat_id}</span>
-                    <span className="text-gray-400">·</span>
-                    <span className="text-gray-500">{r.waste_type}</span>
-                    <button
-                      onClick={() =>
-                        navigate(`/${encScheduleMasters}/${encDailyWasteComparison}/${r.unique_id}/edit`, {
-                          state: { record: r, companyUniqueId: r.company_id, projectId: r.project_id },
-                        })
-                      }
-                      className="ml-1 text-blue-500 hover:text-blue-700"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(r)}
-                      className="text-red-400 hover:text-red-600"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
+            <div className="border-t border-gray-100 px-6 py-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
+                Breakdown by PLB &amp; Waste Type — {rows.length} row{rows.length !== 1 ? "s" : ""}
+              </p>
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide text-[10px]">
+                      <th className="px-4 py-3 text-left font-semibold">Date</th>
+                      <th className="px-4 py-3 text-left font-semibold">PLB (Panchayat)</th>
+                      <th className="px-4 py-3 text-left font-semibold">Waste Type</th>
+                      <th className="px-4 py-3 text-right font-semibold">Agreed (kg)</th>
+                      <th className="px-4 py-3 text-right font-semibold">Actual (kg)</th>
+                      <th className="px-4 py-3 text-right font-semibold">Variance (kg)</th>
+                      <th className="px-4 py-3 text-right font-semibold">Efficiency</th>
+                      <th className="px-4 py-3 text-center font-semibold">Status</th>
+                      <th className="px-4 py-3 text-right font-semibold">Trips</th>
+                      <th className="px-4 py-3 text-right font-semibold">Points</th>
+                      <th className="px-4 py-3 text-center font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {rows.map((r) => {
+                      const rowEff = Number(r.collection_efficiency_percent ?? 0);
+                      const ec = effColor(Math.min(rowEff, 100));
+                      return (
+                        <tr key={r.unique_id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{r.collection_date}</td>
+                          <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
+                            {r.panchayat_name ?? r.panchayat_id}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{r.waste_type}</td>
+                          <td className="px-4 py-3 text-right font-medium text-blue-700 whitespace-nowrap">
+                            {fmtKg(r.agreed_weight_kg)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-green-700 whitespace-nowrap">
+                            {fmtKg(r.actual_weight_kg)}
+                          </td>
+                          <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${r.variance_kg >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            {r.variance_kg >= 0 ? "+" : ""}{fmtKg(r.variance_kg)}
+                          </td>
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <span className={`font-bold ${ec.text}`}>{rowEff.toFixed(1)}%</span>
+                          </td>
+                          <td className="px-4 py-3 text-center whitespace-nowrap">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusBadgeCls(r.report_status)}`}>
+                              {r.report_status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-gray-600">{r.total_trips}</td>
+                          <td className="px-4 py-3 text-right text-gray-600">{r.collection_points_covered}</td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() =>
+                                  navigate(`/${encScheduleMasters}/${encDailyWasteComparison}/${r.unique_id}/edit`, {
+                                    state: { record: r, companyUniqueId: r.company_id, projectId: r.project_id },
+                                  })
+                                }
+                                className="text-blue-500 hover:text-blue-700"
+                                title="Edit"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(r)}
+                                className="text-red-400 hover:text-red-600"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

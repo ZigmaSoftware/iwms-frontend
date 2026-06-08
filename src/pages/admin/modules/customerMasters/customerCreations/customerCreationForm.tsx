@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "sweetalert2";
+import { api } from "@/api";
 
 import {
   cityApi,
@@ -363,6 +364,138 @@ const PropertySelectionStep = ({
 };
 
 /* ===============================
+   PASSWORD SECURITY HELPERS
+================================ */
+const PASSWORD_EXPIRY_DAYS = 90;
+const PASSWORD_WARN_DAYS = 60;
+
+function getPasswordAgeDays(passwordCrtDate: string | null): number | null {
+  if (!passwordCrtDate) return null;
+  const diff = Date.now() - new Date(passwordCrtDate).getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+function PasswordPriorityBadge({ ageDays }: { ageDays: number | null }) {
+  if (ageDays === null) return null;
+  if (ageDays >= PASSWORD_EXPIRY_DAYS) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
+        Password Expired — Change Required
+      </span>
+    );
+  }
+  if (ageDays >= PASSWORD_WARN_DAYS) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-semibold text-yellow-700">
+        Password Expiring Soon ({PASSWORD_EXPIRY_DAYS - ageDays} days left)
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+      Password OK ({PASSWORD_EXPIRY_DAYS - ageDays} days remaining)
+    </span>
+  );
+}
+
+function CustomerChangePasswordModal({
+  customerId,
+  onClose,
+  onSuccess,
+}: {
+  customerId: string;
+  onClose: () => void;
+  onSuccess: (newDate: string) => void;
+}) {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      await api.post("/auth/admin-change-password/", {
+        target_type: "customer",
+        target_id: customerId,
+        new_password: newPassword,
+        confirm_new_password: confirmPassword,
+      });
+      Swal.fire({ icon: "success", title: "Password Changed", text: "Password updated successfully." });
+      onSuccess(new Date().toISOString());
+      onClose();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to change password.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Change Password</h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+            <div className="relative">
+              <Input
+                type={showNew ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Min 6 chars, upper + lower + number"
+                className="w-full pr-10"
+              />
+              <button type="button" onClick={() => setShowNew((p) => !p)}
+                className="absolute inset-y-0 right-2 text-gray-400 hover:text-gray-600" tabIndex={-1}>
+                {showNew ? "🙈" : "👁"}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+            <div className="relative">
+              <Input
+                type={showConfirm ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repeat new password"
+                className="w-full pr-10"
+              />
+              <button type="button" onClick={() => setShowConfirm((p) => !p)}
+                className="absolute inset-y-0 right-2 text-gray-400 hover:text-gray-600" tabIndex={-1}>
+                {showConfirm ? "🙈" : "👁"}
+              </button>
+            </div>
+          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <p className="text-xs text-gray-500">
+            Password must be at least 6 characters with uppercase, lowercase, and a number.
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600">
+              Cancel
+            </button>
+            <button type="submit" disabled={loading}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              {loading ? "Changing..." : "Change Password"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ===============================
    MAIN COMPONENT
 ================================ */
 export default function CustomerCreationForm() {
@@ -439,6 +572,9 @@ export default function CustomerCreationForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dropdownsLoaded, setDropdownsLoaded] = useState(false);
   const [pendingEditData, setPendingEditData] = useState<any>(null);
+  const [passwordCrtDate, setPasswordCrtDate] = useState<string | null>(null);
+  const [customerCreatedAt, setCustomerCreatedAt] = useState<string | null>(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   // Holds the raw project candidates from the record so we can re-apply after the
   // hook finishes loading the project list (the hook may auto-select options[0] otherwise)
   const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
@@ -582,6 +718,9 @@ export default function CustomerCreationForm() {
     const panchayatId = resolveOptionValue(rawPanchayats, data.panchayat_id, "panchayat_name", data.panchayat_name);
     const propertyId    = resolveOptionValue(rawProperties,    data.property_id,     "property_name",     data.property_name);
     const subPropertyId = resolveOptionValue(rawSubProperties, data.sub_property_id, "sub_property_name", data.sub_property_name);
+
+    setPasswordCrtDate(data.password_crt_date ?? null);
+    setCustomerCreatedAt(data.created_at ?? null);
 
     setFormData((prev) => ({
       ...prev,
@@ -857,6 +996,14 @@ export default function CustomerCreationForm() {
 
   // Show form step (step 1)
   return (
+    <>
+      {showChangePassword && id && (
+        <CustomerChangePasswordModal
+          customerId={id}
+          onClose={() => setShowChangePassword(false)}
+          onSuccess={(newDate) => setPasswordCrtDate(newDate)}
+        />
+      )}
     <ComponentCard
       title={
         isEdit
@@ -923,6 +1070,49 @@ export default function CustomerCreationForm() {
               placeholder={isEdit ? "Leave blank to keep current password" : "Enter password (min 8 chars)"}
               isRequired={!isEdit}
             />
+          )}
+
+          {/* ── Password Security Info (edit mode only) ── */}
+          {isEdit && (
+            <div className="md:col-span-3">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/40">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                    Password Security
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowChangePassword(true)}
+                    className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                  >
+                    Change Password
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                  <div>
+                    <span className="text-gray-500">Account Created:</span>{" "}
+                    <span className="font-medium text-gray-800 dark:text-gray-100">
+                      {customerCreatedAt ? new Date(customerCreatedAt).toLocaleString() : "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Last Password Changed:</span>{" "}
+                    <span className="font-medium text-gray-800 dark:text-gray-100">
+                      {passwordCrtDate ? new Date(passwordCrtDate).toLocaleString() : "Never changed"}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-2">
+                  {passwordCrtDate ? (
+                    <PasswordPriorityBadge ageDays={getPasswordAgeDays(passwordCrtDate)} />
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
+                      Password has never been changed — consider updating
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </FormSection>
 
@@ -1404,5 +1594,6 @@ export default function CustomerCreationForm() {
         </div>
       </form>
     </ComponentCard>
+    </>
   );
 }
