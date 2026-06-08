@@ -36,6 +36,7 @@ type BinCERecord = {
   vehicle?: { vehicle_no?: string };
   effective_staff_template?: any;
   collected_weight_kg?: string | number;
+  collection_date?: string;
   driver_latitude?: string | number | null;
   driver_longitude?: string | number | null;
   notes?: string | null;
@@ -56,6 +57,7 @@ type FormState = {
   trip_assignment_id: string;
   trip_collection_point_id: string;
   bin_id: string;
+  collection_date: string;
   collected_weight_kg: string;
   driver_latitude: string;
   driver_longitude: string;
@@ -110,6 +112,7 @@ export default function BinCollectionEventForm() {
     trip_assignment_id: "",
     trip_collection_point_id: "",
     bin_id: "",
+    collection_date: "",
     collected_weight_kg: "",
     driver_latitude: "",
     driver_longitude: "",
@@ -178,6 +181,7 @@ export default function BinCollectionEventForm() {
     setForm((prev) => ({
       ...prev,
       trip_assignment_id: assignmentId,
+      collection_date: String(record.collection_date ?? ""),
       collected_weight_kg: String(record.collected_weight_kg ?? ""),
       driver_latitude: String(record.driver_latitude ?? ""),
       driver_longitude: String(record.driver_longitude ?? ""),
@@ -444,6 +448,7 @@ export default function BinCollectionEventForm() {
         bin_id: form.bin_id,
       };
       if (form.trip_collection_point_id) payload.trip_collection_point_id = form.trip_collection_point_id;
+      if (form.collection_date) payload.collection_date = form.collection_date;
       if (form.collected_weight_kg) payload.collected_weight_kg = Number(form.collected_weight_kg);
       if (form.driver_latitude) payload.driver_latitude = form.driver_latitude;
       if (form.driver_longitude) payload.driver_longitude = form.driver_longitude;
@@ -648,6 +653,17 @@ export default function BinCollectionEventForm() {
                 disabled={fetchingDropdowns || !projectId}
               />
             </div>
+            <div>
+              <Label>Collection Date</Label>
+              <Input
+                type="date"
+                value={form.collection_date}
+                onChange={(e) => set("collection_date")(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Collected Weight (kg)</Label>
               <Input
