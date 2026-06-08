@@ -29,6 +29,7 @@ type BinCERecord = {
   ward_name?: string | null;
   zone_name?: string | null;
   collected_weight_kg?: string | number;
+  collection_date?: string;
   driver_latitude?: string | number | null;
   driver_longitude?: string | number | null;
   notes?: string | null;
@@ -47,6 +48,7 @@ type TableFilters = {
   _panchayat: { value: string | null; matchMode: FilterMatchMode };
   _ward: { value: string | null; matchMode: FilterMatchMode };
   _zone: { value: string | null; matchMode: FilterMatchMode };
+  collection_date: { value: string | null; matchMode: FilterMatchMode };
 };
 
 const extractError = (error: unknown): string | null => {
@@ -101,6 +103,7 @@ export default function BinCollectionEventList() {
     _panchayat: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _ward: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _zone: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    collection_date: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
   const loadRecords = useCallback(() => {
@@ -109,6 +112,8 @@ export default function BinCollectionEventList() {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
+    const dateFilter = filters.collection_date?.value;
+    if (dateFilter) params.collection_date = dateFilter;
     binCollectionEventApi
       .list({ params })
       .then((data) => setRecords(Array.isArray(data) ? (data as BinCERecord[]) : []))
@@ -133,6 +138,7 @@ export default function BinCollectionEventList() {
         _panchayat: r.panchayat_name ?? r.panchayat_id ?? "-",
         _ward: r.ward_name ?? r.ward_id ?? "-",
         _zone: r.zone_name ?? "-",
+        collection_date: r.collection_date ?? "",
       })),
     [records],
   );
@@ -140,7 +146,7 @@ export default function BinCollectionEventList() {
   /* ── apply filters locally to get the visible subset ─────────────────────
      PrimeReact filters internally but doesn't expose the result. We replicate
      the same CONTAINS logic so the summary pills always match what's on screen. */
-  const GLOBAL_FIELDS = ["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "_ward", "_zone"] as const;
+  const GLOBAL_FIELDS = ["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "_ward", "_zone", "collection_date"] as const;
   type FilterableField = (typeof GLOBAL_FIELDS)[number];
   const isFilterableField = (field: string): field is FilterableField =>
     (GLOBAL_FIELDS as readonly string[]).includes(field);
@@ -169,7 +175,7 @@ export default function BinCollectionEventList() {
     filteredRows.forEach((r) => {
       const w = Number(r.collected_weight_kg ?? 0);
       overall += w;
-      if (r.created_at && String(r.created_at).startsWith(today)) daily += w;
+      if (r.collection_date === today) daily += w;
     });
     return {
       dailyWeight: daily.toFixed(2),
@@ -222,7 +228,18 @@ export default function BinCollectionEventList() {
       </div>
 
       <div className="flex justify-end">
-        <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-1">
+        <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1">
+          <InputText
+            type="date"
+            value={filters.collection_date.value ?? ""}
+            onChange={(e) =>
+              setFilters((f) => ({
+                ...f,
+                collection_date: { value: e.target.value, matchMode: FilterMatchMode.CONTAINS },
+              }))
+            }
+            className="p-inputtext-sm border-none text-sm"
+          />
           <i className="pi pi-search text-gray-500" />
           <InputText
             value={globalFilterValue}
@@ -248,7 +265,7 @@ export default function BinCollectionEventList() {
         loading={loading}
         filters={filters}
         onFilter={(e: DataTableFilterEvent) => setFilters(e.filters as TableFilters)}
-        globalFilterFields={["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "_ward", "_zone"]}
+        globalFilterFields={["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "_ward", "_zone", "collection_date"]}
         header={header}
         stripedRows
         showGridlines
@@ -270,8 +287,11 @@ export default function BinCollectionEventList() {
           style={{ width: 110 }}
         />
         <Column
-          header="Date"
-          body={(row: BinCERecord) => formatDate(row.created_at)}
+          field="collection_date"
+          header="Collection Date"
+          filter
+          showFilterMatchModes={false}
+          body={(row: BinCERecord) => formatDate(row.collection_date)}
           style={{ width: 120 }}
         />
         <Column
