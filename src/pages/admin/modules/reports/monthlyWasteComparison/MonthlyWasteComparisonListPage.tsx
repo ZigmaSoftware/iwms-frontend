@@ -573,6 +573,67 @@ export default function MonthlyWasteComparisonListPage() {
               </div>
             </div>
           )}
+
+          {/* Waste-type breakdown table */}
+          {rows.length > 0 && (
+            <div className="border-t border-gray-100 px-6 py-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
+                Breakdown by PLB &amp; Waste Type — {rows.length} row{rows.length !== 1 ? "s" : ""}
+              </p>
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide text-[10px]">
+                      <th className="px-4 py-3 text-left font-semibold">Month</th>
+                      <th className="px-4 py-3 text-left font-semibold">PLB (Panchayat)</th>
+                      <th className="px-4 py-3 text-left font-semibold">Waste Type</th>
+                      <th className="px-4 py-3 text-right font-semibold">Agreed (kg)</th>
+                      <th className="px-4 py-3 text-right font-semibold">Actual (kg)</th>
+                      <th className="px-4 py-3 text-right font-semibold">Variance (kg)</th>
+                      <th className="px-4 py-3 text-right font-semibold">Efficiency</th>
+                      <th className="px-4 py-3 text-center font-semibold">Status</th>
+                      <th className="px-4 py-3 text-right font-semibold">Trips</th>
+                      <th className="px-4 py-3 text-right font-semibold">Points</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {rows.map((r) => {
+                      const rowEff = Number(r.collection_efficiency_percent ?? 0);
+                      const ec = effColor(Math.min(rowEff, 100));
+                      return (
+                        <tr key={r.unique_id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{r.month}</td>
+                          <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
+                            {r.panchayat_name ?? r.panchayat_id}
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{r.waste_type}</td>
+                          <td className="px-4 py-3 text-right font-medium text-blue-700 whitespace-nowrap">
+                            {fmtKg(r.total_agreed_weight)}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium text-green-700 whitespace-nowrap">
+                            {fmtKg(r.total_actual_weight)}
+                          </td>
+                          <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${r.variance_kg >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                            {r.variance_kg >= 0 ? "+" : ""}{fmtKg(r.variance_kg)}
+                          </td>
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <span className={`font-bold ${ec.text}`}>{rowEff.toFixed(1)}%</span>
+                          </td>
+                          <td className="px-4 py-3 text-center whitespace-nowrap">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusBadgeCls(r.report_status)}`}>
+                              {r.report_status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-gray-600">{r.total_trips}</td>
+                          <td className="px-4 py-3 text-right text-gray-600">{r.collection_points_covered}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
