@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Swal from "sweetalert2";
+import { RefreshCw, Info, Scale, Truck, MapPin } from "lucide-react";
 
 import ComponentCard from "@/components/common/ComponentCard";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -18,6 +18,7 @@ import { panchayatApi, wasteTypeApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
+import { api } from "@/api";
 import type { SelectOption } from "@/types";
 
 /* ────────────────────────────────────────────
@@ -74,43 +75,6 @@ const FormSection = ({ title, children }: { title: string; children: ReactNode }
   </div>
 );
 
-const FormInput = ({
-  label,
-  value,
-  onChange,
-  type = "text",
-  step,
-  min,
-  max,
-  isRequired = true,
-}: {
-  label: string;
-  value: string;
-  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
-  type?: string;
-  step?: string;
-  min?: string;
-  max?: string;
-  isRequired?: boolean;
-}) => (
-  <div className="space-y-2">
-    <Label className="text-sm font-medium text-gray-700">
-      {label}
-      {isRequired && <span className="text-red-500 ml-1">*</span>}
-    </Label>
-    <Input
-      type={type}
-      value={value}
-      onChange={onChange}
-      step={step}
-      min={min}
-      max={max}
-      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-      autoComplete="off"
-    />
-  </div>
-);
-
 /* ────────────────────────────────────────────
    Helpers
 ──────────────────────────────────────────── */
@@ -138,14 +102,6 @@ const normalizeId = (value: unknown): string => {
 const toText = (value: unknown): string =>
   value == null ? "" : String(value).trim();
 
-const toDateValue = (value: unknown): string => {
-  const text = toText(value);
-  if (!text) return "";
-  // Accept YYYY-MM-DD directly
-  const match = text.match(/^(\d{4}-\d{2}-\d{2})/);
-  return match ? match[1] : text;
-};
-
 const ensureSelectedOption = (
   options: SelectOption[],
   selectedId: string,
@@ -157,16 +113,24 @@ const ensureSelectedOption = (
   return [...options, { value: selectedId, label: selectedLabel || selectedId }];
 };
 
-const resolveOptionValue = (options: SelectOption[], id: string, label: string) => {
-  if (id && options.some((option) => option.value === id)) return id;
+const fmtKg = (v?: number | string | null) => {
+  const n = Number(v);
+  return Number.isNaN(n) ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+};
 
-  const normalizedLabel = label.trim().toLowerCase();
-  if (!normalizedLabel) return id;
+/* ────────────────────────────────────────────
+   Types
+──────────────────────────────────────────── */
 
-  return (
-    options.find((option) => option.label.trim().toLowerCase() === normalizedLabel)?.value ??
-    id
-  );
+type TripLogData = {
+  actual_weight_kg: number;
+  agreed_weight_kg: number;
+  total_trips: number;
+  collection_points_covered: number;
+  variance_kg: number;
+  variance_percent: number;
+  report_status: string;
+  collection_efficiency_percent: number;
 };
 
 /* ────────────────────────────────────────────
@@ -204,32 +168,29 @@ export default function DailyWasteComparisonForm() {
   const { encScheduleMasters, encDailyWasteComparison } = getEncryptedRoute();
   const LIST_PATH = `/${encScheduleMasters}/${encDailyWasteComparison}`;
 
-  /* field state */
+  /* ── Criteria fields ── */
   const [panchayatId, setPanchayatId] = useState("");
   const [wasteTypeId, setWasteTypeId] = useState("");
-  const [collectionDate, setCollectionDate] = useState("");
-  const [agreedWeight, setAgreedWeight] = useState("");
-  const [actualWeight, setActualWeight] = useState("");
-  const [totalTrips, setTotalTrips] = useState("");
-  const [collectionPointsCovered, setCollectionPointsCovered] = useState("");
+  const [collectionDate, setCollectionDate] = useState(
+    new Date().toISOString().split("T")[0],
+  );
 
-  /* dropdown data */
+  /* ── Dropdown options ── */
   const [panchayatOptions, setPanchayatOptions] = useState<SelectOption[]>([]);
+  const [panchayatDataMap, setPanchayatDataMap] = useState<
+    Record<string, { agreed_weight_kg?: number }>
+  >({});
   const [wasteTypeOptions, setWasteTypeOptions] = useState<SelectOption[]>([]);
 
-  const [loading, setLoading] = useState(false);
-  const [recordData, setRecordData] = useState<Record<string, unknown> | null>(
-    routeState?.record ?? null,
-  );
-  const [pendingProjectId, setPendingProjectId] = useState("");
+  /* ── Auto-fetched trip log data ── */
+  const [tripData, setTripData] = useState<TripLogData | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState("");
 
-  /* default date to today */
-  useEffect(() => {
-    if (!collectionDate) {
-      const today = new Date();
-      setCollectionDate(today.toISOString().split("T")[0]);
-    }
-  }, [collectionDate]);
+  /* ── Form submission ── */
+  const [loading, setLoading] = useState(false);
+  const [recordData] = useState<Record<string, unknown> | null>(routeState?.record ?? null);
+  const [pendingProjectId, setPendingProjectId] = useState("");
 
   /* re-apply projectId after hook re-fetches */
   useEffect(() => {
@@ -250,27 +211,39 @@ export default function DailyWasteComparisonForm() {
     [companyUniqueId, projectId],
   );
 
-  /* fetch panchayat dropdown */
+  /* fetch panchayat dropdown — store agreed_weight_kg per panchayat */
   useEffect(() => {
     if (!tenantParams) {
       setPanchayatOptions([]);
+      setPanchayatDataMap({});
       return;
     }
-    const config = { params: tenantParams };
     panchayatApi
-      .list(config)
-      .then((panchayatRes) => {
-        const panchayats = toRecordList(panchayatRes)
-          .filter((x) => x.is_active !== false)
+      .list({ params: tenantParams })
+      .then((res) => {
+        const records = toRecordList(res).filter((x) => x.is_active !== false);
+        const opts = records
           .map((x) => ({
             value: normalizeId(x.unique_id ?? x.panchayat_id),
             label: toText(x.panchayat_name ?? x.name ?? x.unique_id),
           }))
           .filter((x) => x.value && x.label);
-        setPanchayatOptions(panchayats);
+        setPanchayatOptions(opts);
+
+        const dataMap: Record<string, { agreed_weight_kg?: number }> = {};
+        for (const x of records) {
+          const uid = normalizeId(x.unique_id ?? x.panchayat_id);
+          if (uid) {
+            dataMap[uid] = {
+              agreed_weight_kg: x.agreed_weight_kg != null ? Number(x.agreed_weight_kg) : undefined,
+            };
+          }
+        }
+        setPanchayatDataMap(dataMap);
       })
       .catch(() => {
         setPanchayatOptions([]);
+        setPanchayatDataMap({});
       });
   }, [tenantParams]);
 
@@ -278,100 +251,149 @@ export default function DailyWasteComparisonForm() {
   useEffect(() => {
     wasteTypeApi
       .list()
-      .then((wasteTypeRes) => {
-        const wasteTypes = toRecordList(wasteTypeRes)
+      .then((res) => {
+        const opts = toRecordList(res)
           .filter((x) => x.is_active !== false)
           .map((x) => ({
             value: normalizeId(x.unique_id ?? x.waste_type_id),
-            label: toText(
-              x.waste_type_name ?? x.wastetype_name ?? x.name ?? x.unique_id,
-            ),
+            label: toText(x.waste_type_name ?? x.wastetype_name ?? x.name ?? x.unique_id),
           }))
           .filter((x) => x.value && x.label);
-        setWasteTypeOptions(wasteTypes);
+        setWasteTypeOptions(opts);
       })
-      .catch(() => {
-        setWasteTypeOptions([]);
-      });
+      .catch(() => setWasteTypeOptions([]));
   }, []);
 
-  /* hydrate edit record */
+  /* hydrate edit record's criteria */
   useEffect(() => {
-    if (!recordData) return;
+    if (!isEdit || !routeState?.record) return;
+    applyCompanyProjectFromRecord(routeState.record);
+    const recProjectId = normalizeId(routeState.record.project_id ?? routeState.record.project);
+    if (recProjectId) setPendingProjectId(recProjectId);
 
-    const panchayatLabel = toText(recordData.panchayat_name ?? recordData.panchayat);
-    const wasteTypeLabel = toText(
-      recordData.waste_type_name ??
-        recordData.wastetype_name ??
-        recordData.waste_type ??
-        recordData.waste_type_label,
-    );
-    const resolvedPanchayatId = resolveOptionValue(
-      panchayatOptions,
-      normalizeId(recordData.panchayat_id ?? recordData.panchayat),
-      panchayatLabel,
-    );
-    const resolvedWasteTypeId = resolveOptionValue(
-      wasteTypeOptions,
-      normalizeId(recordData.waste_type_id ?? recordData.waste_type_unique_id),
-      wasteTypeLabel,
-    );
+    setPanchayatId(normalizeId(routeState.record.panchayat_id ?? routeState.record.panchayat));
+    setWasteTypeId(normalizeId(routeState.record.waste_type_id));
+    const date = toText(routeState.record.collection_date);
+    if (date) setCollectionDate(date.slice(0, 10));
+  }, [applyCompanyProjectFromRecord, isEdit, routeState?.record]);
 
-    setPanchayatId(resolvedPanchayatId || panchayatLabel);
-    setWasteTypeId(resolvedWasteTypeId || wasteTypeLabel);
-    setCollectionDate(toDateValue(recordData.collection_date));
-    setAgreedWeight(toText(recordData.agreed_weight_kg));
-    setActualWeight(toText(recordData.actual_weight_kg));
-    setTotalTrips(toText(recordData.total_trips));
-    setCollectionPointsCovered(toText(recordData.collection_points_covered));
-  }, [recordData, panchayatOptions, wasteTypeOptions]);
+  /* ── Auto-fetch from trip logs when all criteria are set ── */
+  const canFetch =
+    Boolean(companyUniqueId) &&
+    Boolean(projectId) &&
+    Boolean(panchayatId) &&
+    Boolean(wasteTypeId) &&
+    Boolean(collectionDate);
 
-  /* load record for edit */
+  const fetchFromTripLogs = async () => {
+    if (!canFetch) return;
+    setFetching(true);
+    setFetchError("");
+    setTripData(null);
+    try {
+      const { data } = await api.get("/schedule-masters/daily-waste-comparisons/", {
+        params: {
+          company_id: companyUniqueId,
+          project_id: projectId,
+          date: collectionDate,
+          panchayat_id: panchayatId,
+          waste_type_id: wasteTypeId,
+        },
+      });
+      const results: TripLogData[] = Array.isArray(data?.results) ? data.results : [];
+      if (results.length === 0) {
+        setFetchError("No trip logs found for the selected date, panchayat, and waste type.");
+        return;
+      }
+      setTripData(results[0]);
+    } catch {
+      setFetchError("Failed to fetch trip log data.");
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  /* auto-fetch whenever criteria change */
   useEffect(() => {
-    if (!isEdit) return;
-    if (routeState?.record) {
-      setRecordData(routeState.record);
-      applyCompanyProjectFromRecord(routeState.record);
-      const routeProjectId = normalizeId(
-        routeState.record.project_id ?? routeState.record.project,
-      );
-      if (routeProjectId) setPendingProjectId(routeProjectId);
+    if (canFetch) {
+      void fetchFromTripLogs();
+    } else {
+      setTripData(null);
+      setFetchError("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyUniqueId, projectId, panchayatId, wasteTypeId, collectionDate]);
+
+  /* ── Agreed weight from panchayat master ── */
+  const panchayatAgreedWeight = panchayatId
+    ? panchayatDataMap[panchayatId]?.agreed_weight_kg
+    : undefined;
+
+  const statusBadgeCls = (s: string) =>
+    s === "Surplus"
+      ? "bg-green-100 text-green-800 border-green-200"
+      : s === "Deficit"
+        ? "bg-red-100 text-red-800 border-red-200"
+        : "bg-blue-100 text-blue-800 border-blue-200";
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!tripData) {
+      Swal.fire(t("common.warning"), "Please wait for trip log data to load before saving.", "warning");
+      return;
     }
 
-    adminApi.dailyWasteComparison
-      .get(id as string)
-      .then((res: Record<string, unknown>) => {
-        const merged = { ...(routeState?.record ?? {}), ...res };
-        applyCompanyProjectFromRecord(merged);
-        const recProjectId = normalizeId(merged.project_id ?? merged.project);
-        if (recProjectId) setPendingProjectId(recProjectId);
-        setRecordData(merged);
-      })
-      .catch((err) => {
-        const fallback = routeState?.record;
-        if (fallback) return;
-        Swal.fire(
-          t("common.error"),
-          String(
-            (err as { response?: { data?: unknown }; message?: string })?.response?.data ??
-              (err as { message?: string })?.message ??
-              t("common.load_failed"),
-          ),
-          "error",
-        );
-      });
-  }, [applyCompanyProjectFromRecord, id, isEdit, routeState?.record, t]);
+    const missing: string[] = [];
+    if (!companyUniqueId) missing.push(t("admin.nav.company"));
+    if (!projectId) missing.push(t("admin.nav.project"));
+    if (!panchayatId) missing.push(t("admin.nav.panchayat"));
+    if (!wasteTypeId) missing.push(t("common.waste_type"));
+    if (!collectionDate) missing.push("Collection Date");
 
-  const recordCompanyId = normalizeId(
-    recordData?.company_unique_id ?? recordData?.company_id ?? recordData?.company,
-  );
-  const recordProjectId = normalizeId(
-    recordData?.project_unique_id ?? recordData?.project_id ?? recordData?.project,
-  );
+    if (missing.length > 0) {
+      Swal.fire(t("common.warning"), `Missing: ${missing.join(", ")}`, "warning");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload = {
+        company_id: companyUniqueId,
+        project_id: projectId,
+        panchayat_id: panchayatId,
+        waste_type_id: wasteTypeId,
+        collection_date: collectionDate,
+        agreed_weight_kg: tripData.agreed_weight_kg,
+        actual_weight_kg: tripData.actual_weight_kg,
+        total_trips: tripData.total_trips,
+        collection_points_covered: tripData.collection_points_covered,
+      };
+
+      if (isEdit) {
+        await adminApi.dailyWasteComparison.update(id as string, payload);
+      } else {
+        await adminApi.dailyWasteComparison.create(payload);
+      }
+
+      Swal.fire(
+        t("common.success"),
+        isEdit ? t("common.updated_success") : t("common.added_success"),
+        "success",
+      );
+      navigate(LIST_PATH, {
+        state: { companyUniqueId, projectId },
+      });
+    } catch {
+      Swal.fire(t("common.save_failed"), t("common.save_failed_desc"), "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const recordCompanyId = normalizeId(recordData?.company_unique_id ?? recordData?.company_id ?? recordData?.company);
   const effectiveCompanyId = companyUniqueId || recordCompanyId;
-  const effectiveProjectId =
-    projectId ||
-    (effectiveCompanyId === recordCompanyId || !recordCompanyId ? recordProjectId : "");
+  const effectiveProjectId = projectId;
 
   const companyOptions = ensureSelectedOption(
     companies.map((x) => ({ value: x.value, label: x.label })),
@@ -391,64 +413,8 @@ export default function DailyWasteComparisonForm() {
   const wasteTypeOptionsWithSelected = ensureSelectedOption(
     wasteTypeOptions,
     wasteTypeId,
-    toText(
-      recordData?.waste_type_name ??
-        recordData?.wastetype_name ??
-        recordData?.waste_type ??
-        recordData?.waste_type_label,
-    ),
+    toText(recordData?.waste_type_name ?? recordData?.waste_type ?? recordData?.waste_type_label),
   );
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
-    const missing: string[] = [];
-    if (!effectiveCompanyId) missing.push(t("admin.nav.company"));
-    if (!effectiveProjectId) missing.push(t("admin.nav.project"));
-    if (!panchayatId) missing.push(t("admin.nav.panchayat"));
-    if (!wasteTypeId) missing.push(t("common.waste_type"));
-    if (!collectionDate) missing.push("Collection Date");
-    if (!agreedWeight.trim()) missing.push("Agreed Weight");
-
-    if (missing.length > 0) {
-      Swal.fire(t("common.warning"), `Missing: ${missing.join(", ")}`, "warning");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const payload = {
-        company_id: effectiveCompanyId,
-        project_id: effectiveProjectId,
-        panchayat_id: panchayatId,
-        waste_type_id: wasteTypeId,
-        collection_date: collectionDate,
-        agreed_weight_kg: parseFloat(agreedWeight) || 0,
-        actual_weight_kg: parseFloat(actualWeight) || 0,
-        total_trips: parseInt(totalTrips) || 0,
-        collection_points_covered: parseInt(collectionPointsCovered) || 0,
-      };
-
-      if (isEdit) {
-        await adminApi.dailyWasteComparison.update(id as string, payload);
-      } else {
-        await adminApi.dailyWasteComparison.create(payload);
-      }
-
-      Swal.fire(
-        t("common.success"),
-        isEdit ? t("common.updated_success") : t("common.added_success"),
-        "success",
-      );
-      navigate(LIST_PATH, {
-        state: { companyUniqueId: effectiveCompanyId, projectId: effectiveProjectId },
-      });
-    } catch {
-      Swal.fire(t("common.save_failed"), t("common.save_failed_desc"), "error");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <ComponentCard
@@ -459,15 +425,25 @@ export default function DailyWasteComparisonForm() {
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+
+        {/* ── Info banner ── */}
+        <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs text-blue-700">
+          <Info className="h-4 w-4 mt-0.5 shrink-0" />
+          <span>
+            Waste weights are <strong>automatically calculated</strong> from daily trip logs
+            for the selected date, panchayat, and waste type.
+            Only <strong>submitted</strong> and <strong>verified</strong> trip logs are included.
+          </span>
+        </div>
+
+        {/* ── Company & Project ── */}
         <FormSection title="Company & Project Information">
           <ShadcnSelect
             label={t("admin.nav.company")}
             value={effectiveCompanyId}
             onChange={onCompanyChange}
             options={companyOptions}
-            placeholder={t("common.select_item_placeholder", {
-              item: t("admin.nav.company"),
-            })}
+            placeholder={t("common.select_item_placeholder", { item: t("admin.nav.company") })}
             disabled={
               Boolean(loggedInCompanyUniqueId) ||
               (!isSuperAdmin && !loggedInCompanyUniqueId) ||
@@ -479,22 +455,19 @@ export default function DailyWasteComparisonForm() {
             value={effectiveProjectId}
             onChange={setProjectId}
             options={projectOptions}
-            placeholder={t("common.select_item_placeholder", {
-              item: t("admin.nav.project"),
-            })}
+            placeholder={t("common.select_item_placeholder", { item: t("admin.nav.project") })}
             disabled={!effectiveCompanyId || projectOptions.length === 0}
           />
         </FormSection>
 
-        <FormSection title="Report Details">
+        {/* ── Report criteria ── */}
+        <FormSection title="Report Criteria">
           <ShadcnSelect
             label={t("admin.nav.panchayat")}
             value={panchayatId}
             onChange={setPanchayatId}
             options={panchayatOptionsWithSelected}
-            placeholder={t("common.select_item_placeholder", {
-              item: t("admin.nav.panchayat"),
-            })}
+            placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") })}
             disabled={panchayatOptionsWithSelected.length === 0}
           />
           <ShadcnSelect
@@ -502,74 +475,163 @@ export default function DailyWasteComparisonForm() {
             value={wasteTypeId}
             onChange={setWasteTypeId}
             options={wasteTypeOptionsWithSelected}
-            placeholder={t("common.select_item_placeholder", {
-              item: t("common.waste_type"),
-            })}
+            placeholder={t("common.select_item_placeholder", { item: t("common.waste_type") })}
             disabled={wasteTypeOptionsWithSelected.length === 0}
           />
-          <FormInput
-            label="Collection Date"
-            type="date"
-            value={collectionDate}
-            max={new Date().toISOString().split("T")[0]}
-            onChange={(e) => setCollectionDate(e.target.value)}
-          />
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-gray-700">
+              Collection Date <span className="text-red-500 ml-1">*</span>
+            </Label>
+            <input
+              type="date"
+              value={collectionDate}
+              max={new Date().toISOString().split("T")[0]}
+              onChange={(e) => setCollectionDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </FormSection>
 
-        <FormSection title="Weight & Collection Data">
-          <FormInput
-            label="Agreed Weight (kg)"
-            type="number"
-            step="0.01"
-            min="0"
-            value={agreedWeight}
-            onChange={(e) => setAgreedWeight(e.target.value)}
-          />
-          <FormInput
-            label="Actual Weight (kg)"
-            type="number"
-            step="0.01"
-            min="0"
-            value={actualWeight}
-            onChange={(e) => setActualWeight(e.target.value)}
-            isRequired={false}
-          />
-          <FormInput
-            label="Total Trips"
-            type="number"
-            min="0"
-            value={totalTrips}
-            onChange={(e) => setTotalTrips(e.target.value)}
-            isRequired={false}
-          />
-          <FormInput
-            label="Collection Points Covered"
-            type="number"
-            min="0"
-            value={collectionPointsCovered}
-            onChange={(e) => setCollectionPointsCovered(e.target.value)}
-            isRequired={false}
-          />
-        </FormSection>
+        {/* ── Auto-calculated data panel ── */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3 pb-3 border-b-2 border-green-500">
+            <h3 className="text-lg font-semibold text-gray-800">
+              Weight & Collection Data
+              <span className="ml-2 text-xs font-normal text-gray-500">(auto-calculated from trip logs)</span>
+            </h3>
+            <button
+              type="button"
+              onClick={fetchFromTripLogs}
+              disabled={!canFetch || fetching}
+              className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${fetching ? "animate-spin" : ""}`} />
+              {fetching ? "Loading…" : "Refresh"}
+            </button>
+          </div>
+
+          {/* Agreed weight from panchayat master */}
+          {panchayatAgreedWeight !== undefined && (
+            <div className="mb-4 bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3 flex items-center gap-3">
+              <Scale className="h-4 w-4 text-indigo-500 shrink-0" />
+              <div>
+                <span className="text-xs font-medium text-indigo-600">Agreed Weight (Panchayat Contract)</span>
+                <p className="text-sm font-bold text-indigo-800">{fmtKg(panchayatAgreedWeight)} kg / day</p>
+              </div>
+            </div>
+          )}
+
+          {!canFetch && (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-400">
+              Select company, project, panchayat, waste type, and date to load trip log data.
+            </div>
+          )}
+
+          {canFetch && fetching && (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 flex items-center justify-center gap-2 text-sm text-gray-400">
+              <span className="animate-spin h-4 w-4 border-2 border-gray-200 border-t-blue-500 rounded-full" />
+              Calculating from trip logs…
+            </div>
+          )}
+
+          {canFetch && !fetching && fetchError && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+              {fetchError}
+            </div>
+          )}
+
+          {canFetch && !fetching && !fetchError && tripData && (
+            <div className="space-y-4">
+              {/* Agreed vs Actual comparison */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
+                  <p className="text-xs text-blue-500 font-medium">Agreed Weight</p>
+                  <p className="text-xl font-bold text-blue-800 mt-0.5">{fmtKg(tripData.agreed_weight_kg)} kg</p>
+                  <p className="text-[10px] text-blue-400 mt-0.5">Daily contract target</p>
+                </div>
+                <div className="rounded-xl border border-green-100 bg-green-50 p-4">
+                  <p className="text-xs text-green-500 font-medium">Actual Weight</p>
+                  <p className="text-xl font-bold text-green-800 mt-0.5">{fmtKg(tripData.actual_weight_kg)} kg</p>
+                  <p className="text-[10px] text-green-400 mt-0.5">From trip logs</p>
+                </div>
+                <div className={`rounded-xl border p-4 ${tripData.variance_kg >= 0 ? "border-emerald-100 bg-emerald-50" : "border-red-100 bg-red-50"}`}>
+                  <p className={`text-xs font-medium ${tripData.variance_kg >= 0 ? "text-emerald-500" : "text-red-500"}`}>Variance</p>
+                  <p className={`text-xl font-bold mt-0.5 ${tripData.variance_kg >= 0 ? "text-emerald-800" : "text-red-800"}`}>
+                    {tripData.variance_kg >= 0 ? "+" : ""}{fmtKg(tripData.variance_kg)} kg
+                  </p>
+                  <p className={`text-[10px] mt-0.5 ${tripData.variance_kg >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {fmtKg(tripData.variance_percent)}%
+                  </p>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-white p-4 flex flex-col justify-between">
+                  <p className="text-xs text-gray-500 font-medium">Status</p>
+                  <span className={`inline-block text-xs font-bold px-2 py-1 rounded-lg border mt-1 ${statusBadgeCls(tripData.report_status)}`}>
+                    {tripData.report_status}
+                  </span>
+                  <p className="text-[10px] text-gray-400 mt-1">Efficiency: {fmtKg(tripData.collection_efficiency_percent)}%</p>
+                </div>
+              </div>
+
+              {/* Efficiency bar */}
+              <div className="rounded-xl border border-gray-100 bg-white p-4">
+                <div className="flex justify-between text-xs text-gray-500 mb-1.5">
+                  <span className="font-medium">Collection Efficiency (Actual ÷ Agreed)</span>
+                  <span className="font-bold text-gray-700">{fmtKg(Math.min(tripData.collection_efficiency_percent, 100))}%</span>
+                </div>
+                <div className="h-3 rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${
+                      tripData.collection_efficiency_percent >= 90
+                        ? "bg-green-500"
+                        : tripData.collection_efficiency_percent >= 70
+                          ? "bg-amber-400"
+                          : "bg-red-500"
+                    }`}
+                    style={{ width: `${Math.min(tripData.collection_efficiency_percent, 100)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                  <span>0</span>
+                  <span>{fmtKg(tripData.agreed_weight_kg)} kg (agreed)</span>
+                </div>
+              </div>
+
+              {/* Trip & collection stats */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3.5">
+                  <div className="h-8 w-8 rounded-lg bg-teal-100 flex items-center justify-center shrink-0">
+                    <Truck className="h-4 w-4 text-teal-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 font-medium">Total Trips</p>
+                    <p className="text-sm font-bold text-gray-800">{tripData.total_trips}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3.5">
+                  <div className="h-8 w-8 rounded-lg bg-pink-100 flex items-center justify-center shrink-0">
+                    <MapPin className="h-4 w-4 text-pink-600" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 font-medium">Collection Points Covered</p>
+                    <p className="text-sm font-bold text-gray-800">{tripData.collection_points_covered}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="flex justify-end gap-3 mt-6">
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !tripData}
             className="bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-5 py-2 rounded-md text-sm font-medium transition-colors"
           >
             {loading ? t("common.saving") : isEdit ? t("common.update") : t("common.save")}
           </button>
           <button
             type="button"
-            onClick={() =>
-              navigate(LIST_PATH, {
-                state: {
-                  companyUniqueId: effectiveCompanyId,
-                  projectId: effectiveProjectId,
-                },
-              })
-            }
+            onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
             className="bg-red-400 hover:bg-red-500 text-white px-5 py-2 rounded-md text-sm font-medium transition-colors"
           >
             {t("common.cancel")}
