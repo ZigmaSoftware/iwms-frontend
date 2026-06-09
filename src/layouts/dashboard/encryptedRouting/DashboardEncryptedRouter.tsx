@@ -24,7 +24,7 @@ const ROUTES: Record<string, DashboardComponent> = {
   "dashboard-alerts": Alerts,
   "dashboard-reports": Reports,
   "dashboard-weighbridge": Weighbridge,
-  "dashboard-bins": BinMonitoring,
+  // "dashboard-bins": BinMonitoring,
 };
 
 export default function DashboardEncryptedRouter() {
