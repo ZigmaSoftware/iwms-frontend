@@ -13,7 +13,7 @@ import { InputText } from "primereact/inputtext";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -83,7 +83,7 @@ export default function ContinentList() {
   const loadContinents = async () => {
     setIsLoading(true);
     try {
-      const response = await adminApi.continents.list();
+      const response = await adminApi.continents.readAll();
       setContinents(Array.isArray(response) ? response : []);
     } catch (error) {
       Swal.fire(
@@ -185,7 +185,7 @@ export default function ContinentList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.continent"),
           })}
           className="p-inputtext-sm border-0 shadow-none"

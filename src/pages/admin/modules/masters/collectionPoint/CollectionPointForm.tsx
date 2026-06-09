@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -209,7 +209,7 @@ export default function CollectionPointForm() {
   ========================================================== */
   useEffect(() => {
     let cancelled = false;
-    stateApi.list()
+    stateApi.readAll()
       .then((data: unknown) => {
         if (cancelled) return;
         setStates(
@@ -238,11 +238,11 @@ export default function CollectionPointForm() {
     let cancelled = false;
     const params = { company_id: companyUniqueId, project_id: projectId };
     Promise.all([
-      districtApi.list({ params }),
-      cityApi.list({ params }),
-      panchayatApi.list({ params }),
-      zoneApi.list({ params }),
-      wardApi.list({ params }),
+      districtApi.readAll({ params }),
+      cityApi.readAll({ params }),
+      panchayatApi.readAll({ params }),
+      zoneApi.readAll({ params }),
+      wardApi.readAll({ params }),
     ])
       .then(([distData, cityData, panData, zoneData, wardData]) => {
         if (cancelled) return;
@@ -324,7 +324,7 @@ export default function CollectionPointForm() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    collectionPointApi.get(id)
+    collectionPointApi.read(id)
       .then((data: unknown) => {
         if (cancelled) return;
         const record = data as UnknownRecord;
@@ -372,7 +372,7 @@ export default function CollectionPointForm() {
   useEffect(() => {
     if (!companyUniqueId) return;
     let cancelled = false;
-    adminApi.wasteTypes.list({ params: { company_id: companyUniqueId } })
+    adminApi.wasteTypes.readAll({ params: { company_id: companyUniqueId } })
       .then((data: unknown) => {
         if (cancelled) return;
         const list = Array.isArray(data) ? data : (data as any)?.data ?? (data as any)?.results ?? [];
@@ -390,7 +390,7 @@ export default function CollectionPointForm() {
   useEffect(() => {
     if (!isEdit || !id || !companyUniqueId) return;
     let cancelled = false;
-    adminApi.bins.list({ params: { company_id: companyUniqueId, collection_point_id: id } })
+    adminApi.bins.readAll({ params: { company_id: companyUniqueId, collection_point_id: id } })
       .then((data: unknown) => {
         if (cancelled) return;
         const list = Array.isArray(data) ? data : (data as any)?.data ?? (data as any)?.results ?? [];
@@ -609,7 +609,7 @@ export default function CollectionPointForm() {
       if (isEdit && id) {
         await collectionPointApi.update(id, payload);
         // Delete removed bins
-        await Promise.all(binsToDelete.map((binId) => adminApi.bins.remove(binId)));
+        await Promise.all(binsToDelete.map((binId) => adminApi.bins.delete(binId)));
       } else {
         const created = await collectionPointApi.create(payload);
         cpId = (created as any)?.unique_id ?? (created as any)?.data?.unique_id ?? "";

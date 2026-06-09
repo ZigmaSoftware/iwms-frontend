@@ -37,13 +37,22 @@ const AdminBreadcrumb: React.FC = () => {
       return [home, { label: "...", isActive: true }];
     }
 
-    const items: BreadcrumbItem[] = [home];
+    const isScheduleMaster = matched.parentNameKey === "admin.nav.schedule_masters";
+    const items: BreadcrumbItem[] = isScheduleMaster ? [] : [home];
 
     if (matched.parentNameKey) {
       items.push({ label: t(matched.parentNameKey), isActive: false });
     }
 
     items.push({ label: t(matched.nameKey), isActive: true });
+
+    if (isScheduleMaster && location.pathname.endsWith("/new")) {
+      items[items.length - 1].isActive = false;
+      items.push({ label: t("common.add"), isActive: true });
+    } else if (isScheduleMaster && location.pathname.endsWith("/edit")) {
+      items[items.length - 1].isActive = false;
+      items.push({ label: t("common.edit"), isActive: true });
+    }
 
     return items;
   }, [location.pathname, t]);

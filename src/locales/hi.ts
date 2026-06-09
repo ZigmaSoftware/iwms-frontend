@@ -788,7 +788,7 @@ const hiResource = {
           "zone": "ज़ोन",
           "ward": "वार्ड",
           "collection_point": "कलेक्शन पॉइंट",
-          "panchayat_leader": "पंचायत नेता",
+          "panchayat_leader": "PLB नेता",
           "property": "प्रॉपर्टी",
           "sub_property": "सब-प्रॉपर्टी",
           "staff_master": "स्टाफ मास्टर",
@@ -832,7 +832,7 @@ const hiResource = {
           "waste_management": "कचरा प्रबंधन",
           "waste_collected_data": "संग्रहित कचरा डेटा",
           "collection_monitoring": "संग्रह मॉनिटरिंग",
-          "panchayat_base_collection": "पंचायत बेस कलेक्शन",
+          "panchayat_base_collection": "PLB बेस कलेक्शन",
           "ward_base_collection": "वार्ड बेस कलेक्शन",
           "citizen_grievance": "नागरिक शिकायत",
           "complaints": "शिकायतें",
@@ -1337,7 +1337,9 @@ const hiResource = {
           "driving_licence_choose": "फ़ाइल चुनें",
           "driving_licence_no_file": "कोई फ़ाइल नहीं चुनी गई",
           "password": "पासवर्ड",
-          "password_placeholder": "पासवर्ड दर्ज करें"
+          "password_placeholder": "पासवर्ड दर्ज करें",
+          "password_edit_placeholder": "मौजूदा पासवर्ड रखने के लिए खाली छोड़ दें",
+          "password_edit_hint": "यदि आप पासवर्ड बदलना चाहते हैं तो नया पासवर्ड दर्ज करें।"
         },
         "dashboard_home": {
           "title": "संचालन अवलोकन",

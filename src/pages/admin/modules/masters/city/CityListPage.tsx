@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -81,7 +81,9 @@ export default function CityList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const navigate = useNavigate();
 
@@ -103,7 +105,7 @@ export default function CityList() {
     const loadCities = async () => {
       setIsLoading(true);
       try {
-        const data = await cityApi.list();
+        const data = await cityApi.readAll();
         if (mounted) setAllCities(data as CityRecord[]);
       } catch (error) {
         if (mounted) {
@@ -124,7 +126,7 @@ export default function CityList() {
 
   const cities = useMemo(() => {
     if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId) return [];
+    if (!companyUniqueId && !isSuperAdmin) return [];
 
     return allCities.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
@@ -157,7 +159,7 @@ export default function CityList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.city"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none"
@@ -242,9 +244,7 @@ export default function CityList() {
               disabled={!isSuperAdmin || companies.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
-              <option value="" disabled>
-                {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-              </option>
+              <option value="">All Companies</option>
               {companies.map((company) => (
                 <option key={company.value} value={company.value}>
                   {company.label}
@@ -255,12 +255,10 @@ export default function CityList() {
             <select
               value={projectId || ""}
               onChange={(e) => setProjectId(e.target.value)}
-              disabled={!companyUniqueId || projects.length === 0}
+              disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
-              <option value="" disabled>
-                {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-              </option>
+              <option value="">All Projects</option>
               {projects.map((project) => (
                 <option key={project.value} value={project.value}>
                   {project.label}

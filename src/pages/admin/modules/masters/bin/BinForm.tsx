@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -185,7 +185,7 @@ export default function BinForm() {
   useEffect(() => {
     setLookupsLoading(true);
 
-    Promise.all([wasteTypeApi.list()])
+    Promise.all([wasteTypeApi.readAll()])
       .then(([wasteTypeRes]) => {
         const wasteTypeOptions = toRecordList(wasteTypeRes)
           .filter((w) => w.is_active !== false)
@@ -213,11 +213,11 @@ export default function BinForm() {
     let cancelled = false;
     const params = { company_id: companyUniqueId, project_id: projectId };
     Promise.all([
-      districtApi.list({ params }),
-      cityApi.list({ params }),
-      panchayatApi.list({ params }),
-      zoneApi.list({ params }),
-      wardApi.list({ params }),
+      districtApi.readAll({ params }),
+      cityApi.readAll({ params }),
+      panchayatApi.readAll({ params }),
+      zoneApi.readAll({ params }),
+      wardApi.readAll({ params }),
     ])
       .then(([distData, cityData, panData, zoneData, wardData]) => {
         if (cancelled) return;
@@ -300,7 +300,7 @@ export default function BinForm() {
     if (zoneId) params.zone = zoneId;
     if (wardId) params.ward = wardId;
     if (panchayatId) params.panchayat = panchayatId;
-    collectionPointApi.list({ params })
+    collectionPointApi.readAll({ params })
       .then((res: unknown) => {
         if (cancelled) return;
         setCollectionPoints(
@@ -330,7 +330,7 @@ export default function BinForm() {
   useEffect(() => {
     if (!id || !isEdit) return;
     let cancelled = false;
-    binApi.get(id)
+    binApi.read(id)
       .then((data: unknown) => {
         if (cancelled) return;
         const record = data as BinRecord;

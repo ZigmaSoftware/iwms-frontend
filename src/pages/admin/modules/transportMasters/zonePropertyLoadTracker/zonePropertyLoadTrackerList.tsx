@@ -1,6 +1,6 @@
 // import { useEffect, useState } from "react";
 // import { useNavigate, useLocation} from "react-router-dom";
-// import Swal from "sweetalert2";
+// import Swal from "@/lib/notify";
 // import { useTranslation } from "react-i18next";
 
 // import { DataTable } from "@/components/common/SafeDataTable";
@@ -87,7 +87,7 @@
 //   const fetchRecords = async () => {
 //     setLoading(true);
 //     try {
-//       const trackerRes = await zonePropertyLoadTrackerApi.list();
+//       const trackerRes = await zonePropertyLoadTrackerApi.readAll();
 //       setRecords(normalizeList(trackerRes));
 //     } catch {
 //       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
@@ -219,7 +219,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -296,7 +296,9 @@ export default function ZonePropertyLoadTrackerList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
@@ -314,7 +316,7 @@ export default function ZonePropertyLoadTrackerList() {
     `/${encTransportMaster}/${encZonePropertyLoadTracker}/${id}/edit`;
 
   useEffect(() => {
-    if (!companyUniqueId) {
+    if (!companyUniqueId && !isSuperAdmin) {
       setRecords([]);
       setLoading(false);
       return;
@@ -323,7 +325,7 @@ export default function ZonePropertyLoadTrackerList() {
     let mounted = true;
     const params = { company_id: companyUniqueId, project_id: projectId ?? undefined };
     setLoading(true);
-    adminApi.zonePropertyLoadTrackers.list({ params })
+    adminApi.zonePropertyLoadTrackers.readAll({ params })
       .then((res) => {
         if (mounted) setRecords(normalizeList(res ?? []));
       })
@@ -368,9 +370,7 @@ export default function ZonePropertyLoadTrackerList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -381,12 +381,10 @@ export default function ZonePropertyLoadTrackerList() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}

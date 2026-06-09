@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -92,7 +92,7 @@ export default function VehicleCreationForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.vehicleCreations.get(id)
+    adminApi.vehicleCreations.read(id)
       .then((res: any) => {
         if (cancelled) return;
         setRecordData(res);
@@ -115,7 +115,7 @@ export default function VehicleCreationForm() {
   const [fuelTypeData, setFuelTypeData] = useState<any[]>([]);
   useEffect(() => {
     let cancelled = false;
-    adminApi.vehicleTypes.list()
+    adminApi.vehicleTypes.readAll()
       .then((res: any) => {
         if (cancelled) return;
         setVehicleTypeData(Array.isArray(res) ? res : (res?.results ?? []));
@@ -126,7 +126,7 @@ export default function VehicleCreationForm() {
 
   useEffect(() => {
     let cancelled = false;
-    adminApi.fuels.list()
+    adminApi.fuels.readAll()
       .then((res: any) => {
         if (cancelled) return;
         setFuelTypeData(Array.isArray(res) ? res : (res?.results ?? []));

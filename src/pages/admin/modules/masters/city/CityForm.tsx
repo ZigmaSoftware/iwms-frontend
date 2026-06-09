@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -195,7 +195,7 @@ export default function CityForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.cities.get(id)
+    adminApi.cities.read(id)
       .then((res: any) => {
         if (cancelled) return;
         setRecordData(res);
@@ -215,7 +215,7 @@ export default function CityForm() {
   const [continentsRaw, setContinentsRaw] = useState<any[]>([]);
   useEffect(() => {
     let cancelled = false;
-    adminApi.continents.list()
+    adminApi.continents.readAll()
       .then((res: any) => { if (cancelled) return; setContinentsRaw(Array.isArray(res) ? res : (res?.results ?? [])); })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -224,7 +224,7 @@ export default function CityForm() {
   const [countriesRaw, setCountriesRaw] = useState<any[]>([]);
   useEffect(() => {
     let cancelled = false;
-    adminApi.countries.list()
+    adminApi.countries.readAll()
       .then((res: any) => { if (cancelled) return; setCountriesRaw(Array.isArray(res) ? res : (res?.results ?? [])); })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -233,7 +233,7 @@ export default function CityForm() {
   const [statesRaw, setStatesRaw] = useState<any[]>([]);
   useEffect(() => {
     let cancelled = false;
-    adminApi.states.list()
+    adminApi.states.readAll()
       .then((res: any) => { if (cancelled) return; setStatesRaw(Array.isArray(res) ? res : (res?.results ?? [])); })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -242,7 +242,7 @@ export default function CityForm() {
   const [districtsRaw, setDistrictsRaw] = useState<any[]>([]);
   useEffect(() => {
     let cancelled = false;
-    adminApi.districts.list()
+    adminApi.districts.readAll()
       .then((res: any) => { if (cancelled) return; setDistrictsRaw(Array.isArray(res) ? res : (res?.results ?? [])); })
       .catch(() => {});
     return () => { cancelled = true; };

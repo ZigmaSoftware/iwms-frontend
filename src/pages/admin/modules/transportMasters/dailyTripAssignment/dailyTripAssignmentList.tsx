@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -16,6 +16,8 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { dailyTripAssignmentApi } from "@/helpers/admin";
+import { adminApi } from "@/helpers/admin/registry";
+import { normalizeList } from "@/utils/forms";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,17 +32,36 @@ type DailyTripAssignmentRecord = {
   trip_plan_id?: string;
   staff_template_id?: string;
   panchayat_id?: string;
+  ward_id?: string;
   waste_type_id?: string;
-  trip_plan?: { unique_id?: string; display_code?: string };
+  trip_plan?: {
+    unique_id?: string;
+    display_code?: string;
+    zone?: NamedRef & { zone_name?: string };
+    panchayat?: NamedRef & { panchayat_name?: string };
+    ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
+  };
   staff_template?: { unique_id?: string; display_code?: string };
   effective_staff?: { unique_id?: string; display_code?: string } | null;
   panchayat?: NamedRef & { panchayat_name?: string };
+  ward?: NamedRef & { ward_name?: string };
   waste_type?: NamedRef & { waste_type_name?: string };
   trip_date?: string;
   scheduled_time?: string;
   status?: string;
-  approval_status?: string;
   remarks?: string | null;
+  [key: string]: unknown;
+};
+
+type TripPlanRecord = {
+  unique_id?: string;
+  id?: string;
+  zone_id?: unknown;
+  ward_id?: unknown;
+  panchayat_id?: unknown;
+  zone?: NamedRef & { zone_name?: string };
+  ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
+  panchayat?: NamedRef & { panchayat_name?: string };
   [key: string]: unknown;
 };
 
@@ -51,12 +72,6 @@ const STATUS_STYLES: Record<string, string> = {
   "In Progress": "bg-yellow-100 text-yellow-800",
   Completed: "bg-green-100 text-green-800",
   Cancelled: "bg-red-100 text-red-800",
-};
-
-const APPROVAL_STYLES: Record<string, string> = {
-  Pending: "bg-gray-100 text-gray-700",
-  Approved: "bg-green-100 text-green-800",
-  Rejected: "bg-red-100 text-red-800",
 };
 
 const Badge = ({ value, styleMap }: { value?: string; styleMap: Record<string, string> }) => (
@@ -81,8 +96,51 @@ const extractError = (error: any): string | null => {
   return null;
 };
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
+const normalizeId = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return normalizeId(record.unique_id ?? record.id ?? record.value);
+  }
+  return String(value).trim();
+};
+
+const getZoneName = (record: any, plan?: TripPlanRecord): string =>
+  String(
+    record?.zone?.zone_name ??
+      record?.zone?.name ??
+      record?.ward?.zone_name ??
+      record?.ward?.zone?.zone_name ??
+      record?.trip_plan?.zone?.zone_name ??
+      plan?.zone?.zone_name ??
+      plan?.zone?.name ??
+      plan?.ward?.zone_name ??
+      ""
+  ).trim();
+
+const getWardName = (record: any, plan?: TripPlanRecord): string =>
+  String(
+    record?.ward?.ward_name ??
+      record?.ward?.name ??
+      record?.trip_plan?.ward?.ward_name ??
+      plan?.ward?.ward_name ??
+      plan?.ward?.name ??
+      record?.ward_id ??
+      plan?.ward_id ??
+      ""
+  ).trim();
+
+const getPanchayatName = (record: any, plan?: TripPlanRecord): string =>
+  String(
+    record?.panchayat?.panchayat_name ??
+      record?.panchayat?.name ??
+      record?.trip_plan?.panchayat?.panchayat_name ??
+      plan?.panchayat?.panchayat_name ??
+      plan?.panchayat?.name ??
+      record?.panchayat_id ??
+      plan?.panchayat_id ??
+      ""
+  ).trim();
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -101,11 +159,13 @@ export default function DailyTripAssignmentList() {
     isSuperAdmin, setProjectId, onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
+    defaultToAll: true,
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
 
   const [allAssignments, setAllAssignments] = useState<DailyTripAssignmentRecord[]>([]);
+  const [tripPlanLookup, setTripPlanLookup] = useState<Record<string, TripPlanRecord>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -113,21 +173,33 @@ export default function DailyTripAssignmentList() {
     unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _trip_plan: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _staff: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _panchayat: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    _location: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    approval_status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     trip_date: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
   });
 
   /* ── load assignments ── */
   useEffect(() => {
-    if (!companyUniqueId) { setAllAssignments([]); return; }
+    if (!companyUniqueId && !isSuperAdmin) { setAllAssignments([]); return; }
     let mounted = true;
     setIsLoading(true);
-    const params: Record<string, string> = { company_id: companyUniqueId };
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
-    (dailyTripAssignmentApi.list({ params }) as Promise<DailyTripAssignmentRecord[]>)
-      .then((data) => { if (mounted) setAllAssignments(Array.isArray(data) ? data : []); })
+    Promise.all([
+      dailyTripAssignmentApi.readAll({ params }) as Promise<DailyTripAssignmentRecord[]>,
+      adminApi.tripPlans.readAll({ params }) as Promise<any>,
+    ])
+      .then(([assignmentData, tripPlanData]) => {
+        if (!mounted) return;
+        setAllAssignments(Array.isArray(assignmentData) ? assignmentData : []);
+        const lookup: Record<string, TripPlanRecord> = {};
+        normalizeList(tripPlanData).forEach((plan: TripPlanRecord) => {
+          const id = normalizeId(plan.unique_id ?? plan.id);
+          if (id) lookup[id] = plan;
+        });
+        setTripPlanLookup(lookup);
+      })
       .catch((err) => { if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) }); })
       .finally(() => { if (mounted) setIsLoading(false); });
     return () => { mounted = false; };
@@ -135,7 +207,7 @@ export default function DailyTripAssignmentList() {
 
   /* ── enrich + filter rows ── */
   const rows = (() => {
-    if (!companyUniqueId) return [];
+    if (!companyUniqueId && !isSuperAdmin) return [];
     return allAssignments
       .filter((row) => {
         const rc = normalizeId(row.company_id ?? row.company_unique_id);
@@ -146,7 +218,7 @@ export default function DailyTripAssignmentList() {
         ...rec,
         _trip_plan: rec.trip_plan?.display_code ?? rec.trip_plan_id ?? "",
         _staff: rec.effective_staff?.display_code ?? rec.staff_template?.display_code ?? rec.staff_template_id ?? "",
-        _panchayat: rec.panchayat?.panchayat_name ?? rec.panchayat?.name ?? rec.panchayat_id ?? "",
+        _location: rec.panchayat?.panchayat_name ?? (rec.ward as any)?.ward_name ?? rec.panchayat_id ?? rec.ward_id ?? "",
         _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
       }));
   })();
@@ -164,10 +236,6 @@ export default function DailyTripAssignmentList() {
     <Badge value={row.status} styleMap={STATUS_STYLES} />
   );
 
-  const approvalTemplate = (row: DailyTripAssignmentRecord) => (
-    <Badge value={row.approval_status} styleMap={APPROVAL_STYLES} />
-  );
-
   const actionTemplate = (row: DailyTripAssignmentRecord) => {
     const rowId = row.unique_id ?? String((row as any).id ?? "");
     return (
@@ -177,8 +245,8 @@ export default function DailyTripAssignmentList() {
           onClick={() =>
             navigate(ENC_EDIT_PATH(rowId), {
               state: {
-                companyUniqueId: row.company_unique_id ?? row.company_id,
-                projectId: row.project_unique_id ?? row.project_id,
+                companyUniqueId: (row.company_unique_id ?? row.company_id) as string | undefined,
+                projectId: (row.project_unique_id ?? row.project_id) as string | undefined,
               },
             })
           }
@@ -219,9 +287,7 @@ export default function DailyTripAssignmentList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((c) => (
               <option key={c.value} value={c.value}>{c.label}</option>
             ))}
@@ -230,12 +296,10 @@ export default function DailyTripAssignmentList() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}
@@ -265,7 +329,7 @@ export default function DailyTripAssignmentList() {
         showGridlines
         className="p-datatable-sm"
         emptyMessage="No trip assignments found. Select a company and project to load data."
-        globalFilterFields={["unique_id", "_trip_plan", "_staff", "_panchayat", "_waste", "status", "approval_status", "trip_date"]}
+        globalFilterFields={["unique_id", "_trip_plan", "_staff", "_location", "_waste", "status", "approval_status", "trip_date"]}
       >
         <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 60 }} />
         <Column field="unique_id" header="ID" filter showFilterMatchModes={false} style={{ minWidth: 160 }} />
@@ -286,10 +350,42 @@ export default function DailyTripAssignmentList() {
           filter showFilterMatchModes={false}
         />
         <Column
-          field="_panchayat"
-          header="Panchayat"
-          body={(row: DailyTripAssignmentRecord) => row.panchayat?.panchayat_name ?? row.panchayat?.name ?? row.panchayat_id ?? "—"}
+          field="_zone"
+          header="Zone"
+          body={(row: any) => row._zone || "—"}
           filter showFilterMatchModes={false}
+        />
+        <Column
+          field="_ward"
+          header="Ward"
+          body={(row: any) => row._ward || "—"}
+          filter showFilterMatchModes={false}
+        />
+        <Column
+          field="_location"
+          header="Location"
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 170 }}
+          body={(row: DailyTripAssignmentRecord) => {
+            if (row.panchayat?.panchayat_name) {
+              return (
+                <span className="text-sm text-gray-800">
+                  {row.panchayat.panchayat_name}
+                  <span className="ml-1 text-xs text-indigo-500 font-medium">(PLB)</span>
+                </span>
+              );
+            }
+            if ((row.ward as any)?.ward_name) {
+              return (
+                <span className="text-sm text-gray-800">
+                  {(row.ward as any).ward_name}
+                  <span className="ml-1 text-xs text-teal-500 font-medium">(Ward)</span>
+                </span>
+              );
+            }
+            return <span className="text-sm text-gray-400">—</span>;
+          }}
         />
         <Column
           field="_waste"
@@ -304,13 +400,6 @@ export default function DailyTripAssignmentList() {
           body={statusTemplate}
           filter showFilterMatchModes={false}
           style={{ minWidth: 160 }}
-        />
-        <Column
-          field="approval_status"
-          header="Approval"
-          body={approvalTemplate}
-          filter showFilterMatchModes={false}
-          style={{ minWidth: 140 }}
         />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 80 }} />
       </DataTable>

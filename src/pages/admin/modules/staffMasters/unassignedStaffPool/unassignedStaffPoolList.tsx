@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -124,7 +124,9 @@ export default function UnassignedStaffPoolList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [records, setRecords] = useState<UnassignedStaffPoolRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,22 +163,23 @@ export default function UnassignedStaffPoolList() {
         return;
       }
 
-      if (!companyUniqueId) {
+      if (!companyUniqueId && !isSuperAdmin) {
         if (mounted) { setRecords([]); setLoading(false); }
         return;
       }
 
       if (mounted) setLoading(true);
       try {
-        const listParams: Record<string, string> = { company_id: companyUniqueId };
+        const listParams: Record<string, string> = {};
+        if (companyUniqueId) listParams.company_id = companyUniqueId;
         if (projectId) listParams.project_id = projectId;
 
         const [poolRes, userRes, zoneRes, wardRes, tripRes] = await Promise.all([
-          unassignedStaffPoolApi.list({ params: listParams }),
-          userCreationApi.list({ params: listParams }),
-          zoneApi.list({ params: listParams }),
-          wardApi.list({ params: listParams }),
-          dailyTripAssignmentApi.list({ params: listParams }),
+          unassignedStaffPoolApi.readAll({ params: listParams }),
+          userCreationApi.readAll({ params: listParams }),
+          zoneApi.readAll({ params: listParams }),
+          wardApi.readAll({ params: listParams }),
+          dailyTripAssignmentApi.readAll({ params: listParams }),
         ]);
 
         const poolRows = filterByCompanyProject(normalizeList(poolRes), companyUniqueId, projectId);
@@ -281,9 +284,7 @@ export default function UnassignedStaffPoolList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -294,12 +295,10 @@ export default function UnassignedStaffPoolList() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import { useNavigate, useLocation } from "react-router-dom";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -22,6 +22,11 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { vehicleCreationApi } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
+import {
+  excelFileToCsvFile,
+  exportTemplateToExcel,
+  type ExcelTemplateColumn,
+} from "@/utils/exportExcel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,32 +73,18 @@ const VEHICLE_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
 
 const FILE_ICON = "/images/pdfimage/download.png";
 
-const VEHICLE_BULK_TEMPLATE_HEADERS = [
-  "vehicle_no",
-  "vehicle_type",
-  "fuel_type",
-  "capacity",
-  "mileage_per_liter",
-  "service_record",
-  "vehicle_insurance",
-  "insurance_expiry_date",
-  "vehicle_condition",
-  "fuel_tank_capacity",
-  "is_active",
-];
-
-const VEHICLE_BULK_EXAMPLE_ROW = [
-  "KA01AB1234",
-  "Compactor",
-  "Diesel",
-  "7500",
-  "5.4",
-  "Service at 2024-11-30",
-  "ICICI Lombard",
-  "2026-05-31",
-  "NEW",
-  "400",
-  "true",
+const VEHICLE_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
+  { field: "vehicle_no", header: "vehicle_no", required: true, sample: "KA01AB1234" },
+  { field: "vehicle_type", header: "vehicle_type", sample: "Compactor" },
+  { field: "fuel_type", header: "fuel_type", sample: "Diesel" },
+  { field: "capacity", header: "capacity", sample: "7500" },
+  { field: "mileage_per_liter", header: "mileage_per_liter", sample: "5.4" },
+  { field: "service_record", header: "service_record", sample: "Service at 2024-11-30" },
+  { field: "vehicle_insurance", header: "vehicle_insurance", sample: "ICICI Lombard" },
+  { field: "insurance_expiry_date", header: "insurance_expiry_date", sample: "2026-05-31" },
+  { field: "vehicle_condition", header: "vehicle_condition", sample: "NEW" },
+  { field: "fuel_tank_capacity", header: "fuel_tank_capacity", sample: "400" },
+  { field: "is_active", header: "is_active", sample: "true" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -123,18 +114,36 @@ export default function VehicleCreationListPage() {
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "transport-master",
     "vehicle-creation",
-    VEHICLE_CREATION_COLUMN_FIELDS
+    VEHICLE_CREATION_COLUMN_FIELDS,
   );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    vehicle_no: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    vehicle_type_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    fuel_type_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    vehicle_condition: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    insurance_expiry_date: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    global: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    vehicle_no: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    vehicle_type_name: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    fuel_type_name: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    vehicle_condition: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    insurance_expiry_date: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
   });
 
   const [allVehicles, setAllVehicles] = useState<VehicleCreationRecord[]>([]);
@@ -145,7 +154,10 @@ export default function VehicleCreationListPage() {
 
   // ── Company / Project ─────────────────────────────────────────────────────
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -154,7 +166,12 @@ export default function VehicleCreationListPage() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
@@ -166,36 +183,51 @@ export default function VehicleCreationListPage() {
   useEffect(() => {
     let mounted = true;
     setIsLoading(true);
-    vehicleCreationApi.list()
+    vehicleCreationApi
+      .readAll()
       .then((data: unknown) => {
         if (!mounted) return;
-        const list = Array.isArray(data) ? (data as VehicleCreationRecord[]) : [];
+        const list = Array.isArray(data)
+          ? (data as VehicleCreationRecord[])
+          : [];
         const seen = new Set<string>();
-        setAllVehicles(list.filter((row) => {
-          const key = row.unique_id?.toString();
-          if (!key || seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        }));
+        setAllVehicles(
+          list.filter((row) => {
+            const key = row.unique_id?.toString();
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          }),
+        );
       })
       .catch((error: unknown) => {
         if (mounted) {
-          Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
+          Swal.fire({
+            icon: "error",
+            title: t("common.error"),
+            text: String(error),
+          });
         }
       })
-      .finally(() => { if (mounted) setIsLoading(false); });
-    return () => { mounted = false; };
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, [t, refetchTrigger]);
 
   // ── Derived rows with client-side filter ──────────────────────────────────
   const rows = (() => {
-    if (isSuperAdmin && companies.length === 0) return [] as VehicleCreationRecord[];
-    if (!companyUniqueId) return [] as VehicleCreationRecord[];
+    if (isSuperAdmin && companies.length === 0)
+      return [] as VehicleCreationRecord[];
+    if (!companyUniqueId && !isSuperAdmin) return [] as VehicleCreationRecord[];
 
     return allVehicles.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+      const companyMatches =
+        !companyUniqueId || rowCompanyId === companyUniqueId;
       const projectMatches = !projectId || rowProjectId === projectId;
       return companyMatches && projectMatches;
     });
@@ -215,35 +247,33 @@ export default function VehicleCreationListPage() {
 
   // ── Bulk upload ───────────────────────────────────────────────────────────
   const downloadVehicleTemplate = () => {
-    const csvContent = [VEHICLE_BULK_TEMPLATE_HEADERS, VEHICLE_BULK_EXAMPLE_ROW]
-      .map((row) => row.join(","))
-      .join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", "vehicle_bulk_template.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    exportTemplateToExcel(
+      VEHICLE_BULK_TEMPLATE_COLUMNS,
+      "vehicle_bulk_template.xlsx",
+      "Vehicles",
+    );
   };
 
   const handleVehicleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append("file", file);
-    if (companyUniqueId) formData.append("company_id_input", companyUniqueId);
-    if (projectId) formData.append("project_id_input", projectId);
-
     try {
-      const res = await adminApi.vehicleCreations.action("bulk-upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const csvFile = await excelFileToCsvFile(file, "vehicle_bulk_upload.csv");
+      const formData = new FormData();
+      formData.append("file", csvFile);
+      if (companyUniqueId) formData.append("company_id_input", companyUniqueId);
+      if (projectId) formData.append("project_id_input", projectId);
+
+      const res = await adminApi.vehicleCreations.action(
+        "bulk-upload",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
 
       const errors = Array.isArray(res.errors) ? res.errors : [];
       const errorPreview =
@@ -288,8 +318,10 @@ export default function VehicleCreationListPage() {
     if (!confirmDelete.isConfirmed) return;
 
     try {
-      await vehicleCreationApi.remove(id);
-      setAllVehicles((current) => current.filter((item) => item.unique_id !== id));
+      await vehicleCreationApi.delete(id);
+      setAllVehicles((current) =>
+        current.filter((item) => item.unique_id !== id),
+      );
       Swal.fire({
         icon: "success",
         title: t("common.deleted_success"),
@@ -348,12 +380,14 @@ export default function VehicleCreationListPage() {
             vehicle_condition: row.vehicle_condition ?? "NEW",
             fuel_tank_capacity: row.fuel_tank_capacity ?? null,
             is_active: value,
-          }) as Record<string, unknown>
+          }) as Record<string, unknown>,
         );
         setAllVehicles((current) =>
           current.map((item) =>
-            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
-          )
+            item.unique_id === row.unique_id
+              ? { ...item, is_active: value }
+              : item,
+          ),
         );
       } catch (error) {
         console.error("Status update failed:", error);
@@ -428,7 +462,7 @@ export default function VehicleCreationListPage() {
         />
         <Button
           label={t("admin.vehicle_creation.upload_csv", {
-            defaultValue: "Upload CSV",
+            defaultValue: "Upload Excel",
           })}
           icon="pi pi-upload"
           className="p-button-sm"
@@ -437,7 +471,7 @@ export default function VehicleCreationListPage() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv"
+          accept=".xlsx,.xls"
           hidden
           onChange={handleVehicleFileUpload}
         />
@@ -467,11 +501,7 @@ export default function VehicleCreationListPage() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", {
-                item: t("admin.nav.company"),
-              })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -483,14 +513,12 @@ export default function VehicleCreationListPage() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={
+              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+            }
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", {
-                item: t("admin.nav.project"),
-              })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}
@@ -504,7 +532,9 @@ export default function VehicleCreationListPage() {
             icon="pi pi-plus"
             className="p-button-success"
             disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() =>
+              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+            }
           />
         </div>
       </div>
@@ -512,6 +542,7 @@ export default function VehicleCreationListPage() {
       {/* Table */}
       <DataTable
         value={rows}
+        bulkImportable={false}
         dataKey="unique_id"
         paginator
         rows={10}
@@ -534,9 +565,10 @@ export default function VehicleCreationListPage() {
       >
         <Column
           header={t("common.s_no")}
-          body={(_: VehicleCreationRecord, { rowIndex }: { rowIndex: number }) =>
-            rowIndex + 1
-          }
+          body={(
+            _: VehicleCreationRecord,
+            { rowIndex }: { rowIndex: number },
+          ) => rowIndex + 1}
           style={{ width: "80px" }}
         />
         {showCol("vehicle_no") && (
@@ -615,7 +647,9 @@ export default function VehicleCreationListPage() {
           <Column
             field="rc_upload"
             header={t("admin.vehicle_creation.rc_upload")}
-            body={(row: VehicleCreationRecord) => renderFilePreview(row.rc_upload)}
+            body={(row: VehicleCreationRecord) =>
+              renderFilePreview(row.rc_upload)
+            }
           />
         )}
         {showCol("vehicle_insurance_file") && (

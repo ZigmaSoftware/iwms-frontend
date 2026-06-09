@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -63,10 +63,10 @@ export default function ZonePropertyLoadTrackerForm() {
     let cancelled = false;
     setFetching(true);
     Promise.all([
-      adminApi.zones.list(),
-      adminApi.vehicleCreations.list(),
-      adminApi.properties.list(),
-      adminApi.subProperties.list(),
+      adminApi.zones.readAll(),
+      adminApi.vehicleCreations.readAll(),
+      adminApi.properties.readAll(),
+      adminApi.subProperties.readAll(),
     ])
       .then(([zonesRes, vehiclesRes, propertiesRes, subPropertiesRes]) => {
         if (cancelled) return;
@@ -105,7 +105,7 @@ export default function ZonePropertyLoadTrackerForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.zonePropertyLoadTrackers.get(id)
+    adminApi.zonePropertyLoadTrackers.read(id)
       .then((res: any) => {
         if (cancelled) return;
         setRecordData(res);

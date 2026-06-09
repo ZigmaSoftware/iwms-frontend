@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -278,8 +278,8 @@ export default function VehicleTripAuditForm() {
     setFetching(true);
 
     Promise.all([
-      adminApi.dailyTripAssignment.list(),
-      adminApi.vehicleCreations.list(),
+      adminApi.dailyTripAssignment.readAll(),
+      adminApi.vehicleCreations.readAll(),
     ])
       .then(([tripData, vehicleData]) => {
         if (cancelled) return;
@@ -306,7 +306,7 @@ export default function VehicleTripAuditForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
 
-    adminApi.vehicleTripAudits.get(id)
+    adminApi.vehicleTripAudits.read(id)
       .then((res: any) => {
         if (cancelled) return;
         setFormData({

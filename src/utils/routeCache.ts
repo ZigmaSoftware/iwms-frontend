@@ -67,8 +67,10 @@ export type EncryptedRoutes = {
   encTripPlanCollectionPoints: string;
   encDailyTripAssignment: string;
   encDailyTripCollectionPoint: string;
+  encDailyTripTracking: string;
   encDailyTripLog: string;
   encBinCollectionEvent: string;
+  encDailyWasteComparison: string;
   encBinLoadLog: string;
   encCustomerTag: string;
   encHouseholdPickupEvent: string;
@@ -91,6 +93,7 @@ export type EncryptedRoutes = {
 
   encCompanyCreation: string;
   encCommonAudit: string;
+  encLoginAudits: string;
   encProjectCreation: string;
   encSuperAdminMaster: string;
 
@@ -121,6 +124,7 @@ const plainRoutes: EncryptedRoutes = {
   encSuperAdminMaster: "superadmin-masters",
   encCompanyCreation: "company-creation",
   encCommonAudit: "common-audit",
+  encLoginAudits: "login-audits",
   encProjectCreation: "project-creation",
   encDistricts: "districts",
   encFeedback: "feedback",
@@ -172,8 +176,10 @@ const plainRoutes: EncryptedRoutes = {
   encTripPlanCollectionPoints: "trip-plan-collection-points",
   encDailyTripAssignment: "daily-trip-assignment",
   encDailyTripCollectionPoint: "daily-trip-collection-point",
+  encDailyTripTracking: "daily-trip-tracking",
   encDailyTripLog: "daily-trip-log",
   encBinCollectionEvent: "bin-collection-event",
+  encDailyWasteComparison: "daily-waste-comparisons",
   encBinLoadLog: "bin-load-log",
   encCustomerTag: "customer-tag",
   encHouseholdPickupEvent: "household-pickup-event",

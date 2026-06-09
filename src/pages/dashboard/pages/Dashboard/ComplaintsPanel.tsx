@@ -19,7 +19,7 @@ export function ComplaintsPanel() {
     let isMounted = true;
     const fetchComplaints = async () => {
       try {
-        const response = await complaintApi.list();
+        const response = await complaintApi.readAll();
         const rows = Array.isArray(response) ? response : [];
         const deduped = new Map<string, ComplaintRecord>();
 

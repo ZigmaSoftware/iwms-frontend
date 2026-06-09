@@ -153,7 +153,7 @@ const pickVehicleTimestamp = (row: Record<string, any>) =>
 
 const fetchComplaintAlerts = async (): Promise<AlertItem[]> => {
   try {
-    const response = await complaintApi.list();
+    const response = await complaintApi.readAll();
     const rows = extractArray(response);
     const alerts: AlertItem[] = [];
 
@@ -333,8 +333,8 @@ const extractCustomerZone = (row: Record<string, any>) => {
 const fetchCollectionAlerts = async (dateKey: string): Promise<AlertItem[]> => {
   try {
     const [customerResponse, collectionResponse] = await Promise.all([
-      customerCreationApi.list(),
-      wasteCollectionApi.list({ params: { collection_date: dateKey } }),
+      customerCreationApi.readAll(),
+      wasteCollectionApi.readAll({ params: { collection_date: dateKey } }),
     ]);
 
     const customers = filterActiveCustomers(normalizeCustomerArray(customerResponse));

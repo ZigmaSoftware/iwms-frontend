@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -59,6 +59,7 @@ export default function PanchayatLeaderListPage() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
+    defaultToAll: true,
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
@@ -82,7 +83,7 @@ export default function PanchayatLeaderListPage() {
     const load = async () => {
       if (mounted) setIsLoading(true);
       try {
-        const data: any = await panchayatLeaderApi.list();
+        const data: any = await panchayatLeaderApi.readAll();
         if (!mounted) return;
         const rows: PanchayatLeader[] = Array.isArray(data) ? data : (data?.results ?? []);
         if (mounted) setAllRecords(rows);
@@ -100,7 +101,7 @@ export default function PanchayatLeaderListPage() {
   /* ── client-side company+project filter (same as PanchayatListPage) ── */
   const data = (() => {
     if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId) return [];
+    if (!companyUniqueId && !isSuperAdmin) return [];
 
     return allRecords.filter((row) => {
       const rowCompany  = normalizeId(row.company_id  || row.company_unique_id);
@@ -127,7 +128,7 @@ export default function PanchayatLeaderListPage() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.panchayat_leader"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none !outline-none"
@@ -198,9 +199,7 @@ export default function PanchayatLeaderListPage() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((c) => (
               <option key={c.value} value={c.value}>{c.label}</option>
             ))}
@@ -209,12 +208,10 @@ export default function PanchayatLeaderListPage() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}

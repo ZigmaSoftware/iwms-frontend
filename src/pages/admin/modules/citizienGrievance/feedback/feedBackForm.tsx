@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -86,7 +86,7 @@ export default function FeedBackForm() {
     setFetchingCustomers(true);
     const params: Record<string, string> = { company_id: companyUniqueId };
     if (projectId) params.project_id = projectId;
-    adminApi.customerCreations.list({ params })
+    adminApi.customerCreations.readAll({ params })
       .then((res: any) => {
         if (cancelled) return;
         const list = Array.isArray(res) ? res : res?.results ?? [];
@@ -105,7 +105,7 @@ export default function FeedBackForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    feedbackApi.get(id)
+    feedbackApi.read(id)
       .then((res: any) => {
         if (cancelled) return;
         // Set simple fields immediately

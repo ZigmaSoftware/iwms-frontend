@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -120,7 +120,9 @@ export default function SupervisorZoneMapList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [records, setRecords] = useState<SupervisorZoneMapRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -156,7 +158,7 @@ export default function SupervisorZoneMapList() {
         return;
       }
 
-      if (!companyUniqueId) {
+      if (!companyUniqueId && !isSuperAdmin) {
         if (mounted) {
           setRecords([]);
           setIsLoading(false);
@@ -168,11 +170,11 @@ export default function SupervisorZoneMapList() {
 
       try {
         const [mapRes, districtRes, cityRes, zoneRes, userRes] = await Promise.all([
-          adminApi.supervisorZoneMap.list(),
-          adminApi.districts.list(),
-          adminApi.cities.list(),
-          adminApi.zones.list(),
-          adminApi.usersCreation.list(),
+          adminApi.supervisorZoneMap.readAll(),
+          adminApi.districts.readAll(),
+          adminApi.cities.readAll(),
+          adminApi.zones.readAll(),
+          adminApi.usersCreation.readAll(),
         ]);
 
         if (!mounted) return;
@@ -306,9 +308,7 @@ export default function SupervisorZoneMapList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -319,12 +319,10 @@ export default function SupervisorZoneMapList() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}
@@ -354,7 +352,7 @@ export default function SupervisorZoneMapList() {
           <InputText
             value={globalFilterValue}
             onChange={onGlobalFilterChange}
-            placeholder={t("common.search_placeholder")}
+            placeholder={t("common.search_placeholder_placeholder")}
             className="border-none text-sm"
           />
         </div>

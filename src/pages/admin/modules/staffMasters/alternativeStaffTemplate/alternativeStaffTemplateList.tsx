@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -83,6 +83,7 @@ export default function AlternativeStaffTemplateList() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
+    defaultToAll: true,
     initialCompanyId:
       restoredState?.companyUniqueId ?? searchParams.get("company_unique_id") ?? undefined,
     initialProjectId: restoredState?.projectId ?? searchParams.get("project_id") ?? undefined,
@@ -107,14 +108,8 @@ export default function AlternativeStaffTemplateList() {
   const selectedProjectId =
     projectId && projects.some((project) => project.value === projectId)
       ? projectId
-      : projects[0]?.value ?? "";
+      : "";
   const selectedContext = { companyUniqueId, projectId: selectedProjectId };
-
-  useEffect(() => {
-    if (!projectId && selectedProjectId) {
-      setProjectId(selectedProjectId);
-    }
-  }, [projectId, selectedProjectId, setProjectId]);
 
   const normalizeId = (value: unknown): string =>
     value === null || value === undefined ? "" : String(value).trim();
@@ -128,7 +123,7 @@ export default function AlternativeStaffTemplateList() {
         return;
       }
 
-      if (!companyUniqueId) {
+      if (!companyUniqueId && !isSuperAdmin) {
         if (mounted) { setRecords([]); setLoading(false); }
         return;
       }
@@ -139,7 +134,7 @@ export default function AlternativeStaffTemplateList() {
           company_id: companyUniqueId,
           ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
         };
-        const payload: any = await adminApi.alternativeStaffTemplate.list({ params });
+        const payload: any = await adminApi.alternativeStaffTemplate.readAll({ params });
         if (!mounted) return;
         const data =
           Array.isArray(payload)
@@ -213,9 +208,7 @@ export default function AlternativeStaffTemplateList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -226,12 +219,10 @@ export default function AlternativeStaffTemplateList() {
           <select
             value={selectedProjectId}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label || project.value}

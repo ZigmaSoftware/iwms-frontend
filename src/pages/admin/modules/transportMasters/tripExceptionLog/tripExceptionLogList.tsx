@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -101,7 +101,9 @@ export default function TripExceptionLogList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   // const [filters, setFilters] = useState<any>({
@@ -125,7 +127,7 @@ export default function TripExceptionLogList() {
       return;
     }
 
-    if (!companyUniqueId) {
+    if (!companyUniqueId && !isSuperAdmin) {
       setRecords([]);
       setLoading(false);
       return;
@@ -133,14 +135,15 @@ export default function TripExceptionLogList() {
 
     setLoading(true);
     try {
-      const params: Record<string, string> = { company_id: companyUniqueId };
+      const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) {
         params.project_id = projectId;
       }
 
       const [logRes, tripRes] = await Promise.all([
-        tripExceptionLogApi.list({ params }),
-        dailyTripAssignmentApi.list({ params }),
+        tripExceptionLogApi.readAll({ params }),
+        dailyTripAssignmentApi.readAll({ params }),
       ]);
 
       const logRows = filterByCompanyProject(
@@ -199,9 +202,7 @@ export default function TripExceptionLogList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -212,12 +213,10 @@ export default function TripExceptionLogList() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}

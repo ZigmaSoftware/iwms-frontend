@@ -15,6 +15,31 @@ import {
   setAdminViewPreference,
 } from "@/types/roles";
 import ZigmaLogo from "@/images/logo.png";
+import { getStoredProfile } from "@/utils/authStorage";
+import { api } from "@/api";
+
+/** Resolve company logo URL from stored profile, prepending the backend origin.
+ *
+ * Rules:
+ *  - Platform super-admin (user_type === "platform") → always ZigmaLogo
+ *  - Company user (staff / customer / contractor) with a logo → their company logo
+ *  - Anything else (no logo, missing profile) → ZigmaLogo fallback
+ */
+function useCompanyLogo(): string {
+  const profile = getStoredProfile() as Record<string, unknown> | null;
+
+  // Platform super-admin always shows the Zigma logo
+  if (!profile || profile.user_type === "platform") return ZigmaLogo;
+
+  const relativePath = profile.company_logo as string | null | undefined;
+  if (!relativePath) return ZigmaLogo;
+
+  // Strip /api/v1 suffix from baseURL to get the backend origin (e.g. http://127.0.0.1:8000)
+  const origin = (api.defaults.baseURL ?? "")
+    .replace(/\/api\/v1\/?$/, "")
+    .replace(/\/api\/desktop\/?$/, "");
+  return `${origin}${relativePath}`;
+}
 
 const PRIMARY = "#22a855";
 const SECONDARY = "#f97316";
@@ -23,6 +48,7 @@ const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
+  const companyLogo = useCompanyLogo();
   const { theme } = useTheme();
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -129,7 +155,7 @@ const AppHeader: React.FC = () => {
                 className="relative flex h-9 w-9 items-center justify-center rounded-xl shadow-md"
                 style={{ background: '#ffff', boxShadow: `0 4px 14px ${PRIMARY}40` }}
               >
-                <img src={ZigmaLogo} className="h-6 w-6 object-contain" alt="Logo" />
+                <img src={companyLogo} className="h-6 w-6 object-contain" alt="Logo" onError={(e) => { (e.currentTarget as HTMLImageElement).src = ZigmaLogo; }} />
               </div>
 
               {/* Text stack */}
@@ -171,7 +197,7 @@ const AppHeader: React.FC = () => {
                 className="flex h-8 w-8 items-center justify-center rounded-lg"
                 style={{ background: `linear-gradient(135deg, ${PRIMARY}, #16a34a)` }}
               >
-                <img src={ZigmaLogo} className="h-5 w-5 object-contain" alt="Logo" />
+                <img src={companyLogo} className="h-5 w-5 object-contain" alt="Logo" onError={(e) => { (e.currentTarget as HTMLImageElement).src = ZigmaLogo; }} />
               </div>
             </Link>
           </div>

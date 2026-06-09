@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -42,7 +42,9 @@ export default function UserScreenPermissionList() {
     onCompanyChange,
     setProjectId,
     isSuperAdmin,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
   const [permissionRows, setPermissionRows] = useState<StaffUserType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -84,14 +86,14 @@ export default function UserScreenPermissionList() {
     let mounted = true;
 
     const loadPermissions = async () => {
-      if (!companyUniqueId) {
+      if (!companyUniqueId && !isSuperAdmin) {
         setPermissionRows([]);
         return;
       }
 
       setIsLoading(true);
       try {
-        const data = await userScreenPermissionApi.list({
+        const data = await userScreenPermissionApi.readAll({
           params: { company_id: companyUniqueId, limit: 6000, offset: 0 },
         });
         if (mounted) setPermissionRows(data as StaffUserType[]);
@@ -110,7 +112,7 @@ export default function UserScreenPermissionList() {
   }, [companyUniqueId, t]);
 
   const records = useMemo<StaffUserType[]>(() => {
-    if (!companyUniqueId) return [];
+    if (!companyUniqueId && !isSuperAdmin) return [];
     const data = permissionRows;
       const selectedCompanyLabel = (
         companies.find((company) => company.value === companyUniqueId)?.label ?? ""
@@ -195,7 +197,7 @@ export default function UserScreenPermissionList() {
           ? `delete-by-staffusertype/${row.unique_id}/?company_id=${row.company_id}&mainscreen_id=${row.mainscreen_id}`
           : `delete-by-staffusertype/${row.unique_id}`;
 
-      await userScreenPermissionApi.remove(deletePath);
+      await userScreenPermissionApi.delete(deletePath);
       setPermissionRows((current) =>
         current.filter((item) => {
           const sameStaffType = String(item.staffusertype_id ?? "") === String(row.unique_id);
@@ -275,7 +277,7 @@ export default function UserScreenPermissionList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder")}
+          placeholder={t("common.search_placeholder_placeholder")}
           className="p-inputtext-sm !border-0 !shadow-none"
         />
       </div>
@@ -306,11 +308,7 @@ export default function UserScreenPermissionList() {
               disabled={companies.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
-              <option value="" disabled>
-                {t("common.select_item_placeholder", {
-                  item: t("admin.nav.company"),
-                })}
-              </option>
+              <option value="">All Companies</option>
 
               {companies.map((c: any) => (
                 <option key={c.value} value={c.value}>
@@ -327,11 +325,7 @@ export default function UserScreenPermissionList() {
               disabled={projects.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
-              <option value="">
-                {t("common.select_item_placeholder", {
-                  item: t("admin.nav.project"),
-                })}
-              </option>
+              <option value="">All Projects</option>
 
               {projects.map((p: any) => (
                 <option key={p.value} value={p.value}>

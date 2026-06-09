@@ -788,7 +788,7 @@ const taResource = {
           "zone": "மண்டலம்",
           "ward": "வார்டு",
           "collection_point": "சேகரிப்பு இடம்",
-          "panchayat_leader": "பஞ்சாயத்து தலைவர்",
+          "panchayat_leader": "PLB தலைவர்",
           "property": "சொத்து",
           "sub_property": "உப சொத்து",
           "staff_master": "பணியாளர் மாஸ்டர்",
@@ -810,6 +810,7 @@ const taResource = {
           "trip_plan_collection_points": "பயண திட்ட சேகரிப்பு இடங்கள்",
           "daily_trip_assignment": "தினசரி பயண ஒதுக்கீடு",
           "daily_trip_collection_point": "தினசரி பயண சேகரிப்பு இடம்",
+          "daily_trip_tracking": "தினசரி பயண கண்காணிப்பு",
           "daily_trip_log": "தினசரி பயண பதிவு",
           "bin_collection_event": "குப்பைத்தொட்டி சேகரிப்பு நிகழ்வு",
           "bin_load_log": "பின் ஏற்ற பதிவு",
@@ -832,7 +833,7 @@ const taResource = {
           "waste_management": "கழிவு மேலாண்மை",
           "waste_collected_data": "சேகரிக்கப்பட்ட கழிவு தரவு",
           "collection_monitoring": "சேகரிப்பு கண்காணிப்பு",
-          "panchayat_base_collection": "பஞ்சாயத்து பேஸ் கலெக்ஷன்",
+          "panchayat_base_collection": "PLB பேஸ் கலெக்ஷன்",
           "ward_base_collection": "வார்டு பேஸ் கலெக்ஷன்",
           "citizen_grievance": "குடிமக்கள் புகார்",
           "complaints": "புகார்கள்",
@@ -1337,7 +1338,9 @@ const taResource = {
           "driving_licence_choose": "கோப்பைத் தேர்ந்தெடுக்கவும்",
           "driving_licence_no_file": "கோப்பு தேர்ந்தெடுக்கப்படவில்லை",
           "password": "கடவுச்சொல்",
-          "password_placeholder": "கடவுச்சொல்லை உள்ளிடவும்"
+          "password_placeholder": "கடவுச்சொல்லை உள்ளிடவும்",
+          "password_edit_placeholder": "தற்போதைய கடவுச்சொல்லை வைத்திருக்க காலியாக விடவும்",
+          "password_edit_hint": "மாற்ற விரும்பினால் மட்டும் புதிய கடவுச்சொல்லை உள்ளிடவும்."
         },
         "dashboard_home": {
           "title": "செயற்பாட்டு மேலோட்டம்",

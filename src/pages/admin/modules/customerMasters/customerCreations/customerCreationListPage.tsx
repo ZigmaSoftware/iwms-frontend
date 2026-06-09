@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -19,6 +19,11 @@ import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { customerCreationApi } from "@/helpers/admin";
+import {
+  excelFileToCsvFile,
+  exportTemplateToExcel,
+  type ExcelTemplateColumn,
+} from "@/utils/exportExcel";
 
 type Customer = {
   unique_id: string;
@@ -80,6 +85,31 @@ const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   is_active: ["is_active"],
 };
 
+const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
+  { field: "customer_name", header: "customer_name", required: true, sample: "John Doe" },
+  { field: "contact_no", header: "contact_no", required: true, sample: "9876543210" },
+  { field: "id_proof_type", header: "id_proof_type", sample: "Aadhaar" },
+  { field: "id_no", header: "id_no", sample: "1234-5678-9012" },
+  { field: "building_no", header: "building_no", sample: "12" },
+  { field: "street", header: "street", sample: "Main Street" },
+  { field: "area", header: "area", sample: "Anna Nagar" },
+  { field: "pincode", header: "pincode", sample: "600040" },
+  { field: "latitude", header: "latitude", sample: "13.0827" },
+  { field: "longitude", header: "longitude", sample: "80.2707" },
+  { field: "ward_name", header: "ward_name", sample: "Ward 10" },
+  { field: "zone_name", header: "zone_name", sample: "North Zone" },
+  { field: "city_name", header: "city_name", required: true, sample: "Chennai" },
+  { field: "district_name", header: "district_name", required: true, sample: "Chennai" },
+  { field: "state_name", header: "state_name", required: true, sample: "Tamil Nadu" },
+  { field: "country_name", header: "country_name", required: true, sample: "India" },
+  { field: "property_name", header: "property_name", required: true, sample: "Residential" },
+  { field: "sub_property_name", header: "sub_property_name", required: true, sample: "Apartment" },
+  { field: "apartment_name", header: "apartment_name", sample: "Sunrise Apt" },
+  { field: "block_no", header: "block_no", sample: "A" },
+  { field: "flat_no", header: "flat_no", sample: "101" },
+  { field: "panchayat_name", header: "panchayat_name" },
+];
+
 export default function CustomerCreationListPage() {
   const { t } = useTranslation();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
@@ -119,7 +149,9 @@ export default function CustomerCreationListPage() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const ENC_NEW_PATH = `/${encCustomerMaster}/${encCustomerCreation}/new`;
   const ENC_EDIT_PATH = (id: string) =>
@@ -129,7 +161,7 @@ export default function CustomerCreationListPage() {
   useEffect(() => {
     let mounted = true;
     setIsLoading(true);
-    customerCreationApi.list()
+    customerCreationApi.readAll()
       .then((data: unknown) => {
         if (mounted) setAllCustomers(Array.isArray(data) ? (data as Customer[]) : []);
       })
@@ -148,7 +180,7 @@ export default function CustomerCreationListPage() {
 
   const customers = useMemo<Customer[]>(() => {
     if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId) return [];
+    if (!companyUniqueId && !isSuperAdmin) return [];
 
     return allCustomers
       .filter((row) => {
@@ -177,30 +209,11 @@ export default function CustomerCreationListPage() {
 
   // ── Download template ─────────────────────────────────────────────────────
   const downloadTemplate = () => {
-    const headers = [
-      "customer_name", "contact_no", "id_proof_type", "id_no",
-      "building_no", "street", "area", "pincode",
-      "ward_name", "zone_name", "city_name", "district_name",
-      "state_name", "country_name", "property_name", "sub_property_name",
-      "apartment_name", "block_no", "flat_no", "panchayat_name",
-    ];
-    const exampleRow = [
-      "John Doe", "9876543210", "Aadhaar", "1234-5678-9012",
-      "12", "Main Street", "Anna Nagar", "600040",
-      "Ward 10", "North Zone", "Chennai", "Chennai",
-      "Tamil Nadu", "India", "Residential", "Apartment",
-      "Sunrise Apt", "A", "101", "N/A",
-    ];
-    const csvContent = [headers, exampleRow].map((row) => row.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", "customer_upload_template.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    exportTemplateToExcel(
+      CUSTOMER_BULK_TEMPLATE_COLUMNS,
+      "customer_bulk_template.xlsx",
+      "Customers",
+    );
   };
 
   // ── Bulk upload ───────────────────────────────────────────────────────────
@@ -210,23 +223,25 @@ export default function CustomerCreationListPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const formDataObj = new FormData();
-    formDataObj.append("file", file);
-    formDataObj.append("company_id", companyUniqueId || "");
-    formDataObj.append("project_id", projectId || "");
-
     setIsUploading(true);
     try {
-      const result = await customerCreationApi.upload(formDataObj) as Record<string, unknown>;
-      const success = Number(result?.success ?? 0);
-      const errors = Number(result?.errors ?? 0);
-      const hasUploadCounts = "success" in result || "errors" in result;
+      const csvFile = await excelFileToCsvFile(file, "customer_bulk_upload.csv");
+      const formDataObj = new FormData();
+      formDataObj.append("file", csvFile);
+      formDataObj.append("company_id", companyUniqueId || "");
+      formDataObj.append("project_id", projectId || "");
+
+      const result = await customerCreationApi.action<Record<string, unknown>>(
+        "bulk-upload",
+        formDataObj,
+        { headers: { "Content-Type": "multipart/form-data" } },
+      );
+      const success = Number(result?.success_count ?? 0);
+      const errors = Array.isArray(result?.errors) ? result.errors.length : 0;
 
       Swal.fire({
         title: String(result?.message ?? "Upload Completed"),
-        html: hasUploadCounts
-          ? `<b>Success:</b> ${success} <br/> <b>Errors:</b> ${errors}`
-          : undefined,
+        html: `<b>Success:</b> ${success} <br/> <b>Errors:</b> ${errors}`,
         icon: "success",
       });
 
@@ -257,11 +272,11 @@ export default function CustomerCreationListPage() {
           onClick={downloadTemplate}
         />
         <Button
-          label="Upload CSV"
+          label="Upload Excel"
           icon="pi pi-upload"
           className="p-button-info"
           disabled={!companyUniqueId || !projectId || isUploading}
-          onClick={() => document.getElementById("csvUpload")?.click()}
+          onClick={() => document.getElementById("excelUpload")?.click()}
         />
       </div>
       <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
@@ -273,9 +288,9 @@ export default function CustomerCreationListPage() {
           className="p-inputtext-sm !border-0 !shadow-none"
         />
         <input
-          id="csvUpload"
+          id="excelUpload"
           type="file"
-          accept=".csv"
+          accept=".xlsx,.xls"
           hidden
           onChange={handleFileUpload}
         />
@@ -381,9 +396,7 @@ export default function CustomerCreationListPage() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -394,12 +407,10 @@ export default function CustomerCreationListPage() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}
@@ -411,6 +422,7 @@ export default function CustomerCreationListPage() {
 
       <DataTable
         value={customers}
+        bulkImportable={false}
         dataKey="unique_id"
         paginator
         rows={10}

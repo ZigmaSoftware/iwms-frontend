@@ -9,7 +9,7 @@ import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { panchayatApi } from "@/helpers/admin";
@@ -84,7 +84,9 @@ export default function PanchayatListPage() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
   const navigate = useNavigate();
   const { encMasters, encPanchayats } = getEncryptedRoute();
 
@@ -98,7 +100,7 @@ export default function PanchayatListPage() {
     const loadPanchayats = async () => {
       setIsLoading(true);
       try {
-        const data = await panchayatApi.list();
+        const data = await panchayatApi.readAll();
         if (mounted) setAllPanchayats(data as PanchayatListRecord[]);
       } catch (error) {
         if (mounted) {
@@ -118,7 +120,7 @@ export default function PanchayatListPage() {
 
   const data = ((): PanchayatListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId) return [];
+    if (!companyUniqueId && !isSuperAdmin) return [];
 
     const rows = Array.isArray(allPanchayats)
       ? (allPanchayats as PanchayatListRecord[])
@@ -156,7 +158,7 @@ export default function PanchayatListPage() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.panchayat"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none !outline-none"
@@ -241,9 +243,7 @@ export default function PanchayatListPage() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -254,12 +254,10 @@ export default function PanchayatListPage() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}

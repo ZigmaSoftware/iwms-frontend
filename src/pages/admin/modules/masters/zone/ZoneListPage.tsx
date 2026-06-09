@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -64,7 +64,9 @@ export default function ZoneList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const navigate = useNavigate();
 
@@ -97,7 +99,7 @@ export default function ZoneList() {
     const loadZones = async () => {
       setIsLoading(true);
       try {
-        const data = await zoneApi.list();
+        const data = await zoneApi.readAll();
         if (mounted) setAllZones(data as ZoneListRecord[]);
       } catch (error) {
         if (mounted) {
@@ -118,7 +120,7 @@ export default function ZoneList() {
 
   const zones = ((): ZoneListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId) return [];
+    if (!companyUniqueId && !isSuperAdmin) return [];
 
     const rows = Array.isArray(allZones)
       ? (allZones as unknown as ZoneListRecord[])
@@ -162,7 +164,7 @@ export default function ZoneList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.zone"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none"
@@ -249,9 +251,7 @@ export default function ZoneList() {
               disabled={!isSuperAdmin || companies.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
-              <option value="" disabled>
-                {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-              </option>
+              <option value="">All Companies</option>
               {companies.map((company) => (
                 <option key={company.value} value={company.value}>
                   {company.label}
@@ -262,12 +262,10 @@ export default function ZoneList() {
             <select
               value={projectId || ""}
               onChange={(e) => onFilterProjectChange(e.target.value)}
-              disabled={!companyUniqueId || projects.length === 0}
+              disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
-              <option value="" disabled>
-                {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-              </option>
+              <option value="">All Projects</option>
               {projects.map((project) => (
                 <option key={project.value} value={project.value}>
                   {project.label}

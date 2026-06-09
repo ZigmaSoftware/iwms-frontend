@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Label } from "@/components/ui/label";
@@ -103,20 +103,20 @@ export default function ComplaintAddForm() {
   useEffect(() => {
     let cancelled = false;
 
-    adminApi.customerCreations.list().then((res: any) => {
+    adminApi.customerCreations.readAll().then((res: any) => {
       if (cancelled) return;
       const normalized = normalizeCustomerArray(res);
       setCustomers(filterActiveCustomers(normalized));
     }).catch(() => {});
 
-    adminApi.mainCategory.list({ params: { company_id: companyUniqueId } })
+    adminApi.mainCategory.readAll({ params: { company_id: companyUniqueId } })
       .then((res: any) => {
         if (cancelled) return;
         const normalized = listFromResponse(res);
         setMainCategories(filterActiveRecords(normalized));
       }).catch(() => {});
 
-    adminApi.subCategory.list({ params: { company_id: companyUniqueId } })
+    adminApi.subCategory.readAll({ params: { company_id: companyUniqueId } })
       .then((res: any) => {
         if (cancelled) return;
         const normalized = listFromResponse(res);
@@ -130,7 +130,7 @@ export default function ComplaintAddForm() {
 
   const loadZones = async (cid: string) => {
     try {
-      const res = await adminApi.zones.list({ params: { customer_id: cid } });
+      const res = await adminApi.zones.readAll({ params: { customer_id: cid } });
       const normalized = listFromResponse(res);
       const filtered = filterActiveRecords(normalized);
       setZones(filtered);
@@ -141,7 +141,7 @@ export default function ComplaintAddForm() {
 
   const loadWards = async (zid: string) => {
     try {
-      const res = await adminApi.wards.list({ params: { zone_id: zid } });
+      const res = await adminApi.wards.readAll({ params: { zone_id: zid } });
       const normalized = listFromResponse(res);
       const filtered = filterActiveRecords(normalized);
       setWards(filtered);

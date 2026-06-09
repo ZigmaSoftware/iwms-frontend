@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { api } from "@/api";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,135 @@ import { staffCreationApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
+
+// ─── Password helpers ────────────────────────────────────────────────────────
+const PASSWORD_EXPIRY_DAYS = 90;
+const PASSWORD_WARN_DAYS = 60;
+
+function getPasswordAgeDays(passwordCrtDate: string | null): number | null {
+  if (!passwordCrtDate) return null;
+  const diff = Date.now() - new Date(passwordCrtDate).getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+function PasswordPriorityBadge({ ageDays }: { ageDays: number | null }) {
+  if (ageDays === null) return null;
+  if (ageDays >= PASSWORD_EXPIRY_DAYS) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
+        <span className="material-symbols-outlined text-[14px] leading-none">warning</span>
+        Password Expired — Change Required
+      </span>
+    );
+  }
+  if (ageDays >= PASSWORD_WARN_DAYS) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-semibold text-yellow-700">
+        <span className="material-symbols-outlined text-[14px] leading-none">schedule</span>
+        Password Expiring Soon ({PASSWORD_EXPIRY_DAYS - ageDays} days left)
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+      <span className="material-symbols-outlined text-[14px] leading-none">check_circle</span>
+      Password OK ({PASSWORD_EXPIRY_DAYS - ageDays} days remaining)
+    </span>
+  );
+}
+
+// ─── Change Password Modal ───────────────────────────────────────────────────
+interface ChangePasswordModalProps {
+  targetType: "staff" | "customer";
+  targetId: string;
+  onClose: () => void;
+  onSuccess: (newPasswordCrtDate: string) => void;
+}
+
+function ChangePasswordModal({ targetType, targetId, onClose, onSuccess }: ChangePasswordModalProps) {
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      await api.post("/auth/admin-change-password/", {
+        target_type: targetType,
+        target_id: targetId,
+        new_password: newPassword,
+        confirm_new_password: confirmPassword,
+      });
+      Swal.fire({ icon: "success", title: "Password Changed", text: "Password updated successfully." });
+      onSuccess(new Date().toISOString());
+      onClose();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || "Failed to change password.";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Change Password</h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="cp_new">New Password</Label>
+            <PasswordInput
+              id="cp_new"
+              label=""
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Min 6 chars, upper + lower + number"
+            />
+          </div>
+          <div>
+            <Label htmlFor="cp_confirm">Confirm New Password</Label>
+            <PasswordInput
+              id="cp_confirm"
+              label=""
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repeat new password"
+            />
+          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <p className="text-xs text-gray-500">
+            Password must be at least 6 characters with uppercase, lowercase, and a number.
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {loading ? "Changing..." : "Change Password"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 import {
   countryApi,
   stateApi,
@@ -58,8 +187,8 @@ const getSalaryTypeOptions = (t: (key: string) => string) => [
 ];
 
 const getYesNoOptions = (t: (key: string) => string) => [
-  { value: "Yes", label: t("common.yes") },
-  { value: "No", label: t("common.no") },
+  { value: "1", label: t("common.yes") },
+  { value: "0", label: t("common.no") },
 ];
 
 const getMaritalStatusOptions = (t: (key: string) => string) => [
@@ -162,6 +291,7 @@ const initialFormData = {
   contractorusertype_id: "",
   username: "", // ← username field
   password: "",
+  login_enabled: "0",
   office_email: "",
   company_id: "",
   project_id: "",
@@ -211,6 +341,7 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   staffusertype_id: ["staffusertype_id", "staff_user_type", "staffusertype"],
   username: ["username"],
   password: ["password"],
+  login_enabled: ["login_enabled"],
   photo: ["photo"],
   company_id: ["company_id", "company"],
   project_id: ["project_id", "project"],
@@ -253,6 +384,9 @@ export default function StaffCreationForm() {
   const [submitting, setSubmitting] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [sameAddress, setSameAddress] = useState(false);
+  const [passwordCrtDate, setPasswordCrtDate] = useState<string | null>(null);
+  const [staffCreatedAt, setStaffCreatedAt] = useState<string | null>(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [countryOptions, setCountryOptions] = useState<LocationOption[]>([]);
   const [stateOptions, setStateOptions] = useState<LocationOption[]>([]);
@@ -483,10 +617,9 @@ export default function StaffCreationForm() {
             label: item.name,
           }));
         };
-
         const [staffRes, contractorRes] = await Promise.all([
-          staffUserTypeApi.list(),
-          contractorUserTypeApi.list(),
+          staffUserTypeApi.readAll(),
+          contractorUserTypeApi.readAll(),
         ]);
 
         setStaffUserTypeOptions(toOptions(staffRes));
@@ -510,11 +643,11 @@ export default function StaffCreationForm() {
           departments,
         ] =
           await Promise.all([
-            countryApi.list(),
-            stateApi.list(),
-            districtApi.list(),
-            cityApi.list(),
-            departmentApi.list({ params: { status: "active" } }),
+            countryApi.readAll(),
+            stateApi.readAll(),
+            districtApi.readAll(),
+            cityApi.readAll(),
+            departmentApi.readAll({ params: { status: "active" } }),
           ]);
 
         const countryList = mapLocationOptions(countries);
@@ -591,7 +724,7 @@ export default function StaffCreationForm() {
       Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : res?.data?.results ?? [];
 
     designationApi
-      .list({ params: { status: "active", department_id: formData.department_id } })
+      .readAll({ params: { status: "active", department_id: formData.department_id } })
       .then((res: any) => {
         const list = normalizeResponse(res).filter(
           (d: any) => d?.is_active !== false && d?.is_deleted !== true,
@@ -613,8 +746,7 @@ export default function StaffCreationForm() {
     if (!isEdit || !id) return;
     setFetching(true);
 
-    staffCreationApi
-      .get(id)
+    staffCreationApi.read(id)
       .then((staff) => {
         setFormData((prev) => ({
           ...prev,
@@ -633,11 +765,11 @@ export default function StaffCreationForm() {
           employee_known: staff.employee_known ?? "",
           salary_type: staff.salary_type ?? "",
           active_status: staff.active_status ? "1" : "0",
+          login_enabled: staff.login_enabled ? "1" : "0",
 
           // Auth
-          username: staff.username ?? "", // ← populate on edit
-          password:
-            staff.password ?? staff.user_password ?? staff.staff_password ?? "",
+          username: staff.username ?? "",
+          password: staff.password ?? "",
 
           // Personal details (FLAT — NOT nested)
           marital_status:
@@ -719,6 +851,10 @@ export default function StaffCreationForm() {
         }
 
         applyCompanyProjectFromRecord(staff);
+
+        // Password audit fields
+        setPasswordCrtDate(staff.password_crt_date ?? null);
+        setStaffCreatedAt(staff.created_at ?? null);
 
         // Store the project separately so the pending-resolver effect re-applies it
         // once hookProjects finishes loading (the hook's internal effect can race
@@ -1136,6 +1272,7 @@ export default function StaffCreationForm() {
             ? formData.contractorusertype_id || null
             : null,
         username: formData.username || null, // ← username in payload
+        login_enabled: formData.login_enabled === "1",
 
         // Personal
         marital_status: formData.marital_status,
@@ -1411,8 +1548,93 @@ export default function StaffCreationForm() {
             label={t("admin.staff_creation.password")}
             value={formData.password}
             onChange={handleInputChange}
-            placeholder={t("admin.staff_creation.password_placeholder")}
+            placeholder={
+              isEdit
+                ? t(
+                    "admin.staff_creation.password_edit_placeholder",
+                    "Leave blank to keep the current password",
+                  )
+                : t(
+                    "admin.staff_creation.password_placeholder",
+                    "Enter password",
+                  )
+            }
           />
+          {isEdit && (
+            <p className="text-xs text-gray-500 mt-1">
+              {t(
+                "admin.staff_creation.password_edit_hint",
+                "Enter a new password only if you want to change it.",
+              )}
+            </p>
+          )}
+        </div>
+      )}
+
+      {showField("login_enabled") && (
+        <div>
+          <Label htmlFor="login_enabled">
+            {t("admin.staff_creation.login_enabled")}
+          </Label>
+          <Select
+            id="login_enabled"
+            value={formData.login_enabled}
+            onChange={(value) => handleSelectChange("login_enabled", value)}
+            options={getYesNoOptions(t)}
+            placeholder={t("admin.staff_creation.login_enabled_placeholder")}
+          />
+        </div>
+      )}
+
+      {/* ── Password Security Info (edit mode only) ── */}
+      {isEdit && (
+        <div className="md:col-span-2">
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/40">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                Password Security
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowChangePassword(true)}
+                className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+              >
+                <span className="material-symbols-outlined text-[14px] leading-none">lock_reset</span>
+                Change Password
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+              <div>
+                <span className="text-gray-500">Account Created:</span>{" "}
+                <span className="font-medium text-gray-800 dark:text-gray-100">
+                  {staffCreatedAt
+                    ? new Date(staffCreatedAt).toLocaleString()
+                    : "—"}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500">Last Password Changed:</span>{" "}
+                <span className="font-medium text-gray-800 dark:text-gray-100">
+                  {passwordCrtDate
+                    ? new Date(passwordCrtDate).toLocaleString()
+                    : "Never changed"}
+                </span>
+              </div>
+            </div>
+            {passwordCrtDate && (
+              <div className="mt-2">
+                <PasswordPriorityBadge ageDays={getPasswordAgeDays(passwordCrtDate)} />
+              </div>
+            )}
+            {!passwordCrtDate && (
+              <div className="mt-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
+                  <span className="material-symbols-outlined text-[14px] leading-none">info</span>
+                  Password has never been changed — consider updating
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -2107,6 +2329,14 @@ export default function StaffCreationForm() {
 
   return (
     <div className="p-6">
+      {showChangePassword && id && (
+        <ChangePasswordModal
+          targetType="staff"
+          targetId={id}
+          onClose={() => setShowChangePassword(false)}
+          onSuccess={(newDate) => setPasswordCrtDate(newDate)}
+        />
+      )}
       <ComponentCard
         title={
           isEdit

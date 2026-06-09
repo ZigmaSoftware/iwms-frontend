@@ -1,6 +1,6 @@
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -47,7 +47,7 @@ export default function UserScreenActionList() {
     const loadActions = async () => {
       setIsLoading(true);
       try {
-        const data = await userScreenActionApi.list();
+        const data = await userScreenActionApi.readAll();
         if (mounted) setRecords(data as UserScreenAction[]);
       } catch {
         if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
@@ -131,7 +131,7 @@ export default function UserScreenActionList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.user_screen_action.action_label"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none"

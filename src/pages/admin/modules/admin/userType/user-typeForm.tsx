@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +42,7 @@ export default function UserTypeForm() {
     if (!isEdit || !userTypeId) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.userTypes.get(userTypeId)
+    adminApi.userTypes.read(userTypeId)
       .then((res: any) => {
         if (cancelled) return;
         setRecordData(res);

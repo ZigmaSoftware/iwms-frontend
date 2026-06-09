@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import { useNavigate, useLocation } from "react-router-dom";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -15,6 +15,7 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
+import { exportRecordsToExcel } from "@/utils/exportExcel";
 
 export type BinLoadLogApiRecord = {
   unique_id: string;
@@ -46,9 +47,9 @@ export type BinLoadLogApiRecord = {
 
   weight_kg: number;
   source_type: "MANUAL" | string;
-  event_time: string;   // ISO datetime
+  event_time: string; // ISO datetime
   processed: boolean;
-  created_at: string;   // ISO datetime
+  created_at: string; // ISO datetime
   company_id?: string | null;
   company_unique_id?: string | null;
   company_name?: string | null;
@@ -91,13 +92,23 @@ export default function BinLoadLogList() {
 
   const [records, setRecords] = useState<BinLoadLogApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   const [zoneLookup, setZoneLookup] = useState<Record<string, string>>({});
-  const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>({});
-  const [propertyLookup, setPropertyLookup] = useState<Record<string, string>>({});
-  const [subPropertyLookup, setSubPropertyLookup] = useState<Record<string, string>>({});
+  const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>(
+    {},
+  );
+  const [propertyLookup, setPropertyLookup] = useState<Record<string, string>>(
+    {},
+  );
+  const [subPropertyLookup, setSubPropertyLookup] = useState<
+    Record<string, string>
+  >({});
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -106,7 +117,12 @@ export default function BinLoadLogList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   // const [filters, setFilters] = useState<any>({
@@ -135,7 +151,7 @@ export default function BinLoadLogList() {
       return;
     }
 
-    if (!companyUniqueId) {
+    if (!companyUniqueId && !isSuperAdmin) {
       setRecords([]);
       setLoading(false);
       return;
@@ -143,17 +159,22 @@ export default function BinLoadLogList() {
 
     setLoading(true);
     try {
-      const params: Record<string, string> = { company_id: companyUniqueId };
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) {
         params.project_id = projectId;
       }
 
-      const binLoadRes = await binLoadLogApi.list({ params });
+      const binLoadRes = await binLoadLogApi.readAll({ params });
       const rows = normalizeList(binLoadRes) as BinLoadLogApiRecord[];
 
       const hasContextFields = rows.some((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        const rowCompanyId = normalizeId(
+          row.company_id || row.company_unique_id,
+        );
+        const rowProjectId = normalizeId(
+          row.project_id || row.project_unique_id,
+        );
         return Boolean(rowCompanyId || rowProjectId);
       });
 
@@ -163,10 +184,15 @@ export default function BinLoadLogList() {
       }
 
       const filtered = rows.filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        const rowCompanyId = normalizeId(
+          row.company_id || row.company_unique_id,
+        );
+        const rowProjectId = normalizeId(
+          row.project_id || row.project_unique_id,
+        );
 
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+        const companyMatches =
+          !companyUniqueId || rowCompanyId === companyUniqueId;
         const projectMatches = !projectId || rowProjectId === projectId;
 
         return companyMatches && projectMatches;
@@ -183,6 +209,70 @@ export default function BinLoadLogList() {
   useEffect(() => {
     fetchRecords();
   }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+
+  const filterBySelectedContext = (rows: BinLoadLogApiRecord[]) => {
+    const hasContextFields = rows.some((row) => {
+      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+      return Boolean(rowCompanyId || rowProjectId);
+    });
+
+    if (!hasContextFields) return rows;
+
+    return rows.filter((row) => {
+      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
+      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+
+      const companyMatches =
+        !companyUniqueId || rowCompanyId === companyUniqueId;
+      const projectMatches = !projectId || rowProjectId === projectId;
+
+      return companyMatches && projectMatches;
+    });
+  };
+
+  const handleDownload = async () => {
+    setExporting(true);
+    try {
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+
+      const allRows = await binLoadLogApi.readAllForExport({ params });
+      const filteredRows = filterBySelectedContext(
+        normalizeList(allRows) as BinLoadLogApiRecord[],
+      );
+
+      exportRecordsToExcel(
+        filteredRows.map((row) => ({
+          Zone: row.zone_details?.name ?? "",
+          Vehicle: row.vehicle_details?.vehicle_no ?? "",
+          Property: row.property_details?.property_name ?? "",
+          "Sub Property": row.sub_property_details?.sub_property_name ?? "",
+          Bin: row.bin_details?.bin_code ?? "",
+          "Weight (kg)": row.weight_kg,
+          "Source Type": row.source_type,
+          "Event Time": resolveEventTime(row.event_time),
+          Processed: row.processed ? "Yes" : "No",
+          Company:
+            row.company_name ?? row.company_id ?? row.company_unique_id ?? "",
+          Project:
+            row.project_name ?? row.project_id ?? row.project_unique_id ?? "",
+          "Created At": resolveEventTime(row.created_at),
+        })),
+        "bin-load-log.xlsx",
+        "Bin Load Log",
+      );
+    } catch {
+      Swal.fire(
+        t("common.error"),
+        "Failed to download bin load log data.",
+        "error",
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -209,9 +299,7 @@ export default function BinLoadLogList() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -222,12 +310,12 @@ export default function BinLoadLogList() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={
+              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+            }
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}
@@ -236,11 +324,21 @@ export default function BinLoadLogList() {
           </select>
 
           <Button
+            label={exporting ? "Downloading..." : "Download All"}
+            icon="pi pi-download"
+            className="p-button-success p-button-sm"
+            disabled={loading || exporting || records.length === 0}
+            onClick={handleDownload}
+          />
+
+          <Button
             label={t("admin.bin_load_log.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
             disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() =>
+              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+            }
           />
         </div>
       </div>
@@ -262,12 +360,11 @@ export default function BinLoadLogList() {
   const resolveEventTime = (value?: string) =>
     value ? new Date(value).toLocaleString() : "-";
 
-
-
   return (
     <div className="p-3">
       <DataTable
         value={records}
+        exportable={false}
         dataKey="id"
         paginator
         rows={10}
@@ -288,52 +385,70 @@ export default function BinLoadLogList() {
         className="p-datatable-sm"
         emptyMessage={t("admin.bin_load_log.empty_message")}
       >
-        <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
         <Column
-        field = "zone_id"
+          header={t("common.s_no")}
+          body={(_, { rowIndex }) => rowIndex + 1}
+          style={{ width: 70 }}
+        />
+        <Column
+          field="zone_id"
           header={t("admin.bin_load_log.zone")}
-          body={(row: BinLoadLogApiRecord) => zoneLookup[row.zone_details.name] ?? row.zone_details.name}
+          body={(row: BinLoadLogApiRecord) =>
+            zoneLookup[row.zone_details.name] ?? row.zone_details.name
+          }
           filter
           showFilterMatchModes={false}
         />
         <Column
-        field = "vehicle_id"
+          field="vehicle_id"
           header={t("admin.bin_load_log.vehicle")}
-          body={(row: BinLoadLogApiRecord) => vehicleLookup[row.vehicle_details.vehicle_no] ?? row.vehicle_details.vehicle_no}
+          body={(row: BinLoadLogApiRecord) =>
+            vehicleLookup[row.vehicle_details.vehicle_no] ??
+            row.vehicle_details.vehicle_no
+          }
           filter
           showFilterMatchModes={false}
-
         />
         <Column
           field="property_id"
           header={t("admin.bin_load_log.property")}
-          body={(row: BinLoadLogApiRecord) => propertyLookup[row.property_details.property_name] ?? row.property_details.property_name}
+          body={(row: BinLoadLogApiRecord) =>
+            propertyLookup[row.property_details.property_name] ??
+            row.property_details.property_name
+          }
           filter
           showFilterMatchModes={false}
         />
         <Column
-        field = "sub_property_id"
+          field="sub_property_id"
           header={t("admin.bin_load_log.sub_property")}
           body={(row: BinLoadLogApiRecord) =>
-            subPropertyLookup[row.sub_property_details.sub_property_name] ?? row.sub_property_details.sub_property_name
+            subPropertyLookup[row.sub_property_details.sub_property_name] ??
+            row.sub_property_details.sub_property_name
           }
           filter
           showFilterMatchModes={false}
         />
         <Column field="weight_kg" header={t("admin.bin_load_log.weight_kg")} />
-        <Column field="source_type" header={t("admin.bin_load_log.source_type")} filter showFilterMatchModes={false} />
+        <Column
+          field="source_type"
+          header={t("admin.bin_load_log.source_type")}
+          filter
+          showFilterMatchModes={false}
+        />
         <Column
           header={t("admin.bin_load_log.event_time")}
           body={(row: BinLoadLogApiRecord) => resolveEventTime(row.event_time)}
         />
         <Column
-        field="processed"
+          field="processed"
           header={t("admin.bin_load_log.processed")}
-          body={(row: BinLoadLogApiRecord) => (row.processed ? t("common.active") : t("common.inactive"))}
+          body={(row: BinLoadLogApiRecord) =>
+            row.processed ? t("common.active") : t("common.inactive")
+          }
           filter
           showFilterMatchModes={false}
         />
-     
       </DataTable>
     </div>
   );

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,7 +65,7 @@ export default function HierarchyForm() {
   // Fetch area types list
   useEffect(() => {
     let cancelled = false;
-    adminApi.areatypes.list()
+    adminApi.areatypes.readAll()
       .then((res: any) => {
         if (cancelled) return;
         const data: any[] = Array.isArray(res) ? res : [];
@@ -102,7 +102,7 @@ export default function HierarchyForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.hierarchies.get(id)
+    adminApi.hierarchies.read(id)
       .then((res: any) => {
         if (cancelled) return;
         const record = res;

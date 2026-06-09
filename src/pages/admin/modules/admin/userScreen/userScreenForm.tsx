@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -68,7 +68,7 @@ export default function UserScreenForm() {
   ========================================= */
   useEffect(() => {
     let cancelled = false;
-    adminApi.mainScreens.list()
+    adminApi.mainScreens.readAll()
       .then((res: any) => {
         if (cancelled) return;
         setMainScreensList(Array.isArray(res) ? res : (res?.results ?? []));
@@ -84,7 +84,7 @@ export default function UserScreenForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.userScreens.get(id)
+    adminApi.userScreens.read(id)
       .then((res: any) => {
         if (cancelled) return;
         setRecordData(res);

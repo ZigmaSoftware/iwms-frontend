@@ -64,7 +64,9 @@ export default function WasteTypeListPage() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const { encMasters, encWasteTypes } = getEncryptedRoute();
   const ENC_NEW_PATH = `/${encMasters}/${encWasteTypes}/new`;
@@ -81,14 +83,14 @@ export default function WasteTypeListPage() {
     let mounted = true;
 
     const loadWasteTypes = async () => {
-      if (!companyUniqueId) {
+      if (!companyUniqueId && !isSuperAdmin) {
         setAllWasteTypes([]);
         return;
       }
 
       setIsLoading(true);
       try {
-        const data = await wasteTypeApi.list({
+        const data = await wasteTypeApi.readAll({
           params: { company_id: companyUniqueId, project_id: projectId || undefined },
         });
         if (mounted) setAllWasteTypes(data as WasteTypeListRecord[]);
@@ -106,7 +108,7 @@ export default function WasteTypeListPage() {
 
   const rows = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as WasteTypeListRecord[];
-    if (!companyUniqueId) return [] as WasteTypeListRecord[];
+    if (!companyUniqueId && !isSuperAdmin) return [] as WasteTypeListRecord[];
 
     const list = Array.isArray(allWasteTypes) ? allWasteTypes : [];
     return list.filter((row) => {
@@ -141,7 +143,7 @@ export default function WasteTypeListPage() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("common.waste_type"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none !outline-none"
@@ -223,11 +225,7 @@ export default function WasteTypeListPage() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", {
-                item: t("admin.nav.company"),
-              })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -238,14 +236,10 @@ export default function WasteTypeListPage() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", {
-                item: t("admin.nav.project"),
-              })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}

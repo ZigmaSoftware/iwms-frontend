@@ -21,6 +21,7 @@ type UseCompanyProjectSelectionArgs = {
   isEdit: boolean;
   initialCompanyId?: string;
   initialProjectId?: string;
+  defaultToAll?: boolean;
 };
 
 const toStringId = (value: unknown): string => {
@@ -70,9 +71,10 @@ export const useCompanyProjectSelection = ({
   isEdit,
   initialCompanyId,
   initialProjectId,
+  defaultToAll = false,
 }: UseCompanyProjectSelectionArgs) => {
   const [companyUniqueId, setCompanyUniqueId] = useState(
-    () => initialCompanyId || (getCurrentCompanyUniqueId() ?? "")
+    () => initialCompanyId || (defaultToAll ? "" : getCurrentCompanyUniqueId() ?? "")
   );
   const [projectId, setProjectId] = useState(initialProjectId || "");
   const [apiCompanies, setApiCompanies] = useState<CompanyProjectOption[]>([]);
@@ -102,6 +104,12 @@ export const useCompanyProjectSelection = ({
     return loggedInCompanyUniqueIdRaw ?? "";
   }, [isSuperAdmin, loggedInCompanyUniqueIdRaw]);
 
+  useEffect(() => {
+    if (!isSuperAdmin && loggedInCompanyUniqueId) {
+      setCompanyUniqueId((prev) => prev || loggedInCompanyUniqueId);
+    }
+  }, [isSuperAdmin, loggedInCompanyUniqueId]);
+
   const profileCompanyLabel = useMemo(() => {
     const directName =
       typeof profile?.company_name === "string"
@@ -122,8 +130,7 @@ export const useCompanyProjectSelection = ({
 
     let active = true;
 
-    companyApi
-      .get(loggedInCompanyUniqueIdRaw)
+    companyApi.read(loggedInCompanyUniqueIdRaw)
       .then((company) => {
         if (!active) return;
 
@@ -196,7 +203,7 @@ export const useCompanyProjectSelection = ({
     }
 
     companyApi
-      .list()
+      .readAll()
       .then((res) => {
         const options: CompanyProjectOption[] = toRecordList(res).map((x) => ({
           value: toStringId(x.unique_id),
@@ -204,17 +211,46 @@ export const useCompanyProjectSelection = ({
         }));
 
         setApiCompanies(options);
-        if (!isEdit && options.length > 0) {
+        if (!isEdit && !defaultToAll && options.length > 0) {
           setCompanyUniqueId((prev) => prev || options[0].value);
         }
       })
       .catch(() => {
         setApiCompanies([]);
       });
-  }, [isEdit, isSuperAdmin]);
+  }, [defaultToAll, isEdit, isSuperAdmin]);
 
   useEffect(() => {
     if (!companyUniqueId) {
+      if (defaultToAll && isSuperAdmin) {
+        let active = true;
+
+        projectApi
+          .readAll()
+          .then((res) => {
+            if (!active) return;
+
+            const options: CompanyProjectOption[] = toRecordList(res).map((x) => ({
+              value: toStringId(x.unique_id),
+              label: String(x.name ?? ""),
+            }));
+
+            setProjects(options);
+            setProjectId((prev) =>
+              prev && options.some((option) => option.value === prev) ? prev : ""
+            );
+          })
+          .catch(() => {
+            if (!active) return;
+            setProjects([]);
+            setProjectId("");
+          });
+
+        return () => {
+          active = false;
+        };
+      }
+
       setProjects([]);
       setProjectId("");
       return;
@@ -223,7 +259,7 @@ export const useCompanyProjectSelection = ({
     let active = true;
 
     projectApi
-      .list({ params: { company_unique_id: companyUniqueId } })
+      .readAll({ params: { company_unique_id: companyUniqueId } })
       .then((res) => {
         if (!active) return;
 
@@ -243,7 +279,7 @@ export const useCompanyProjectSelection = ({
           if (prev && options.some((option) => option.value === prev)) {
             return prev;
           }
-          return options[0].value;
+          return defaultToAll ? "" : options[0].value;
         });
       })
       .catch(() => {
@@ -256,7 +292,7 @@ export const useCompanyProjectSelection = ({
     return () => {
       active = false;
     };
-  }, [companyUniqueId]);
+  }, [companyUniqueId, defaultToAll, isSuperAdmin]);
 
   const onCompanyChange = useCallback((value: string) => {
     setCompanyUniqueId(value);

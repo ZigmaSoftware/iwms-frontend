@@ -15,7 +15,7 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import type { AreaTypeRecord } from "./types";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -71,7 +71,9 @@ export default function AreaTypeListPage() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "area-types",
@@ -96,7 +98,7 @@ export default function AreaTypeListPage() {
   const loadAreaTypes = async () => {
     setIsLoading(true);
     try {
-      const response = await adminApi.areatypes.list();
+      const response = await adminApi.areatypes.readAll();
       setAreaTypes(Array.isArray(response) ? response : []);
     } catch (error) {
       Swal.fire(
@@ -133,7 +135,7 @@ export default function AreaTypeListPage() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.area_type"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none !outline-none"
@@ -222,9 +224,7 @@ export default function AreaTypeListPage() {
             disabled={!isSuperAdmin || companies.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
+            <option value="">All Companies</option>
             {companies.map((company) => (
               <option key={company.value} value={company.value}>
                 {company.label}
@@ -235,12 +235,10 @@ export default function AreaTypeListPage() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
+            <option value="">All Projects</option>
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -85,7 +85,7 @@ export default function MainComplaintCategoryList() {
     const loadMainCategories = async () => {
       setIsLoading(true);
       try {
-        const data = await mainCategoryApi.list(
+        const data = await mainCategoryApi.readAll(
           companyUniqueId ? { params: { company_id: companyUniqueId } } : undefined
         );
         if (mounted) setRecords(data as MainCategoryRecord[]);

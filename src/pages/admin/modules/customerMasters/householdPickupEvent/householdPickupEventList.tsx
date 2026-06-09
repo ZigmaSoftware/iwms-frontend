@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -103,13 +103,13 @@ export default function HouseholdPickupEventList() {
         userRes,
         vehicleRes,
       ] = await Promise.all([
-        householdPickupEventApi.list(),
-        customerCreationApi.list(),
-        zoneApi.list(),
-        propertiesApi.list(),
-        subPropertiesApi.list(),
-        userCreationApi.list(),
-        vehicleCreationApi.list(),
+        householdPickupEventApi.readAll(),
+        customerCreationApi.readAll(),
+        zoneApi.readAll(),
+        propertiesApi.readAll(),
+        subPropertiesApi.readAll(),
+        userCreationApi.readAll(),
+        vehicleCreationApi.readAll(),
       ]);
 
       const staffUsers = normalizeList(userRes).filter(
