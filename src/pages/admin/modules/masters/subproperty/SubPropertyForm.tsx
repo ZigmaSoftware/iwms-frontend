@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -246,7 +246,7 @@ export default function SubPropertyForm() {
 
   useEffect(() => {
     let cancelled = false;
-    adminApi.properties.list()
+    adminApi.properties.readAll()
       .then((res: any) => {
         if (cancelled) return;
         setProperties(Array.isArray(res) ? res : (res?.results ?? []));
@@ -266,7 +266,7 @@ export default function SubPropertyForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.subProperties.get(id)
+    adminApi.subProperties.read(id)
       .then((res: any) => {
         if (cancelled) return;
         setSubPropertyData(res);

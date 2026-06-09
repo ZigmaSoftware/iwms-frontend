@@ -219,7 +219,7 @@ function useList<T = AdminRecord>(
   const paramsKey = JSON.stringify(params);
   return useDirectQuery<T[]>(
     () =>
-      adminApi[entity].list(
+      adminApi[entity].readAll(
         Object.keys(params).length ? { params } : undefined
       ) as Promise<T[]>,
     [entity, paramsKey, enabled, version],
@@ -232,7 +232,7 @@ function useDetail<T = AdminRecord>(
   id: string | number | null | undefined
 ) {
   return useDirectQuery<T>(
-    () => adminApi[entity].get(id as string | number) as Promise<T>,
+    () => adminApi[entity].read(id as string | number) as Promise<T>,
     [entity, id, Boolean(id)],
     Boolean(id)
   );
@@ -284,7 +284,7 @@ const useUpdate = <TPayload = Record<string, any>, TResult = AdminRecord>(
 
 const useDelete = (entity: AdminEntity) =>
   useMutationAction<string | number | undefined, void>(
-    (id) => adminApi[entity].remove(id as string | number),
+    (id) => adminApi[entity].delete(id as string | number),
     [entity]
   );
 
@@ -415,7 +415,7 @@ export const useUpdateContractorUserTypeMutation = () => useUpdate("contractorUs
 
 export const useRoleTypeChoicesQuery = () =>
   useDirectQuery<any[]>(
-    async () => toList(await roleTypesApi.list()),
+    async () => toList(await roleTypesApi.readAll()),
     [],
     true
   );
@@ -457,7 +457,7 @@ export const useUserScreenPermissionFormattedQuery = (
 ) =>
   useDirectQuery<any>(
     () =>
-      userScreenPermissionApi.get(
+      userScreenPermissionApi.read(
         `by-staff-format/?company_id=${encodeURIComponent(companyId ?? "")}&staffusertype_id=${encodeURIComponent(staffTypeId ?? "")}&mainscreen_id=${encodeURIComponent(mainScreenId ?? "")}`
       ),
     [companyId, staffTypeId, mainScreenId],
@@ -481,7 +481,7 @@ export const useSyncUserScreenPermissionMutation = () =>
 
 export const useDeleteUserScreenPermissionMutation = () =>
   useMutationAction<string, void>(
-    (path) => userScreenPermissionApi.remove(path),
+    (path) => userScreenPermissionApi.delete(path),
     ["companyWiseScreenPermissions"]
   );
 
@@ -515,14 +515,14 @@ export const useCreateComplaint = () =>
   );
 export const useComplaintCustomers = () =>
   useDirectQuery<any[]>(
-    async () => toList<AdminRecord>(await customerCreationApi.list()).filter((row) => row?.is_active !== false),
+    async () => toList<AdminRecord>(await customerCreationApi.readAll()).filter((row) => row?.is_active !== false),
     [],
     true
   );
 export const useComplaintMainCategories = (companyId: string) =>
   useDirectQuery<any[]>(
     async () =>
-      toList<AdminRecord>(await mainCategoryApi.list({ params: { company_id: companyId } })).filter(
+      toList<AdminRecord>(await mainCategoryApi.readAll({ params: { company_id: companyId } })).filter(
         (row) => row?.is_active !== false
       ),
     [companyId],
@@ -531,7 +531,7 @@ export const useComplaintMainCategories = (companyId: string) =>
 export const useComplaintAllSubCategories = (companyId: string) =>
   useDirectQuery<any[]>(
     async () =>
-      toList<AdminRecord>(await subCategoryApi.list({ params: { company_id: companyId } })).filter(
+      toList<AdminRecord>(await subCategoryApi.readAll({ params: { company_id: companyId } })).filter(
         (row) => row?.is_active !== false
       ),
     [companyId],

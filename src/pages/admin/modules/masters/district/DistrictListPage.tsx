@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -84,7 +84,7 @@ export default function DistrictListPage() {
     const loadDistricts = async () => {
       setIsLoading(true);
       try {
-        const data = await districtApi.list();
+        const data = await districtApi.readAll();
         if (mounted) setAllDistricts(data as DistrictApiRow[]);
       } catch (error) {
         if (mounted) {
@@ -157,7 +157,7 @@ export default function DistrictListPage() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", { item: t("admin.nav.district") })}
+          placeholder={t("common.search_placeholder", { item: t("admin.nav.district") })}
           className="p-inputtext-sm !border-0 !shadow-none"
         />
       </div>

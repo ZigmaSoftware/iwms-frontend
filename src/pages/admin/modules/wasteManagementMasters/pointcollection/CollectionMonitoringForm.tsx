@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -258,7 +258,7 @@ function CollectionMonitoringForm() {
     let cancelled = false;
     setFetching(true);
     dailyTripCollectionPointApi
-      .list({ params: { company_id: companyUniqueId, project_id: projectId } })
+      .readAll({ params: { company_id: companyUniqueId, project_id: projectId } })
       .then((response) => {
         if (cancelled) return;
         const rows = normalizeList(response) as TripCollectionPointRecord[];
@@ -287,8 +287,7 @@ function CollectionMonitoringForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoading(true);
-    binCollectionEventApi
-      .get(id)
+    binCollectionEventApi.read(id)
       .then((record: BinCollectionEventRecord) => {
         if (cancelled) return;
         applyCompanyProjectFromRecord(record as ApiObject);

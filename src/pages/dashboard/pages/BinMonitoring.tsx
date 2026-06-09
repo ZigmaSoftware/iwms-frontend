@@ -241,7 +241,7 @@ export default function BinMonitoring() {
     let isMounted = true;
     const fetchBins = async () => {
       try {
-        const data = await binApi.list();
+        const data = await binApi.readAll();
         if (!isMounted) return;
         setBinRecords(Array.isArray(data) ? data : []);
       } catch {

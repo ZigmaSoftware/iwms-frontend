@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -142,10 +142,10 @@ export default function TripAttendanceForm() {
   useEffect(() => {
     setFetching(true);
     Promise.all([
-      dailyTripAssignmentApi.list(),
-      staffTemplateApi.list(),
-      userApi.list(),
-      vehicleApi.list(),
+      dailyTripAssignmentApi.readAll(),
+      staffTemplateApi.readAll(),
+      userApi.readAll(),
+      vehicleApi.readAll(),
     ])
       .then(([tripRes, staffRes, userRes, vehicleRes]) => {
         const trips = normalizeList(tripRes) as DailyTripAssignmentRecord[];
@@ -215,8 +215,7 @@ export default function TripAttendanceForm() {
   useEffect(() => {
     if (!isEdit || !id) return;
 
-    tripAttendanceApi
-      .get(id)
+    tripAttendanceApi.read(id)
       .then((res: any) => {
         const tripInstId = res?.daily_trip_assignment_id ?? "";
         const staffId = res?.staff_id ?? "";

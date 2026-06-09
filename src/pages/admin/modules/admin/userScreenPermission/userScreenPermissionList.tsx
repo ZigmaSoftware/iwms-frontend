@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -93,7 +93,7 @@ export default function UserScreenPermissionList() {
 
       setIsLoading(true);
       try {
-        const data = await userScreenPermissionApi.list({
+        const data = await userScreenPermissionApi.readAll({
           params: { company_id: companyUniqueId, limit: 6000, offset: 0 },
         });
         if (mounted) setPermissionRows(data as StaffUserType[]);
@@ -197,7 +197,7 @@ export default function UserScreenPermissionList() {
           ? `delete-by-staffusertype/${row.unique_id}/?company_id=${row.company_id}&mainscreen_id=${row.mainscreen_id}`
           : `delete-by-staffusertype/${row.unique_id}`;
 
-      await userScreenPermissionApi.remove(deletePath);
+      await userScreenPermissionApi.delete(deletePath);
       setPermissionRows((current) =>
         current.filter((item) => {
           const sameStaffType = String(item.staffusertype_id ?? "") === String(row.unique_id);
@@ -277,7 +277,7 @@ export default function UserScreenPermissionList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder")}
+          placeholder={t("common.search_placeholder_placeholder")}
           className="p-inputtext-sm !border-0 !shadow-none"
         />
       </div>

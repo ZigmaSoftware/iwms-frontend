@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -142,8 +142,8 @@ export default function TripExceptionLogList() {
       }
 
       const [logRes, tripRes] = await Promise.all([
-        tripExceptionLogApi.list({ params }),
-        dailyTripAssignmentApi.list({ params }),
+        tripExceptionLogApi.readAll({ params }),
+        dailyTripAssignmentApi.readAll({ params }),
       ]);
 
       const logRows = filterByCompanyProject(

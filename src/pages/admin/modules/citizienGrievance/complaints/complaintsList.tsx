@@ -69,7 +69,7 @@ export default function ComplaintsList() {
     const loadComplaints = async () => {
       setLoading(true);
       try {
-        const data = await complaintApi.list();
+        const data = await complaintApi.readAll();
         if (mounted) setComplaints(data as Complaint[]);
       } finally {
         if (mounted) setLoading(false);

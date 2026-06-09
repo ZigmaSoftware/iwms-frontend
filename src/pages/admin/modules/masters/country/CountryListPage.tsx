@@ -1,6 +1,6 @@
 // import { useEffect, useState, useCallback } from "react";
 // import { useNavigate } from "react-router-dom";
-// import Swal from "sweetalert2";
+// import Swal from "@/lib/notify";
 
 // import { DataTable } from "@/components/common/SafeDataTable";
 // import { Column } from "primereact/column";
@@ -77,7 +77,7 @@
 //   const fetchCountries = useCallback(async () => {
 //     // setLoading(true);
 //     try {
-//       const data = (await countryApi.list()) as CountryRecord[];
+//       const data = (await countryApi.readAll()) as CountryRecord[];
 //       setCountries(data);
 //     } catch (error) {
 //       Swal.fire({
@@ -107,7 +107,7 @@
 //     if (!confirm.isConfirmed) return;
 
 //     try {
-//       await countryApi.remove(unique_id);
+//       await countryApi.delete(unique_id);
 //       Swal.fire({
 //         icon: "success",
 //         title: t("common.deleted_success"),
@@ -140,7 +140,7 @@
 //         <InputText
 //           value={globalFilterValue}
 //           onChange={onGlobalFilterChange}
-//           placeholder={t("common.search_item_placeholder", {
+//           placeholder={t("common.search_placeholder", {
 //             item: t("admin.nav.country"),
 //           })}
 //           className="p-inputtext-sm !border-0 !shadow-none"
@@ -260,7 +260,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -368,7 +368,7 @@ export default function CountryList() {
     const loadCountries = async () => {
       setIsLoading(true);
       try {
-        const data = await countryApi.list();
+        const data = await countryApi.readAll();
         if (mounted) setCountries(data as CountryRecord[]);
       } catch (error) {
         if (mounted) {
@@ -465,7 +465,7 @@ export default function CountryList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.country"),
           })}
           className="p-inputtext-sm border-0 shadow-none"

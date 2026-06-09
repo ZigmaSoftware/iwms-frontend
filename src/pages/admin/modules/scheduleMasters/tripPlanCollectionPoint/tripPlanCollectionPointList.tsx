@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -94,7 +94,7 @@ export default function TripPlanCollectionPointList() {
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     tripPlanCollectionPointApi
-      .list({ params })
+      .readAll({ params })
       .then((data) => setRecords(Array.isArray(data) ? (data as TripPlanCPRecord[]) : []))
       .catch((error) => {
         setRecords([]);
@@ -162,7 +162,7 @@ export default function TripPlanCollectionPointList() {
               setGlobalFilterValue(e.target.value);
               setFilters((f) => ({ ...f, global: { value: e.target.value, matchMode: FilterMatchMode.CONTAINS } }));
             }}
-            placeholder={t("common.search")}
+            placeholder={t("common.search_placeholder")}
             className="border-none text-sm"
           />
         </div>

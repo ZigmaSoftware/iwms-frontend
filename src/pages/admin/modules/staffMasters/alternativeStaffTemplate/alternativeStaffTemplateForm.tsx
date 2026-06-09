@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { MultiSelect } from "primereact/multiselect";
 
@@ -228,8 +228,8 @@ export default function AlternativeStaffTemplateForm() {
 
   useEffect(() => {
     (Promise.all([
-      companyApi.list() as Promise<any>,
-      projectApi.list() as Promise<any>,
+      companyApi.readAll() as Promise<any>,
+      projectApi.readAll() as Promise<any>,
     ]) as Promise<[any, any]>)
       .then(([companiesRes, projectsRes]: [any, any]) => {
         const companiesData = Array.isArray(companiesRes)
@@ -285,9 +285,9 @@ export default function AlternativeStaffTemplateForm() {
     let cancelled = false;
 
     Promise.all([
-      staffTemplateApi.list() as Promise<any>,
-      staffCreationApi.list({ params: { active_status: 1 } }) as Promise<any>,
-      alternativeStaffTemplateApi.list() as Promise<any>,
+      staffTemplateApi.readAll() as Promise<any>,
+      staffCreationApi.readAll({ params: { active_status: 1 } }) as Promise<any>,
+      alternativeStaffTemplateApi.readAll() as Promise<any>,
     ])
       .then(([templatesRes, staffRes, altRes]: [any, any, any]) => {
         if (cancelled) return;
@@ -445,8 +445,7 @@ export default function AlternativeStaffTemplateForm() {
     setLoading(true);
     templateSelectedByUser.current = false;
 
-    alternativeStaffTemplateApi
-      .get(id)
+    alternativeStaffTemplateApi.read(id)
       .then((rec: any) => {
         if (cancelled) return;
 
@@ -502,8 +501,7 @@ export default function AlternativeStaffTemplateForm() {
       return;
     }
     let cancelled = false;
-    staffTemplateApi
-      .get(formData.staff_template)
+    staffTemplateApi.read(formData.staff_template)
       .then((tpl: any) => {
         if (cancelled) return;
         setSelectedStaffTemplateData(tpl);

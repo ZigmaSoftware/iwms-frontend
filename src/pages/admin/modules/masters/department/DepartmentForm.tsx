@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -27,7 +27,7 @@ export default function DepartmentForm() {
 
   useEffect(() => {
     if (!id) return;
-    departmentApi.get(id).then((record: any) => {
+    departmentApi.read(id).then((record: any) => {
       setForm({
         department_name: record.department_name ?? "",
         department_code: record.department_code ?? "",

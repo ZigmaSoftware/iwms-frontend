@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -175,10 +175,10 @@ export default function TripAttendanceList() {
       }
 
       const [attendanceRes, tripRes, userRes, vehicleRes] = await Promise.all([
-        tripAttendanceApi.list({ params }),
-        dailyTripAssignmentApi.list({ params }),
-        userApi.list({ params }),
-        vehicleApi.list({ params }),
+        tripAttendanceApi.readAll({ params }),
+        dailyTripAssignmentApi.readAll({ params }),
+        userApi.readAll({ params }),
+        vehicleApi.readAll({ params }),
       ]);
 
       const attendanceRows = filterByCompanyProject(

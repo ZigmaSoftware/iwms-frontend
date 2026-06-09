@@ -93,6 +93,7 @@ import DailyTripAssignmentList from "@/pages/admin/modules/transportMasters/dail
 import DailyTripAssignmentForm from "@/pages/admin/modules/transportMasters/dailyTripAssignment/dailyTripAssignmentForm";
 import DailyTripCollectionPointList from "@/pages/admin/modules/transportMasters/dailyTripCollectionPoint/dailyTripCollectionPointList";
 import DailyTripCollectionPointForm from "@/pages/admin/modules/transportMasters/dailyTripCollectionPoint/dailyTripCollectionPointForm";
+import DailyTripTracking from "@/pages/admin/modules/scheduleMasters/dailyTripTracking/DailyTripTracking";
 import DailyTripLogList from "@/pages/admin/modules/transportMasters/dailyTripLog/dailyTripLogList";
 
 // import CollectionMonitoringListPage from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringListPage";
@@ -217,6 +218,7 @@ const ROUTES: RouteMap = {
     "trip-plan-collection-points": { list: TripPlanCollectionPointList, form: TripPlanCollectionPointForm },
     "daily-trip-assignment": { list: DailyTripAssignmentList, form: DailyTripAssignmentForm },
     "daily-trip-collection-point": { list: DailyTripCollectionPointList, form: DailyTripCollectionPointForm },
+    "daily-trip-tracking": { component: DailyTripTracking },
     "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
     "daily-trip-log": { list: DailyTripLogList },
     "daily-waste-comparisons": { list: DailyWasteComparisonList, form: DailyWasteComparisonForm },

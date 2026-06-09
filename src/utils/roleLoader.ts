@@ -10,7 +10,7 @@ export type RoleOption = {
  */
 export const fetchAllRoles = async (): Promise<RoleOption[]> => {
   try {
-    const response = await roleTypesApi.list();
+    const response = await roleTypesApi.readAll();
     
     // Handle different response formats
     let roles: unknown[] = [];

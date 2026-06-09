@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -96,7 +96,7 @@ export default function FuelList() {
   useEffect(() => {
     let mounted = true;
     setIsLoading(true);
-    fuelApi.list()
+    fuelApi.readAll()
       .then((data: unknown) => {
         if (mounted) setAllFuels(Array.isArray(data) ? (data as Fuel[]) : []);
       })

@@ -90,7 +90,7 @@ export default function WasteTypeListPage() {
 
       setIsLoading(true);
       try {
-        const data = await wasteTypeApi.list({
+        const data = await wasteTypeApi.readAll({
           params: { company_id: companyUniqueId, project_id: projectId || undefined },
         });
         if (mounted) setAllWasteTypes(data as WasteTypeListRecord[]);
@@ -143,7 +143,7 @@ export default function WasteTypeListPage() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("common.waste_type"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none !outline-none"

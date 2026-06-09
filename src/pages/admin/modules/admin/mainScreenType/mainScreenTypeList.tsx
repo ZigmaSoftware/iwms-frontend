@@ -1,6 +1,6 @@
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -46,7 +46,7 @@ export default function MainScreenTypeList() {
     const loadMainScreenTypes = async () => {
       setIsLoading(true);
       try {
-        const data = await mainScreenTypeApi.list();
+        const data = await mainScreenTypeApi.readAll();
         if (mounted) setMainScreenTypes(data as MainScreenType[]);
       } catch {
         if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
@@ -128,7 +128,7 @@ export default function MainScreenTypeList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.main_screen_type"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none"

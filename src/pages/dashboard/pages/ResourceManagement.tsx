@@ -81,7 +81,7 @@ export default function ResourceManagement() {
   useEffect(() => {
     const fetchStaff = async () => {
       try {
-        const res = await staffCreationApi.list();
+        const res = await staffCreationApi.readAll();
         console.log(res);
         const records = normalizeList(res);
         const staffOnly = records.filter(

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -146,7 +146,7 @@ export default function PanchayatForm() {
   /* ── load master data ── */
   useEffect(() => {
     let cancelled = false;
-    stateApi.list()
+    stateApi.readAll()
       .then((res: any) => {
         if (cancelled) return;
         const list = toRecordList(res);
@@ -169,7 +169,7 @@ export default function PanchayatForm() {
       ? { params: { company_id: companyUniqueId, project_id: projectId } }
       : undefined;
 
-    districtApi.list(config)
+    districtApi.readAll(config)
       .then((res: any) => {
         if (cancelled) return;
         const list = toRecordList(res);
@@ -193,7 +193,7 @@ export default function PanchayatForm() {
       ? { params: { company_id: companyUniqueId, project_id: projectId } }
       : undefined;
 
-    cityApi.list(config)
+    cityApi.readAll(config)
       .then((res: any) => {
         if (cancelled) return;
         const list = toRecordList(res);
@@ -268,7 +268,7 @@ export default function PanchayatForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    panchayatApi.get(id)
+    panchayatApi.read(id)
       .then((res: any) => {
         if (cancelled) return;
         setRecordData(res);

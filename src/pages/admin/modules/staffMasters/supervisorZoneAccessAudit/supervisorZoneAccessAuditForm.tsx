@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -51,7 +51,7 @@ export default function SupervisorZoneAccessAuditForm() {
     if (!id) return;
     setLoading(true);
 
-    Promise.all([auditApi.get(id), zoneApi.list(), userCreationApi.list()])
+    Promise.all([auditApi.read(id), zoneApi.readAll(), userCreationApi.readAll()])
       .then(([auditRes, zoneRes, userRes]) => {
         setRecord(auditRes ?? null);
         setZoneLookup(buildLookup(normalizeList(zoneRes), "unique_id", "name"));

@@ -14,7 +14,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 type HierarchyRecord = {
   unique_id?: string | number;
@@ -112,7 +112,7 @@ export default function HierarchyListPage() {
   const loadHierarchies = async () => {
     setIsLoading(true);
     try {
-      const response = await adminApi.hierarchies.list();
+      const response = await adminApi.hierarchies.readAll();
       setHierarchies(Array.isArray(response) ? response : []);
     } catch (error) {
       Swal.fire(
@@ -149,7 +149,7 @@ export default function HierarchyListPage() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.hierarchy"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none !outline-none"

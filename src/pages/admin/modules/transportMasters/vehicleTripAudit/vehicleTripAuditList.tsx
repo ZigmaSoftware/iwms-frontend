@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -162,9 +162,9 @@ export default function VehicleTripAuditList() {
     if (projectId) params.project_id = projectId;
 
     Promise.all([
-      adminApi.vehicleTripAudits.list({ params }),
-      adminApi.dailyTripAssignment.list({ params }),
-      adminApi.vehicleCreations.list({ params }),
+      adminApi.vehicleTripAudits.readAll({ params }),
+      adminApi.dailyTripAssignment.readAll({ params }),
+      adminApi.vehicleCreations.readAll({ params }),
     ])
       .then(([auditsData, tripData, vehicleData]) => {
         if (cancelled) return;

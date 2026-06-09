@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -259,7 +259,7 @@ export default function MonthlyWasteComparisonForm() {
     }
     const config = { params: tenantParams };
     panchayatApi
-      .list(config)
+      .readAll(config)
       .then((panchayatRes) => {
         const panchayats = toRecordList(panchayatRes)
           .filter((x) => x.is_active !== false)
@@ -278,7 +278,7 @@ export default function MonthlyWasteComparisonForm() {
 
   useEffect(() => {
     wasteTypeApi
-      .list()
+      .readAll()
       .then((wasteTypeRes) => {
         const wasteTypes = toRecordList(wasteTypeRes)
           .filter((x) => x.is_active !== false)
@@ -344,8 +344,7 @@ export default function MonthlyWasteComparisonForm() {
       if (routeProjectId) setPendingProjectId(routeProjectId);
     }
 
-    adminApi.monthlyWasteComparison
-      .get(id as string)
+    adminApi.monthlyWasteComparison.read(id as string)
       .then((res: Record<string, unknown>) => {
         const merged = { ...(routeState?.record ?? {}), ...res };
         applyCompanyProjectFromRecord(merged);

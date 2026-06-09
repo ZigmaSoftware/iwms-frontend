@@ -90,7 +90,7 @@ export function RecentActivityTimeline() {
   };
 
   const fetchCollectionStats = async () => {
-    const customerResponse = await customerCreationApi.list();
+    const customerResponse = await customerCreationApi.readAll();
     const normalized = normalizeCustomerArray(customerResponse);
     const activeCustomers = filterActiveCustomers(normalized);
     const total = activeCustomers.length;
@@ -98,7 +98,7 @@ export function RecentActivityTimeline() {
     const today = formatDate(new Date());
     let collectedIds: string[] = [];
     try {
-      const collectionResponse = await wasteCollectionApi.list({
+      const collectionResponse = await wasteCollectionApi.readAll({
         params: { collection_date: today },
       });
       const rows = Array.isArray(collectionResponse)
@@ -172,7 +172,7 @@ export function RecentActivityTimeline() {
   };
 
   const fetchComplaintStats = async () => {
-    const response = await complaintApi.list();
+    const response = await complaintApi.readAll();
     const rows = Array.isArray(response)
       ? response
       : Array.isArray((response as any)?.data)

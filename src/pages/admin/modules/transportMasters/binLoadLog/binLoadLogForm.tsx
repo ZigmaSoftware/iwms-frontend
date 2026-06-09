@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -84,10 +84,10 @@ export default function BinLoadLogForm() {
   useEffect(() => {
     setFetching(true);
     Promise.all([
-      zoneApi.list(),
-      vehicleApi.list(),
-      propertyApi.list(),
-      subPropertyApi.list(),
+      zoneApi.readAll(),
+      vehicleApi.readAll(),
+      propertyApi.readAll(),
+      subPropertyApi.readAll(),
     ])
       .then(([zoneRes, vehicleRes, propertyRes, subPropertyRes]) => {
         setZones(toOptions(normalizeList(zoneRes), "unique_id", "name"));
@@ -104,8 +104,7 @@ export default function BinLoadLogForm() {
   useEffect(() => {
     if (!isEdit || !id) return;
 
-    binLoadLogApi
-      .get(id)
+    binLoadLogApi.read(id)
       .then((res: any) => {
         const zoneId = res?.zone_details?.unique_id ?? res?.zone_id ?? "";
         const vehicleId = res?.vehicle_details?.unique_id ?? res?.vehicle_id ?? "";

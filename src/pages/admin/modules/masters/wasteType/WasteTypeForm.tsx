@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -87,7 +87,7 @@ export default function WasteTypeForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    wasteTypeApi.get(id)
+    wasteTypeApi.read(id)
       .then((res: any) => {
         if (cancelled) return;
         setLoadingRecord(false);

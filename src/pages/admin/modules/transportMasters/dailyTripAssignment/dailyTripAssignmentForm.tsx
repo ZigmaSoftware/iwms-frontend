@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -222,7 +222,7 @@ export default function DailyTripAssignmentForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    (dailyTripAssignmentApi.get(id) as Promise<DailyTripAssignmentRecord>)
+    (dailyTripAssignmentApi.read(id) as Promise<DailyTripAssignmentRecord>)
       .then((res) => {
         if (cancelled) return;
         setRecordData(res);
@@ -254,13 +254,13 @@ export default function DailyTripAssignmentForm() {
     setFetching(true);
     const params = { company_id: companyUniqueId, project_id: projectId };
     Promise.all([
-      adminApi.tripPlans.list({ params }),
-      adminApi.staffTemplateCreation.list({ params }),
-      adminApi.zones.list({ params }),
-      adminApi.panchayats.list({ params }),
-      adminApi.wards.list({ params }),
-      adminApi.wasteTypes.list({ params }),
-      adminApi.alternativeStaffTemplate.list({ params }),
+      adminApi.tripPlans.readAll({ params }),
+      adminApi.staffTemplateCreation.readAll({ params }),
+      adminApi.zones.readAll({ params }),
+      adminApi.panchayats.readAll({ params }),
+      adminApi.wards.readAll({ params }),
+      adminApi.wasteTypes.readAll({ params }),
+      adminApi.alternativeStaffTemplate.readAll({ params }),
     ])
       .then(([tripRes, staffRes, zoneRes, panchRes, wardRes, wtRes, altRes]) => {
         if (cancelled) return;

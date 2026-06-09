@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { RefreshCw, Info, Scale, Truck, MapPin } from "lucide-react";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -219,7 +219,7 @@ export default function DailyWasteComparisonForm() {
       return;
     }
     panchayatApi
-      .list({ params: tenantParams })
+      .readAll({ params: tenantParams })
       .then((res) => {
         const records = toRecordList(res).filter((x) => x.is_active !== false);
         const opts = records
@@ -250,7 +250,7 @@ export default function DailyWasteComparisonForm() {
   /* fetch waste type dropdown */
   useEffect(() => {
     wasteTypeApi
-      .list()
+      .readAll()
       .then((res) => {
         const opts = toRecordList(res)
           .filter((x) => x.is_active !== false)

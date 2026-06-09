@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -101,7 +101,7 @@ export default function WasteCollectedForm() {
     setFetchingCustomers(true);
     const params: Record<string, string> = { company_id: companyUniqueId };
     if (projectId) params.project_id = projectId;
-    customerCreationApi.list({ params })
+    customerCreationApi.readAll({ params })
       .then((res: any) => {
         if (cancelled) return;
         const list = Array.isArray(res) ? res : res?.results ?? [];
@@ -117,7 +117,7 @@ export default function WasteCollectedForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    wasteCollectionApi.get(id)
+    wasteCollectionApi.read(id)
       .then((res: any) => {
         if (cancelled) return;
         // Set waste values immediately (no async dependency)

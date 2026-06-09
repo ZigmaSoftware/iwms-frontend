@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import { useNavigate, useLocation } from "react-router-dom";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -123,18 +123,36 @@ export default function VehicleCreationListPage() {
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "transport-master",
     "vehicle-creation",
-    VEHICLE_CREATION_COLUMN_FIELDS
+    VEHICLE_CREATION_COLUMN_FIELDS,
   );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    vehicle_no: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    vehicle_type_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    fuel_type_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    vehicle_condition: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    insurance_expiry_date: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    global: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    vehicle_no: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    vehicle_type_name: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    fuel_type_name: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    vehicle_condition: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    insurance_expiry_date: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
   });
 
   const [allVehicles, setAllVehicles] = useState<VehicleCreationRecord[]>([]);
@@ -145,7 +163,10 @@ export default function VehicleCreationListPage() {
 
   // ── Company / Project ─────────────────────────────────────────────────────
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -156,7 +177,10 @@ export default function VehicleCreationListPage() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
@@ -168,36 +192,51 @@ export default function VehicleCreationListPage() {
   useEffect(() => {
     let mounted = true;
     setIsLoading(true);
-    vehicleCreationApi.list()
+    vehicleCreationApi
+      .readAll()
       .then((data: unknown) => {
         if (!mounted) return;
-        const list = Array.isArray(data) ? (data as VehicleCreationRecord[]) : [];
+        const list = Array.isArray(data)
+          ? (data as VehicleCreationRecord[])
+          : [];
         const seen = new Set<string>();
-        setAllVehicles(list.filter((row) => {
-          const key = row.unique_id?.toString();
-          if (!key || seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        }));
+        setAllVehicles(
+          list.filter((row) => {
+            const key = row.unique_id?.toString();
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          }),
+        );
       })
       .catch((error: unknown) => {
         if (mounted) {
-          Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
+          Swal.fire({
+            icon: "error",
+            title: t("common.error"),
+            text: String(error),
+          });
         }
       })
-      .finally(() => { if (mounted) setIsLoading(false); });
-    return () => { mounted = false; };
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, [t, refetchTrigger]);
 
   // ── Derived rows with client-side filter ──────────────────────────────────
   const rows = (() => {
-    if (isSuperAdmin && companies.length === 0) return [] as VehicleCreationRecord[];
+    if (isSuperAdmin && companies.length === 0)
+      return [] as VehicleCreationRecord[];
     if (!companyUniqueId && !isSuperAdmin) return [] as VehicleCreationRecord[];
 
     return allVehicles.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+      const companyMatches =
+        !companyUniqueId || rowCompanyId === companyUniqueId;
       const projectMatches = !projectId || rowProjectId === projectId;
       return companyMatches && projectMatches;
     });
@@ -232,7 +271,7 @@ export default function VehicleCreationListPage() {
   };
 
   const handleVehicleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -243,9 +282,13 @@ export default function VehicleCreationListPage() {
     if (projectId) formData.append("project_id_input", projectId);
 
     try {
-      const res = await adminApi.vehicleCreations.action("bulk-upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await adminApi.vehicleCreations.action(
+        "bulk-upload",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
 
       const errors = Array.isArray(res.errors) ? res.errors : [];
       const errorPreview =
@@ -290,8 +333,10 @@ export default function VehicleCreationListPage() {
     if (!confirmDelete.isConfirmed) return;
 
     try {
-      await vehicleCreationApi.remove(id);
-      setAllVehicles((current) => current.filter((item) => item.unique_id !== id));
+      await vehicleCreationApi.delete(id);
+      setAllVehicles((current) =>
+        current.filter((item) => item.unique_id !== id),
+      );
       Swal.fire({
         icon: "success",
         title: t("common.deleted_success"),
@@ -350,12 +395,14 @@ export default function VehicleCreationListPage() {
             vehicle_condition: row.vehicle_condition ?? "NEW",
             fuel_tank_capacity: row.fuel_tank_capacity ?? null,
             is_active: value,
-          }) as Record<string, unknown>
+          }) as Record<string, unknown>,
         );
         setAllVehicles((current) =>
           current.map((item) =>
-            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
-          )
+            item.unique_id === row.unique_id
+              ? { ...item, is_active: value }
+              : item,
+          ),
         );
       } catch (error) {
         console.error("Status update failed:", error);
@@ -481,7 +528,9 @@ export default function VehicleCreationListPage() {
           <select
             value={projectId || ""}
             onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+            disabled={
+              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+            }
             className="border rounded px-3 py-2 text-sm"
           >
             <option value="">All Projects</option>
@@ -498,7 +547,9 @@ export default function VehicleCreationListPage() {
             icon="pi pi-plus"
             className="p-button-success"
             disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() =>
+              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+            }
           />
         </div>
       </div>
@@ -506,6 +557,7 @@ export default function VehicleCreationListPage() {
       {/* Table */}
       <DataTable
         value={rows}
+        bulkImportable={false}
         dataKey="unique_id"
         paginator
         rows={10}
@@ -528,9 +580,10 @@ export default function VehicleCreationListPage() {
       >
         <Column
           header={t("common.s_no")}
-          body={(_: VehicleCreationRecord, { rowIndex }: { rowIndex: number }) =>
-            rowIndex + 1
-          }
+          body={(
+            _: VehicleCreationRecord,
+            { rowIndex }: { rowIndex: number },
+          ) => rowIndex + 1}
           style={{ width: "80px" }}
         />
         {showCol("vehicle_no") && (
@@ -609,7 +662,9 @@ export default function VehicleCreationListPage() {
           <Column
             field="rc_upload"
             header={t("admin.vehicle_creation.rc_upload")}
-            body={(row: VehicleCreationRecord) => renderFilePreview(row.rc_upload)}
+            body={(row: VehicleCreationRecord) =>
+              renderFilePreview(row.rc_upload)
+            }
           />
         )}
         {showCol("vehicle_insurance_file") && (

@@ -126,7 +126,7 @@ export default function CollectionMonitoringListPage() {
       const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
-      const response = await binCollectionEventApi.list({ params });
+      const response = await binCollectionEventApi.readAll({ params });
       const data = normalizeList(response);
       setRecords(
         data.filter((row) => {
@@ -263,7 +263,7 @@ export default function CollectionMonitoringListPage() {
               <InputText
                 value={globalFilterValue}
                 onChange={onGlobalFilterChange}
-                placeholder={t("common.search_item_placeholder", { item: t("admin.nav.collection_monitoring") })}
+                placeholder={t("common.search_placeholder", { item: t("admin.nav.collection_monitoring") })}
                 className="p-inputtext-sm !border-0 !shadow-none"
               />
             </div>

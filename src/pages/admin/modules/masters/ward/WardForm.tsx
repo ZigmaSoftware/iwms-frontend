@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -250,7 +250,7 @@ export default function WardForm() {
   useEffect(() => {
     if (!isEdit || !id) return;
     let cancelled = false;
-    wardApi.get(id)
+    wardApi.read(id)
       .then((res: any) => {
         if (cancelled) return;
         setWardRecordData(res);
@@ -268,12 +268,12 @@ export default function WardForm() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      continentApi.list(),
-      countryApi.list(),
-      stateApi.list(),
-      districtApi.list(),
-      cityApi.list(),
-      zoneApi.list(),
+      continentApi.readAll(),
+      countryApi.readAll(),
+      stateApi.readAll(),
+      districtApi.readAll(),
+      cityApi.readAll(),
+      zoneApi.readAll(),
     ]).then(([continentRes, countryRes, stateRes, districtRes, cityRes, zoneRes]) => {
       if (cancelled) return;
 

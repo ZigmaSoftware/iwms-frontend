@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import Select from "@/components/form/Select";
 import Label from "@/components/form/Label";
@@ -33,7 +33,7 @@ export default function ComplaintEditForm() {
     if (!id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.complaints.get(id)
+    adminApi.complaints.read(id)
       .then((res: any) => {
         if (cancelled) return;
         const c = res?.data || res;

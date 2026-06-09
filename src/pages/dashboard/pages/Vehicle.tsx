@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { vehicleCreationApi } from "@/helpers/admin";
 import { formatIsoDate } from "@/utils/forms";
 import type { VehicleCard, VehicleCreationRecord, VehicleStatus } from "./types/Vehicle/types";
@@ -92,7 +92,7 @@ export default function Vehicle() {
 
   const fetchVehicles = async () => {
     try {
-      const res = await vehicleCreationApi.list();
+      const res = await vehicleCreationApi.readAll();
       setVehicles(
         normalizeVehicleCreations(res).map((record) =>
           mapRecordToVehicleCard(record),

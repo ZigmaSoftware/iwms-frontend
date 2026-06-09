@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -107,7 +107,7 @@ export default function TripExceptionLogForm() {
   useEffect(() => {
     setFetching(true);
     dailyTripAssignmentApi
-      .list()
+      .readAll()
       .then((res) => {
         setDailyTripAssignmentRecords(normalizeList(res));
       })
@@ -131,8 +131,7 @@ export default function TripExceptionLogForm() {
   useEffect(() => {
     if (!isEdit || !id) return;
 
-    tripExceptionLogApi
-      .get(id)
+    tripExceptionLogApi.read(id)
       .then((res: any) => {
         setFormData({
           daily_trip_assignment_id: res?.daily_trip_assignment_id ?? "",

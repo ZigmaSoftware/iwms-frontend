@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,7 +80,7 @@ export default function CountryForm() {
   /* ── load continents ── */
   useEffect(() => {
     let cancelled = false;
-    continentApi.list()
+    continentApi.readAll()
       .then((res: any) => {
         if (cancelled) return;
         const data: any[] = Array.isArray(res) ? res : (res?.results ?? []);
@@ -110,7 +110,7 @@ export default function CountryForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    countryApi.get(id)
+    countryApi.read(id)
       .then((res: any) => {
         if (cancelled) return;
         setLoadingRecord(false);

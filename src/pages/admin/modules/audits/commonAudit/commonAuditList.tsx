@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -282,7 +282,7 @@ export default function CommonAuditList() {
     const loadAudits = async () => {
       setIsLoading(true);
       try {
-        const data = await commonAuditApi.list();
+        const data = await commonAuditApi.readAll();
         if (mounted) setAuditRows(data as CommonAuditRecord[]);
       } catch {
         if (mounted) Swal.fire(t("common.error"), t("common.fetch_failed"), "error");

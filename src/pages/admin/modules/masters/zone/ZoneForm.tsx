@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -220,11 +220,11 @@ export default function ZoneForm() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      continentApi.list(),
-      countryApi.list(),
-      stateApi.list(),
-      districtApi.list(),
-      cityApi.list(),
+      continentApi.readAll(),
+      countryApi.readAll(),
+      stateApi.readAll(),
+      districtApi.readAll(),
+      cityApi.readAll(),
     ])
       .then(([continentRes, countryRes, stateRes, districtRes, cityRes]) => {
         if (cancelled) return;
@@ -298,7 +298,7 @@ export default function ZoneForm() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    zoneApi.get(id)
+    zoneApi.read(id)
       .then((data: any) => {
         if (cancelled) return;
         setZoneData(data as ZoneWithRelations);

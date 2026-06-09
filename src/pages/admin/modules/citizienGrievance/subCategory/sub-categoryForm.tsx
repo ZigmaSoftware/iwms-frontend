@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -220,7 +220,7 @@ export default function SubComplaintCategoryForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.subCategory.get(id)
+    adminApi.subCategory.read(id)
       .then((res: any) => {
         if (cancelled) return;
         setRecordData(res);
@@ -242,7 +242,7 @@ export default function SubComplaintCategoryForm() {
   /* ---------------- LOAD MAIN CATEGORIES ---------------- */
   useEffect(() => {
     let cancelled = false;
-    adminApi.mainCategory.list(companyUniqueId ? { params: { company_id: companyUniqueId } } : undefined)
+    adminApi.mainCategory.readAll(companyUniqueId ? { params: { company_id: companyUniqueId } } : undefined)
       .then((res: any) => {
         if (cancelled) return;
         const arr = Array.isArray(res) ? res : (res?.results ?? []);

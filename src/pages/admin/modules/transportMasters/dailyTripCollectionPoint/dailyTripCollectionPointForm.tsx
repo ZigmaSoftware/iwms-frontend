@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
-import { dailyTripAssignmentApi, dailyTripCollectionPointApi, binApi, collectionPointApi, staffCreationApi } from "@/helpers/admin";
+import { dailyTripAssignmentApi, dailyTripCollectionPointApi, binApi, staffCreationApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { useCollectionPointLocationOptions } from "@/hooks/useCollectionPointLocationOptions";
 
 type SelectOption = { value: string; label: string };
 type ApiObject = Record<string, unknown>;
@@ -31,8 +32,10 @@ type DailyTripCollectionPointRecord = {
 
 const STATUS_OPTIONS: SelectOption[] = [
   { value: "Pending", label: "Pending" },
+  { value: "In Progress", label: "In Progress" },
   { value: "Collected", label: "Collected" },
   { value: "Skipped", label: "Skipped" },
+  { value: "Missed", label: "Missed" },
 ];
 
 const BOOL_OPTIONS: SelectOption[] = [
@@ -156,15 +159,15 @@ export default function DailyTripCollectionPointForm() {
   const [pendingBinId, setPendingBinId] = useState("");
   const [pendingCollectedBy, setPendingCollectedBy] = useState("");
   const [assignments, setAssignments] = useState<SelectOption[]>([]);
-  const [collectionPoints, setCollectionPoints] = useState<SelectOption[]>([]);
+  const locationOptions = useCollectionPointLocationOptions(companyUniqueId, projectId);
+  const collectionPoints = locationOptions.collectionPoints;
   const [bins, setBins] = useState<(SelectOption & { collectionPointId?: string })[]>([]);
   const [staff, setStaff] = useState<SelectOption[]>([]);
 
   useEffect(() => {
     if (!isEdit || !id) return;
     setLoading(true);
-    dailyTripCollectionPointApi
-      .get(id)
+    dailyTripCollectionPointApi.read(id)
       .then((data: DailyTripCollectionPointRecord) => {
         const recordData = data as ApiObject;
         setRecord(data);
@@ -224,6 +227,14 @@ export default function DailyTripCollectionPointForm() {
     }
   }, [pendingCollectionPointId, collectionPoints]);
 
+  useEffect(() => {
+    if (locationOptions.loading || !collectionPointId) return;
+    if (!collectionPoints.some((option) => option.value === collectionPointId)) {
+      setCollectionPointId("");
+      setBinId("");
+    }
+  }, [collectionPointId, collectionPoints, locationOptions.loading]);
+
   // Flush bin after bins list loads
   useEffect(() => {
     if (!pendingBinId || bins.length === 0) return;
@@ -245,7 +256,6 @@ export default function DailyTripCollectionPointForm() {
   useEffect(() => {
     if (!companyUniqueId || !projectId) {
       setAssignments([]);
-      setCollectionPoints([]);
       setBins([]);
       setStaff([]);
       return;
@@ -254,12 +264,11 @@ export default function DailyTripCollectionPointForm() {
     setFetching(true);
     const params = { company_id: companyUniqueId, project_id: projectId };
     Promise.all([
-      dailyTripAssignmentApi.list({ params }).catch(() => []),
-      collectionPointApi.list({ params }).catch(() => []),
-      binApi.list({ params }).catch(() => []),
-      staffCreationApi.list({ params }).catch(() => []),
+      dailyTripAssignmentApi.readAll({ params }).catch(() => []),
+      binApi.readAll({ params }).catch(() => []),
+      staffCreationApi.readAll({ params }).catch(() => []),
     ])
-      .then(([assignmentRes, collectionPointRes, binRes, staffRes]) => {
+      .then(([assignmentRes, binRes, staffRes]) => {
         const assignmentOptions = normalizeList(assignmentRes)
           .filter((item) => item.status !== "Cancelled")
           .map((item) => ({
@@ -267,7 +276,6 @@ export default function DailyTripCollectionPointForm() {
             label: `${idOf(item)}${item.trip_date ? ` | ${String(item.trip_date)}` : ""}`,
           }));
         setAssignments(assignmentOptions);
-        setCollectionPoints(toOptions(normalizeList(collectionPointRes), ["cp_name", "collection_point_name", "name"]));
         setBins(
           normalizeList(binRes)
             .map((item) => ({
@@ -396,6 +404,21 @@ export default function DailyTripCollectionPointForm() {
             </div>
 
             <div>
+              <Label>Zone</Label>
+              <Select value={locationOptions.zoneId} onChange={locationOptions.setZoneId} options={locationOptions.zones} placeholder="Select zone" />
+            </div>
+
+            <div>
+              <Label>Ward</Label>
+              <Select value={locationOptions.wardId} onChange={locationOptions.setWardId} options={locationOptions.wards} placeholder="Select ward" disabled={!locationOptions.zoneId} />
+            </div>
+
+            <div>
+              <Label>Panchayat</Label>
+              <Select value={locationOptions.panchayatId} onChange={locationOptions.setPanchayatId} options={locationOptions.panchayats} placeholder="Select panchayat (rural)" />
+            </div>
+
+            <div>
               <Label>Collection Point <span className="text-red-500">*</span></Label>
               <Select
                 value={collectionPointId}
@@ -405,7 +428,7 @@ export default function DailyTripCollectionPointForm() {
                 }}
                 options={collectionPointOptions}
                 placeholder="Select collection point"
-                disabled={fetching || !projectId}
+                disabled={fetching || locationOptions.loading || !projectId}
               />
             </div>
 

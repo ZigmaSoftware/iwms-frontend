@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -97,7 +97,7 @@ export default function WasteCollectedDataList() {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
-    adminApi.wasteCollections.list({ params })
+    adminApi.wasteCollections.readAll({ params })
       .then((res: any) => {
         if (!mounted) return;
         const rows: WasteCollection[] = Array.isArray(res) ? res : res?.results ?? [];

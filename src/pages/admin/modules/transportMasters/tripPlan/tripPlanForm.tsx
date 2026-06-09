@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -134,7 +134,7 @@ export default function TripPlanForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoading(true);
-    tripPlanApi.get(id)
+    tripPlanApi.read(id)
       .then((record: any) => {
         if (cancelled) return;
         applyCompanyProjectFromRecord(record);
@@ -191,19 +191,19 @@ export default function TripPlanForm() {
     setLoading(true);
     const params = { company_id: companyUniqueId, project_id: projectId, project: projectId };
     Promise.all([
-      adminApi.districts.list({ params }),
-      adminApi.cities.list({ params }),
-      adminApi.zones.list({ params }),
-      adminApi.panchayats.list({ params }),
-      adminApi.wards.list({ params }),
-      adminApi.staffTemplateCreation.list({ params }),
-      adminApi.vehicleCreations.list({ params }),
-      adminApi.staffCreation.list({ params }),
-      adminApi.properties.list({ params }),
-      adminApi.subProperties.list({ params }),
-      adminApi.wasteTypes.list({ params }),
-      adminApi.collectionPoints.list({ params }),
-      adminApi.bins.list({ params }),
+      adminApi.districts.readAll({ params }),
+      adminApi.cities.readAll({ params }),
+      adminApi.zones.readAll({ params }),
+      adminApi.panchayats.readAll({ params }),
+      adminApi.wards.readAll({ params }),
+      adminApi.staffTemplateCreation.readAll({ params }),
+      adminApi.vehicleCreations.readAll({ params }),
+      adminApi.staffCreation.readAll({ params }),
+      adminApi.properties.readAll({ params }),
+      adminApi.subProperties.readAll({ params }),
+      adminApi.wasteTypes.readAll({ params }),
+      adminApi.collectionPoints.readAll({ params }),
+      adminApi.bins.readAll({ params }),
     ])
       .then(([districts, cities, zones, panchayats, wards, staffTemplates, vehicles, staff, properties, subProperties, wasteTypes, collectionPoints, bins]) => {
         if (cancelled) return;

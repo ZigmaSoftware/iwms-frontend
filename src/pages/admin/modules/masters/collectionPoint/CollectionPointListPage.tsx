@@ -111,7 +111,7 @@ export default function CollectionPointListPage() {
 
       setIsLoading(true);
       try {
-        const data = await collectionPointApi.list({
+        const data = await collectionPointApi.readAll({
           params: { company_id: companyUniqueId, project_id: projectId || undefined },
         });
         if (mounted) setRecords(data as CollectionPointRecord[]);
@@ -162,7 +162,7 @@ export default function CollectionPointListPage() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", { item: t("admin.nav.collection_point") })}
+          placeholder={t("common.search_placeholder", { item: t("admin.nav.collection_point") })}
           className="p-inputtext-sm !border-0 !shadow-none !outline-none"
         />
       </div>

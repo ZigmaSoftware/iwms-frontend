@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -52,7 +52,7 @@ export default function MainScreenList() {
   const loadRecords = async () => {
     setIsLoading(true);
     try {
-      const response = await mainScreenApi.list();
+      const response = await mainScreenApi.readAll();
       setRecords(toRecordList(response));
     } catch {
       Swal.fire(t("common.error"), t("common.load_failed"), "error");

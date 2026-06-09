@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -99,7 +99,7 @@ export default function ZoneList() {
     const loadZones = async () => {
       setIsLoading(true);
       try {
-        const data = await zoneApi.list();
+        const data = await zoneApi.readAll();
         if (mounted) setAllZones(data as ZoneListRecord[]);
       } catch (error) {
         if (mounted) {
@@ -164,7 +164,7 @@ export default function ZoneList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.zone"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none"

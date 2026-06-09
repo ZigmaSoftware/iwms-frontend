@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -161,7 +161,7 @@ export default function BinCollectionEventForm() {
   useEffect(() => {
     if (!isEdit || !id) return;
     setLoadingRecord(true);
-    (binCollectionEventApi.get(id) as Promise<any>)
+    (binCollectionEventApi.read(id) as Promise<any>)
       .then((data: any) => {
         setRecord(data);
         applyCompanyProjectFromRecord(data);
@@ -211,13 +211,13 @@ export default function BinCollectionEventForm() {
     setFetchingDropdowns(true);
     const params = { company_id: companyUniqueId, project_id: projectId };
     Promise.all([
-      (dailyTripAssignmentApi.list({ params }) as Promise<any[]>).catch(() => []),
-      (adminApi.bins.list({ params }) as Promise<any[]>).catch(() => []),
-      (adminApi.districts.list({ params }) as Promise<any[]>).catch(() => []),
-      (adminApi.cities.list({ params }) as Promise<any[]>).catch(() => []),
-      (zoneApi.list({ params }) as Promise<any[]>).catch(() => []),
-      (panchayatApi.list({ params }) as Promise<any[]>).catch(() => []),
-      (wardApi.list({ params }) as Promise<any[]>).catch(() => []),
+      (dailyTripAssignmentApi.readAll({ params }) as Promise<any[]>).catch(() => []),
+      (adminApi.bins.readAll({ params }) as Promise<any[]>).catch(() => []),
+      (adminApi.districts.readAll({ params }) as Promise<any[]>).catch(() => []),
+      (adminApi.cities.readAll({ params }) as Promise<any[]>).catch(() => []),
+      (zoneApi.readAll({ params }) as Promise<any[]>).catch(() => []),
+      (panchayatApi.readAll({ params }) as Promise<any[]>).catch(() => []),
+      (wardApi.readAll({ params }) as Promise<any[]>).catch(() => []),
     ]).then(([assignRes, binRes, districtRes, cityRes, zoneRes, panchRes, wardRes]) => {
       const assignments = normalizeList(assignRes);
       const wards = normalizeList(wardRes);
@@ -252,7 +252,7 @@ export default function BinCollectionEventForm() {
       setRawTripCPs([]);
       return;
     }
-    (dailyTripCollectionPointApi.list({ params: { trip_assignment_id: form.trip_assignment_id } }) as Promise<any[]>)
+    (dailyTripCollectionPointApi.readAll({ params: { trip_assignment_id: form.trip_assignment_id } }) as Promise<any[]>)
       .then((res) => {
         const list = normalizeList(res);
         setRawTripCPs(list);

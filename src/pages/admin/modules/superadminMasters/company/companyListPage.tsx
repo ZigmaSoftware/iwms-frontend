@@ -5,7 +5,7 @@
 // import { InputText } from "primereact/inputtext";
 // import { FilterMatchMode } from "primereact/api";
 // import { useNavigate } from "react-router-dom";
-// import Swal from "sweetalert2";
+// import Swal from "@/lib/notify";
 // import { useTranslation } from "react-i18next";
 
 // import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -55,7 +55,7 @@
 
 //   const fetchCompanies = useCallback(async () => {
 //     try {
-//       const data = await companyApi.list();
+//       const data = await companyApi.readAll();
 //       setCompanies(data);
 //     } catch (error) {
 //       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
@@ -139,7 +139,7 @@
 //         <InputText
 //           value={globalFilterValue}
 //           onChange={onGlobalFilterChange}
-//           placeholder={t("common.search_item_placeholder", {
+//           placeholder={t("common.search_placeholder", {
 //             item: t("admin.nav.company"),
 //           })}
 //           className="p-inputtext-sm border-0 shadow-none"
@@ -224,7 +224,7 @@ import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -272,7 +272,7 @@ export default function CompanyList() {
   const fetchCompanies = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await companyApi.list();
+      const data = await companyApi.readAll();
       setCompanies(data);
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
@@ -335,7 +335,7 @@ export default function CompanyList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.company"),
           })}
           className="p-inputtext-sm border-0 shadow-none"
