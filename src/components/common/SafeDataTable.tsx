@@ -5,6 +5,7 @@ import {
 import {
   Children,
   isValidElement,
+  useEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -108,6 +109,37 @@ const readImportColumns = (children: ReactNode): ExcelTemplateColumn[] => {
   return columns;
 };
 
+const METADATA_EXCLUDED_FIELDS = new Set([
+  "id",
+  "unique_id",
+  "created_at",
+  "updated_at",
+  "created_by",
+  "updated_by",
+  "is_deleted",
+]);
+
+const readMetadataImportColumns = async (
+  importApi: CrudHelpers,
+): Promise<ExcelTemplateColumn[] | null> => {
+  const metadata = await importApi.metadata();
+  const fields = metadata.actions?.POST;
+  if (!fields) return null;
+
+  return Object.entries(fields)
+    .filter(
+      ([field, details]) =>
+        details.read_only !== true &&
+        !METADATA_EXCLUDED_FIELDS.has(field) &&
+        !field.startsWith("_"),
+    )
+    .map(([field, details]) => ({
+      field,
+      header: field,
+      required: details.required === true,
+    }));
+};
+
 const mapExcelRowsToPayloads = (
   rows: SafeTableRows,
   columns: ExcelTemplateColumn[],
@@ -140,6 +172,7 @@ type DataTableHeaderActionsProps = {
   header: ReactNode;
   rows: SafeTableRows;
   importColumns: ExcelTemplateColumn[];
+  discoverImportColumns: boolean;
   bulkImportable: boolean;
   importApi: CrudHelpers | null;
   importDefaults?: SafeTableRow;
@@ -155,6 +188,7 @@ const DataTableHeaderActions = ({
   header,
   rows,
   importColumns,
+  discoverImportColumns,
   bulkImportable,
   importApi,
   importDefaults,
@@ -167,6 +201,32 @@ const DataTableHeaderActions = ({
 }: DataTableHeaderActionsProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [importing, setImporting] = useState(false);
+  const [resolvedColumns, setResolvedColumns] = useState(
+    discoverImportColumns ? [] : importColumns,
+  );
+
+  useEffect(() => {
+    if (!discoverImportColumns || !importApi) {
+      setResolvedColumns(importColumns);
+      return;
+    }
+
+    let cancelled = false;
+    setResolvedColumns([]);
+    readMetadataImportColumns(importApi)
+      .then((columns) => {
+        if (!cancelled) {
+          setResolvedColumns(columns ?? []);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setResolvedColumns(importColumns);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [discoverImportColumns, importApi, importColumns]);
 
   const handleExport = () => {
     exportRecordsToExcel(rows, toExportFilename(filename), sheetName || "Data");
@@ -174,7 +234,7 @@ const DataTableHeaderActions = ({
 
   const handleTemplate = () => {
     exportTemplateToExcel(
-      importColumns,
+      resolvedColumns,
       toTemplateFilename(importTemplateFilename),
       importSheetName || "Template",
     );
@@ -189,7 +249,7 @@ const DataTableHeaderActions = ({
       const excelRows = await readExcelRows(file);
       const payloads = mapExcelRowsToPayloads(
         excelRows,
-        importColumns,
+        resolvedColumns,
         importDefaults,
       ).filter((payload) => Object.keys(payload).length > 0);
 
@@ -260,7 +320,7 @@ const DataTableHeaderActions = ({
   );
   const canImport =
     bulkImportable &&
-    importColumns.length > 0 &&
+    resolvedColumns.length > 0 &&
     (Boolean(onImportRows) || Boolean(importApi));
 
   return (
@@ -330,6 +390,7 @@ export const DataTable = <TValue extends SafeTableRows>(
         header={tableProps.header as ReactNode}
         rows={rowsForExport}
         importColumns={resolvedImportColumns}
+        discoverImportColumns={!importColumns}
         bulkImportable={bulkImportable}
         importApi={resolvedImportApi}
         importDefaults={importDefaults}
