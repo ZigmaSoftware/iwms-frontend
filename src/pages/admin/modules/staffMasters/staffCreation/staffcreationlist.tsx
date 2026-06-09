@@ -1,7 +1,7 @@
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -150,7 +150,7 @@ export default function StaffCreationList() {
 
       if (mounted) setLoading(true);
       try {
-        const payload: any = await adminApi.staffCreation.list({ params: requestParams });
+        const payload: any = await adminApi.staffCreation.readAll({ params: requestParams });
         if (!mounted) return;
         const data = Array.isArray(payload)
           ? payload

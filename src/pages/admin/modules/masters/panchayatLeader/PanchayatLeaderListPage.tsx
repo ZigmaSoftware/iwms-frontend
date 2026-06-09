@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -83,7 +83,7 @@ export default function PanchayatLeaderListPage() {
     const load = async () => {
       if (mounted) setIsLoading(true);
       try {
-        const data: any = await panchayatLeaderApi.list();
+        const data: any = await panchayatLeaderApi.readAll();
         if (!mounted) return;
         const rows: PanchayatLeader[] = Array.isArray(data) ? data : (data?.results ?? []);
         if (mounted) setAllRecords(rows);
@@ -128,7 +128,7 @@ export default function PanchayatLeaderListPage() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.panchayat_leader"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none !outline-none"

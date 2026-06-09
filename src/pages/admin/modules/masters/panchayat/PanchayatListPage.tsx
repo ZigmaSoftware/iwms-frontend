@@ -9,7 +9,7 @@ import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { panchayatApi } from "@/helpers/admin";
@@ -100,7 +100,7 @@ export default function PanchayatListPage() {
     const loadPanchayats = async () => {
       setIsLoading(true);
       try {
-        const data = await panchayatApi.list();
+        const data = await panchayatApi.readAll();
         if (mounted) setAllPanchayats(data as PanchayatListRecord[]);
       } catch (error) {
         if (mounted) {
@@ -158,7 +158,7 @@ export default function PanchayatListPage() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.panchayat"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none !outline-none"

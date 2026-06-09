@@ -161,7 +161,7 @@ export default function BaseCollectionListPage({ scope }: Props) {
         params.project_id = projectId;
       }
 
-      const res = (await collectionApi.list({ params })) as
+      const res = (await collectionApi.readAll({ params })) as
         | CollectionApiResponse
         | CollectionRecord[];
       const extractedRows = extractRows(res, scope);

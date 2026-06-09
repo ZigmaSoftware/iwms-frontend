@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -35,8 +35,7 @@ export default function StaffTemplateAuditForm() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    staffTemplateAuditLogApi
-      .get(id)
+    staffTemplateAuditLogApi.read(id)
       .then((res: any) => setRecord(res ?? null))
       .catch(() => {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -134,7 +134,7 @@ export default function AlternativeStaffTemplateList() {
           company_id: companyUniqueId,
           ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
         };
-        const payload: any = await adminApi.alternativeStaffTemplate.list({ params });
+        const payload: any = await adminApi.alternativeStaffTemplate.readAll({ params });
         if (!mounted) return;
         const data =
           Array.isArray(payload)

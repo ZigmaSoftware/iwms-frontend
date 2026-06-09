@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -74,7 +74,7 @@ export default function PanchayatLeaderForm() {
     if (projectId) params.project_id = projectId;
 
     panchayatApi
-      .list(Object.keys(params).length ? { params } : undefined)
+      .readAll(Object.keys(params).length ? { params } : undefined)
       .then((res: any) => {
         const list = Array.isArray(res) ? res : (res?.results ?? []);
         setPanchayatOptions(
@@ -111,7 +111,7 @@ export default function PanchayatLeaderForm() {
     setCheckingPanchayat(true);
 
     panchayatLeaderApi
-      .list({ params: { panchayat_id: pid } })
+      .readAll({ params: { panchayat_id: pid } })
       .then((res: any) => {
         if (cancelled) return;
         const rows: any[] = Array.isArray(res) ? res : (res?.results ?? []);
@@ -137,8 +137,7 @@ export default function PanchayatLeaderForm() {
   useEffect(() => {
     if (!isEdit || !id) return;
     setFetching(true);
-    panchayatLeaderApi
-      .get(id)
+    panchayatLeaderApi.read(id)
       .then((record: any) => {
         const panchayatId =
           typeof record.panchayat_id === "object"

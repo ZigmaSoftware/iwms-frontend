@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { api } from "@/api";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -618,8 +618,8 @@ export default function StaffCreationForm() {
           }));
         };
         const [staffRes, contractorRes] = await Promise.all([
-          staffUserTypeApi.list(),
-          contractorUserTypeApi.list(),
+          staffUserTypeApi.readAll(),
+          contractorUserTypeApi.readAll(),
         ]);
 
         setStaffUserTypeOptions(toOptions(staffRes));
@@ -643,11 +643,11 @@ export default function StaffCreationForm() {
           departments,
         ] =
           await Promise.all([
-            countryApi.list(),
-            stateApi.list(),
-            districtApi.list(),
-            cityApi.list(),
-            departmentApi.list({ params: { status: "active" } }),
+            countryApi.readAll(),
+            stateApi.readAll(),
+            districtApi.readAll(),
+            cityApi.readAll(),
+            departmentApi.readAll({ params: { status: "active" } }),
           ]);
 
         const countryList = mapLocationOptions(countries);
@@ -724,7 +724,7 @@ export default function StaffCreationForm() {
       Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : res?.data?.results ?? [];
 
     designationApi
-      .list({ params: { status: "active", department_id: formData.department_id } })
+      .readAll({ params: { status: "active", department_id: formData.department_id } })
       .then((res: any) => {
         const list = normalizeResponse(res).filter(
           (d: any) => d?.is_active !== false && d?.is_deleted !== true,
@@ -746,8 +746,7 @@ export default function StaffCreationForm() {
     if (!isEdit || !id) return;
     setFetching(true);
 
-    staffCreationApi
-      .get(id)
+    staffCreationApi.read(id)
       .then((staff) => {
         setFormData((prev) => ({
           ...prev,

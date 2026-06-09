@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -459,7 +459,7 @@ export default function DailyTripLogList() {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
-    (dailyTripLogApi.list({ params }) as Promise<DailyTripLogRecord[]>)
+    (dailyTripLogApi.readAll({ params }) as Promise<DailyTripLogRecord[]>)
       .then((data) => {
         if (mounted) setAllLogs(Array.isArray(data) ? data : []);
       })

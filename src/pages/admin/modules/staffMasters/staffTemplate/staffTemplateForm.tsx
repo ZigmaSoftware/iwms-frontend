@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { MultiSelect } from "primereact/multiselect";
 
@@ -254,9 +254,9 @@ export default function StaffTemplateForm() {
 
   useEffect(() => {
     Promise.all([
-      staffCreationApi.list({ params: { active_status: 1 } }) as Promise<any>,
-      companyApi.list() as Promise<any>,
-      projectApi.list() as Promise<any>,
+      staffCreationApi.readAll({ params: { active_status: 1 } }) as Promise<any>,
+      companyApi.readAll() as Promise<any>,
+      projectApi.readAll() as Promise<any>,
     ])
       .then(([staffRes, companiesRes, projectsRes]: [any, any, any]) => {
         // ---- Staff ----
@@ -440,8 +440,7 @@ export default function StaffTemplateForm() {
 
     setFetching(true);
 
-    staffTemplateApi
-      .get(id)
+    staffTemplateApi.read(id)
       .then((tpl: any) => {
         setFormError(null);
         const extraIds = Array.isArray(tpl.extra_operator_id)

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -26,7 +26,7 @@ export default function DesignationListPage() {
   });
 
   const load = async () => {
-    const response: any = await designationApi.list();
+    const response: any = await designationApi.readAll();
     setRecords(Array.isArray(response) ? response : response?.data?.results ?? response?.data ?? []);
   };
 

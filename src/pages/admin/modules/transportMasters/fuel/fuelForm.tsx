@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { Input } from "@/components/ui/input";
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -39,7 +39,7 @@ function FuelForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.fuels.get(id)
+    adminApi.fuels.read(id)
       .then((res: any) => {
         if (cancelled) return;
         setRecordData(res);

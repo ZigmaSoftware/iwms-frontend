@@ -130,8 +130,7 @@ export const useCompanyProjectSelection = ({
 
     let active = true;
 
-    companyApi
-      .get(loggedInCompanyUniqueIdRaw)
+    companyApi.read(loggedInCompanyUniqueIdRaw)
       .then((company) => {
         if (!active) return;
 
@@ -204,7 +203,7 @@ export const useCompanyProjectSelection = ({
     }
 
     companyApi
-      .list()
+      .readAll()
       .then((res) => {
         const options: CompanyProjectOption[] = toRecordList(res).map((x) => ({
           value: toStringId(x.unique_id),
@@ -227,7 +226,7 @@ export const useCompanyProjectSelection = ({
         let active = true;
 
         projectApi
-          .list()
+          .readAll()
           .then((res) => {
             if (!active) return;
 
@@ -260,7 +259,7 @@ export const useCompanyProjectSelection = ({
     let active = true;
 
     projectApi
-      .list({ params: { company_unique_id: companyUniqueId } })
+      .readAll({ params: { company_unique_id: companyUniqueId } })
       .then((res) => {
         if (!active) return;
 

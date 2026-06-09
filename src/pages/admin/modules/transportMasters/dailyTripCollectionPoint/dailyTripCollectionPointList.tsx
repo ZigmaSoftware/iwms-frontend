@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -129,7 +129,7 @@ export default function DailyTripCollectionPointList() {
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     dailyTripCollectionPointApi
-      .list({ params })
+      .readAll({ params })
       .then((data) => setRecords(Array.isArray(data) ? data as DailyTripCollectionPointRecord[] : []))
       .catch((error: unknown) => {
         setRecords([]);

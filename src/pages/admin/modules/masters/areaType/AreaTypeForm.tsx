@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -124,7 +124,7 @@ export default function AreaTypeForm() {
   // Fetch states list
   useEffect(() => {
     let cancelled = false;
-    adminApi.states.list()
+    adminApi.states.readAll()
       .then((res: any) => {
         if (cancelled) return;
         const data: any[] = Array.isArray(res) ? res : [];
@@ -146,7 +146,7 @@ export default function AreaTypeForm() {
   // Fetch districts list
   useEffect(() => {
     let cancelled = false;
-    adminApi.districts.list()
+    adminApi.districts.readAll()
       .then((res: any) => {
         if (cancelled) return;
         const data: any[] = Array.isArray(res) ? res : [];
@@ -169,7 +169,7 @@ export default function AreaTypeForm() {
   // Fetch cities list
   useEffect(() => {
     let cancelled = false;
-    adminApi.cities.list()
+    adminApi.cities.readAll()
       .then((res: any) => {
         if (cancelled) return;
         const data: CityRecordWithRelations[] = Array.isArray(res) ? res : [];
@@ -195,7 +195,7 @@ export default function AreaTypeForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.areatypes.get(id)
+    adminApi.areatypes.read(id)
       .then((res: any) => {
         if (cancelled) return;
         const record = res as AreaTypeRecord;

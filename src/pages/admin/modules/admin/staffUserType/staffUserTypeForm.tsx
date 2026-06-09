@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -196,7 +196,7 @@ export default function StaffUserTypeForm() {
   ------------------------------------------------------- */
   useEffect(() => {
     let cancelled = false;
-    userTypeApi.list()
+    userTypeApi.readAll()
       .then((res: any) => {
         if (cancelled) return;
         setUserTypes(Array.isArray(res) ? res : (res?.results ?? []));
@@ -210,7 +210,7 @@ export default function StaffUserTypeForm() {
 
   useEffect(() => {
     let cancelled = false;
-    roleTypesApi.list()
+    roleTypesApi.readAll()
       .then((res: any) => {
         if (cancelled) return;
         setStaffRoleChoices(normalizeRoleTypes(res));
@@ -224,7 +224,7 @@ export default function StaffUserTypeForm() {
 
   useEffect(() => {
     let cancelled = false;
-    contractorRoleTypesApi.list()
+    contractorRoleTypesApi.readAll()
       .then((res: any) => {
         if (cancelled) return;
         setContractorRoleChoices(normalizeContractorRoleTypes(res));
@@ -256,8 +256,7 @@ export default function StaffUserTypeForm() {
     let cancelled = false;
 
     if (primaryApi) {
-      primaryApi
-        .get(id)
+      primaryApi.read(id)
         .then((record: any) => {
           if (cancelled) return;
           if (normalizedId.startsWith("CNTUSRTYPE-")) {
@@ -274,7 +273,7 @@ export default function StaffUserTypeForm() {
       return () => { cancelled = true; };
     }
 
-    Promise.allSettled([staffUserTypeApi.get(id), contractorUserTypeApi.get(id)])
+    Promise.allSettled([staffUserTypeApi.read(id), contractorUserTypeApi.read(id)])
       .then(([staffResult, contractorResult]) => {
         if (cancelled) return;
         if (staffResult.status === "fulfilled" && staffResult.value) {

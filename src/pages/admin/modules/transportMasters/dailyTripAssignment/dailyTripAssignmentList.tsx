@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -187,8 +187,8 @@ export default function DailyTripAssignmentList() {
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     Promise.all([
-      dailyTripAssignmentApi.list({ params }) as Promise<DailyTripAssignmentRecord[]>,
-      adminApi.tripPlans.list({ params }) as Promise<any>,
+      dailyTripAssignmentApi.readAll({ params }) as Promise<DailyTripAssignmentRecord[]>,
+      adminApi.tripPlans.readAll({ params }) as Promise<any>,
     ])
       .then(([assignmentData, tripPlanData]) => {
         if (!mounted) return;

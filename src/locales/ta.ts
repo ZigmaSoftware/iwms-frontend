@@ -810,6 +810,7 @@ const taResource = {
           "trip_plan_collection_points": "பயண திட்ட சேகரிப்பு இடங்கள்",
           "daily_trip_assignment": "தினசரி பயண ஒதுக்கீடு",
           "daily_trip_collection_point": "தினசரி பயண சேகரிப்பு இடம்",
+          "daily_trip_tracking": "தினசரி பயண கண்காணிப்பு",
           "daily_trip_log": "தினசரி பயண பதிவு",
           "bin_collection_event": "குப்பைத்தொட்டி சேகரிப்பு நிகழ்வு",
           "bin_load_log": "பின் ஏற்ற பதிவு",

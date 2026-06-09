@@ -1,6 +1,6 @@
 // import { useEffect, useState } from "react";
 // import { useNavigate, useLocation} from "react-router-dom";
-// import Swal from "sweetalert2";
+// import Swal from "@/lib/notify";
 // import { useTranslation } from "react-i18next";
 
 // import { DataTable } from "@/components/common/SafeDataTable";
@@ -60,7 +60,7 @@
 //   const fetchTemplates = async () => {
 //     setLoading(true);
 //     try {
-//       const payload: any = await staffTemplateApi.list(); // GET
+//       const payload: any = await staffTemplateApi.readAll(); // GET
 //       const data =
 //         Array.isArray(payload) ? payload :
 //         Array.isArray(payload?.data) ? payload.data :
@@ -255,7 +255,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -396,7 +396,7 @@ export default function StaffTemplateList() {
         const requestParams: Record<string, string> = {};
         if (companyUniqueId) requestParams.company_id = companyUniqueId;
         if (selectedProjectId) requestParams.project_id = selectedProjectId;
-        const rawData = await staffTemplateApi.list({ params: requestParams });
+        const rawData = await staffTemplateApi.readAll({ params: requestParams });
         const payload: any = rawData ?? [];
         const data =
           Array.isArray(payload) ? payload :

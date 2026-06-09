@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -81,8 +81,8 @@ export default function StaffUserTypeList() {
     setIsLoading(true);
     try {
       const [staffRes, contractorRes] = await Promise.all([
-        staffUserTypeApi.list(),
-        contractorUserTypeApi.list(),
+        staffUserTypeApi.readAll(),
+        contractorUserTypeApi.readAll(),
       ]);
       setStaffUserTypes(toRecordList(staffRes));
       setContractorUserTypes(toRecordList(contractorRes));
@@ -205,7 +205,7 @@ export default function StaffUserTypeList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder")}
+          placeholder={t("common.search_placeholder_placeholder")}
           className="p-inputtext-sm !border-0 !shadow-none"
         />
       </div>

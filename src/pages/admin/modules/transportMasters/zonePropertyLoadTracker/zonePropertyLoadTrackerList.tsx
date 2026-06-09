@@ -1,6 +1,6 @@
 // import { useEffect, useState } from "react";
 // import { useNavigate, useLocation} from "react-router-dom";
-// import Swal from "sweetalert2";
+// import Swal from "@/lib/notify";
 // import { useTranslation } from "react-i18next";
 
 // import { DataTable } from "@/components/common/SafeDataTable";
@@ -87,7 +87,7 @@
 //   const fetchRecords = async () => {
 //     setLoading(true);
 //     try {
-//       const trackerRes = await zonePropertyLoadTrackerApi.list();
+//       const trackerRes = await zonePropertyLoadTrackerApi.readAll();
 //       setRecords(normalizeList(trackerRes));
 //     } catch {
 //       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
@@ -219,7 +219,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -325,7 +325,7 @@ export default function ZonePropertyLoadTrackerList() {
     let mounted = true;
     const params = { company_id: companyUniqueId, project_id: projectId ?? undefined };
     setLoading(true);
-    adminApi.zonePropertyLoadTrackers.list({ params })
+    adminApi.zonePropertyLoadTrackers.readAll({ params })
       .then((res) => {
         if (mounted) setRecords(normalizeList(res ?? []));
       })

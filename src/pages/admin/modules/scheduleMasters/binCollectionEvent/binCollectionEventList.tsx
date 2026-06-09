@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -115,7 +115,7 @@ export default function BinCollectionEventList() {
     const dateFilter = filters.collection_date?.value;
     if (dateFilter) params.collection_date = dateFilter;
     binCollectionEventApi
-      .list({ params })
+      .readAll({ params })
       .then((data) => setRecords(Array.isArray(data) ? (data as BinCERecord[]) : []))
       .catch((error) => {
         setRecords([]);
@@ -247,7 +247,7 @@ export default function BinCollectionEventList() {
               setGlobalFilterValue(e.target.value);
               setFilters((f) => ({ ...f, global: { value: e.target.value, matchMode: FilterMatchMode.CONTAINS } }));
             }}
-            placeholder={t("common.search")}
+            placeholder={t("common.search_placeholder")}
             className="border-none text-sm"
           />
         </div>

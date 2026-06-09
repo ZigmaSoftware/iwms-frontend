@@ -57,7 +57,7 @@ export async function getColumnPermissions(
     ? { contractorusertype_id: staffuserTypeId }
     : { staffusertype_id: staffuserTypeId };
 
-  const result = await _api.list({
+  const result = await _api.readAll({
     params: {
       userscreen_id: userscreenId,
       ...roleParam,

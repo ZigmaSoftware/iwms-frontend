@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -72,7 +72,7 @@ export default function ApartmentListPage() {
   useEffect(() => {
     let mounted = true
     setCustomersLoading(true)
-    customerCreationApi.list()
+    customerCreationApi.readAll()
       .then((data: unknown) => { if (mounted) setAllCustomers(Array.isArray(data) ? data as CustomerCreationRecord[] : []) })
       .catch((error: unknown) => { if (mounted) Swal.fire({ icon: 'error', title: 'Error', text: String(error) }) })
       .finally(() => { if (mounted) setCustomersLoading(false) })

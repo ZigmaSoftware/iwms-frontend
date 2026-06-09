@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -131,7 +131,7 @@ export default function CustomerCreationListPage() {
   useEffect(() => {
     let mounted = true;
     setIsLoading(true);
-    customerCreationApi.list()
+    customerCreationApi.readAll()
       .then((data: unknown) => {
         if (mounted) setAllCustomers(Array.isArray(data) ? (data as Customer[]) : []);
       })

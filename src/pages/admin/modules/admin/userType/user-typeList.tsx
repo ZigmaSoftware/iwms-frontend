@@ -1,6 +1,6 @@
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -47,7 +47,7 @@ export default function UserTypePage() {
     const loadUserTypes = async () => {
       setIsLoading(true);
       try {
-        const data = await userTypeApi.list();
+        const data = await userTypeApi.readAll();
         if (mounted) setUserTypes(data as UserType[]);
       } catch {
         if (mounted) {
@@ -134,7 +134,7 @@ export default function UserTypePage() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.user_type"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none"

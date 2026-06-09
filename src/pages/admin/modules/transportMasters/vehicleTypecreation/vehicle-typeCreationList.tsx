@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -101,7 +101,7 @@ export default function VehicleTypeCreationList() {
   useEffect(() => {
     let mounted = true;
     setIsLoading(true);
-    vehicleTypeApi.list()
+    vehicleTypeApi.readAll()
       .then((data: unknown) => {
         if (mounted) setAllVehicleTypes(Array.isArray(data) ? (data as VehicleTypeRecord[]) : []);
       })

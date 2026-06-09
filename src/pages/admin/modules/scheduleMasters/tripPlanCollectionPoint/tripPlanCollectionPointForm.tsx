@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -12,6 +12,7 @@ import { tripPlanCollectionPointApi, tripPlanApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { useCollectionPointLocationOptions } from "@/hooks/useCollectionPointLocationOptions";
 
 type SelectOption = { value: string; label: string };
 
@@ -77,8 +78,9 @@ export default function TripPlanCollectionPointForm() {
   });
   const [saving, setSaving] = useState(false);
   const [tripPlanOptions, setTripPlanOptions] = useState<SelectOption[]>([]);
-  const [collectionPointOptions, setCollectionPointOptions] = useState<SelectOption[]>([]);
   const [binOptions, setBinOptions] = useState<SelectOption[]>([]);
+  const locationOptions = useCollectionPointLocationOptions(companyUniqueId, projectId);
+  const collectionPointOptions = locationOptions.collectionPoints;
 
   // Pending IDs — set when record loads, flushed once each option list is ready (Radix pattern)
   const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
@@ -93,18 +95,8 @@ export default function TripPlanCollectionPointForm() {
     if (!companyUniqueId) return;
     const params: Record<string, string> = { company_id: companyUniqueId };
     if (projectId) params.project_id = projectId;
-    tripPlanApi.list({ params }).then((data) => {
+    tripPlanApi.readAll({ params }).then((data) => {
       setTripPlanOptions(buildOptions(normalizeList(data) as any[], "unique_id", ["display_code"]));
-    }).catch(() => {});
-  }, [companyUniqueId, projectId]);
-
-  // Load collection points when company/project selected
-  useEffect(() => {
-    if (!companyUniqueId) return;
-    const params: Record<string, string> = { company_id: companyUniqueId };
-    if (projectId) params.project_id = projectId;
-    adminApi.collectionPoints.list({ params }).then((data) => {
-      setCollectionPointOptions(buildOptions(normalizeList(data) as any[], "unique_id", ["cp_name"]));
     }).catch(() => {});
   }, [companyUniqueId, projectId]);
 
@@ -113,7 +105,7 @@ export default function TripPlanCollectionPointForm() {
     if (!form.collection_point_id) { setBinOptions([]); return; }
     const params: Record<string, string> = { collection_point_id: form.collection_point_id };
     if (companyUniqueId) params.company_id = companyUniqueId;
-    adminApi.bins.list({ params }).then((data) => {
+    adminApi.bins.readAll({ params }).then((data) => {
       setBinOptions(buildOptions(normalizeList(data) as any[], "unique_id", ["bin_name"]));
     }).catch(() => {});
   }, [form.collection_point_id, companyUniqueId]);
@@ -148,7 +140,7 @@ export default function TripPlanCollectionPointForm() {
     if (stateRecord) {
       applyRecord(stateRecord);
     } else {
-      tripPlanCollectionPointApi.get(id).then((data: any) => applyRecord(data)).catch(() => {});
+      tripPlanCollectionPointApi.read(id).then((data: any) => applyRecord(data)).catch(() => {});
     }
   }, [isEdit, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -181,6 +173,13 @@ export default function TripPlanCollectionPointForm() {
       setPendingCollectionPointId("");
     }
   }, [pendingCollectionPointId, collectionPointOptions]);
+
+  useEffect(() => {
+    if (locationOptions.loading || !form.collection_point_id) return;
+    if (!collectionPointOptions.some((option) => option.value === form.collection_point_id)) {
+      setForm((current) => ({ ...current, collection_point_id: "", bin_id: "" }));
+    }
+  }, [collectionPointOptions, form.collection_point_id, locationOptions.loading]);
 
   // Flush bin after bins load (bins load after collection_point_id is set)
   useEffect(() => {
@@ -248,6 +247,18 @@ export default function TripPlanCollectionPointForm() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
+              <Label>Zone</Label>
+              <Select options={locationOptions.zones} value={locationOptions.zoneId} onChange={locationOptions.setZoneId} placeholder="Select Zone" />
+            </div>
+            <div>
+              <Label>Ward</Label>
+              <Select options={locationOptions.wards} value={locationOptions.wardId} onChange={locationOptions.setWardId} placeholder="Select Ward" disabled={!locationOptions.zoneId} />
+            </div>
+            <div>
+              <Label>Panchayat</Label>
+              <Select options={locationOptions.panchayats} value={locationOptions.panchayatId} onChange={locationOptions.setPanchayatId} placeholder="Select Panchayat (rural)" />
+            </div>
+            <div>
               <Label>Trip Plan <span className="text-red-500">*</span></Label>
               <Select
                 options={tripPlanOptions}
@@ -263,6 +274,7 @@ export default function TripPlanCollectionPointForm() {
                 value={form.collection_point_id}
                 onChange={(v) => { set("collection_point_id", v); set("bin_id", ""); }}
                 placeholder="Select Collection Point"
+                disabled={locationOptions.loading}
               />
             </div>
           </div>

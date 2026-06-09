@@ -218,7 +218,7 @@ export default function WasteSummary() {
   const fetchHouseholdStats = useCallback(async (month: string) => {
     let totalHouseholds = 0;
     try {
-      const response = await customerCreationApi.list();
+      const response = await customerCreationApi.readAll();
       const normalized = normalizeCustomerArray(response);
       const activeCustomers = filterActiveCustomers(normalized);
       totalHouseholds = activeCustomers.length;
@@ -228,7 +228,7 @@ export default function WasteSummary() {
     }
 
     try {
-      const response = await wasteCollectionApi.list();
+      const response = await wasteCollectionApi.readAll();
       const data = Array.isArray(response) ? response : [];
       const filtered = month
         ? data.filter((row: any) =>

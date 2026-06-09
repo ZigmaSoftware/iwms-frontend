@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { api } from "@/api";
 
 import {
@@ -626,15 +626,15 @@ export default function CustomerCreationForm() {
     let cancelled = false;
 
     Promise.all([
-      wardApi.list(),
-      zoneApi.list(),
-      cityApi.list(),
-      districtApi.list(),
-      stateApi.list(),
-      countryApi.list(),
-      propertiesApi.list(),
-      subPropertiesApi.list(),
-      panchayatApi.list(),
+      wardApi.readAll(),
+      zoneApi.readAll(),
+      cityApi.readAll(),
+      districtApi.readAll(),
+      stateApi.readAll(),
+      countryApi.readAll(),
+      propertiesApi.readAll(),
+      subPropertiesApi.readAll(),
+      panchayatApi.readAll(),
     ])
       .then(([wards, zones, cities, districts, states, countries, properties, subProperties, panchayats]) => {
         if (cancelled) return;
@@ -680,7 +680,7 @@ export default function CustomerCreationForm() {
   useEffect(() => {
     if (!isEdit || !id) return;
     let cancelled = false;
-    customerCreationApi.get(id)
+    customerCreationApi.read(id)
       .then((data: any) => {
         if (cancelled) return;
         applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);

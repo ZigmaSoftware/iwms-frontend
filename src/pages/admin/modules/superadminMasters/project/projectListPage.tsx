@@ -5,7 +5,7 @@
 // import { InputText } from "primereact/inputtext";
 // import { FilterMatchMode } from "primereact/api";
 // import { useLocation, useNavigate } from "react-router-dom";
-// import Swal from "sweetalert2";
+// import Swal from "@/lib/notify";
 // import { useTranslation } from "react-i18next";
 
 // import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -78,7 +78,7 @@
 //   const fetchProjects = useCallback(async () => {
 //     setLoading(true);
 //     try {
-//       const data = await projectApi.list({
+//       const data = await projectApi.readAll({
 //         params: companyUniqueId ? { company_unique_id: companyUniqueId } : undefined,
 //       });
 //       const normalized = Array.isArray(data)
@@ -164,7 +164,7 @@
 //         <InputText
 //           value={globalFilterValue}
 //           onChange={onGlobalFilterChange}
-//           placeholder={t("common.search_item_placeholder", { item: t("admin.nav.project") })}
+//           placeholder={t("common.search_placeholder", { item: t("admin.nav.project") })}
 //           className="p-inputtext-sm border-0 shadow-none"
 //         />
 //       </div>
@@ -266,7 +266,7 @@ import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useLocation, useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -343,7 +343,7 @@ export default function ProjectListPage() {
   const fetchProjects = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await projectApi.list({
+      const data = await projectApi.readAll({
         params: companyUniqueId ? { company_unique_id: companyUniqueId } : undefined,
       });
       const normalized = Array.isArray(data)
@@ -433,7 +433,7 @@ export default function ProjectListPage() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", { item: t("admin.nav.project") })}
+          placeholder={t("common.search_placeholder", { item: t("admin.nav.project") })}
           className="p-inputtext-sm border-0 shadow-none"
         />
       </div>

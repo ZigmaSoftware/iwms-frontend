@@ -67,6 +67,7 @@ export type EncryptedRoutes = {
   encTripPlanCollectionPoints: string;
   encDailyTripAssignment: string;
   encDailyTripCollectionPoint: string;
+  encDailyTripTracking: string;
   encDailyTripLog: string;
   encBinCollectionEvent: string;
   encDailyWasteComparison: string;
@@ -175,6 +176,7 @@ const plainRoutes: EncryptedRoutes = {
   encTripPlanCollectionPoints: "trip-plan-collection-points",
   encDailyTripAssignment: "daily-trip-assignment",
   encDailyTripCollectionPoint: "daily-trip-collection-point",
+  encDailyTripTracking: "daily-trip-tracking",
   encDailyTripLog: "daily-trip-log",
   encBinCollectionEvent: "bin-collection-event",
   encDailyWasteComparison: "daily-waste-comparisons",

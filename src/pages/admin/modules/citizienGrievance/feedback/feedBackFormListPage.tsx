@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -86,7 +86,7 @@ export default function FeedBackFormList() {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
-    adminApi.feedbacks.list({ params })
+    adminApi.feedbacks.readAll({ params })
       .then((res: any) => {
         if (!mounted) return;
         const rows: FeedbackRecord[] = Array.isArray(res) ? res : res?.results ?? [];

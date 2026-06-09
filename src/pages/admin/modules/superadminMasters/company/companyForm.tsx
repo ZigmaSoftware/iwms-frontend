@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { ImageIcon, Upload, X } from "lucide-react";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -61,8 +61,7 @@ function CompanyListForm() {
   // Fetch existing data if editing
   useEffect(() => {
     if (isEdit) {
-      companyApi
-        .get(id as string)
+      companyApi.read(id as string)
         .then((record) => {
           setName(record.name);
           setIsActive(record.is_active);

@@ -15,7 +15,7 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import type { AreaTypeRecord } from "./types";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -98,7 +98,7 @@ export default function AreaTypeListPage() {
   const loadAreaTypes = async () => {
     setIsLoading(true);
     try {
-      const response = await adminApi.areatypes.list();
+      const response = await adminApi.areatypes.readAll();
       setAreaTypes(Array.isArray(response) ? response : []);
     } catch (error) {
       Swal.fire(
@@ -135,7 +135,7 @@ export default function AreaTypeListPage() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.area_type"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none !outline-none"

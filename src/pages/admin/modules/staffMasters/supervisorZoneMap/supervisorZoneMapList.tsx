@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -170,11 +170,11 @@ export default function SupervisorZoneMapList() {
 
       try {
         const [mapRes, districtRes, cityRes, zoneRes, userRes] = await Promise.all([
-          adminApi.supervisorZoneMap.list(),
-          adminApi.districts.list(),
-          adminApi.cities.list(),
-          adminApi.zones.list(),
-          adminApi.usersCreation.list(),
+          adminApi.supervisorZoneMap.readAll(),
+          adminApi.districts.readAll(),
+          adminApi.cities.readAll(),
+          adminApi.zones.readAll(),
+          adminApi.usersCreation.readAll(),
         ]);
 
         if (!mounted) return;
@@ -352,7 +352,7 @@ export default function SupervisorZoneMapList() {
           <InputText
             value={globalFilterValue}
             onChange={onGlobalFilterChange}
-            placeholder={t("common.search_placeholder")}
+            placeholder={t("common.search_placeholder_placeholder")}
             className="border-none text-sm"
           />
         </div>

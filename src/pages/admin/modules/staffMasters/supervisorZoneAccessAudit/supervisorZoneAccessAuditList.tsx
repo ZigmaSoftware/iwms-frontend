@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -80,9 +80,9 @@ export default function SupervisorZoneAccessAuditList() {
     setLoading(true);
     try {
       const [auditRes, zoneRes, userRes] = await Promise.all([
-        auditApi.list(),
-        zoneApi.list(),
-        userCreationApi.list(),
+        auditApi.readAll(),
+        zoneApi.readAll(),
+        userCreationApi.readAll(),
       ]);
 
       const users = normalizeList(userRes).filter(
@@ -147,7 +147,7 @@ export default function SupervisorZoneAccessAuditList() {
           <InputText
             value={globalFilterValue}
             onChange={onGlobalFilterChange}
-            placeholder={t("common.search_placeholder")}
+            placeholder={t("common.search_placeholder_placeholder")}
             className="border-none text-sm"
           />
         </div>

@@ -1,6 +1,6 @@
 // import { useEffect, useState, useCallback } from "react";
 // import { useNavigate } from "react-router-dom";
-// import Swal from "sweetalert2";
+// import Swal from "@/lib/notify";
 
 // import { DataTable } from "@/components/common/SafeDataTable";
 // import { Column } from "primereact/column";
@@ -75,7 +75,7 @@
 //   const fetchStates = useCallback(async () => {
 //     // setLoading(true);
 //     try {
-//       const data = (await stateApi.list()) as StateRecord[];
+//       const data = (await stateApi.readAll()) as StateRecord[];
 //       setStates(data);
 //     } catch (error) {
 //       Swal.fire({
@@ -105,7 +105,7 @@
 //     if (!confirm.isConfirmed) return;
 
 //     try {
-//       await stateApi.remove(unique_id);
+//       await stateApi.delete(unique_id);
 //       Swal.fire({
 //         icon: "success",
 //         title: t("common.deleted_success"),
@@ -138,7 +138,7 @@
 //         <InputText
 //           value={globalFilterValue}
 //           onChange={onGlobalFilterChange}
-//           placeholder={t("common.search_item_placeholder", {
+//           placeholder={t("common.search_placeholder", {
 //             item: t("admin.nav.state"),
 //           })}
 //           className="p-inputtext-sm !border-0 !shadow-none"
@@ -256,7 +256,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -360,7 +360,7 @@ export default function StateList() {
     const loadStates = async () => {
       setIsLoading(true);
       try {
-        const data = await stateApi.list();
+        const data = await stateApi.readAll();
         if (mounted) setStates(data as StateRecord[]);
       } catch (error) {
         if (mounted) {
@@ -404,7 +404,7 @@ export default function StateList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.state"),
           })}
           className="p-inputtext-sm border-0 shadow-none"

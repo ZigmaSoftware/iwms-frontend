@@ -39,7 +39,7 @@ export function HomeDashboard() {
     let isMounted = true;
     const fetchHouseholdStats = async () => {
       try {
-        const customerResponse = await customerCreationApi.list();
+        const customerResponse = await customerCreationApi.readAll();
         const normalized = normalizeCustomerArray(customerResponse);
         const activeCustomers = filterActiveCustomers(normalized);
         const total = activeCustomers.length;
@@ -47,7 +47,7 @@ export function HomeDashboard() {
         const today = new Date().toISOString().split("T")[0];
         let collectedIds: string[] = [];
         try {
-          const collectionResponse = await wasteCollectionApi.list({
+          const collectionResponse = await wasteCollectionApi.readAll({
             params: { collection_date: today },
           });
           if (Array.isArray(collectionResponse)) {
@@ -98,7 +98,7 @@ export function HomeDashboard() {
     let isMounted = true;
     const fetchBinStats = async () => {
       try {
-        const data = await binApi.list();
+        const data = await binApi.readAll();
         const bins = Array.isArray(data) ? data : [];
         const active = bins.filter(isBinActive).length;
         const inactive = Math.max(bins.length - active, 0);

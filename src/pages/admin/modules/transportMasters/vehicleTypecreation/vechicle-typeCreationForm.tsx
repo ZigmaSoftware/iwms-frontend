@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -99,7 +99,7 @@ export default function VehicleTypeCreationForm() {
   useEffect(() => {
     if (!isEdit || !id) return;
     let cancelled = false;
-    adminApi.vehicleTypes.get(id)
+    adminApi.vehicleTypes.read(id)
       .then((res: any) => {
         if (cancelled) return;
         const data = res as Record<string, unknown>;

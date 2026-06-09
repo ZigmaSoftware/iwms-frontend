@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -149,7 +149,7 @@ export default function DistrictForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.districts.get(id)
+    adminApi.districts.read(id)
       .then((res: any) => {
         if (cancelled) return;
         setRecordData(res);
@@ -167,7 +167,7 @@ export default function DistrictForm() {
   const [continentsRaw, setContinentsRaw] = useState<any[]>([]);
   useEffect(() => {
     let cancelled = false;
-    adminApi.continents.list()
+    adminApi.continents.readAll()
       .then((res: any) => {
         if (cancelled) return;
         setContinentsRaw(Array.isArray(res) ? res : (res?.results ?? []));
@@ -180,7 +180,7 @@ export default function DistrictForm() {
   const [countriesRaw, setCountriesRaw] = useState<any[]>([]);
   useEffect(() => {
     let cancelled = false;
-    adminApi.countries.list()
+    adminApi.countries.readAll()
       .then((res: any) => {
         if (cancelled) return;
         setCountriesRaw(Array.isArray(res) ? res : (res?.results ?? []));
@@ -193,7 +193,7 @@ export default function DistrictForm() {
   const [statesRaw, setStatesRaw] = useState<any[]>([]);
   useEffect(() => {
     let cancelled = false;
-    adminApi.states.list()
+    adminApi.states.readAll()
       .then((res: any) => {
         if (cancelled) return;
         setStatesRaw(Array.isArray(res) ? res : (res?.results ?? []));

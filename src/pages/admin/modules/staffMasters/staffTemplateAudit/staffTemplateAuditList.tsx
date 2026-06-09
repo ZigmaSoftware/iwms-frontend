@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -64,7 +64,7 @@ export default function StaffTemplateAuditList() {
   const fetchRecords = async () => {
     setLoading(true);
     try {
-      const payload: any = await staffTemplateAuditLogApi.list();
+      const payload: any = await staffTemplateAuditLogApi.readAll();
       setRecords(normalizeList<StaffTemplateAuditRecord>(payload));
     } catch {
       Swal.fire(t("common.error"), t("common.load_failed"), "error");
@@ -114,7 +114,7 @@ export default function StaffTemplateAuditList() {
           <InputText
             value={globalFilterValue}
             onChange={onGlobalFilterChange}
-            placeholder={t("common.search_placeholder")}
+            placeholder={t("common.search_placeholder_placeholder")}
             className="border-none text-sm"
           />
         </div>

@@ -371,7 +371,7 @@ const WasteCollectionMonitor: React.FC = () => {
     const resolveId = (c: any) => String(c?.unique_id ?? c?.id ?? "");
 
     try {
-      const response = await customerCreationApi.list();
+      const response = await customerCreationApi.readAll();
       const normalized = normalizeCustomerArray(response) as CustomerRecord[];
       const activeCustomers = filterActiveCustomers(normalized) as CustomerRecord[];
       households = activeCustomers.length;
@@ -419,7 +419,7 @@ const WasteCollectionMonitor: React.FC = () => {
       if (fromDate) {
         params.collection_date = fromDate;
       }
-      const response = await wasteCollectionApi.list({ params });
+      const response = await wasteCollectionApi.readAll({ params });
       if (Array.isArray(response)) {
         collectedIds = Array.from(
           new Set(

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -32,7 +32,7 @@ export default function DesignationForm() {
 
   useEffect(() => {
     let cancelled = false;
-    departmentApi.list({ params: { status: "active" } }).then((res: any) => {
+    departmentApi.readAll({ params: { status: "active" } }).then((res: any) => {
       if (cancelled) return;
       const list = Array.isArray(res) ? res : res?.data?.results ?? res?.data ?? [];
       setDepartmentOptions(
@@ -61,7 +61,7 @@ export default function DesignationForm() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    designationApi.get(id).then((record: any) => {
+    designationApi.read(id).then((record: any) => {
       if (cancelled) return;
       const deptId = record.department_id ? String(record.department_id) : "";
       setForm({

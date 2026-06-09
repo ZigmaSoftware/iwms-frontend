@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -100,7 +100,7 @@ export default function ProjectForm() {
   const fetchCompanies = useCallback(async () => {
     let cancelled = false;
     try {
-      const records = await companyApi.list();
+      const records = await companyApi.readAll();
       if (cancelled) return;
       const options = records.map((company) => ({
         unique_id: company.unique_id,
@@ -147,8 +147,7 @@ export default function ProjectForm() {
 
     let cancelled = false;
 
-    projectApi
-      .get(id as string)
+    projectApi.read(id as string)
       .then((response: ProjectRecord | { project?: ProjectRecord }) => {
         if (cancelled) return;
         let record: ProjectRecord | undefined;

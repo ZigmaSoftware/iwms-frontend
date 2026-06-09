@@ -6,7 +6,7 @@ import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -129,7 +129,7 @@ export default function BinList() {
 
       setIsLoading(true);
       try {
-        const data = await binApi.list({
+        const data = await binApi.readAll({
           params: {
             company_id: companyUniqueId,
             project_id: projectId || undefined,
@@ -267,7 +267,7 @@ export default function BinList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", { item: t("admin.nav.bin_master") })}
+          placeholder={t("common.search_placeholder", { item: t("admin.nav.bin_master") })}
           className="p-inputtext-sm border-0 shadow-none"
         />
       </div>

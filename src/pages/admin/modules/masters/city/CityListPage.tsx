@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -105,7 +105,7 @@ export default function CityList() {
     const loadCities = async () => {
       setIsLoading(true);
       try {
-        const data = await cityApi.list();
+        const data = await cityApi.readAll();
         if (mounted) setAllCities(data as CityRecord[]);
       } catch (error) {
         if (mounted) {
@@ -159,7 +159,7 @@ export default function CityList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.city"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none"

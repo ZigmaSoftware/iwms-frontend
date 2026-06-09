@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, Fragment, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -266,12 +266,12 @@ export default function UserScreenPermissionForm() {
     const fetchAll = async () => {
       try {
         const [userTypesRes, staffUserTypesRes, contractorUserTypesRes, mainScreensRes, userScreensRes, userScreenActionsRes] = await Promise.allSettled([
-          adminApi.userTypes.list(),
-          adminApi.staffUserTypes.list(),
-          adminApi.contractorUserTypes.list(),
-          adminApi.mainScreens.list(),
-          adminApi.userScreens.list(),
-          adminApi.userScreenActions.list(),
+          adminApi.userTypes.readAll(),
+          adminApi.staffUserTypes.readAll(),
+          adminApi.contractorUserTypes.readAll(),
+          adminApi.mainScreens.readAll(),
+          adminApi.userScreens.readAll(),
+          adminApi.userScreenActions.readAll(),
         ]);
 
         if (cancelled) return;
@@ -357,7 +357,7 @@ export default function UserScreenPermissionForm() {
     setFormattedPermissionData(null);
     setFormattedPermissionError(null);
 
-    adminApi.companyWiseScreenPermissions.get(
+    adminApi.companyWiseScreenPermissions.read(
       `by-staff-format/?company_id=${encodeURIComponent(effectiveCompanyId)}&staffusertype_id=${encodeURIComponent(staffUserTypeId)}&mainscreen_id=${encodeURIComponent(mainScreenId)}`
     )
       .then((res: any) => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -90,7 +90,7 @@ export default function LoginAuditList() {
     if (projectId) params.project_id = projectId;
 
      adminApi.loginAudits
-       .list({ params })
+       .readAll({ params })
        .then((data: LoginAuditRecord[]) => {
          if (!mounted) return;
          setRows(normalizeList(data) as LoginAuditRecord[]);

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -107,7 +107,7 @@ export default function TripPlanList() {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
-    tripPlanApi.list({ params })
+    tripPlanApi.readAll({ params })
       .then((data) => {
         if (mounted) setRecords(normalizeList(data) as TripPlanRecord[]);
       })
@@ -167,7 +167,7 @@ export default function TripPlanList() {
             const value = event.target.value;
             setGlobalFilterValue(value);
             setFilters((current) => ({ ...current, global: { value, matchMode: FilterMatchMode.CONTAINS } }));
-          }} placeholder={t("common.search")} className="border-none text-sm" />
+          }} placeholder={t("common.search_placeholder")} className="border-none text-sm" />
         </div>
       </div>
     </div>

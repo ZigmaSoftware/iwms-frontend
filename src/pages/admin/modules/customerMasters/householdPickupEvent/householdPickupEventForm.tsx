@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -135,12 +135,12 @@ export default function HouseholdPickupEventForm() {
   useEffect(() => {
     setFetching(true);
     Promise.all([
-      customerCreationApi.list(),
-      zoneApi.list(),
-      propertiesApi.list(),
-      subPropertiesApi.list(),
-      userCreationApi.list(),
-      vehicleCreationApi.list(),
+      customerCreationApi.readAll(),
+      zoneApi.readAll(),
+      propertiesApi.readAll(),
+      subPropertiesApi.readAll(),
+      userCreationApi.readAll(),
+      vehicleCreationApi.readAll(),
     ])
       .then(([customerRes, zoneRes, propertyRes, subPropertyRes, userRes, vehicleRes]) => {
         const staffUsers = normalizeList(userRes).filter(
@@ -164,8 +164,7 @@ export default function HouseholdPickupEventForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
 
-    householdPickupEventApi
-      .get(id)
+    householdPickupEventApi.read(id)
       .then((res: any) => {
         if (cancelled) return;
         const nextState = toFormState(res);

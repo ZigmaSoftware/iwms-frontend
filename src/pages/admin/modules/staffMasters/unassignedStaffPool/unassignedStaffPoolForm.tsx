@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -99,10 +99,10 @@ export default function UnassignedStaffPoolForm() {
     setFetching(true);
 
     Promise.all([
-      adminApi.usersCreation.list() as Promise<any>,
-      adminApi.zones.list() as Promise<any>,
-      adminApi.wards.list() as Promise<any>,
-      adminApi.dailyTripAssignment.list() as Promise<any>,
+      adminApi.usersCreation.readAll() as Promise<any>,
+      adminApi.zones.readAll() as Promise<any>,
+      adminApi.wards.readAll() as Promise<any>,
+      adminApi.dailyTripAssignment.readAll() as Promise<any>,
     ])
       .then(([usersData, zonesData, wardsData, dailyTripAssignmentsData]: [any, any, any, any]) => {
         if (cancelled) return;
@@ -171,8 +171,7 @@ export default function UnassignedStaffPoolForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
 
-    adminApi.unassignedStaffPool
-      .get(id)
+    adminApi.unassignedStaffPool.read(id)
       .then((res: any) => {
         if (cancelled) return;
         const operatorId = res?.operator_id ?? "";

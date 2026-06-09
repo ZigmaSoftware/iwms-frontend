@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -175,11 +175,11 @@ export default function UnassignedStaffPoolList() {
         if (projectId) listParams.project_id = projectId;
 
         const [poolRes, userRes, zoneRes, wardRes, tripRes] = await Promise.all([
-          unassignedStaffPoolApi.list({ params: listParams }),
-          userCreationApi.list({ params: listParams }),
-          zoneApi.list({ params: listParams }),
-          wardApi.list({ params: listParams }),
-          dailyTripAssignmentApi.list({ params: listParams }),
+          unassignedStaffPoolApi.readAll({ params: listParams }),
+          userCreationApi.readAll({ params: listParams }),
+          zoneApi.readAll({ params: listParams }),
+          wardApi.readAll({ params: listParams }),
+          dailyTripAssignmentApi.readAll({ params: listParams }),
         ]);
 
         const poolRows = filterByCompanyProject(normalizeList(poolRes), companyUniqueId, projectId);

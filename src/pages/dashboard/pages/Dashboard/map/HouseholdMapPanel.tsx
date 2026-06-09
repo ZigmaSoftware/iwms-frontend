@@ -138,8 +138,8 @@ export function HouseholdMapPanel() {
       const today = new Date().toISOString().split("T")[0];
       try {
         const [customerResponse, collectionResponse] = await Promise.all([
-          customerCreationApi.list(),
-          wasteCollectionApi.list({ params: { collection_date: today } }),
+          customerCreationApi.readAll(),
+          wasteCollectionApi.readAll({ params: { collection_date: today } }),
         ]);
 
         const normalized = normalizeCustomerArray(customerResponse) as CustomerRecord[];

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -94,7 +94,7 @@ export default function PropertyList() {
   const loadProperties = async () => {
     setIsLoading(true);
     try {
-      const response = await adminApi.properties.list();
+      const response = await adminApi.properties.readAll();
       const list = Array.isArray(response)
         ? response
         : ((response as { results?: PropertyRecord[] })?.results ?? []);
@@ -162,7 +162,7 @@ export default function PropertyList() {
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
-          placeholder={t("common.search_item_placeholder", {
+          placeholder={t("common.search_placeholder", {
             item: t("admin.nav.property"),
           })}
           className="p-inputtext-sm !border-0 !shadow-none !outline-none"

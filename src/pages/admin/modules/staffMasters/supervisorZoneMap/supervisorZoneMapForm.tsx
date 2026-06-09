@@ -1,6 +1,6 @@
 // import { useEffect, useMemo, useRef, useState } from "react";
 // import { useNavigate, useParams } from "react-router-dom";
-// import Swal from "sweetalert2";
+// import Swal from "@/lib/notify";
 // import { useTranslation } from "react-i18next";
 
 // import ComponentCard from "@/components/common/ComponentCard";
@@ -367,9 +367,9 @@
 //   /* ── 1. Load staff + companies + projects via Promise.all ────────────────── */
 //   useEffect(() => {
 //     Promise.all([
-//       staffCreationApi.list({ params: { active_status: 1 } }),
-//       companyApi.list(),   
-//       projectApi.list(),  
+//       staffCreationApi.readAll({ params: { active_status: 1 } }),
+//       companyApi.readAll(),
+//       projectApi.readAll(),
 //     ])
 //       .then(([staffRes, companiesRes, projectsRes]) => {
 //         /* ── Staff ── */
@@ -865,7 +865,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "sweetalert2";
+import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -1221,9 +1221,9 @@ export default function SupervisorZoneMapForm() {
   useEffect(() => {
     // ✅ Cast each call to Promise<any> to avoid TypeScript "never" inference
     (Promise.all([
-      staffCreationApi.list({ params: { active_status: 1 } }) as Promise<any>,
-      companyApi.list() as Promise<any>,
-      projectApi.list() as Promise<any>,
+      staffCreationApi.readAll({ params: { active_status: 1 } }) as Promise<any>,
+      companyApi.readAll() as Promise<any>,
+      projectApi.readAll() as Promise<any>,
     ]) as Promise<[any, any, any]>)
       .then(([staffRes, companiesRes, projectsRes]: [any, any, any]) => {
         /* ── Staff ── */
@@ -1303,9 +1303,9 @@ export default function SupervisorZoneMapForm() {
     setFetching(true);
 
     Promise.all([
-      adminApi.districts.list() as Promise<any>,
-      adminApi.cities.list() as Promise<any>,
-      adminApi.zones.list() as Promise<any>,
+      adminApi.districts.readAll() as Promise<any>,
+      adminApi.cities.readAll() as Promise<any>,
+      adminApi.zones.readAll() as Promise<any>,
     ])
       .then(([dRes, cRes, zRes]: [any, any, any]) => {
         if (cancelled) return;
@@ -1330,8 +1330,7 @@ export default function SupervisorZoneMapForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
 
-    adminApi.supervisorZoneMap
-      .get(id)
+    adminApi.supervisorZoneMap.read(id)
       .then((res: any) => {
         if (cancelled) return;
         setSelectedCompanyId(normalizeId(res?.company_id ?? res?.company_unique_id));
@@ -1704,7 +1703,7 @@ export default function SupervisorZoneMapForm() {
         {isEdit && (
           <p className="text-xs text-gray-500">
             {t("admin.supervisor_zone_map.update_hint")}
-          </p>  
+          </p>
         )}
 
         {/* ACTIONS */}
