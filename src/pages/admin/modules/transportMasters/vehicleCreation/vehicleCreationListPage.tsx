@@ -22,6 +22,11 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { vehicleCreationApi } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
+import {
+  excelFileToCsvFile,
+  exportTemplateToExcel,
+  type ExcelTemplateColumn,
+} from "@/utils/exportExcel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,32 +73,18 @@ const VEHICLE_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
 
 const FILE_ICON = "/images/pdfimage/download.png";
 
-const VEHICLE_BULK_TEMPLATE_HEADERS = [
-  "vehicle_no",
-  "vehicle_type",
-  "fuel_type",
-  "capacity",
-  "mileage_per_liter",
-  "service_record",
-  "vehicle_insurance",
-  "insurance_expiry_date",
-  "vehicle_condition",
-  "fuel_tank_capacity",
-  "is_active",
-];
-
-const VEHICLE_BULK_EXAMPLE_ROW = [
-  "KA01AB1234",
-  "Compactor",
-  "Diesel",
-  "7500",
-  "5.4",
-  "Service at 2024-11-30",
-  "ICICI Lombard",
-  "2026-05-31",
-  "NEW",
-  "400",
-  "true",
+const VEHICLE_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
+  { field: "vehicle_no", header: "vehicle_no", required: true, sample: "KA01AB1234" },
+  { field: "vehicle_type", header: "vehicle_type", sample: "Compactor" },
+  { field: "fuel_type", header: "fuel_type", sample: "Diesel" },
+  { field: "capacity", header: "capacity", sample: "7500" },
+  { field: "mileage_per_liter", header: "mileage_per_liter", sample: "5.4" },
+  { field: "service_record", header: "service_record", sample: "Service at 2024-11-30" },
+  { field: "vehicle_insurance", header: "vehicle_insurance", sample: "ICICI Lombard" },
+  { field: "insurance_expiry_date", header: "insurance_expiry_date", sample: "2026-05-31" },
+  { field: "vehicle_condition", header: "vehicle_condition", sample: "NEW" },
+  { field: "fuel_tank_capacity", header: "fuel_tank_capacity", sample: "400" },
+  { field: "is_active", header: "is_active", sample: "true" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -256,18 +247,11 @@ export default function VehicleCreationListPage() {
 
   // ── Bulk upload ───────────────────────────────────────────────────────────
   const downloadVehicleTemplate = () => {
-    const csvContent = [VEHICLE_BULK_TEMPLATE_HEADERS, VEHICLE_BULK_EXAMPLE_ROW]
-      .map((row) => row.join(","))
-      .join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", "vehicle_bulk_template.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    exportTemplateToExcel(
+      VEHICLE_BULK_TEMPLATE_COLUMNS,
+      "vehicle_bulk_template.xlsx",
+      "Vehicles",
+    );
   };
 
   const handleVehicleFileUpload = async (
@@ -276,12 +260,13 @@ export default function VehicleCreationListPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append("file", file);
-    if (companyUniqueId) formData.append("company_id_input", companyUniqueId);
-    if (projectId) formData.append("project_id_input", projectId);
-
     try {
+      const csvFile = await excelFileToCsvFile(file, "vehicle_bulk_upload.csv");
+      const formData = new FormData();
+      formData.append("file", csvFile);
+      if (companyUniqueId) formData.append("company_id_input", companyUniqueId);
+      if (projectId) formData.append("project_id_input", projectId);
+
       const res = await adminApi.vehicleCreations.action(
         "bulk-upload",
         formData,
@@ -477,7 +462,7 @@ export default function VehicleCreationListPage() {
         />
         <Button
           label={t("admin.vehicle_creation.upload_csv", {
-            defaultValue: "Upload CSV",
+            defaultValue: "Upload Excel",
           })}
           icon="pi pi-upload"
           className="p-button-sm"
@@ -486,7 +471,7 @@ export default function VehicleCreationListPage() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv"
+          accept=".xlsx,.xls"
           hidden
           onChange={handleVehicleFileUpload}
         />

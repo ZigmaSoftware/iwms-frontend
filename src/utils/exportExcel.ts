@@ -124,3 +124,33 @@ export const readExcelRows = async (file: File): Promise<ExportRow[]> => {
     raw: false,
   });
 };
+
+const escapeCsvValue = (value: unknown) => {
+  const text = String(serialiseValue(value) ?? "");
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+export const excelFileToCsvFile = async (
+  file: File,
+  csvFilename: string,
+): Promise<File> => {
+  const rows = await readExcelRows(file);
+  if (rows.length === 0) {
+    throw new Error("The uploaded Excel file does not contain any data rows.");
+  }
+
+  const headers = Array.from(
+    rows.reduce<Set<string>>((fields, row) => {
+      Object.keys(row).forEach((field) => fields.add(field));
+      return fields;
+    }, new Set<string>()),
+  );
+  const csv = [
+    headers.map(escapeCsvValue).join(","),
+    ...rows.map((row) =>
+      headers.map((header) => escapeCsvValue(row[header])).join(","),
+    ),
+  ].join("\r\n");
+
+  return new File([csv], csvFilename, { type: "text/csv;charset=utf-8" });
+};

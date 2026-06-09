@@ -19,6 +19,25 @@ export type PaginatedResponse<T> = {
   [key: string]: unknown;
 };
 
+export type CrudFieldMetadata = {
+  type?: string;
+  required?: boolean;
+  read_only?: boolean;
+  write_only?: boolean;
+  label?: string;
+  help_text?: string;
+  choices?: Array<{ value: unknown; display_name?: string }>;
+  [key: string]: unknown;
+};
+
+export type CrudMetadata = {
+  actions?: {
+    POST?: Record<string, CrudFieldMetadata>;
+    [key: string]: Record<string, CrudFieldMetadata> | undefined;
+  };
+  [key: string]: unknown;
+};
+
 export type CrudHelpers<T = any> = {
   readAll: (config?: AxiosRequestConfig) => Promise<T[]>;
 
@@ -41,6 +60,8 @@ export type CrudHelpers<T = any> = {
   ) => Promise<T>;
 
   delete: (id: string | number, config?: AxiosRequestConfig) => Promise<void>;
+
+  metadata: (config?: AxiosRequestConfig) => Promise<CrudMetadata>;
 
   action: <R = any, P = any>(
     action: string,
@@ -175,6 +196,11 @@ export const createCrudHelpers = <T = any>(
 
     delete: async (id, config) => {
       await api.delete(`${resource}${id}/`, config);
+    },
+
+    metadata: async (config) => {
+      const { data } = await api.options<CrudMetadata>(resource, config);
+      return data;
     },
 
     /* ---------- CUSTOM ACTION ---------- */
