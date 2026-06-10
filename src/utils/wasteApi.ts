@@ -9,16 +9,9 @@ const DATA_KEYS = [
   "items",
 ] as const;
 
-const API_URL =
-  import.meta.env.VITE_WASTE_COLLECTION_API ??
-  "https://zigma.in/d2d/folders/waste_collected_summary_report/test_waste_collected_data_api.php";
+const API_KEY = "ZIGMA-DELHI-WEIGHMENT-2025-SECURE";
 
-const API_KEY =
-  import.meta.env.VITE_WASTE_COLLECTION_KEY ??
-  "ZIGMA-DELHI-WEIGHMENT-2025-SECURE";
-
-const RAW_PROXY_TEMPLATES =
-  import.meta.env.VITE_WASTE_COLLECTION_CORS_PROXY ?? "";
+const RAW_PROXY_TEMPLATES = "";
 
 const DEFAULT_PROXY_TEMPLATES = [
   "https://cors.isomorphic-git.org/{url}",
@@ -156,10 +149,13 @@ const fetchWithFallback = async (url: string): Promise<string> => {
 };
 
 export async function fetchWasteReport<T = WasteApiRow>(
+  apiUrl: string,
   action: WasteReportAction,
   fromDate: string,
   toDate: string
 ): Promise<WasteFetchResult<T>> {
+  if (!apiUrl) return { rows: [] };
+
   const params = new URLSearchParams({
     action,
     from_date: fromDate,
@@ -167,7 +163,7 @@ export async function fetchWasteReport<T = WasteApiRow>(
     key: API_KEY,
   });
 
-  const url = `${API_URL}?${params.toString()}`;
+  const url = `${apiUrl}?${params.toString()}`;
   const raw = await fetchWithFallback(url);
 
   let payload: any;

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 
 interface VehicleStats {
   all: number;
@@ -30,6 +31,7 @@ interface VehicleStats {
 
 export function VehicleStatusPanel() {
   const { t } = useTranslation();
+  const { gpsApiUrl } = useProjectSelector();
   const { encDashboardLiveMap, encDashboardVehicleManagement } = getEncryptedRoute();
   const liveMapPath = `/dashboard/${encDashboardLiveMap}`;
   const vehiclePath = `/dashboard/${encDashboardVehicleManagement}`;
@@ -43,10 +45,9 @@ export function VehicleStatusPanel() {
 
   // ----------- FETCH FUNCTION -----------
   async function loadData() {
+    if (!gpsApiUrl) return;
     try {
-      const res = await fetch(
-        "https://api.vamosys.com/mobile/getGrpDataForTrustedClients?providerName=BLUEPLANET&fcode=VAM"
-      );
+      const res = await fetch(gpsApiUrl);
       const data = await res.json();
       console.log(data);
 
@@ -97,16 +98,13 @@ export function VehicleStatusPanel() {
     }
   }
 
-  // ----------- AUTO REFRESH EVERY 1 MINUTE -----------
+  // Re-fetch whenever the selected project (and thus gpsApiUrl) changes
   useEffect(() => {
-    loadData(); // initial load
-
-    const interval = setInterval(() => {
-      loadData();
-    }, 5000);
-
-    return () => clearInterval(interval); // cleanup
-  }, []);
+    loadData();
+    const interval = setInterval(loadData, 5000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gpsApiUrl]);
 
   const totalVehicles = Math.max(stats.all, 0);
   const knownTotal = stats.running + stats.idle + stats.stopped;

@@ -5,8 +5,10 @@ import type { LatLngTuple } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./vehiclehistory.css";
 import "../../../../../components/map/adminMapPanel.css";
-import { FiCalendar, FiAlertTriangle } from "react-icons/fi";
+
 import { useTranslation } from "react-i18next";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 
 type RawRecord = Record<string, any>;
 type StatusKey = "running" | "idle" | "stopped" | "no_data";
@@ -29,15 +31,6 @@ type TrackPoint = {
   timestamp: string;
 };
 
-const TRACKING_API_URL =
-  "https://api.vamosys.com/mobile/getGrpDataForTrustedClients?providerName=BLUEPLANET&fcode=VAM";
-
-const HISTORY_API_BASE =
-  import.meta.env.VITE_VEHICLE_HISTORY_API ??
-  "https://api.vamosys.com/getVehicleHistory";
-
-const HISTORY_PROXY_TEMPLATES =
-  import.meta.env.VITE_VEHICLE_HISTORY_PROXY ?? "";
 
 const HISTORY_DEFAULT_PROXIES = [
   "https://cors.isomorphic-git.org/{url}",
@@ -51,11 +44,6 @@ const HISTORY_DEFAULT_PARAMS = {
   interval: "-1",
 } as const;
 
-const FALLBACK_VEHICLES: VehicleOption[] = [
-  { id: "UP16KT1737", label: "UP16KT1737", status: "running", lat: 28.63, lng: 77.21 },
-  { id: "UP16KT1738", label: "UP16KT1738", status: "idle", lat: 28.71, lng: 77.05 },
-  { id: "UP16KT1739", label: "UP16KT1739", status: "stopped", lat: 28.48, lng: 77.01 }
-];
 
 const STATUS_META: Record<StatusKey, { labelKey: string; color: string }> = {
   running: { labelKey: "dashboard.live_map.status_running", color: "#22c55e" },
@@ -104,12 +92,6 @@ const firstArray = (candidates: any[]): any[] => {
   return [];
 };
 
-const parseProxyList = (raw: string) =>
-  raw
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-
 const formatProxyUrl = (template: string, target: string) => {
   const encoded = encodeURIComponent(target);
   if (/\{url\}/i.test(template)) {
@@ -125,9 +107,7 @@ const formatProxyUrl = (template: string, target: string) => {
 };
 
 const buildHistoryUrls = (baseUrl: string): string[] => {
-  const proxies = parseProxyList(HISTORY_PROXY_TEMPLATES);
-  const templates =
-    proxies.length > 0 ? proxies : HISTORY_DEFAULT_PROXIES;
+  const templates = HISTORY_DEFAULT_PROXIES;
   const proxyUrls = templates.map((tpl) => formatProxyUrl(tpl, baseUrl));
   return [baseUrl, ...proxyUrls];
 };
@@ -300,8 +280,11 @@ function normalizeHistory(rec: RawRecord[]) {
 
 export default function VehicleHistory(): JSX.Element {
   const { t, i18n } = useTranslation();
-  const [vehicles, setVehicles] = useState<VehicleOption[]>(FALLBACK_VEHICLES);
-  const [vehicleId, setVehicleId] = useState(FALLBACK_VEHICLES[0].id);
+  const { gpsApiUrl } = useProjectSelector();
+  const TRACKING_API_URL = gpsApiUrl;
+  const HISTORY_API_BASE = gpsApiUrl;
+  const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
+  const [vehicleId, setVehicleId] = useState("");
   const [track, setTrack] = useState<TrackPoint[]>([]);
   const [historyError, setHistoryError] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
@@ -340,7 +323,7 @@ export default function VehicleHistory(): JSX.Element {
         const arr = Array.isArray(body) ? body : body.data;
 
         if (!Array.isArray(arr)) {
-          setVehicles(FALLBACK_VEHICLES);
+          setVehicles([]);
           return;
         }
 
@@ -366,7 +349,7 @@ export default function VehicleHistory(): JSX.Element {
           setVehicleId(normalized[0].id);
         }
       } catch {
-        setVehicles(FALLBACK_VEHICLES);
+        setVehicles([]);
       }
     };
 
@@ -591,8 +574,22 @@ export default function VehicleHistory(): JSX.Element {
     }
     return total;
   }, [track]);
+
+  if (!gpsApiUrl) {
+    return (
+      <div className="vh-container fade-in">
+        <ProjectSelectorBar />
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <p className="text-base font-medium">GPS API not configured for this project.</p>
+          <p className="text-sm mt-1">Set a GPS API URL in the project settings to enable vehicle tracking.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="vh-container fade-in">
+      <ProjectSelectorBar />
       <div className="vh-filter-bar slide-up">
         <div className="vh-filter-item">
           <label>{t("admin.vehicle_history.filters.vehicle")}</label>

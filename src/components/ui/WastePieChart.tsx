@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { Link } from "react-router-dom";
 import {
     PieChart,
@@ -11,8 +12,6 @@ import { DataCard } from "../ui/DataCard";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 
-const API_BASE =
-    "https://zigma.in/d2d/folders/waste_collected_summary_report/test_waste_collected_data_api.php";
 const API_KEY = "ZIGMA-DELHI-WEIGHMENT-2025-SECURE";
 
 const formatDate = (date: Date) => date.toISOString().split("T")[0];
@@ -22,6 +21,7 @@ const formatTons = (value: number) => value.toFixed(1);
 
 export function WastePieChart() {
     const COLORS = ["#43A047", "#1E88E5", "#FB8C00"]; // Wet, Dry, Mixed
+    const { weighmentApiUrl } = useProjectSelector();
     const { encDashboardWasteCollection } = getEncryptedRoute();
     const wasteCollectionPath = `/dashboard/${encDashboardWasteCollection}`;
 
@@ -50,9 +50,13 @@ export function WastePieChart() {
     useEffect(() => {
         const controller = new AbortController();
         async function loadData(dateParam: string, allowFallback: boolean) {
+            if (!weighmentApiUrl) {
+                setData([{ key: "wet", value: 0 }, { key: "dry", value: 0 }, { key: "mixed", value: 0 }]);
+                return;
+            }
             try {
                 const url =
-                    `${API_BASE}?action=day_wise_data&from_date=${dateParam}&to_date=${dateParam}&key=${API_KEY}`;
+                    `${weighmentApiUrl}?action=day_wise_data&from_date=${dateParam}&to_date=${dateParam}&key=${API_KEY}`;
 
                 const res = await fetch(url, { signal: controller.signal });
                 const json = await res.json();
@@ -105,7 +109,7 @@ export function WastePieChart() {
         const today = formatDate(new Date());
         loadData(today, true);
         return () => controller.abort();
-    }, []);
+    }, [weighmentApiUrl]);
 
     const CustomTooltip = ({ active, payload }: any) => {
         if (!active || !payload || !payload.length) return null;

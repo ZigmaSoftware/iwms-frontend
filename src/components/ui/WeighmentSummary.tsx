@@ -4,9 +4,8 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 
 import { DataCard } from "../ui/DataCard";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 
-const API_BASE =
-  "https://zigma.in/d2d/folders/waste_collected_summary_report/test_waste_collected_data_api.php";
 const API_KEY = "ZIGMA-DELHI-WEIGHMENT-2025-SECURE";
 
 type Summary = {
@@ -23,6 +22,7 @@ const getMonthParam = (date = new Date()) => {
 
 export function WeighmentSummary() {
   const { t } = useTranslation();
+  const { weighmentApiUrl, projectId } = useProjectSelector();
   const [summary, setSummary] = useState<Summary>({
     trips: 0,
     totalTons: 0,
@@ -33,9 +33,10 @@ export function WeighmentSummary() {
   const weighbridgePath = `/dashboard/${encDashboardWeighBridge}`;
 
   useEffect(() => {
+    if (!weighmentApiUrl) return;
     const controller = new AbortController();
     const monthParam = getMonthParam();
-    const url = `${API_BASE}?action=month_wise_date&date=${monthParam}&key=${API_KEY}`;
+    const url = `${weighmentApiUrl}?action=month_wise_date&date=${monthParam}&key=${API_KEY}`;
 
     fetch(url, { signal: controller.signal })
       .then((res) => res.json())
@@ -71,7 +72,7 @@ export function WeighmentSummary() {
       .finally(() => setLoading(false));
 
     return () => controller.abort();
-  }, []);
+  }, [weighmentApiUrl, projectId]);
 
   const tripsValue = loading ? "--" : summary.trips;
   const totalTonsValue = loading ? "--" : summary.totalTons.toFixed(1);

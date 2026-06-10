@@ -18,6 +18,7 @@ export const ACCESS_TOKEN_STORAGE_KEY = "access_token";
 export const REFRESH_TOKEN_STORAGE_KEY = "refresh_token";
 export const USER_STORAGE_KEY = "user";
 export const PROFILE_STORAGE_KEY = "profile";
+export const PROJECTS_STORAGE_KEY = "projects_config";
 
 type JwtPayload = {
   exp?: number;
@@ -25,6 +26,13 @@ type JwtPayload = {
   user_id?: string;
   username?: string;
   role?: string;
+};
+
+export type ProjectConfig = {
+  unique_id: string;
+  name: string;
+  gps_api_url?: string | null;
+  weighment_api_url?: string | null;
 };
 
 export type AuthUser = {  
@@ -62,6 +70,7 @@ export type LoginPayload = {
   permission_details?: unknown;
   column_permissions?: unknown;
   profile?: AuthProfile;
+  projects?: ProjectConfig[];
 };
 
 export type LoginEnvelope = LoginPayload | {
@@ -105,6 +114,12 @@ export const getStoredAuthUser = (): AuthUser | null =>
 
 export const getStoredProfile = (): AuthProfile | null =>
   safeJsonParse<AuthProfile | null>(localStorage.getItem(PROFILE_STORAGE_KEY), null);
+
+export const getStoredProjects = (): ProjectConfig[] =>
+  safeJsonParse<ProjectConfig[]>(localStorage.getItem(PROJECTS_STORAGE_KEY), []);
+
+export const getStoredProjectConfig = (projectId: string): ProjectConfig | null =>
+  getStoredProjects().find((p) => p.unique_id === projectId) ?? null;
 
 export const isAccessTokenValid = (token = getStoredAccessToken()): boolean => {
   if (!token) return false;
@@ -158,6 +173,13 @@ export const persistLoginSession = (payload: LoginPayload): void => {
     localStorage.removeItem(PROFILE_STORAGE_KEY);
     localStorage.removeItem("project_id");
   }
+
+  const projects = payload.projects ?? [];
+  if (projects.length > 0) {
+    safeSetStorageItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
+  } else {
+    localStorage.removeItem(PROJECTS_STORAGE_KEY);
+  }
 };
 
 export const clearAuthSession = (): void => {
@@ -178,6 +200,7 @@ export const clearAuthSession = (): void => {
   localStorage.removeItem("project_unique_id");
   localStorage.removeItem("current_project_id");
   localStorage.removeItem("selected_project_id");
+  localStorage.removeItem(PROJECTS_STORAGE_KEY);
   clearStoredPermissions();
   clearAdminViewPreference();
 };

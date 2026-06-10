@@ -10,6 +10,8 @@ import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 import { Truck } from "lucide-react";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -35,8 +37,6 @@ type VehicleDistanceRow = {
 
 /* ================= CONSTANTS ================= */
 
-const TRACKING_API_URL =
-  "https://api.vamosys.com/mobile/getGrpDataForTrustedClients?providerName=BLUEPLANET&fcode=VAM";
 
 const TRIP_SUMMARY_ENDPOINT =
   "https://gpsvtsprobend.vamosys.com/v2/getTripSummary";
@@ -127,6 +127,8 @@ const runWithConcurrency = async <T,>(
 
 export default function MonthlyDistance() {
   const { t, i18n } = useTranslation();
+  const { gpsApiUrl } = useProjectSelector();
+  const TRACKING_API_URL = gpsApiUrl;
   const [vehicles, setVehicles] = useState<VehicleOption[]>(FALLBACK_VEHICLES);
   const [monthInput, setMonthInput] = useState(formatMonthInput(new Date()));
   const [selectedMonth, setSelectedMonth] = useState(monthInput);
@@ -345,9 +347,21 @@ export default function MonthlyDistance() {
 
   /* ================= UI ================= */
 
+  if (!gpsApiUrl) {
+    return (
+      <div className="p-3">
+        <ProjectSelectorBar />
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <p className="text-base font-medium">GPS API not configured for this project.</p>
+          <p className="text-sm mt-1">Set a GPS API URL in the project settings to enable distance reports.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-3">
-
+      <ProjectSelectorBar />
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold">

@@ -13,6 +13,8 @@ import "primeicons/primeicons.css";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { fetchWasteReport, type WasteApiRow } from "@/utils/wasteApi";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 import "./datereport.css";
 import { useTranslation } from "react-i18next";
 
@@ -40,6 +42,7 @@ const formatTime = (v: string | null) => (v ? v : "-");
 export default function DateReport() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { weighmentApiUrl } = useProjectSelector();
   const { encWorkforceManagement } = getEncryptedRoute();
 
   const initialFromDate = `${today.getFullYear()}-${String(
@@ -121,11 +124,17 @@ export default function DateReport() {
       return;
     }
 
+    if (!weighmentApiUrl) {
+      setError("admin.workforce_management.date_report.error_no_api");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
       const { rows: apiRows } = await fetchWasteReport<ApiRow>(
+        weighmentApiUrl,
         "date_wise_data",
         fromDate,
         toDate
@@ -154,6 +163,8 @@ export default function DateReport() {
 
   /* ================= UI ================= */
   return (
+    <>
+    <ProjectSelectorBar />
     <div className="p-4">
       <div className="bg-white p-6 rounded-lg shadow-lg">
         <div className="flex justify-between items-center mb-4">
@@ -257,5 +268,6 @@ export default function DateReport() {
         </DataTable>
       </div>
     </div>
+    </>
   );
 }
