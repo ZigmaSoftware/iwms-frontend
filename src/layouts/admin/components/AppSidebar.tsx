@@ -12,7 +12,6 @@ import {
   Users,
   UserCircle,
   Truck,
-  Navigation,
   AlertTriangle,
   BarChart3,
   Search,
@@ -124,10 +123,9 @@ type SidebarSectionKey =
   | "transportMasters"
   | "scheduleMasters"
   | "auditItems"
-  | "vehicleTracking"
   | "wasteManagement"
   | "workforceManagement"
-  | "reports";
+  | "fleetReports";
 
 /* =====================
    MENU DEFINITIONS
@@ -611,12 +609,12 @@ const auditItems: NavItem[] = [
   },
 ];
 
-const vehicleTrackingItems: NavItem[] = [
+const fleetReportItems: NavItem[] = [
   {
-    nameKey: "admin.nav.vehicle_tracking",
-    icon: <Navigation size={18} />,
-    module: "vehicle-tracking",
-    screen: "VehicleTracking",
+    nameKey: "admin.nav.fleet_reports",
+    icon: <BarChart3 size={18} />,
+    module: "fleet-reports",
+    screen: "FleetReports",
     subItems: [
       {
         nameKey: "admin.nav.vehicle_tracking",
@@ -630,18 +628,6 @@ const vehicleTrackingItems: NavItem[] = [
         module: "vehicle-tracking",
         screen: "VehicleHistory",
       },
-    ],
-  },
-];
-
-
-const reportItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.reports",
-    icon: <BarChart3 size={18} />,
-    module: "reports",
-    screen: "Reports",
-    subItems: [
       {
         nameKey: "admin.nav.trip_summary",
         path: `/${encReport}/${encTripSummary}`,
@@ -773,8 +759,7 @@ const AppSidebar: React.FC = () => {
         { key: "transportMasters" as const, items: transportMastersItems },
         { key: "scheduleMasters" as const, items: scheduleMastersItems },
         { key: "auditItems" as const, items: auditItems },
-        { key: "vehicleTracking" as const, items: vehicleTrackingItems},
-        { key: "reports" as const, items: reportItems },
+        { key: "fleetReports" as const, items: fleetReportItems },
       ];
 
       // If superadmin, show ALL sections with ALL items
@@ -881,8 +866,6 @@ const AppSidebar: React.FC = () => {
   useEffect(() => {
     let matched = false;
     const skipAutoOpenSubmenuKeys = new Set([
-      "admin.nav.vehicle_tracking",
-      "admin.nav.vehicle_history",
       "admin.nav.collection_monitoring",
     ]);
 

@@ -29,6 +29,8 @@ type ProjectRecord = {
   company_unique_id: string;
   name: string;
   description: string | null;
+  gps_api_url: string | null;
+  weighment_api_url: string | null;
   is_active: boolean;
 };
 
@@ -91,6 +93,8 @@ export default function ProjectForm() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [gpsApiUrl, setGpsApiUrl] = useState("");
+  const [weighmentApiUrl, setWeighmentApiUrl] = useState("");
   const [adminUsername, setAdminUsername] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminEmployeeName, setAdminEmployeeName] = useState("");
@@ -161,6 +165,8 @@ export default function ProjectForm() {
         }
         setName(record.name ?? "");
         setDescription(record.description ?? "");
+        setGpsApiUrl(record.gps_api_url ?? "");
+        setWeighmentApiUrl(record.weighment_api_url ?? "");
         setPendingCompanyId(record.company_unique_id ?? null);
         setIsActive(normalizeIsActive(record.is_active));
       })
@@ -213,12 +219,16 @@ export default function ProjectForm() {
         await projectApi.update(id as string, {
           name: name.trim(),
           description: description.trim() || null,
+          gps_api_url: gpsApiUrl.trim() || null,
+          weighment_api_url: weighmentApiUrl.trim() || null,
           is_active: isActive,
         });
       } else {
         const payload: Record<string, string | null | boolean> = {
           name: name.trim(),
           description: description.trim() || null,
+          gps_api_url: gpsApiUrl.trim() || null,
+          weighment_api_url: weighmentApiUrl.trim() || null,
           is_active: isActive,
         };
         if (companyUniqueId.trim()) {
@@ -342,6 +352,28 @@ export default function ProjectForm() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t("common.description")}
               rows={4}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="gpsApiUrl">{t("admin.project.gps_api_url")}</Label>
+            <Input
+              id="gpsApiUrl"
+              type="url"
+              value={gpsApiUrl}
+              onChange={(e) => setGpsApiUrl(e.target.value)}
+              placeholder="https://api.example.com/getVehicleHistory"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="weighmentApiUrl">{t("admin.project.weighment_api_url")}</Label>
+            <Input
+              id="weighmentApiUrl"
+              type="url"
+              value={weighmentApiUrl}
+              onChange={(e) => setWeighmentApiUrl(e.target.value)}
+              placeholder="https://example.com/waste_collected_data_api.php"
             />
           </div>
 

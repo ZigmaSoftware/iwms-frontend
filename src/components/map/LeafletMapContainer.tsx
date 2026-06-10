@@ -5,11 +5,9 @@ import "leaflet/dist/leaflet.css";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useTranslation } from "react-i18next";
 import { fetchWasteReport } from "@/utils/wasteApi";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 
 /* ================= API ================= */
-const VEHICLE_API_URL =
-  "https://api.vamosys.com/mobile/getGrpDataForTrustedClients?providerName=BLUEPLANET&fcode=VAM";
-
 const GEOFENCE_API_URL =
   "https://api.vamosys.com/v2/viewSiteV2?userId=BLUEPLANET";
 
@@ -323,6 +321,7 @@ export function LeafletMapContainer({
 }: LeafletMapContainerProps = {}) {
   const { t, i18n } = useTranslation();
   const { theme } = useTheme();
+  const { gpsApiUrl, weighmentApiUrl } = useProjectSelector();
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
@@ -486,6 +485,7 @@ export function LeafletMapContainer({
 
   /* ================= FETCH GEOFENCES ================= */
   useEffect(() => {
+    if (!gpsApiUrl) return;
     fetch(GEOFENCE_API_URL)
       .then((r) => r.json())
       .then((json) => {
@@ -494,13 +494,14 @@ export function LeafletMapContainer({
         setGeofenceSites(sites);
       })
       .catch(console.error);
-  }, []);
+  }, [gpsApiUrl]);
 
   /* ================= FETCH VEHICLES ================= */
   useEffect(() => {
     const fetchVehicles = async () => {
+      if (!gpsApiUrl) { setFetchedVehicles([]); return; }
       try {
-        const res = await fetch(VEHICLE_API_URL);
+        const res = await fetch(gpsApiUrl);
         const json = await res.json();
 
         const rows = extractVehicleRows(json);
@@ -582,7 +583,7 @@ export function LeafletMapContainer({
     fetchVehicles();
     const t = setInterval(fetchVehicles, 15000);
     return () => clearInterval(t);
-  }, []);
+  }, [gpsApiUrl]);
 
   const displayedVehicles = useMemo(
     () => overrideVehicles ?? fetchedVehicles,
@@ -692,7 +693,7 @@ export function LeafletMapContainer({
 
         const [tripRes, weightResult] = await Promise.all([
           fetch(tripUrl).then((res) => res.json()),
-          fetchWasteReport("day_wise_data", reportStartKey, todayKey).catch(
+          fetchWasteReport(weighmentApiUrl, "day_wise_data", reportStartKey, todayKey).catch(
             () => ({
               rows: [],
             })

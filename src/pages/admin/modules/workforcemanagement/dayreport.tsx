@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 import { useNavigate } from "react-router-dom";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -38,6 +40,7 @@ const formatNumber = (v?: number | null) =>
 export default function DayReport() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { weighmentApiUrl } = useProjectSelector();
 
   const initialFromDate = `${today.getFullYear()}-${String(
     today.getMonth() + 1
@@ -119,9 +122,14 @@ export default function DayReport() {
 
     setError(null);
 
+    if (!weighmentApiUrl) {
+      setError("admin.workforce_management.day_report.error_no_api");
+      return;
+    }
+
     try {
       const res = await fetch(
-        `https://zigma.in/d2d/folders/waste_collected_summary_report/test_waste_collected_data_api.php?action=day_wise_data&from_date=${fromDate}&to_date=${toDate}&key=ZIGMA-DELHI-WEIGHMENT-2025-SECURE`
+        `${weighmentApiUrl}?action=day_wise_data&from_date=${fromDate}&to_date=${toDate}&key=ZIGMA-DELHI-WEIGHMENT-2025-SECURE`
       );
       const json = await res.json();
 
@@ -166,8 +174,8 @@ export default function DayReport() {
 
   /* ================= UI ================= */
   return (
-
     <>
+      <ProjectSelectorBar />
          <div className="flex justify-between items-center mb-4">
           <div>
             <h1 className="text-2xl font-bold">

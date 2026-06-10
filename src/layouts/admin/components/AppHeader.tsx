@@ -302,6 +302,8 @@ const AppHeader: React.FC = () => {
 
             <ThemeToggleButton showLabel={false} />
 
+            <div className={cn("hidden lg:block h-12 w-px mx-1", isDark ? "bg-slate-700" : "bg-gray-200")} />
+
             <UserDropdown />
           </motion.div>
         </div>

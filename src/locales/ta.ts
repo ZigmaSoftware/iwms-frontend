@@ -822,6 +822,7 @@ const taResource = {
           "vehicle_trip_audit": "வாகன பயண ஆய்வு",
           "trip_exception_log": "பயண விதிவிலக்கு பதிவு",
           "zone_property_load_tracker": "மண்டல சொத்து சுமை கண்காணிப்பு",
+          "fleet_reports": "வாகனம் & அறிக்கைகள்",
           "vehicle_tracking": "வாகன கண்காணிப்பு",
           "vehicle_history": "வாகன வரலாறு",
           "process_items": "செயல்முறை உருப்படிகள்",
@@ -857,7 +858,9 @@ const taResource = {
           "admin_password": "நிர்வாகி கடவுச்சொல்",
           "admin_email": "நிர்வாகி மின்னஞ்சல்",
           "admin_required_together": "admin_username, admin_password, மற்றும் admin_employee_name மூன்றும் ஒன்றாக வழங்கப்பட வேண்டும்.",
-          "company_admin_created": "திட்ட நிர்வாகி உருவாக்கப்பட்டது - பயனர் பெயர்: {{username}}, ஐடி: {{unique_id}}"
+          "company_admin_created": "திட்ட நிர்வாகி உருவாக்கப்பட்டது - பயனர் பெயர்: {{username}}, ஐடி: {{unique_id}}",
+          "gps_api_url": "GPS API URL",
+          "weighment_api_url": "எடைத்திரும்ப API URL"
         },
         "roles": {
           "admin": "நிர்வாகி",

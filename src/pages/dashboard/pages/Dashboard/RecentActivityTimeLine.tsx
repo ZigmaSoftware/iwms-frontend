@@ -1,4 +1,5 @@
 import { DataCard } from "@/components/ui/DataCard";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { AlertTriangle, CheckCircle, Info } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -41,8 +42,7 @@ export function RecentActivityTimeline() {
     low: 0,
   });
 
-  const WEIGHBRIDGE_API_BASE =
-    "https://zigma.in/d2d/folders/waste_collected_summary_report/test_waste_collected_data_api.php";
+  const { gpsApiUrl, weighmentApiUrl } = useProjectSelector();
   const WEIGHBRIDGE_API_KEY = "ZIGMA-DELHI-WEIGHMENT-2025-SECURE";
   const REFRESH_MS = 10000;
 
@@ -54,9 +54,8 @@ export function RecentActivityTimeline() {
   };
 
   const fetchVehicleStats = async () => {
-    const res = await fetch(
-      "https://api.vamosys.com/mobile/getGrpDataForTrustedClients?providerName=BLUEPLANET&fcode=VAM"
-    );
+    if (!gpsApiUrl) return { running: 0, parking: 0 };
+    const res = await fetch(gpsApiUrl);
     const data = await res.json();
     const rows = Array.isArray(data) ? data : [];
 
@@ -132,8 +131,9 @@ export function RecentActivityTimeline() {
   };
 
   const fetchWeighbridgeStats = async () => {
+    if (!weighmentApiUrl) return { warning: 0, critical: 0 };
     const today = formatDate(new Date());
-    const url = `${WEIGHBRIDGE_API_BASE}?action=day_wise_data&from_date=${today}&to_date=${today}&key=${WEIGHBRIDGE_API_KEY}`;
+    const url = `${weighmentApiUrl}?action=day_wise_data&from_date=${today}&to_date=${today}&key=${WEIGHBRIDGE_API_KEY}`;
     const res = await fetch(url);
     const json = await res.json();
     const rows = Array.isArray(json?.data) ? json.data : [];
@@ -243,7 +243,7 @@ export function RecentActivityTimeline() {
       isMounted = false;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [gpsApiUrl, weighmentApiUrl]);
 
 
   const rtf = new Intl.RelativeTimeFormat(i18n.language, { numeric: "auto" });

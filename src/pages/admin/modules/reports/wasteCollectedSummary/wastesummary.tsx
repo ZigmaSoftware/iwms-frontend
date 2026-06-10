@@ -15,20 +15,13 @@ import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-/* ================= CONSTANTS ================= */
-
-const ZIGMA_API_BASE = (
-  import.meta.env.VITE_ZIGMA_API_BASE ||
-  "https://zigma.in/d2d/folders"
-).replace(/\/$/, "");
-
-const VEHICLE_TRACKING_API =
-  "https://api.vamosys.com/mobile/getGrpDataForTrustedClients?providerName=BLUEPLANET&fcode=VAM";
 
 /* ================= TYPES ================= */
 
@@ -52,6 +45,9 @@ type ApiRow = {
 
 export default function WasteSummary() {
   const { t, i18n } = useTranslation();
+  const { weighmentApiUrl, gpsApiUrl } = useProjectSelector();
+  const WEIGHMENT_API_URL = weighmentApiUrl;
+  const VEHICLE_TRACKING_API = gpsApiUrl;
   const today = new Date();
   const todayKey = today.toISOString().split("T")[0];
   const initialMonth = `${today.getFullYear()}-${String(
@@ -189,7 +185,7 @@ export default function WasteSummary() {
 
   const fetchMonthData = async (month: string) => {
     try {
-      const url = `${ZIGMA_API_BASE}/waste_collected_summary_report/waste_collected_data_api.php?from_date=${month}-01&key=ZIGMA-DELHI-WEIGHMENT-2025-SECURE`;
+      const url = `${WEIGHMENT_API_URL}?from_date=${month}-01&key=ZIGMA-DELHI-WEIGHMENT-2025-SECURE`;
       const res = await fetch(url);
       const json = await res.json();
       const data = Array.isArray(json?.data) ? json.data : [];
@@ -364,9 +360,21 @@ export default function WasteSummary() {
 
   /* ================= UI ================= */
 
+  if (!weighmentApiUrl) {
+    return (
+      <div className="p-3">
+        <ProjectSelectorBar />
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <p className="text-base font-medium">Weighment API not configured for this project.</p>
+          <p className="text-sm mt-1">Set a Weighment API URL in the project settings to enable waste reports.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-3">
-
+      <ProjectSelectorBar />
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 mb-1">
