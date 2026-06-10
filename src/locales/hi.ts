@@ -190,6 +190,7 @@ const hiResource = {
         "no_charts_placeholder": "यहां अपने चार्ट जोड़ें (Recharts या समान). यह फ्लो जांचने के लिए प्लेसहोल्डर है।",
         "nav": {
           "dashboard": "डैशबोर्ड",
+          "overall": "समग्र डैशबोर्ड",
           "live_map": "लाइव मैप",
           "vehicle": "वाहन",
           "waste_collection": "कचरा संग्रह",
