@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { RefreshCw, Info } from "lucide-react";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ import { panchayatApi, wasteTypeApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
+import { api } from "@/api";
 import type { SelectOption } from "@/types";
 
 /* ────────────────────────────────────────────
@@ -217,6 +219,10 @@ export default function MonthlyWasteComparisonForm() {
   const [totalTrips, setTotalTrips] = useState("");
   const [collectionPointsCovered, setCollectionPointsCovered] = useState("");
 
+  /* ── Auto-fetch from trip logs (create mode only) ── */
+  const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState("");
+
   /* dropdown data */
   const [panchayatOptions, setPanchayatOptions] = useState<SelectOption[]>([]);
   const [wasteTypeOptions, setWasteTypeOptions] = useState<SelectOption[]>([]);
@@ -294,6 +300,63 @@ export default function MonthlyWasteComparisonForm() {
         setWasteTypeOptions([]);
       });
   }, []);
+
+  /* auto-fetch monthly aggregates from DailyTripLog when criteria are complete (create mode) */
+  const canFetch =
+    !isEdit &&
+    Boolean(companyUniqueId) &&
+    Boolean(projectId) &&
+    Boolean(panchayatId) &&
+    Boolean(wasteTypeId) &&
+    Boolean(month);
+
+  useEffect(() => {
+    if (!canFetch) {
+      setFetchError("");
+      return;
+    }
+    let cancelled = false;
+    setFetching(true);
+    setFetchError("");
+    api
+      .get("/schedule-masters/monthly-waste-comparison/", {
+        params: {
+          company_id: companyUniqueId,
+          project_id: projectId,
+          panchayat_id: panchayatId,
+          waste_type_id: wasteTypeId,
+          month,
+        },
+      })
+      .then((res) => {
+        if (cancelled) return;
+        const results: Record<string, unknown>[] = Array.isArray(res.data?.results)
+          ? res.data.results
+          : [];
+        if (results.length > 0) {
+          const row = results[0];
+          setAgreedWeight(String(row.total_agreed_weight ?? ""));
+          setActualWeight(String(row.total_actual_weight ?? ""));
+          setTotalTrips(String(row.total_trips ?? ""));
+          setCollectionPointsCovered(String(row.collection_points_covered ?? ""));
+        } else {
+          setAgreedWeight("");
+          setActualWeight("");
+          setTotalTrips("");
+          setCollectionPointsCovered("");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setFetchError("Could not load trip log data. You can enter values manually.");
+      })
+      .finally(() => {
+        if (!cancelled) setFetching(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canFetch, companyUniqueId, projectId, panchayatId, wasteTypeId, month]);
 
   /* hydrate edit record immediately; resolve dropdown labels as options arrive */
   useEffect(() => {
@@ -511,6 +574,20 @@ export default function MonthlyWasteComparisonForm() {
             onChange={(e) => setMonth(e.target.value)}
           />
         </FormSection>
+
+        {!isEdit && canFetch && (
+          <div className="flex items-start gap-2 rounded-md bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700 mb-2">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              {fetching
+                ? "Loading data from Daily Trip Logs…"
+                : fetchError
+                ? fetchError
+                : "Values below are auto-filled from verified trip logs. You can edit them before saving."}
+            </span>
+            {fetching && <RefreshCw className="ml-auto h-4 w-4 animate-spin shrink-0" />}
+          </div>
+        )}
 
         <FormSection title="Weight & Collection Data">
           <FormInput
