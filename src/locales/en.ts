@@ -193,6 +193,7 @@ const enResource = {
         "no_charts_placeholder": "Plug your charts here (Recharts or similar). Placeholder to validate flow.",
         "nav": {
           "dashboard": "Dashboard",
+          "overall": "Overall Dashboard",
           "wastetype": "Waste Type",
           "assets": "Assets",
           "live_map": "Live Map",

@@ -190,6 +190,7 @@ const taResource = {
         "no_charts_placeholder": "இங்கே உங்கள் சார்ட்களை இணைக்கவும். தற்போது சோதனைக்கான இடம்தான்.",
         "nav": {
           "dashboard": "டாஷ்போர்டு",
+          "overall": "ஒட்டுமொத்த டாஷ்போர்டு",
           "live_map": "நேரடி வரைபடம்",
           "vehicle": "வாகனம்",
           "waste_collection": "கழிவு சேகரிப்பு",

@@ -3,6 +3,7 @@ import { Navigate, useParams } from "react-router-dom";
 
 import { decryptSegment } from "@/utils/routeCrypto";
 
+import OverallDashboard from "@/pages/dashboard/pages/OverallDashboard";
 import MapView from "@/pages/dashboard/pages/MapView";
 import Vehicle from "@/pages/dashboard/pages/Vehicle";
 import WasteCollection from "@/pages/dashboard/pages/WasteCollection";
@@ -16,6 +17,7 @@ import BinMonitoring from "@/pages/dashboard/pages/BinMonitoring";
 type DashboardComponent = ComponentType | undefined;
 
 const ROUTES: Record<string, DashboardComponent> = {
+  "dashboard-overall": OverallDashboard,
   "dashboard-map": MapView,
   "dashboard-vehicle": Vehicle,
   "dashboard-waste-collection": WasteCollection,

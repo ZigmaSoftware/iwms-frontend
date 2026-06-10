@@ -1,10 +1,11 @@
-import { LayoutDashboard, MapPin, Bell, FileText, Scale, Truck, Trash2, Users, MessageSquare, Archive } from "lucide-react";
+import { LayoutDashboard, MapPin, Bell, FileText, Scale, Truck, Trash2, Users, MessageSquare, Archive, BarChart3 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { decryptSegment } from "@/utils/routeCrypto";
 
 const {
+  encDashboardOverall,
   encDashboardLiveMap,
   encDashboardVehicleManagement,
   encDashboardWasteCollection,
@@ -18,6 +19,7 @@ const {
 
 const menuItems = [
   { labelKey: "dashboard.nav.dashboard", url: "/dashboard", icon: LayoutDashboard, moduleName: null },
+  { labelKey: "dashboard.nav.overall", url: `/dashboard/${encDashboardOverall}`, icon: BarChart3, moduleName: "dashboard-overall" },
   { labelKey: "dashboard.nav.live_map", url: `/dashboard/${encDashboardLiveMap}`, icon: MapPin, moduleName: "dashboard-map" },
   { labelKey: "dashboard.nav.vehicle", url: `/dashboard/${encDashboardVehicleManagement}`, icon: Truck, moduleName: "dashboard-vehicle" },
   { labelKey: "dashboard.nav.waste_collection", url: `/dashboard/${encDashboardWasteCollection}`, icon: Trash2, moduleName: "dashboard-waste-collection" },
