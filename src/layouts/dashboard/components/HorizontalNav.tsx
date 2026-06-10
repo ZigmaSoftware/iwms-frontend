@@ -26,7 +26,7 @@ const menuItems = [
   { labelKey: "dashboard.nav.alerts", url: `/dashboard/${encDashboardAlerts}`, icon: Bell, moduleName: "dashboard-alerts" },
   { labelKey: "dashboard.nav.reports", url: `/dashboard/${encDashboardReports}`, icon: FileText, moduleName: "dashboard-reports" },
   { labelKey: "dashboard.nav.weighbridge", url: `/dashboard/${encDashboardWeighBridge}`, icon: Scale, moduleName: "dashboard-weighbridge" },
-  { labelKey: "dashboard.nav.bins", url: `/dashboard/${encDashboardBins}`, icon: Archive, moduleName: "dashboard-bins" },
+  // { labelKey: "dashboard.nav.bins", url: `/dashboard/${encDashboardBins}`, icon: Archive, moduleName: "dashboard-bins" },
 ];
 
 
