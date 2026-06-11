@@ -19,6 +19,7 @@ import { MAP_TABS, type MapTabKey } from "./map/mapUtils";
 import { binApi, customerCreationApi, wasteCollectionApi } from "@/helpers/admin";
 import { filterActiveCustomers, normalizeCustomerArray } from "@/utils/customerUtils";
 import { useTranslation } from "react-i18next";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 
 export function HomeDashboard() {
   const { t } = useTranslation();
@@ -197,7 +198,7 @@ export function HomeDashboard() {
 
   return (
     <div className="h-full min-h-0 overflow-hidden flex flex-col">
-
+      <ProjectSelectorBar />
       <DataCard className="h-full overflow-hidden">
 
         <div className="grid grid-cols-12 gap-3 h-full overflow-hidden">
