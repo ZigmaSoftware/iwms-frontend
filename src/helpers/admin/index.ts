@@ -33,6 +33,9 @@ export const panchayatApi = adminApi.panchayats;
 export const panchayatLeaderApi = adminApi.panchayatLeaders;
 export const areaTypeApi = adminApi.areatypes;
 export const hierarchyApi = adminApi.hierarchies;
+export const municipalityApi = adminApi.municipalities;
+export const townPanchayatApi = adminApi.townPanchayats;
+export const blockPanchayatUnionApi = adminApi.blockPanchayatUnions;
 
 /* =========================
    WASTE TYPES

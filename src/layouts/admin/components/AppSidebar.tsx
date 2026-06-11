@@ -84,6 +84,9 @@ const {
   encPanchayats,
   encPanchayatLeaders,
   encAreaTypes,
+  encMunicipalities,
+  encTownPanchayats,
+  encBlockPanchayatUnions,
   encBins,
   encDailyTripAssignment,
   encDailyTripLog,
@@ -202,6 +205,7 @@ const masterItems: NavItem[] = [
     module: "masters",
     screen: "masters",
     subItems: [
+      // ── Org / Department Setup ──────────────────────────────
       {
         nameKey: "admin.nav.department",
         path: `/${encMasters}/${encDepartments}`,
@@ -214,6 +218,7 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "designation-masters",
       },
+      // ── Administrative / Geographic Hierarchy ────────────────
       {
         nameKey: "admin.nav.district",
         path: `/${encMasters}/${encDistricts}`,
@@ -221,22 +226,49 @@ const masterItems: NavItem[] = [
         screen: "districts",
       },
       {
+        nameKey: "admin.nav.zone",
+        path: `/${encMasters}/${encZones}`,
+        module: "masters",
+        screen: "zones",
+      },
+      // ── Urban Local Bodies (ULB) — parallel at same level ───
+      {
         nameKey: "admin.nav.city",
         path: `/${encMasters}/${encCities}`,
         module: "masters",
         screen: "cities",
       },
       {
-        nameKey: "admin.nav.zone",
-        path: `/${encMasters}/${encZones}`,
+        nameKey: "admin.nav.municipality",
+        path: `/${encMasters}/${encMunicipalities}`,
         module: "masters",
-        screen: "zones",
+        screen: "municipalities",
       },
+      {
+        nameKey: "admin.nav.town_panchayat",
+        path: `/${encMasters}/${encTownPanchayats}`,
+        module: "masters",
+        screen: "town-panchayats",
+      },
+      // ── Rural Local Bodies — as per Rule 40 ─────────────────
+      {
+        nameKey: "admin.nav.block_panchayat_union",
+        path: `/${encMasters}/${encBlockPanchayatUnions}`,
+        module: "masters",
+        screen: "block-panchayat-unions",
+      },
+      // ── Operational / Field Level ────────────────────────────
       {
         nameKey: "admin.nav.ward",
         path: `/${encMasters}/${encWards}`,
         module: "masters",
         screen: "wards",
+      },
+      {
+        nameKey: "admin.nav.area_type",
+        path: `/${encMasters}/${encAreaTypes}`,
+        module: "masters",
+        screen: "areatypes",
       },
       {
         nameKey: "admin.nav.panchayat",
@@ -250,12 +282,6 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "panchayat-leaders",
       },
-      {
-        nameKey: "admin.nav.area_type",
-        path: `/${encMasters}/${encAreaTypes}`,
-        module: "masters",
-        screen: "areatypes",
-      }
     ],
   },
 ];

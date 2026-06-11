@@ -18,13 +18,14 @@ import {
 import { encryptSegment } from "@/utils/routeCrypto";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { panchayatApi, stateApi, districtApi, cityApi } from "@/helpers/admin";
+import { panchayatApi, stateApi, districtApi, cityApi, blockPanchayatUnionApi } from "@/helpers/admin";
 import type { SelectOption } from "@/types";
 
 const PANCHAYAT_FIELDS: Record<string, string[]> = {
   state_id: ["state_id", "state"],
   district_id: ["district_id", "district"],
   city_id: ["city_id", "city"],
+  block_id: ["block_id", "block"],
   panchayat_name: ["panchayat_name", "name"],
   agreed_weight_kg: ["agreed_weight_kg"],
   weight_unit: ["weight_unit"],
@@ -119,6 +120,7 @@ export default function PanchayatForm() {
   const [stateId, setStateId] = useState("");
   const [districtId, setDistrictId] = useState("");
   const [cityId, setCityId] = useState("");
+  const [blockId, setBlockId] = useState("");
   const [agreedWeightKg, setAgreedWeightKg] = useState("0");
   const [weightUnit, setWeightUnit] = useState("kg");
   const [effectiveFrom, setEffectiveFrom] = useState("");
@@ -131,13 +133,16 @@ export default function PanchayatForm() {
   const [pendingState, setPendingState] = useState("");
   const [pendingDistrict, setPendingDistrict] = useState("");
   const [pendingCity, setPendingCity] = useState("");
+  const [pendingBlock, setPendingBlock] = useState("");
 
   /* ── filtered lists ── */
   const [allStates, setAllStates] = useState<SelectOption[]>([]);
   const [allDistricts, setAllDistricts] = useState<SelectOption[]>([]);
   const [allCities, setAllCities] = useState<SelectOption[]>([]);
+  const [allBlocks, setAllBlocks] = useState<SelectOption[]>([]);
   const [filteredDistricts, setFilteredDistricts] = useState<SelectOption[]>([]);
   const [filteredCities, setFilteredCities] = useState<SelectOption[]>([]);
+  const [filteredBlocks, setFilteredBlocks] = useState<SelectOption[]>([]);
 
   const encMasters = encryptSegment("masters");
   const encPanchayat = encryptSegment("panchayats");
@@ -211,6 +216,30 @@ export default function PanchayatForm() {
     return () => { cancelled = true; };
   }, [companyUniqueId, projectId]);
 
+  /* ── load block/panchayat unions ── */
+  useEffect(() => {
+    let cancelled = false;
+    const config = companyUniqueId && projectId
+      ? { params: { company_id: companyUniqueId, project_id: projectId } }
+      : undefined;
+    blockPanchayatUnionApi.readAll(config)
+      .then((res: any) => {
+        if (cancelled) return;
+        const list = toRecordList(res);
+        setAllBlocks(
+          list
+            .map((x: any) => ({
+              value: normalizeNullable(x.unique_id) ?? "",
+              label: String(x.block_name ?? ""),
+              districtId: normalizeNullable(x.district_id ?? x.district),
+            } as SelectOption & { districtId: string | null }))
+            .filter((x) => x.value && x.label)
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [companyUniqueId, projectId]);
+
   /* ── cascade: districts filtered by state ── */
   useEffect(() => {
     if (!stateId) { setFilteredDistricts([]); return; }
@@ -237,6 +266,19 @@ export default function PanchayatForm() {
     setFilteredCities(filt);
   }, [districtId, allCities, pendingCity]);
 
+  /* ── cascade: blocks filtered by district ── */
+  useEffect(() => {
+    if (!districtId) { setFilteredBlocks([]); return; }
+    const filt = (allBlocks as any[]).filter((b) => b.districtId === districtId).map(
+      (b) => ({ value: b.value, label: b.label })
+    );
+    if (pendingBlock && !filt.some((b) => b.value === pendingBlock)) {
+      const found = allBlocks.find((b) => b.value === pendingBlock);
+      if (found) filt.push(found);
+    }
+    setFilteredBlocks(filt);
+  }, [districtId, allBlocks, pendingBlock]);
+
   /* ── apply pending state once list loads ── */
   useEffect(() => {
     if (pendingState && allStates.length > 0 && allStates.some((s) => s.value === pendingState)) {
@@ -260,6 +302,14 @@ export default function PanchayatForm() {
       setPendingCity("");
     }
   }, [pendingCity, filteredCities]);
+
+  /* ── apply pending block once filtered list loads ── */
+  useEffect(() => {
+    if (pendingBlock && filteredBlocks.length > 0 && filteredBlocks.some((b) => b.value === pendingBlock)) {
+      setBlockId(pendingBlock);
+      setPendingBlock("");
+    }
+  }, [pendingBlock, filteredBlocks]);
 
   /* ── edit mode: prefill ── */
   const [recordData, setRecordData] = useState<any>(null);
@@ -313,10 +363,15 @@ export default function PanchayatForm() {
     const cityName = data.city_name ?? null;
     const resolvedCity = resolveId(allCities, rawCityId, cityName);
 
+    const rawBlockId = normalizeNullable(data.block_id ?? data.block);
+    const blockName = data.block_name ?? null;
+    const resolvedBlock = resolveId(allBlocks, rawBlockId, blockName);
+
     if (resolvedState) { setStateId(resolvedState); setPendingState(resolvedState); }
     if (resolvedDistrict) { setDistrictId(resolvedDistrict); setPendingDistrict(resolvedDistrict); }
     if (resolvedCity) { setCityId(resolvedCity); setPendingCity(resolvedCity); }
-  }, [isEdit, recordData, applyCompanyProjectFromRecord, allStates, allDistricts, allCities]);
+    if (resolvedBlock) { setBlockId(resolvedBlock); setPendingBlock(resolvedBlock); }
+  }, [isEdit, recordData, applyCompanyProjectFromRecord, allStates, allDistricts, allCities, allBlocks]);
 
   /* ── submit ── */
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -347,6 +402,7 @@ export default function PanchayatForm() {
       state_id: stateId,
       district_id: districtId,
       city_id: cityId,
+      block_id: blockId || null,
       agreed_weight_kg: agreedWeightKg || "0",
       weight_unit: weightUnit || "kg",
       effective_from: effectiveFrom || null,
@@ -489,8 +545,11 @@ export default function PanchayatForm() {
               onValueChange={(value) => {
                 setDistrictId(value);
                 setCityId("");
+                setBlockId("");
                 setFilteredCities([]);
+                setFilteredBlocks([]);
                 setPendingCity("");
+                setPendingBlock("");
               }}
               disabled={!stateId}
             >
@@ -520,6 +579,30 @@ export default function PanchayatForm() {
                 {filteredCities.map((c) => (
                   <SelectItem key={c.value} value={c.value}>
                     {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Block / Panchayat Union (optional) */}
+        {showField("block_id") && (
+          <div>
+            <Label>Block / Panchayat Union</Label>
+            <Select
+              value={blockId || "none"}
+              onValueChange={(value) => setBlockId(value === "none" ? "" : value)}
+              disabled={!districtId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select Block / PU (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— None —</SelectItem>
+                {filteredBlocks.map((b) => (
+                  <SelectItem key={b.value} value={b.value}>
+                    {b.label}
                   </SelectItem>
                 ))}
               </SelectContent>
