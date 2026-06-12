@@ -231,6 +231,7 @@ export default function DailyWasteComparisonList() {
   const [dateValue, setDateValue] = useState("");
   const [appliedDate, setAppliedDate] = useState("");
   const [sortMode, setSortMode] = useState("absolute");
+  const [source, setSource] = useState("bin");
   const [rows, setRows] = useState<DailyReportRow[]>([]);
   const [dateTrends, setDateTrends] = useState<
     DailyReportResponse["date_trends"]
@@ -258,7 +259,7 @@ export default function DailyWasteComparisonList() {
     setLoading(true);
     setError("");
     try {
-      const params: Record<string, string> = { sort: sortMode };
+      const params: Record<string, string> = { sort: sortMode, source };
       if (appliedDate) params.date = appliedDate;
       if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
@@ -288,7 +289,7 @@ export default function DailyWasteComparisonList() {
 
   useEffect(() => {
     void fetchReport();
-  }, [appliedDate, sortMode, companyUniqueId, projectId, companies.length]);
+  }, [appliedDate, sortMode, source, companyUniqueId, projectId, companies.length]);
 
   /* ── delete ── */
   const handleDelete = async (row: DailyReportRow) => {
@@ -333,7 +334,7 @@ export default function DailyWasteComparisonList() {
   const handleDownload = async () => {
     setExporting(true);
     try {
-      const params: Record<string, string> = { sort: sortMode };
+      const params: Record<string, string> = { sort: sortMode, source };
       if (appliedDate) params.date = appliedDate;
       if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
@@ -429,6 +430,15 @@ export default function DailyWasteComparisonList() {
             <option value="absolute">Highest variance</option>
             <option value="deficit">Highest deficit</option>
             <option value="surplus">Highest surplus</option>
+          </select>
+          <select
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-400"
+          >
+            <option value="bin">Bin Collection</option>
+            <option value="household">Household Collection</option>
+            <option value="all">All Sources</option>
           </select>
           <button
             onClick={() => setAppliedDate(dateValue)}

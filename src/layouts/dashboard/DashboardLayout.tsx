@@ -147,15 +147,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </header>
 
-      {/* {isNavigating && (
-        <div className="pointer-events-none fixed left-1/2 top-20 z-30 -translate-x-1/2">
-          <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-sm font-medium text-gray-700 shadow-lg dark:border-gray-700 dark:bg-gray-900/90 dark:text-gray-200">
-            <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            Navigating...
-          </div>
-        </div>
-      )} */}
-
       {/* MAIN CONTENT */}
       <main className="flex-1 p-2 md:p-4 lg:p-6">
         {isNavigating ? (

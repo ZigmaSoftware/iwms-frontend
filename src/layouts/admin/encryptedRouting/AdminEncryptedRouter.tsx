@@ -99,6 +99,7 @@ import DailyTripAssignmentList from "@/pages/admin/modules/transportMasters/dail
 import DailyTripAssignmentForm from "@/pages/admin/modules/transportMasters/dailyTripAssignment/dailyTripAssignmentForm";
 import DailyTripCollectionPointList from "@/pages/admin/modules/transportMasters/dailyTripCollectionPoint/dailyTripCollectionPointList";
 import DailyTripCollectionPointForm from "@/pages/admin/modules/transportMasters/dailyTripCollectionPoint/dailyTripCollectionPointForm";
+import DailyTripHouseholdCollectionList from "@/pages/admin/modules/transportMasters/dailyTripHouseholdCollection/dailyTripHouseholdCollectionList";
 import DailyTripTracking from "@/pages/admin/modules/scheduleMasters/dailyTripTracking/DailyTripTracking";
 import DailyTripLogList from "@/pages/admin/modules/transportMasters/dailyTripLog/dailyTripLogList";
 
@@ -227,6 +228,7 @@ const ROUTES: RouteMap = {
     "trip-plan-collection-points": { list: TripPlanCollectionPointList, form: TripPlanCollectionPointForm },
     "daily-trip-assignment": { list: DailyTripAssignmentList, form: DailyTripAssignmentForm },
     "daily-trip-collection-point": { list: DailyTripCollectionPointList, form: DailyTripCollectionPointForm },
+    "daily-trip-household-collection": { list: DailyTripHouseholdCollectionList },
     "daily-trip-tracking": { component: DailyTripTracking },
     "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
     "daily-trip-log": { list: DailyTripLogList },
@@ -310,6 +312,7 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "alternative-staff-templates": ["alternative-staff-template"],
   "daily-trip-assignments": ["daily-trip-assignment"],
   "daily-trip-collection-points": ["daily-trip-collection-point"],
+  "daily-trip-household-collections": ["daily-trip-household-collection"],
   "bin-collection-events": ["bin-collection-event"],
   "daily-trip-logs": ["daily-trip-log"],
 };

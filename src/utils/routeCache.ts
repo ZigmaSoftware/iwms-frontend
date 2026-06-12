@@ -180,6 +180,7 @@ const plainRoutes: EncryptedRoutes = {
   encTripPlanCollectionPoints: "trip-plan-collection-points",
   encDailyTripAssignment: "daily-trip-assignment",
   encDailyTripCollectionPoint: "daily-trip-collection-point",
+  encDailyTripHouseholdCollection: "daily-trip-household-collection",
   encDailyTripTracking: "daily-trip-tracking",
   encDailyTripLog: "daily-trip-log",
   encBinCollectionEvent: "bin-collection-event",

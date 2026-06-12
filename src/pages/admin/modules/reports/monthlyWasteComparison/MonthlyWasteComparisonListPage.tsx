@@ -230,6 +230,7 @@ export default function MonthlyWasteComparisonListPage() {
   const [monthValue, setMonthValue] = useState(currentMonth());
   const [appliedMonth, setAppliedMonth] = useState(currentMonth());
   const [sortMode, setSortMode] = useState("absolute");
+  const [source, setSource] = useState("bin");
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [monthlyTrends, setMonthlyTrends] = useState<
     ReportResponse["monthly_trends"]
@@ -257,7 +258,7 @@ export default function MonthlyWasteComparisonListPage() {
     setLoading(true);
     setError("");
     try {
-      const params: Record<string, string> = { sort: sortMode };
+      const params: Record<string, string> = { sort: sortMode, source };
       if (appliedMonth) params.month = appliedMonth;
       if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
@@ -289,7 +290,7 @@ export default function MonthlyWasteComparisonListPage() {
 
   useEffect(() => {
     void fetchReport();
-  }, [appliedMonth, sortMode, companyUniqueId, projectId, companies.length]);
+  }, [appliedMonth, sortMode, source, companyUniqueId, projectId, companies.length]);
 
   /* ── delete ── */
   const handleDelete = async (uniqueId: string, label: string) => {
@@ -333,7 +334,7 @@ export default function MonthlyWasteComparisonListPage() {
   const handleDownload = async () => {
     setExporting(true);
     try {
-      const params: Record<string, string> = { sort: sortMode };
+      const params: Record<string, string> = { sort: sortMode, source };
       if (appliedMonth) params.month = appliedMonth;
       if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
@@ -432,6 +433,15 @@ export default function MonthlyWasteComparisonListPage() {
             <option value="absolute">Highest variance</option>
             <option value="deficit">Highest deficit</option>
             <option value="surplus">Highest surplus</option>
+          </select>
+          <select
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            <option value="bin">Bin Collection</option>
+            <option value="household">Household Collection</option>
+            <option value="all">All Sources</option>
           </select>
           <button
             onClick={() => setAppliedMonth(monthValue)}

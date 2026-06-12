@@ -90,6 +90,7 @@ const {
   encDailyTripAssignment,
   encDailyTripLog,
   encDailyTripCollectionPoint,
+  encDailyTripHouseholdCollection,
   encDailyTripTracking,
   encBinCollectionEvent,
   encLoginAudits,
@@ -553,6 +554,12 @@ const scheduleMastersItems: NavItem[] = [
         path: `/${encScheduleMasters}/${encDailyTripCollectionPoint}`,
         module: "schedule-masters",
         screen: "daily-trip-collection-points",
+      },
+      {
+        nameKey: "admin.nav.daily_trip_household_collection",
+        path: `/${encScheduleMasters}/${encDailyTripHouseholdCollection}`,
+        module: "schedule-masters",
+        screen: "daily-trip-household-collections",
       },
       {
         nameKey: "admin.nav.daily_trip_tracking",
