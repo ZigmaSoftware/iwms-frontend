@@ -46,6 +46,15 @@ export default function Select({
   const isEmpty = normalizedValue === "";
   const shadValue = isEmpty ? placeholderValue : normalizedValue;
 
+  // Find the label for the currently selected value so the trigger always
+  // shows it explicitly. This bypasses Radix's portal-based label mechanism,
+  // which fails to display the correct text when the value is set
+  // programmatically while SelectContent is rendered into a DocumentFragment
+  // (Radix's closed-state optimisation).
+  // const selectedLabel = isEmpty
+  //   ? null
+  //   : (options.find((o) => String(o.value) === normalizedValue)?.label ?? null);
+
   return (
     <ShadSelect
       value={shadValue}
@@ -56,7 +65,9 @@ export default function Select({
       disabled={disabled}
     >
       <SelectTrigger id={id} className={className} aria-required={required}>
-        <SelectValue placeholder={finalPlaceholder} />
+        <SelectValue placeholder={finalPlaceholder}>
+          {/* {selectedLabel ?? undefined} */}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {isEmpty && (

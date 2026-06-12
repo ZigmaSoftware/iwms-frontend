@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -9,7 +9,7 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
 
-import { customerCreationApi, wasteCollectionApi } from "@/helpers/admin";
+import { customerCreationApi, wasteCollectionApi, dailyTripAssignmentApi, tripPlanApi, } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
@@ -22,6 +22,7 @@ type Customer = {
   area?: string;
   zone_name?: string;
   ward_name?: string;
+  panchayat_name?: string;
   city_name?: string;
   district_name?: string;
   state_name?: string;
@@ -68,6 +69,10 @@ export default function WasteCollectedForm() {
 
   /* ── form fields ── */
   const [customerId, setCustomerId] = useState("");
+  const [tripAssignmentId, setTripAssignmentId] = useState("");
+  // const [panchayatId, setPanchayatId] = useState("");
+  // const [zoneId, setZoneId] = useState("");
+  // const [wardId, setWardId] = useState("");
   const [wetWaste, setWetWaste] = useState(0);
   const [dryWaste, setDryWaste] = useState(0);
   const [mixedWaste, setMixedWaste] = useState(0);
@@ -75,6 +80,10 @@ export default function WasteCollectedForm() {
 
   /* ── dropdown data ── */
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [tripAssignments, setTripAssignments] = useState<{ value: string; label: string }[]>([]);
+  // const [panchayats, setPanchayats] = useState<{ value: string; label: string }[]>([]);
+  // const [zones, setZones] = useState<{ value: string; label: string }[]>([]);
+  // const [wards, setWards] = useState<{ value: string; label: string }[]>([]);
   const [fetchingCustomers, setFetchingCustomers] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -91,8 +100,24 @@ export default function WasteCollectedForm() {
     customerId: string;
     customerName: string;
   } | null>(null);
+  const [pendingTripAssignmentId, setPendingTripAssignmentId] = useState("");
+
+  // Tracks whether the trip assignment was changed by the user (not by record loading)
+  const userChangedTripRef = useRef(false);
 
   const resolveCustomerId = (c: Customer) => String(c.unique_id ?? c.id);
+  /* ── load trip assignments filtered by company + project ── */
+  useEffect(() => {
+    if (!companyUniqueId) { setTripAssignments([]); return; }
+    const params: Record<string, string> = { company_id: companyUniqueId };
+    if (projectId) params.project_id = projectId;
+    dailyTripAssignmentApi.readAll({ params })
+      .then((res: any) => {
+        const list: any[] = Array.isArray(res) ? res : res?.results ?? [];
+        setTripAssignments(list.map((a) => ({ value: String(a.unique_id), label: String(a.unique_id) })));
+      })
+      .catch(() => {});
+  }, [companyUniqueId, projectId]);
 
   /* ── load customers filtered by company + project ── */
   useEffect(() => {
@@ -137,6 +162,8 @@ export default function WasteCollectedForm() {
           customerId: String(res.customer ?? res.customer_id ?? ""),
           customerName: String(res.customer_name ?? res.customer?.customer_name ?? ""),
         });
+        const tripId = String(res.trip_assignment_id ?? res.trip_assignment?.unique_id ?? "");
+        if (tripId && tripId !== "null") setPendingTripAssignmentId(tripId);     
         setLoadingRecord(false);
       })
       .catch((err: any) => {
@@ -159,6 +186,15 @@ export default function WasteCollectedForm() {
     setPendingProjectCandidates(null);
   }, [projects, pendingProjectCandidates, setProjectId]);
 
+  /* ── flush trip assignment: re-apply after list loads ── */
+  useEffect(() => {
+    if (!pendingTripAssignmentId || tripAssignments.length === 0) return;
+    if (tripAssignments.some((a) => a.value === pendingTripAssignmentId)) {
+      setTripAssignmentId(pendingTripAssignmentId);
+      setPendingTripAssignmentId("");
+    }
+  }, [pendingTripAssignmentId, tripAssignments]);
+
   /* ── flush customer: re-apply after customers list loads ── */
   useEffect(() => {
     if (!pendingCustomerCandidates || customers.length === 0) return;
@@ -170,6 +206,30 @@ export default function WasteCollectedForm() {
     if (match) setCustomerId(resolveCustomerId(match));
     setPendingCustomerCandidates(null);
   }, [customers, pendingCustomerCandidates]);
+
+  /* ── autofill customer from trip assignment (only on user-initiated change) ── */
+  useEffect(() => {
+    if (!tripAssignmentId || tripAssignmentId === "__none__") return;
+    if (!userChangedTripRef.current) return;
+    userChangedTripRef.current = false;
+
+    dailyTripAssignmentApi.read(tripAssignmentId)
+      .then((tripAssignRes: any) => {
+        // trip_plan is the read-only SerializerMethodField (trip_plan_id is write-only)
+        const tripPlanId = tripAssignRes.trip_plan?.unique_id;
+        if (!tripPlanId) return Promise.reject("No trip plan");
+        return tripPlanApi.read(tripPlanId);
+      })
+      .then((tripPlanRes: any) => {
+        const collectionPoints: any[] = tripPlanRes.plan_collection_points || [];
+        const firstStop = collectionPoints.find((cp: any) => cp.is_active && cp.customer?.unique_id);
+        if (firstStop?.customer?.unique_id) {
+          const match = customers.find((c) => resolveCustomerId(c) === firstStop.customer.unique_id);
+          if (match) setCustomerId(resolveCustomerId(match));
+        }
+      })
+      .catch(() => {});
+  }, [tripAssignmentId, customers]);
 
   const selectedCustomer = customers.find((c) => resolveCustomerId(c) === customerId);
 
@@ -186,7 +246,7 @@ export default function WasteCollectedForm() {
       return;
     }
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       // company_id_input / project_id_input are read by CompanyScopedViewSet
       // to set the FK fields — required for superadmin; non-superadmin uses request.user.company
       company_id_input: companyUniqueId,
@@ -196,6 +256,7 @@ export default function WasteCollectedForm() {
       dry_waste: dryWaste,
       mixed_waste: mixedWaste,
       total_quantity: totalQuantity,
+      trip_assignment_id: tripAssignmentId || null,
     };
 
     setIsSubmitting(true);
@@ -228,7 +289,7 @@ export default function WasteCollectedForm() {
               <Label>{t("admin.nav.company")}</Label>
               <select
                 value={companyUniqueId}
-                onChange={(e) => { onCompanyChange(e.target.value); setCustomerId(""); }}
+                onChange={(e) => { onCompanyChange(e.target.value); setCustomerId("");}}
                 disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId) || companies.length === 0}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -281,6 +342,17 @@ export default function WasteCollectedForm() {
               />
             </div>
 
+            {/* Trip Assignment (optional) */}
+            <div>
+              <Label>Trip Assignment</Label>
+              <Select
+                value={tripAssignmentId}
+                onChange={(v) => { userChangedTripRef.current = true; setTripAssignmentId(v === "__none__" ? "" : v); }}
+                options={[{ value: "__none__", label: "None (no assignment)" }, ...tripAssignments]}
+                placeholder="Select Trip Assignment (optional)"
+                disabled={!projectId}
+              />
+            </div>
             {/* Address (read-only) */}
             <div>
               <Label>{t("admin.waste_collected_data.customer_address")}</Label>
@@ -307,6 +379,12 @@ export default function WasteCollectedForm() {
             <div>
               <Label>{t("admin.waste_collected_data.customer_ward")}</Label>
               <Input disabled className="bg-gray-100" value={selectedCustomer?.ward_name || ""} />
+            </div>
+
+            {/* Panchayat (PLB) */}
+            <div>
+              <Label>{t("admin.waste_collected_data.customer_panchayat")}</Label>
+              <Input disabled className="bg-gray-100" value={selectedCustomer?.panchayat_name || ""} />
             </div>
 
             {/* City */}
