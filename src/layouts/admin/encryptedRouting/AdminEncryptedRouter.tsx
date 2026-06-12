@@ -39,6 +39,12 @@ import AreaTypeListPage from "@/pages/admin/modules/masters/areaType/AreaTypeLis
 import AreaTypeForm from "@/pages/admin/modules/masters/areaType/AreaTypeForm";
 import HierarchyListPage from "@/pages/admin/modules/masters/hierarchy/HierarchyListPage";
 import HierarchyForm from "@/pages/admin/modules/masters/hierarchy/HierarchyForm";
+import MunicipalityListPage from "@/pages/admin/modules/masters/municipality/MunicipalityListPage";
+import MunicipalityForm from "@/pages/admin/modules/masters/municipality/MunicipalityForm";
+import TownPanchayatListPage from "@/pages/admin/modules/masters/townPanchayat/TownPanchayatListPage";
+import TownPanchayatForm from "@/pages/admin/modules/masters/townPanchayat/TownPanchayatForm";
+import BlockPanchayatUnionListPage from "@/pages/admin/modules/masters/blockPanchayatUnion/BlockPanchayatUnionListPage";
+import BlockPanchayatUnionForm from "@/pages/admin/modules/masters/blockPanchayatUnion/BlockPanchayatUnionForm";
 
 
 import PropertyList from "@/pages/admin/modules/masters/property/PropertyListPage";
@@ -190,6 +196,9 @@ const ROUTES: RouteMap = {
     "panchayat-leaders": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
     "area-types": { list: AreaTypeListPage, form: AreaTypeForm },
     hierarchies: { list: HierarchyListPage, form: HierarchyForm },
+    municipalities: { list: MunicipalityListPage, form: MunicipalityForm },
+    "town-panchayats": { list: TownPanchayatListPage, form: TownPanchayatForm },
+    "block-panchayat-unions": { list: BlockPanchayatUnionListPage, form: BlockPanchayatUnionForm },
 
     
     properties: { list: PropertyList, form: PropertyForm },
