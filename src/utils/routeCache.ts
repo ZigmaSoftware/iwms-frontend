@@ -81,6 +81,7 @@ export type EncryptedRoutes = {
   encTripExceptionLog: string;
 
   // dashboard
+  encDashboardOverall: string;
   encDashboardLiveMap: string;
   encDashboardVehicleManagement: string;
   encDashboardWasteCollection: string;
@@ -199,6 +200,7 @@ const plainRoutes: EncryptedRoutes = {
 
   //dashboard
 
+  encDashboardOverall: "dashboard-overall",
   encDashboardLiveMap: "dashboard-map",
   encDashboardVehicleManagement: "dashboard-vehicle",
   encDashboardWasteCollection: "dashboard-waste-collection",

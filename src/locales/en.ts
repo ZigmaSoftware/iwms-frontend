@@ -193,6 +193,7 @@ const enResource = {
         "no_charts_placeholder": "Plug your charts here (Recharts or similar). Placeholder to validate flow.",
         "nav": {
           "dashboard": "Dashboard",
+          "overall": "Overall Dashboard",
           "wastetype": "Waste Type",
           "assets": "Assets",
           "live_map": "Live Map",
@@ -852,6 +853,7 @@ const enResource = {
           "trip_exception_log": "Trip Exception Log",
           "bin_load_log": "Bin Load Log",
           "supervisor_zone_access_audit": "Supervisor Zone Access Audit",
+          "fleet_reports": "Fleet & Reports",
           "vehicle_tracking": "Vehicle Tracking",
           "vehicle_history": "Vehicle History",
           "waste_management": "Waste Management",
@@ -875,7 +877,9 @@ const enResource = {
           "admin_password": "Admin Password",
           "admin_email": "Admin Email",
           "admin_required_together": "admin_username, admin_password, and admin_employee_name must be provided together.",
-          "company_admin_created": "Project admin created - Username: {{username}}, ID: {{unique_id}}"
+          "company_admin_created": "Project admin created - Username: {{username}}, ID: {{unique_id}}",
+          "gps_api_url": "GPS API URL",
+          "weighment_api_url": "Weighment API URL"
         },
         "roles": {
           "admin": "Admin",

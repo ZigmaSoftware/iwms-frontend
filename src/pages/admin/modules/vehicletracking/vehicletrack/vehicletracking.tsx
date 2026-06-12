@@ -4,6 +4,8 @@ import "leaflet/dist/leaflet.css";
 import "./vehicletracking.css";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useTranslation } from "react-i18next";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 import { fetchWasteReport } from "@/utils/wasteApi";
 
 type Status = "Running" | "Idle" | "Parked" | "No Data";
@@ -97,8 +99,6 @@ const STATUS_META: Record<
   },
 };
 
-const API_URL =
-  "https://api.vamosys.com/mobile/getGrpDataForTrustedClients?providerName=BLUEPLANET&fcode=VAM";
 
 const TRIP_SUMMARY_ENDPOINT =
   "https://gpsvtsprobend.vamosys.com/v2/getTripSummary";
@@ -269,6 +269,8 @@ const getRowDateKey = (row: RawRecord) => {
 export default function VehicleTracking() {
   const { t, i18n } = useTranslation();
   const { theme } = useTheme();
+  const { gpsApiUrl, weighmentApiUrl } = useProjectSelector();
+  const API_URL = gpsApiUrl;
   const isDarkMode = theme === "dark";
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [search, setSearch] = useState("");
@@ -521,7 +523,7 @@ export default function VehicleTracking() {
 
         const [tripRes, weightResult] = await Promise.all([
           fetch(tripUrl).then((res) => res.json()),
-          fetchWasteReport("day_wise_data", reportStartKey, todayKey).catch(
+          fetchWasteReport(weighmentApiUrl, "day_wise_data", reportStartKey, todayKey).catch(
             () => ({ rows: [] }),
           ),
         ]);
@@ -695,8 +697,26 @@ export default function VehicleTracking() {
   };
 
   /* ================= JSX ================= */
+
+  if (!gpsApiUrl) {
+    return (
+      <div className={`tracking-page ${isDarkMode ? "dark-mode" : ""}`}>
+        <div className="px-2 pt-2">
+          <ProjectSelectorBar />
+        </div>
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <p className="text-base font-medium">GPS API not configured for this project.</p>
+          <p className="text-sm mt-1">Set a GPS API URL in the project settings to enable vehicle tracking.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`tracking-page ${isDarkMode ? "dark-mode" : ""}`}>
+      <div className="px-2 pt-2">
+        <ProjectSelectorBar />
+      </div>
       <div className="map-wrap">
         <div id="map" className="map-canvas" ref={mapDivRef} />
         <VehicleSidePanel

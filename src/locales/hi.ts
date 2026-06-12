@@ -190,6 +190,7 @@ const hiResource = {
         "no_charts_placeholder": "यहां अपने चार्ट जोड़ें (Recharts या समान). यह फ्लो जांचने के लिए प्लेसहोल्डर है।",
         "nav": {
           "dashboard": "डैशबोर्ड",
+          "overall": "समग्र डैशबोर्ड",
           "live_map": "लाइव मैप",
           "vehicle": "वाहन",
           "waste_collection": "कचरा संग्रह",
@@ -840,6 +841,7 @@ const hiResource = {
           "main_category": "मुख्य श्रेणी",
           "sub_category": "उप श्रेणी",
           "feedback": "फीडबैक",
+          "fleet_reports": "फ्लीट & रिपोर्ट्स",
           "workforce_management": "वर्कफोर्स प्रबंधन",
           "reports": "रिपोर्ट्स",
           "trip_summary": "ट्रिप सारांश",
@@ -856,7 +858,9 @@ const hiResource = {
           "admin_password": "एडमिन पासवर्ड",
           "admin_email": "एडमिन ईमेल",
           "admin_required_together": "admin_username, admin_password और admin_employee_name तीनों साथ में देने होंगे।",
-          "company_admin_created": "प्रोजेक्ट एडमिन बना दिया गया - यूज़रनेम: {{username}}, आईडी: {{unique_id}}"
+          "company_admin_created": "प्रोजेक्ट एडमिन बना दिया गया - यूज़रनेम: {{username}}, आईडी: {{unique_id}}",
+          "gps_api_url": "GPS API URL",
+          "weighment_api_url": "तौल API URL"
         },
         "roles": {
           "admin": "एडमिन",

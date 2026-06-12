@@ -12,6 +12,8 @@ import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 
 type RawVehicle = Record<string, any>;
 
@@ -157,23 +159,6 @@ const STATUS_ICONS: Record<VisualStatus, JSX.Element> = {
   ),
 };
 
-const TRACKING_API_URL =
-  "https://api.vamosys.com/mobile/getGrpDataForTrustedClients?providerName=BLUEPLANET&fcode=VAM";
-
-const FALLBACK_VEHICLES: VehicleOption[] = [
-  { id: "UP16KT1737", label: "UP16KT1737" },
-  { id: "UP16KT1738", label: "UP16KT1738" },
-  { id: "UP16KT1739", label: "UP16KT1739" },
-  { id: "UP16KT1740", label: "UP16KT1740" },
-  { id: "UP16KT1741", label: "UP16KT1741" },
-  { id: "UP16KT1742", label: "UP16KT1742" },
-  { id: "UP16KT1907", label: "UP16KT1907" },
-  { id: "UP16KT1908", label: "UP16KT1908" },
-  { id: "UP16KT1910", label: "UP16KT1910" },
-  { id: "UP16KT1911", label: "UP16KT1911" },
-  { id: "UP16KT1912", label: "UP16KT1912" },
-  { id: "UP16KT1913", label: "UP16KT1913" },
-];
 
 const pad = (value: number) => String(value).padStart(2, "0");
 const formatInput = (date: Date) =>
@@ -216,9 +201,11 @@ const normalizeVehicle = (record: RawVehicle): VehicleOption | null => {
 
 export default function TripSummary() {
   const { t } = useTranslation();
+  const { gpsApiUrl } = useProjectSelector();
+  const TRACKING_API_URL = gpsApiUrl;
   const initialRange = useMemo(() => computeInitialRange(), []);
-  const [vehicles, setVehicles] = useState<VehicleOption[]>(FALLBACK_VEHICLES);
-  const [vehicleId, setVehicleId] = useState(FALLBACK_VEHICLES[0].id);
+  const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
+  const [vehicleId, setVehicleId] = useState("");
   const [fromDate, setFromDate] = useState(() => formatInput(initialRange.from));
   const [toDate, setToDate] = useState(() => formatInput(initialRange.to));
   const [summary, setSummary] = useState<TripData | null>(null);
@@ -272,16 +259,16 @@ export default function TripSummary() {
             setVehicleId((prev) => (normalized.some((item) => item.id === prev) ? prev : normalized[0].id));
             setRosterError("");
           } else {
-            setVehicles(FALLBACK_VEHICLES);
-            setVehicleId(FALLBACK_VEHICLES[0].id);
+            setVehicles([]);
+            setVehicleId("");
             setRosterError("admin.reports.trip_summary.roster_no_live");
           }
         }
       } catch (error) {
         console.error("Trip summary roster failed:", error);
         if (!aborted) {
-          setVehicles(FALLBACK_VEHICLES);
-          setVehicleId(FALLBACK_VEHICLES[0].id);
+          setVehicles([]);
+          setVehicleId("");
           setRosterError("admin.reports.trip_summary.roster_unavailable");
         }
       } finally {
@@ -413,8 +400,21 @@ export default function TripSummary() {
   const displaySummary = summary ?? {};
   const historyRows = displaySummary.historyConsilated ?? [];
 
+  if (!gpsApiUrl) {
+    return (
+      <div className="trip-summary-shell">
+        <ProjectSelectorBar />
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <p className="text-base font-medium">GPS API not configured for this project.</p>
+          <p className="text-sm mt-1">Set a GPS API URL in the project settings to enable trip reports.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="trip-summary-shell">
+      <ProjectSelectorBar />
       <div className="trip-summary-container">
         <div className="trip-summary-header">
           <h3>{t("admin.reports.trip_summary.title")}</h3>

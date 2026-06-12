@@ -1,3 +1,5 @@
+import { getStoredProjectConfig } from "@/utils/authStorage";
+
 const PROJECT_STORAGE_KEYS = [
   "project_id",
   "project_unique_id",
@@ -84,4 +86,24 @@ export const getCurrentCompanyUniqueId = (): string | null => {
   if (fromProfile) return fromProfile;
 
   return null;
+};
+
+export const getCurrentProjectGpsApiUrl = (): string => {
+  const projectId = getCurrentProjectId();
+  if (projectId) {
+    const config = getStoredProjectConfig(projectId);
+    const url = asNonEmptyString(config?.gps_api_url ?? null);
+    if (url) return url;
+  }
+  return "";
+};
+
+export const getCurrentProjectWeighmentApiUrl = (): string => {
+  const projectId = getCurrentProjectId();
+  if (projectId) {
+    const config = getStoredProjectConfig(projectId);
+    const url = asNonEmptyString(config?.weighment_api_url ?? null);
+    if (url) return url;
+  }
+  return "";
 };

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,12 +29,8 @@ type AlertItem = {
 };
 
 const REFRESH_MS = 10000;
-const WEIGHBRIDGE_API_BASE =
-  "https://zigma.in/d2d/folders/waste_collected_summary_report/test_waste_collected_data_api.php";
 const WEIGHBRIDGE_API_KEY = "ZIGMA-DELHI-WEIGHMENT-2025-SECURE";
 const WEIGHBRIDGE_EXPECTED_KG = 500;
-const TRACKING_API_URL =
-  "https://api.vamosys.com/mobile/getGrpDataForTrustedClients?providerName=BLUEPLANET&fcode=VAM";
 const VEHICLE_IDLE_MINUTES = 30;
 const OVERSPEED_CRITICAL_DELTA = 15;
 const MAX_MISSED_ALERTS = 25;
@@ -204,9 +202,10 @@ const fetchComplaintAlerts = async (): Promise<AlertItem[]> => {
   }
 };
 
-const fetchWeighbridgeAlerts = async (dateKey: string): Promise<AlertItem[]> => {
+const fetchWeighbridgeAlerts = async (apiUrl: string, dateKey: string): Promise<AlertItem[]> => {
+  if (!apiUrl) return [];
   try {
-    const url = `${WEIGHBRIDGE_API_BASE}?action=day_wise_data&from_date=${dateKey}&to_date=${dateKey}&key=${WEIGHBRIDGE_API_KEY}`;
+    const url = `${apiUrl}?action=day_wise_data&from_date=${dateKey}&to_date=${dateKey}&key=${WEIGHBRIDGE_API_KEY}`;
     const res = await fetch(url);
     const json = await res.json();
     const rows = Array.isArray(json?.data) ? json.data : [];
@@ -253,9 +252,10 @@ const fetchWeighbridgeAlerts = async (dateKey: string): Promise<AlertItem[]> => 
   }
 };
 
-const fetchVehicleAlerts = async (): Promise<AlertItem[]> => {
+const fetchVehicleAlerts = async (apiUrl: string): Promise<AlertItem[]> => {
+  if (!apiUrl) return [];
   try {
-    const res = await fetch(TRACKING_API_URL);
+    const res = await fetch(apiUrl);
     const data = await res.json();
     const rows = Array.isArray(data) ? data : [];
     const alerts: AlertItem[] = [];
@@ -396,6 +396,7 @@ const fetchCollectionAlerts = async (dateKey: string): Promise<AlertItem[]> => {
 
 export default function Alerts() {
   const { t, i18n } = useTranslation();
+  const { gpsApiUrl, weighmentApiUrl } = useProjectSelector();
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedZone, setSelectedZone] = useState("all");
@@ -430,8 +431,8 @@ export default function Alerts() {
       const [complaintsResult, weighbridgeResult, vehicleResult, collectionResult] =
         await Promise.allSettled([
         fetchComplaintAlerts(),
-        fetchWeighbridgeAlerts(dateKey),
-        fetchVehicleAlerts(),
+        fetchWeighbridgeAlerts(weighmentApiUrl, dateKey),
+        fetchVehicleAlerts(gpsApiUrl),
         fetchCollectionAlerts(dateKey),
       ]);
 
@@ -477,7 +478,7 @@ export default function Alerts() {
       isMounted = false;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [gpsApiUrl, weighmentApiUrl]);
 
   const severityCounts = useMemo(
     () =>
@@ -655,6 +656,7 @@ export default function Alerts() {
 
   return (
     <div className={pageBgClass}>
+      <ProjectSelectorBar />
       <div className="space-y-6 h-[calc(100vh-80px)] overflow-y-auto pr-2 pb-10">
         <div className={heroPanelClass}>
           <div>
