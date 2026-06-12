@@ -29,6 +29,8 @@ type WasteCollection = {
   contact_no?: string;
   building_no?: string;
   zone_name?: string;
+  ward_name?: string;
+  panchayat_name?: string;
   city_name?: string;
   street?: string;
   area?: string;
@@ -84,6 +86,8 @@ export default function WasteCollectedDataList() {
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     customer_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     zone_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    ward_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    panchayat_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     city_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     company_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     project_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -224,7 +228,6 @@ export default function WasteCollectedDataList() {
             label={t("admin.waste_collected_data.add_new")}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
@@ -244,13 +247,13 @@ export default function WasteCollectedDataList() {
         showGridlines
         emptyMessage={t("admin.waste_collected_data.empty_message")}
         className="p-datatable-sm"
-        globalFilterFields={["customer_name", "zone_name", "city_name", "company_name", "project_name"]}
+        globalFilterFields={["customer_name", "zone_name", "ward_name", "panchayat_name", "city_name", "company_name", "project_name"]}
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "60px" }} />
         <Column
           field="customer_name"
           header={t("admin.waste_collected_data.customer_name")}
-          body={(row: WasteCollection) => cap(row.customer_name)}
+          body={(row: WasteCollection) => cap(row.customer_name) || "-"}
           sortable filter showFilterMatchModes={false}
         />
         <Column
@@ -276,13 +279,25 @@ export default function WasteCollectedDataList() {
         <Column
           field="zone_name"
           header={t("common.zone")}
-          body={(row: WasteCollection) => cap(row.zone_name)}
+          body={(row: WasteCollection) => cap(row.zone_name) || "-"}
+          sortable filter showFilterMatchModes={false}
+        />
+        <Column
+          field="ward_name"
+          header={t("common.ward")}
+          body={(row: WasteCollection) => cap(row.ward_name) || "-"}
+          sortable filter showFilterMatchModes={false}
+        />
+        <Column
+          field="panchayat_name"
+          header={t("admin.nav.panchayat")}
+          body={(row: WasteCollection) => cap(row.panchayat_name) || "-"}
           sortable filter showFilterMatchModes={false}
         />
         <Column
           field="city_name"
           header={t("common.city")}
-          body={(row: WasteCollection) => cap(row.city_name)}
+          body={(row: WasteCollection) => cap(row.city_name) || "-"}
           sortable filter showFilterMatchModes={false}
         />
         <Column
