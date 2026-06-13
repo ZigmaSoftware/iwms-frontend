@@ -19,9 +19,11 @@ import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { customerCreationApi } from "@/helpers/admin";
+import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import {
   excelFileToCsvFile,
   exportTemplateToExcel,
+  getAdminScreenExcelFilename,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
 
@@ -211,7 +213,7 @@ export default function CustomerCreationListPage() {
   const downloadTemplate = () => {
     exportTemplateToExcel(
       CUSTOMER_BULK_TEMPLATE_COLUMNS,
-      "customer_bulk_template.xlsx",
+      getAdminScreenExcelFilename("template"),
       "Customers",
     );
   };
@@ -238,6 +240,12 @@ export default function CustomerCreationListPage() {
       );
       const success = Number(result?.success_count ?? 0);
       const errors = Array.isArray(result?.errors) ? result.errors.length : 0;
+      recordExcelAudit("upload_excel", {
+        file_name: file.name,
+        status: "completed",
+        success_count: success,
+        error_count: errors,
+      });
 
       Swal.fire({
         title: String(result?.message ?? "Upload Completed"),
@@ -248,6 +256,10 @@ export default function CustomerCreationListPage() {
       setRefetchTrigger((prev) => prev + 1);
     } catch (err) {
       console.error(err);
+      recordExcelAudit("upload_excel", {
+        file_name: file.name,
+        status: "failed",
+      });
       Swal.fire("Error", "Upload failed", "error");
     } finally {
       setIsUploading(false);

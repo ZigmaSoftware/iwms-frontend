@@ -15,7 +15,10 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
-import { exportRecordsToExcel } from "@/utils/exportExcel";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 export type BinLoadLogApiRecord = {
   unique_id: string;
@@ -260,7 +263,7 @@ export default function BinLoadLogList() {
             row.project_name ?? row.project_id ?? row.project_unique_id ?? "",
           "Created At": resolveEventTime(row.created_at),
         })),
-        "bin-load-log.xlsx",
+        getAdminScreenExcelFilename("all"),
         "Bin Load Log",
       );
     } catch {

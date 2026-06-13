@@ -22,9 +22,11 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { vehicleCreationApi } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
+import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import {
   excelFileToCsvFile,
   exportTemplateToExcel,
+  getAdminScreenExcelFilename,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
 
@@ -249,7 +251,7 @@ export default function VehicleCreationListPage() {
   const downloadVehicleTemplate = () => {
     exportTemplateToExcel(
       VEHICLE_BULK_TEMPLATE_COLUMNS,
-      "vehicle_bulk_template.xlsx",
+      getAdminScreenExcelFilename("template"),
       "Vehicles",
     );
   };
@@ -276,6 +278,12 @@ export default function VehicleCreationListPage() {
       );
 
       const errors = Array.isArray(res.errors) ? res.errors : [];
+      recordExcelAudit("upload_excel", {
+        file_name: file.name,
+        status: "completed",
+        success_count: Number(res.success_count ?? 0),
+        error_count: errors.length,
+      });
       const errorPreview =
         errors.length > 0
           ? `<hr/><div class="text-left text-xs mt-2">${errors
@@ -299,6 +307,10 @@ export default function VehicleCreationListPage() {
       setRefetchTrigger((prev) => prev + 1);
     } catch (err) {
       console.error("Vehicle bulk upload failed:", err);
+      recordExcelAudit("upload_excel", {
+        file_name: file.name,
+        status: "failed",
+      });
       Swal.fire("Error", "Upload failed", "error");
     } finally {
       event.target.value = "";

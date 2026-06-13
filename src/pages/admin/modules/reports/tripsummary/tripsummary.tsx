@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, JSX } from "react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { recordExcelAudit } from "@/helpers/admin/commonAudit";
+import { getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import "./tripsummary.css";
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -385,7 +387,11 @@ export default function TripSummary() {
     );
     const wbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     const blob = new Blob([wbout], { type: "application/octet-stream" });
-    const filename = `trip-summary-${vehicleId}-${Date.now()}.xlsx`;
+    const filename = getAdminScreenExcelFilename("all");
+    recordExcelAudit("download_all_excel", {
+      file_name: filename,
+      row_count: rows.length,
+    });
     saveAs(blob, filename);
   };
 

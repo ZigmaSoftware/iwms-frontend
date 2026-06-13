@@ -797,7 +797,7 @@ const AppSidebar: React.FC = () => {
 
       // If superadmin, show ALL sections with ALL items
       if (isSuperAdmin) {
-        console.log("[Sidebar] SuperAdmin detected - showing all sections");
+        // console.log("[Sidebar] SuperAdmin detected - showing all sections");
         return allSections.filter((section) => section.items.length > 0);
       }
 

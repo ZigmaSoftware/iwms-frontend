@@ -31,7 +31,10 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { exportRecordsToExcel } from "@/utils/exportExcel";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 /* ── Types ──────────────────────────────────────────────────────── */
 type ReportRow = {
@@ -358,7 +361,7 @@ export default function MonthlyWasteComparisonListPage() {
           "Coverage %": r.coverage_efficiency_percent,
           "Avg/Trip (kg)": r.average_weight_per_trip,
         })),
-        `monthly-waste-comparison-${appliedMonth || "all-months"}.xlsx`,
+        getAdminScreenExcelFilename("all"),
         "Monthly Waste Comparison",
       );
     } catch {

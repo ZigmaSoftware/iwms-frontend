@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { recordExcelAudit } from "@/helpers/admin/commonAudit";
+import { getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 import "./monthlydistance.css";
 
@@ -338,10 +340,15 @@ export default function MonthlyDistance() {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, exportLabels.sheetName);
+    const filename = getAdminScreenExcelFilename("all");
+    recordExcelAudit("download_all_excel", {
+      file_name: filename,
+      row_count: data.length,
+    });
 
     saveAs(
       new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })]),
-      `${exportLabels.filePrefix}-${selectedMonth}.xlsx`
+      filename
     );
   };
 

@@ -3,6 +3,8 @@ import "./wastesummary.css";
 import { api } from "@/api";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
+import { recordExcelAudit } from "@/helpers/admin/commonAudit";
+import { getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { customerCreationApi, wasteCollectionApi } from "@/helpers/admin";
 
 import {
@@ -351,10 +353,15 @@ export default function WasteSummary() {
     const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, exportLabels.sheetName);
+    const filename = getAdminScreenExcelFilename("all");
+    recordExcelAudit("download_all_excel", {
+      file_name: filename,
+      row_count: exportRows.length,
+    });
 
     saveAs(
       new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })]),
-      `${exportLabels.filePrefix}-${appliedMonth}.xlsx`
+      filename
     );
   };
 
