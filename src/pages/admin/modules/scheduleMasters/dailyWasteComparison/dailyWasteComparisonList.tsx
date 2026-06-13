@@ -33,7 +33,10 @@ import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { dailyWasteComparisonApi } from "@/helpers/admin";
 import { api } from "@/api";
-import { exportRecordsToExcel } from "@/utils/exportExcel";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 /* ── Types ───────────────────────────────────────────────────────── */
 type DailyReportRow = {
@@ -355,7 +358,7 @@ export default function DailyWasteComparisonList() {
           Trips: r.total_trips,
           Points: r.collection_points_covered,
         })),
-        `daily-waste-comparison-${appliedDate || "all-dates"}.xlsx`,
+        getAdminScreenExcelFilename("all"),
         "Daily Waste Comparison",
       );
     } catch {

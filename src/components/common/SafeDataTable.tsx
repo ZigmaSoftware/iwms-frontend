@@ -13,10 +13,12 @@ import {
 } from "react";
 import Swal from "@/lib/notify";
 import { getCurrentAdminBulkImportApi } from "@/helpers/admin/bulkImportRoutes";
+import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import type { CrudHelpers } from "@/helpers/admin/crudHelpers";
 import {
   exportRecordsToExcel,
   exportTemplateToExcel,
+  getAdminScreenExcelFilename,
   readExcelRows,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
@@ -47,16 +49,11 @@ const toExportFilename = (filename?: string) => {
   if (filename)
     return filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`;
 
-  const pageSlug =
-    typeof window !== "undefined"
-      ? window.location.pathname.split("/").filter(Boolean).pop()
-      : null;
-
-  return `${pageSlug || "table-data"}.xlsx`;
+  return getAdminScreenExcelFilename("all");
 };
 
 const toTemplateFilename = (filename?: string) =>
-  filename ?? toExportFilename().replace(/\.xlsx$/i, "-template.xlsx");
+  filename ?? getAdminScreenExcelFilename("template");
 
 const toTitle = (key: string) =>
   key
@@ -254,6 +251,11 @@ const DataTableHeaderActions = ({
       ).filter((payload) => Object.keys(payload).length > 0);
 
       if (payloads.length === 0) {
+        recordExcelAudit("upload_excel", {
+          file_name: file.name,
+          status: "rejected",
+          reason: "no_rows",
+        });
         Swal.fire(
           "No rows found",
           "Upload a filled Excel template.",
@@ -296,10 +298,27 @@ const DataTableHeaderActions = ({
       if (onImportComplete) {
         await onImportComplete();
       } else if (!onImportRows) {
+        await recordExcelAudit("upload_excel", {
+          file_name: file.name,
+          row_count: payloads.length,
+          status: "completed",
+        });
         window.location.reload();
+        return;
       }
+
+      recordExcelAudit("upload_excel", {
+        file_name: file.name,
+        row_count: payloads.length,
+        status: "completed",
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed.";
+      recordExcelAudit("upload_excel", {
+        file_name: file.name,
+        status: "failed",
+        error: message,
+      });
       Swal.fire("Upload failed", message, "error");
     } finally {
       event.target.value = "";

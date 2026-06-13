@@ -1,5 +1,7 @@
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
+import { recordExcelAudit } from "@/helpers/admin/commonAudit";
+import { decryptSegment } from "@/utils/routeCrypto";
 
 type ExportValue = string | number | boolean | null | undefined;
 type ExportRow = Record<string, unknown>;
@@ -8,6 +10,29 @@ export type ExcelTemplateColumn = {
   header: string;
   required?: boolean;
   sample?: ExportValue;
+};
+
+export type ExcelDownloadType = "template" | "all";
+
+const toFilenamePart = (value: string) =>
+  value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+
+export const getAdminScreenExcelFilename = (type: ExcelDownloadType) => {
+  if (typeof window === "undefined") return `table_data_${type}.xlsx`;
+
+  const segments = window.location.pathname
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => decryptSegment(segment) ?? segment);
+  const userScreen = segments[1] ?? segments[0] ?? "table_data";
+  const screenName = toFilenamePart(userScreen) || "table_data";
+
+  return `${screenName}_${type}.xlsx`;
 };
 
 const toTitle = (key: string) =>
@@ -63,6 +88,10 @@ export const exportRecordsToExcel = (
   filename: string,
   sheetName = "Export",
 ) => {
+  recordExcelAudit("download_all_excel", {
+    file_name: filename,
+    row_count: records.length,
+  });
   const rows = records.map((record) =>
     flattenRecord(record as Record<string, unknown>),
   );
@@ -81,6 +110,10 @@ export const exportTemplateToExcel = (
   filename: string,
   sheetName = "Template",
 ) => {
+  recordExcelAudit("download_template", {
+    file_name: filename,
+    column_count: columns.length,
+  });
   const templateRow = columns.reduce<Record<string, ExportValue>>(
     (acc, column) => {
       acc[column.header] = column.sample ?? "";

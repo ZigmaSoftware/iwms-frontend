@@ -3,6 +3,8 @@ import "./monthlyWasteComparison.css";
 import { api } from "@/api";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
+import { recordExcelAudit } from "@/helpers/admin/commonAudit";
+import { getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { Download, Search } from "lucide-react";
 import {
   Bar,
@@ -170,12 +172,17 @@ export default function MonthlyWasteComparison() {
   );
 
   const handleDownload = () => {
+    const filename = getAdminScreenExcelFilename("all");
+    recordExcelAudit("download_all_excel", {
+      file_name: filename,
+      row_count: exportRows.length,
+    });
     const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Monthly Waste Comparison");
     saveAs(
       new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })]),
-      `monthly-waste-comparison-${appliedMonth || "all-months"}.xlsx`,
+      filename,
     );
   };
 

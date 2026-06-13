@@ -67,6 +67,7 @@ export type EncryptedRoutes = {
   encTripPlanCollectionPoints: string;
   encDailyTripAssignment: string;
   encDailyTripCollectionPoint: string;
+  encDailyTripHouseholdCollection: string;
   encDailyTripTracking: string;
   encDailyTripLog: string;
   encBinCollectionEvent: string;
