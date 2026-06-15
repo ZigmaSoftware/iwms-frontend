@@ -1,3 +1,5 @@
+import type { SupervisorZoneMapRecord, TableFilters } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -26,38 +28,6 @@ const SUPERVISOR_ZONE_MAP_COLUMN_FIELDS: Record<string, string[]> = {
   created_at: ["created_at"],
 };
 
-type SupervisorZoneMapRecord = {
-  id: number;
-  unique_id: string;
-  supervisor_id: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-  employee_name?: string;
-  district_id?: string | null;
-  city_id?: string | null;
-  zone_ids?: string[];
-  status?: string | null;
-  created_at?: string | null;
-  // Enriched name fields for filtering
-  _supervisor_name?: string;
-  _district_name?: string;
-  _city_name?: string;
-  _zone_names?: string;
-  [key: string]: unknown;
-};
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  unique_id: { value: string | null; matchMode: FilterMatchMode };
-  _supervisor_name: { value: string | null; matchMode: FilterMatchMode };
-  _district_name: { value: string | null; matchMode: FilterMatchMode };
-  _city_name: { value: string | null; matchMode: FilterMatchMode };
-  _zone_names: { value: string | null; matchMode: FilterMatchMode };
-};
 
 const normalizeList = (payload: unknown): any[] =>
   Array.isArray(payload)
@@ -142,9 +112,10 @@ export default function SupervisorZoneMapList() {
   const [supervisorLookup, setSupervisorLookup] = useState<Record<string, string>>({});
 
   const { encStaffMasters, encSupervisorZoneMap } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encStaffMasters}/${encSupervisorZoneMap}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encStaffMasters}/${encSupervisorZoneMap}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encStaffMasters,
+    encSupervisorZoneMap,
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -352,7 +323,7 @@ export default function SupervisorZoneMapList() {
           <InputText
             value={globalFilterValue}
             onChange={onGlobalFilterChange}
-            placeholder={t("common.search_placeholder_placeholder")}
+            placeholder={t("common.search_placeholder")}
             className="border-none text-sm"
           />
         </div>

@@ -1,3 +1,4 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 
@@ -58,7 +59,7 @@ export default function ComplaintAddForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { encCitizenGrivence, encComplaint } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encCitizenGrivence}/${encComplaint}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCitizenGrivence, encComplaint);
 
   const location = useLocation();
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;

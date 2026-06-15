@@ -1,6 +1,7 @@
+import type { ApiRow } from "./types";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./wastesummary.css";
-import { api } from "@/api";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
@@ -14,7 +15,6 @@ import {
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
@@ -27,21 +27,6 @@ import "primeicons/primeicons.css";
 
 /* ================= TYPES ================= */
 
-type ApiRow = {
-  date: string;
-  total_vehicle?: number | string;
-  vehicle_count?: number | string;
-  total_vehicle_count?: number | string;
-  vehicles?: number | string;
-  no_of_vehicle?: number | string;
-  no_of_vehicles?: number | string;
-  total_trip?: number | string;
-  dry_weight: number;
-  wet_weight: number;
-  mix_weight: number;
-  total_net_weight: number;
-  average_weight_per_trip: number;
-};
 
 /* ================= COMPONENT ================= */
 
@@ -295,19 +280,12 @@ export default function WasteSummary() {
     setGlobalFilterValue(value);
   };
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.reports.waste_summary.search_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("admin.reports.waste_summary.search_placeholder"),
+    });
 
   /* ================= EXPORT ================= */
   const exportLabels = useMemo(

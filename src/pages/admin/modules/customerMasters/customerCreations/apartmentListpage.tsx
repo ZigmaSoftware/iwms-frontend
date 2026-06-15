@@ -1,3 +1,5 @@
+import type { TableFilters } from "./types";
+import type { ApartmentRow, BlockRow, CustomerCreationRecord, FlatRow, UserRow, ViewLevel } from "./types";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -16,41 +18,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useTranslation } from "react-i18next";
 import { customerCreationApi } from "@/helpers/admin";
 
-type CustomerCreationRecord = {
-  unique_id: string | number;
-  is_active: boolean;
-  [key: string]: unknown;
-};
-
-type ApartmentRow = {
-  apartment_name: string;
-  total_users: number;
-  total_blocks: number;
-  total_flats: number;
-  qr_code?: string;
-};
-
-type BlockRow = {
-  block: string;
-  flat_count: number;
-};
-
-type FlatRow = {
-  flat_no: string;
-  user_count: number;
-};
-
-type UserRow = {
-  customer_name: string;
-  contact_no: string;
-  flat_no: string;
-};
-
-type ViewLevel = "apartment" | "block" | "flat" | "user";
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-};
 
 /* ---------------- HELPERS ---------------- */
 

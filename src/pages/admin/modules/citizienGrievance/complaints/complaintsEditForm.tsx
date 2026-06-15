@@ -1,3 +1,4 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -52,7 +53,7 @@ export default function ComplaintEditForm() {
 
   const { encCitizenGrivence, encComplaint } = getEncryptedRoute();
 
-  const ENC_LIST_PATH = `/${encCitizenGrivence}/${encComplaint}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCitizenGrivence, encComplaint);
 
 
   const isImageUrl = (url: string) => {

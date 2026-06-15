@@ -1,3 +1,5 @@
+import type { FormState, Option, StaffRecord, StaffTemplateRaw } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState, useRef } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
@@ -17,54 +19,9 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 /* ================= TYPES ================= */
 
-type Option = { value: string; label: string };
-
-type StaffRecord = {
-  unique_id?: string;
-  company_id?: string;
-  company_unique_id?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  staff_name?: string;
-  employee_name?: string;
-  username?: string;
-  user_type_name?: string;
-  staffusertype_name?: string;
-  contractorusertype_name?: string;
-  designation?: string;
-  is_active?: boolean;
-  is_deleted?: boolean;
-  active_status?: boolean | number | string | null;
-  company_name?: string;
-  project_name?: string;
-};
 
 // Raw staff template record — must carry company/project ids for scoping
-type StaffTemplateRaw = {
-  unique_id: string;
-  display_code?: string;
-  company_id?: string;
-  project_id?: string;
-  company_unique_id?: string;
-  project_unique_id?: string;
-  driver_id?: string;
-  operator_id?: string;
-  extra_operator_id?: string[];
-};
 
-type FormState = {
-  staff_template: string;
-  effective_date: string;
-  from_date: string;
-  to_date: string;
-  driver: string;
-  operator: string;
-  extra_operator: string[];
-  change_reason: string;
-  change_remarks: string;
-  approval_status?: string;
-  display_code?: string;
-};
 
 /* ================= INITIAL STATE ================= */
 
@@ -138,7 +95,7 @@ export default function AlternativeStaffTemplateForm() {
   const editDataLoaded = useRef(false);
 
   const { encScheduleMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encScheduleMasters}/${encAlternativeStaffTemplate}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encAlternativeStaffTemplate);
 
   const [allAlternativeTemplatesData, setAllAlternativeTemplatesData] = useState<any[]>([]);
   const [selectedStaffTemplateData, setSelectedStaffTemplateData] = useState<any>(null);

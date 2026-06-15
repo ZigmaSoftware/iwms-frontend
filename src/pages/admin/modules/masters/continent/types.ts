@@ -18,3 +18,10 @@ export type ContinentEditorProps = {
   onCancel: () => void;
   onSubmit: (payload: ContinentPayload) => Promise<void>;
 };
+
+import type { FilterMatchMode } from "primereact/api";
+
+export type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  name: { value: string | null; matchMode: FilterMatchMode };
+};

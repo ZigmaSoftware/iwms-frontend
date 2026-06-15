@@ -1,3 +1,5 @@
+import type { PanchayatOption } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
@@ -12,7 +14,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { panchayatLeaderApi, panchayatApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-type PanchayatOption = { value: string; label: string };
 
 const initialForm = {
   username: "",
@@ -36,7 +37,7 @@ export default function PanchayatLeaderForm() {
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
   const { encMasters, encPanchayatLeaders } = getEncryptedRoute();
-  const LIST_PATH = `/${encMasters}/${encPanchayatLeaders}`;
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encPanchayatLeaders);
 
   /* ── company / project (same hook used by all forms) ── */
   const {

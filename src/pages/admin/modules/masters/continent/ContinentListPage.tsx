@@ -1,3 +1,6 @@
+import type { TableFilters } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -9,7 +12,6 @@ import { PencilIcon } from "@/icons";
 import { Button } from "primereact/button";
 import { Column } from "primereact/column";
 import { FilterMatchMode } from "primereact/api";
-import { InputText } from "primereact/inputtext";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -20,17 +22,16 @@ import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import type { ContinentRecord } from "./types";
 
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  name: { value: string | null; matchMode: FilterMatchMode };
-};
 
 const { encMasters, encContinents } = getEncryptedRoute();
 
-const ENC_NEW_PATH = `/${encMasters}/${encContinents}/new`;
+const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
 
-const ENC_EDIT_PATH = (id: string) =>
-  `/${encMasters}/${encContinents}/${id}/edit`;
+  encMasters,
+
+  encContinents,
+
+);
 
 const CONTINENT_COLUMN_FIELDS: Record<string, string[]> = {
   name: ["name"],
@@ -177,22 +178,13 @@ export default function ContinentList() {
     options: { rowIndex: number }
   ) => options.rowIndex + 1;
 
-  const header = (
-    <div className="flex justify-end">
-      <div className="flex items-center gap-3 rounded-md border border-gray-300 bg-white px-3 py-1 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder", {
-            item: t("admin.nav.continent"),
-          })}
-          className="p-inputtext-sm border-0 shadow-none"
-        />
-      </div>
-    </div>
-  );
+  const header = renderListSearchHeader({
+    value: globalFilterValue,
+    onChange: onGlobalFilterChange,
+    placeholder: t("common.search_placeholder", {
+      item: t("admin.nav.continent"),
+    }),
+  });
 
   return (
     <div className="p-3">

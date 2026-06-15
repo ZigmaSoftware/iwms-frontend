@@ -5,6 +5,7 @@ export type ContinentRecord = {
 };
 
 export type CountryRecord = {
+  unique_id: string | number;
   name: string;
   mob_code: string;
   currency: string;
@@ -19,3 +20,12 @@ export type ErrorWithResponse = {
   };
 };
 
+import type { FilterMatchMode } from "primereact/api";
+
+export type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  continent_name: { value: string | null; matchMode: FilterMatchMode };
+  name: { value: string | null; matchMode: FilterMatchMode };
+  currency: { value: string | null; matchMode: FilterMatchMode };
+  mob_code: { value: string | null; matchMode: FilterMatchMode };
+};

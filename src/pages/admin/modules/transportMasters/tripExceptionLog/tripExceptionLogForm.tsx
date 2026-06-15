@@ -1,3 +1,5 @@
+import type { DailyTripAssignmentRecord, SelectOption, TripExceptionLogFormState } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -13,20 +15,6 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 
-type SelectOption = { value: string; label: string };
-
-type TripExceptionLogFormState = {
-  daily_trip_assignment_id: string;
-  exception_type: string;
-  remarks: string;
-  detected_by: string;
-};
-
-type DailyTripAssignmentRecord = {
-  unique_id: string;
-  trip_no?: string;
-  status?: string;
-};
 
 const exceptionTypeValues = [
   "GPS_MISMATCH",
@@ -83,7 +71,7 @@ export default function TripExceptionLogForm() {
   });
 
   const { encTransportMaster, encTripExceptionLog } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encTransportMaster}/${encTripExceptionLog}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encTransportMaster, encTripExceptionLog);
   const stateRecord = (location.state as { record?: Partial<TripExceptionLogFormState> } | null)?.record;
 
   const exceptionTypeOptions: SelectOption[] = useMemo(

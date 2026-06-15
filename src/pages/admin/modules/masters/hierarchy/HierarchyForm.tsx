@@ -1,3 +1,5 @@
+import type { HierarchyPayload } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -19,10 +21,9 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import type { ApiError } from "./types";
 
-type HierarchyPayload = Record<string, unknown>;
 
 const { encMasters, encHierarchies } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encMasters}/${encHierarchies}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encHierarchies);
 
 const HIERARCHY_FIELDS: Record<string, string[]> = {
   area_type: ["area_type", "area_type_id"],

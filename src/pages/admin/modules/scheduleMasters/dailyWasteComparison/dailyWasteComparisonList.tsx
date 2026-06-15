@@ -1,3 +1,4 @@
+import type { DailyReportResponse, DailyReportRow } from "./types";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -29,6 +30,7 @@ import {
   YAxis,
 } from "recharts";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { dailyWasteComparisonApi } from "@/helpers/admin";
@@ -39,44 +41,7 @@ import {
 } from "@/utils/exportExcel";
 
 /* ── Types ───────────────────────────────────────────────────────── */
-type DailyReportRow = {
-  unique_id: string;
-  company_id: string;
-  company_name?: string;
-  project_id: string;
-  project_name?: string;
-  collection_date: string;
-  panchayat_id: string;
-  panchayat_name?: string;
-  waste_type: string;
-  agreed_weight_kg: number;
-  actual_weight_kg: number;
-  variance_kg: number;
-  variance_percent: number;
-  report_status: string;
-  total_trips: number;
-  collection_points_covered: number;
-  collection_efficiency_percent?: number;
-  coverage_efficiency_percent?: number;
-  average_weight_per_trip?: number;
-};
 
-type DailyReportResponse = {
-  results: DailyReportRow[];
-  date_trends: Array<Record<string, number | string>>;
-  panchayat_comparison: Array<Record<string, number | string>>;
-  kpis: {
-    total_agreed_weight_kg: number;
-    total_actual_weight_kg: number;
-    variance_kg: number;
-    collection_efficiency_percent: number;
-    average_weight_per_trip?: number;
-    coverage_efficiency_percent?: number;
-    total_trips: number;
-    collection_points_covered: number;
-    report_status?: string;
-  };
-};
 
 const initialKpis: DailyReportResponse["kpis"] = {
   total_agreed_weight_kg: 0,
@@ -248,6 +213,8 @@ export default function DailyWasteComparisonList() {
   const [error, setError] = useState("");
 
   const { encScheduleMasters, encDailyWasteComparison } = getEncryptedRoute();
+  const { newPath: dailyComparisonNewPath, editPath: dailyComparisonEditPath } =
+    createCrudRoutePaths(encScheduleMasters, encDailyWasteComparison);
 
   /* ── fetch ── */
   const fetchReport = async () => {
@@ -468,7 +435,7 @@ export default function DailyWasteComparisonList() {
           </button>
           <button
             onClick={() =>
-              navigate(`/${encScheduleMasters}/${encDailyWasteComparison}/new`)
+              navigate(dailyComparisonNewPath)
             }
             className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
           >
@@ -950,7 +917,9 @@ export default function DailyWasteComparisonList() {
                           <button
                             onClick={() =>
                               navigate(
-                                `/${encScheduleMasters}/${encDailyWasteComparison}/${rows.find((r) => r.panchayat_id === p.panchayat_id)?.unique_id}/edit`,
+                                dailyComparisonEditPath(
+                                  rows.find((r) => r.panchayat_id === p.panchayat_id)?.unique_id ?? "",
+                                ),
                                 {
                                   state: {
                                     record: rows.find(
@@ -1074,7 +1043,7 @@ export default function DailyWasteComparisonList() {
                               <button
                                 onClick={() =>
                                   navigate(
-                                    `/${encScheduleMasters}/${encDailyWasteComparison}/${r.unique_id}/edit`,
+                                    dailyComparisonEditPath(r.unique_id),
                                     {
                                       state: {
                                         record: r,

@@ -1,3 +1,5 @@
+import type { VehicleCreationRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -32,30 +34,6 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type VehicleCreationRecord = {
-  unique_id: string;
-  vehicle_no: string;
-  vehicle_type_id?: string | null;
-  fuel_type_id?: string | null;
-  vehicle_type_name?: string | null;
-  fuel_type_name?: string | null;
-  capacity?: string | null;
-  mileage_per_liter?: string | null;
-  service_record?: string | null;
-  vehicle_insurance?: string | null;
-  insurance_expiry_date?: string | null;
-  vehicle_condition?: "NEW" | "SECOND_HAND" | string | null;
-  fuel_tank_capacity?: string | null;
-  rc_upload?: string | null;
-  vehicle_insurance_file?: string | null;
-  is_active: boolean;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-};
 
 const VEHICLE_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   vehicle_no: ["vehicle_no", "vehicle"],
@@ -177,9 +155,10 @@ export default function VehicleCreationListPage() {
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encTransportMaster}/${encVehicleCreation}/new`;
-  const ENC_EDIT_PATH = (id: string | number) =>
-    `/${encTransportMaster}/${encVehicleCreation}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encTransportMaster,
+    encVehicleCreation,
+  );
 
   // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {

@@ -1,3 +1,6 @@
+import type { DailyTripAssignmentRecord } from "./types";
+import type { SelectOption, VehicleTripAuditEditorProps, VehicleTripAuditFormState, VehicleTripAuditPayload } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -14,47 +17,6 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 
-type SelectOption = { value: string; label: string };
-
-type VehicleTripAuditPayload = {
-  daily_trip_assignment_id?: string;
-  vehicle_id?: string;
-  gps_lat?: number[];
-  gps_lon?: number[];
-  avg_speed?: number;
-  idle_seconds?: number;
-  captured_at?: string;
-};
-
-type VehicleTripAuditFormState = {
-  daily_trip_assignment_id: string;
-  vehicle_id: string;
-  gps_lat: string;
-  gps_lon: string;
-  avg_speed: string;
-  idle_seconds: string;
-  captured_at: string;
-};
-
-type DailyTripAssignmentRecord = {
-  unique_id: string;
-  trip_no?: string;
-  vehicle_id?: string;
-  status?: string;
-};
-
-type VehicleTripAuditEditorProps = {
-  formData: VehicleTripAuditFormState;
-  tripOptions: SelectOption[];
-  vehicles: SelectOption[];
-  fetching: boolean;
-  isEdit: boolean;
-  isSubmitting: boolean;
-  isVehicleLocked: boolean;
-  onChange: (updates: Partial<VehicleTripAuditFormState>) => void;
-  onCancel: () => void;
-  onSubmit: (e: FormEvent) => Promise<void>;
-};
 
 const toOptions = (
   items: any[],
@@ -271,7 +233,7 @@ export default function VehicleTripAuditForm() {
   }));
 
   const { encTransportMaster, encVehicleTripAudit } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleTripAudit}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encTransportMaster, encVehicleTripAudit);
 
   useEffect(() => {
     let cancelled = false;

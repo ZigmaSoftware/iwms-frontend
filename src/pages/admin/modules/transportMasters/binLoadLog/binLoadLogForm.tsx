@@ -1,3 +1,5 @@
+import type { BinLoadLogFormState, SelectOption } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -13,17 +15,6 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 
-type SelectOption = { value: string; label: string };
-
-type BinLoadLogFormState = {
-  zone_id: string;
-  vehicle_id: string;
-  property_id: string;
-  sub_property_id: string;
-  weight_kg: string;
-  source_type: string;
-  event_time: string;
-};
 
 const sourceTypeOptions: SelectOption[] = [
   { value: "WEIGHBRIDGE", label: "Weighbridge" },
@@ -79,7 +70,7 @@ export default function BinLoadLogForm() {
   });
 
   const { encTransportMaster, encBinLoadLog } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encTransportMaster}/${encBinLoadLog}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encTransportMaster, encBinLoadLog);
 
   useEffect(() => {
     setFetching(true);

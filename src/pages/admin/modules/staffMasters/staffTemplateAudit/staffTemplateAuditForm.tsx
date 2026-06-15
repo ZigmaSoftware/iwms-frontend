@@ -1,3 +1,5 @@
+import type { StaffTemplateAuditRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -9,17 +11,6 @@ import Label from "@/components/form/Label";
 import { staffTemplateAuditLogApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
-type StaffTemplateAuditRecord = {
-  id: number;
-  entity_type: string;
-  entity_id: string;
-  action: string;
-  performed_by?: string | null;
-  performed_by_name?: string | null;
-  performed_role?: string | null;
-  change_remarks?: string | null;
-  performed_at?: string | null;
-};
 
 export default function StaffTemplateAuditForm() {
   const { t } = useTranslation();
@@ -30,7 +21,7 @@ export default function StaffTemplateAuditForm() {
   const [loading, setLoading] = useState(false);
 
   const { encStaffMasters, encStaffTemplateAudit } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encStaffMasters}/${encStaffTemplateAudit}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encStaffMasters, encStaffTemplateAudit);
 
   useEffect(() => {
     if (!id) return;

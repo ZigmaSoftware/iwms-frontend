@@ -1,3 +1,5 @@
+import type { CityRouteState, CityWithRelations } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -23,24 +25,12 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 
-import type { CityRecord, CountryMeta, DistrictMeta, StateMeta } from "./types";
+import type { CountryMeta, DistrictMeta, StateMeta } from "./types";
 
 /* ------------------------------
     TYPES
 ------------------------------ */
 
-type CityQueryRecord = {
-  unique_id: string | number;
-  name?: string | null;
-  city_name?: string | null;
-  is_active?: boolean;
-  company_id?: string | number | null;
-  company_unique_id?: string | number | null;
-  company_name?: string | null;
-  project_id?: string | number | null;
-  project_unique_id?: string | number | null;
-  project_name?: string | null;
-};
 
 const CITY_FORM_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],
@@ -97,40 +87,12 @@ const extractError = (error: unknown): string => {
   return "Unexpected error!";
 };
 
-type CityWithRelations = CityRecord & {
-  company?: { unique_id?: string | number; id?: string | number } | string | number | null;
-  project?: { unique_id?: string | number; id?: string | number } | string | number | null;
-  company_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
-  project_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
-  continent_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
-  country_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
-  state_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
-  district_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
-  company_unique_id?: string | number | null;
-  project_unique_id?: string | number | null;
-  continent_unique_id?: string | number | null;
-  country_unique_id?: string | number | null;
-  state_unique_id?: string | number | null;
-  district_unique_id?: string | number | null;
-  company_name?: string | null;
-  project_name?: string | null;
-  continent_name?: string | null;
-  country_name?: string | null;
-  state_name?: string | null;
-  district_name?: string | null;
-};
-
-type CityRouteState = {
-  city?: Partial<CityQueryRecord & CityWithRelations>;
-  companyUniqueId?: string | number | null;
-  projectId?: string | number | null;
-};
 
 /* ------------------------------
     ROUTES
 ------------------------------ */
 const { encMasters, encCities } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encMasters}/${encCities}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encCities);
 
 
 /* ==========================================================

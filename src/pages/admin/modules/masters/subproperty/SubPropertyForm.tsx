@@ -1,3 +1,4 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
@@ -25,7 +26,7 @@ import type { SubPropertyEditorProps, SubPropertyPayload, SubPropertyOptionRecor
 
 const { encMasters, encSubProperties } = getEncryptedRoute();
 
-const ENC_LIST_PATH = `/${encMasters}/${encSubProperties}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encSubProperties);
 
 const SUB_PROPERTY_FIELDS: Record<string, string[]> = {
   property_id: ["property_id"],

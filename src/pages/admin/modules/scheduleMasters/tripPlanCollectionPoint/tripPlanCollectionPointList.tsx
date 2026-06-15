@@ -1,3 +1,5 @@
+import type { TableFilters, TripPlanCPRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -14,32 +16,6 @@ import { tripPlanCollectionPointApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
-type TripPlanCPRecord = {
-  unique_id: string;
-  trip_plan_id?: string;
-  trip_plan?: { display_code?: string; unique_id?: string };
-  collection_type?: string;
-  // bin collection
-  collection_point_id?: string;
-  collection_point?: { cp_name?: string; latitude?: number; longitude?: number };
-  bin_id?: string;
-  bin?: { bin_name?: string; bin_capacity?: number; bin_type?: string };
-  // household
-  customer_id?: string;
-  customer?: { customer_name?: string; ward_name?: string; zone_name?: string };
-  sequence?: number;
-  is_active?: boolean;
-  company_id?: string;
-  project_id?: string;
-  [key: string]: unknown;
-};
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  _trip_plan: { value: string | null; matchMode: FilterMatchMode };
-  _identifier: { value: string | null; matchMode: FilterMatchMode };
-  _detail: { value: string | null; matchMode: FilterMatchMode };
-};
 
 const COLLECTION_TYPE_OPTIONS = [
   { value: "", label: "All Types" },
@@ -85,9 +61,10 @@ export default function TripPlanCollectionPointList() {
   });
 
   const { encScheduleMasters, encTripPlanCollectionPoints } = getEncryptedRoute();
-  const NEW_PATH = `/${encScheduleMasters}/${encTripPlanCollectionPoints}/new`;
-  const EDIT_PATH = (id: string) =>
-    `/${encScheduleMasters}/${encTripPlanCollectionPoints}/${id}/edit`;
+  const { newPath: NEW_PATH, editPath: EDIT_PATH } = createCrudRoutePaths(
+    encScheduleMasters,
+    encTripPlanCollectionPoints,
+  );
 
   const [records, setRecords] = useState<TripPlanCPRecord[]>([]);
   const [loading, setLoading] = useState(false);

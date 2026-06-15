@@ -1,3 +1,4 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -208,7 +209,7 @@ export default function MonthlyWasteComparisonForm() {
   });
 
   const { encScheduleMasters, encMonthlyWasteComparison } = getEncryptedRoute();
-  const LIST_PATH = `/${encScheduleMasters}/${encMonthlyWasteComparison}`;
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encMonthlyWasteComparison);
 
   /* field state */
   const [panchayatId, setPanchayatId] = useState("");

@@ -1,3 +1,4 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -52,7 +53,7 @@ export default function FeedBackForm() {
   });
 
   const { encCitizenGrivence, encFeedback } = getEncryptedRoute();
-  const LIST_PATH = `/${encCitizenGrivence}/${encFeedback}`;
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encCitizenGrivence, encFeedback);
 
   /* ── form fields ── */
   const [customerId, setCustomerId] = useState("");

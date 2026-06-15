@@ -1,3 +1,4 @@
+import type { HistoryPopupLabels, RawRecord, StatusKey, TrackPoint, VehicleOption } from "./types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import L from "leaflet";
@@ -9,27 +10,6 @@ import "../../../../../components/map/adminMapPanel.css";
 import { useTranslation } from "react-i18next";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
-
-type RawRecord = Record<string, any>;
-type StatusKey = "running" | "idle" | "stopped" | "no_data";
-
-type VehicleOption = {
-  id: string;
-  label: string;
-  status: StatusKey;
-  lat: number;
-  lng: number;
-};
-
-type TrackPoint = {
-  lat: number;
-  lng: number;
-  speedKmph: number;
-  statusKey: StatusKey;
-  statusLabel: string;
-  address: string;
-  timestamp: string;
-};
 
 
 const HISTORY_DEFAULT_PROXIES = [
@@ -181,12 +161,6 @@ const createHistoryIcon = (status: StatusKey, isFocused: boolean) => {
   });
 };
 
-type HistoryPopupLabels = {
-  title: string;
-  status: string;
-  speed: string;
-  unit: string;
-};
 
 const buildHistoryPopup = (
   labels: HistoryPopupLabels,

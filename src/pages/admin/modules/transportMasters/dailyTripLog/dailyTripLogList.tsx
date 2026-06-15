@@ -1,3 +1,5 @@
+import type { DailyTripLogRecord } from "./types";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -8,7 +10,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { InputTextarea } from "primereact/inputtextarea";
 import { Dialog } from "primereact/dialog";
 import { Divider } from "primereact/divider";
@@ -19,74 +20,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { dailyTripLogApi } from "@/helpers/admin";
 import { api } from "@/api";
 
-type StaffRef = { unique_id?: string; staff_unique_id?: string; employee_name?: string };
-type NamedRef = { unique_id?: string; name?: string; [key: string]: unknown };
-type StaffTemplateDetail = {
-  unique_id?: string;
-  display_code?: string;
-  driver?: StaffRef | null;
-  operator?: StaffRef | null;
-};
-type StaffTemplateInfo = {
-  effective_display_code?: string;
-  is_alt?: boolean;
-  base?: StaffTemplateDetail | null;
-  alt?: StaffTemplateDetail | null;
-};
-
-type DailyTripLogRecord = {
-  unique_id: string;
-  trip_assignment_id?: string;
-  trip_assignment?: NamedRef & {
-    display_code?: string;
-    zone?: { unique_id?: string; zone_name?: string } | null;
-  };
-  staff_template?: StaffTemplateInfo | null;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-  panchayat?: { unique_id?: string; panchayat_name?: string } | null;
-  ward?: { unique_id?: string; ward_name?: string } | null;
-  collection_points?: {
-    unique_id?: string;
-    cp_name?: string;
-    sequence?: number;
-    is_collected?: boolean;
-    collected_weight_kg?: string | number | null;
-  }[];
-  waste_type?: NamedRef & { waste_type_name?: string };
-  waste_type_id?: string;
-  trip_date?: string;
-  actual_start_time?: string | null;
-  actual_end_time?: string | null;
-  driver?: StaffRef;
-  operator?: StaffRef;
-  extra_operators?: StaffRef[];
-  collected_weight_kg?: string | number;
-  household_collected_weight_kg?: string | number | null;
-  household_collections?: {
-    unique_id?: string;
-    sequence?: number;
-    customer_name?: string | null;
-    customer_unique_id?: string | null;
-    is_collected?: boolean;
-    collected_weight_kg?: string | number | null;
-    collected_at?: string | null;
-    status?: string;
-  }[];
-  vehicle?: NamedRef & { vehicle_no?: string };
-  bin_ids?: string[];
-  bins?: (NamedRef & { bin_name?: string })[];
-  remarks?: string | null;
-  log_status?: string;
-  collection_status?: string;
-  verified_by_name?: string | null;
-  verified_at?: string | null;
-  [key: string]: unknown;
-};
 
 const STATUS_STYLES: Record<string, string> = {
   Draft: "bg-gray-100 text-gray-700",
@@ -724,19 +657,12 @@ export default function DailyTripLogList() {
     );
   };
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder="Search trip logs..."
-          className="p-inputtext-sm border-0 shadow-none outline-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: "Search trip logs...",
+    });
 
   return (
     <div className="p-3">

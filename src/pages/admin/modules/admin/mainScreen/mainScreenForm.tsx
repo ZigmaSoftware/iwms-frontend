@@ -1,3 +1,6 @@
+import type { MainScreenTypeOption } from "./types";
+import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -15,20 +18,14 @@ import {
 } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
 
-import { encryptSegment } from "@/utils/routeCrypto";
 import { adminApi } from "@/helpers/admin/registry";
 
 /* ------------------------------
     ROUTES
 ------------------------------ */
-const encAdmins = encryptSegment("admins");
-const encMainScreens = encryptSegment("mainscreens");
-const ENC_LIST_PATH = `/${encAdmins}/${encMainScreens}`;
+const { encAdmins, encMainScreen: encMainScreens } = getEncryptedRoute();
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encAdmins, encMainScreens);
 
-type MainScreenTypeOption = {
-  value: string;
-  label: string;
-};
 
 const toText = (value: unknown): string => {
   if (value === null || value === undefined) return "";

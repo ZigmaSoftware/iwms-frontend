@@ -1,3 +1,5 @@
+import type { AlternativeStaffTemplate, TableFilters } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -27,40 +29,6 @@ const ALTERNATIVE_STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   created_at: ["created_at"],
 };
 
-type AlternativeStaffTemplate = {
-  id: number;
-  unique_id: string;
-  display_code?: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-  staff_template: string;
-  staff_template_display_code?: string;
-  effective_date: string;
-  driver: string;
-  driver_name?: string;
-  operator: string;
-  operator_name?: string;
-  extra_operator?: string[] | null;
-  extra_operator_names?: string[] | null;
-  change_reason: string;
-  change_remarks?: string;
-  approval_status: string;
-  created_at: string;
-  [key: string]: unknown;
-};
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  effective_date: { value: string | null; matchMode: FilterMatchMode };
-  driver_name: { value: string | null; matchMode: FilterMatchMode };
-  operator_name: { value: string | null; matchMode: FilterMatchMode };
-  change_reason: { value: string | null; matchMode: FilterMatchMode };
-  approval_status: { value: string | null; matchMode: FilterMatchMode };
-};
 
 export default function AlternativeStaffTemplateList() {
   const { t } = useTranslation();
@@ -102,9 +70,10 @@ export default function AlternativeStaffTemplateList() {
   });
 
   const { encScheduleMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encScheduleMasters}/${encAlternativeStaffTemplate}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encScheduleMasters}/${encAlternativeStaffTemplate}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encScheduleMasters,
+    encAlternativeStaffTemplate,
+  );
   const selectedProjectId =
     projectId && projects.some((project) => project.value === projectId)
       ? projectId

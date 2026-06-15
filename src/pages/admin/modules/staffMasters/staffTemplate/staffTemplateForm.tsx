@@ -1,3 +1,5 @@
+import type { Option, StaffRecord, StaffTemplateFormData } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -17,39 +19,6 @@ import { useFormCompanyProjectSync } from "@/hooks/useFormCompanyProjectSync";
 
 /* ================= TYPES ================= */
 
-type Option = {
-  value: string;
-  label: string;
-};
-
-type StaffRecord = {
-  unique_id?: string;
-  company_id?: string;
-  company_unique_id?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  staff_name?: string;
-  employee_name?: string;
-  username?: string;
-  user_type_name?: string;
-  staffusertype_name?: string;
-  contractorusertype_name?: string;
-  designation?: string;
-  is_active?: boolean;
-  is_deleted?: boolean;
-  active_status?: boolean | number | string | null;
-  company_name?: string;
-  project_name?: string;
-};
-
-type StaffTemplateFormData = {
-  driver_id: string;
-  operator_id: string;
-  extra_operator_id: string[];
-  status: "ACTIVE" | "INACTIVE";
-  approval_status: "PENDING" | "APPROVED" | "REJECTED";
-  approved_by: string;
-};
 
 /* ================= INITIAL STATE ================= */
 
@@ -123,7 +92,7 @@ export default function StaffTemplateForm() {
   const [pendingApprovedBy, setPendingApprovedBy] = useState<string | null>(null);
 
   const { encScheduleMasters, encStaffTemplate } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encScheduleMasters}/${encStaffTemplate}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encStaffTemplate);
 
   const statusOptions = [
     { value: "ACTIVE", label: t("common.active") },

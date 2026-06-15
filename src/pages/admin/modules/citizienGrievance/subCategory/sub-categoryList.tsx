@@ -1,3 +1,6 @@
+import type { SubCategoryRecord, TableFilters } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -7,7 +10,6 @@ import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 
@@ -21,20 +23,6 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  name: { value: string | null; matchMode: FilterMatchMode };
-  mainCategory_name: { value: string | null; matchMode: FilterMatchMode };
-};
-
-type SubCategoryRecord = {
-  unique_id: string | number;
-  name?: string;
-  mainCategory?: string | number;
-  mainCategory_name?: string;
-  is_active: boolean;
-  [key: string]: unknown;
-};
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -80,9 +68,10 @@ export default function SubComplaintCategoryList() {
   const { encCitizenGrivence, encSubComplaintCategory } = getEncryptedRoute();
   const companyUniqueId = getCurrentCompanyUniqueId() ?? "";
 
-  const NEW_PATH = `/${encCitizenGrivence}/${encSubComplaintCategory}/new`;
-  const EDIT_PATH = (id: string) =>
-    `/${encCitizenGrivence}/${encSubComplaintCategory}/${id}/edit`;
+  const { newPath: NEW_PATH, editPath: EDIT_PATH } = createCrudRoutePaths(
+    encCitizenGrivence,
+    encSubComplaintCategory,
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -186,21 +175,11 @@ export default function SubComplaintCategoryList() {
     });
   };
 
-  const header = (
-    <div className="flex justify-between items-center">
-      <div className="flex justify-end w-full">
-        <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.citizen_grievance.sub_category.search_placeholder")}
-            className="p-inputtext-sm !border-0 !shadow-none"
-          />
-        </div>
-      </div>
-    </div>
-  );
+  const header = renderListSearchHeader({
+    value: globalFilterValue,
+    onChange: onGlobalFilterChange,
+    placeholder: t("admin.citizen_grievance.sub_category.search_placeholder"),
+  });
 
   return (
     <div className="p-3">

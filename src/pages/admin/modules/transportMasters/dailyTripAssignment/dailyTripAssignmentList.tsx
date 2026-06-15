@@ -1,3 +1,8 @@
+import type { TripPlanRecord } from "./types";
+import type { DailyTripAssignmentRecord } from "./types";
+import type { CollectionTypeKey } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -8,7 +13,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
@@ -21,52 +25,6 @@ import { normalizeList } from "@/utils/forms";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type NamedRef = { unique_id?: string; name?: string; [key: string]: unknown };
-
-type DailyTripAssignmentRecord = {
-  unique_id: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  trip_plan_id?: string;
-  staff_template_id?: string;
-  panchayat_id?: string;
-  ward_id?: string;
-  waste_type_id?: string;
-  trip_plan?: {
-    unique_id?: string;
-    display_code?: string;
-    zone?: NamedRef & { zone_name?: string };
-    panchayat?: NamedRef & { panchayat_name?: string };
-    ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
-    has_bin?: boolean;
-    has_household?: boolean;
-  };
-  collection_types?: { has_bin: boolean; has_household: boolean };
-  staff_template?: { unique_id?: string; display_code?: string };
-  effective_staff?: { unique_id?: string; display_code?: string } | null;
-  panchayat?: NamedRef & { panchayat_name?: string };
-  ward?: NamedRef & { ward_name?: string };
-  waste_type?: NamedRef & { waste_type_name?: string };
-  trip_date?: string;
-  scheduled_time?: string;
-  status?: string;
-  remarks?: string | null;
-  [key: string]: unknown;
-};
-
-type TripPlanRecord = {
-  unique_id?: string;
-  id?: string;
-  zone_id?: unknown;
-  ward_id?: unknown;
-  panchayat_id?: unknown;
-  zone?: NamedRef & { zone_name?: string };
-  ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
-  panchayat?: NamedRef & { panchayat_name?: string };
-  [key: string]: unknown;
-};
 
 // ─── Badge helpers ────────────────────────────────────────────────────────────
 
@@ -83,7 +41,6 @@ const Badge = ({ value, styleMap }: { value?: string; styleMap: Record<string, s
   </span>
 );
 
-type CollectionTypeKey = "bin" | "household" | "both" | "unknown";
 
 const COLLECTION_TYPE_STYLES: Record<CollectionTypeKey, string> = {
   bin:       "bg-blue-100 text-blue-800",
@@ -190,8 +147,10 @@ export default function DailyTripAssignmentList() {
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
   const { encScheduleMasters, encDailyTripAssignment } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encScheduleMasters}/${encDailyTripAssignment}/new`;
-  const ENC_EDIT_PATH = (id: string) => `/${encScheduleMasters}/${encDailyTripAssignment}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encScheduleMasters,
+    encDailyTripAssignment,
+  );
 
   const {
     companyUniqueId, projectId, projects, companies,
@@ -303,19 +262,12 @@ export default function DailyTripAssignmentList() {
     );
   };
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder="Search assignments..."
-          className="p-inputtext-sm !border-0 !shadow-none !outline-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: "Search assignments...",
+    });
 
   return (
     <div className="p-3">

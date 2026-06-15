@@ -1,3 +1,5 @@
+import type { CountryMeta } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -22,7 +24,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { continentApi, countryApi, stateApi } from "@/helpers/admin";
 
 const { encMasters, encStates } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encMasters}/${encStates}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encStates);
 
 const STATE_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],
@@ -32,7 +34,6 @@ const STATE_FIELDS: Record<string, string[]> = {
   is_active: ["is_active"],
 };
 
-type CountryMeta = { id: string; name: string; continentId: string | null; isActive: boolean };
 
 const normalizeNull = (v: any): string | null => {
   if (v === undefined || v === null) return null;

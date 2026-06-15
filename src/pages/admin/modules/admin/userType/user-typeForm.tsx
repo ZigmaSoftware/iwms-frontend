@@ -1,3 +1,4 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -9,7 +10,7 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
 
 const { encAdmins, encUserType } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encAdmins}/${encUserType}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encAdmins, encUserType);
 
 export default function UserTypeForm() {
   const { t } = useTranslation();

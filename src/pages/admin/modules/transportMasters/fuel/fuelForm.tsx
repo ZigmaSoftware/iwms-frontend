@@ -1,3 +1,5 @@
+import type { FuelPayload } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -10,10 +12,9 @@ import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 
-type FuelPayload = Record<string, unknown>;
 
 const { encTransportMaster, encFuel } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encTransportMaster}/${encFuel}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encTransportMaster, encFuel);
 
 const FUEL_FIELDS: Record<string, string[]> = {
   fuel_type: ["fuel_type", "fuel"],

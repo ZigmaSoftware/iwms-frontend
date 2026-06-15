@@ -1,3 +1,4 @@
+import type { CommonAuditJsonValue, CommonAuditRecord, DiffLine, ModuleFilterOption, TableFilters } from "./types";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -12,35 +13,6 @@ import { FilterMatchMode } from "primereact/api";
 import { commonAuditApi } from "@/helpers/admin";
 import { normalizeList } from "@/utils/forms";
 
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-};
-
-type ModuleFilterOption = {
-  label: string;
-  value: string;
-};
-
-type CommonAuditJsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | CommonAuditJsonValue[]
-  | { [key: string]: CommonAuditJsonValue };
-
-type CommonAuditRecord = {
-  uuid?: string | number;
-  module_name?: string;
-  endpoint_name?: string;
-  method?: string;
-  object_id?: string | number;
-  createdBy?: string;
-  createdAt?: string;
-  previous_data?: CommonAuditJsonValue;
-  new_data?: CommonAuditJsonValue;
-  [key: string]: unknown;
-};
 
 const ALL_MODULES = "__all__";
 
@@ -94,7 +66,6 @@ function getChangedPaths(
   return changed;
 }
 
-type DiffLine = { content: string; changed: boolean };
 
 function buildDiffLines(
   value: CommonAuditJsonValue,

@@ -1,3 +1,5 @@
+import type { FormState, SelectOption, StopRow } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -14,27 +16,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 
-type SelectOption = { value: string; label: string };
-type StopRow = { collection_point_id: string; bin_id: string; sequence: number; is_active: boolean };
-
-type FormState = {
-  district_id: string;
-  city_id: string;
-  zone_id: string;
-  panchayat_id: string;
-  ward_id: string;
-  staff_template_id: string;
-  vehicle_id: string;
-  supervisor_id: string;
-  property_id: string;
-  sub_property_id: string;
-  waste_type_id: string;
-  trip_trigger_weight_kg: string;
-  max_vehicle_capacity_kg: string;
-  scheduled_time: string;
-  approval_status: string;
-  status: string;
-};
 
 const statusOptions: SelectOption[] = [
   { value: "ACTIVE", label: "Active" },
@@ -100,7 +81,7 @@ export default function TripPlanForm() {
   });
 
   const { encScheduleMasters, encTripPlans } = getEncryptedRoute();
-  const listPath = `/${encScheduleMasters}/${encTripPlans}`;
+  const { listPath: listPath } = createCrudRoutePaths(encScheduleMasters, encTripPlans);
 
   const [formData, setFormData] = useState<FormState>({
     district_id: "",

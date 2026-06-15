@@ -1,3 +1,4 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
@@ -22,7 +23,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { wasteTypeApi } from "@/helpers/admin";
 
 const { encMasters, encWasteTypes } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encMasters}/${encWasteTypes}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encWasteTypes);
 
 const toStringOrEmpty = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();

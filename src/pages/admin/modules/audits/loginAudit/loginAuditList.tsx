@@ -1,3 +1,4 @@
+import type { LoginAuditRecord } from "./types";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -13,23 +14,6 @@ import { adminApi } from "@/helpers/admin/registry";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 
-type LoginAuditRecord = {
-  unique_id?: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-  user_unique_id?: string | null;
-  username?: string | null;
-  ip_address?: string | null;
-  user_agent?: string | null;
-  success?: boolean;
-  reason?: string | null;
-  timestamp?: string | null;
-  [key: string]: unknown;
-};
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();

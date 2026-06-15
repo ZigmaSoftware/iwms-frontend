@@ -1,4 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import type { TableFilters, TripPlanRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -17,33 +18,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 
-type TripPlanRecord = {
-  unique_id: string;
-  display_code?: string;
-  company_id?: string | null;
-  project_id?: string | null;
-  district?: { name?: string };
-  city?: { name?: string };
-  panchayat?: { panchayat_name?: string };
-  ward?: { ward_name?: string };
-  staff_template?: { display_code?: string };
-  vehicle?: { vehicle_no?: string };
-  waste_type?: { waste_type_name?: string };
-  scheduled_time?: string;
-  approval_status?: string;
-  status?: string;
-  [key: string]: unknown;
-};
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  display_code: { value: string | null; matchMode: FilterMatchMode };
-  _location: { value: string | null; matchMode: FilterMatchMode };
-  _staff: { value: string | null; matchMode: FilterMatchMode };
-  _vehicle: { value: string | null; matchMode: FilterMatchMode };
-  _waste_type: { value: string | null; matchMode: FilterMatchMode };
-  status: { value: string | null; matchMode: FilterMatchMode };
-};
 
 const extractErrorMessage = (error: unknown): string | null => {
   const data = (error as { response?: { data?: unknown } })?.response?.data;
@@ -80,8 +54,8 @@ export default function TripPlanList() {
   });
 
   const { encScheduleMasters, encTripPlans } = getEncryptedRoute();
-  const newPath = `/${encScheduleMasters}/${encTripPlans}/new`;
-  const editPath = (id: string) => `/${encScheduleMasters}/${encTripPlans}/${id}/edit`;
+  const { newPath: newPath } = createCrudRoutePaths(encScheduleMasters, encTripPlans);
+  const { editPath } = createCrudRoutePaths(encScheduleMasters, encTripPlans);
 
   const [records, setRecords] = useState<TripPlanRecord[]>([]);
   const [loading, setLoading] = useState(false);

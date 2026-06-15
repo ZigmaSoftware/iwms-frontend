@@ -1,3 +1,6 @@
+import type { TableFilters } from "./types";
+import type { Customer } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -27,48 +30,6 @@ import {
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
 
-type Customer = {
-  unique_id: string;
-  customer_name: string;
-  contact_no: string;
-  building_no: string;
-  street: string;
-  area: string;
-  pincode: string;
-  panchayat_name: string;
-  ward_name: string;
-  zone_name: string;
-  city_name: string;
-  district_name: string;
-  state_name: string;
-  country_name: string;
-  property_name: string;
-  sub_property_name: string;
-  id_proof_type: string;
-  id_no: string;
-  is_active: boolean;
-  qr_code?: string;
-  apartment_name?: string;
-  block_no?: string;
-  flat_no?: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-};
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  customer_name?: { value: string | null; matchMode: FilterMatchMode };
-  contact_no?: { value: string | null; matchMode: FilterMatchMode };
-  ward_name?: { value: string | null; matchMode: FilterMatchMode };
-  zone_name?: { value: string | null; matchMode: FilterMatchMode };
-  city_name?: { value: string | null; matchMode: FilterMatchMode };
-  state_name?: { value: string | null; matchMode: FilterMatchMode };
-  panchayat_name?: { value: string | null; matchMode: FilterMatchMode };
-};
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -155,9 +116,10 @@ export default function CustomerCreationListPage() {
     isEdit: false,
     defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
-  const ENC_NEW_PATH = `/${encCustomerMaster}/${encCustomerCreation}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encCustomerMaster}/${encCustomerCreation}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encCustomerMaster,
+    encCustomerCreation,
+  );
 
   // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {

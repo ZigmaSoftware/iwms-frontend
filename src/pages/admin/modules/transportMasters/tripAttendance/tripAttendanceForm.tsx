@@ -1,3 +1,5 @@
+import type { DailyTripAssignmentRecord, SelectOption, StaffTemplateRecord, TripAttendanceFormState } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -15,31 +17,6 @@ import { api } from "@/api";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
-type SelectOption = { value: string; label: string };
-
-type TripAttendanceFormState = {
-  daily_trip_assignment_id: string;
-  staff_id: string;
-  vehicle_id: string;
-  attendance_time: string;
-  latitude: string;
-  longitude: string;
-  source: string;
-};
-
-type DailyTripAssignmentRecord = {
-  unique_id: string;
-  trip_no?: string;
-  vehicle_id?: string;
-  staff_template_id?: string;
-  status?: string;
-};
-
-type StaffTemplateRecord = {
-  unique_id: string;
-  driver_id?: string;
-  operator_id?: string;
-};
 
 const sourceOptions: SelectOption[] = [
   { value: "MOBILE", label: "Mobile" },
@@ -130,7 +107,7 @@ export default function TripAttendanceForm() {
   });
 
   const { encTransportMaster, encTripAttendance } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encTransportMaster}/${encTripAttendance}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encTransportMaster, encTripAttendance);
   const stateRecord = (location.state as { record?: Partial<TripAttendanceFormState> & { photo?: string } } | null)
     ?.record;
 
