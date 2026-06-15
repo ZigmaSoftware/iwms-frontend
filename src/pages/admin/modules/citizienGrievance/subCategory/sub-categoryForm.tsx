@@ -1,3 +1,5 @@
+import type { MainCategoryRecord, SubCategoryEditorProps, SubCategoryPayload } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -19,36 +21,10 @@ import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
 
-type MainCategoryRecord = {
-  unique_id: string | number;
-  main_categoryName: string;
-  is_active: boolean;
-  company_id?: string | null;
-};
-
-type SubCategoryPayload = {
-  name?: string;
-  is_active: boolean;
-  mainCategory?: string | number;
-  company_id?: string;
-};
 
 const { encCitizenGrivence, encSubComplaintCategory } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encCitizenGrivence}/${encSubComplaintCategory}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCitizenGrivence, encSubComplaintCategory);
 
-type SubCategoryEditorProps = {
-  initialPayload: {
-    name: string;
-    mainCategory: string;
-    is_active: boolean;
-    company_id?: string;
-  };
-  mainList: MainCategoryRecord[];
-  isEdit: boolean;
-  isSubmitting: boolean;
-  onCancel: () => void;
-  onSubmit: (payload: SubCategoryPayload) => Promise<void>;
-};
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;

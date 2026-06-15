@@ -1,3 +1,4 @@
+import type { ApiRow } from "./types";
 import { useEffect, useState } from "react";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
@@ -16,18 +17,6 @@ import "primeicons/primeicons.css";
 import "./dayreport.css";
 import { useTranslation } from "react-i18next";
 
-type ApiRow = {
-  Ticket_No: string;
-  Vehicle_No: string;
-  date: string;
-  Start_Time: string | null;
-  total_trip: number;
-  dry_weight: number;
-  wet_weight: number;
-  mix_weight: number;
-  total_net_weight: number;
-  average_weight_per_trip: number;
-};
 
 const today = new Date();
 

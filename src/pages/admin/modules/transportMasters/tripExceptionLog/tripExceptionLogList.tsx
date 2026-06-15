@@ -1,10 +1,11 @@
+import type { TableFilters, TripExceptionLogRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
@@ -15,28 +16,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 
-type TripExceptionLogRecord = {
-  id: number;
-  daily_trip_assignment_id: string;
-  exception_type: string;
-  remarks?: string | null;
-  detected_by: string;
-  created_at?: string | null;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-};
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  daily_trip_assignment_id?: { value: string | null; matchMode: FilterMatchMode };
-  exception_type?: { value: string | null; matchMode: FilterMatchMode };
-  detected_by?: { value: string | null; matchMode: FilterMatchMode };
-  remarks?: { value: string | null; matchMode: FilterMatchMode };
-};
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -118,7 +97,7 @@ export default function TripExceptionLogList() {
   });
 
   const { encTransportMaster, encTripExceptionLog } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encTransportMaster}/${encTripExceptionLog}/new`;
+  const { newPath: ENC_NEW_PATH } = createCrudRoutePaths(encTransportMaster, encTripExceptionLog);
 
   const fetchRecords = async () => {
     if (isSuperAdmin && companies.length === 0) {

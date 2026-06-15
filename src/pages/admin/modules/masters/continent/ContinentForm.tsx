@@ -1,3 +1,5 @@
+import type { ContinentPayload } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -22,17 +24,13 @@ import type { ContinentEditorProps } from "./types";
 
 const { encMasters, encContinents } = getEncryptedRoute();
 
-const ENC_LIST_PATH = `/${encMasters}/${encContinents}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encContinents);
 
 const CONTINENT_FIELDS: Record<string, string[]> = {
   name: ["name"],
   is_active: ["is_active"],
 };
 
-type ContinentPayload = {
-  name: string;
-  is_active: boolean;
-};
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;

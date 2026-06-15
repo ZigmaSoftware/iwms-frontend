@@ -1,3 +1,5 @@
+import type { TableFilters, ZonePropertyLoadTrackerApiRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 // import { useEffect, useState } from "react";
 // import { useNavigate, useLocation} from "react-router-dom";
 // import Swal from "@/lib/notify";
@@ -235,47 +237,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 
-export type ZonePropertyLoadTrackerApiRecord = {
-  unique_id: string;
-
-  zone_details: {
-    unique_id: string;
-    name: string;
-  };
-
-  vehicle_details: {
-    unique_id: string;
-    vehicle_no: string;
-  };
-
-  property_details: {
-    unique_id: string;
-    property_name: string;
-  };
-
-  sub_property_details: {
-    unique_id: string;
-    sub_property_name: string;
-  };
-
-  current_weight_kg: number;
-  last_updated: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-};
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  "zone_details.name": { value: string | null; matchMode: FilterMatchMode };
-  "vehicle_details.vehicle_no": { value: string | null; matchMode: FilterMatchMode };
-  "property_details.property_name": { value: string | null; matchMode: FilterMatchMode };
-  "sub_property_details.sub_property_name": { value: string | null; matchMode: FilterMatchMode };
-  current_weight_kg: { value: string | null; matchMode: FilterMatchMode };
-};
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -311,9 +272,10 @@ export default function ZonePropertyLoadTrackerList() {
   });
 
   const { encTransportMaster, encZonePropertyLoadTracker } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encTransportMaster}/${encZonePropertyLoadTracker}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encTransportMaster}/${encZonePropertyLoadTracker}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encTransportMaster,
+    encZonePropertyLoadTracker,
+  );
 
   useEffect(() => {
     if (!companyUniqueId && !isSuperAdmin) {

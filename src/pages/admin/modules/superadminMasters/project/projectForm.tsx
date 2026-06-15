@@ -1,3 +1,6 @@
+import type { CompanyOption, ProjectCreateResponse, ProjectRecord } from "./types";
+import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -17,30 +20,7 @@ import {
 } from "@/components/ui/select";
 
 import { companyApi, projectApi } from "@/helpers/admin";
-import { encryptSegment } from "@/utils/routeCrypto";
 
-type CompanyOption = {
-  unique_id: string;
-  name: string;
-};
-
-type ProjectRecord = {
-  unique_id: string;
-  company_unique_id: string;
-  name: string;
-  description: string | null;
-  gps_api_url: string | null;
-  weighment_api_url: string | null;
-  is_active: boolean;
-};
-
-type ProjectCreateResponse = {
-  project?: ProjectRecord;
-  company_admin?: {
-    unique_id: string;
-    username: string;
-  };
-};
 
 const normalizeIsActive = (value: unknown): boolean => {
   if (typeof value === "boolean") return value;
@@ -52,9 +32,8 @@ const normalizeIsActive = (value: unknown): boolean => {
   return true;
 };
 
-const encSuperAdminMasters = encryptSegment("superadmin-masters");
-const encProjectCreation = encryptSegment("project-creation");
-const ENC_LIST_PATH = `/${encSuperAdminMasters}/${encProjectCreation}`;
+const { encSuperAdminMaster: encSuperAdminMasters, encProjectCreation } = getEncryptedRoute();
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encSuperAdminMasters, encProjectCreation);
 
 const parseApiError = (error: unknown, fallback: string) => {
   const axiosError = error as { response?: { data?: unknown } };

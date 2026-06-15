@@ -1,3 +1,6 @@
+import type { CollectionPointRecord, TableFilters } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -6,7 +9,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
@@ -16,23 +18,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { collectionPointApi } from "@/helpers/admin";
 
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  cp_name: { value: string | null; matchMode: FilterMatchMode };
-  company_name: { value: string | null; matchMode: FilterMatchMode };
-  project_name: { value: string | null; matchMode: FilterMatchMode };
-  state_name: { value: string | null; matchMode: FilterMatchMode };
-  district_name: { value: string | null; matchMode: FilterMatchMode };
-  city_name: { value: string | null; matchMode: FilterMatchMode };
-  panchayat_name: { value: string | null; matchMode: FilterMatchMode };
-  ward_name: { value: string | null; matchMode: FilterMatchMode };
-};
-
-type CollectionPointRecord = {
-  unique_id: string | number;
-  is_active: boolean;
-  [key: string]: unknown;
-};
 
 const toDisplay = (value: unknown): string =>
   value === null || value === undefined || String(value).trim() === "" ? "-" : String(value);
@@ -91,8 +76,10 @@ export default function CollectionPointListPage() {
     defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const { encScheduleMasters, encCollectionPoints } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encScheduleMasters}/${encCollectionPoints}/new`;
-  const ENC_EDIT_PATH = (id: string) => `/${encScheduleMasters}/${encCollectionPoints}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encScheduleMasters,
+    encCollectionPoints,
+  );
 
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
@@ -155,19 +142,12 @@ export default function CollectionPointListPage() {
     }));
   };
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder", { item: t("admin.nav.collection_point") })}
-          className="p-inputtext-sm !border-0 !shadow-none !outline-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("common.search_placeholder", { item: t("admin.nav.collection_point") }),
+    });
 
   const indexTemplate = (_: CollectionPointRecord, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 

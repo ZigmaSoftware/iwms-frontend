@@ -1,3 +1,5 @@
+import type { SelectOption, UnassignedStaffPoolFormState, UserLocationMeta } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -13,21 +15,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
-type SelectOption = { value: string; label: string };
-
-type UnassignedStaffPoolFormState = {
-  operator_id: string;
-  driver_id: string;
-  zone_id: string;
-  ward_id: string;
-  status: string;
-  daily_trip_assignment_id: string;
-};
-
-type UserLocationMeta = {
-  zone_id?: string;
-  ward_id?: string;
-};
 
 const UNASSIGNED_STAFF_POOL_FIELDS: Record<string, string[]> = {
   role: ["role"],
@@ -91,7 +78,7 @@ export default function UnassignedStaffPoolForm() {
   });
 
   const { encStaffMasters, encUnassignedStaffPool } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encStaffMasters}/${encUnassignedStaffPool}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encStaffMasters, encUnassignedStaffPool);
   const stateRecord = (location.state as { record?: Partial<UnassignedStaffPoolFormState> } | null)?.record;
 
   useEffect(() => {

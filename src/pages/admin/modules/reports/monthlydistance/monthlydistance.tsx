@@ -1,3 +1,5 @@
+import type { HistoryRow, RawVehicle, VehicleDistanceRow, VehicleOption } from "./types";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
@@ -8,7 +10,6 @@ import "./monthlydistance.css";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 import { Truck } from "lucide-react";
@@ -21,21 +22,6 @@ import "primeicons/primeicons.css";
 
 /* ================= TYPES ================= */
 
-type RawVehicle = Record<string, any>;
-type VehicleOption = { id: string; label: string };
-
-type HistoryRow = {
-  startTime?: number | string;
-  endTime?: number | string;
-  tripDistance?: number | string;
-};
-
-type VehicleDistanceRow = {
-  vehicleId: string;
-  vehicleName: string;
-  distances: Record<string, number>;
-  total: number;
-};
 
 /* ================= CONSTANTS ================= */
 
@@ -298,19 +284,12 @@ export default function MonthlyDistance() {
     setGlobalFilterValue(value);
   };
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.reports.monthly_distance.search_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("admin.reports.monthly_distance.search_placeholder"),
+    });
 
   /* ================= EXPORT ================= */
   const exportLabels = useMemo(

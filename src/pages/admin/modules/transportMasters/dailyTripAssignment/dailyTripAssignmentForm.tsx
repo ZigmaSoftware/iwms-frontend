@@ -1,3 +1,6 @@
+import type { DailyTripAssignmentRecord } from "./types";
+import type { FormState, SelectOption } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
@@ -19,59 +22,6 @@ import { normalizeList } from "@/utils/forms";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type SelectOption = { value: string; label: string };
-
-type NamedRef = { unique_id?: string; name?: string; [key: string]: unknown };
-
-type DailyTripAssignmentRecord = {
-  unique_id: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  trip_plan_id?: string;
-  staff_template_id?: string;
-  panchayat_id?: string;
-  waste_type_id?: string;
-  trip_plan?: {
-    unique_id?: string;
-    display_code?: string;
-    scheduled_time?: string;
-    zone?: NamedRef & { zone_name?: string };
-    panchayat?: NamedRef & { panchayat_name?: string };
-    ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
-    has_bin?: boolean;
-    has_household?: boolean;
-  };
-  household_waste_types?: { unique_id?: string; waste_type_name?: string }[];
-  collection_types?: { has_bin: boolean; has_household: boolean };
-  staff_template?: { unique_id?: string; display_code?: string };
-  effective_staff?: { unique_id?: string; display_code?: string } | null;
-  panchayat?: NamedRef & { panchayat_name?: string };
-  ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
-  zone?: NamedRef & { zone_name?: string };
-  waste_type?: NamedRef & { waste_type_name?: string };
-  trip_date?: string;
-  scheduled_time?: string;
-  status?: string;
-  remarks?: string | null;
-  [key: string]: unknown;
-};
-
-type FormState = {
-  trip_plan_id: string;
-  staff_template_id: string;
-  alt_staff_template_id: string;
-  zone_id: string;
-  panchayat_id: string;
-  ward_id: string;
-  waste_type_id: string;
-  household_waste_type_ids: string[];
-  trip_date: string;
-  scheduled_time: string;
-  status: string;
-  remarks: string;
-};
 
 // ─── Static options ───────────────────────────────────────────────────────────
 
@@ -189,7 +139,7 @@ export default function DailyTripAssignmentForm() {
   });
 
   const { encScheduleMasters, encDailyTripAssignment } = getEncryptedRoute();
-  const LIST_PATH = `/${encScheduleMasters}/${encDailyTripAssignment}`;
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encDailyTripAssignment);
 
   // ── Form & record state ───────────────────────────────────────────────────
   const [formData, setFormData] = useState<FormState>({

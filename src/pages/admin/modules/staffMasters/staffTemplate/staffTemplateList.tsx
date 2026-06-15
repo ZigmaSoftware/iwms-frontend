@@ -1,3 +1,5 @@
+import type { StaffTemplate, TableFilters } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 // import { useEffect, useState } from "react";
 // import { useNavigate, useLocation} from "react-router-dom";
 // import Swal from "@/lib/notify";
@@ -250,9 +252,6 @@
 // }
 
 
-
-
-
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -285,40 +284,6 @@ const STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
 
 /* ================= TYPES ================= */
 
-type StaffTemplate = {
-  id: number;
-  unique_id: string;
-  display_code?: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-
-  driver_id: string;
-  driver_name: string;
-
-  operator_id: string;
-  operator_name: string;
-
-  extra_operator_id?: string[];
-
-  status: string;
-  approval_status: string;
-
-  created_at: string;
-  updated_at: string;
-  [key: string]: unknown;
-};
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  unique_id: { value: string | null; matchMode: FilterMatchMode };
-  driver_name: { value: string | null; matchMode: FilterMatchMode };
-  operator_name: { value: string | null; matchMode: FilterMatchMode };
-  approval_status: { value: string | null; matchMode: FilterMatchMode };
-};
 
 /* ================= COMPONENT ================= */
 
@@ -364,8 +329,10 @@ export default function StaffTemplateList() {
   });
 
   const { encScheduleMasters, encStaffTemplate } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encScheduleMasters}/${encStaffTemplate}/new`;
-  const ENC_EDIT_PATH = (id: string) => `/${encScheduleMasters}/${encStaffTemplate}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encScheduleMasters,
+    encStaffTemplate,
+  );
   const selectedProjectId =
     projectId && projects.some((project) => project.value === projectId)
       ? projectId

@@ -1,3 +1,4 @@
+import type { ReportResponse, ReportRow } from "./types";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/api";
@@ -29,6 +30,7 @@ import {
   YAxis,
 } from "recharts";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import {
@@ -37,44 +39,7 @@ import {
 } from "@/utils/exportExcel";
 
 /* ── Types ──────────────────────────────────────────────────────── */
-type ReportRow = {
-  unique_id: string;
-  company_id: string;
-  company_name?: string;
-  project_id: string;
-  project_name?: string;
-  month: string;
-  panchayat_id: string;
-  panchayat_name?: string;
-  waste_type: string;
-  total_agreed_weight: number;
-  total_actual_weight: number;
-  variance_kg: number;
-  variance_percent: number;
-  report_status: string;
-  total_trips: number;
-  collection_points_covered: number;
-  collection_efficiency_percent: number;
-  coverage_efficiency_percent?: number;
-  average_weight_per_trip: number;
-};
 
-type ReportResponse = {
-  results: ReportRow[];
-  monthly_trends: Array<Record<string, number | string>>;
-  panchayat_comparison: Array<Record<string, number | string>>;
-  kpis: {
-    total_agreed_weight: number;
-    total_actual_weight: number;
-    variance_kg: number;
-    collection_efficiency_percent: number;
-    average_weight_per_trip: number;
-    coverage_efficiency_percent: number;
-    total_trips: number;
-    collection_points_covered: number;
-    report_status: string;
-  };
-};
 
 const initialKpis: ReportResponse["kpis"] = {
   total_agreed_weight: 0,
@@ -247,6 +212,10 @@ export default function MonthlyWasteComparisonListPage() {
   const [error, setError] = useState("");
 
   const { encScheduleMasters, encMonthlyWasteComparison } = getEncryptedRoute();
+  const { newPath: monthlyComparisonNewPath } = createCrudRoutePaths(
+    encScheduleMasters,
+    encMonthlyWasteComparison,
+  );
 
   /* ── fetch ── */
   const fetchReport = async () => {
@@ -471,9 +440,7 @@ export default function MonthlyWasteComparisonListPage() {
           </button>
           <button
             onClick={() =>
-              navigate(
-                `/${encScheduleMasters}/${encMonthlyWasteComparison}/new`,
-              )
+              navigate(monthlyComparisonNewPath)
             }
             className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
           >

@@ -1,3 +1,5 @@
+import type { VehicleCreationPayload } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -14,10 +16,9 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 
-type VehicleCreationPayload = Record<string, unknown>;
 
 const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleCreation}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encTransportMaster, encVehicleCreation);
 const FILE_ICON = "/images/pdfimage/download.png";
 
 const VEHICLE_CREATION_FIELDS: Record<string, string[]> = {

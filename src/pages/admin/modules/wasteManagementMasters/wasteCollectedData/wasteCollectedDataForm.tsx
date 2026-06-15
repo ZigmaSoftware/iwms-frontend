@@ -1,3 +1,5 @@
+import type { Customer } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -13,25 +15,6 @@ import { customerCreationApi, wasteCollectionApi, dailyTripAssignmentApi, tripPl
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-type Customer = {
-  id: number;
-  unique_id?: string;
-  customer_name: string;
-  building_no?: string;
-  street?: string;
-  area?: string;
-  zone_name?: string;
-  ward_name?: string;
-  panchayat_name?: string;
-  city_name?: string;
-  district_name?: string;
-  state_name?: string;
-  country_name?: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-};
 
 const extractError = (error: any): string | null => {
   const data = error?.response?.data;
@@ -65,7 +48,7 @@ export default function WasteCollectedForm() {
   });
 
   const { encWasteManagementMaster, encWasteCollectedData } = getEncryptedRoute();
-  const LIST_PATH = `/${encWasteManagementMaster}/${encWasteCollectedData}`;
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encWasteManagementMaster, encWasteCollectedData);
 
   /* ── form fields ── */
   const [customerId, setCustomerId] = useState("");

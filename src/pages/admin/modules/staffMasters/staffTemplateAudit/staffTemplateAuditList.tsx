@@ -1,10 +1,12 @@
+import type { StaffTemplateAuditRecord } from "./types";
+import type { TableFilters } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
@@ -13,27 +15,6 @@ import { staffTemplateAuditLogApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 
-type StaffTemplateAuditRecord = {
-  id: number;
-  entity_type: string;
-  entity_id: string;
-  action: string;
-  performed_by?: string | null;
-  performed_by_name?: string | null;
-  performed_role?: string | null;
-  change_remarks?: string | null;
-  performed_at?: string | null;
-};
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  entity_type?: { value: string | null; matchMode: FilterMatchMode };
-  entity_id?: { value: string | null; matchMode: FilterMatchMode };
-  action?: { value: string | null; matchMode: FilterMatchMode };
-  performed_by?: { value: string | null; matchMode: FilterMatchMode };
-  performed_role?: { value: string | null; matchMode: FilterMatchMode };
-  change_remarks?: { value: string | null; matchMode: FilterMatchMode };
-};
 
 export default function StaffTemplateAuditList() {
   const { t } = useTranslation();
@@ -58,8 +39,7 @@ export default function StaffTemplateAuditList() {
 
 
   const { encStaffMasters, encStaffTemplateAudit } = getEncryptedRoute();
-  const ENC_VIEW_PATH = (id: string) =>
-    `/${encStaffMasters}/${encStaffTemplateAudit}/${id}/edit`;
+  const { editPath: ENC_VIEW_PATH } = createCrudRoutePaths(encStaffMasters, encStaffTemplateAudit);
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -114,7 +94,7 @@ export default function StaffTemplateAuditList() {
           <InputText
             value={globalFilterValue}
             onChange={onGlobalFilterChange}
-            placeholder={t("common.search_placeholder_placeholder")}
+            placeholder={t("common.search_placeholder")}
             className="border-none text-sm"
           />
         </div>

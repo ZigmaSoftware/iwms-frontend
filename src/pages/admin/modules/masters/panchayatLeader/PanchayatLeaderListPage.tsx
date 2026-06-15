@@ -1,3 +1,6 @@
+import type { PanchayatLeader } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -7,7 +10,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
@@ -16,22 +18,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-type PanchayatLeader = {
-  unique_id: string;
-  username: string;
-  leader_name?: string | null;
-  email?: string | null;
-  panchayat_id?: string | null;
-  panchayat_name?: string | null;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-  is_active: boolean;
-  [key: string]: unknown;
-};
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -46,8 +32,8 @@ export default function PanchayatLeaderListPage() {
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
   const { encMasters, encPanchayatLeaders } = getEncryptedRoute();
-  const ENC_NEW_PATH  = `/${encMasters}/${encPanchayatLeaders}/new`;
-  const ENC_EDIT_PATH = (uid: string) => `/${encMasters}/${encPanchayatLeaders}/${uid}/edit`;
+  const { newPath: ENC_NEW_PATH } = createCrudRoutePaths(encMasters, encPanchayatLeaders);
+  const { editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encMasters, encPanchayatLeaders);
 
   const {
     companyUniqueId,
@@ -121,21 +107,14 @@ export default function PanchayatLeaderListPage() {
   };
 
   /* ── search header (search bar only — same as PanchayatListPage) ── */
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder", {
-            item: t("admin.nav.panchayat_leader"),
-          })}
-          className="p-inputtext-sm !border-0 !shadow-none !outline-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("common.search_placeholder", {
+        item: t("admin.nav.panchayat_leader"),
+      }),
+    });
 
   const statusTemplate = (row: PanchayatLeader) => {
     const toggle = async (checked: boolean) => {

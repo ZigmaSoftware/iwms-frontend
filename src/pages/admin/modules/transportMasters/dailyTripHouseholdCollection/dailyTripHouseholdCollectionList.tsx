@@ -1,3 +1,5 @@
+import type { DailyTripHouseholdCollectionRecord, NamedRef } from "./types";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -7,35 +9,12 @@ import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { dailyTripHouseholdCollectionApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-type NamedRef = Record<string, unknown> | null | undefined;
-
-type DailyTripHouseholdCollectionRecord = {
-  unique_id: string;
-  trip_assignment_id?: string;
-  trip_assignment?: NamedRef;
-  customer_id?: string;
-  customer?: NamedRef;
-  waste_collection_id?: string | null;
-  panchayat?: { unique_id?: string; panchayat_name?: string } | null;
-  ward?: { unique_id?: string; ward_name?: string } | null;
-  sequence?: number;
-  is_collected?: boolean;
-  collected_at?: string | null;
-  collected_weight_kg?: string | number | null;
-  status?: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  [key: string]: unknown;
-};
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: "bg-gray-100 text-gray-700",
@@ -207,19 +186,12 @@ export default function DailyTripHouseholdCollectionList() {
     setGlobalFilterValue(value);
   };
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder="Search household collections..."
-          className="p-inputtext-sm border-0 shadow-none outline-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: "Search household collections...",
+    });
 
   return (
     <div className="p-3">

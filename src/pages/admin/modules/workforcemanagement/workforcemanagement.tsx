@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { createRoutePath } from "@/utils/routePaths";
 import "./workforcemanagement.css";
 import { useTranslation } from "react-i18next";
 
@@ -14,10 +15,10 @@ export default function WorkforceManagement() {
 
   const handleReportClick = (type: "day" | "date") => {
     if (type === "date") {
-      navigate(`/${encWorkforceManagement}/${encDateReport}`);
+      navigate(createRoutePath(encWorkforceManagement, encDateReport));
       return;
     }
-    navigate(`/${encWorkforceManagement}/${encDayReport}`);
+    navigate(createRoutePath(encWorkforceManagement, encDayReport));
   };
 
   return (

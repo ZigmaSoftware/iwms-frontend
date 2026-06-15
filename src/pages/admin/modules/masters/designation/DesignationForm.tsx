@@ -1,3 +1,4 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -10,7 +11,7 @@ import { departmentApi, designationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 const { encMasters, encDesignations } = getEncryptedRoute();
-const LIST_PATH = `/${encMasters}/${encDesignations}`;
+const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encDesignations);
 
 export default function DesignationForm() {
   const { t } = useTranslation();

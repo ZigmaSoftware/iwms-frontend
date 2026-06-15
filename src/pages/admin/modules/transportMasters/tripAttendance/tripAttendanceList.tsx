@@ -1,3 +1,5 @@
+import type { TableFilters, TripAttendanceRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -29,33 +31,6 @@ const TRIP_ATTENDANCE_COLUMN_FIELDS: Record<string, string[]> = {
   created_at: ["created_at"],
 };
 
-type TripAttendanceRecord = {
-  id: number;
-  daily_trip_assignment_id: string;
-  staff_id: string;
-  vehicle_id: string;
-  attendance_time: string;
-  latitude: string | number;
-  longitude: string | number;
-  photo?: string | null;
-  source: string;
-  created_at?: string | null;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-};
-
-type  TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  daily_trip_assignment_id?: { value: string | null; matchMode: FilterMatchMode };
-  staff_id?: { value: string | null; matchMode: FilterMatchMode };
-  vehicle_id?: { value: string | null; matchMode: FilterMatchMode };
-  source?: { value: string | null; matchMode: FilterMatchMode };
-  attendance_time?: { value: string | null; matchMode: FilterMatchMode };
-};
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -145,8 +120,10 @@ export default function TripAttendanceList() {
   });
 
   const { encTransportMaster, encTripAttendance } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encTransportMaster}/${encTripAttendance}/new`;
-  const ENC_EDIT_PATH = (id: number) => `/${encTransportMaster}/${encTripAttendance}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encTransportMaster,
+    encTripAttendance,
+  );
 
   const backendOrigin = useMemo(
     () => api.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "",

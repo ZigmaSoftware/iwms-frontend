@@ -1,3 +1,6 @@
+import type { HouseholdPickupEventRecord } from "./types";
+import type { HouseholdPickupFormState, SelectOption } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -22,32 +25,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
-type SelectOption = { value: string; label: string };
-
-type HouseholdPickupFormState = {
-  customer_id: string;
-  zone_id: string;
-  property_id: string;
-  sub_property_id: string;
-  pickup_time: string;
-  weight_kg: string;
-  collector_staff_id: string;
-  vehicle_id: string;
-  source: string;
-};
-
-type HouseholdPickupEventRecord = {
-  id: number;
-  customer_id: string;
-  zone_id: string;
-  property_id: string;
-  sub_property_id: string;
-  pickup_time?: string | null;
-  weight_kg?: number | null;
-  collector_staff_id: string;
-  vehicle_id: string;
-  source: string;
-};
 
 const householdPickupEventApi = createCrudHelpers<HouseholdPickupEventRecord>(
   "customer-masters/household-pickup-events"
@@ -114,7 +91,7 @@ export default function HouseholdPickupEventForm() {
   });
 
   const { encCustomerMaster, encHouseholdPickupEvent } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encCustomerMaster}/${encHouseholdPickupEvent}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCustomerMaster, encHouseholdPickupEvent);
   const stateRecord = (location.state as { record?: HouseholdPickupEventRecord } | null)?.record;
 
   const toFormState = (record?: Partial<HouseholdPickupEventRecord>): HouseholdPickupFormState | null => {

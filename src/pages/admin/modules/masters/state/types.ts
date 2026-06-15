@@ -6,6 +6,7 @@ export type CountryMeta = {
 };
 
 export type StateRecord = {
+  unique_id: string | number;
   name: string;
   label: string;
   is_active: boolean;
@@ -19,3 +20,11 @@ export type ErrorWithResponse = {
   };
 };
 
+import type { FilterMatchMode } from "primereact/api";
+
+export type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  country_name: { value: string | null; matchMode: FilterMatchMode };
+  name: { value: string | null; matchMode: FilterMatchMode };
+  label: { value: string | null; matchMode: FilterMatchMode };
+};

@@ -1,3 +1,6 @@
+import type { BinCERecord } from "./types";
+import type { TableFilters } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -14,42 +17,6 @@ import { binCollectionEventApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
-type BinCERecord = {
-  unique_id: string;
-  trip_assignment_id?: string;
-  trip_plan?: { display_code?: string };
-  collection_point_id?: string;
-  collection_point?: { cp_name?: string } | null;
-  bin?: { bin_name?: string };
-  waste_type?: { waste_type_name?: string };
-  vehicle?: { vehicle_no?: string };
-  panchayat_id?: string;
-  panchayat_name?: string | null;
-  ward_id?: string | null;
-  ward_name?: string | null;
-  zone_name?: string | null;
-  collected_weight_kg?: string | number;
-  collection_date?: string;
-  driver_latitude?: string | number | null;
-  driver_longitude?: string | number | null;
-  notes?: string | null;
-  created_at?: string;
-  company_id?: string;
-  project_id?: string;
-  [key: string]: unknown;
-};
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  _trip_plan: { value: string | null; matchMode: FilterMatchMode };
-  _collection_point: { value: string | null; matchMode: FilterMatchMode };
-  _bin: { value: string | null; matchMode: FilterMatchMode };
-  _waste_type: { value: string | null; matchMode: FilterMatchMode };
-  _panchayat: { value: string | null; matchMode: FilterMatchMode };
-  _ward: { value: string | null; matchMode: FilterMatchMode };
-  _zone: { value: string | null; matchMode: FilterMatchMode };
-  collection_date: { value: string | null; matchMode: FilterMatchMode };
-};
 
 const extractError = (error: unknown): string | null => {
   const data = (error as any)?.response?.data;
@@ -88,8 +55,11 @@ export default function BinCollectionEventList() {
   });
 
   const { encScheduleMasters, encBinCollectionEvent } = getEncryptedRoute();
-  const NEW_PATH = `/${encScheduleMasters}/${encBinCollectionEvent}/new`;
-  const VIEW_PATH = (id: string) => `/${encScheduleMasters}/${encBinCollectionEvent}/${id}/edit`;
+  const { newPath: NEW_PATH } = createCrudRoutePaths(encScheduleMasters, encBinCollectionEvent);
+  const { editPath: VIEW_PATH } = createCrudRoutePaths(
+    encScheduleMasters,
+    encBinCollectionEvent,
+  );
 
   const [records, setRecords] = useState<BinCERecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -300,7 +270,9 @@ export default function BinCollectionEventList() {
           body={(row: BinCERecord) => (
             <button
               title="Edit"
-              onClick={() => navigate(VIEW_PATH(row.unique_id), { state: { companyUniqueId, projectId } })}
+          onClick={() =>
+            navigate(VIEW_PATH(row.unique_id ?? ""), { state: { companyUniqueId, projectId } })
+          }
               className="text-blue-600 hover:text-blue-800"
             >
               <PencilIcon className="size-5" />

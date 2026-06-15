@@ -1,3 +1,6 @@
+import type { BinCERecord } from "./types";
+import type { FormState, SelectOption } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -20,49 +23,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 
-type BinCERecord = {
-  unique_id?: string;
-  trip_assignment_id?: string;
-  trip_collection_point_id?: string | null;
-  bin_id?: string | null;
-  collection_point_id?: string | null;
-  panchayat_id?: string | null;
-  ward_id?: string | null;
-  zone_id?: string | null;
-  trip_plan?: { display_code?: string };
-  collection_point?: { cp_name?: string };
-  bin?: { bin_name?: string; bin_capacity?: number; bin_type?: string };
-  waste_type?: { waste_type_name?: string };
-  vehicle?: { vehicle_no?: string };
-  effective_staff_template?: any;
-  collected_weight_kg?: string | number;
-  collection_date?: string;
-  driver_latitude?: string | number | null;
-  driver_longitude?: string | number | null;
-  notes?: string | null;
-  created_at?: string;
-  company_name?: string;
-  company_id?: string;
-  project_name?: string;
-  project_id?: string;
-  panchayat_name?: string | null;
-  ward_name?: string | null;
-  zone_name?: string | null;
-  [key: string]: unknown;
-};
-
-type SelectOption = { value: string; label: string };
-
-type FormState = {
-  trip_assignment_id: string;
-  trip_collection_point_id: string;
-  bin_id: string;
-  collection_date: string;
-  collected_weight_kg: string;
-  driver_latitude: string;
-  driver_longitude: string;
-  notes: string;
-};
 
 const extractError = (error: any): string | null => {
   const data = error?.response?.data;
@@ -101,7 +61,7 @@ export default function BinCollectionEventForm() {
   });
 
   const { encScheduleMasters, encBinCollectionEvent } = getEncryptedRoute();
-  const LIST_PATH = `/${encScheduleMasters}/${encBinCollectionEvent}`;
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encBinCollectionEvent);
 
   /* ── record loading (edit mode) ── */
   const [record, setRecord] = useState<BinCERecord | null>(null);

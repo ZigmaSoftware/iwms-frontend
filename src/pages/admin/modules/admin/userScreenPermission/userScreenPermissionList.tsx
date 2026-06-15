@@ -1,3 +1,4 @@
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
@@ -6,7 +7,6 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +16,7 @@ import "primeicons/primeicons.css";
 
 import { PencilIcon, TrashBinIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
 import { userScreenPermissionApi } from "@/helpers/admin";
 
 import type { StaffUserType } from "../types/admin.types";
@@ -66,21 +67,21 @@ export default function UserScreenPermissionList() {
 
 
   const { encAdmins, encUserScreenPermission } = getEncryptedRoute();
-
-  const ENC_NEW_PATH = companyUniqueId
-    ? `/${encAdmins}/${encUserScreenPermission}/new?company_unique_id=${encodeURIComponent(
-        companyUniqueId
-      )}`
-    : `/${encAdmins}/${encUserScreenPermission}/new`;
+  const { newPath: permissionNewPath, editPath: permissionEditPath } =
+    createCrudRoutePaths(encAdmins, encUserScreenPermission);
+  const ENC_NEW_PATH = appendRouteQuery(permissionNewPath, {
+    company_unique_id: companyUniqueId,
+  });
 
   const ENC_EDIT_PATH = (
     staffTypeId: string,
     companyId: string,
     mainScreenId: string
   ) =>
-    `/${encAdmins}/${encUserScreenPermission}/${staffTypeId}/edit?company_unique_id=${encodeURIComponent(
-      companyId
-    )}&mainscreen_id=${encodeURIComponent(mainScreenId)}`;
+    appendRouteQuery(permissionEditPath(staffTypeId), {
+      company_unique_id: companyId,
+      mainscreen_id: mainScreenId,
+    });
 
   useEffect(() => {
     let mounted = true;
@@ -270,19 +271,11 @@ export default function UserScreenPermissionList() {
     setGlobalFilterValue(value);
   };
 
-  const header = (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
-    </div>
-  );
+  const header = renderListSearchHeader({
+    value: globalFilterValue,
+    onChange: onGlobalFilterChange,
+    placeholder: t("common.search_placeholder"),
+  });
 
   /* -----------------------------------------------------------
      RENDER

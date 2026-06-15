@@ -1,3 +1,4 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -10,7 +11,7 @@ import { departmentApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 const { encMasters, encDepartments } = getEncryptedRoute();
-const LIST_PATH = `/${encMasters}/${encDepartments}`;
+const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encDepartments);
 
 export default function DepartmentForm() {
   const { t } = useTranslation();

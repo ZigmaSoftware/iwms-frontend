@@ -1,3 +1,5 @@
+import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -6,7 +8,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
@@ -72,15 +73,15 @@ export default function ZoneList() {
 
   const { encMasters, encZones } = getEncryptedRoute();
 
-  const ENC_NEW_PATH = (companyId?: string | null, selectedProjectId?: string | null) => {
-    const params = new URLSearchParams();
-    if (companyId) params.set("company_unique_id", companyId);
-    if (selectedProjectId) params.set("project_id", selectedProjectId);
-    const query = params.toString();
-    return `/${encMasters}/${encZones}/new${query ? `?${query}` : ""}`;
-  };
-  const ENC_EDIT_PATH = (id: string | number) =>
-    `/${encMasters}/${encZones}/${id}/edit`;
+  const { newPath: zoneNewPath, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encMasters,
+    encZones,
+  );
+  const ENC_NEW_PATH = (companyId?: string | null, selectedProjectId?: string | null) =>
+    appendRouteQuery(zoneNewPath, {
+      company_unique_id: companyId,
+      project_id: selectedProjectId,
+    });
 
   const onFilterCompanyChange = (value: string) => {
     localStorage.setItem("selected_company_unique_id", value);
@@ -157,21 +158,14 @@ export default function ZoneList() {
     setGlobalFilterValue(value);
   };
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder", {
-            item: t("admin.nav.zone"),
-          })}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("common.search_placeholder", {
+        item: t("admin.nav.zone"),
+      }),
+    });
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";

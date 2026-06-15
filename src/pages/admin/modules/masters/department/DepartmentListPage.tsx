@@ -1,3 +1,4 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -13,8 +14,8 @@ import { departmentApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 const { encMasters, encDepartments } = getEncryptedRoute();
-const NEW_PATH = `/${encMasters}/${encDepartments}/new`;
-const editPath = (id: string) => `/${encMasters}/${encDepartments}/${id}/edit`;
+const { newPath: NEW_PATH } = createCrudRoutePaths(encMasters, encDepartments);
+const { editPath } = createCrudRoutePaths(encMasters, encDepartments);
 
 export default function DepartmentListPage() {
   const navigate = useNavigate();

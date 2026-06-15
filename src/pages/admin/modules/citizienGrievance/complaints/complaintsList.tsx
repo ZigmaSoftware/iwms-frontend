@@ -1,3 +1,5 @@
+import type { Complaint } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -16,28 +18,6 @@ import "primeicons/primeicons.css";
 import { complaintApi } from "@/helpers/admin";
 import { useTranslation } from "react-i18next";
 
-type Complaint = {
-  id: number;
-  unique_id: string;
-  customer_name: string;
-  contact_no: string;
-  main_category?: string | null;
-  sub_category?: string | null;
-  category?: string;
-  details: string;
-  priority?: string | null;
-  zone_id?: string;
-  zone_name?: string;
-  ward_id?: string;
-  ward_name?: string;
-  address: string;
-  image_url?: string;
-  close_image_url?: string;
-  status: string;
-  action_remarks?: string;
-  created: string;
-  complaint_closed_at?: string | null;
-};
 
 export default function ComplaintsList() {
   const { t } = useTranslation();
@@ -57,9 +37,10 @@ export default function ComplaintsList() {
     const { encCitizenGrivence, encComplaint } = getEncryptedRoute();
   
   
-    const ENC_NEW_PATH = `/${encCitizenGrivence}/${encComplaint}/new`;
-    const ENC_EDIT_PATH = (uniqueId: string) =>
-      `/${encCitizenGrivence}/${encComplaint}/${uniqueId}/edit`;
+    const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+      encCitizenGrivence,
+      encComplaint,
+    );
   
   
 

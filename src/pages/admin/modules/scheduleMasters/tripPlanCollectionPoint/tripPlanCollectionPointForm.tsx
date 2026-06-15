@@ -1,3 +1,5 @@
+import type { FormState, SelectOption } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -21,22 +23,12 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useCollectionPointLocationOptions } from "@/hooks/useCollectionPointLocationOptions";
 
-type SelectOption = { value: string; label: string };
 
 const COLLECTION_TYPES: SelectOption[] = [
   { value: "bin_collection", label: "Bin Collection" },
   { value: "household_collection", label: "Household Collection" },
 ];
 
-type FormState = {
-  trip_plan_id: string;
-  collection_type: string;
-  collection_point_id: string;
-  bin_id: string;
-  customer_id: string;
-  sequence: string;
-  is_active: boolean;
-};
 
 const extractError = (error: any): string | null => {
   const data = error?.response?.data;
@@ -102,7 +94,7 @@ export default function TripPlanCollectionPointForm() {
   });
 
   const { encScheduleMasters, encTripPlanCollectionPoints } = getEncryptedRoute();
-  const LIST_PATH = `/${encScheduleMasters}/${encTripPlanCollectionPoints}`;
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encTripPlanCollectionPoints);
 
   const [form, setForm] = useState<FormState>({
     trip_plan_id: "",

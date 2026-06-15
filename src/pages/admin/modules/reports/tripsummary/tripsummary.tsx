@@ -1,3 +1,4 @@
+import type { HistoryRow, RawVehicle, TableFilters, TripData, VehicleOption, VisualStatus } from "./types";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, JSX } from "react";
 import * as XLSX from "xlsx";
@@ -9,63 +10,12 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
-
-type RawVehicle = Record<string, any>;
-
-type VehicleOption = {
-  id: string;
-  label: string;
-};
-
-interface HistoryRow {
-  startTime: number;
-  endTime: number;
-  intLoc: string;
-  finLoc: string;
-  tripDistance: number;
-  position: string;
-  duration: number;
-  [key: string]: unknown;
-}
-
-interface TripData {
-  vehicleName?: string;
-  startOdo?: number;
-  endOdo?: number;
-  totalTripLength?: number;
-  moveCount?: number;
-  parkCount?: number;
-  idleCount?: number;
-  historyConsilated?: HistoryRow[];
-}
-
-type VisualStatus = "moving" | "parked" | "idle";
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  startTime?: { value: string | null; matchMode: FilterMatchMode };
-  endTime?: { value: string | null; matchMode: FilterMatchMode };
-  intLoc?: { value: string | null; matchMode: FilterMatchMode };
-  finLoc?: { value: string | null; matchMode: FilterMatchMode };
-  position?: { value: string | null; matchMode: FilterMatchMode };
-  duration?: { value: string | null; matchMode: FilterMatchMode };
-  tripDistance?: { value: string | null; matchMode: FilterMatchMode };
-  vehicleName?: { value: string | null; matchMode: FilterMatchMode };
-  startodo?: { value: string | null; matchMode: FilterMatchMode };
-  endodo?: { value: string | null; matchMode: FilterMatchMode };
-  totalTripLength?: { value: string | null; matchMode: FilterMatchMode };
-  moveCount?: { value: string | null; matchMode: FilterMatchMode };
-  parkCount?: { value: string | null; matchMode: FilterMatchMode };
-  idleCount?: { value: string | null; matchMode: FilterMatchMode };
-
-};
 
 
 const STATUS_ICONS: Record<VisualStatus, JSX.Element> = {

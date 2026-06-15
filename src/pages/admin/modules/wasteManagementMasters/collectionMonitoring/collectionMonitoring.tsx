@@ -1,3 +1,4 @@
+import type { CustomerLocation, CustomerRecord, Vehicle, VehicleStatus } from "./types";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import flatpickr from "flatpickr";
@@ -10,49 +11,9 @@ import {
   filterActiveCustomers,
   normalizeCustomerArray,
 } from "@/utils/customerUtils";
-import type { CustomerRecord as CustomerRecordBase } from "@/utils/customerUtils";
 import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
-interface Vehicle {
-  id: string;
-  number: string;
-  lat: number;
-  lon: number;
-  status: "Running" | "Idle" | "Parked" | "No Data";
-  speed: number;
-  ignition: boolean;
-  location: string;
-  distance: number;
-  updatedAt: string;
-}
-
-type VehicleStatus = Vehicle["status"];
-
-type CustomerRecord = CustomerRecordBase & {
-  customer_name?: string;
-  zone_name?: string;
-  ward_name?: string;
-  latitude?: string;
-  longitude?: string;
-  lat?: string | number;
-  lng?: string | number;
-  latitude_value?: string | number;
-  longitude_value?: string | number;
-  building_no?: string;
-  street?: string;
-  area?: string;
-};
-
-interface CustomerLocation {
-  id: string;
-  name: string;
-  lat: number;
-  lon: number;
-  address: string;
-  zone?: string;
-  ward?: string;
-}
 
 const COLLECTION_MONITORING_FIELDS: Record<string, string[]> = {
   date: ["date", "collection_date", "fromDate"],

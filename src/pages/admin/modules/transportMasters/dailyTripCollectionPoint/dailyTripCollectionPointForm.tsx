@@ -1,3 +1,6 @@
+import type { DailyTripCollectionPointRecord } from "./types";
+import type { ApiObject, SelectOption } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -11,24 +14,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCollectionPointLocationOptions } from "@/hooks/useCollectionPointLocationOptions";
 
-type SelectOption = { value: string; label: string };
-type ApiObject = Record<string, unknown>;
-
-type DailyTripCollectionPointRecord = {
-  unique_id: string;
-  trip_assignment_id?: string;
-  collection_point_id?: string;
-  bin_id?: string;
-  collected_by?: string | null;
-  sequence?: number;
-  is_collected?: boolean;
-  collected_at?: string | null;
-  collected_weight_kg?: string | number | null;
-  status?: string;
-  company_id?: string | null;
-  project_id?: string | null;
-  [key: string]: unknown;
-};
 
 const STATUS_OPTIONS: SelectOption[] = [
   { value: "Pending", label: "Pending" },
@@ -136,7 +121,7 @@ export default function DailyTripCollectionPointForm() {
   });
 
   const { encScheduleMasters, encDailyTripCollectionPoint } = getEncryptedRoute();
-  const LIST_PATH = `/${encScheduleMasters}/${encDailyTripCollectionPoint}`;
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encDailyTripCollectionPoint);
 
   const [tripAssignmentId, setTripAssignmentId] = useState("");
   const [collectionPointId, setCollectionPointId] = useState("");

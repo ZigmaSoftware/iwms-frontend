@@ -1,3 +1,6 @@
+import type { StaffUserTypeRow } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -6,7 +9,6 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 
@@ -21,10 +23,6 @@ import { contractorUserTypeApi, staffUserTypeApi } from "@/helpers/admin";
 
 import type { StaffUserType } from "../types/admin.types";
 
-type StaffUserTypeRow = StaffUserType & {
-  category: "Staff" | "Contractor";
-  usertype_name?: string;
-};
 
 const toRecordList = (value: unknown): StaffUserType[] => {
   if (Array.isArray(value)) return value as StaffUserType[];
@@ -73,9 +71,10 @@ export default function StaffUserTypeList() {
   const navigate = useNavigate();
   const { encAdmins, encStaffUserType } = getEncryptedRoute();
 
-  const ENC_NEW_PATH = `/${encAdmins}/${encStaffUserType}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encAdmins}/${encStaffUserType}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encAdmins,
+    encStaffUserType,
+  );
 
   const loadRecords = async () => {
     setIsLoading(true);
@@ -198,19 +197,11 @@ export default function StaffUserTypeList() {
     setGlobalFilterValue(value);
   };
 
-  const header = (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
-    </div>
-  );
+  const header = renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("common.search_placeholder_placeholder"),
+    });
 
   /* -----------------------------------------------------------
      RENDER

@@ -1,3 +1,5 @@
+import type { ChangePasswordModalProps, ErrorWithResponse, LocationOption, Section } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
@@ -51,12 +53,7 @@ function PasswordPriorityBadge({ ageDays }: { ageDays: number | null }) {
 }
 
 // ─── Change Password Modal ───────────────────────────────────────────────────
-interface ChangePasswordModalProps {
-  targetType: "staff" | "customer";
-  targetId: string;
-  onClose: () => void;
-  onSuccess: (newPasswordCrtDate: string) => void;
-}
+
 
 function ChangePasswordModal({ targetType, targetId, onClose, onSuccess }: ChangePasswordModalProps) {
   const [oldPassword, setOldPassword] = useState("");
@@ -153,18 +150,6 @@ import {
   designationApi,
 } from "@/helpers/admin/index";
 
-type Section = "official" | "personal";
-type LocationOption = {
-  value: string;
-  label: string;
-  uniqueId?: string;
-  countryId?: string;
-  countryName?: string;
-  stateId?: string;
-  stateName?: string;
-  districtId?: string;
-  districtName?: string;
-};
 
 const getGradeOptions = (t: (key: string) => string) => [
   { value: "Grade A", label: t("admin.staff_creation.grade_a") },
@@ -239,11 +224,6 @@ const mapLocationOptions = (items: any[]): LocationOption[] =>
       districtId: normalizeId(item.district_id ?? item.district),
     }));
 
-type ErrorWithResponse = {
-  response?: {
-    data?: unknown;
-  };
-};
 
 const formatErrorMessage = (t: (key: string) => string, error: unknown) => {
   if (!error) return t("common.review_fields");
@@ -452,7 +432,7 @@ export default function StaffCreationForm() {
   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const { encStaffMasters, encStaffCreation } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encStaffMasters}/${encStaffCreation}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encStaffMasters, encStaffCreation);
   const backendOrigin =
     api.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "";
 

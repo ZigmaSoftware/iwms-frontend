@@ -1,3 +1,5 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -6,7 +8,6 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 
@@ -45,9 +46,10 @@ export default function MainScreenList() {
   const navigate = useNavigate();
   const { encAdmins, encMainScreen } = getEncryptedRoute();
 
-  const ENC_NEW_PATH = `/${encAdmins}/${encMainScreen}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encAdmins}/${encMainScreen}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encAdmins,
+    encMainScreen,
+  );
 
   const loadRecords = async () => {
     setIsLoading(true);
@@ -141,19 +143,11 @@ export default function MainScreenList() {
   /* ------------------------------
       Table Header
   ------------------------------ */
-  const header = (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
-    </div>
-  );
+  const header = renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("common.search_placeholder"),
+    });
 
   return (
     <div className="px-3 py-3 w-full "> 

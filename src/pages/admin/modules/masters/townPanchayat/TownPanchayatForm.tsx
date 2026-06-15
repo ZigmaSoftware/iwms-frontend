@@ -1,3 +1,5 @@
+import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
@@ -9,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { encryptSegment } from "@/utils/routeCrypto";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { townPanchayatApi, stateApi, districtApi } from "@/helpers/admin";
@@ -88,9 +89,8 @@ export default function TownPanchayatForm() {
   const [allDistricts, setAllDistricts] = useState<SelectOption[]>([]);
   const [filteredDistricts, setFilteredDistricts] = useState<SelectOption[]>([]);
 
-  const encMasters = encryptSegment("masters");
-  const encTownPanchayats = encryptSegment("town-panchayats");
-  const LIST_PATH = `/${encMasters}/${encTownPanchayats}`;
+  const { encMasters, encTownPanchayats } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encTownPanchayats);
 
   useEffect(() => {
     let cancelled = false;

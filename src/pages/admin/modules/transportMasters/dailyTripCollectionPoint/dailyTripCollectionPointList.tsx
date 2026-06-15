@@ -1,3 +1,6 @@
+import type { DailyTripCollectionPointRecord } from "./types";
+import type { NamedRef } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -15,28 +18,6 @@ import { dailyTripCollectionPointApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
-type NamedRef = Record<string, unknown> | null | undefined;
-
-type DailyTripCollectionPointRecord = {
-  unique_id: string;
-  trip_assignment_id?: string;
-  trip_assignment?: NamedRef;
-  collection_point_id?: string;
-  collection_point?: NamedRef;
-  bin_id?: string;
-  bin?: NamedRef;
-  sequence?: number;
-  is_collected?: boolean;
-  collected_at?: string | null;
-  collected_weight_kg?: string | number | null;
-  status?: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  is_active?: boolean;
-  [key: string]: unknown;
-};
 
 const STATUS_STYLES: Record<string, string> = {
   Pending: "bg-gray-100 text-gray-700",
@@ -89,8 +70,11 @@ export default function DailyTripCollectionPointList() {
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const { encScheduleMasters, encDailyTripCollectionPoint } = getEncryptedRoute();
-  const NEW_PATH = `/${encScheduleMasters}/${encDailyTripCollectionPoint}/new`;
-  const EDIT_PATH = (id: string) => `/${encScheduleMasters}/${encDailyTripCollectionPoint}/${id}/edit`;
+  const { newPath: NEW_PATH } = createCrudRoutePaths(encScheduleMasters, encDailyTripCollectionPoint);
+  const { editPath: EDIT_PATH } = createCrudRoutePaths(
+    encScheduleMasters,
+    encDailyTripCollectionPoint,
+  );
 
   const {
     companyUniqueId,

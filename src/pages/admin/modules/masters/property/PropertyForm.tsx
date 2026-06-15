@@ -1,3 +1,4 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -14,7 +15,7 @@ import type { PropertyEditorProps, PropertyPayload } from "./types";
 
 const { encMasters, encProperties } = getEncryptedRoute();
 
-const ENC_LIST_PATH = `/${encMasters}/${encProperties}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encProperties);
 
 const PROPERTY_FIELDS: Record<string, string[]> = {
   property_name: ["property_name"],

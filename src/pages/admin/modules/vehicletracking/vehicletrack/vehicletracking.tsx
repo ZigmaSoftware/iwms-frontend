@@ -1,3 +1,4 @@
+import type { PanelStatusKey, PanelVehicle, RawRecord, Status, StatusSurface, Vehicle, VehicleMetrics } from "./types";
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -8,51 +9,6 @@ import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 import { fetchWasteReport } from "@/utils/wasteApi";
 
-type Status = "Running" | "Idle" | "Parked" | "No Data";
-
-type RawRecord = Record<string, unknown>;
-type PanelStatusKey = "running" | "idle" | "stopped" | "no_data";
-
-type Vehicle = {
-  id: string;
-  label: string;
-  lat: number;
-  lng: number;
-  speed: number;
-  ignition: "ON" | "OFF" | "NA";
-  status: Status;
-  distance: number;
-  updatedAt: string;
-  driver?: string;
-  location?: string;
-};
-
-type PanelVehicle = {
-  id: string;
-  label: string;
-  lat: number;
-  lng: number;
-  statusKey: PanelStatusKey;
-  statusLabel: string;
-  speed: number;
-  lastUpdate: string;
-  driver?: string;
-  location?: string;
-};
-
-type VehicleMetrics = {
-  loading: boolean;
-  totalWeightTodayTons: number | null;
-  totalDistanceTodayKm: number | null;
-  totalDistanceMonthKm: number | null;
-  totalTripsToday: number | null;
-  dryWeightTodayTons: number | null;
-  wetWeightTodayTons: number | null;
-  mixWeightTodayTons: number | null;
-  reportDateKey: string | null;
-};
-
-type StatusSurface = { bg: string; border: string };
 
 const STATUS_META: Record<
   PanelStatusKey,

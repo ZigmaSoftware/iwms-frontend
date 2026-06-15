@@ -18,7 +18,7 @@ type CreateApiOptions = {
 
 const createApi = (opts: CreateApiOptions): AxiosInstance => {
   const api = axios.create({
-    baseURL: API_ROOT, // 👈 no desktop/mobile
+    baseURL: API_ROOT, // no desktop/mobile
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -32,26 +32,10 @@ const createApi = (opts: CreateApiOptions): AxiosInstance => {
       config.url?.includes(p)
     );
 
-    // Debug: log token presence and whether this request is a login route
-    try {
-      // avoid logging full token for security, show presence and URL
-      // eslint-disable-next-line no-console
-      // console.log("[api] interceptor", {
-      //   url: config.url,
-      //   tokenPresent: Boolean(token),
-      //   isLogin,
-      // });
-    } catch (e) {}
-
     if (token && !isLogin) {
       config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${token}`;
-      try {
-        // eslint-disable-next-line no-console
-        // console.log("[api] interceptor: Authorization header set for", config.url);
-      } catch (e) {}
     }
-
     return config;
   });
 

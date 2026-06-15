@@ -1,3 +1,4 @@
+import type { ApiRow } from "./types";
 import { useEffect, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -12,22 +13,13 @@ import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { fetchWasteReport, type WasteApiRow } from "@/utils/wasteApi";
+import { createRoutePath } from "@/utils/routePaths";
+import { fetchWasteReport } from "@/utils/wasteApi";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 import "./datereport.css";
 import { useTranslation } from "react-i18next";
 
-type ApiRow = WasteApiRow & {
-  Start_Time: string | null;
-  End_Time: string | null;
-  total_trip: number;
-  dry_weight: number;
-  wet_weight: number;
-  mix_weight: number;
-  total_net_weight: number;
-  average_weight_per_trip: number;
-};
 
 const today = new Date();
 
@@ -182,9 +174,7 @@ export default function DateReport() {
             label={t("common.back")}
             severity="success"
             onClick={() =>
-              navigate(
-                `/${encWorkforceManagement}/${encWorkforceManagement}`
-              )
+              navigate(createRoutePath(encWorkforceManagement, encWorkforceManagement))
             }
           />
         </div>

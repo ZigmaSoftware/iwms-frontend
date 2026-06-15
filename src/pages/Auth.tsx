@@ -74,7 +74,7 @@ export default function Auth() {
     }
   }, []);
 
-  // ✅ Get updatePermissions so we can force React state sync after login
+  // Get updatePermissions so we can force React state sync after login
   const { updatePermissions } = usePermission();
 
   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
@@ -87,7 +87,7 @@ export default function Auth() {
         password,
       });
 
-      console.log("[Auth] ✅ Login response received:", res.data);
+      console.log("[Auth] Login response received:", res.data);
 
       const payload = unwrapLoginPayload(res.data);
       persistLoginSession(payload);
@@ -97,7 +97,7 @@ export default function Auth() {
       const freshPermissions = getStoredPermissions();
       updatePermissions(freshPermissions, getStoredColumnPermissions());
 
-      // ✅ Set user context
+      //  Set user context
       setUser({
         name:
           payload.user?.name ??
@@ -108,14 +108,14 @@ export default function Auth() {
         email: payload.user?.email ?? payload.email ?? "",
       });
 
-      // ✅ Check admin access by role name OR by any permission granted by superadmin
+      // Check admin access by role name OR by any permission granted by superadmin
       const hasAdminAccess =
         isAdmin(normalizedRole) ||
         hasAnyPermission(freshPermissions) ||
         hasAnyPermission((payload.permissions ?? {}) as Record<string, any>);
 
       console.log(
-        "[Auth] 🔐 Role:", normalizedRole,
+        "[Auth] Role:", normalizedRole,
         "| permissions:", freshPermissions,
         "| hasAdminAccess:", hasAdminAccess
       );

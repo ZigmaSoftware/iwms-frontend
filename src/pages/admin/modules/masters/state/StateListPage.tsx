@@ -1,3 +1,7 @@
+import type { ErrorWithResponse, StateRecord } from "./types";
+import type { TableFilters } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 // import { useEffect, useState, useCallback } from "react";
 // import { useNavigate } from "react-router-dom";
 // import Swal from "@/lib/notify";
@@ -5,8 +9,7 @@
 // import { DataTable } from "@/components/common/SafeDataTable";
 // import { Column } from "primereact/column";
 // import { Button } from "primereact/button";
-// import { InputText } from "primereact/inputtext";
-// import { FilterMatchMode } from "primereact/api";
+// // import { FilterMatchMode } from "primereact/api";
 // import { useTranslation } from "react-i18next";
 
 // import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -253,7 +256,6 @@
 // }
 
 
-
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -262,7 +264,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 
@@ -276,27 +277,6 @@ import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { stateApi } from "@/helpers/admin";
 
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  country_name: { value: string | null; matchMode: FilterMatchMode };
-  name: { value: string | null; matchMode: FilterMatchMode };
-  label: { value: string | null; matchMode: FilterMatchMode };
-};
-
-type ErrorWithResponse = {
-  response?: {
-    data?: unknown;
-  };
-};
-
-type StateRecord = {
-  unique_id: string | number;
-  name?: string;
-  label?: string;
-  country_name?: string;
-  is_active: boolean;
-  [key: string]: unknown;
-};
 
 const STATE_COLUMN_FIELDS: Record<string, string[]> = {
   country_name: ["country_id"],
@@ -350,9 +330,10 @@ export default function StateList() {
 
   const { encMasters, encStates } = getEncryptedRoute();
 
-  const ENC_NEW_PATH = `/${encMasters}/${encStates}/new`;
-  const ENC_EDIT_PATH = (id: string | number) =>
-    `/${encMasters}/${encStates}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encMasters,
+    encStates,
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -396,22 +377,13 @@ export default function StateList() {
     setGlobalFilterValue(value);
   };
 
-  const header = (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder", {
-            item: t("admin.nav.state"),
-          })}
-          className="p-inputtext-sm border-0 shadow-none"
-        />
-      </div>
-    </div>
-  );
+  const header = renderListSearchHeader({
+    value: globalFilterValue,
+    onChange: onGlobalFilterChange,
+    placeholder: t("common.search_placeholder", {
+      item: t("admin.nav.state"),
+    }),
+  });
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";

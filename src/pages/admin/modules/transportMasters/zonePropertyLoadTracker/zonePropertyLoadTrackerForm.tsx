@@ -1,3 +1,5 @@
+import type { SelectOption, ZonePropertyLoadTrackerFormState } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -13,15 +15,6 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 
-type SelectOption = { value: string; label: string };
-
-type ZonePropertyLoadTrackerFormState = {
-  zone_id: string;
-  vehicle_id: string;
-  property_id: string;
-  sub_property_id: string;
-  current_weight_kg: string;
-};
 
 const toOptions = (items: any[], valueKey: string, labelKey: string): SelectOption[] =>
   items
@@ -55,7 +48,7 @@ export default function ZonePropertyLoadTrackerForm() {
   });
 
   const { encTransportMaster, encZonePropertyLoadTracker } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encTransportMaster}/${encZonePropertyLoadTracker}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encTransportMaster, encZonePropertyLoadTracker);
   const stateRecord = (location.state as { record?: Partial<ZonePropertyLoadTrackerFormState> } | null)?.record;
 
   // ── Fetch dropdown lists ──────────────────────────────────────────────────
