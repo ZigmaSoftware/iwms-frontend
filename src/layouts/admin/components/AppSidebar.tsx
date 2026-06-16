@@ -14,6 +14,7 @@ import {
   Truck,
   AlertTriangle,
   BarChart3,
+  CalendarCheck,
   Search,
   X,
 } from "lucide-react";
@@ -23,6 +24,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { decryptSegment } from "@/utils/routeCrypto";
 
 const {
+  encAttendance,
   encMasters,
   encAudits,
   encContinents,
@@ -113,6 +115,7 @@ type NavItem = {
 
 type SidebarSectionKey =
   | "main"
+  | "attendance"
   | "superadminMaster"
   | "commonMaster"
   | "master"
@@ -142,6 +145,14 @@ const navItems: NavItem[] = [
     path: "/admin",
     module: "dashboard",
     screen: "Dashboard",
+  },
+];
+
+const attendanceItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.attendance",
+    icon: <CalendarCheck size={18} />,
+    path: `/${encAttendance}/${encAttendance}`,
   },
 ];
 
@@ -779,6 +790,7 @@ const AppSidebar: React.FC = () => {
     () => {
       const allSections = [
         { key: "main" as const, items: navItems },
+        { key: "attendance" as const, items: attendanceItems },
         { key: "superadminMaster" as const, items: superadminMasterItems },
         { key: "commonMaster" as const, items: commonMasterItems },
         { key: "master" as const, items: masterItems },

@@ -150,6 +150,7 @@ import CompanyList from "@/pages/admin/modules/superadminMasters/company/company
 import CompanyListForm from "@/pages/admin/modules/superadminMasters/company/companyForm";
 import ProjectList from "@/pages/admin/modules/superadminMasters/project/projectListPage";
 import ProjectForm from "@/pages/admin/modules/superadminMasters/project/projectForm";
+import ExternalAttendanceList from "@/pages/admin/modules/attendance/ExternalAttendanceList";
 
 
 type ModuleComponent = ComponentType | undefined;
@@ -164,6 +165,9 @@ type RouteConfig = {
 type RouteMap = Record<string, Record<string, RouteConfig>>;
 
 const ROUTES: RouteMap = {
+  attendance: {
+    attendance: { component: ExternalAttendanceList },
+  },
   admins: {
     "user-type": { list: UserTypeList, form: UserTypeForm },
     "staff-user-type": { list: StaffUserTypeList, form: StaffUserTypeForm },

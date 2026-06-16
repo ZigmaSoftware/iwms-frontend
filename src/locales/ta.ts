@@ -847,6 +847,7 @@ const taResource = {
           "sub_category": "துணை வகை",
           "feedback": "பின்னூட்டம்",
           "workforce_management": "பணியாளர் மேலாண்மை",
+          "attendance": "வருகை",
           "reports": "அறிக்கைகள்",
           "trip_summary": "பயண சுருக்கம்",
           "monthly_distance": "மாதாந்திர தூரம்",
@@ -864,7 +865,9 @@ const taResource = {
           "admin_required_together": "admin_username, admin_password, மற்றும் admin_employee_name மூன்றும் ஒன்றாக வழங்கப்பட வேண்டும்.",
           "company_admin_created": "திட்ட நிர்வாகி உருவாக்கப்பட்டது - பயனர் பெயர்: {{username}}, ஐடி: {{unique_id}}",
           "gps_api_url": "GPS API URL",
-          "weighment_api_url": "எடைத்திரும்ப API URL"
+          "weighment_api_url": "எடைத்திரும்ப API URL",
+          "attendance_api_url": "வருகை API URL",
+          "attendance_api_key": "வருகை API Key"
         },
         "roles": {
           "admin": "நிர்வாகி",

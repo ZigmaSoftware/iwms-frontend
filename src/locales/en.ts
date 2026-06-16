@@ -864,6 +864,7 @@ const enResource = {
           "panchayat_base_collection": "PLB Base Collection",
           "ward_base_collection": "Ward Base Collection",
           "workforce_management": "Workforce Management",
+          "attendance": "Attendance",
           "reports": "Reports",
           "trip_summary": "Trip Summary",
           "monthly_distance": "Monthly Distance",
@@ -882,7 +883,9 @@ const enResource = {
           "admin_required_together": "admin_username, admin_password, and admin_employee_name must be provided together.",
           "company_admin_created": "Project admin created - Username: {{username}}, ID: {{unique_id}}",
           "gps_api_url": "GPS API URL",
-          "weighment_api_url": "Weighment API URL"
+          "weighment_api_url": "Weighment API URL",
+          "attendance_api_url": "Attendance API URL",
+          "attendance_api_key": "Attendance API Key"
         },
         "roles": {
           "admin": "Admin",

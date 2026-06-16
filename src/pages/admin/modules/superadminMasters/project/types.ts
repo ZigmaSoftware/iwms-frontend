@@ -12,6 +12,8 @@ export type ProjectRecord = {
   description: string | null;
   gps_api_url: string | null;
   weighment_api_url: string | null;
+  attendance_api_url: string | null;
+  attendance_api_configured?: boolean;
   is_active: boolean;
 };
 

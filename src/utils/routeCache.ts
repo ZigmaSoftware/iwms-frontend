@@ -1,6 +1,7 @@
 import { encryptSegment } from "./routeCrypto";
 
 export type EncryptedRoutes = {
+  encAttendance: string;
   encAdmins: string;
   encAudits: string;
   encCities: string;
@@ -110,6 +111,7 @@ export type EncryptedRoutes = {
 };
 
 const plainRoutes: EncryptedRoutes = {
+  encAttendance: "attendance",
   encAdmins: "admins",
   encAudits: "audits",
   encCities: "cities",

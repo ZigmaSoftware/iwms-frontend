@@ -846,6 +846,7 @@ const hiResource = {
           "feedback": "फीडबैक",
           "fleet_reports": "फ्लीट & रिपोर्ट्स",
           "workforce_management": "वर्कफोर्स प्रबंधन",
+          "attendance": "उपस्थिति",
           "reports": "रिपोर्ट्स",
           "trip_summary": "ट्रिप सारांश",
           "monthly_distance": "मासिक दूरी",
@@ -863,7 +864,9 @@ const hiResource = {
           "admin_required_together": "admin_username, admin_password और admin_employee_name तीनों साथ में देने होंगे।",
           "company_admin_created": "प्रोजेक्ट एडमिन बना दिया गया - यूज़रनेम: {{username}}, आईडी: {{unique_id}}",
           "gps_api_url": "GPS API URL",
-          "weighment_api_url": "तौल API URL"
+          "weighment_api_url": "तौल API URL",
+          "attendance_api_url": "उपस्थिति API URL",
+          "attendance_api_key": "उपस्थिति API Key"
         },
         "roles": {
           "admin": "एडमिन",
