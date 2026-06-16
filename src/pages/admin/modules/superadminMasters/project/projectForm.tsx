@@ -74,6 +74,9 @@ export default function ProjectForm() {
   const [isActive, setIsActive] = useState(true);
   const [gpsApiUrl, setGpsApiUrl] = useState("");
   const [weighmentApiUrl, setWeighmentApiUrl] = useState("");
+  const [attendanceApiUrl, setAttendanceApiUrl] = useState("");
+  const [attendanceApiKey, setAttendanceApiKey] = useState("");
+  const [attendanceApiConfigured, setAttendanceApiConfigured] = useState(false);
   const [adminUsername, setAdminUsername] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminEmployeeName, setAdminEmployeeName] = useState("");
@@ -146,6 +149,8 @@ export default function ProjectForm() {
         setDescription(record.description ?? "");
         setGpsApiUrl(record.gps_api_url ?? "");
         setWeighmentApiUrl(record.weighment_api_url ?? "");
+        setAttendanceApiUrl(record.attendance_api_url ?? "");
+        setAttendanceApiConfigured(Boolean(record.attendance_api_configured));
         setPendingCompanyId(record.company_unique_id ?? null);
         setIsActive(normalizeIsActive(record.is_active));
       })
@@ -200,6 +205,8 @@ export default function ProjectForm() {
           description: description.trim() || null,
           gps_api_url: gpsApiUrl.trim() || null,
           weighment_api_url: weighmentApiUrl.trim() || null,
+          attendance_api_url: attendanceApiUrl.trim() || null,
+          ...(attendanceApiKey.trim() ? { attendance_api_key: attendanceApiKey.trim() } : {}),
           is_active: isActive,
         });
       } else {
@@ -208,6 +215,8 @@ export default function ProjectForm() {
           description: description.trim() || null,
           gps_api_url: gpsApiUrl.trim() || null,
           weighment_api_url: weighmentApiUrl.trim() || null,
+          attendance_api_url: attendanceApiUrl.trim() || null,
+          attendance_api_key: attendanceApiKey.trim() || null,
           is_active: isActive,
         };
         if (companyUniqueId.trim()) {
@@ -354,6 +363,38 @@ export default function ProjectForm() {
               onChange={(e) => setWeighmentApiUrl(e.target.value)}
               placeholder="https://example.com/waste_collected_data_api.php"
             />
+          </div>
+
+          <div>
+            <Label htmlFor="attendanceApiUrl">{t("admin.project.attendance_api_url")}</Label>
+            <Input
+              id="attendanceApiUrl"
+              type="url"
+              value={attendanceApiUrl}
+              onChange={(e) => setAttendanceApiUrl(e.target.value)}
+              placeholder="http://zigfly.in/attendance-api/api/sync/recognized"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="attendanceApiKey">{t("admin.project.attendance_api_key")}</Label>
+            <Input
+              id="attendanceApiKey"
+              type="password"
+              value={attendanceApiKey}
+              onChange={(e) => setAttendanceApiKey(e.target.value)}
+              placeholder={
+                isEdit && attendanceApiConfigured
+                  ? "Configured - enter to replace"
+                  : "ZIGFLY_SYNC_2025"
+              }
+              autoComplete="new-password"
+            />
+            {isEdit && attendanceApiConfigured ? (
+              <p className="mt-1 text-xs text-gray-500">
+                Leave blank to keep the existing API key.
+              </p>
+            ) : null}
           </div>
 
           {!isEdit ? (

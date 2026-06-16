@@ -12,6 +12,7 @@ export function buildNavRouteMap(): RouteEntry[] {
   if (_cache) return _cache;
 
   const {
+    encAttendance,
     encMasters,
     encAudits,
     encContinents,
@@ -95,6 +96,7 @@ export function buildNavRouteMap(): RouteEntry[] {
 
   _cache = [
     { path: "/admin", nameKey: "admin.nav.dashboard" },
+    { path: `/${encAttendance}/${encAttendance}`, nameKey: "admin.nav.attendance" },
     // SuperAdmin Masters
     { path: `/${encSuperAdminMaster}/${encCompanyCreation}`, nameKey: "admin.nav.company", parentNameKey: "admin.nav.superAdmin_masters" },
     { path: `/${encSuperAdminMaster}/${encProjectCreation}`, nameKey: "admin.nav.project", parentNameKey: "admin.nav.superAdmin_masters" },
