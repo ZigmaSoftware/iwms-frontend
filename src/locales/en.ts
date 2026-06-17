@@ -788,6 +788,7 @@ const enResource = {
 
           "panchayat": "PLB (Participating Local Bodies)",
           "panchayat_leader": "PLB Leader",
+          "district_leader": "District Leader",
           "area_type": "Area Type",
           "municipality": "Municipality",
           "town_panchayat": "Town Panchayat",

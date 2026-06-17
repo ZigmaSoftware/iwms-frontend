@@ -790,6 +790,7 @@ const hiResource = {
           "ward": "वार्ड",
           "collection_point": "कलेक्शन पॉइंट",
           "panchayat_leader": "PLB नेता",
+          "district_leader": "District Leader",
           "municipality": "नगर पालिका",
           "town_panchayat": "नगर पंचायत",
           "block_panchayat_union": "ब्लॉक / पंचायत संघ",
