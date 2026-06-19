@@ -1696,6 +1696,7 @@ const taResource = {
             },
             "search_placeholder": "தேதி / நேரம் / எடைகளை தேடுக",
             "error_from_after_to": "தொடக்க தேதி முடிவு தேதிக்கு பின்னதாக இருக்க முடியாது",
+            "error_no_api": "இந்த திட்டத்திற்கு தேதி வாரி API URL அமைக்கப்படவில்லை",
             "error_no_data": "தரவு இல்லை",
             "error_load_failed": "தரவை ஏற்ற முடியவில்லை",
             "empty_message": "பதிவுகள் இல்லை",
@@ -1721,8 +1722,9 @@ const taResource = {
             },
             "search_placeholder": "டிக்கெட் / வாகனம் / தேதி தேடுக",
             "error_from_after_to": "தொடக்க தேதி முடிவு தேதியை விட பெரியதாக இருக்க முடியாது",
+            "error_no_api": "இந்த திட்டத்திற்கு நாள் வாரி API URL அமைக்கப்படவில்லை",
             "error_no_data": "தரவு இல்லை",
-            "error_load_failed": "API பிழை ஏற்பட்டது",
+            "error_load_failed": "தரவு ஏற்றுவதில் தோல்வி. மீண்டும் முயற்சிக்கவும்.",
             "empty_message": "பதிவுகள் இல்லை",
             "columns": {
               "s_no": "எண்",

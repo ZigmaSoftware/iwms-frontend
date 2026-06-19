@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { Truck } from "lucide-react";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
+import { buildTripSummaryUrl, buildVehicleTrackingUrl } from "@/config/gpsApiConfig";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -25,11 +26,8 @@ import "primeicons/primeicons.css";
 
 /* ================= CONSTANTS ================= */
 
-
-const TRIP_SUMMARY_ENDPOINT =
-  "https://gpsvtsprobend.vamosys.com/v2/getTripSummary";
-
-const TRIP_SUMMARY_USER_ID = "NMCP2DISPOSAL";
+// Note: API endpoints are now loaded from project configuration
+// Fallback vehicles for when roster API is unavailable
 
 const FALLBACK_VEHICLES: VehicleOption[] = [
   { id: "UP16KT1737", label: "UP16KT1737" },
@@ -38,6 +36,7 @@ const FALLBACK_VEHICLES: VehicleOption[] = [
 ];
 
 const CHUNK_SIZE = 6;
+
 
 /* ================= DATE HELPERS ================= */
 
@@ -115,8 +114,12 @@ const runWithConcurrency = async <T,>(
 
 export default function MonthlyDistance() {
   const { t, i18n } = useTranslation();
-  const { gpsApiUrl } = useProjectSelector();
-  const TRACKING_API_URL = gpsApiUrl;
+  const { gpsVehicleTrackingApi, gpsTripSummaryApi, gpsProviderName, gpsFcode, gpsTripUserId } = useProjectSelector();
+  const TRACKING_API_URL = buildVehicleTrackingUrl(
+    { providerName: gpsProviderName, fcode: gpsFcode },
+    gpsVehicleTrackingApi
+  );
+  const TRIP_SUMMARY_API_URL = gpsTripSummaryApi;
   const [vehicles, setVehicles] = useState<VehicleOption[]>(FALLBACK_VEHICLES);
   const [monthInput, setMonthInput] = useState(formatMonthInput(new Date()));
   const [selectedMonth, setSelectedMonth] = useState(monthInput);
@@ -160,6 +163,13 @@ export default function MonthlyDistance() {
 
   useEffect(() => {
     setLoadingVehicles(true);
+    if (!TRACKING_API_URL) {
+      setVehicles(FALLBACK_VEHICLES);
+      setRosterError("admin.reports.monthly_distance.error_unavailable");
+      setLoadingVehicles(false);
+      return;
+    }
+
     fetch(TRACKING_API_URL)
       .then((r) => r.json())
       .then((res) => {
@@ -183,7 +193,7 @@ export default function MonthlyDistance() {
       .finally(() => {
         setLoadingVehicles(false);
       });
-  }, []);
+  }, [TRACKING_API_URL]);
 
   /* ================= FETCH MONTH DATA (FAST) ================= */
 
@@ -228,7 +238,13 @@ export default function MonthlyDistance() {
         }
 
         try {
-          const url = `${TRIP_SUMMARY_ENDPOINT}?vehicleId=${v.id}&fromDateUTC=${from}&toDateUTC=${to}&userId=${TRIP_SUMMARY_USER_ID}&duration=0`;
+          const url = buildTripSummaryUrl(
+            v.id,
+            from,
+            to,
+            { userId: gpsTripUserId, duration: "0" },
+            TRIP_SUMMARY_API_URL
+          );
           const res = await fetch(url);
           const json = await res.json();
 
@@ -270,7 +286,7 @@ export default function MonthlyDistance() {
         setLoadingFleet(false);
       }
     }
-  }, [vehicles, monthDays, selectedMonth]);
+  }, [vehicles, monthDays, selectedMonth, TRIP_SUMMARY_API_URL, gpsTripUserId]);
 
   useEffect(() => {
     fetchFleetData();
@@ -333,7 +349,7 @@ export default function MonthlyDistance() {
 
   /* ================= UI ================= */
 
-  if (!gpsApiUrl) {
+  if (!TRACKING_API_URL || !TRIP_SUMMARY_API_URL) {
     return (
       <div className="p-3">
         <ProjectSelectorBar />

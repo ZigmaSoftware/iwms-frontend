@@ -10,6 +10,7 @@ import "../../../../../components/map/adminMapPanel.css";
 import { useTranslation } from "react-i18next";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
+import { buildUrlWithParams, buildVehicleTrackingUrl } from "@/config/gpsApiConfig";
 
 
 const HISTORY_DEFAULT_PROXIES = [
@@ -17,12 +18,6 @@ const HISTORY_DEFAULT_PROXIES = [
   "https://thingproxy.freeboard.io/fetch/{url}",
   "https://corsproxy.io/?",
 ];
-
-const HISTORY_DEFAULT_PARAMS = {
-  userId: "BLUEPLANET",
-  groupName: "BLUEPLANET:VAM",
-  interval: "-1",
-} as const;
 
 
 const STATUS_META: Record<StatusKey, { labelKey: string; color: string }> = {
@@ -254,9 +249,24 @@ function normalizeHistory(rec: RawRecord[]) {
 
 export default function VehicleHistory(): JSX.Element {
   const { t, i18n } = useTranslation();
-  const { gpsApiUrl } = useProjectSelector();
-  const TRACKING_API_URL = gpsApiUrl;
-  const HISTORY_API_BASE = gpsApiUrl;
+  const {
+    gpsVehicleHistoryApi,
+    gpsVehicleTrackingApi,
+    gpsUserId,
+    gpsGroupName,
+    gpsProviderName,
+    gpsFcode,
+  } = useProjectSelector();
+  const TRACKING_API_URL = buildVehicleTrackingUrl(
+    { providerName: gpsProviderName, fcode: gpsFcode },
+    gpsVehicleTrackingApi
+  );
+  const HISTORY_API_BASE = gpsVehicleHistoryApi;
+  const HISTORY_DEFAULT_PARAMS = {
+    userId: gpsUserId,
+    groupName: gpsGroupName,
+    interval: "-1",
+  };
   const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
   const [vehicleId, setVehicleId] = useState("");
   const [track, setTrack] = useState<TrackPoint[]>([]);
@@ -266,8 +276,8 @@ export default function VehicleHistory(): JSX.Element {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackIndex, setPlaybackIndex] = useState(0);
 
-  // NEW SPEED STATE
-  const [playbackSpeed, setPlaybackSpeed] = useState(2); // default 2x
+  // CHANGED: default speed is 1x (normal)
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
   const initialTo = new Date();
   const initialFrom = new Date(initialTo.getTime() - 6 * 60 * 60 * 1000);
@@ -292,6 +302,10 @@ export default function VehicleHistory(): JSX.Element {
   useEffect(() => {
     const load = async () => {
       try {
+        if (!TRACKING_API_URL) {
+          setVehicles([]);
+          return;
+        }
         const res = await fetch(TRACKING_API_URL);
         const body = await res.json();
         const arr = Array.isArray(body) ? body : body.data;
@@ -328,7 +342,7 @@ export default function VehicleHistory(): JSX.Element {
     };
 
     load();
-  }, []);
+  }, [TRACKING_API_URL]);
 
   useEffect(() => {
     if (mapRef.current || !mapDivRef.current) return;
@@ -412,8 +426,7 @@ export default function VehicleHistory(): JSX.Element {
       const lastError = "admin.vehicle_history.error_no_history";
 
       for (const strat of strategies) {
-        const params = new URLSearchParams(strat.params as Record<string, string>);
-        const url = `${HISTORY_API_BASE}?${params.toString()}`;
+        const url = buildUrlWithParams(HISTORY_API_BASE, strat.params);
         try {
           const json = await fetchJsonSafe(url);
           const source =
@@ -460,7 +473,7 @@ export default function VehicleHistory(): JSX.Element {
       console.error("History fetch failed:", err);
       setHistoryError("admin.vehicle_history.error_load_failed");
     }
-  }, [vehicleId, fromDate, toDate, t]);
+  }, [vehicleId, fromDate, toDate, t, HISTORY_API_BASE, gpsUserId, gpsGroupName]);
 
   useEffect(() => {
     fetchHistory();
@@ -496,10 +509,11 @@ export default function VehicleHistory(): JSX.Element {
     });
   }, [popupLabels, track]);
 
-  /* SPEED-AWARE PLAYBACK */
+  // PLAYBACK with variable speed
   useEffect(() => {
     if (!isPlaying || !track.length) return;
 
+    // Base interval 400ms, divided by speed
     const interval = 400 / playbackSpeed;
 
     const id = setInterval(() => {
@@ -549,13 +563,13 @@ export default function VehicleHistory(): JSX.Element {
     return total;
   }, [track]);
 
-  if (!gpsApiUrl) {
+  if (!gpsVehicleHistoryApi || !gpsVehicleTrackingApi) {
     return (
       <div className="vh-container fade-in">
         <ProjectSelectorBar />
         <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-          <p className="text-base font-medium">GPS API not configured for this project.</p>
-          <p className="text-sm mt-1">Set a GPS API URL in the project settings to enable vehicle tracking.</p>
+          <p className="text-base font-medium">GPS APIs not configured for this project.</p>
+          <p className="text-sm mt-1">Set GPS API URLs in the project settings to enable vehicle tracking.</p>
         </div>
       </div>
     );
@@ -721,12 +735,37 @@ export default function VehicleHistory(): JSX.Element {
       </div>
 
       <div className="vh-playback floating">
-        <button onClick={() => setIsPlaying((p) => !p)} disabled={!track.length}>
+        {/* FIXED Play/Pause button with loop restart logic */}
+        <button
+          onClick={() => {
+            if (isPlaying) {
+              setIsPlaying(false);
+            } else {
+              // If playback reached the end, restart from the beginning
+              if (playbackIndex >= track.length - 1) {
+                setPlaybackIndex(0);
+              }
+              setIsPlaying(true);
+            }
+          }}
+          disabled={!track.length}
+        >
           {isPlaying ? t("admin.vehicle_history.pause") : t("admin.vehicle_history.play")}
         </button>
 
-        {/* SPEED BUTTONS — 2x / 4x / 8x */}
+        {/* UPDATED speed buttons: 1x, 2x, 4x (removed 8x) */}
         <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            onClick={() => setPlaybackSpeed(1)}
+            style={{
+              background: playbackSpeed === 1 ? "#059669" : "#1d4ed8",
+              padding: "8px 12px",
+              borderRadius: "12px",
+            }}
+          >
+            1x
+          </button>
+
           <button
             onClick={() => setPlaybackSpeed(2)}
             style={{
@@ -747,17 +786,6 @@ export default function VehicleHistory(): JSX.Element {
             }}
           >
             4x
-          </button>
-
-          <button
-            onClick={() => setPlaybackSpeed(8)}
-            style={{
-              background: playbackSpeed === 8 ? "#059669" : "#1d4ed8",
-              padding: "8px 12px",
-              borderRadius: "12px",
-            }}
-          >
-            8x
           </button>
         </div>
 

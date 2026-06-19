@@ -1,6 +1,5 @@
 import { useNavigate } from "react-router-dom";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { createRoutePath } from "@/utils/routePaths";
 import "./workforcemanagement.css";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +7,12 @@ export default function WorkforceManagement() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { encWorkforceManagement, encDateReport, encDayReport } = getEncryptedRoute();
+  
+  const stats = [
+    { label: t("admin.workforce_management.stats.ticket"), value: "9856", icon: "doc" },
+    { label: t("admin.workforce_management.stats.tons"), value: "5,901.750", icon: "scale" },
+  ];
+
   const reports = [
     { label: t("admin.workforce_management.reports.day"), type: "day" as const },
     { label: t("admin.workforce_management.reports.date"), type: "date" as const },
@@ -15,16 +20,30 @@ export default function WorkforceManagement() {
 
   const handleReportClick = (type: "day" | "date") => {
     if (type === "date") {
-      navigate(createRoutePath(encWorkforceManagement, encDateReport));
+      navigate(`/${encWorkforceManagement}/${encDateReport}`);
       return;
     }
-    navigate(createRoutePath(encWorkforceManagement, encDayReport));
+    navigate(`/${encWorkforceManagement}/${encDayReport}`);
   };
 
   return (
     <div className="wf-shell">
       <div className="wf-content">
         <div className="wf-left-col">
+          {/* ✅ STATS SECTION – Now present */}
+          <section className="wf-section">
+            <h2>{t("admin.workforce_management.input_stats_title")}</h2>
+            <div className="wf-stat-grid">
+              {stats.map((stat) => (
+                <article key={stat.label}>
+                  <span className={`icon-${stat.icon}`} aria-hidden="true" />
+                  <p className="label">{stat.label}</p>
+                  <p className="value">{stat.value}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
           <section className="wf-section">
             <h2>{t("admin.workforce_management.reports_title")}</h2>
             <div className="wf-report-grid">
