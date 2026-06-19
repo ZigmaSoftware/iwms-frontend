@@ -1695,6 +1695,7 @@ const hiResource = {
             },
             "search_placeholder": "तिथि / समय / वजन खोजें",
             "error_from_after_to": "प्रारंभ तिथि अंतिम तिथि से बाद की नहीं हो सकती",
+            "error_no_api": "इस प्रोजेक्ट के लिए तिथिवार API URL कॉन्फ़िगर नहीं है",
             "error_no_data": "कोई डेटा उपलब्ध नहीं",
             "error_load_failed": "डेटा लोड नहीं हो सका",
             "empty_message": "कोई रिकॉर्ड नहीं मिला",
@@ -1720,8 +1721,9 @@ const hiResource = {
             },
             "search_placeholder": "टिकट / वाहन / तिथि खोजें",
             "error_from_after_to": "प्रारंभ तिथि अंतिम तिथि से बड़ी नहीं हो सकती",
+            "error_no_api": "इस प्रोजेक्ट के लिए दिनवार API URL कॉन्फ़िगर नहीं है",
             "error_no_data": "कोई डेटा उपलब्ध नहीं",
-            "error_load_failed": "API त्रुटि हुई",
+            "error_load_failed": "डेटा लोड करने में विफल। कृपया पुनः प्रयास करें।",
             "empty_message": "कोई रिकॉर्ड नहीं मिला",
             "columns": {
               "s_no": "क्रमांक",

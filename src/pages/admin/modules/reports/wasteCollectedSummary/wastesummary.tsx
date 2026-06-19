@@ -19,42 +19,51 @@ import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
+import { buildVehicleTrackingUrl } from "@/config/gpsApiConfig";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-
-/* ================= TYPES ================= */
-
-
-/* ================= COMPONENT ================= */
-
 export default function WasteSummary() {
   const { t, i18n } = useTranslation();
-  const { weighmentApiUrl, gpsApiUrl } = useProjectSelector();
-  const WEIGHMENT_API_URL = weighmentApiUrl;
-  const VEHICLE_TRACKING_API = gpsApiUrl;
+  const {
+    weighmentApiUrl,
+    gpsVehicleTrackingApi,
+    gpsProviderName,
+    gpsFcode,
+  } = useProjectSelector();
+
+  // ✅ FIX 1: Fallback to .env variable if project selector doesn't have it
+  const WEIGHMENT_API_URL =
+    weighmentApiUrl || process.env.REACT_APP_WEIGHMENT_API_URL || "";
+
+  const VEHICLE_TRACKING_API = buildVehicleTrackingUrl(
+    { providerName: gpsProviderName, fcode: gpsFcode },
+    gpsVehicleTrackingApi
+  );
+
   const today = new Date();
   const todayKey = today.toISOString().split("T")[0];
   const initialMonth = `${today.getFullYear()}-${String(
     today.getMonth() + 1
   ).padStart(2, "0")}`;
 
-  /** month input (UI only) */
   const [monthValue, setMonthValue] = useState(initialMonth);
-
-  /** applied month (used for API) */
   const [appliedMonth, setAppliedMonth] = useState(initialMonth);
-
   const [rows, setRows] = useState<ApiRow[]>([]);
-
-  const [totalHouseholdCount, setTotalHouseholdCount] = useState<number | null>(null);
-  const [totalCollectedCount, setTotalCollectedCount] = useState<number | null>(null);
-  const [vehicleTrackingCount, setVehicleTrackingCount] = useState<number | null>(null);
-  const [collectedByDate, setCollectedByDate] = useState<Record<string, number>>({});
-
-  /* ===== PrimeReact Search ===== */
+  const [totalHouseholdCount, setTotalHouseholdCount] = useState<number | null>(
+    null
+  );
+  const [totalCollectedCount, setTotalCollectedCount] = useState<number | null>(
+    null
+  );
+  const [vehicleTrackingCount, setVehicleTrackingCount] = useState<
+    number | null
+  >(null);
+  const [collectedByDate, setCollectedByDate] = useState<
+    Record<string, number>
+  >({});
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<any>({
@@ -76,7 +85,10 @@ export default function WasteSummary() {
     const dmyMatch = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
     if (dmyMatch) {
       const [, day, month, year] = dmyMatch;
-      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(
+        2,
+        "0"
+      )}`;
     }
     const parsed = new Date(raw);
     if (!Number.isNaN(parsed.getTime())) {
@@ -135,10 +147,7 @@ export default function WasteSummary() {
       const dateKey = toDateKey(rawDate) || rawDate;
       if (!dateKey) return;
       if (!map.has(dateKey)) {
-        map.set(
-          dateKey,
-          rawDate ? row : { ...row, date: dateKey }
-        );
+        map.set(dateKey, rawDate ? row : { ...row, date: dateKey });
       }
     });
 
@@ -161,17 +170,18 @@ export default function WasteSummary() {
         return dateKey <= todayKey;
       })
       .sort((a, b) => {
-      const aKey = toDateKey(a.date) || a.date;
-      const bKey = toDateKey(b.date) || b.date;
-      if (aKey === bKey) return 0;
-      return aKey > bKey ? -1 : 1;
-    });
+        const aKey = toDateKey(a.date) || a.date;
+        const bKey = toDateKey(b.date) || b.date;
+        if (aKey === bKey) return 0;
+        return aKey > bKey ? -1 : 1;
+      });
   }, [rows, collectedByDate, todayKey]);
 
   /* ================= FETCH MONTH DATA ================= */
 
   const fetchMonthData = async (month: string) => {
     try {
+      // ✅ FIX 2: uses the variable with fallback
       const url = `${WEIGHMENT_API_URL}?from_date=${month}-01&key=ZIGMA-DELHI-WEIGHMENT-2025-SECURE`;
       const res = await fetch(url);
       const json = await res.json();
@@ -186,74 +196,89 @@ export default function WasteSummary() {
           "",
       }));
       setRows(normalized);
-    } catch {
+    } catch (err) {
+      console.error("Failed to fetch weighment data:", err);
       setRows([]);
     }
   };
 
-  /** fetch only when Go is clicked */
   useEffect(() => {
     fetchMonthData(appliedMonth);
   }, [appliedMonth]);
 
   /* ================= MASTER COUNTS ================= */
 
-  const fetchHouseholdStats = useCallback(async (month: string) => {
-    let totalHouseholds = 0;
-    try {
-      const response = await customerCreationApi.readAll();
-      const normalized = normalizeCustomerArray(response);
-      const activeCustomers = filterActiveCustomers(normalized);
-      totalHouseholds = activeCustomers.length;
-      setTotalHouseholdCount(totalHouseholds);
-    } catch {
-      setTotalHouseholdCount(0);
-    }
+  const fetchHouseholdStats = useCallback(
+    async (month: string) => {
+      let totalHouseholds = 0;
+      try {
+        const response = await customerCreationApi.readAll();
+        const normalized = normalizeCustomerArray(response);
+        const activeCustomers = filterActiveCustomers(normalized);
+        totalHouseholds = activeCustomers.length;
+        setTotalHouseholdCount(totalHouseholds);
+      } catch (err: any) {
+        // ✅ FIX 3: Log the auth error but keep the UI alive
+        console.warn(
+          "⚠️ Failed to fetch customer list (auth token missing?):",
+          err?.message || err
+        );
+        setTotalHouseholdCount(0);
+      }
 
-    try {
-      const response = await wasteCollectionApi.readAll();
-      const data = Array.isArray(response) ? response : [];
-      const filtered = month
-        ? data.filter((row: any) =>
-            toDateKey(getCollectionDateValue(row)).startsWith(month)
-          )
-        : data;
-      const countsByDateSets: Record<string, Set<string>> = {};
-      const totalCollectedSet = new Set<string>();
-      filtered.forEach((entry: any, index: number) => {
-        const dateKey = toDateKey(getCollectionDateValue(entry));
-        if (!dateKey) return;
-        const customerId = String(
-          entry.customer ?? entry.customer_id ?? entry.customer_unique_id ?? ""
-        ).trim();
-        const entryKey = String(
-          customerId ||
-            entry.unique_id ||
-            entry.id ||
-            entry.collection_id ||
-            index
-        ).trim();
-        if (!countsByDateSets[dateKey]) {
-          countsByDateSets[dateKey] = new Set();
-        }
-        countsByDateSets[dateKey].add(entryKey);
-        if (entryKey) {
-          totalCollectedSet.add(entryKey);
-        }
-      });
+      try {
+        const response = await wasteCollectionApi.readAll();
+        const data = Array.isArray(response) ? response : [];
+        const filtered = month
+          ? data.filter((row: any) =>
+              toDateKey(getCollectionDateValue(row)).startsWith(month)
+            )
+          : data;
+        const countsByDateSets: Record<string, Set<string>> = {};
+        const totalCollectedSet = new Set<string>();
+        filtered.forEach((entry: any, index: number) => {
+          const dateKey = toDateKey(getCollectionDateValue(entry));
+          if (!dateKey) return;
+          const customerId = String(
+            entry.customer ??
+              entry.customer_id ??
+              entry.customer_unique_id ??
+              ""
+          ).trim();
+          const entryKey = String(
+            customerId ||
+              entry.unique_id ||
+              entry.id ||
+              entry.collection_id ||
+              index
+          ).trim();
+          if (!countsByDateSets[dateKey]) {
+            countsByDateSets[dateKey] = new Set();
+          }
+          countsByDateSets[dateKey].add(entryKey);
+          if (entryKey) {
+            totalCollectedSet.add(entryKey);
+          }
+        });
 
-      const countsByDate: Record<string, number> = {};
-      Object.entries(countsByDateSets).forEach(([dateKey, idSet]) => {
-        countsByDate[dateKey] = idSet.size;
-      });
+        const countsByDate: Record<string, number> = {};
+        Object.entries(countsByDateSets).forEach(([dateKey, idSet]) => {
+          countsByDate[dateKey] = idSet.size;
+        });
 
-      setCollectedByDate(countsByDate);
-      setTotalCollectedCount(totalCollectedSet.size);
-    } catch {
-      setCollectedByDate({});
-      setTotalCollectedCount(0);
-    }
-  }, []);
+        setCollectedByDate(countsByDate);
+        setTotalCollectedCount(totalCollectedSet.size);
+      } catch (err: any) {
+        console.warn(
+          "⚠️ Failed to fetch waste collection data (auth token missing?):",
+          err?.message || err
+        );
+        setCollectedByDate({});
+        setTotalCollectedCount(0);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     fetchHouseholdStats(appliedMonth);
@@ -261,16 +286,24 @@ export default function WasteSummary() {
 
   useEffect(() => {
     (async () => {
-      const res = await fetch(VEHICLE_TRACKING_API);
-      const body = await res.json();
-      const list = Array.isArray(body?.data) ? body.data : body;
-      const set = new Set<string>();
-      list?.forEach((r: any) => {
-        Object.values(r).forEach((v) => v && set.add(String(v)));
-      });
-      setVehicleTrackingCount(set.size);
+      try {
+        if (!VEHICLE_TRACKING_API) {
+          setVehicleTrackingCount(0);
+          return;
+        }
+        const res = await fetch(VEHICLE_TRACKING_API);
+        const body = await res.json();
+        const list = Array.isArray(body?.data) ? body.data : body;
+        const set = new Set<string>();
+        list?.forEach((r: any) => {
+          Object.values(r).forEach((v) => v && set.add(String(v)));
+        });
+        setVehicleTrackingCount(set.size);
+      } catch {
+        setVehicleTrackingCount(0);
+      }
     })();
-  }, []);
+  }, [VEHICLE_TRACKING_API]);
 
   /* ================= SEARCH ================= */
 
@@ -304,7 +337,7 @@ export default function WasteSummary() {
       sheetName: t("admin.reports.waste_summary.export_sheet"),
       filePrefix: t("admin.reports.waste_summary.export_file_prefix"),
     }),
-    [i18n.language, t],
+    [i18n.language, t]
   );
 
   const handleDownload = () => {
@@ -314,10 +347,7 @@ export default function WasteSummary() {
       [exportLabels.collected]: totalCollectedCount,
       [exportLabels.notCollected]:
         totalHouseholdCount !== null
-          ? Math.max(
-              totalHouseholdCount - (totalCollectedCount ?? 0),
-              0
-            )
+          ? Math.max(totalHouseholdCount - (totalCollectedCount ?? 0), 0)
           : null,
       [exportLabels.vehicleCount]: getVehicleCount(r),
       [exportLabels.tripCount]: parseNum(r.total_trip),
@@ -345,13 +375,20 @@ export default function WasteSummary() {
 
   /* ================= UI ================= */
 
-  if (!weighmentApiUrl) {
+  // ✅ FIX 4: Check the variable that has the fallback
+  if (!WEIGHMENT_API_URL) {
     return (
       <div className="p-3">
         <ProjectSelectorBar />
         <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-          <p className="text-base font-medium">Weighment API not configured for this project.</p>
-          <p className="text-sm mt-1">Set a Weighment API URL in the project settings to enable waste reports.</p>
+          <p className="text-base font-medium">
+            Weighment API not configured for this project.
+          </p>
+          <p className="text-sm mt-1">
+            Set a Weighment API URL in the project settings or add{" "}
+            <code>REACT_APP_WEIGHMENT_API_URL</code> to your <code>.env</code>{" "}
+            file.
+          </p>
         </div>
       </div>
     );
@@ -360,105 +397,124 @@ export default function WasteSummary() {
   return (
     <div className="p-3">
       <ProjectSelectorBar />
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-1">
-              {t("admin.reports.waste_summary.title")}
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {t("admin.reports.waste_summary.subtitle")}
-            </p>
-          </div>
-
-          {/* 🔹 MONTH + GO + DOWNLOAD */}
-          <div className="flex gap-3 items-center">
-            <input
-              type="month"
-              value={monthValue}
-              max={initialMonth}
-              onChange={(e) => setMonthValue(e.target.value)}
-              className="border px-2 py-1 rounded"
-            />
-
-            <button
-              onClick={() => setAppliedMonth(monthValue)}
-              className="bg-blue-600 text-white px-4 py-2 rounded"
-            >
-              {t("common.go")}
-            </button>
-
-            <button
-              onClick={handleDownload}
-              className="bg-green-600 text-white px-4 py-2 rounded"
-            >
-              {t("common.download")}
-            </button>
-          </div>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 mb-1">
+            {t("admin.reports.waste_summary.title")}
+          </h1>
+          <p className="text-gray-500 text-sm">
+            {t("admin.reports.waste_summary.subtitle")}
+          </p>
         </div>
 
-        <DataTable
-          value={displayRows}
-          paginator
-          rows={10}
-          rowsPerPageOptions={[5, 10, 25, 50]}
-          filters={filters}
-          header={renderHeader()}
-          stripedRows
-          showGridlines
-          emptyMessage={t("admin.reports.waste_summary.empty_message")}
-          globalFilterFields={[
-            "date",
-            "total_trip",
-            "dry_weight",
-            "wet_weight",
-            "mix_weight",
-            "total_net_weight",
-          ]}
-          className="p-datatable-sm"
-        >
-          <Column
-            header={t("admin.reports.waste_summary.columns.s_no")}
-            body={(_, o) => o.rowIndex + 1}
-            style={{ width: "80px" }}
+        <div className="flex gap-3 items-center">
+          <input
+            type="month"
+            value={monthValue}
+            max={initialMonth}
+            onChange={(e) => setMonthValue(e.target.value)}
+            className="border px-2 py-1 rounded"
           />
-          <Column field="date" header={t("admin.reports.waste_summary.columns.date")} sortable />
-          <Column
-            header={t("admin.reports.waste_summary.columns.total_household")}
-            body={() => formatNum(totalHouseholdCount)}
-          />
-          <Column
-            header={t("admin.reports.waste_summary.columns.collected")}
-            body={() => formatNum(totalCollectedCount)}
-          />
-          <Column
-            header={t("admin.reports.waste_summary.columns.not_collected")}
-            body={(row) =>
-              formatNum(
-                totalHouseholdCount !== null
-                  ? Math.max(
-                      totalHouseholdCount - (totalCollectedCount ?? 0),
-                      0
-                    )
-                  : null
-              )
-            }
-          />
-          <Column
-            header={t("admin.reports.waste_summary.columns.vehicle_count")}
-            body={(r) => formatNum(getVehicleCount(r))}
-          />
-          <Column field="total_trip" header={t("admin.reports.waste_summary.columns.trip_count")} sortable />
-          <Column field="dry_weight" header={t("admin.reports.waste_summary.columns.dry_weight")} sortable />
-          <Column field="wet_weight" header={t("admin.reports.waste_summary.columns.wet_weight")} sortable />
-          <Column field="mix_weight" header={t("admin.reports.waste_summary.columns.mixed_weight")} sortable />
-          <Column field="total_net_weight" header={t("admin.reports.waste_summary.columns.weighment")} sortable />
-          <Column
-            field="average_weight_per_trip"
-            header={t("admin.reports.waste_summary.columns.avg_per_trip")}
-            body={(r) => Number(r.average_weight_per_trip).toFixed(2)}
-          />
-        </DataTable>
 
+          <button
+            onClick={() => setAppliedMonth(monthValue)}
+            className="bg-blue-600 text-white px-4 py-2 rounded"
+          >
+            {t("common.go")}
+          </button>
+
+          <button
+            onClick={handleDownload}
+            className="bg-green-600 text-white px-4 py-2 rounded"
+          >
+            {t("common.download")}
+          </button>
+        </div>
+      </div>
+
+      <DataTable
+        value={displayRows}
+        paginator
+        rows={10}
+        rowsPerPageOptions={[5, 10, 25, 50]}
+        filters={filters}
+        header={renderHeader()}
+        stripedRows
+        showGridlines
+        emptyMessage={t("admin.reports.waste_summary.empty_message")}
+        globalFilterFields={[
+          "date",
+          "total_trip",
+          "dry_weight",
+          "wet_weight",
+          "mix_weight",
+          "total_net_weight",
+        ]}
+        className="p-datatable-sm"
+      >
+        <Column
+          header={t("admin.reports.waste_summary.columns.s_no")}
+          body={(_, o) => o.rowIndex + 1}
+          style={{ width: "80px" }}
+        />
+        <Column
+          field="date"
+          header={t("admin.reports.waste_summary.columns.date")}
+          sortable
+        />
+        <Column
+          header={t("admin.reports.waste_summary.columns.total_household")}
+          body={() => formatNum(totalHouseholdCount)}
+        />
+        <Column
+          header={t("admin.reports.waste_summary.columns.collected")}
+          body={() => formatNum(totalCollectedCount)}
+        />
+        <Column
+          header={t("admin.reports.waste_summary.columns.not_collected")}
+          body={() =>
+            formatNum(
+              totalHouseholdCount !== null
+                ? Math.max(totalHouseholdCount - (totalCollectedCount ?? 0), 0)
+                : null
+            )
+          }
+        />
+        <Column
+          header={t("admin.reports.waste_summary.columns.vehicle_count")}
+          body={(r) => formatNum(getVehicleCount(r))}
+        />
+        <Column
+          field="total_trip"
+          header={t("admin.reports.waste_summary.columns.trip_count")}
+          sortable
+        />
+        <Column
+          field="dry_weight"
+          header={t("admin.reports.waste_summary.columns.dry_weight")}
+          sortable
+        />
+        <Column
+          field="wet_weight"
+          header={t("admin.reports.waste_summary.columns.wet_weight")}
+          sortable
+        />
+        <Column
+          field="mix_weight"
+          header={t("admin.reports.waste_summary.columns.mixed_weight")}
+          sortable
+        />
+        <Column
+          field="total_net_weight"
+          header={t("admin.reports.waste_summary.columns.weighment")}
+          sortable
+        />
+        <Column
+          field="average_weight_per_trip"
+          header={t("admin.reports.waste_summary.columns.avg_per_trip")}
+          body={(r) => Number(r.average_weight_per_trip).toFixed(2)}
+        />
+      </DataTable>
     </div>
   );
 }

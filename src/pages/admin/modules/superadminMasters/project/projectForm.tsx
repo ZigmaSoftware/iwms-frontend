@@ -73,7 +73,15 @@ export default function ProjectForm() {
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [gpsApiUrl, setGpsApiUrl] = useState("");
+  const [gpsUserId, setGpsUserId] = useState("BLUEPLANET");
+  const [gpsGroupName, setGpsGroupName] = useState("BLUEPLANET:VAM");
+  const [gpsProviderName, setGpsProviderName] = useState("BLUEPLANET");
+  const [gpsFcode, setGpsFcode] = useState("VAM");
+  const [gpsTripUserId, setGpsTripUserId] = useState("NMCP2DISPOSAL");
+  // RENAMED: now "Date-wise Weighment API URL"
   const [weighmentApiUrl, setWeighmentApiUrl] = useState("");
+  // NEW: "Day-wise Weighment API URL"
+  const [dayWiseWeighmentApiUrl, setDayWiseWeighmentApiUrl] = useState("");
   const [attendanceApiUrl, setAttendanceApiUrl] = useState("");
   const [attendanceApiKey, setAttendanceApiKey] = useState("");
   const [attendanceApiConfigured, setAttendanceApiConfigured] = useState(false);
@@ -148,7 +156,15 @@ export default function ProjectForm() {
         setName(record.name ?? "");
         setDescription(record.description ?? "");
         setGpsApiUrl(record.gps_api_url ?? "");
+        setGpsUserId(record.gps_user_id ?? "BLUEPLANET");
+        setGpsGroupName(record.gps_group_name ?? "BLUEPLANET:VAM");
+        setGpsProviderName(record.gps_provider_name ?? "BLUEPLANET");
+        setGpsFcode(record.gps_fcode ?? "VAM");
+        setGpsTripUserId(record.gps_trip_user_id ?? "NMCP2DISPOSAL");
+        // Date-wise weighment API URL
         setWeighmentApiUrl(record.weighment_api_url ?? "");
+        // Day-wise weighment API URL (new field)
+        setDayWiseWeighmentApiUrl(record.day_wise_weighment_api_url ?? "");
         setAttendanceApiUrl(record.attendance_api_url ?? "");
         setAttendanceApiConfigured(Boolean(record.attendance_api_configured));
         setPendingCompanyId(record.company_unique_id ?? null);
@@ -204,7 +220,13 @@ export default function ProjectForm() {
           name: name.trim(),
           description: description.trim() || null,
           gps_api_url: gpsApiUrl.trim() || null,
+          gps_user_id: gpsUserId.trim() || "BLUEPLANET",
+          gps_group_name: gpsGroupName.trim() || "BLUEPLANET:VAM",
+          gps_provider_name: gpsProviderName.trim() || "BLUEPLANET",
+          gps_fcode: gpsFcode.trim() || "VAM",
+          gps_trip_user_id: gpsTripUserId.trim() || "NMCP2DISPOSAL",
           weighment_api_url: weighmentApiUrl.trim() || null,
+          day_wise_weighment_api_url: dayWiseWeighmentApiUrl.trim() || null,
           attendance_api_url: attendanceApiUrl.trim() || null,
           ...(attendanceApiKey.trim() ? { attendance_api_key: attendanceApiKey.trim() } : {}),
           is_active: isActive,
@@ -214,7 +236,13 @@ export default function ProjectForm() {
           name: name.trim(),
           description: description.trim() || null,
           gps_api_url: gpsApiUrl.trim() || null,
+          gps_user_id: gpsUserId.trim() || "BLUEPLANET",
+          gps_group_name: gpsGroupName.trim() || "BLUEPLANET:VAM",
+          gps_provider_name: gpsProviderName.trim() || "BLUEPLANET",
+          gps_fcode: gpsFcode.trim() || "VAM",
+          gps_trip_user_id: gpsTripUserId.trim() || "NMCP2DISPOSAL",
           weighment_api_url: weighmentApiUrl.trim() || null,
+          day_wise_weighment_api_url: dayWiseWeighmentApiUrl.trim() || null,
           attendance_api_url: attendanceApiUrl.trim() || null,
           attendance_api_key: attendanceApiKey.trim() || null,
           is_active: isActive,
@@ -354,14 +382,92 @@ export default function ProjectForm() {
             />
           </div>
 
+          {/* GPS Parameters Section */}
+          <div className="md:col-span-2 text-sm text-gray-600 font-semibold mt-2">
+            GPS API Parameters (Vamosys Authentication)
+          </div>
+
+          {/* GPS User ID */}
           <div>
-            <Label htmlFor="weighmentApiUrl">{t("admin.project.weighment_api_url")}</Label>
+            <Label htmlFor="gpsUserId">GPS User ID</Label>
+            <Input
+              id="gpsUserId"
+              type="text"
+              value={gpsUserId}
+              onChange={(e) => setGpsUserId(e.target.value)}
+              placeholder="BLUEPLANET"
+            />
+          </div>
+
+          {/* GPS Group Name */}
+          <div>
+            <Label htmlFor="gpsGroupName">GPS Group Name</Label>
+            <Input
+              id="gpsGroupName"
+              type="text"
+              value={gpsGroupName}
+              onChange={(e) => setGpsGroupName(e.target.value)}
+              placeholder="BLUEPLANET:VAM"
+            />
+          </div>
+
+          {/* GPS Provider Name */}
+          <div>
+            <Label htmlFor="gpsProviderName">GPS Provider Name</Label>
+            <Input
+              id="gpsProviderName"
+              type="text"
+              value={gpsProviderName}
+              onChange={(e) => setGpsProviderName(e.target.value)}
+              placeholder="BLUEPLANET"
+            />
+          </div>
+
+          {/* GPS FCode */}
+          <div>
+            <Label htmlFor="gpsFcode">GPS FCode</Label>
+            <Input
+              id="gpsFcode"
+              type="text"
+              value={gpsFcode}
+              onChange={(e) => setGpsFcode(e.target.value)}
+              placeholder="VAM"
+            />
+          </div>
+
+          {/* GPS Trip User ID */}
+          <div>
+            <Label htmlFor="gpsTripUserId">GPS Trip Summary User ID</Label>
+            <Input
+              id="gpsTripUserId"
+              type="text"
+              value={gpsTripUserId}
+              onChange={(e) => setGpsTripUserId(e.target.value)}
+              placeholder="NMCP2DISPOSAL"
+            />
+          </div>
+
+          {/* Date-wise Weighment API URL (renamed) */}
+          <div>
+            <Label htmlFor="weighmentApiUrl">Date-wise Weighment API URL</Label>
             <Input
               id="weighmentApiUrl"
               type="url"
               value={weighmentApiUrl}
               onChange={(e) => setWeighmentApiUrl(e.target.value)}
               placeholder="https://example.com/waste_collected_data_api.php"
+            />
+          </div>
+
+          {/* NEW: Day-wise Weighment API URL */}
+          <div>
+            <Label htmlFor="dayWiseWeighmentApiUrl">Day-wise Weighment API URL</Label>
+            <Input
+              id="dayWiseWeighmentApiUrl"
+              type="url"
+              value={dayWiseWeighmentApiUrl}
+              onChange={(e) => setDayWiseWeighmentApiUrl(e.target.value)}
+              placeholder="https://example.com/day_wise_waste_collected_data_api.php"
             />
           </div>
 

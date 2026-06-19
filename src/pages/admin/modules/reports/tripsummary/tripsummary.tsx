@@ -16,6 +16,7 @@ import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
+import { buildTripSummaryUrl, buildVehicleTrackingUrl } from "@/config/gpsApiConfig";
 
 
 const STATUS_ICONS: Record<VisualStatus, JSX.Element> = {
@@ -153,8 +154,12 @@ const normalizeVehicle = (record: RawVehicle): VehicleOption | null => {
 
 export default function TripSummary() {
   const { t } = useTranslation();
-  const { gpsApiUrl } = useProjectSelector();
-  const TRACKING_API_URL = gpsApiUrl;
+  const { gpsVehicleTrackingApi, gpsTripSummaryApi, gpsProviderName, gpsFcode, gpsTripUserId } = useProjectSelector();
+  const TRACKING_API_URL = buildVehicleTrackingUrl(
+    { providerName: gpsProviderName, fcode: gpsFcode },
+    gpsVehicleTrackingApi
+  );
+  const TRIP_SUMMARY_API_URL = gpsTripSummaryApi;
   const initialRange = useMemo(() => computeInitialRange(), []);
   const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
   const [vehicleId, setVehicleId] = useState("");
@@ -196,6 +201,7 @@ export default function TripSummary() {
     let aborted = false;
     const loadVehicles = async () => {
       try {
+        if (!TRACKING_API_URL) throw new Error("Tracking API not configured");
         const res = await fetch(TRACKING_API_URL);
         if (!res.ok) throw new Error(`Roster error (${res.status})`);
         const body = await res.json();
@@ -234,7 +240,7 @@ export default function TripSummary() {
     return () => {
       aborted = true;
     };
-  }, []);
+  }, [TRACKING_API_URL]);
 
   const fetchSummary = async (options?: {
     range?: { from: string; to: string };
@@ -263,7 +269,13 @@ export default function TripSummary() {
       const fromUTC = fromMs;
       const toUTC = toMs;
 
-      const apiUrl = `https://gpsvtsprobend.vamosys.com/v2/getTripSummary?vehicleId=${vehicleId}&fromDateUTC=${fromUTC}&toDateUTC=${toUTC}&userId=NMCP2DISPOSAL&duration=0`;
+      const apiUrl = buildTripSummaryUrl(
+        vehicleId,
+        fromUTC,
+        toUTC,
+        { userId: gpsTripUserId, duration: "0" },
+        TRIP_SUMMARY_API_URL
+      );
 
       const res = await fetch(apiUrl);
       if (!res.ok) throw new Error(`Trip summary error (${res.status})`);
@@ -356,7 +368,7 @@ export default function TripSummary() {
   const displaySummary = summary ?? {};
   const historyRows = displaySummary.historyConsilated ?? [];
 
-  if (!gpsApiUrl) {
+  if (!TRACKING_API_URL || !TRIP_SUMMARY_API_URL) {
     return (
       <div className="trip-summary-shell">
         <ProjectSelectorBar />
