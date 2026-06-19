@@ -1,3 +1,5 @@
+import type { DistrictRouteState, DistrictWithProject } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -16,8 +18,7 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
-import type { CountryMeta, DistrictFormRecord, StateMeta } from "./types";
-import type { DistrictListRecord } from "./types";
+import type { CountryMeta, StateMeta } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
@@ -32,7 +33,7 @@ const DISTRICT_FORM_FIELDS: Record<string, string[]> = {
 };
 
 const { encMasters, encDistricts } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encMasters}/${encDistricts}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encDistricts);
 
 const normalize = (
   v:
@@ -70,37 +71,6 @@ const resolveOptionValue = (
   );
 };
 
-type DistrictWithProject = Omit<
-  DistrictFormRecord,
-  "continent_id" | "country_id" | "state_id"
-> & {
-  company?: { unique_id?: string | number; id?: string | number } | string | number | null;
-  project?: { unique_id?: string | number; id?: string | number } | string | number | null;
-  continent?: { unique_id?: string | number; id?: string | number } | string | number | null;
-  country?: { unique_id?: string | number; id?: string | number } | string | number | null;
-  state?: { unique_id?: string | number; id?: string | number } | string | number | null;
-  company_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
-  project_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
-  continent_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
-  country_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
-  state_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
-  company_unique_id?: string | number | null;
-  project_unique_id?: string | number | null;
-  continent_unique_id?: string | number | null;
-  country_unique_id?: string | number | null;
-  state_unique_id?: string | number | null;
-  company_name?: string | null;
-  project_name?: string | null;
-  continent_name?: string | null;
-  country_name?: string | null;
-  state_name?: string | null;
-};
-
-type DistrictRouteState = {
-  district?: Partial<DistrictListRecord>;
-  companyUniqueId?: string | number | null;
-  projectId?: string | number | null;
-};
 
 export default function DistrictForm() {
   const { t } = useTranslation();

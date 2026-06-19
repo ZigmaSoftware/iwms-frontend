@@ -1,3 +1,6 @@
+import type { CityRecord } from "./types";
+import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -6,7 +9,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
@@ -22,20 +24,6 @@ import { cityApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
-type CityRecord = {
-  unique_id: string | number;
-  name?: string;
-  is_active: boolean;
-  company_id?: string | number | null;
-  company_unique_id?: string | number | null;
-  project_id?: string | number | null;
-  project_unique_id?: string | number | null;
-  country_name?: string;
-  state_name?: string;
-  district_name?: string;
-  company_name?: string;
-  project_name?: string;
-};
 
 const CITY_COLUMN_FIELDS: Record<string, string[]> = {
   country_name: ["country_id"],
@@ -44,7 +32,6 @@ const CITY_COLUMN_FIELDS: Record<string, string[]> = {
   name: ["name"],
   is_active: ["is_active"],
 };
-
 
 
 const normalizeId = (value: unknown): string =>
@@ -89,15 +76,15 @@ export default function CityList() {
 
   const { encMasters, encCities } = getEncryptedRoute();
 
-  const ENC_NEW_PATH = (companyId?: string | null, selectedProjectId?: string | null) => {
-    const params = new URLSearchParams();
-    if (companyId) params.set("company_unique_id", companyId);
-    if (selectedProjectId) params.set("project_id", selectedProjectId);
-    const query = params.toString();
-    return `/${encMasters}/${encCities}/new${query ? `?${query}` : ""}`;
-  };
-  const ENC_EDIT_PATH = (id: string | number) =>
-    `/${encMasters}/${encCities}/${id}/edit`;
+  const { newPath: cityNewPath, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encMasters,
+    encCities,
+  );
+  const ENC_NEW_PATH = (companyId?: string | null, selectedProjectId?: string | null) =>
+    appendRouteQuery(cityNewPath, {
+      company_unique_id: companyId,
+      project_id: selectedProjectId,
+    });
 
   useEffect(() => {
     let mounted = true;
@@ -152,21 +139,14 @@ export default function CityList() {
     setGlobalFilterValue(value);
   };
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder", {
-            item: t("admin.nav.city"),
-          })}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("common.search_placeholder", {
+        item: t("admin.nav.city"),
+      }),
+    });
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";

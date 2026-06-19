@@ -1,3 +1,6 @@
+import type { DistrictApiRow } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -28,12 +31,6 @@ const DISTRICT_COLUMN_FIELDS: Record<string, string[]> = {
   is_active: ["is_active"],
 };
 
-type DistrictApiRow = DistrictListRecord & {
-  country_name?: unknown;
-  state_name?: unknown;
-  company_name?: unknown;
-  project_name?: unknown;
-};
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -75,8 +72,10 @@ export default function DistrictListPage() {
 
   const navigate = useNavigate();
   const { encMasters, encDistricts } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encMasters}/${encDistricts}/new`;
-  const ENC_EDIT_PATH = (id: string | number) => `/${encMasters}/${encDistricts}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encMasters,
+    encDistricts,
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -150,19 +149,12 @@ export default function DistrictListPage() {
     setGlobalFilterValue(value);
   };
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder", { item: t("admin.nav.district") })}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("common.search_placeholder", { item: t("admin.nav.district") }),
+    });
 
   type TextFilterOptions = {
     value?: string | null;

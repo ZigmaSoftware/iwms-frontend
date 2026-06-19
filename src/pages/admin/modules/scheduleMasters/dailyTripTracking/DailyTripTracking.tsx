@@ -1,3 +1,4 @@
+import type { OptimizationResult, OverviewResponse, Row, Tab, TrackingResponse, VehicleLocation } from "./types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -6,6 +7,7 @@ import {
   alternativeStaffTemplateApi,
   dailyTripAssignmentApi,
   dailyTripCollectionPointApi,
+  projectApi,
   staffTemplateApi,
 } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
@@ -14,86 +16,6 @@ import { normalizeList } from "@/utils/forms";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Row = {
-  unique_id: string;
-  sequence: number;
-  status: string;
-  collected_at?: string | null;
-  trip_assignment?: { unique_id?: string; scheduled_time?: string };
-  collection_point?: {
-    cp_name?: string;
-    latitude?: number | string;
-    longitude?: number | string;
-    panchayat_name?: string;
-    ward_name?: string;
-    zone_name?: string;
-  };
-};
-
-type TrackingResponse = {
-  count: number;
-  page: number;
-  summary: {
-    total: number;
-    completed: number;
-    in_progress: number;
-    pending: number;
-    missed: number;
-    completion_percentage: number;
-  };
-  results: Row[];
-  route_results?: Row[];
-  vehicle_tracking?: {
-    vehicle_no?: string | null;
-    remaining_collection_points?: number;
-    current_location?: {
-      latitude: number | string;
-      longitude: number | string;
-      recorded_at?: string;
-      collection_point?: string;
-    } | null;
-    next_collection_point?: {
-      cp_name?: string;
-      latitude?: number | string;
-      longitude?: number | string;
-    } | null;
-  };
-};
-
-type OptimizationResult = {
-  distance_meters: number;
-  duration_seconds: number;
-  route_geojson?: GeoJSON.GeoJsonObject;
-  vehicle_no?: string | null;
-  vehicle_start?: [number, number] | null;
-  optimized_stop_count?: number;
-  completed_stop_count?: number;
-  vehicle_start_source?: "request" | "latest_gps" | "first_collection_point";
-  route_legs?: Array<{
-    destination_id: string;
-    distance: number;
-    duration: number;
-    geometry: GeoJSON.Feature<GeoJSON.LineString>;
-  }>;
-};
-
-type OverviewTrip = {
-  assignment_id: string;
-  trip_date: string;
-  status: string;
-  vehicle_no?: string | null;
-  summary: TrackingResponse["summary"];
-  distance_meters: number;
-  duration_seconds: number;
-  route_geojson?: GeoJSON.GeoJsonObject | null;
-  vehicle_start?: [number, number] | null;
-  collection_points: Row[];
-};
-
-type OverviewResponse = {
-  summary: TrackingResponse["summary"];
-  trips: OverviewTrip[];
-};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -116,7 +38,6 @@ const STATUS_BG: Record<string, string> = {
 };
 
 const TABS = ["All", "On Process", "Completed", "Pending", "Missed"] as const;
-type Tab = (typeof TABS)[number];
 
 const TAB_FILTER: Record<Tab, string | undefined> = {
   All: undefined,
@@ -137,6 +58,8 @@ const TRIP_ROUTE_COLORS = [
   "#ca8a04",
 ];
 
+const TRACKING_REFRESH_INTERVAL_MS = 15000;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtTime(iso?: string | null) {
@@ -145,12 +68,59 @@ function fmtTime(iso?: string | null) {
   return isNaN(d.getTime()) ? iso : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatTravelTime(seconds?: number) {
+  if (!seconds || seconds <= 0) return "Arriving";
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes ? `${hours} hr ${remainingMinutes} min` : `${hours} hr`;
+}
+
 function locationLabel(cp?: Row["collection_point"]) {
   return [cp?.panchayat_name, cp?.ward_name, cp?.zone_name].filter(Boolean).join(" · ") || null;
 }
 
 function statusLabel(status: string) {
   return status === "Collected" ? "Completed" : status;
+}
+
+function normalizeVehicleNumber(value: unknown) {
+  return String(value ?? "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+}
+
+function readLiveVehicleLocation(payload: unknown, vehicleNo?: string | null) {
+  const rows = Array.isArray(payload)
+    ? payload
+    : payload && typeof payload === "object" && Array.isArray((payload as { data?: unknown }).data)
+      ? (payload as { data: unknown[] }).data
+      : [];
+  const targetVehicle = normalizeVehicleNumber(vehicleNo);
+
+  const record = rows.find((item) => {
+    if (!item || typeof item !== "object") return false;
+    const row = item as Record<string, unknown>;
+    const rowVehicle = normalizeVehicleNumber(
+      row.vehicleNo ?? row.vehicle_number ?? row.regNo ?? row.vehicle_no,
+    );
+    return targetVehicle ? rowVehicle === targetVehicle : false;
+  }) as Record<string, unknown> | undefined;
+
+  if (!record) return null;
+  const latitude = Number(record.latitude ?? record.lat);
+  const longitude = Number(record.longitude ?? record.lng ?? record.lon);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+
+  return {
+    latitude,
+    longitude,
+    recorded_at: String(
+      record.updatedTime ??
+        record.lastComunicationTime ??
+        record.recorded_at ??
+        new Date().toISOString(),
+    ),
+  } satisfies VehicleLocation;
 }
 
 // ─── Timeline Row Component ────────────────────────────────────────────────────
@@ -308,10 +278,16 @@ export default function DailyTripTracking() {
   const [loading, setLoading] = useState(false);
   const [routeGeoJson, setRouteGeoJson] = useState<GeoJSON.GeoJsonObject | null>(null);
   const [routePlan, setRoutePlan] = useState<OptimizationResult | null>(null);
+  const [gpsApiUrl, setGpsApiUrl] = useState("");
+  const [liveVehicleLocation, setLiveVehicleLocation] = useState<VehicleLocation | null>(null);
+  const [liveGpsReady, setLiveGpsReady] = useState(false);
+  const [optimizationCycle, setOptimizationCycle] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const mapElement = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRefs = useRef<Record<string, L.Marker>>({});
+  const optimizingRef = useRef(false);
+  const lastOptimizedVehicleStartRef = useRef("");
 
   // ── Load dropdowns ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -339,10 +315,35 @@ export default function DailyTripTracking() {
     });
   }, [companyUniqueId, projectId]);
 
+  useEffect(() => {
+    if (!projectId) {
+      setGpsApiUrl("");
+      setLiveVehicleLocation(null);
+      setLiveGpsReady(false);
+      return;
+    }
+
+    let active = true;
+    setLiveVehicleLocation(null);
+    setLiveGpsReady(false);
+    projectApi
+      .read(projectId)
+      .then((project) => {
+        if (active) setGpsApiUrl(String(project?.gps_api_url ?? ""));
+      })
+      .catch(() => {
+        if (active) setGpsApiUrl("");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [projectId]);
+
   // ── Load tracking data ─────────────────────────────────────────────────────
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!companyUniqueId || !projectId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     const params: Record<string, string | number> = {
       company_id: companyUniqueId,
       project_id: projectId,
@@ -375,9 +376,11 @@ export default function DailyTripTracking() {
         setData(null);
       }
     } catch {
-      void Swal.fire("Error", "Unable to load daily trip tracking.", "error");
+      if (!silent) {
+        void Swal.fire("Error", "Unable to load daily trip tracking.", "error");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [
     altStaffTemplateId,
@@ -398,13 +401,68 @@ export default function DailyTripTracking() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void load(true);
+    }, TRACKING_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(interval);
+  }, [load]);
+
+  const assignedVehicleNo = data?.vehicle_tracking?.vehicle_no ?? routePlan?.vehicle_no;
+
+  useEffect(() => {
+    if (!gpsApiUrl || !assignmentId || !assignedVehicleNo) {
+      setLiveVehicleLocation(null);
+      setLiveGpsReady(false);
+      return;
+    }
+
+    let active = true;
+    const loadLiveVehicleLocation = async () => {
+      try {
+        const response = await fetch(gpsApiUrl);
+        const payload: unknown = await response.json();
+        const location = readLiveVehicleLocation(payload, assignedVehicleNo);
+        if (active && location) {
+          setLiveVehicleLocation((previous) =>
+            previous &&
+            Number(previous.latitude) === Number(location.latitude) &&
+            Number(previous.longitude) === Number(location.longitude)
+              ? previous
+              : location,
+          );
+        }
+      } catch {
+        // Keep backend GPS/default route when the live provider is unavailable.
+      } finally {
+        if (active) setLiveGpsReady(true);
+      }
+    };
+
+    void loadLiveVehicleLocation();
+    const interval = window.setInterval(
+      () => void loadLiveVehicleLocation(),
+      TRACKING_REFRESH_INTERVAL_MS,
+    );
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [assignedVehicleNo, assignmentId, gpsApiUrl]);
+
   const selectTrip = useCallback((id: string, tripDate?: string) => {
     setAssignmentId(id);
     if (tripDate) setDate(tripDate);
     setTab("All");
     setPage(1);
+    setData(null);
     setRouteGeoJson(null);
     setRoutePlan(null);
+    setLiveVehicleLocation(null);
+    setLiveGpsReady(false);
+    lastOptimizedVehicleStartRef.current = "";
   }, []);
 
   // ── Map ────────────────────────────────────────────────────────────────────
@@ -516,7 +574,7 @@ export default function DailyTripTracking() {
         style: { color: "#2563eb", weight: 6, opacity: 0.95 },
       }).addTo(map);
     }
-    const vehicle = data?.vehicle_tracking?.current_location;
+    const vehicle = liveVehicleLocation ?? data?.vehicle_tracking?.current_location;
     if (vehicle) {
       const vehicleLatLng = L.latLng(Number(vehicle.latitude), Number(vehicle.longitude));
       L.marker(vehicleLatLng, {
@@ -548,42 +606,94 @@ export default function DailyTripTracking() {
       map.remove();
       mapRef.current = null;
     };
-  }, [assignmentId, data, overview, routeGeoJson, routePlan, selectTrip]);
+  }, [assignmentId, data, liveVehicleLocation, overview, routeGeoJson, routePlan, selectTrip]);
 
   // ── Route Optimization ─────────────────────────────────────────────────────
-  const optimize = async () => {
-    if (!assignmentId) {
-      void Swal.fire(
-        "Select assignment",
-        "Choose a Daily Trip Assignment before optimizing.",
-        "warning",
-      );
-      return;
-    }
-    setLoading(true);
+  const optimize = useCallback(async (vehicleStartSignature: string) => {
+    if (!assignmentId || optimizingRef.current) return;
+    optimizingRef.current = true;
     try {
       const result = await dailyTripCollectionPointApi.action<OptimizationResult>(
         "optimize-route",
-        { trip_assignment_id: assignmentId },
+        {
+          trip_assignment_id: assignmentId,
+          ...(liveVehicleLocation
+            ? {
+                vehicle_start: [
+                  Number(liveVehicleLocation.longitude),
+                  Number(liveVehicleLocation.latitude),
+                ],
+              }
+            : {}),
+        },
       );
       setRouteGeoJson(result.route_geojson ?? null);
       setRoutePlan(result);
-      void Swal.fire(
-        "Route optimized",
-        `${result.optimized_stop_count ?? 0} remaining CPs from vehicle · ${(result.distance_meters / 1000).toFixed(2)} km · ${Math.round(result.duration_seconds / 60)} min`,
-        "success",
-      );
-      await load();
+      if (result.optimized_order?.length) {
+        const order = new Map(result.optimized_order.map((id, index) => [id, index]));
+        setData((current) =>
+          current
+            ? {
+                ...current,
+                route_results: [...(current.route_results ?? current.results)].sort(
+                  (left, right) =>
+                    (order.get(left.unique_id) ?? Number.MAX_SAFE_INTEGER) -
+                    (order.get(right.unique_id) ?? Number.MAX_SAFE_INTEGER),
+                ),
+              }
+            : current,
+        );
+      }
+      lastOptimizedVehicleStartRef.current = vehicleStartSignature;
     } catch (error: unknown) {
+      lastOptimizedVehicleStartRef.current = vehicleStartSignature;
       const detail =
         typeof error === "object" && error && "response" in error
           ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
           : undefined;
       void Swal.fire("Optimization failed", detail ?? "OpenRouteService request failed.", "error");
     } finally {
-      setLoading(false);
+      optimizingRef.current = false;
+      setOptimizationCycle((cycle) => cycle + 1);
     }
-  };
+  }, [assignmentId, liveVehicleLocation]);
+
+  const vehicleStartSignature = useMemo(() => {
+    if (!assignmentId) return "";
+    const current = liveVehicleLocation ?? data?.vehicle_tracking?.current_location;
+    if (!current) return `${assignmentId}:default`;
+
+    const latitude = Number(current.latitude);
+    const longitude = Number(current.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return `${assignmentId}:default`;
+    }
+
+    return `${assignmentId}:${latitude.toFixed(6)}:${longitude.toFixed(6)}`;
+  }, [assignmentId, data?.vehicle_tracking?.current_location, liveVehicleLocation]);
+
+  useEffect(() => {
+    if (
+      !assignmentId ||
+      !data ||
+      !vehicleStartSignature ||
+      (gpsApiUrl && assignedVehicleNo && !liveGpsReady) ||
+      lastOptimizedVehicleStartRef.current === vehicleStartSignature
+    ) {
+      return;
+    }
+
+    void optimize(vehicleStartSignature);
+  }, [
+    assignedVehicleNo,
+    assignmentId,
+    data,
+    gpsApiUrl,
+    liveGpsReady,
+    optimizationCycle,
+    optimize,
+    vehicleStartSignature,
+  ]);
 
   // ── Derived data ───────────────────────────────────────────────────────────
   const rows = data?.results ?? [];
@@ -605,6 +715,21 @@ export default function DailyTripTracking() {
   }, [currentIndex, routeRows]);
   const currentRowId = currentIndex >= 0 ? routeRows[currentIndex]?.unique_id : undefined;
   const nextRowId = nextIndex >= 0 ? routeRows[nextIndex]?.unique_id : undefined;
+  const nextRouteLeg = routePlan?.route_legs?.[0];
+  const nextRouteDestination = routeRows.find(
+    (row) => row.unique_id === nextRouteLeg?.destination_id,
+  );
+  const nextStopName =
+    nextRouteDestination?.collection_point?.cp_name ??
+    vehicle?.next_collection_point?.cp_name ??
+    "Next collection point";
+  const nextStopArrivalTime = useMemo(() => {
+    if (!nextRouteLeg?.duration) return null;
+    return new Date(Date.now() + nextRouteLeg.duration * 1000).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }, [nextRouteLeg?.duration]);
 
   const focusCollectionPoint = useCallback((row: Row) => {
     const latitude = Number(row.collection_point?.latitude);
@@ -646,39 +771,9 @@ export default function DailyTripTracking() {
             </svg>
             {filtersOpen ? "Hide Filters" : "Filters"}
           </button>
-          <button
-            onClick={() => void optimize()}
-            disabled={loading || !assignmentId}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? (
-              <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v8z"
-                />
-              </svg>
-            ) : (
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
-                />
-              </svg>
-            )}
-            Optimize Route
-          </button>
+          <div className="rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700">
+            Auto Route · Live GPS
+          </div>
           <button
             onClick={() => void load()}
             disabled={loading}
@@ -741,6 +836,9 @@ export default function DailyTripTracking() {
                   setTab("All");
                   setRouteGeoJson(null);
                   setRoutePlan(null);
+                  setLiveVehicleLocation(null);
+                  setLiveGpsReady(false);
+                  lastOptimizedVehicleStartRef.current = "";
                 }
               }}
               className="rounded-lg border border-gray-200 p-2 text-sm"
@@ -893,12 +991,31 @@ export default function DailyTripTracking() {
             ))}
           </div>
           {routePlan && (
-            <div className="absolute right-4 top-4 z-[400] min-w-52 rounded-xl border bg-white/95 p-3 text-xs shadow-lg backdrop-blur-sm">
+            <div className="absolute right-4 top-4 z-[400] w-64 rounded-xl border bg-white/95 p-3 text-xs shadow-lg backdrop-blur-sm">
               <p className="font-bold text-gray-800">ORS Vehicle Route</p>
               <p className="mt-1 text-gray-500">{routePlan.vehicle_no ?? vehicle?.vehicle_no ?? "Assigned vehicle"}</p>
               <p className="text-[10px] text-gray-400">
-                Start: {routePlan.vehicle_start_source === "latest_gps" ? "latest vehicle GPS" : routePlan.vehicle_start_source === "request" ? "provided vehicle location" : "first collection point fallback"}
+                Start: {routePlan.vehicle_start_source === "latest_gps" ? "latest collection GPS" : routePlan.vehicle_start_source === "request" ? "live vehicle GPS" : "first collection point fallback"}
               </p>
+              {nextRouteLeg && (
+                <div className="mt-2 rounded-lg border border-blue-100 bg-blue-50 p-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-500">
+                    Next Collection Point
+                  </p>
+                  <p className="mt-0.5 truncate text-sm font-bold text-blue-800" title={nextStopName}>
+                    {nextStopName}
+                  </p>
+                  <div className="mt-1.5 flex items-center justify-between text-blue-700">
+                    <span>{(nextRouteLeg.distance / 1000).toFixed(2)} km away</span>
+                    <span className="font-bold">{formatTravelTime(nextRouteLeg.duration)}</span>
+                  </div>
+                  {nextStopArrivalTime && (
+                    <p className="mt-1 text-[10px] text-blue-500">
+                      Estimated arrival: {nextStopArrivalTime}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <div className="rounded-lg bg-blue-50 p-2">
                   <p className="text-[10px] text-blue-500">Remaining CPs</p>
@@ -917,6 +1034,9 @@ export default function DailyTripTracking() {
                   <p className="font-bold text-gray-700">{Math.round(routePlan.duration_seconds / 60)} min</p>
                 </div>
               </div>
+              <p className="mt-2 text-[10px] text-gray-400">
+                Live GPS checked every 15 seconds. Route updates only when the vehicle moves.
+              </p>
             </div>
           )}
           {/* mini stat overlay */}

@@ -1,6 +1,7 @@
 import { encryptSegment } from "./routeCrypto";
 
 export type EncryptedRoutes = {
+  encAttendance: string;
   encAdmins: string;
   encAudits: string;
   encCities: string;
@@ -67,6 +68,7 @@ export type EncryptedRoutes = {
   encTripPlanCollectionPoints: string;
   encDailyTripAssignment: string;
   encDailyTripCollectionPoint: string;
+  encDailyTripHouseholdCollection: string;
   encDailyTripTracking: string;
   encDailyTripLog: string;
   encBinCollectionEvent: string;
@@ -81,6 +83,7 @@ export type EncryptedRoutes = {
   encTripExceptionLog: string;
 
   // dashboard
+  encDashboardOverall: string;
   encDashboardLiveMap: string;
   encDashboardVehicleManagement: string;
   encDashboardWasteCollection: string;
@@ -102,9 +105,13 @@ export type EncryptedRoutes = {
   encAreaTypes: string;
   encHierarchies: string;
   encPanchayatLeaders: string;
+  encMunicipalities: string;
+  encTownPanchayats: string;
+  encBlockPanchayatUnions: string;
 };
 
 const plainRoutes: EncryptedRoutes = {
+  encAttendance: "attendance",
   encAdmins: "admins",
   encAudits: "audits",
   encCities: "cities",
@@ -176,6 +183,7 @@ const plainRoutes: EncryptedRoutes = {
   encTripPlanCollectionPoints: "trip-plan-collection-points",
   encDailyTripAssignment: "daily-trip-assignment",
   encDailyTripCollectionPoint: "daily-trip-collection-point",
+  encDailyTripHouseholdCollection: "daily-trip-household-collection",
   encDailyTripTracking: "daily-trip-tracking",
   encDailyTripLog: "daily-trip-log",
   encBinCollectionEvent: "bin-collection-event",
@@ -195,9 +203,13 @@ const plainRoutes: EncryptedRoutes = {
   encAreaTypes: "area-types",
   encHierarchies: "hierarchies",
   encPanchayatLeaders: "panchayat-leaders",
+  encMunicipalities: "municipalities",
+  encTownPanchayats: "town-panchayats",
+  encBlockPanchayatUnions: "block-panchayat-unions",
 
   //dashboard
 
+  encDashboardOverall: "dashboard-overall",
   encDashboardLiveMap: "dashboard-map",
   encDashboardVehicleManagement: "dashboard-vehicle",
   encDashboardWasteCollection: "dashboard-waste-collection",

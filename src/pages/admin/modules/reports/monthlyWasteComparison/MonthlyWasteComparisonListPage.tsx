@@ -1,3 +1,4 @@
+import type { ReportResponse, ReportRow } from "./types";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/api";
@@ -29,49 +30,16 @@ import {
   YAxis,
 } from "recharts";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { exportRecordsToExcel } from "@/utils/exportExcel";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 /* ── Types ──────────────────────────────────────────────────────── */
-type ReportRow = {
-  unique_id: string;
-  company_id: string;
-  company_name?: string;
-  project_id: string;
-  project_name?: string;
-  month: string;
-  panchayat_id: string;
-  panchayat_name?: string;
-  waste_type: string;
-  total_agreed_weight: number;
-  total_actual_weight: number;
-  variance_kg: number;
-  variance_percent: number;
-  report_status: string;
-  total_trips: number;
-  collection_points_covered: number;
-  collection_efficiency_percent: number;
-  coverage_efficiency_percent?: number;
-  average_weight_per_trip: number;
-};
 
-type ReportResponse = {
-  results: ReportRow[];
-  monthly_trends: Array<Record<string, number | string>>;
-  panchayat_comparison: Array<Record<string, number | string>>;
-  kpis: {
-    total_agreed_weight: number;
-    total_actual_weight: number;
-    variance_kg: number;
-    collection_efficiency_percent: number;
-    average_weight_per_trip: number;
-    coverage_efficiency_percent: number;
-    total_trips: number;
-    collection_points_covered: number;
-    report_status: string;
-  };
-};
 
 const initialKpis: ReportResponse["kpis"] = {
   total_agreed_weight: 0,
@@ -230,6 +198,7 @@ export default function MonthlyWasteComparisonListPage() {
   const [monthValue, setMonthValue] = useState(currentMonth());
   const [appliedMonth, setAppliedMonth] = useState(currentMonth());
   const [sortMode, setSortMode] = useState("absolute");
+  const [source, setSource] = useState("bin");
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [monthlyTrends, setMonthlyTrends] = useState<
     ReportResponse["monthly_trends"]
@@ -243,6 +212,10 @@ export default function MonthlyWasteComparisonListPage() {
   const [error, setError] = useState("");
 
   const { encScheduleMasters, encMonthlyWasteComparison } = getEncryptedRoute();
+  const { newPath: monthlyComparisonNewPath } = createCrudRoutePaths(
+    encScheduleMasters,
+    encMonthlyWasteComparison,
+  );
 
   /* ── fetch ── */
   const fetchReport = async () => {
@@ -257,7 +230,7 @@ export default function MonthlyWasteComparisonListPage() {
     setLoading(true);
     setError("");
     try {
-      const params: Record<string, string> = { sort: sortMode };
+      const params: Record<string, string> = { sort: sortMode, source };
       if (appliedMonth) params.month = appliedMonth;
       if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
@@ -289,7 +262,7 @@ export default function MonthlyWasteComparisonListPage() {
 
   useEffect(() => {
     void fetchReport();
-  }, [appliedMonth, sortMode, companyUniqueId, projectId, companies.length]);
+  }, [appliedMonth, sortMode, source, companyUniqueId, projectId, companies.length]);
 
   /* ── delete ── */
   const handleDelete = async (uniqueId: string, label: string) => {
@@ -333,7 +306,7 @@ export default function MonthlyWasteComparisonListPage() {
   const handleDownload = async () => {
     setExporting(true);
     try {
-      const params: Record<string, string> = { sort: sortMode };
+      const params: Record<string, string> = { sort: sortMode, source };
       if (appliedMonth) params.month = appliedMonth;
       if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
@@ -357,7 +330,7 @@ export default function MonthlyWasteComparisonListPage() {
           "Coverage %": r.coverage_efficiency_percent,
           "Avg/Trip (kg)": r.average_weight_per_trip,
         })),
-        `monthly-waste-comparison-${appliedMonth || "all-months"}.xlsx`,
+        getAdminScreenExcelFilename("all"),
         "Monthly Waste Comparison",
       );
     } catch {
@@ -433,6 +406,15 @@ export default function MonthlyWasteComparisonListPage() {
             <option value="deficit">Highest deficit</option>
             <option value="surplus">Highest surplus</option>
           </select>
+          <select
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            <option value="bin">Bin Collection</option>
+            <option value="household">Household Collection</option>
+            <option value="all">All Sources</option>
+          </select>
           <button
             onClick={() => setAppliedMonth(monthValue)}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
@@ -458,9 +440,7 @@ export default function MonthlyWasteComparisonListPage() {
           </button>
           <button
             onClick={() =>
-              navigate(
-                `/${encScheduleMasters}/${encMonthlyWasteComparison}/new`,
-              )
+              navigate(monthlyComparisonNewPath)
             }
             className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
           >

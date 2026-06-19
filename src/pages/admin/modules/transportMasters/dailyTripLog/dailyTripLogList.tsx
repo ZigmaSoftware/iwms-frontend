@@ -1,3 +1,5 @@
+import type { DailyTripLogRecord } from "./types";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -8,7 +10,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { InputTextarea } from "primereact/inputtextarea";
 import { Dialog } from "primereact/dialog";
 import { Divider } from "primereact/divider";
@@ -19,63 +20,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { dailyTripLogApi } from "@/helpers/admin";
 import { api } from "@/api";
 
-type StaffRef = { unique_id?: string; staff_unique_id?: string; employee_name?: string };
-type NamedRef = { unique_id?: string; name?: string; [key: string]: unknown };
-type StaffTemplateDetail = {
-  unique_id?: string;
-  display_code?: string;
-  driver?: StaffRef | null;
-  operator?: StaffRef | null;
-};
-type StaffTemplateInfo = {
-  effective_display_code?: string;
-  is_alt?: boolean;
-  base?: StaffTemplateDetail | null;
-  alt?: StaffTemplateDetail | null;
-};
-
-type DailyTripLogRecord = {
-  unique_id: string;
-  trip_assignment_id?: string;
-  trip_assignment?: NamedRef & {
-    display_code?: string;
-    zone?: { unique_id?: string; zone_name?: string } | null;
-  };
-  staff_template?: StaffTemplateInfo | null;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-  panchayat?: { unique_id?: string; panchayat_name?: string } | null;
-  ward?: { unique_id?: string; ward_name?: string } | null;
-  collection_points?: {
-    unique_id?: string;
-    cp_name?: string;
-    sequence?: number;
-    is_collected?: boolean;
-    collected_weight_kg?: string | number | null;
-  }[];
-  waste_type?: NamedRef & { waste_type_name?: string };
-  waste_type_id?: string;
-  trip_date?: string;
-  actual_start_time?: string | null;
-  actual_end_time?: string | null;
-  driver?: StaffRef;
-  operator?: StaffRef;
-  extra_operators?: StaffRef[];
-  collected_weight_kg?: string | number;
-  vehicle?: NamedRef & { vehicle_no?: string };
-  bin_ids?: string[];
-  bins?: (NamedRef & { bin_name?: string })[];
-  remarks?: string | null;
-  log_status?: string;
-  collection_status?: string;
-  verified_by_name?: string | null;
-  verified_at?: string | null;
-  [key: string]: unknown;
-};
 
 const STATUS_STYLES: Record<string, string> = {
   Draft: "bg-gray-100 text-gray-700",
@@ -165,6 +109,8 @@ function TripLogModal({
   const [remarks, setRemarks] = useState(row.remarks ?? "");
   const cps = row.collection_points ?? [];
   const collectedCount = cps.filter((cp) => cp.is_collected).length;
+  const hhCollections = row.household_collections ?? [];
+  const hhCollectedCount = hhCollections.filter((hh) => hh.is_collected).length;
   const st = row.staff_template;
   const wasteTypeName = (row.waste_type as any)?.waste_type_name ?? row.waste_type_id ?? "-";
   const collectedWeightFromPoints = computeCollectedWeight(cps);
@@ -244,7 +190,13 @@ function TripLogModal({
               <CollectionStatusBadge value={row.collection_status} />
             </div>
             <InfoRow label="Waste Type" value={wasteTypeName} />
-            <InfoRow label="Total Weight" value={weight} />
+            <InfoRow label="Bin Weight" value={weight} />
+            {row.household_collected_weight_kg != null && (
+              <InfoRow
+                label="Household Weight"
+                value={`${Number(row.household_collected_weight_kg).toFixed(2)} kg`}
+              />
+            )}
             {row.actual_start_time && <InfoRow label="Start Time" value={row.actual_start_time} />}
             {row.actual_end_time && <InfoRow label="End Time" value={row.actual_end_time} />}
             {(row.vehicle as any)?.vehicle_no && (
@@ -361,6 +313,61 @@ function TripLogModal({
           )}
         </div>
 
+        {/* Household Collection Points */}
+        {hhCollections.length > 0 && (
+          <>
+            <Divider className="!my-0" />
+            <div>
+              <SectionLabel>
+                Household Collections
+                <span className="ml-1 normal-case font-normal text-gray-400">
+                  — {hhCollectedCount} / {hhCollections.length} collected
+                </span>
+              </SectionLabel>
+              <ul className="flex flex-col gap-2">
+                {hhCollections.map((hh) => (
+                  <li
+                    key={hh.unique_id}
+                    className="flex items-center justify-between gap-2 text-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      {hh.is_collected ? (
+                        <i className="pi pi-check-circle text-green-500 text-base" />
+                      ) : (
+                        <i className="pi pi-times-circle text-red-400 text-base" />
+                      )}
+                      <span className={hh.is_collected ? "text-gray-800" : "text-gray-400"}>
+                        {hh.sequence != null ? `${hh.sequence}. ` : ""}
+                        {hh.customer_name ?? hh.customer_unique_id ?? hh.unique_id}
+                      </span>
+                      {!hh.is_collected && (
+                        <span className="text-xs text-red-400">(Not collected)</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {hh.collected_weight_kg != null ? (
+                        <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                          {Number(hh.collected_weight_kg).toFixed(2)} kg
+                        </span>
+                      ) : hh.is_collected ? (
+                        <span className="text-xs text-gray-400">— kg</span>
+                      ) : null}
+                      {hh.collected_at && (
+                        <span className="text-xs text-gray-400">
+                          {new Date(hh.collected_at).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
+        )}
+
         {/* Remarks */}
         {(mode === "verify" || row.remarks) && (
           <>
@@ -427,6 +434,7 @@ export default function DailyTripLogList() {
   });
 
   const [allLogs, setAllLogs] = useState<DailyTripLogRecord[]>([]);
+  const [collectionType, setCollectionType] = useState<"all" | "bin" | "household">("all");
   const [isLoading, setIsLoading] = useState(false);
   const [modalState, setModalState] = useState<{
     row: DailyTripLogRecord;
@@ -495,17 +503,28 @@ export default function DailyTripLogList() {
     ),
   }));
 
-  /* ── filter by company + project ── */
+  /* ── filter by company + project + collection type ── */
   const data = (() => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId && !isSuperAdmin) return [];
     return rows.filter((row) => {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      return (
-        (!companyUniqueId || rowCompanyId === companyUniqueId) &&
-        (!projectId || rowProjectId === projectId)
-      );
+      if (!(!companyUniqueId || rowCompanyId === companyUniqueId)) return false;
+      if (!(!projectId || rowProjectId === projectId)) return false;
+      if (collectionType === "bin") {
+        const hasBinWeight =
+          (row._has_point_weights && (row._computed_weight ?? 0) > 0) ||
+          (row.collected_weight_kg != null && Number(row.collected_weight_kg) > 0);
+        return hasBinWeight;
+      }
+      if (collectionType === "household") {
+        return (
+          row.household_collected_weight_kg != null &&
+          Number(row.household_collected_weight_kg) > 0
+        );
+      }
+      return true;
     });
   })();
 
@@ -638,19 +657,12 @@ export default function DailyTripLogList() {
     );
   };
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder="Search trip logs..."
-          className="p-inputtext-sm border-0 shadow-none outline-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: "Search trip logs...",
+    });
 
   return (
     <div className="p-3">
@@ -686,6 +698,16 @@ export default function DailyTripLogList() {
                 {p.label}
               </option>
             ))}
+          </select>
+
+          <select
+            value={collectionType}
+            onChange={(e) => setCollectionType(e.target.value as "all" | "bin" | "household")}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="all">All Collections</option>
+            <option value="bin">Bin Collection</option>
+            <option value="household">Household Collection</option>
           </select>
         </div>
       </div>
@@ -819,9 +841,9 @@ export default function DailyTripLogList() {
         />
         <Column
           field="collected_weight_kg"
-          header="Collection Weight (kg)"
+          header="Bin Weight (kg)"
           sortable
-          style={{ minWidth: 155 }}
+          style={{ minWidth: 130 }}
           body={(row: DailyTripLogRecord & { _computed_weight?: number; _has_point_weights?: boolean }) => {
             const weight = row._has_point_weights
               ? row._computed_weight
@@ -834,6 +856,21 @@ export default function DailyTripLogList() {
               "-"
             );
           }}
+        />
+        <Column
+          field="household_collected_weight_kg"
+          header="HH Weight (kg)"
+          sortable
+          style={{ minWidth: 130 }}
+          body={(row: DailyTripLogRecord) =>
+            row.household_collected_weight_kg != null ? (
+              <span className="font-semibold text-gray-800">
+                {Number(row.household_collected_weight_kg).toFixed(2)}
+              </span>
+            ) : (
+              "-"
+            )
+          }
         />
         <Column
           field="log_status"

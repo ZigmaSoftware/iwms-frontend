@@ -1,5 +1,7 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -12,11 +14,12 @@ import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { fetchWasteReport, type WasteApiRow } from "@/utils/wasteApi";
 import "./datereport.css";
 import { useTranslation } from "react-i18next";
 
-type ApiRow = WasteApiRow & {
+// ---------- Type definition (matches the API response) ----------
+type ApiRow = {
+  date: string;
   Start_Time: string | null;
   End_Time: string | null;
   total_trip: number;
@@ -27,39 +30,35 @@ type ApiRow = WasteApiRow & {
   average_weight_per_trip: number;
 };
 
+// ---------- Helpers ----------
 const today = new Date();
-
-const getLastDayOfMonth = (y: number, m: number) =>
-  new Date(y, m, 0).getDate();
-
+const getLastDayOfMonth = (y: number, m: number) => new Date(y, m, 0).getDate();
 const formatNumber = (v?: number | null) =>
   v !== null && v !== undefined ? v.toLocaleString() : "-";
-
 const formatTime = (v: string | null) => (v ? v : "-");
 
 export default function DateReport() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { encWorkforceManagement } = getEncryptedRoute();
+  const { weighmentApiUrl } = useProjectSelector();
 
-  const initialFromDate = `${today.getFullYear()}-${String(
-    today.getMonth() + 1
-  ).padStart(2, "0")}-01`;
+  const API_BASE = weighmentApiUrl;
+  const API_KEY = import.meta.env.VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY || "ZIGMA-DELHI-WEIGHMENT-2025-SECURE";
 
-  const initialToDate = `${today.getFullYear()}-${String(
-    today.getMonth() + 1
-  ).padStart(2, "0")}-${String(
+  // ---------- Date state ----------
+  const initialFromDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+  const initialToDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(
     getLastDayOfMonth(today.getFullYear(), today.getMonth() + 1)
   ).padStart(2, "0")}`;
 
   const [fromDate, setFromDate] = useState(initialFromDate);
   const [toDate, setToDate] = useState(initialToDate);
-
   const [rows, setRows] = useState<ApiRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /* ================= Filters ================= */
+  // ---------- Global search filter ----------
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -67,9 +66,7 @@ export default function DateReport() {
 
   const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setFilters({
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    });
+    setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
     setGlobalFilterValue(value);
   };
 
@@ -85,7 +82,6 @@ export default function DateReport() {
             className="ml-2 wf-date-input"
           />
         </label>
-
         <label>
           {t("admin.workforce_management.date_report.filters.to")}
           <input
@@ -95,16 +91,9 @@ export default function DateReport() {
             className="ml-2 wf-date-input"
           />
         </label>
-
-        <Button
-          label={t("common.go")}
-          // icon="pi pi-search"
-          onClick={loadData}
-        />
+        <Button label={t("common.go")} onClick={loadData} />
       </div>
-
       <span className="p-input-icon-left">
-        {/* <span className="pi pi-search" /> */}
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
@@ -114,10 +103,17 @@ export default function DateReport() {
     </div>
   );
 
-  /* ================= Fetch ================= */
+  // ---------- Data fetching ----------
   async function loadData() {
+    // 1. Validate date range
     if (new Date(fromDate) > new Date(toDate)) {
       setError("admin.workforce_management.date_report.error_from_after_to");
+      return;
+    }
+
+    if (!API_BASE) {
+      console.error("❌ Date-wise weighment API URL is not configured for this project");
+      setError("admin.workforce_management.date_report.error_no_api");
       return;
     }
 
@@ -125,20 +121,33 @@ export default function DateReport() {
     setError(null);
 
     try {
-      const { rows: apiRows } = await fetchWasteReport<ApiRow>(
-        "date_wise_data",
-        fromDate,
-        toDate
-      );
+      // 3. Build the exact working URL
+      const url = `${API_BASE}?action=day_wise_data&from_date=${fromDate}&to_date=${toDate}&key=${API_KEY}`;
+      console.log("📡 Fetching:", url);
 
-      if (!apiRows.length) {
-        setRows([]);
-        setError("admin.workforce_management.date_report.error_no_data");
-        return;
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
       }
 
-      setRows(apiRows);
-    } catch (e) {
+      const json = await res.json();
+      console.log("📡 Response:", json);
+
+      // 4. Validate response structure
+      if (json.status === true && Array.isArray(json.data)) {
+        if (json.data.length === 0) {
+          setRows([]);
+          setError("admin.workforce_management.date_report.error_no_data");
+        } else {
+          setRows(json.data);
+          // Clear any previous error
+          setError(null);
+        }
+      } else {
+        throw new Error("Invalid response format");
+      }
+    } catch (err: any) {
+      console.error("❌ Fetch error:", err);
       setRows([]);
       setError("admin.workforce_management.date_report.error_load_failed");
     } finally {
@@ -147,15 +156,22 @@ export default function DateReport() {
   }
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (weighmentApiUrl) {
+      loadData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weighmentApiUrl]);
 
+  // ---------- Table index column ----------
   const indexTemplate = (_: ApiRow, { rowIndex }: any) => rowIndex + 1;
 
-  /* ================= UI ================= */
+  // ---------- UI ----------
   return (
-    <div className="p-4">
+    <>
+      <ProjectSelectorBar />
+      <div className="p-4">
       <div className="bg-white p-6 rounded-lg shadow-lg">
+        {/* Header with Back button */}
         <div className="flex justify-between items-center mb-4">
           <div>
             <h1 className="text-2xl font-bold">
@@ -165,24 +181,20 @@ export default function DateReport() {
               {t("admin.workforce_management.date_report.subtitle")}
             </p>
           </div>
-
           <Button
             icon="pi pi-arrow-left"
             label={t("common.back")}
             severity="success"
             onClick={() =>
-              navigate(
-                `/${encWorkforceManagement}/${encWorkforceManagement}`
-              )
+              navigate(`/${encWorkforceManagement}/${encWorkforceManagement}`)
             }
           />
         </div>
 
-        {error && (
-          <p className="text-red-600 mb-3">{t(error)}</p>
-        )}
+        {/* Error message */}
+        {error && <p className="text-red-600 mb-3">{t(error)}</p>}
 
-        {/* ================= TABLE ================= */}
+        {/* DataTable */}
         <DataTable
           value={rows}
           paginator
@@ -212,7 +224,6 @@ export default function DateReport() {
             body={indexTemplate}
             style={{ width: "80px" }}
           />
-
           <Column
             field="date"
             header={t("admin.workforce_management.date_report.columns.date")}
@@ -250,12 +261,11 @@ export default function DateReport() {
           />
           <Column
             header={t("admin.workforce_management.date_report.columns.avg_trip")}
-            body={(r) =>
-              Number(r.average_weight_per_trip).toFixed(2)
-            }
+            body={(r) => Number(r.average_weight_per_trip).toFixed(2)}
           />
         </DataTable>
       </div>
     </div>
+    </>
   );
 }

@@ -1,3 +1,5 @@
+import type { RawCity, RawDistrict, RawZone, StaffRecord, SupervisorZoneMapPayload, ZoneMultiSelectProps } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 // import { useEffect, useMemo, useRef, useState } from "react";
 // import { useNavigate, useParams } from "react-router-dom";
 // import Swal from "@/lib/notify";
@@ -862,7 +864,6 @@
 // }
 
 
-
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -881,54 +882,6 @@ import { useFormCompanyProjectSync } from "@/hooks/useFormCompanyProjectSync";
 
 /* ─────────────────────────── types ──────────────────────────────────────── */
 
-type SupervisorZoneMapPayload = {
-  supervisor_id: string;
-  district_id: string;
-  city_id: string;
-  status: "ACTIVE" | "INACTIVE";
-};
-
-type RawZone = {
-  unique_id: string;
-  zone_name?: string;
-  district_id?: string | number | null;
-  district_unique_id?: string | number | null;
-  city_id?: string | number | null;
-  city_unique_id?: string | number | null;
-};
-
-type RawDistrict = {
-  unique_id: string;
-  name?: string;
-  company_id?: string | number | null;
-  company_unique_id?: string | number | null;
-  project_id?: string | number | null;
-  project_unique_id?: string | number | null;
-};
-
-type RawCity = {
-  unique_id: string;
-  name?: string;
-  district_id?: string | number | null;
-  district_unique_id?: string | number | null;
-};
-
-type StaffRecord = {
-  unique_id?: string;
-  company_id?: string;
-  project_id?: string;
-  staff_name?: string;
-  employee_name?: string;
-  username?: string;
-  user_type_name?: string;
-  staffusertype_name?: string;
-  designation?: string;
-  is_active?: boolean;
-  is_deleted?: boolean;
-  active_status?: boolean | number | string | null;
-  company_name?: string;
-  project_name?: string;
-};
 
 const SUPERVISOR_ZONE_MAP_FIELDS: Record<string, string[]> = {
   company_id: ["company_id", "company"],
@@ -980,14 +933,6 @@ const toSupervisorOption = (s: StaffRecord): SelectOption => ({
    ZoneMultiSelect — inline checkbox dropdown, tags inside trigger
 ═══════════════════════════════════════════════════════════════════════════ */
 
-interface ZoneMultiSelectProps {
-  options: SelectOption[];
-  value: string[];
-  onChange: (next: string[]) => void;
-  placeholder?: string;
-  disabled?: boolean;
-  zoneLabels: Record<string, string>;
-}
 
 function ZoneMultiSelect({
   options,
@@ -1187,7 +1132,7 @@ export default function SupervisorZoneMapForm() {
   });
 
   const { encStaffMasters, encSupervisorZoneMap } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encStaffMasters}/${encSupervisorZoneMap}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encStaffMasters, encSupervisorZoneMap);
 
   const statusOptions: SelectOption[] = [
     { value: "ACTIVE", label: t("common.active") },

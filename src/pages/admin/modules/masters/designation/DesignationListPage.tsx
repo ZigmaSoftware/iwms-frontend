@@ -1,3 +1,4 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -13,8 +14,8 @@ import { designationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 const { encMasters, encDesignations } = getEncryptedRoute();
-const NEW_PATH = `/${encMasters}/${encDesignations}/new`;
-const editPath = (id: string) => `/${encMasters}/${encDesignations}/${id}/edit`;
+const { newPath: NEW_PATH } = createCrudRoutePaths(encMasters, encDesignations);
+const { editPath } = createCrudRoutePaths(encMasters, encDesignations);
 
 export default function DesignationListPage() {
   const navigate = useNavigate();

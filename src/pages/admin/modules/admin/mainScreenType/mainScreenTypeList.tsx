@@ -1,3 +1,5 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -5,7 +7,6 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 
@@ -37,8 +38,10 @@ export default function MainScreenTypeList() {
   const navigate = useNavigate();
   const { encAdmins, encMainScreenType } = getEncryptedRoute();
 
-  const ENC_NEW_PATH = `/${encAdmins}/${encMainScreenType}/new`;
-  const ENC_EDIT_PATH = (unique_id: string) => `/${encAdmins}/${encMainScreenType}/${unique_id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encAdmins,
+    encMainScreenType,
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -121,21 +124,13 @@ export default function MainScreenTypeList() {
     );
   };
 
-  const header = (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder", {
-            item: t("admin.nav.main_screen_type"),
-          })}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
-    </div>
-  );
+  const header = renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("common.search_placeholder", {
+        item: t("admin.nav.main_screen_type"),
+      }),
+    });
 
   return (
     <div className="px-3 py-3 w-full ">

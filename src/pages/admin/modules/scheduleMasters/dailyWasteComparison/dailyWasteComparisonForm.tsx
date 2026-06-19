@@ -1,3 +1,5 @@
+import type { TripLogData } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -122,16 +124,6 @@ const fmtKg = (v?: number | string | null) => {
    Types
 ──────────────────────────────────────────── */
 
-type TripLogData = {
-  actual_weight_kg: number;
-  agreed_weight_kg: number;
-  total_trips: number;
-  collection_points_covered: number;
-  variance_kg: number;
-  variance_percent: number;
-  report_status: string;
-  collection_efficiency_percent: number;
-};
 
 /* ────────────────────────────────────────────
    Component
@@ -166,7 +158,7 @@ export default function DailyWasteComparisonForm() {
   });
 
   const { encScheduleMasters, encDailyWasteComparison } = getEncryptedRoute();
-  const LIST_PATH = `/${encScheduleMasters}/${encDailyWasteComparison}`;
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encDailyWasteComparison);
 
   /* ── Criteria fields ── */
   const [panchayatId, setPanchayatId] = useState("");

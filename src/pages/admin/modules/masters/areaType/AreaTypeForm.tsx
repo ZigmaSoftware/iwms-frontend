@@ -1,3 +1,5 @@
+import type { AreaTypeCityMeta, AreaTypePayload, CityRecordWithRelations } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -17,13 +19,12 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { SelectOption } from "@/types";
-import type { AreaTypeRecord, CityMeta, DistrictMeta, StateMeta } from "./types";
+import type { AreaTypeRecord, DistrictMeta, StateMeta } from "./types";
 import { adminApi } from "@/helpers/admin/registry";
 
-type AreaTypePayload = Record<string, unknown>;
 
 const { encMasters, encAreaTypes } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encMasters}/${encAreaTypes}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encAreaTypes);
 
 const AREA_TYPE_FIELDS: Record<string, string[]> = {
   state_id: ["state_id", "state"],
@@ -42,21 +43,6 @@ const normalizeNullable = (v: unknown): string | null => {
   return String(v);
 };
 
-type AreaTypeCityMeta = CityMeta & {
-  stateId?: string | null;
-};
-
-type CityRecordWithRelations = {
-  unique_id: string | number;
-  name: string;
-  state_id?: unknown;
-  state_unique_id?: unknown;
-  state?: unknown;
-  district_id?: unknown;
-  district_unique_id?: unknown;
-  district?: unknown;
-  is_active?: boolean;
-};
 
 export default function AreaTypeForm() {
   const { t } = useTranslation();

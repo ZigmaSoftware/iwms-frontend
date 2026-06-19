@@ -7,6 +7,7 @@ export default function WorkforceManagement() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { encWorkforceManagement, encDateReport, encDayReport } = getEncryptedRoute();
+  
   const stats = [
     { label: t("admin.workforce_management.stats.ticket"), value: "9856", icon: "doc" },
     { label: t("admin.workforce_management.stats.tons"), value: "5,901.750", icon: "scale" },
@@ -29,6 +30,7 @@ export default function WorkforceManagement() {
     <div className="wf-shell">
       <div className="wf-content">
         <div className="wf-left-col">
+          {/* ✅ STATS SECTION – Now present */}
           <section className="wf-section">
             <h2>{t("admin.workforce_management.input_stats_title")}</h2>
             <div className="wf-stat-grid">

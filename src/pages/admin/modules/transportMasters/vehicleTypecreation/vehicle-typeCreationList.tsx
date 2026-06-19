@@ -1,3 +1,6 @@
+import type { VehicleTypeRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -6,7 +9,6 @@ import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
@@ -24,18 +26,6 @@ import { vehicleTypeApi } from "@/helpers/admin";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type VehicleTypeRecord = {
-  unique_id: string;
-  vehicleType: string;
-  description?: string | null;
-  is_active: boolean;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-};
 
 const VEHICLE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
   vehicleType: ["vehicleType", "vehicle_type"],
@@ -93,9 +83,10 @@ export default function VehicleTypeCreationList() {
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encVehicleType } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encTransportMaster}/${encVehicleType}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encTransportMaster}/${encVehicleType}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encTransportMaster,
+    encVehicleType,
+  );
 
   // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -201,19 +192,12 @@ export default function VehicleTypeCreationList() {
   ) => rowIndex + 1;
 
   // ── Table header ──────────────────────────────────────────────────────────
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.vehicle_type.search_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none !outline-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("admin.vehicle_type.search_placeholder"),
+    });
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (

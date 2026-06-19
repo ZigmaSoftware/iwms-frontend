@@ -33,6 +33,9 @@ export const panchayatApi = adminApi.panchayats;
 export const panchayatLeaderApi = adminApi.panchayatLeaders;
 export const areaTypeApi = adminApi.areatypes;
 export const hierarchyApi = adminApi.hierarchies;
+export const municipalityApi = adminApi.municipalities;
+export const townPanchayatApi = adminApi.townPanchayats;
+export const blockPanchayatUnionApi = adminApi.blockPanchayatUnions;
 
 /* =========================
    WASTE TYPES
@@ -114,6 +117,7 @@ export const fuelApi = adminApi.fuels;
 export const dailyTripAssignmentApi = adminApi.dailyTripAssignment;
 export const dailyTripLogApi = adminApi.dailyTripLog;
 export const dailyTripCollectionPointApi = adminApi.dailyTripCollectionPoint;
+export const dailyTripHouseholdCollectionApi = adminApi.dailyTripHouseholdCollection;
 export const binCollectionEventApi = adminApi.binCollectionEvent;
 export const dailyWasteComparisonApi = adminApi.dailyWasteComparison;
 

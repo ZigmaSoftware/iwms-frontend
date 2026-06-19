@@ -1,3 +1,5 @@
+import type { HouseholdPickupEventRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -23,19 +25,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
-type HouseholdPickupEventRecord = {
-  id: number;
-  customer_id: string;
-  zone_id: string;
-  property_id: string;
-  sub_property_id: string;
-  pickup_time: string;
-  weight_kg?: number | null;
-  collector_staff_id: string;
-  vehicle_id: string;
-  source: string;
-  created_at?: string | null;
-};
 
 const householdPickupEventApi = createCrudHelpers<HouseholdPickupEventRecord>(
   "customer-masters/household-pickup-events"
@@ -87,9 +76,10 @@ export default function HouseholdPickupEventList() {
   });
 
   const { encCustomerMaster, encHouseholdPickupEvent } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encCustomerMaster}/${encHouseholdPickupEvent}/new`;
-  const ENC_EDIT_PATH = (id: number) =>
-    `/${encCustomerMaster}/${encHouseholdPickupEvent}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encCustomerMaster,
+    encHouseholdPickupEvent,
+  );
 
   const fetchRecords = async () => {
     setLoading(true);

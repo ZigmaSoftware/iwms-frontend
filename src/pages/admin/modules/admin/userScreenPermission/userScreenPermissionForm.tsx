@@ -1,3 +1,4 @@
+import type { ApiUserScreen, MainScreen, Option, PermissionResponse, PermissionScreen, ScreenMatrixRow, StaffUserType, UserScreenAction, UserScreenColumnRecord } from "./types";
 import { useEffect, useState, useMemo, Fragment, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -15,7 +16,8 @@ import {
 } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
 
-import { encryptSegment } from "@/utils/routeCrypto";
+import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { api } from "@/api";
 import {
   getColumnPermissions,
@@ -27,84 +29,19 @@ import {
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
 
-const ENC_LIST_PATH = `/${encryptSegment("admins")}/${encryptSegment(
-  "userscreenpermissions"
-)}`;
+const { encAdmins, encUserScreenPermission } = getEncryptedRoute();
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
+  encAdmins,
+  encUserScreenPermission,
+);
 
 /* -----------------------------------------------------------
    TYPES
 ----------------------------------------------------------- */
 
-type StaffUserType = {
-  unique_id?: unknown;
-  name?: unknown;
-  usertype_id?: unknown;
-  usertype?: { unique_id?: unknown };
-  [key: string]: unknown;
-};
-
-type MainScreen = {
-  unique_id?: unknown;
-  mainscreen_name?: unknown;
-  [key: string]: unknown;
-};
-
-type UserScreenAction = {
-  unique_id?: unknown;
-  action_name?: unknown;
-  [key: string]: unknown;
-};
-
-type Option = {
-  value: string;
-  label: string;
-  userTypeId?: string;
-};
 
 /** Shape returned by the by-staff-format endpoint */
-type PermissionScreen = {
-  userscreen_id: string;
-  userscreen_name?: string;
-  /** API returns actionIds (not actions) */
-  actionIds?: string[];
-  /** Backward-compat alias some callers may use */
-  actions?: string[];
-  /** Saved column permissions */
-  columnIds?: string[];
-};
 
-type PermissionResponse = {
-  screens: PermissionScreen[];
-  description?: string;
-};
-
-type ScreenMatrixRow = {
-  userscreen_id: string;
-  userscreen_name: string;
-  actions: string[];
-  columnIds: string[];
-};
-
-type ApiUserScreen = {
-  unique_id?: string;
-  userscreen_name?: string;
-  mainscreen_id?: string;
-  order_no?: number;
-  is_active?: boolean;
-  is_deleted?: boolean;
-  [key: string]: unknown;
-};
-
-type UserScreenColumnRecord = {
-  unique_id: string;
-  field_name: string;
-  display_name: string;
-  data_type: string;
-  order_no: number;
-  is_required: boolean;
-  is_primary_key: boolean;
-  is_foreign_key: boolean;
-};
 
 /** Green lock: primary key, foreign key, or any field whose name ends with _id */
 const isLockedColumn = (col: UserScreenColumnRecord): boolean =>

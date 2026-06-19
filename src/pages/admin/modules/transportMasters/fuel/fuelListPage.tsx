@@ -1,3 +1,6 @@
+import type { Fuel } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -5,7 +8,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
@@ -23,18 +25,6 @@ import { fuelApi } from "@/helpers/admin";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Fuel = {
-  unique_id: string;
-  fuel_type: string;
-  description: string;
-  is_active: boolean;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-};
 
 const FUEL_COLUMN_FIELDS: Record<string, string[]> = {
   fuel_type: ["fuel_type", "fuel"],
@@ -88,9 +78,10 @@ export default function FuelList() {
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encFuel } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encTransportMaster}/${encFuel}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encTransportMaster}/${encFuel}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encTransportMaster,
+    encFuel,
+  );
 
   // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -196,19 +187,11 @@ export default function FuelList() {
     rowIndex + 1;
 
   // ── Table header ──────────────────────────────────────────────────────────
-  const header = (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.fuel.search_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
-    </div>
-  );
+  const header = renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("admin.fuel.search_placeholder"),
+    });
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (

@@ -7,6 +7,9 @@ import { Navigation, Search, ChevronDown } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useTranslation } from "react-i18next";
 import { fetchWasteReport } from "@/utils/wasteApi";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
+import { buildTripSummaryUrl, buildVehicleTrackingUrl } from "@/config/gpsApiConfig";
 
 type RawRecord = Record<string, unknown>;
 type StatusKey = "running" | "idle" | "stopped" | "no_data";
@@ -151,9 +154,6 @@ function createVehicleIcon(status: StatusKey, isFocused: boolean) {
     `,
   });
 }
-
-const TRACKING_API_URL =
-  "https://api.vamosys.com/mobile/getGrpDataForTrustedClients?providerName=BLUEPLANET&fcode=VAM";
 
 const TRIP_SUMMARY_ENDPOINT =
   "https://gpsvtsprobend.vamosys.com/v2/getTripSummary";
@@ -415,6 +415,18 @@ function normalizeVehicle(record: RawRecord): LiveVehicle | null {
 export default function MapView() {
   const { theme, palette } = useTheme();
   const { t, i18n } = useTranslation();
+  const {
+    gpsVehicleTrackingApi,
+    gpsTripSummaryApi,
+    gpsProviderName,
+    gpsFcode,
+    gpsTripUserId,
+    weighmentApiUrl,
+  } = useProjectSelector();
+  const trackingApiUrl = buildVehicleTrackingUrl(
+    { providerName: gpsProviderName, fcode: gpsFcode },
+    gpsVehicleTrackingApi
+  );
   const isDarkMode = theme === "dark";
   const preferredVehicleId = "UP16KT1737";
   const [vehicleId, setVehicleId] = useState(preferredVehicleId);
@@ -578,7 +590,8 @@ export default function MapView() {
     const fetchLive = async () => {
       setLoadingLive(true);
       try {
-        const response = await fetch(TRACKING_API_URL);
+        if (!trackingApiUrl) { setLoadingLive(false); return; }
+        const response = await fetch(trackingApiUrl);
         if (!response.ok) {
           throw new Error(`Live data error (${response.status})`);
         }
@@ -633,7 +646,7 @@ export default function MapView() {
       isMounted = false;
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [trackingApiUrl]);
 
   useEffect(() => {
     if (!filteredVehicles.length) return;
@@ -705,13 +718,17 @@ export default function MapView() {
           59
         ).getTime();
 
-        const tripUrl = `${TRIP_SUMMARY_ENDPOINT}?vehicleId=${encodeURIComponent(
-          currentVehicleId
-        )}&fromDateUTC=${monthStart}&toDateUTC=${monthEnd}&userId=${TRIP_SUMMARY_USER_ID}&duration=0`;
+        const tripUrl = buildTripSummaryUrl(
+          currentVehicleId,
+          monthStart,
+          monthEnd,
+          { userId: gpsTripUserId, duration: "0" },
+          gpsTripSummaryApi
+        );
 
         const [tripRes, weightResult] = await Promise.all([
           fetch(tripUrl).then((res) => res.json()),
-          fetchWasteReport("day_wise_data", reportStartKey, todayKey).catch(
+          fetchWasteReport(weighmentApiUrl, "day_wise_data", reportStartKey, todayKey).catch(
             () => ({ rows: [] }),
           ),
         ]);
@@ -806,8 +823,21 @@ export default function MapView() {
     };
   }, [selectedVehicle?.id]);
 
+  if (!trackingApiUrl) {
+    return (
+      <div className="space-y-3">
+        <ProjectSelectorBar />
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <p className="text-base font-medium">GPS API not configured for this project.</p>
+          <p className="text-sm mt-1">Set GPS API URLs in the project settings to enable the live map.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
+      <ProjectSelectorBar />
       <div>
         <h2 className="text-3xl font-bold text-sky-500">
           {t("dashboard.live_map.title")}

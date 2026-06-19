@@ -1,3 +1,6 @@
+import type { CompanyOption, ProjectCreateResponse, ProjectRecord } from "./types";
+import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -17,28 +20,7 @@ import {
 } from "@/components/ui/select";
 
 import { companyApi, projectApi } from "@/helpers/admin";
-import { encryptSegment } from "@/utils/routeCrypto";
 
-type CompanyOption = {
-  unique_id: string;
-  name: string;
-};
-
-type ProjectRecord = {
-  unique_id: string;
-  company_unique_id: string;
-  name: string;
-  description: string | null;
-  is_active: boolean;
-};
-
-type ProjectCreateResponse = {
-  project?: ProjectRecord;
-  company_admin?: {
-    unique_id: string;
-    username: string;
-  };
-};
 
 const normalizeIsActive = (value: unknown): boolean => {
   if (typeof value === "boolean") return value;
@@ -50,9 +32,8 @@ const normalizeIsActive = (value: unknown): boolean => {
   return true;
 };
 
-const encSuperAdminMasters = encryptSegment("superadmin-masters");
-const encProjectCreation = encryptSegment("project-creation");
-const ENC_LIST_PATH = `/${encSuperAdminMasters}/${encProjectCreation}`;
+const { encSuperAdminMaster: encSuperAdminMasters, encProjectCreation } = getEncryptedRoute();
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encSuperAdminMasters, encProjectCreation);
 
 const parseApiError = (error: unknown, fallback: string) => {
   const axiosError = error as { response?: { data?: unknown } };
@@ -91,6 +72,19 @@ export default function ProjectForm() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [gpsApiUrl, setGpsApiUrl] = useState("");
+  const [gpsUserId, setGpsUserId] = useState("BLUEPLANET");
+  const [gpsGroupName, setGpsGroupName] = useState("BLUEPLANET:VAM");
+  const [gpsProviderName, setGpsProviderName] = useState("BLUEPLANET");
+  const [gpsFcode, setGpsFcode] = useState("VAM");
+  const [gpsTripUserId, setGpsTripUserId] = useState("NMCP2DISPOSAL");
+  // RENAMED: now "Date-wise Weighment API URL"
+  const [weighmentApiUrl, setWeighmentApiUrl] = useState("");
+  // NEW: "Day-wise Weighment API URL"
+  const [dayWiseWeighmentApiUrl, setDayWiseWeighmentApiUrl] = useState("");
+  const [attendanceApiUrl, setAttendanceApiUrl] = useState("");
+  const [attendanceApiKey, setAttendanceApiKey] = useState("");
+  const [attendanceApiConfigured, setAttendanceApiConfigured] = useState(false);
   const [adminUsername, setAdminUsername] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminEmployeeName, setAdminEmployeeName] = useState("");
@@ -161,6 +155,18 @@ export default function ProjectForm() {
         }
         setName(record.name ?? "");
         setDescription(record.description ?? "");
+        setGpsApiUrl(record.gps_api_url ?? "");
+        setGpsUserId(record.gps_user_id ?? "BLUEPLANET");
+        setGpsGroupName(record.gps_group_name ?? "BLUEPLANET:VAM");
+        setGpsProviderName(record.gps_provider_name ?? "BLUEPLANET");
+        setGpsFcode(record.gps_fcode ?? "VAM");
+        setGpsTripUserId(record.gps_trip_user_id ?? "NMCP2DISPOSAL");
+        // Date-wise weighment API URL
+        setWeighmentApiUrl(record.weighment_api_url ?? "");
+        // Day-wise weighment API URL (new field)
+        setDayWiseWeighmentApiUrl(record.day_wise_weighment_api_url ?? "");
+        setAttendanceApiUrl(record.attendance_api_url ?? "");
+        setAttendanceApiConfigured(Boolean(record.attendance_api_configured));
         setPendingCompanyId(record.company_unique_id ?? null);
         setIsActive(normalizeIsActive(record.is_active));
       })
@@ -213,12 +219,32 @@ export default function ProjectForm() {
         await projectApi.update(id as string, {
           name: name.trim(),
           description: description.trim() || null,
+          gps_api_url: gpsApiUrl.trim() || null,
+          gps_user_id: gpsUserId.trim() || "BLUEPLANET",
+          gps_group_name: gpsGroupName.trim() || "BLUEPLANET:VAM",
+          gps_provider_name: gpsProviderName.trim() || "BLUEPLANET",
+          gps_fcode: gpsFcode.trim() || "VAM",
+          gps_trip_user_id: gpsTripUserId.trim() || "NMCP2DISPOSAL",
+          weighment_api_url: weighmentApiUrl.trim() || null,
+          day_wise_weighment_api_url: dayWiseWeighmentApiUrl.trim() || null,
+          attendance_api_url: attendanceApiUrl.trim() || null,
+          ...(attendanceApiKey.trim() ? { attendance_api_key: attendanceApiKey.trim() } : {}),
           is_active: isActive,
         });
       } else {
         const payload: Record<string, string | null | boolean> = {
           name: name.trim(),
           description: description.trim() || null,
+          gps_api_url: gpsApiUrl.trim() || null,
+          gps_user_id: gpsUserId.trim() || "BLUEPLANET",
+          gps_group_name: gpsGroupName.trim() || "BLUEPLANET:VAM",
+          gps_provider_name: gpsProviderName.trim() || "BLUEPLANET",
+          gps_fcode: gpsFcode.trim() || "VAM",
+          gps_trip_user_id: gpsTripUserId.trim() || "NMCP2DISPOSAL",
+          weighment_api_url: weighmentApiUrl.trim() || null,
+          day_wise_weighment_api_url: dayWiseWeighmentApiUrl.trim() || null,
+          attendance_api_url: attendanceApiUrl.trim() || null,
+          attendance_api_key: attendanceApiKey.trim() || null,
           is_active: isActive,
         };
         if (companyUniqueId.trim()) {
@@ -343,6 +369,138 @@ export default function ProjectForm() {
               placeholder={t("common.description")}
               rows={4}
             />
+          </div>
+
+          <div>
+            <Label htmlFor="gpsApiUrl">{t("admin.project.gps_api_url")}</Label>
+            <Input
+              id="gpsApiUrl"
+              type="url"
+              value={gpsApiUrl}
+              onChange={(e) => setGpsApiUrl(e.target.value)}
+              placeholder="https://api.example.com/getVehicleHistory"
+            />
+          </div>
+
+          {/* GPS Parameters Section */}
+          <div className="md:col-span-2 text-sm text-gray-600 font-semibold mt-2">
+            GPS API Parameters (Vamosys Authentication)
+          </div>
+
+          {/* GPS User ID */}
+          <div>
+            <Label htmlFor="gpsUserId">GPS User ID</Label>
+            <Input
+              id="gpsUserId"
+              type="text"
+              value={gpsUserId}
+              onChange={(e) => setGpsUserId(e.target.value)}
+              placeholder="BLUEPLANET"
+            />
+          </div>
+
+          {/* GPS Group Name */}
+          <div>
+            <Label htmlFor="gpsGroupName">GPS Group Name</Label>
+            <Input
+              id="gpsGroupName"
+              type="text"
+              value={gpsGroupName}
+              onChange={(e) => setGpsGroupName(e.target.value)}
+              placeholder="BLUEPLANET:VAM"
+            />
+          </div>
+
+          {/* GPS Provider Name */}
+          <div>
+            <Label htmlFor="gpsProviderName">GPS Provider Name</Label>
+            <Input
+              id="gpsProviderName"
+              type="text"
+              value={gpsProviderName}
+              onChange={(e) => setGpsProviderName(e.target.value)}
+              placeholder="BLUEPLANET"
+            />
+          </div>
+
+          {/* GPS FCode */}
+          <div>
+            <Label htmlFor="gpsFcode">GPS FCode</Label>
+            <Input
+              id="gpsFcode"
+              type="text"
+              value={gpsFcode}
+              onChange={(e) => setGpsFcode(e.target.value)}
+              placeholder="VAM"
+            />
+          </div>
+
+          {/* GPS Trip User ID */}
+          <div>
+            <Label htmlFor="gpsTripUserId">GPS Trip Summary User ID</Label>
+            <Input
+              id="gpsTripUserId"
+              type="text"
+              value={gpsTripUserId}
+              onChange={(e) => setGpsTripUserId(e.target.value)}
+              placeholder="NMCP2DISPOSAL"
+            />
+          </div>
+
+          {/* Date-wise Weighment API URL (renamed) */}
+          <div>
+            <Label htmlFor="weighmentApiUrl">Date-wise Weighment API URL</Label>
+            <Input
+              id="weighmentApiUrl"
+              type="url"
+              value={weighmentApiUrl}
+              onChange={(e) => setWeighmentApiUrl(e.target.value)}
+              placeholder="https://example.com/waste_collected_data_api.php"
+            />
+          </div>
+
+          {/* NEW: Day-wise Weighment API URL */}
+          <div>
+            <Label htmlFor="dayWiseWeighmentApiUrl">Day-wise Weighment API URL</Label>
+            <Input
+              id="dayWiseWeighmentApiUrl"
+              type="url"
+              value={dayWiseWeighmentApiUrl}
+              onChange={(e) => setDayWiseWeighmentApiUrl(e.target.value)}
+              placeholder="https://example.com/day_wise_waste_collected_data_api.php"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="attendanceApiUrl">{t("admin.project.attendance_api_url")}</Label>
+            <Input
+              id="attendanceApiUrl"
+              type="url"
+              value={attendanceApiUrl}
+              onChange={(e) => setAttendanceApiUrl(e.target.value)}
+              placeholder="http://zigfly.in/attendance-api/api/sync/recognized"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="attendanceApiKey">{t("admin.project.attendance_api_key")}</Label>
+            <Input
+              id="attendanceApiKey"
+              type="password"
+              value={attendanceApiKey}
+              onChange={(e) => setAttendanceApiKey(e.target.value)}
+              placeholder={
+                isEdit && attendanceApiConfigured
+                  ? "Configured - enter to replace"
+                  : "ZIGFLY_SYNC_2025"
+              }
+              autoComplete="new-password"
+            />
+            {isEdit && attendanceApiConfigured ? (
+              <p className="mt-1 text-xs text-gray-500">
+                Leave blank to keep the existing API key.
+              </p>
+            ) : null}
           </div>
 
           {!isEdit ? (

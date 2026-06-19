@@ -1,3 +1,6 @@
+import type { BinCollectionEventRecord } from "./types";
+import type { NestedRef } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -12,35 +15,6 @@ import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { binCollectionEventApi } from "@/helpers/admin";
 
-type NestedRef = Record<string, unknown> | null | undefined;
-
-type BinCollectionEventRecord = {
-  unique_id: string;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
-  trip_assignment_id?: string;
-  trip_collection_point_id?: string;
-  collection_point_id?: string;
-  bin_id?: string;
-  panchayat_id?: string;
-  bin?: NestedRef;
-  waste_type?: NestedRef;
-  trip_plan?: NestedRef;
-  vehicle?: NestedRef;
-  collected_weight_kg?: string | number;
-  driver_latitude?: string | number | null;
-  driver_longitude?: string | number | null;
-  notes?: string | null;
-  is_active: boolean;
-  is_deleted: boolean;
-  created_at?: string;
-  updated_at?: string;
-  [key: string]: unknown;
-};
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -93,9 +67,10 @@ export default function CollectionMonitoringListPage() {
   });
 
   const { encWasteManagementMaster, encCollectionMonitoring } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encWasteManagementMaster}/${encCollectionMonitoring}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encWasteManagementMaster}/${encCollectionMonitoring}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encWasteManagementMaster,
+    encCollectionMonitoring,
+  );
 
   const [records, setRecords] = useState<BinCollectionEventRecord[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,3 +1,5 @@
+import type { RoleTypeOption, UserType } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -21,18 +23,8 @@ import {
 } from "@/helpers/admin";
 
 const { encAdmins, encStaffUserType } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encAdmins}/${encStaffUserType}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encAdmins, encStaffUserType);
 
-type RoleTypeOption = {
-  value: string;
-  label: string;
-};
-
-type UserType = {
-  unique_id: string;
-  name: string;
-  is_active: boolean;
-};
 
 const normalizeIdValue = (value: unknown): string => {
   if (value === null || value === undefined) return "";

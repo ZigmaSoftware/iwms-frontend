@@ -1,10 +1,12 @@
+import type { SupervisorZoneAccessAuditRecord } from "./types";
+import type { TableFilters } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
@@ -13,27 +15,6 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 
-type SupervisorZoneAccessAuditRecord = {
-  unique_id: string;
-  supervisor_id: string;
-  performed_by: string;
-  performed_role?: string | null;
-  old_zone_ids?: Array<number | string> | null;
-  new_zone_ids?: Array<number | string> | null;
-  remarks?: string | null;
-  created_at?: string | null;
-};
-
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  supervisor_id?: { value: string | null; matchMode: FilterMatchMode };
-  performed_by?: { value: string | null; matchMode: FilterMatchMode };
-  performed_role?: { value: string | null; matchMode: FilterMatchMode };
-  remarks?: { value: string | null; matchMode: FilterMatchMode };
-  old_zone_ids?: { value: string | null; matchMode: FilterMatchMode };
-  new_zone_ids?: { value: string | null; matchMode: FilterMatchMode };
-};
 
 const buildLookup = (items: any[], key: string, label: string) =>
   items.reduce<Record<string, string>>((acc, item) => {
@@ -73,8 +54,7 @@ export default function SupervisorZoneAccessAuditList() {
   const [userLookup, setUserLookup] = useState<Record<string, string>>({});
 
   const { encStaffMasters, encSupervisorZoneAccessAudit } = getEncryptedRoute();
-  const ENC_VIEW_PATH = (id: string) =>
-    `/${encStaffMasters}/${encSupervisorZoneAccessAudit}/${id}/edit`;
+  const { editPath: ENC_VIEW_PATH } = createCrudRoutePaths(encStaffMasters, encSupervisorZoneAccessAudit);
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -147,7 +127,7 @@ export default function SupervisorZoneAccessAuditList() {
           <InputText
             value={globalFilterValue}
             onChange={onGlobalFilterChange}
-            placeholder={t("common.search_placeholder_placeholder")}
+            placeholder={t("common.search_placeholder")}
             className="border-none text-sm"
           />
         </div>

@@ -1,3 +1,6 @@
+import type { DailyTripAssignmentRecord } from "./types";
+import type { TableFilters, VehicleTripAuditRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -16,34 +19,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 
-type VehicleTripAuditRecord = {
-  id: number;
-  daily_trip_assignment_id: string;
-  vehicle_id: string;
-  gps_lat: number[];
-  gps_lon: number[];
-  avg_speed: number;
-  idle_seconds: number;
-  captured_at: string;
-  created_at?: string | null;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-};
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  daily_trip_assignment_id: { value: string | null; matchMode: FilterMatchMode };
-  vehicle_id: { value: string | null; matchMode: FilterMatchMode };
-};
-
-type DailyTripAssignmentRecord = {
-  unique_id: string;
-  trip_no?: string;
-};
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -148,9 +123,10 @@ export default function VehicleTripAuditList() {
   });
 
   const { encTransportMaster, encVehicleTripAudit } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encTransportMaster}/${encVehicleTripAudit}/new`;
-  const ENC_EDIT_PATH = (id: number) =>
-    `/${encTransportMaster}/${encVehicleTripAudit}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encTransportMaster,
+    encVehicleTripAudit,
+  );
 
   useEffect(() => {
     if (!companyUniqueId && !isSuperAdmin) return;

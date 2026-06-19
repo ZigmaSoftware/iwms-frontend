@@ -1,3 +1,6 @@
+import type { ApiError } from "./types";
+import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -18,18 +21,10 @@ import { useTranslation } from "react-i18next";
 
 import { companyApi } from "@/helpers/admin";
 
-import { encryptSegment } from "@/utils/routeCrypto";
 
-type ApiError = {
-  response?: {
-    data?: unknown;
-  };
-};
+const { encSuperAdminMaster: encSuperAdminMasters, encCompanyCreation } = getEncryptedRoute();
 
-const encSuperAdminMasters = encryptSegment("superadmin-masters");
-const encCompanyCreation = encryptSegment("company-creation");
-
-const ENC_LIST_PATH = `/${encSuperAdminMasters}/${encCompanyCreation}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encSuperAdminMasters, encCompanyCreation);
 const MAX_LOGO_SIZE = 2 * 1024 * 1024;
 
 const resolveMediaUrl = (value?: string | null) => {

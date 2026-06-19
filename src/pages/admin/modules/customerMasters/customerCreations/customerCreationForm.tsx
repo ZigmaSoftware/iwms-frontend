@@ -1,3 +1,5 @@
+import type { FormDataType, Option } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -35,7 +37,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 /* ===============================
    TYPES
 ================================ */
-type Option = { value: string; label: string };
+
 
 const normalizeEntityId = (value: unknown): string => {
   if (value === null || value === undefined) return "";
@@ -80,45 +82,6 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   industry_type: ["industry_type"],
 };
 
-interface FormDataType {
-  customer_name: string;
-  contact_no: string;
-  username: string;
-  email: string;
-  password : string;
-  building_no: string;
-  street: string;
-  area: string;
-  pincode: string;
-  latitude: string;
-  longitude: string;
-  sqft: string;
-  property_id: string;
-  sub_property_id: string;
-  id_proof_type: string;
-  id_no: string;
-  country_id: string;
-  state_id: string;
-  district_id: string;
-  city_id: string;
-  zone_id: string;
-  ward_id: string;
-  panchayat_id: string;
-  company_id: string;
-  project_id: string;
-  is_active: boolean;
-  is_bulkwaste_generator: boolean;
-
-  // Apartment fields
-  apartment_name: string;
-  block_no: string;
-  flat_no: string;
-  // Villa fields
-  villa_no: string;
-  // Industry fields
-  industry_name: string;
-  industry_type: string;
-}
 
 /* ===============================
    REUSABLE COMPONENTS (OUTSIDE)
@@ -510,7 +473,7 @@ export default function CustomerCreationForm() {
   const isEdit = Boolean(id);
 
   const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encCustomerMaster}/${encCustomerCreation}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCustomerMaster, encCustomerCreation);
 
   const location = useLocation();
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;

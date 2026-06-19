@@ -1,3 +1,6 @@
+import type { BinCollectionEventRecord } from "./types";
+import type { ApiObject, TripCollectionPointRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -17,38 +20,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
 
-type ApiObject = Record<string, unknown>;
-
-type TripCollectionPointRecord = {
-  unique_id: string;
-  trip_assignment_id?: string;
-  trip_assignment?: ApiObject;
-  collection_point_id?: string;
-  collection_point?: ApiObject;
-  bin_id?: string;
-  bin?: ApiObject;
-  sequence?: number;
-  status?: string;
-  is_collected?: boolean;
-  [key: string]: unknown;
-};
-
-type BinCollectionEventRecord = {
-  unique_id: string;
-  company_id?: string;
-  project_id?: string;
-  trip_assignment_id?: string;
-  trip_collection_point_id?: string;
-  bin_id?: string;
-  bin?: ApiObject;
-  collection_point_id?: string;
-  collected_weight_kg?: string | number;
-  driver_latitude?: string | number | null;
-  driver_longitude?: string | number | null;
-  notes?: string | null;
-  is_active?: boolean;
-  [key: string]: unknown;
-};
 
 const ShadcnSelect = ({
   label,
@@ -205,7 +176,7 @@ function CollectionMonitoringForm() {
   });
 
   const { encWasteManagementMaster, encCollectionMonitoring } = getEncryptedRoute();
-  const LIST_PATH = `/${encWasteManagementMaster}/${encCollectionMonitoring}`;
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encWasteManagementMaster, encCollectionMonitoring);
 
   const [tripCollectionPointId, setTripCollectionPointId] = useState("");
   const [tripAssignmentId, setTripAssignmentId] = useState("");

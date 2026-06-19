@@ -12,9 +12,9 @@ import {
   Users,
   UserCircle,
   Truck,
-  Navigation,
   AlertTriangle,
   BarChart3,
+  CalendarCheck,
   Search,
   X,
 } from "lucide-react";
@@ -24,6 +24,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { decryptSegment } from "@/utils/routeCrypto";
 
 const {
+  encAttendance,
   encMasters,
   encAudits,
   encContinents,
@@ -84,10 +85,14 @@ const {
   encPanchayats,
   encPanchayatLeaders,
   encAreaTypes,
+  encMunicipalities,
+  encTownPanchayats,
+  encBlockPanchayatUnions,
   encBins,
   encDailyTripAssignment,
   encDailyTripLog,
   encDailyTripCollectionPoint,
+  encDailyTripHouseholdCollection,
   encDailyTripTracking,
   encBinCollectionEvent,
   encLoginAudits,
@@ -110,6 +115,7 @@ type NavItem = {
 
 type SidebarSectionKey =
   | "main"
+  | "attendance"
   | "superadminMaster"
   | "commonMaster"
   | "master"
@@ -124,10 +130,9 @@ type SidebarSectionKey =
   | "transportMasters"
   | "scheduleMasters"
   | "auditItems"
-  | "vehicleTracking"
   | "wasteManagement"
   | "workforceManagement"
-  | "reports";
+  | "fleetReports";
 
 /* =====================
    MENU DEFINITIONS
@@ -140,6 +145,14 @@ const navItems: NavItem[] = [
     path: "/admin",
     module: "dashboard",
     screen: "Dashboard",
+  },
+];
+
+const attendanceItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.attendance",
+    icon: <CalendarCheck size={18} />,
+    path: `/${encAttendance}/${encAttendance}`,
   },
 ];
 
@@ -202,6 +215,7 @@ const masterItems: NavItem[] = [
     module: "masters",
     screen: "masters",
     subItems: [
+      // ── Org / Department Setup ──────────────────────────────
       {
         nameKey: "admin.nav.department",
         path: `/${encMasters}/${encDepartments}`,
@@ -214,6 +228,7 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "designation-masters",
       },
+      // ── Administrative / Geographic Hierarchy ────────────────
       {
         nameKey: "admin.nav.district",
         path: `/${encMasters}/${encDistricts}`,
@@ -221,22 +236,49 @@ const masterItems: NavItem[] = [
         screen: "districts",
       },
       {
+        nameKey: "admin.nav.zone",
+        path: `/${encMasters}/${encZones}`,
+        module: "masters",
+        screen: "zones",
+      },
+      // ── Urban Local Bodies (ULB) — parallel at same level ───
+      {
         nameKey: "admin.nav.city",
         path: `/${encMasters}/${encCities}`,
         module: "masters",
         screen: "cities",
       },
       {
-        nameKey: "admin.nav.zone",
-        path: `/${encMasters}/${encZones}`,
+        nameKey: "admin.nav.municipality",
+        path: `/${encMasters}/${encMunicipalities}`,
         module: "masters",
-        screen: "zones",
+        screen: "municipalities",
       },
+      {
+        nameKey: "admin.nav.town_panchayat",
+        path: `/${encMasters}/${encTownPanchayats}`,
+        module: "masters",
+        screen: "town-panchayats",
+      },
+      // ── Rural Local Bodies — as per Rule 40 ─────────────────
+      {
+        nameKey: "admin.nav.block_panchayat_union",
+        path: `/${encMasters}/${encBlockPanchayatUnions}`,
+        module: "masters",
+        screen: "block-panchayat-unions",
+      },
+      // ── Operational / Field Level ────────────────────────────
       {
         nameKey: "admin.nav.ward",
         path: `/${encMasters}/${encWards}`,
         module: "masters",
         screen: "wards",
+      },
+      {
+        nameKey: "admin.nav.area_type",
+        path: `/${encMasters}/${encAreaTypes}`,
+        module: "masters",
+        screen: "areatypes",
       },
       {
         nameKey: "admin.nav.panchayat",
@@ -250,12 +292,6 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "panchayat-leaders",
       },
-      {
-        nameKey: "admin.nav.area_type",
-        path: `/${encMasters}/${encAreaTypes}`,
-        module: "masters",
-        screen: "areatypes",
-      }
     ],
   },
 ];
@@ -531,6 +567,12 @@ const scheduleMastersItems: NavItem[] = [
         screen: "daily-trip-collection-points",
       },
       {
+        nameKey: "admin.nav.daily_trip_household_collection",
+        path: `/${encScheduleMasters}/${encDailyTripHouseholdCollection}`,
+        module: "schedule-masters",
+        screen: "daily-trip-household-collections",
+      },
+      {
         nameKey: "admin.nav.daily_trip_tracking",
         path: `/${encScheduleMasters}/${encDailyTripTracking}`,
         module: "schedule-masters",
@@ -611,12 +653,12 @@ const auditItems: NavItem[] = [
   },
 ];
 
-const vehicleTrackingItems: NavItem[] = [
+const fleetReportItems: NavItem[] = [
   {
-    nameKey: "admin.nav.vehicle_tracking",
-    icon: <Navigation size={18} />,
-    module: "vehicle-tracking",
-    screen: "VehicleTracking",
+    nameKey: "admin.nav.fleet_reports",
+    icon: <BarChart3 size={18} />,
+    module: "fleet-reports",
+    screen: "FleetReports",
     subItems: [
       {
         nameKey: "admin.nav.vehicle_tracking",
@@ -630,18 +672,6 @@ const vehicleTrackingItems: NavItem[] = [
         module: "vehicle-tracking",
         screen: "VehicleHistory",
       },
-    ],
-  },
-];
-
-
-const reportItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.reports",
-    icon: <BarChart3 size={18} />,
-    module: "reports",
-    screen: "Reports",
-    subItems: [
       {
         nameKey: "admin.nav.trip_summary",
         path: `/${encReport}/${encTripSummary}`,
@@ -760,6 +790,7 @@ const AppSidebar: React.FC = () => {
     () => {
       const allSections = [
         { key: "main" as const, items: navItems },
+        { key: "attendance" as const, items: attendanceItems },
         { key: "superadminMaster" as const, items: superadminMasterItems },
         { key: "commonMaster" as const, items: commonMasterItems },
         { key: "master" as const, items: masterItems },
@@ -773,13 +804,12 @@ const AppSidebar: React.FC = () => {
         { key: "transportMasters" as const, items: transportMastersItems },
         { key: "scheduleMasters" as const, items: scheduleMastersItems },
         { key: "auditItems" as const, items: auditItems },
-        { key: "vehicleTracking" as const, items: vehicleTrackingItems},
-        { key: "reports" as const, items: reportItems },
+        { key: "fleetReports" as const, items: fleetReportItems },
       ];
 
       // If superadmin, show ALL sections with ALL items
       if (isSuperAdmin) {
-        console.log("[Sidebar] SuperAdmin detected - showing all sections");
+        // console.log("[Sidebar] SuperAdmin detected - showing all sections");
         return allSections.filter((section) => section.items.length > 0);
       }
 
@@ -881,8 +911,6 @@ const AppSidebar: React.FC = () => {
   useEffect(() => {
     let matched = false;
     const skipAutoOpenSubmenuKeys = new Set([
-      "admin.nav.vehicle_tracking",
-      "admin.nav.vehicle_history",
       "admin.nav.collection_monitoring",
     ]);
 

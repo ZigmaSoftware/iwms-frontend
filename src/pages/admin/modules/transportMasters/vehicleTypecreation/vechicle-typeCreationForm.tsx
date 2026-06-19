@@ -1,3 +1,5 @@
+import type { VehicleTypePayload } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -20,10 +22,9 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 
-type VehicleTypePayload = Record<string, unknown>;
 
 const { encTransportMaster, encVehicleType } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encTransportMaster}/${encVehicleType}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encTransportMaster, encVehicleType);
 
 const toStr = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();

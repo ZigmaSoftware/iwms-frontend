@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 import { useNavigate } from "react-router-dom";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -14,30 +16,35 @@ import "primeicons/primeicons.css";
 import "./dayreport.css";
 import { useTranslation } from "react-i18next";
 
+// Matches the actual day-wise API response shape
 type ApiRow = {
   Ticket_No: string;
-  Vehicle_No: string;
   date: string;
   Start_Time: string | null;
-  total_trip: number;
-  dry_weight: number;
-  wet_weight: number;
-  mix_weight: number;
-  total_net_weight: number;
-  average_weight_per_trip: number;
+  Vehicle_No: string;
+  Loaded_Wt_W1: number;
+  Wet_Wt_with_Vehicle_W2: number;
+  Vehicle_Tare_Wt_W3: number;
+  Dry_Wt: number;
+  Wet_Wt: number;
+  Mix_Wt: number;
+  Net_Wt: number;
 };
 
+// ---------- Helpers ----------
 const today = new Date();
-
-const getLastDayOfMonth = (year: number, month: number) =>
-  new Date(year, month, 0).getDate();
-
-const formatNumber = (v?: number | null) =>
-  v !== null && v !== undefined ? v.toLocaleString() : "-";
+const getLastDayOfMonth = (y: number, m: number) => new Date(y, m, 0).getDate();
+const parseNum = (v: string | undefined) => Number((v ?? "0").replace(/,/g, ""));
+const fmtNum = (v: number) => v.toLocaleString();
+const fmtTime = (v: string | null) => v ?? "-";
 
 export default function DayReport() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { dayWiseWeighmentApiUrl } = useProjectSelector();
+
+  const API_BASE = dayWiseWeighmentApiUrl;
+  const API_KEY = import.meta.env.VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY || "ZIGMA-DELHI-WEIGHMENT-2025-SECURE";
 
   const initialFromDate = `${today.getFullYear()}-${String(
     today.getMonth() + 1
@@ -51,11 +58,11 @@ export default function DayReport() {
 
   const [fromDate, setFromDate] = useState(initialFromDate);
   const [toDate, setToDate] = useState(initialToDate);
-
   const [rows, setRows] = useState<ApiRow[]>([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /* ================= Filters ================= */
+  // ---------- Filters ----------
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -63,9 +70,7 @@ export default function DayReport() {
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setFilters({
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    });
+    setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
     setGlobalFilterValue(value);
   };
 
@@ -81,7 +86,6 @@ export default function DayReport() {
             className="ml-2 wf-date-input"
           />
         </label>
-
         <label>
           {t("admin.workforce_management.day_report.filters.to")}
           <input
@@ -91,16 +95,9 @@ export default function DayReport() {
             className="ml-2 wf-date-input"
           />
         </label>
-
-        <Button
-          label={t("common.go")}
-          // icon="pi pi-search"
-          onClick={fetchData}
-        />
+        <Button label={t("common.go")} onClick={fetchData} />
       </div>
-
       <span className="p-input-icon-left">
-        {/* <span className="pi pi-search" /> */}
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
@@ -110,65 +107,87 @@ export default function DayReport() {
     </div>
   );
 
-  /* ================= Fetch ================= */
+  // ---------- Fetch Data ----------
   async function fetchData() {
     if (new Date(fromDate) > new Date(toDate)) {
       setError("admin.workforce_management.day_report.error_from_after_to");
       return;
     }
 
+    if (!API_BASE) {
+      setError("admin.workforce_management.day_report.error_no_api");
+      return;
+    }
+
+    setLoading(true);
     setError(null);
 
     try {
-      const res = await fetch(
-        `https://zigma.in/d2d/folders/waste_collected_summary_report/test_waste_collected_data_api.php?action=day_wise_data&from_date=${fromDate}&to_date=${toDate}&key=ZIGMA-DELHI-WEIGHMENT-2025-SECURE`
-      );
-      const json = await res.json();
+      const url = `${API_BASE}?action=day_wise_data&from_date=${fromDate}&to_date=${toDate}&key=${API_KEY}`;
+      console.log("📡 DayReport fetch URL:", url);
 
-      if (!json.data?.length) {
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const json = await res.json();
+      console.log("📡 DayReport response:", json);
+
+      if (!json.status || !Array.isArray(json.data)) {
+        throw new Error("Invalid API response");
+      }
+
+      if (json.data.length === 0) {
         setRows([]);
         setError("admin.workforce_management.day_report.error_no_data");
         return;
       }
 
       const mapped: ApiRow[] = json.data.map((row: any) => {
-        const dry = Number(row.Dry_Wt.replace(/,/g, ""));
-        const wet = Number(row.Wet_Wt.replace(/,/g, ""));
-        const mix = Number(row.Mix_Wt.replace(/,/g, ""));
-        const net = Number(row.Net_Wt.replace(/,/g, ""));
-
+        const [datePart, timePart] = (row.Date ?? "").split(" ");
         return {
-          Ticket_No: row.Ticket_No,
-          Vehicle_No: row.Vehicle_No,
-          date: row.Date.split(" ")[0],
-          Start_Time: row.Date.split(" ")[1] || null,
-          total_trip: 1,
-          dry_weight: dry,
-          wet_weight: wet,
-          mix_weight: mix,
-          total_net_weight: net,
-          average_weight_per_trip: net,
+          Ticket_No: row.Ticket_No ?? "-",
+          date: datePart ?? "",
+          Start_Time: timePart ?? null,
+          Vehicle_No: row.Vehicle_No ?? "-",
+          Loaded_Wt_W1: parseNum(row.Loaded_Wt_W1),
+          Wet_Wt_with_Vehicle_W2: parseNum(row.Wet_Wt_with_Vehicle_W2),
+          Vehicle_Tare_Wt_W3: parseNum(row.Vehicle_Tare_Wt_W3),
+          Dry_Wt: parseNum(row.Dry_Wt),
+          Wet_Wt: parseNum(row.Wet_Wt),
+          Mix_Wt: parseNum(row.Mix_Wt),
+          Net_Wt: parseNum(row.Net_Wt),
         };
       });
 
       setRows(mapped);
-    } catch (e) {
+    } catch (err: any) {
+      console.error("❌ DayReport fetch error:", err);
       setError("admin.workforce_management.day_report.error_load_failed");
       setRows([]);
+    } finally {
+      setLoading(false);
     }
   }
 
+  // Wait for context to resolve the project URL before auto-fetching.
+  // Also re-fetches when the selected project changes.
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (dayWiseWeighmentApiUrl) {
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayWiseWeighmentApiUrl]);
 
   const indexTemplate = (_: ApiRow, { rowIndex }: any) => rowIndex + 1;
 
-  /* ================= UI ================= */
+  // ---------- UI ----------
   return (
-
     <>
-         <div className="flex justify-between items-center mb-4">
+      <ProjectSelectorBar />
+      <div className="p-4">
+        <div className="flex justify-between items-center mb-4">
           <div>
             <h1 className="text-2xl font-bold">
               {t("admin.workforce_management.day_report.title")}
@@ -195,6 +214,7 @@ export default function DayReport() {
           rowsPerPageOptions={[5, 10, 25, 50]}
           filters={filters}
           header={renderHeader()}
+          loading={loading}
           globalFilterFields={["Ticket_No", "Vehicle_No", "date"]}
           stripedRows
           showGridlines
@@ -202,57 +222,48 @@ export default function DayReport() {
           className="p-datatable-sm"
         >
           <Column
-            header={t("admin.workforce_management.day_report.columns.s_no")}
+            header="#"
             body={indexTemplate}
-            style={{ width: "70px" }}
+            style={{ width: "60px" }}
+          />
+          <Column field="date" header="Date" sortable />
+          <Column
+            header="Time"
+            body={(r: ApiRow) => fmtTime(r.Start_Time)}
+          />
+          <Column field="Ticket_No" header="Ticket No" sortable />
+          <Column field="Vehicle_No" header="Vehicle No" sortable />
+          <Column
+            header="Loaded Wt (W1)"
+            body={(r: ApiRow) => fmtNum(r.Loaded_Wt_W1)}
           />
           <Column
-            field="date"
-            header={t("admin.workforce_management.day_report.columns.date")}
+            header="Wet Wt + Vehicle (W2)"
+            body={(r: ApiRow) => fmtNum(r.Wet_Wt_with_Vehicle_W2)}
+          />
+          <Column
+            header="Tare Wt (W3)"
+            body={(r: ApiRow) => fmtNum(r.Vehicle_Tare_Wt_W3)}
+          />
+          <Column
+            header="Dry Wt"
+            body={(r: ApiRow) => fmtNum(r.Dry_Wt)}
+          />
+          <Column
+            header="Wet Wt"
+            body={(r: ApiRow) => fmtNum(r.Wet_Wt)}
+          />
+          <Column
+            header="Mix Wt"
+            body={(r: ApiRow) => fmtNum(r.Mix_Wt)}
+          />
+          <Column
+            header="Net Wt"
+            body={(r: ApiRow) => fmtNum(r.Net_Wt)}
             sortable
-          />
-          <Column
-            field="Start_Time"
-            header={t("admin.workforce_management.day_report.columns.start_time")}
-          />
-          <Column
-            field="Ticket_No"
-            header={t("admin.workforce_management.day_report.columns.ticket_no")}
-            sortable
-          />
-          <Column
-            field="Vehicle_No"
-            header={t("admin.workforce_management.day_report.columns.vehicle_no")}
-            sortable
-          />
-          <Column
-            field="dry_weight"
-            header={t("admin.workforce_management.day_report.columns.dry")}
-            body={(r) => formatNumber(r.dry_weight)}
-          />
-          <Column
-            field="wet_weight"
-            header={t("admin.workforce_management.day_report.columns.wet")}
-            body={(r) => formatNumber(r.wet_weight)}
-          />
-          <Column
-            field="mix_weight"
-            header={t("admin.workforce_management.day_report.columns.mixed")}
-            body={(r) => formatNumber(r.mix_weight)}
-          />
-          <Column
-            field="total_net_weight"
-            header={t("admin.workforce_management.day_report.columns.net")}
-            body={(r) => formatNumber(r.total_net_weight)}
-          />
-          <Column
-            header={t("admin.workforce_management.day_report.columns.avg_trip")}
-            body={(r) => r.average_weight_per_trip.toFixed(2)}
           />
         </DataTable>
+      </div>
     </>
- 
-   
-    
   );
 }

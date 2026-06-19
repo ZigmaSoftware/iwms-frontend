@@ -1,9 +1,13 @@
+import type { DailyTripAssignmentRecord } from "./types";
+import type { FormState, SelectOption } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
+import { MultiSelect } from "primereact/multiselect";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -18,54 +22,6 @@ import { normalizeList } from "@/utils/forms";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type SelectOption = { value: string; label: string };
-
-type NamedRef = { unique_id?: string; name?: string; [key: string]: unknown };
-
-type DailyTripAssignmentRecord = {
-  unique_id: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  trip_plan_id?: string;
-  staff_template_id?: string;
-  panchayat_id?: string;
-  waste_type_id?: string;
-  trip_plan?: {
-    unique_id?: string;
-    display_code?: string;
-    scheduled_time?: string;
-    zone?: NamedRef & { zone_name?: string };
-    panchayat?: NamedRef & { panchayat_name?: string };
-    ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
-  };
-  staff_template?: { unique_id?: string; display_code?: string };
-  effective_staff?: { unique_id?: string; display_code?: string } | null;
-  panchayat?: NamedRef & { panchayat_name?: string };
-  ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
-  zone?: NamedRef & { zone_name?: string };
-  waste_type?: NamedRef & { waste_type_name?: string };
-  trip_date?: string;
-  scheduled_time?: string;
-  status?: string;
-  remarks?: string | null;
-  [key: string]: unknown;
-};
-
-type FormState = {
-  trip_plan_id: string;
-  staff_template_id: string;
-  alt_staff_template_id: string;
-  zone_id: string;
-  panchayat_id: string;
-  ward_id: string;
-  waste_type_id: string;
-  trip_date: string;
-  scheduled_time: string;
-  status: string;
-  remarks: string;
-};
 
 // ─── Static options ───────────────────────────────────────────────────────────
 
@@ -183,7 +139,7 @@ export default function DailyTripAssignmentForm() {
   });
 
   const { encScheduleMasters, encDailyTripAssignment } = getEncryptedRoute();
-  const LIST_PATH = `/${encScheduleMasters}/${encDailyTripAssignment}`;
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encDailyTripAssignment);
 
   // ── Form & record state ───────────────────────────────────────────────────
   const [formData, setFormData] = useState<FormState>({
@@ -194,11 +150,16 @@ export default function DailyTripAssignmentForm() {
     panchayat_id: "",
     ward_id: "",
     waste_type_id: "",
+    household_waste_type_ids: [],
     trip_date: "",
     scheduled_time: "",
     status: "Scheduled",
     remarks: "",
   });
+
+  // collection-type flags derived from the selected trip plan
+  const [hasBinStops, setHasBinStops] = useState(true);
+  const [hasHouseholdStops, setHasHouseholdStops] = useState(false);
 
   const [recordData, setRecordData] = useState<DailyTripAssignmentRecord | null>(null);
   // Holds raw record until lookups are ready — avoids Radix Select blank-value bug
@@ -295,6 +256,14 @@ export default function DailyTripAssignmentForm() {
     const rec = pendingRecord;
     const tripPlanId = rec.trip_plan?.unique_id ?? String(rec.trip_plan_id ?? "");
     const plan = tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === tripPlanId);
+
+    // Restore collection type flags from the saved record
+    const ct = rec.collection_types;
+    const recHasBin = ct ? ct.has_bin : (rec.trip_plan?.has_bin ?? true);
+    const recHasHousehold = ct ? ct.has_household : (rec.trip_plan?.has_household ?? false);
+    setHasBinStops(recHasBin || (!recHasBin && !recHasHousehold));
+    setHasHouseholdStops(recHasHousehold);
+
     setFormData({
       trip_plan_id: tripPlanId,
       staff_template_id: rec.staff_template?.unique_id ?? String(rec.staff_template_id ?? ""),
@@ -303,6 +272,9 @@ export default function DailyTripAssignmentForm() {
       panchayat_id: rec.panchayat?.unique_id ?? String(rec.panchayat_id ?? ""),
       ward_id: getWardIdFromRecord(rec) || getWardIdFromRecord(plan),
       waste_type_id: (rec.waste_type as any)?.unique_id ?? String(rec.waste_type_id ?? ""),
+      household_waste_type_ids: (rec.household_waste_types ?? [])
+        .map((wt: any) => String(wt?.unique_id ?? ""))
+        .filter(Boolean),
       trip_date: rec.trip_date ?? "",
       scheduled_time: rec.scheduled_time ?? "",
       status: rec.status ?? "Scheduled",
@@ -313,6 +285,14 @@ export default function DailyTripAssignmentForm() {
 
   const handleTripPlanChange = (value: string) => {
     const plan = tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === value);
+
+    // Derive collection types from the plan's collection points
+    const stops: any[] = plan?.plan_collection_points ?? [];
+    const hasBin = stops.some((s: any) => s?.collection_type === "bin_collection");
+    const hasHousehold = stops.some((s: any) => s?.collection_type === "household_collection");
+    setHasBinStops(hasBin || (!hasBin && !hasHousehold)); // default to bin if unknown
+    setHasHouseholdStops(hasHousehold);
+
     setFormData((prev) => {
       const next = { ...prev, trip_plan_id: value };
       if (!plan) return next;
@@ -324,7 +304,7 @@ export default function DailyTripAssignmentForm() {
       const planZone = getZoneIdFromRecord(plan);
 
       if (planStaff) next.staff_template_id = planStaff;
-      if (planWaste) next.waste_type_id = planWaste;
+      if (planWaste && hasBin) next.waste_type_id = planWaste;
       if (planZone) next.zone_id = planZone;
       if (planPanchayat) {
         next.panchayat_id = planPanchayat;
@@ -420,22 +400,26 @@ export default function DailyTripAssignmentForm() {
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    const binWasteMissing = hasBinStops && !formData.waste_type_id;
+    const hhWasteMissing = hasHouseholdStops && formData.household_waste_type_ids.length === 0;
     if (!companyUniqueId || !projectId ||
       !formData.trip_plan_id || !formData.staff_template_id ||
       (!formData.panchayat_id && !formData.ward_id) ||
-      !formData.waste_type_id || !formData.trip_date || !formData.scheduled_time) {
+      binWasteMissing || hhWasteMissing ||
+      !formData.trip_date || !formData.scheduled_time) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       company_id_input: companyUniqueId,
       project_id_input: projectId,
       trip_plan_id: formData.trip_plan_id,
       staff_template_id: formData.staff_template_id,
       panchayat_id: formData.panchayat_id || undefined,
       ward_id: formData.ward_id || undefined,
-      waste_type_id: formData.waste_type_id,
+      waste_type_id: hasBinStops ? formData.waste_type_id : undefined,
+      household_waste_type_ids: hasHouseholdStops ? formData.household_waste_type_ids : [],
       trip_date: formData.trip_date,
       scheduled_time: formData.scheduled_time,
       status: formData.status,
@@ -642,17 +626,52 @@ export default function DailyTripAssignmentForm() {
               />
             </div>
 
-            {/* Waste Type */}
-            <div>
-              <Label>Waste Type <span className="text-red-500">*</span></Label>
-              <Select
-                value={formData.waste_type_id}
-                onChange={set("waste_type_id")}
-                options={resolvedWasteTypes}
-                placeholder="Select waste type"
-                disabled={fetching}
-              />
-            </div>
+            {/* Waste Type — single for bin, multi for household */}
+            {hasBinStops && (
+              <div>
+                <Label>
+                  Bin Collection Waste Type <span className="text-red-500">*</span>
+                </Label>
+                <Select
+                  value={formData.waste_type_id}
+                  onChange={set("waste_type_id")}
+                  options={resolvedWasteTypes}
+                  placeholder="Select waste type"
+                  disabled={fetching}
+                />
+              </div>
+            )}
+
+            {hasHouseholdStops && (
+              <div className={hasBinStops ? "" : "md:col-span-1"}>
+                <Label>
+                  Household Waste Types <span className="text-red-500">*</span>
+                  <span className="ml-1 text-xs font-normal text-gray-400">(select one or more)</span>
+                </Label>
+                <MultiSelect
+                  value={formData.household_waste_type_ids}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      household_waste_type_ids: Array.isArray(e.value) ? e.value.map(String) : [],
+                    }))
+                  }
+                  options={wasteTypes}
+                  optionLabel="label"
+                  optionValue="value"
+                  maxSelectedLabels={3}
+                  placeholder="Select waste types"
+                  disabled={fetching}
+                  className="!flex !h-10 !w-full !items-center !rounded-md !border !border-gray-300 !bg-white !px-3 !py-2 !text-sm !shadow-none focus:!ring-2 focus:!ring-blue-500 disabled:!opacity-50"
+                  pt={{
+                    labelContainer: { className: "!flex !flex-1 !items-center !overflow-hidden" },
+                    label: { className: "!m-0 !block !truncate !p-0 !text-sm !leading-5 !text-gray-900" },
+                    trigger: { className: "!ml-2 !flex !h-4 !w-4 !shrink-0 !items-center !justify-center !text-gray-500" },
+                    dropdownIcon: { className: "!h-4 !w-4 !opacity-50" },
+                  }}
+                />
+              </div>
+            )}
 
             {/* Status — edit only */}
             {isEdit && (

@@ -1,3 +1,4 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -92,7 +93,7 @@ const toRecordList = (value: unknown): Record<string, unknown>[] => {
 };
 
 const { encScheduleMasters, encCollectionPoints } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encScheduleMasters}/${encCollectionPoints}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encCollectionPoints);
 
 const COLLECTION_POINT_FIELDS: Record<string, string[]> = {
   state_id: ["state_id", "state"],

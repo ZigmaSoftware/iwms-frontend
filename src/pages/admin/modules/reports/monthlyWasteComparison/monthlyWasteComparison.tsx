@@ -1,8 +1,11 @@
+import type { ReportResponse, ReportRow } from "./types";
 import { useEffect, useMemo, useState } from "react";
 import "./monthlyWasteComparison.css";
 import { api } from "@/api";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
+import { recordExcelAudit } from "@/helpers/admin/commonAudit";
+import { getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { Download, Search } from "lucide-react";
 import {
   Bar,
@@ -22,39 +25,6 @@ import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
-type ReportRow = {
-  month: string;
-  panchayat_id: string;
-  panchayat_name?: string;
-  waste_type: string;
-  total_agreed_weight: number;
-  total_actual_weight: number;
-  variance_kg: number;
-  variance_percent: number;
-  report_status: "Surplus" | "Deficit" | "On Target" | string;
-  total_trips: number;
-  collection_points_covered: number;
-  collection_efficiency_percent: number;
-  coverage_efficiency_percent?: number;
-  average_weight_per_trip: number;
-};
-
-type ReportResponse = {
-  results: ReportRow[];
-  monthly_trends: Array<Record<string, number | string>>;
-  panchayat_comparison: Array<Record<string, number | string>>;
-  kpis: {
-    total_agreed_weight: number;
-    total_actual_weight: number;
-    variance_kg: number;
-    collection_efficiency_percent: number;
-    average_weight_per_trip: number;
-    coverage_efficiency_percent: number;
-    total_trips: number;
-    collection_points_covered: number;
-    report_status: string;
-  };
-};
 
 const initialKpis: ReportResponse["kpis"] = {
   total_agreed_weight: 0,
@@ -170,12 +140,17 @@ export default function MonthlyWasteComparison() {
   );
 
   const handleDownload = () => {
+    const filename = getAdminScreenExcelFilename("all");
+    recordExcelAudit("download_all_excel", {
+      file_name: filename,
+      row_count: exportRows.length,
+    });
     const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Monthly Waste Comparison");
     saveAs(
       new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })]),
-      `monthly-waste-comparison-${appliedMonth || "all-months"}.xlsx`,
+      filename,
     );
   };
 

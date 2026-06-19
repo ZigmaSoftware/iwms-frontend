@@ -1,67 +1,22 @@
+import type { HistoryRow, RawVehicle, TableFilters, TripData, VehicleOption, VisualStatus } from "./types";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, JSX } from "react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { recordExcelAudit } from "@/helpers/admin/commonAudit";
+import { getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import "./tripsummary.css";
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
-
-type RawVehicle = Record<string, any>;
-
-type VehicleOption = {
-  id: string;
-  label: string;
-};
-
-interface HistoryRow {
-  startTime: number;
-  endTime: number;
-  intLoc: string;
-  finLoc: string;
-  tripDistance: number;
-  position: string;
-  duration: number;
-  [key: string]: unknown;
-}
-
-interface TripData {
-  vehicleName?: string;
-  startOdo?: number;
-  endOdo?: number;
-  totalTripLength?: number;
-  moveCount?: number;
-  parkCount?: number;
-  idleCount?: number;
-  historyConsilated?: HistoryRow[];
-}
-
-type VisualStatus = "moving" | "parked" | "idle";
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  startTime?: { value: string | null; matchMode: FilterMatchMode };
-  endTime?: { value: string | null; matchMode: FilterMatchMode };
-  intLoc?: { value: string | null; matchMode: FilterMatchMode };
-  finLoc?: { value: string | null; matchMode: FilterMatchMode };
-  position?: { value: string | null; matchMode: FilterMatchMode };
-  duration?: { value: string | null; matchMode: FilterMatchMode };
-  tripDistance?: { value: string | null; matchMode: FilterMatchMode };
-  vehicleName?: { value: string | null; matchMode: FilterMatchMode };
-  startodo?: { value: string | null; matchMode: FilterMatchMode };
-  endodo?: { value: string | null; matchMode: FilterMatchMode };
-  totalTripLength?: { value: string | null; matchMode: FilterMatchMode };
-  moveCount?: { value: string | null; matchMode: FilterMatchMode };
-  parkCount?: { value: string | null; matchMode: FilterMatchMode };
-  idleCount?: { value: string | null; matchMode: FilterMatchMode };
-
-};
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
+import { buildTripSummaryUrl, buildVehicleTrackingUrl } from "@/config/gpsApiConfig";
 
 
 const STATUS_ICONS: Record<VisualStatus, JSX.Element> = {
@@ -157,23 +112,6 @@ const STATUS_ICONS: Record<VisualStatus, JSX.Element> = {
   ),
 };
 
-const TRACKING_API_URL =
-  "https://api.vamosys.com/mobile/getGrpDataForTrustedClients?providerName=BLUEPLANET&fcode=VAM";
-
-const FALLBACK_VEHICLES: VehicleOption[] = [
-  { id: "UP16KT1737", label: "UP16KT1737" },
-  { id: "UP16KT1738", label: "UP16KT1738" },
-  { id: "UP16KT1739", label: "UP16KT1739" },
-  { id: "UP16KT1740", label: "UP16KT1740" },
-  { id: "UP16KT1741", label: "UP16KT1741" },
-  { id: "UP16KT1742", label: "UP16KT1742" },
-  { id: "UP16KT1907", label: "UP16KT1907" },
-  { id: "UP16KT1908", label: "UP16KT1908" },
-  { id: "UP16KT1910", label: "UP16KT1910" },
-  { id: "UP16KT1911", label: "UP16KT1911" },
-  { id: "UP16KT1912", label: "UP16KT1912" },
-  { id: "UP16KT1913", label: "UP16KT1913" },
-];
 
 const pad = (value: number) => String(value).padStart(2, "0");
 const formatInput = (date: Date) =>
@@ -216,9 +154,15 @@ const normalizeVehicle = (record: RawVehicle): VehicleOption | null => {
 
 export default function TripSummary() {
   const { t } = useTranslation();
+  const { gpsVehicleTrackingApi, gpsTripSummaryApi, gpsProviderName, gpsFcode, gpsTripUserId } = useProjectSelector();
+  const TRACKING_API_URL = buildVehicleTrackingUrl(
+    { providerName: gpsProviderName, fcode: gpsFcode },
+    gpsVehicleTrackingApi
+  );
+  const TRIP_SUMMARY_API_URL = gpsTripSummaryApi;
   const initialRange = useMemo(() => computeInitialRange(), []);
-  const [vehicles, setVehicles] = useState<VehicleOption[]>(FALLBACK_VEHICLES);
-  const [vehicleId, setVehicleId] = useState(FALLBACK_VEHICLES[0].id);
+  const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
+  const [vehicleId, setVehicleId] = useState("");
   const [fromDate, setFromDate] = useState(() => formatInput(initialRange.from));
   const [toDate, setToDate] = useState(() => formatInput(initialRange.to));
   const [summary, setSummary] = useState<TripData | null>(null);
@@ -257,6 +201,7 @@ export default function TripSummary() {
     let aborted = false;
     const loadVehicles = async () => {
       try {
+        if (!TRACKING_API_URL) throw new Error("Tracking API not configured");
         const res = await fetch(TRACKING_API_URL);
         if (!res.ok) throw new Error(`Roster error (${res.status})`);
         const body = await res.json();
@@ -272,16 +217,16 @@ export default function TripSummary() {
             setVehicleId((prev) => (normalized.some((item) => item.id === prev) ? prev : normalized[0].id));
             setRosterError("");
           } else {
-            setVehicles(FALLBACK_VEHICLES);
-            setVehicleId(FALLBACK_VEHICLES[0].id);
+            setVehicles([]);
+            setVehicleId("");
             setRosterError("admin.reports.trip_summary.roster_no_live");
           }
         }
       } catch (error) {
         console.error("Trip summary roster failed:", error);
         if (!aborted) {
-          setVehicles(FALLBACK_VEHICLES);
-          setVehicleId(FALLBACK_VEHICLES[0].id);
+          setVehicles([]);
+          setVehicleId("");
           setRosterError("admin.reports.trip_summary.roster_unavailable");
         }
       } finally {
@@ -295,7 +240,7 @@ export default function TripSummary() {
     return () => {
       aborted = true;
     };
-  }, []);
+  }, [TRACKING_API_URL]);
 
   const fetchSummary = async (options?: {
     range?: { from: string; to: string };
@@ -324,7 +269,13 @@ export default function TripSummary() {
       const fromUTC = fromMs;
       const toUTC = toMs;
 
-      const apiUrl = `https://gpsvtsprobend.vamosys.com/v2/getTripSummary?vehicleId=${vehicleId}&fromDateUTC=${fromUTC}&toDateUTC=${toUTC}&userId=NMCP2DISPOSAL&duration=0`;
+      const apiUrl = buildTripSummaryUrl(
+        vehicleId,
+        fromUTC,
+        toUTC,
+        { userId: gpsTripUserId, duration: "0" },
+        TRIP_SUMMARY_API_URL
+      );
 
       const res = await fetch(apiUrl);
       if (!res.ok) throw new Error(`Trip summary error (${res.status})`);
@@ -398,7 +349,11 @@ export default function TripSummary() {
     );
     const wbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
     const blob = new Blob([wbout], { type: "application/octet-stream" });
-    const filename = `trip-summary-${vehicleId}-${Date.now()}.xlsx`;
+    const filename = getAdminScreenExcelFilename("all");
+    recordExcelAudit("download_all_excel", {
+      file_name: filename,
+      row_count: rows.length,
+    });
     saveAs(blob, filename);
   };
 
@@ -413,8 +368,21 @@ export default function TripSummary() {
   const displaySummary = summary ?? {};
   const historyRows = displaySummary.historyConsilated ?? [];
 
+  if (!TRACKING_API_URL || !TRIP_SUMMARY_API_URL) {
+    return (
+      <div className="trip-summary-shell">
+        <ProjectSelectorBar />
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <p className="text-base font-medium">GPS API not configured for this project.</p>
+          <p className="text-sm mt-1">Set a GPS API URL in the project settings to enable trip reports.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="trip-summary-shell">
+      <ProjectSelectorBar />
       <div className="trip-summary-container">
         <div className="trip-summary-header">
           <h3>{t("admin.reports.trip_summary.title")}</h3>

@@ -1,3 +1,6 @@
+import type { MainCategoryRecord, TableFilters } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -6,7 +9,6 @@ import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 
@@ -20,17 +22,6 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  main_categoryName: { value: string | null; matchMode: FilterMatchMode };
-};
-
-type MainCategoryRecord = {
-  unique_id: string | number;
-  main_categoryName?: string;
-  is_active: boolean;
-  [key: string]: unknown;
-};
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -70,9 +61,10 @@ export default function MainComplaintCategoryList() {
   const { encCitizenGrivence, encMainComplaintCategory } = getEncryptedRoute();
   const companyUniqueId = getCurrentCompanyUniqueId() ?? "";
 
-  const ENC_NEW_PATH = `/${encCitizenGrivence}/${encMainComplaintCategory}/new`;
-  const ENC_EDIT_PATH = (id: string) =>
-    `/${encCitizenGrivence}/${encMainComplaintCategory}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encCitizenGrivence,
+    encMainComplaintCategory,
+  );
 
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -183,19 +175,11 @@ export default function MainComplaintCategoryList() {
     setGlobalFilterValue(value);
   };
 
-  const header = (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.citizen_grievance.main_category.search_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
-    </div>
-  );
+  const header = renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("admin.citizen_grievance.main_category.search_placeholder"),
+    });
 
   return (
     <div className="p-6">

@@ -1,3 +1,5 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -5,7 +7,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 import { Switch } from "@/components/ui/switch";
@@ -82,8 +83,10 @@ export default function AreaTypeListPage() {
   const navigate = useNavigate();
   const { encMasters, encAreaTypes } = getEncryptedRoute();
 
-  const ENC_NEW_PATH = `/${encMasters}/${encAreaTypes}/new`;
-  const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encAreaTypes}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encMasters,
+    encAreaTypes,
+  );
 
   const records = areaTypes.filter((row) => {
     const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
@@ -128,21 +131,14 @@ export default function AreaTypeListPage() {
     setGlobalFilterValue(value);
   };
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder", {
-            item: t("admin.nav.area_type"),
-          })}
-          className="p-inputtext-sm !border-0 !shadow-none !outline-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("common.search_placeholder", {
+        item: t("admin.nav.area_type"),
+      }),
+    });
 
   const statusTemplate = (row: AreaTypeRecord) => {
     const updateStatus = async (value: boolean) => {

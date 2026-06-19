@@ -1,15 +1,21 @@
+import type { HistoryRow, RawVehicle, VehicleDistanceRow, VehicleOption } from "./types";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { recordExcelAudit } from "@/helpers/admin/commonAudit";
+import { getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 import "./monthlydistance.css";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 import { Truck } from "lucide-react";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
+import { buildTripSummaryUrl, buildVehicleTrackingUrl } from "@/config/gpsApiConfig";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -17,31 +23,11 @@ import "primeicons/primeicons.css";
 
 /* ================= TYPES ================= */
 
-type RawVehicle = Record<string, any>;
-type VehicleOption = { id: string; label: string };
-
-type HistoryRow = {
-  startTime?: number | string;
-  endTime?: number | string;
-  tripDistance?: number | string;
-};
-
-type VehicleDistanceRow = {
-  vehicleId: string;
-  vehicleName: string;
-  distances: Record<string, number>;
-  total: number;
-};
 
 /* ================= CONSTANTS ================= */
 
-const TRACKING_API_URL =
-  "https://api.vamosys.com/mobile/getGrpDataForTrustedClients?providerName=BLUEPLANET&fcode=VAM";
-
-const TRIP_SUMMARY_ENDPOINT =
-  "https://gpsvtsprobend.vamosys.com/v2/getTripSummary";
-
-const TRIP_SUMMARY_USER_ID = "NMCP2DISPOSAL";
+// Note: API endpoints are now loaded from project configuration
+// Fallback vehicles for when roster API is unavailable
 
 const FALLBACK_VEHICLES: VehicleOption[] = [
   { id: "UP16KT1737", label: "UP16KT1737" },
@@ -50,6 +36,7 @@ const FALLBACK_VEHICLES: VehicleOption[] = [
 ];
 
 const CHUNK_SIZE = 6;
+
 
 /* ================= DATE HELPERS ================= */
 
@@ -127,6 +114,12 @@ const runWithConcurrency = async <T,>(
 
 export default function MonthlyDistance() {
   const { t, i18n } = useTranslation();
+  const { gpsVehicleTrackingApi, gpsTripSummaryApi, gpsProviderName, gpsFcode, gpsTripUserId } = useProjectSelector();
+  const TRACKING_API_URL = buildVehicleTrackingUrl(
+    { providerName: gpsProviderName, fcode: gpsFcode },
+    gpsVehicleTrackingApi
+  );
+  const TRIP_SUMMARY_API_URL = gpsTripSummaryApi;
   const [vehicles, setVehicles] = useState<VehicleOption[]>(FALLBACK_VEHICLES);
   const [monthInput, setMonthInput] = useState(formatMonthInput(new Date()));
   const [selectedMonth, setSelectedMonth] = useState(monthInput);
@@ -170,6 +163,13 @@ export default function MonthlyDistance() {
 
   useEffect(() => {
     setLoadingVehicles(true);
+    if (!TRACKING_API_URL) {
+      setVehicles(FALLBACK_VEHICLES);
+      setRosterError("admin.reports.monthly_distance.error_unavailable");
+      setLoadingVehicles(false);
+      return;
+    }
+
     fetch(TRACKING_API_URL)
       .then((r) => r.json())
       .then((res) => {
@@ -193,7 +193,7 @@ export default function MonthlyDistance() {
       .finally(() => {
         setLoadingVehicles(false);
       });
-  }, []);
+  }, [TRACKING_API_URL]);
 
   /* ================= FETCH MONTH DATA (FAST) ================= */
 
@@ -238,7 +238,13 @@ export default function MonthlyDistance() {
         }
 
         try {
-          const url = `${TRIP_SUMMARY_ENDPOINT}?vehicleId=${v.id}&fromDateUTC=${from}&toDateUTC=${to}&userId=${TRIP_SUMMARY_USER_ID}&duration=0`;
+          const url = buildTripSummaryUrl(
+            v.id,
+            from,
+            to,
+            { userId: gpsTripUserId, duration: "0" },
+            TRIP_SUMMARY_API_URL
+          );
           const res = await fetch(url);
           const json = await res.json();
 
@@ -280,7 +286,7 @@ export default function MonthlyDistance() {
         setLoadingFleet(false);
       }
     }
-  }, [vehicles, monthDays, selectedMonth]);
+  }, [vehicles, monthDays, selectedMonth, TRIP_SUMMARY_API_URL, gpsTripUserId]);
 
   useEffect(() => {
     fetchFleetData();
@@ -294,19 +300,12 @@ export default function MonthlyDistance() {
     setGlobalFilterValue(value);
   };
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.reports.monthly_distance.search_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("admin.reports.monthly_distance.search_placeholder"),
+    });
 
   /* ================= EXPORT ================= */
   const exportLabels = useMemo(
@@ -336,18 +335,35 @@ export default function MonthlyDistance() {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, exportLabels.sheetName);
+    const filename = getAdminScreenExcelFilename("all");
+    recordExcelAudit("download_all_excel", {
+      file_name: filename,
+      row_count: data.length,
+    });
 
     saveAs(
       new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })]),
-      `${exportLabels.filePrefix}-${selectedMonth}.xlsx`
+      filename
     );
   };
 
   /* ================= UI ================= */
 
+  if (!TRACKING_API_URL || !TRIP_SUMMARY_API_URL) {
+    return (
+      <div className="p-3">
+        <ProjectSelectorBar />
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <p className="text-base font-medium">GPS API not configured for this project.</p>
+          <p className="text-sm mt-1">Set a GPS API URL in the project settings to enable distance reports.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-3">
-
+      <ProjectSelectorBar />
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold">

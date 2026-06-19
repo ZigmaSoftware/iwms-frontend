@@ -1,3 +1,5 @@
+import type { SupervisorZoneAccessAuditRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -10,16 +12,6 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 
-type SupervisorZoneAccessAuditRecord = {
-  unique_id: string;
-  supervisor_id: string;
-  performed_by: string;
-  performed_role?: string | null;
-  old_zone_ids?: Array<number | string> | null;
-  new_zone_ids?: Array<number | string> | null;
-  remarks?: string | null;
-  created_at?: string | null;
-};
 
 const buildLookup = (items: any[], key: string, label: string) =>
   items.reduce<Record<string, string>>((acc, item) => {
@@ -45,7 +37,7 @@ export default function SupervisorZoneAccessAuditForm() {
   const [userLookup, setUserLookup] = useState<Record<string, string>>({});
 
   const { encStaffMasters, encSupervisorZoneAccessAudit } = getEncryptedRoute();
-  const ENC_LIST_PATH = `/${encStaffMasters}/${encSupervisorZoneAccessAudit}`;
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encStaffMasters, encSupervisorZoneAccessAudit);
 
   useEffect(() => {
     if (!id) return;

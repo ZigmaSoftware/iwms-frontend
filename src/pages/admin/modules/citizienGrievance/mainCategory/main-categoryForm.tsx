@@ -1,3 +1,5 @@
+import type { MainCategoryEditorProps, MainCategoryPayload } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -19,22 +21,10 @@ import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
 
-type MainCategoryPayload = {
-  main_categoryName?: string;
-  is_active: boolean;
-  company_id?: string;
-};
 
 const { encCitizenGrivence, encMainComplaintCategory } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encCitizenGrivence}/${encMainComplaintCategory}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCitizenGrivence, encMainComplaintCategory);
 
-type MainCategoryEditorProps = {
-  initialPayload: MainCategoryPayload;
-  isEdit: boolean;
-  isSubmitting: boolean;
-  onCancel: () => void;
-  onSubmit: (payload: MainCategoryPayload) => Promise<void>;
-};
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;

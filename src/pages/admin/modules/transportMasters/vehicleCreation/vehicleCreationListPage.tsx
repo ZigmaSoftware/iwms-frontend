@@ -1,3 +1,5 @@
+import type { VehicleCreationRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -22,38 +24,16 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { vehicleCreationApi } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
+import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import {
   excelFileToCsvFile,
   exportTemplateToExcel,
+  getAdminScreenExcelFilename,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type VehicleCreationRecord = {
-  unique_id: string;
-  vehicle_no: string;
-  vehicle_type_id?: string | null;
-  fuel_type_id?: string | null;
-  vehicle_type_name?: string | null;
-  fuel_type_name?: string | null;
-  capacity?: string | null;
-  mileage_per_liter?: string | null;
-  service_record?: string | null;
-  vehicle_insurance?: string | null;
-  insurance_expiry_date?: string | null;
-  vehicle_condition?: "NEW" | "SECOND_HAND" | string | null;
-  fuel_tank_capacity?: string | null;
-  rc_upload?: string | null;
-  vehicle_insurance_file?: string | null;
-  is_active: boolean;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-};
 
 const VEHICLE_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   vehicle_no: ["vehicle_no", "vehicle"],
@@ -175,9 +155,10 @@ export default function VehicleCreationListPage() {
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encTransportMaster}/${encVehicleCreation}/new`;
-  const ENC_EDIT_PATH = (id: string | number) =>
-    `/${encTransportMaster}/${encVehicleCreation}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encTransportMaster,
+    encVehicleCreation,
+  );
 
   // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -249,7 +230,7 @@ export default function VehicleCreationListPage() {
   const downloadVehicleTemplate = () => {
     exportTemplateToExcel(
       VEHICLE_BULK_TEMPLATE_COLUMNS,
-      "vehicle_bulk_template.xlsx",
+      getAdminScreenExcelFilename("template"),
       "Vehicles",
     );
   };
@@ -276,6 +257,12 @@ export default function VehicleCreationListPage() {
       );
 
       const errors = Array.isArray(res.errors) ? res.errors : [];
+      recordExcelAudit("upload_excel", {
+        file_name: file.name,
+        status: "completed",
+        success_count: Number(res.success_count ?? 0),
+        error_count: errors.length,
+      });
       const errorPreview =
         errors.length > 0
           ? `<hr/><div class="text-left text-xs mt-2">${errors
@@ -299,6 +286,10 @@ export default function VehicleCreationListPage() {
       setRefetchTrigger((prev) => prev + 1);
     } catch (err) {
       console.error("Vehicle bulk upload failed:", err);
+      recordExcelAudit("upload_excel", {
+        file_name: file.name,
+        status: "failed",
+      });
       Swal.fire("Error", "Upload failed", "error");
     } finally {
       event.target.value = "";

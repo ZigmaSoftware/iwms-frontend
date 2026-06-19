@@ -1,3 +1,6 @@
+import type { FeedbackRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -8,7 +11,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
@@ -19,23 +21,6 @@ import { adminApi } from "@/helpers/admin/registry";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type FeedbackRecord = {
-  unique_id: string;
-  customer?: string;
-  customer_id?: string | number;
-  customer_unique_id?: string;
-  customer_name?: string;
-  category?: string;
-  feedback_details?: string;
-  zone_name?: string;
-  city_name?: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -54,8 +39,10 @@ export default function FeedBackFormList() {
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
   const { encCitizenGrivence, encFeedback } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encCitizenGrivence}/${encFeedback}/new`;
-  const ENC_EDIT_PATH = (id: string) => `/${encCitizenGrivence}/${encFeedback}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encCitizenGrivence,
+    encFeedback,
+  );
 
   const {
     companyUniqueId, projectId, projects, companies,
@@ -142,19 +129,12 @@ export default function FeedBackFormList() {
 
   const indexTemplate = (_: FeedbackRecord, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.citizen_grievance.feedback.search_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none !outline-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("admin.citizen_grievance.feedback.search_placeholder"),
+    });
 
   return (
     <div className="p-3">

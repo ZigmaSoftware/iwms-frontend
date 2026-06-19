@@ -1,3 +1,6 @@
+import type { WasteCollection } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -8,7 +11,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
@@ -20,32 +22,6 @@ import { adminApi } from "@/helpers/admin/registry";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type WasteCollection = {
-  unique_id: string;
-  customer: string;
-  customer_id?: string | number;
-  customer_unique_id?: string;
-  customer_name: string;
-  contact_no?: string;
-  building_no?: string;
-  zone_name?: string;
-  city_name?: string;
-  street?: string;
-  area?: string;
-  wet_waste: number;
-  dry_waste: number;
-  mixed_waste: number;
-  total_quantity: number;
-  collection_date?: string;
-  collection_time?: string;
-  is_active: boolean;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -64,8 +40,10 @@ export default function WasteCollectedDataList() {
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
   const { encWasteManagementMaster, encWasteCollectedData } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encWasteManagementMaster}/${encWasteCollectedData}/new`;
-  const ENC_EDIT_PATH = (id: string) => `/${encWasteManagementMaster}/${encWasteCollectedData}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encWasteManagementMaster,
+    encWasteCollectedData,
+  );
 
   const {
     companyUniqueId, projectId, projects, companies,
@@ -84,6 +62,8 @@ export default function WasteCollectedDataList() {
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     customer_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     zone_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    ward_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    panchayat_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     city_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     company_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     project_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -170,19 +150,12 @@ export default function WasteCollectedDataList() {
 
   const indexTemplate = (_: WasteCollection, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.waste_collected_data.search_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none !outline-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: t("admin.waste_collected_data.search_placeholder"),
+    });
 
   return (
     <div className="p-3">
@@ -224,7 +197,6 @@ export default function WasteCollectedDataList() {
             label={t("admin.waste_collected_data.add_new")}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
@@ -244,13 +216,13 @@ export default function WasteCollectedDataList() {
         showGridlines
         emptyMessage={t("admin.waste_collected_data.empty_message")}
         className="p-datatable-sm"
-        globalFilterFields={["customer_name", "zone_name", "city_name", "company_name", "project_name"]}
+        globalFilterFields={["customer_name", "zone_name", "ward_name", "panchayat_name", "city_name", "company_name", "project_name"]}
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "60px" }} />
         <Column
           field="customer_name"
           header={t("admin.waste_collected_data.customer_name")}
-          body={(row: WasteCollection) => cap(row.customer_name)}
+          body={(row: WasteCollection) => cap(row.customer_name) || "-"}
           sortable filter showFilterMatchModes={false}
         />
         <Column
@@ -276,13 +248,25 @@ export default function WasteCollectedDataList() {
         <Column
           field="zone_name"
           header={t("common.zone")}
-          body={(row: WasteCollection) => cap(row.zone_name)}
+          body={(row: WasteCollection) => cap(row.zone_name) || "-"}
+          sortable filter showFilterMatchModes={false}
+        />
+        <Column
+          field="ward_name"
+          header={t("common.ward")}
+          body={(row: WasteCollection) => cap(row.ward_name) || "-"}
+          sortable filter showFilterMatchModes={false}
+        />
+        <Column
+          field="panchayat_name"
+          header={t("admin.nav.panchayat")}
+          body={(row: WasteCollection) => cap(row.panchayat_name) || "-"}
           sortable filter showFilterMatchModes={false}
         />
         <Column
           field="city_name"
           header={t("common.city")}
-          body={(row: WasteCollection) => cap(row.city_name)}
+          body={(row: WasteCollection) => cap(row.city_name) || "-"}
           sortable filter showFilterMatchModes={false}
         />
         <Column

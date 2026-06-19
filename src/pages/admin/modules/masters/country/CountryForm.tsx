@@ -1,3 +1,4 @@
+import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -22,7 +23,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { continentApi, countryApi } from "@/helpers/admin";
 
 const { encMasters, encCountries } = getEncryptedRoute();
-const ENC_LIST_PATH = `/${encMasters}/${encCountries}`;
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encCountries);
 
 const COUNTRY_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],

@@ -1,3 +1,8 @@
+import type { TripPlanRecord } from "./types";
+import type { DailyTripAssignmentRecord } from "./types";
+import type { CollectionTypeKey } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -8,7 +13,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
@@ -21,49 +25,6 @@ import { normalizeList } from "@/utils/forms";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type NamedRef = { unique_id?: string; name?: string; [key: string]: unknown };
-
-type DailyTripAssignmentRecord = {
-  unique_id: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  trip_plan_id?: string;
-  staff_template_id?: string;
-  panchayat_id?: string;
-  ward_id?: string;
-  waste_type_id?: string;
-  trip_plan?: {
-    unique_id?: string;
-    display_code?: string;
-    zone?: NamedRef & { zone_name?: string };
-    panchayat?: NamedRef & { panchayat_name?: string };
-    ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
-  };
-  staff_template?: { unique_id?: string; display_code?: string };
-  effective_staff?: { unique_id?: string; display_code?: string } | null;
-  panchayat?: NamedRef & { panchayat_name?: string };
-  ward?: NamedRef & { ward_name?: string };
-  waste_type?: NamedRef & { waste_type_name?: string };
-  trip_date?: string;
-  scheduled_time?: string;
-  status?: string;
-  remarks?: string | null;
-  [key: string]: unknown;
-};
-
-type TripPlanRecord = {
-  unique_id?: string;
-  id?: string;
-  zone_id?: unknown;
-  ward_id?: unknown;
-  panchayat_id?: unknown;
-  zone?: NamedRef & { zone_name?: string };
-  ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
-  panchayat?: NamedRef & { panchayat_name?: string };
-  [key: string]: unknown;
-};
 
 // ─── Badge helpers ────────────────────────────────────────────────────────────
 
@@ -79,6 +40,41 @@ const Badge = ({ value, styleMap }: { value?: string; styleMap: Record<string, s
     {value ?? "—"}
   </span>
 );
+
+
+const COLLECTION_TYPE_STYLES: Record<CollectionTypeKey, string> = {
+  bin:       "bg-blue-100 text-blue-800",
+  household: "bg-green-100 text-green-800",
+  both:      "bg-purple-100 text-purple-800",
+  unknown:   "bg-gray-100 text-gray-500",
+};
+
+const COLLECTION_TYPE_LABELS: Record<CollectionTypeKey, string> = {
+  bin:       "Bin Collection",
+  household: "Household",
+  both:      "Bin + Household",
+  unknown:   "Unknown",
+};
+
+const getCollectionTypeKey = (rec: DailyTripAssignmentRecord): CollectionTypeKey => {
+  const ct = rec.collection_types ?? {
+    has_bin:       rec.trip_plan?.has_bin  ?? false,
+    has_household: rec.trip_plan?.has_household ?? false,
+  };
+  if (ct.has_bin && ct.has_household) return "both";
+  if (ct.has_bin)       return "bin";
+  if (ct.has_household) return "household";
+  return "unknown";
+};
+
+const CollectionTypeBadge = ({ rec }: { rec: DailyTripAssignmentRecord }) => {
+  const key = getCollectionTypeKey(rec);
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${COLLECTION_TYPE_STYLES[key]}`}>
+      {COLLECTION_TYPE_LABELS[key]}
+    </span>
+  );
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -151,8 +147,10 @@ export default function DailyTripAssignmentList() {
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
   const { encScheduleMasters, encDailyTripAssignment } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encScheduleMasters}/${encDailyTripAssignment}/new`;
-  const ENC_EDIT_PATH = (id: string) => `/${encScheduleMasters}/${encDailyTripAssignment}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encScheduleMasters,
+    encDailyTripAssignment,
+  );
 
   const {
     companyUniqueId, projectId, projects, companies,
@@ -167,6 +165,7 @@ export default function DailyTripAssignmentList() {
   const [allAssignments, setAllAssignments] = useState<DailyTripAssignmentRecord[]>([]);
   const [tripPlanLookup, setTripPlanLookup] = useState<Record<string, TripPlanRecord>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | CollectionTypeKey>("all");
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -212,7 +211,10 @@ export default function DailyTripAssignmentList() {
       .filter((row) => {
         const rc = normalizeId(row.company_id ?? row.company_unique_id);
         const rp = normalizeId(row.project_id ?? row.project_unique_id);
-        return (!companyUniqueId || rc === companyUniqueId) && (!projectId || rp === projectId);
+        if (!(!companyUniqueId || rc === companyUniqueId)) return false;
+        if (!(!projectId || rp === projectId)) return false;
+        if (collectionTypeFilter !== "all" && getCollectionTypeKey(row) !== collectionTypeFilter) return false;
+        return true;
       })
       .map((rec) => ({
         ...rec,
@@ -220,6 +222,7 @@ export default function DailyTripAssignmentList() {
         _staff: rec.effective_staff?.display_code ?? rec.staff_template?.display_code ?? rec.staff_template_id ?? "",
         _location: rec.panchayat?.panchayat_name ?? (rec.ward as any)?.ward_name ?? rec.panchayat_id ?? rec.ward_id ?? "",
         _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
+        _collection_type: getCollectionTypeKey(rec),
       }));
   })();
 
@@ -259,19 +262,12 @@ export default function DailyTripAssignmentList() {
     );
   };
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder="Search assignments..."
-          className="p-inputtext-sm !border-0 !shadow-none !outline-none"
-        />
-      </div>
-    </div>
-  );
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: "Search assignments...",
+    });
 
   return (
     <div className="p-3">
@@ -303,6 +299,17 @@ export default function DailyTripAssignmentList() {
             {projects.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}
+          </select>
+
+          <select
+            value={collectionTypeFilter}
+            onChange={(e) => setCollectionTypeFilter(e.target.value as "all" | CollectionTypeKey)}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="all">All Types</option>
+            <option value="bin">Bin Collection</option>
+            <option value="household">Household</option>
+            <option value="both">Bin + Household</option>
           </select>
 
           <Button
@@ -387,10 +394,16 @@ export default function DailyTripAssignmentList() {
             return <span className="text-sm text-gray-400">—</span>;
           }}
         />
-        <Column
+        {/* <Column
           field="_waste"
           header="Waste Type"
           body={(row: DailyTripAssignmentRecord) => (row.waste_type as any)?.waste_type_name ?? row.waste_type_id ?? "—"}
+        /> */}
+        <Column
+          field="_collection_type"
+          header="Collection Type"
+          body={(row: DailyTripAssignmentRecord) => <CollectionTypeBadge rec={row} />}
+          style={{ minWidth: 150 }}
         />
         <Column field="trip_date" header="Trip Date" filter showFilterMatchModes={false} style={{ minWidth: 110 }} />
         <Column field="scheduled_time" header="Scheduled Time" style={{ minWidth: 110 }} />

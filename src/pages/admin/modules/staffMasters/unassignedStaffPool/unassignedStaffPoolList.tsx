@@ -1,3 +1,5 @@
+import type { TableFilters, UnassignedStaffPoolRecord } from "./types";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -34,39 +36,6 @@ const UNASSIGNED_STAFF_POOL_COLUMN_FIELDS: Record<string, string[]> = {
   created_at: ["created_at"],
 };
 
-type UnassignedStaffPoolRecord = {
-  id: number;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-  operator_id?: string | null;
-  driver_id?: string | null;
-  zone_id: string;
-  ward_id: string;
-  status: string;
-  daily_trip_assignment_id?: string | null;
-  created_at?: string | null;
-  // Enriched name fields for filtering
-  _operator_name?: string;
-  _driver_name?: string;
-  _zone_name?: string;
-  _ward_name?: string;
-  _daily_trip_assignment_name?: string;
-  [key: string]: unknown;
-};
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  status: { value: string | null; matchMode: FilterMatchMode };
-  _operator_name: { value: string | null; matchMode: FilterMatchMode };
-  _driver_name: { value: string | null; matchMode: FilterMatchMode };
-  _zone_name: { value: string | null; matchMode: FilterMatchMode };
-  _ward_name: { value: string | null; matchMode: FilterMatchMode };
-  _daily_trip_assignment_name: { value: string | null; matchMode: FilterMatchMode };
-};
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -150,9 +119,10 @@ export default function UnassignedStaffPoolList() {
   });
 
   const { encStaffMasters, encUnassignedStaffPool } = getEncryptedRoute();
-  const ENC_NEW_PATH = `/${encStaffMasters}/${encUnassignedStaffPool}/new`;
-  const ENC_EDIT_PATH = (id: number) =>
-    `/${encStaffMasters}/${encUnassignedStaffPool}/${id}/edit`;
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+    encStaffMasters,
+    encUnassignedStaffPool,
+  );
 
   useEffect(() => {
     let mounted = true;

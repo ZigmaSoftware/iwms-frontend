@@ -1,3 +1,5 @@
+import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -19,12 +21,10 @@ import { wasteTypeApi, districtApi, cityApi, panchayatApi, zoneApi, wardApi, col
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { encryptSegment } from "@/utils/routeCrypto";
 import type { BinRecord, CityOption, CollectionPointOption, LocationOption, WardOption } from "./types";
 
-const encMasters = encryptSegment("masters");
-const encBins = encryptSegment("bins");
-const LIST_PATH = `/${encMasters}/${encBins}`;
+const { encMasters, encBins } = getEncryptedRoute();
+const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encBins);
 
 const BIN_FIELDS: Record<string, string[]> = {
   district_id: ["district_id", "district"],

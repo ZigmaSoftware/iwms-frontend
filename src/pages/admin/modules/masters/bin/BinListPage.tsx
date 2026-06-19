@@ -1,9 +1,11 @@
+import type { Bin, BinApiRow, TableFilters } from "./types";
+import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -14,59 +16,19 @@ import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
 import { Switch } from "@/components/ui/switch";
-import { encryptSegment } from "@/utils/routeCrypto";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { PencilIcon } from "@/icons";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { binApi } from "@/helpers/admin";
 
-type Bin = {
-  unique_id: string;
-  bin_name: string;
-  bin_capacity: number;
-  bin_qr?: string | null;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
-  panchayat_name?: string;
-  panchayat?: string;
-  ward_name: string;
-  ward?: string;
-  bin_type?: string;
-  waste_type_name?: string;
-  wastetype_name?: string;
-  waste_type?: string;
-  bin_status?: string;
-  latitude?: number | string;
-  longitude?: number | string;
-  is_active: boolean;
-};
 
-type BinApiRow = Record<string, unknown> & {
-  unique_id?: string | number;
-  is_active?: boolean;
-  bin_status?: string | number | null;
-  bin_qr?: string | null;
-};
-
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  bin_name: { value: string | null; matchMode: FilterMatchMode };
-  bin_capacity: { value: string | null; matchMode: FilterMatchMode };
-  ward_name: { value: string | null; matchMode: FilterMatchMode };
-  panchayat_name: { value: string | null; matchMode: FilterMatchMode };
-  waste_type_name: { value: string | null; matchMode: FilterMatchMode };
-  company_name?: { value: string | null; matchMode: FilterMatchMode };
-  project_name?: { value: string | null; matchMode: FilterMatchMode };
-};
-
-const encMasters = encryptSegment("masters");
-const encBins = encryptSegment("bins");
-const ENC_NEW_PATH = `/${encMasters}/${encBins}/new`;
-const ENC_EDIT_PATH = (id: string) => `/${encMasters}/${encBins}/${id}/edit`;
+const { encMasters, encBins } = getEncryptedRoute();
+const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
+  encMasters,
+  encBins,
+);
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -85,6 +47,7 @@ export default function BinList() {
   const { t } = useTranslation();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [selectedQr, setSelectedQr] = useState<string | null>(null);
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
@@ -260,29 +223,11 @@ export default function BinList() {
 
   const indexTemplate = (_: Bin, options: { rowIndex: number }) => options.rowIndex + 1;
 
-  const header = (
-    <div className="flex justify-end">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder", { item: t("admin.nav.bin_master") })}
-          className="p-inputtext-sm border-0 shadow-none"
-        />
-      </div>
-    </div>
-  );
-
-  const openQrPopup = (qrUrl: string) => {
-    Swal.fire({
-      title: t("admin.bin.qr_title"),
-      html: `<div class="flex justify-center">
-              <img src="${qrUrl}" style="width:200px;height:200px;" />
-            </div>`,
-      width: 350,
-    });
-  };
+  const header = renderListSearchHeader({
+    value: globalFilterValue,
+    onChange: onGlobalFilterChange,
+    placeholder: t("common.search_placeholder", { item: t("admin.nav.bin_master") }),
+  });
 
   const qrTemplate = (bin: Bin) => {
     if (!bin.bin_qr) {
@@ -291,7 +236,7 @@ export default function BinList() {
     return (
       <button
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
-        onClick={() => openQrPopup(bin.bin_qr!)}
+        onClick={() => setSelectedQr(bin.bin_qr!)}
         title={t("admin.bin.qr_show")}
       >
         <img src={bin.bin_qr} alt="QR" className="w-12 h-12 object-contain" />
@@ -457,6 +402,19 @@ export default function BinList() {
           style={{ width: "150px", textAlign: "center" }}
         />
       </DataTable>
+
+      <Dialog open={Boolean(selectedQr)} onOpenChange={(open) => !open && setSelectedQr(null)}>
+        <DialogContent className="w-auto max-w-[90vw] p-4">
+          <DialogTitle className="sr-only">{t("admin.bin.qr_title")}</DialogTitle>
+          {selectedQr && (
+            <img
+              src={selectedQr}
+              alt={t("admin.bin.qr_title")}
+              className="h-auto w-[min(75vw,320px)] object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

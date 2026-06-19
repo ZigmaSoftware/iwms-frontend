@@ -1,3 +1,4 @@
+import type { HistoryPopupLabels, RawRecord, StatusKey, TrackPoint, VehicleOption } from "./types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import L from "leaflet";
@@ -5,39 +6,12 @@ import type { LatLngTuple } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./vehiclehistory.css";
 import "../../../../../components/map/adminMapPanel.css";
-import { FiCalendar, FiAlertTriangle } from "react-icons/fi";
+
 import { useTranslation } from "react-i18next";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
+import { buildUrlWithParams, buildVehicleTrackingUrl } from "@/config/gpsApiConfig";
 
-type RawRecord = Record<string, any>;
-type StatusKey = "running" | "idle" | "stopped" | "no_data";
-
-type VehicleOption = {
-  id: string;
-  label: string;
-  status: StatusKey;
-  lat: number;
-  lng: number;
-};
-
-type TrackPoint = {
-  lat: number;
-  lng: number;
-  speedKmph: number;
-  statusKey: StatusKey;
-  statusLabel: string;
-  address: string;
-  timestamp: string;
-};
-
-const TRACKING_API_URL =
-  "https://api.vamosys.com/mobile/getGrpDataForTrustedClients?providerName=BLUEPLANET&fcode=VAM";
-
-const HISTORY_API_BASE =
-  import.meta.env.VITE_VEHICLE_HISTORY_API ??
-  "https://api.vamosys.com/getVehicleHistory";
-
-const HISTORY_PROXY_TEMPLATES =
-  import.meta.env.VITE_VEHICLE_HISTORY_PROXY ?? "";
 
 const HISTORY_DEFAULT_PROXIES = [
   "https://cors.isomorphic-git.org/{url}",
@@ -45,17 +19,6 @@ const HISTORY_DEFAULT_PROXIES = [
   "https://corsproxy.io/?",
 ];
 
-const HISTORY_DEFAULT_PARAMS = {
-  userId: "BLUEPLANET",
-  groupName: "BLUEPLANET:VAM",
-  interval: "-1",
-} as const;
-
-const FALLBACK_VEHICLES: VehicleOption[] = [
-  { id: "UP16KT1737", label: "UP16KT1737", status: "running", lat: 28.63, lng: 77.21 },
-  { id: "UP16KT1738", label: "UP16KT1738", status: "idle", lat: 28.71, lng: 77.05 },
-  { id: "UP16KT1739", label: "UP16KT1739", status: "stopped", lat: 28.48, lng: 77.01 }
-];
 
 const STATUS_META: Record<StatusKey, { labelKey: string; color: string }> = {
   running: { labelKey: "dashboard.live_map.status_running", color: "#22c55e" },
@@ -104,12 +67,6 @@ const firstArray = (candidates: any[]): any[] => {
   return [];
 };
 
-const parseProxyList = (raw: string) =>
-  raw
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-
 const formatProxyUrl = (template: string, target: string) => {
   const encoded = encodeURIComponent(target);
   if (/\{url\}/i.test(template)) {
@@ -125,9 +82,7 @@ const formatProxyUrl = (template: string, target: string) => {
 };
 
 const buildHistoryUrls = (baseUrl: string): string[] => {
-  const proxies = parseProxyList(HISTORY_PROXY_TEMPLATES);
-  const templates =
-    proxies.length > 0 ? proxies : HISTORY_DEFAULT_PROXIES;
+  const templates = HISTORY_DEFAULT_PROXIES;
   const proxyUrls = templates.map((tpl) => formatProxyUrl(tpl, baseUrl));
   return [baseUrl, ...proxyUrls];
 };
@@ -201,12 +156,6 @@ const createHistoryIcon = (status: StatusKey, isFocused: boolean) => {
   });
 };
 
-type HistoryPopupLabels = {
-  title: string;
-  status: string;
-  speed: string;
-  unit: string;
-};
 
 const buildHistoryPopup = (
   labels: HistoryPopupLabels,
@@ -300,8 +249,26 @@ function normalizeHistory(rec: RawRecord[]) {
 
 export default function VehicleHistory(): JSX.Element {
   const { t, i18n } = useTranslation();
-  const [vehicles, setVehicles] = useState<VehicleOption[]>(FALLBACK_VEHICLES);
-  const [vehicleId, setVehicleId] = useState(FALLBACK_VEHICLES[0].id);
+  const {
+    gpsVehicleHistoryApi,
+    gpsVehicleTrackingApi,
+    gpsUserId,
+    gpsGroupName,
+    gpsProviderName,
+    gpsFcode,
+  } = useProjectSelector();
+  const TRACKING_API_URL = buildVehicleTrackingUrl(
+    { providerName: gpsProviderName, fcode: gpsFcode },
+    gpsVehicleTrackingApi
+  );
+  const HISTORY_API_BASE = gpsVehicleHistoryApi;
+  const HISTORY_DEFAULT_PARAMS = {
+    userId: gpsUserId,
+    groupName: gpsGroupName,
+    interval: "-1",
+  };
+  const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
+  const [vehicleId, setVehicleId] = useState("");
   const [track, setTrack] = useState<TrackPoint[]>([]);
   const [historyError, setHistoryError] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
@@ -309,8 +276,8 @@ export default function VehicleHistory(): JSX.Element {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackIndex, setPlaybackIndex] = useState(0);
 
-  // NEW SPEED STATE
-  const [playbackSpeed, setPlaybackSpeed] = useState(2); // default 2x
+  // CHANGED: default speed is 1x (normal)
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
   const initialTo = new Date();
   const initialFrom = new Date(initialTo.getTime() - 6 * 60 * 60 * 1000);
@@ -335,12 +302,16 @@ export default function VehicleHistory(): JSX.Element {
   useEffect(() => {
     const load = async () => {
       try {
+        if (!TRACKING_API_URL) {
+          setVehicles([]);
+          return;
+        }
         const res = await fetch(TRACKING_API_URL);
         const body = await res.json();
         const arr = Array.isArray(body) ? body : body.data;
 
         if (!Array.isArray(arr)) {
-          setVehicles(FALLBACK_VEHICLES);
+          setVehicles([]);
           return;
         }
 
@@ -366,12 +337,12 @@ export default function VehicleHistory(): JSX.Element {
           setVehicleId(normalized[0].id);
         }
       } catch {
-        setVehicles(FALLBACK_VEHICLES);
+        setVehicles([]);
       }
     };
 
     load();
-  }, []);
+  }, [TRACKING_API_URL]);
 
   useEffect(() => {
     if (mapRef.current || !mapDivRef.current) return;
@@ -455,8 +426,7 @@ export default function VehicleHistory(): JSX.Element {
       const lastError = "admin.vehicle_history.error_no_history";
 
       for (const strat of strategies) {
-        const params = new URLSearchParams(strat.params as Record<string, string>);
-        const url = `${HISTORY_API_BASE}?${params.toString()}`;
+        const url = buildUrlWithParams(HISTORY_API_BASE, strat.params);
         try {
           const json = await fetchJsonSafe(url);
           const source =
@@ -503,7 +473,7 @@ export default function VehicleHistory(): JSX.Element {
       console.error("History fetch failed:", err);
       setHistoryError("admin.vehicle_history.error_load_failed");
     }
-  }, [vehicleId, fromDate, toDate, t]);
+  }, [vehicleId, fromDate, toDate, t, HISTORY_API_BASE, gpsUserId, gpsGroupName]);
 
   useEffect(() => {
     fetchHistory();
@@ -539,10 +509,11 @@ export default function VehicleHistory(): JSX.Element {
     });
   }, [popupLabels, track]);
 
-  /* SPEED-AWARE PLAYBACK */
+  // PLAYBACK with variable speed
   useEffect(() => {
     if (!isPlaying || !track.length) return;
 
+    // Base interval 400ms, divided by speed
     const interval = 400 / playbackSpeed;
 
     const id = setInterval(() => {
@@ -591,8 +562,22 @@ export default function VehicleHistory(): JSX.Element {
     }
     return total;
   }, [track]);
+
+  if (!gpsVehicleHistoryApi || !gpsVehicleTrackingApi) {
+    return (
+      <div className="vh-container fade-in">
+        <ProjectSelectorBar />
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <p className="text-base font-medium">GPS APIs not configured for this project.</p>
+          <p className="text-sm mt-1">Set GPS API URLs in the project settings to enable vehicle tracking.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="vh-container fade-in">
+      <ProjectSelectorBar />
       <div className="vh-filter-bar slide-up">
         <div className="vh-filter-item">
           <label>{t("admin.vehicle_history.filters.vehicle")}</label>
@@ -750,12 +735,37 @@ export default function VehicleHistory(): JSX.Element {
       </div>
 
       <div className="vh-playback floating">
-        <button onClick={() => setIsPlaying((p) => !p)} disabled={!track.length}>
+        {/* FIXED Play/Pause button with loop restart logic */}
+        <button
+          onClick={() => {
+            if (isPlaying) {
+              setIsPlaying(false);
+            } else {
+              // If playback reached the end, restart from the beginning
+              if (playbackIndex >= track.length - 1) {
+                setPlaybackIndex(0);
+              }
+              setIsPlaying(true);
+            }
+          }}
+          disabled={!track.length}
+        >
           {isPlaying ? t("admin.vehicle_history.pause") : t("admin.vehicle_history.play")}
         </button>
 
-        {/* SPEED BUTTONS — 2x / 4x / 8x */}
+        {/* UPDATED speed buttons: 1x, 2x, 4x (removed 8x) */}
         <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            onClick={() => setPlaybackSpeed(1)}
+            style={{
+              background: playbackSpeed === 1 ? "#059669" : "#1d4ed8",
+              padding: "8px 12px",
+              borderRadius: "12px",
+            }}
+          >
+            1x
+          </button>
+
           <button
             onClick={() => setPlaybackSpeed(2)}
             style={{
@@ -776,17 +786,6 @@ export default function VehicleHistory(): JSX.Element {
             }}
           >
             4x
-          </button>
-
-          <button
-            onClick={() => setPlaybackSpeed(8)}
-            style={{
-              background: playbackSpeed === 8 ? "#059669" : "#1d4ed8",
-              padding: "8px 12px",
-              borderRadius: "12px",
-            }}
-          >
-            8x
           </button>
         </div>
 

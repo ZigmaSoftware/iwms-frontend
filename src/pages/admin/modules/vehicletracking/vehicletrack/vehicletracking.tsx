@@ -1,56 +1,15 @@
+import type { PanelStatusKey, PanelVehicle, RawRecord, Status, StatusSurface, Vehicle, VehicleMetrics } from "./types";
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./vehicletracking.css";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useTranslation } from "react-i18next";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
+import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 import { fetchWasteReport } from "@/utils/wasteApi";
+import { buildVehicleTrackingUrl, buildTripSummaryUrl } from "@/config/gpsApiConfig";
 
-type Status = "Running" | "Idle" | "Parked" | "No Data";
-
-type RawRecord = Record<string, unknown>;
-type PanelStatusKey = "running" | "idle" | "stopped" | "no_data";
-
-type Vehicle = {
-  id: string;
-  label: string;
-  lat: number;
-  lng: number;
-  speed: number;
-  ignition: "ON" | "OFF" | "NA";
-  status: Status;
-  distance: number;
-  updatedAt: string;
-  driver?: string;
-  location?: string;
-};
-
-type PanelVehicle = {
-  id: string;
-  label: string;
-  lat: number;
-  lng: number;
-  statusKey: PanelStatusKey;
-  statusLabel: string;
-  speed: number;
-  lastUpdate: string;
-  driver?: string;
-  location?: string;
-};
-
-type VehicleMetrics = {
-  loading: boolean;
-  totalWeightTodayTons: number | null;
-  totalDistanceTodayKm: number | null;
-  totalDistanceMonthKm: number | null;
-  totalTripsToday: number | null;
-  dryWeightTodayTons: number | null;
-  wetWeightTodayTons: number | null;
-  mixWeightTodayTons: number | null;
-  reportDateKey: string | null;
-};
-
-type StatusSurface = { bg: string; border: string };
 
 const STATUS_META: Record<
   PanelStatusKey,
@@ -97,13 +56,8 @@ const STATUS_META: Record<
   },
 };
 
-const API_URL =
-  "https://api.vamosys.com/mobile/getGrpDataForTrustedClients?providerName=BLUEPLANET&fcode=VAM";
 
-const TRIP_SUMMARY_ENDPOINT =
-  "https://gpsvtsprobend.vamosys.com/v2/getTripSummary";
 
-const TRIP_SUMMARY_USER_ID = "NMCP2DISPOSAL";
 
 const IST_DAY_KEY = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Kolkata",
@@ -269,6 +223,18 @@ const getRowDateKey = (row: RawRecord) => {
 export default function VehicleTracking() {
   const { t, i18n } = useTranslation();
   const { theme } = useTheme();
+  const {
+    gpsVehicleTrackingApi,
+    gpsTripSummaryApi,
+    gpsProviderName,
+    gpsFcode,
+    gpsTripUserId,
+    weighmentApiUrl,
+  } = useProjectSelector();
+  const API_URL = buildVehicleTrackingUrl(
+    { providerName: gpsProviderName, fcode: gpsFcode },
+    gpsVehicleTrackingApi
+  );
   const isDarkMode = theme === "dark";
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [search, setSearch] = useState("");
@@ -341,6 +307,11 @@ export default function VehicleTracking() {
 
   /* ================= FETCH DATA ================= */
   const fetchData = async () => {
+    if (!API_URL) {
+      setVehicles([]);
+      return;
+    }
+
     const res = await fetch(API_URL);
     const json = await res.json();
 
@@ -452,7 +423,7 @@ export default function VehicleTracking() {
       clearInterval(timer);
       map.remove();
     };
-  }, []);
+  }, [API_URL]);
 
   useEffect(() => {
     const control = statusControlRef.current;
@@ -515,13 +486,17 @@ export default function VehicleTracking() {
           59
         ).getTime();
 
-        const tripUrl = `${TRIP_SUMMARY_ENDPOINT}?vehicleId=${encodeURIComponent(
-          currentVehicleId
-        )}&fromDateUTC=${monthStart}&toDateUTC=${monthEnd}&userId=${TRIP_SUMMARY_USER_ID}&duration=0`;
+        const tripUrl = buildTripSummaryUrl(
+          currentVehicleId,
+          monthStart,
+          monthEnd,
+          { duration: "0", userId: gpsTripUserId },
+          gpsTripSummaryApi
+        );
 
         const [tripRes, weightResult] = await Promise.all([
           fetch(tripUrl).then((res) => res.json()),
-          fetchWasteReport("day_wise_data", reportStartKey, todayKey).catch(
+          fetchWasteReport(weighmentApiUrl, "day_wise_data", reportStartKey, todayKey).catch(
             () => ({ rows: [] }),
           ),
         ]);
@@ -617,7 +592,7 @@ export default function VehicleTracking() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [panelVehicle?.id]);
+  }, [panelVehicle?.id, weighmentApiUrl, gpsTripSummaryApi]);
 
   /* ================= MARKERS + POPUP ================= */
   useEffect(() => {
@@ -695,8 +670,26 @@ export default function VehicleTracking() {
   };
 
   /* ================= JSX ================= */
+
+  if (!gpsVehicleTrackingApi) {
+    return (
+      <div className={`tracking-page ${isDarkMode ? "dark-mode" : ""}`}>
+        <div className="px-2 pt-2">
+          <ProjectSelectorBar />
+        </div>
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+          <p className="text-base font-medium">GPS Vehicle Tracking API not configured for this project.</p>
+          <p className="text-sm mt-1">Set GPS API URLs in the project settings to enable vehicle tracking.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`tracking-page ${isDarkMode ? "dark-mode" : ""}`}>
+      <div className="px-2 pt-2">
+        <ProjectSelectorBar />
+      </div>
       <div className="map-wrap">
         <div id="map" className="map-canvas" ref={mapDivRef} />
         <VehicleSidePanel
