@@ -11,7 +11,13 @@ export type ProjectRecord = {
   name: string;
   description: string | null;
   gps_api_url: string | null;
+  gps_user_id: string | null;
+  gps_group_name: string | null;
+  gps_provider_name: string | null;
+  gps_fcode: string | null;
+  gps_trip_user_id: string | null;
   weighment_api_url: string | null;
+  day_wise_weighment_api_url: string | null;
   attendance_api_url: string | null;
   attendance_api_configured?: boolean;
   is_active: boolean;

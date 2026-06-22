@@ -29,7 +29,16 @@ interface ProjectSelectorContextValue {
 
   /* resolved API URLs (project-specific, env-fallback) */
   gpsApiUrl: string;
+  gpsVehicleHistoryApi: string;
+  gpsVehicleTrackingApi: string;
+  gpsTripSummaryApi: string;
+  gpsUserId: string;
+  gpsGroupName: string;
+  gpsProviderName: string;
+  gpsFcode: string;
+  gpsTripUserId: string;
   weighmentApiUrl: string;
+  dayWiseWeighmentApiUrl: string;
 
   /* loading state for async fetch */
   loading: boolean;
@@ -103,7 +112,16 @@ export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
             unique_id: p.unique_id,
             name: p.name,
             gps_api_url: p.gps_api_url ?? null,
+            gps_vehicle_history_api: p.gps_vehicle_history_api ?? null,
+            gps_vehicle_tracking_api: p.gps_vehicle_tracking_api ?? null,
+            gps_trip_summary_api: p.gps_trip_summary_api ?? null,
+            gps_user_id: p.gps_user_id ?? null,
+            gps_group_name: p.gps_group_name ?? null,
+            gps_provider_name: p.gps_provider_name ?? null,
+            gps_fcode: p.gps_fcode ?? null,
+            gps_trip_user_id: p.gps_trip_user_id ?? null,
             weighment_api_url: p.weighment_api_url ?? null,
+            day_wise_weighment_api_url: p.day_wise_weighment_api_url ?? null,
           }));
           setProjects(projectList);
           setProjectIdState(resolveInitialProjectId(projectList));
@@ -136,7 +154,16 @@ export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
         unique_id: p.unique_id,
         name: p.name,
         gps_api_url: p.gps_api_url ?? null,
+        gps_vehicle_history_api: p.gps_vehicle_history_api ?? null,
+        gps_vehicle_tracking_api: p.gps_vehicle_tracking_api ?? null,
+        gps_trip_summary_api: p.gps_trip_summary_api ?? null,
+        gps_user_id: p.gps_user_id ?? null,
+        gps_group_name: p.gps_group_name ?? null,
+        gps_provider_name: p.gps_provider_name ?? null,
+        gps_fcode: p.gps_fcode ?? null,
+        gps_trip_user_id: p.gps_trip_user_id ?? null,
         weighment_api_url: p.weighment_api_url ?? null,
+        day_wise_weighment_api_url: p.day_wise_weighment_api_url ?? null,
       }));
       setProjects(projectList);
       const newProjectId = resolveInitialProjectId(projectList);
@@ -157,7 +184,41 @@ export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
   const selectedProject = projects.find((p) => p.unique_id === projectId) ?? null;
 
   const gpsApiUrl = selectedProject?.gps_api_url ?? "";
+
+  // Only expose GPS values when the project has a GPS API URL configured.
+  // If gps_api_url is empty the project has no GPS — return "" for every
+  // GPS field so modules show "not configured" instead of falling back to
+  // another project's (or the env-var) credentials.
+  const hasGps = Boolean(gpsApiUrl);
+
+  // gps_api_url in the project form is the vehicle HISTORY endpoint.
+  // For tracking and trip summary the specific DB fields were removed from the form,
+  // so we fall through env vars → Vamosys hardcoded defaults (same host, different paths).
+  // Hardcoded defaults only apply when hasGps=true; non-GPS projects stay on "".
+  const gpsVehicleHistoryApi = hasGps
+    ? (selectedProject?.gps_vehicle_history_api ?? gpsApiUrl)
+    : "";
+  const gpsVehicleTrackingApi = hasGps
+    ? (selectedProject?.gps_vehicle_tracking_api
+        ?? import.meta.env.VITE_GPS_VEHICLE_TRACKING_API
+        ?? "https://api.vamosys.com/mobile/getGrpDataForTrustedClients")
+    : "";
+  const gpsTripSummaryApi = hasGps
+    ? (selectedProject?.gps_trip_summary_api
+        ?? import.meta.env.VITE_GPS_TRIP_SUMMARY_API
+        ?? "https://gpsvtsprobend.vamosys.com/v2/getTripSummary")
+    : "";
+  // Auth params — per-project values with hardcoded Vamosys defaults as last resort.
+  // Hardcoded fallbacks are intentional: they are the only active GPS credentials and
+  // the hasGps gate above already prevents non-GPS projects from reaching this path.
+  const gpsUserId = hasGps ? (selectedProject?.gps_user_id ?? import.meta.env.VITE_GPS_USER_ID ?? "BLUEPLANET") : "";
+  const gpsGroupName = hasGps ? (selectedProject?.gps_group_name ?? import.meta.env.VITE_GPS_GROUP_NAME ?? "BLUEPLANET:VAM") : "";
+  const gpsProviderName = hasGps ? (selectedProject?.gps_provider_name ?? import.meta.env.VITE_GPS_PROVIDER_NAME ?? "BLUEPLANET") : "";
+  const gpsFcode = hasGps ? (selectedProject?.gps_fcode ?? import.meta.env.VITE_GPS_FCODE ?? "VAM") : "";
+  const gpsTripUserId = hasGps ? (selectedProject?.gps_trip_user_id ?? import.meta.env.VITE_GPS_TRIP_USER_ID ?? "NMCP2DISPOSAL") : "";
+
   const weighmentApiUrl = selectedProject?.weighment_api_url ?? "";
+  const dayWiseWeighmentApiUrl = selectedProject?.day_wise_weighment_api_url ?? "";
 
   return (
     <ProjectSelectorContext.Provider
@@ -171,7 +232,16 @@ export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
         selectedProject,
         setProjectId,
         gpsApiUrl,
+        gpsVehicleHistoryApi,
+        gpsVehicleTrackingApi,
+        gpsTripSummaryApi,
+        gpsUserId,
+        gpsGroupName,
+        gpsProviderName,
+        gpsFcode,
+        gpsTripUserId,
         weighmentApiUrl,
+        dayWiseWeighmentApiUrl,
         loading,
       }}
     >

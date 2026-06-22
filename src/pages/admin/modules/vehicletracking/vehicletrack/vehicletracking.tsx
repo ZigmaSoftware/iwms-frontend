@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 import { fetchWasteReport } from "@/utils/wasteApi";
+import { buildVehicleTrackingUrl, buildTripSummaryUrl } from "@/config/gpsApiConfig";
 
 
 const STATUS_META: Record<
@@ -56,10 +57,7 @@ const STATUS_META: Record<
 };
 
 
-const TRIP_SUMMARY_ENDPOINT =
-  "https://gpsvtsprobend.vamosys.com/v2/getTripSummary";
 
-const TRIP_SUMMARY_USER_ID = "NMCP2DISPOSAL";
 
 const IST_DAY_KEY = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Kolkata",
@@ -225,8 +223,18 @@ const getRowDateKey = (row: RawRecord) => {
 export default function VehicleTracking() {
   const { t, i18n } = useTranslation();
   const { theme } = useTheme();
-  const { gpsApiUrl, weighmentApiUrl } = useProjectSelector();
-  const API_URL = gpsApiUrl;
+  const {
+    gpsVehicleTrackingApi,
+    gpsTripSummaryApi,
+    gpsProviderName,
+    gpsFcode,
+    gpsTripUserId,
+    weighmentApiUrl,
+  } = useProjectSelector();
+  const API_URL = buildVehicleTrackingUrl(
+    { providerName: gpsProviderName, fcode: gpsFcode },
+    gpsVehicleTrackingApi
+  );
   const isDarkMode = theme === "dark";
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [search, setSearch] = useState("");
@@ -299,6 +307,11 @@ export default function VehicleTracking() {
 
   /* ================= FETCH DATA ================= */
   const fetchData = async () => {
+    if (!API_URL) {
+      setVehicles([]);
+      return;
+    }
+
     const res = await fetch(API_URL);
     const json = await res.json();
 
@@ -364,7 +377,9 @@ export default function VehicleTracking() {
   useEffect(() => {
     fetchData();
 
-    const map = L.map(mapDivRef.current!).setView([28.61, 77.23], 11);
+    if (!API_URL || !mapDivRef.current) return;
+
+    const map = L.map(mapDivRef.current).setView([28.61, 77.23], 11);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
     const layer = L.layerGroup().addTo(map);
@@ -410,7 +425,7 @@ export default function VehicleTracking() {
       clearInterval(timer);
       map.remove();
     };
-  }, []);
+  }, [API_URL]);
 
   useEffect(() => {
     const control = statusControlRef.current;
@@ -473,9 +488,13 @@ export default function VehicleTracking() {
           59
         ).getTime();
 
-        const tripUrl = `${TRIP_SUMMARY_ENDPOINT}?vehicleId=${encodeURIComponent(
-          currentVehicleId
-        )}&fromDateUTC=${monthStart}&toDateUTC=${monthEnd}&userId=${TRIP_SUMMARY_USER_ID}&duration=0`;
+        const tripUrl = buildTripSummaryUrl(
+          currentVehicleId,
+          monthStart,
+          monthEnd,
+          { duration: "0", userId: gpsTripUserId },
+          gpsTripSummaryApi
+        );
 
         const [tripRes, weightResult] = await Promise.all([
           fetch(tripUrl).then((res) => res.json()),
@@ -575,7 +594,7 @@ export default function VehicleTracking() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [panelVehicle?.id]);
+  }, [panelVehicle?.id, weighmentApiUrl, gpsTripSummaryApi]);
 
   /* ================= MARKERS + POPUP ================= */
   useEffect(() => {
@@ -654,15 +673,15 @@ export default function VehicleTracking() {
 
   /* ================= JSX ================= */
 
-  if (!gpsApiUrl) {
+  if (!gpsVehicleTrackingApi) {
     return (
       <div className={`tracking-page ${isDarkMode ? "dark-mode" : ""}`}>
         <div className="px-2 pt-2">
           <ProjectSelectorBar />
         </div>
         <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-          <p className="text-base font-medium">GPS API not configured for this project.</p>
-          <p className="text-sm mt-1">Set a GPS API URL in the project settings to enable vehicle tracking.</p>
+          <p className="text-base font-medium">GPS Vehicle Tracking API not configured for this project.</p>
+          <p className="text-sm mt-1">Set GPS API URLs in the project settings to enable vehicle tracking.</p>
         </div>
       </div>
     );
