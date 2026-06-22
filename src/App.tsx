@@ -8,6 +8,8 @@ import VerifyOTP from "@/pages/auth/VerifyOTP";
 import ResetPassword from "@/pages/auth/ResetPassword";
 import LocalBodyAuth from "@/pages/LocalBodyAuth";
 import LocalBodyDashboard from "@/pages/localbody/LocalBodyDashboard";
+import DistrictAuth from "@/pages/DistrictAuth";
+import DistrictDashboard from "@/pages/district/DistrictDashboard";
 import Dashboard from "@/pages/dashboard/pages/Dashboard";
 import NotFound from "@/pages/dashboard/pages/NotFound";
 import { HomeDashboard } from "@/pages/dashboard/pages/Dashboard/HomeDashboard";
@@ -119,6 +121,8 @@ export default function App() {
       <Route path="/auth/reset-password" element={<ResetPassword />} />
       <Route path="/auth/localbody" element={<LocalBodyAuth />} />
       <Route path="/localbody" element={<LocalBodyDashboard />} />
+      <Route path="/auth/district" element={<DistrictAuth />} />
+      <Route path="/district" element={<DistrictDashboard />} />
       <Route path="/" element={<HomeRedirect />} />
       <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />
       <Route path="/dashboard/overview" element={withDashboard(<Dashboard />)} />
