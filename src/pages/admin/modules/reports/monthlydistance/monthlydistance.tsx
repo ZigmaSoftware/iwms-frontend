@@ -164,8 +164,7 @@ export default function MonthlyDistance() {
   useEffect(() => {
     setLoadingVehicles(true);
     if (!TRACKING_API_URL) {
-      setVehicles(FALLBACK_VEHICLES);
-      setRosterError("admin.reports.monthly_distance.error_unavailable");
+      setVehicles([]);
       setLoadingVehicles(false);
       return;
     }

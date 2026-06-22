@@ -41,7 +41,7 @@ const fmtTime = (v: string | null) => v ?? "-";
 export default function DayReport() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { dayWiseWeighmentApiUrl } = useProjectSelector();
+  const { dayWiseWeighmentApiUrl, loading: contextLoading } = useProjectSelector();
 
   const API_BASE = dayWiseWeighmentApiUrl;
   const API_KEY = import.meta.env.VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY || "ZIGMA-DELHI-WEIGHMENT-2025-SECURE";
@@ -171,18 +171,43 @@ export default function DayReport() {
     }
   }
 
-  // Wait for context to resolve the project URL before auto-fetching.
-  // Also re-fetches when the selected project changes.
   useEffect(() => {
+    if (contextLoading) return;
     if (dayWiseWeighmentApiUrl) {
       fetchData();
+    } else {
+      // Project has no day-wise API — clear stale data from the previous project.
+      setRows([]);
+      setError("admin.workforce_management.day_report.error_no_api");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayWiseWeighmentApiUrl]);
+  }, [dayWiseWeighmentApiUrl, contextLoading]);
 
   const indexTemplate = (_: ApiRow, { rowIndex }: any) => rowIndex + 1;
 
   // ---------- UI ----------
+  if (!contextLoading && !API_BASE) {
+    return (
+      <>
+        <ProjectSelectorBar />
+        <div className="p-4">
+          <div className="flex justify-end mb-4">
+            <Button
+              icon="pi pi-arrow-left"
+              label={t("common.back")}
+              severity="success"
+              onClick={() => navigate(-1)}
+            />
+          </div>
+          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+            <p className="text-base font-medium">{t("admin.workforce_management.day_report.error_no_api")}</p>
+            <p className="text-sm mt-1">Set a Day-wise Weighment API URL in the project settings to enable this report.</p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <ProjectSelectorBar />
