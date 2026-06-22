@@ -345,7 +345,10 @@ export default function VehicleHistory(): JSX.Element {
   }, [TRACKING_API_URL]);
 
   useEffect(() => {
-    if (mapRef.current || !mapDivRef.current) return;
+    // Re-run when GPS config resolves (page refresh) or project changes.
+    // The guard below prevents init when GPS is not yet available.
+    if (!gpsVehicleHistoryApi || !gpsVehicleTrackingApi) return;
+    if (!mapDivRef.current) return;
 
     const map = L.map(mapDivRef.current, {
       center: [28.61, 77.21],
@@ -358,7 +361,14 @@ export default function VehicleHistory(): JSX.Element {
 
     trackLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
-  }, []);
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      trackLayerRef.current = null;
+      markerRef.current = null;
+    };
+  }, [gpsVehicleHistoryApi, gpsVehicleTrackingApi]);
 
   const fetchHistory = useCallback(async () => {
     setHistoryError("");

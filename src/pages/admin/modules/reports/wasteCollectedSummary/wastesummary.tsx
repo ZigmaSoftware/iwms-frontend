@@ -34,9 +34,7 @@ export default function WasteSummary() {
     gpsFcode,
   } = useProjectSelector();
 
-  // ✅ FIX 1: Fallback to .env variable if project selector doesn't have it
-  const WEIGHMENT_API_URL =
-    weighmentApiUrl || process.env.REACT_APP_WEIGHMENT_API_URL || "";
+  const WEIGHMENT_API_URL = weighmentApiUrl;
 
   const VEHICLE_TRACKING_API = buildVehicleTrackingUrl(
     { providerName: gpsProviderName, fcode: gpsFcode },
@@ -203,8 +201,11 @@ export default function WasteSummary() {
   };
 
   useEffect(() => {
-    fetchMonthData(appliedMonth);
-  }, [appliedMonth]);
+    if (weighmentApiUrl) {
+      fetchMonthData(appliedMonth);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appliedMonth, weighmentApiUrl]);
 
   /* ================= MASTER COUNTS ================= */
 
@@ -375,19 +376,16 @@ export default function WasteSummary() {
 
   /* ================= UI ================= */
 
-  // ✅ FIX 4: Check the variable that has the fallback
   if (!WEIGHMENT_API_URL) {
     return (
       <div className="p-3">
         <ProjectSelectorBar />
         <div className="flex flex-col items-center justify-center py-20 text-gray-400">
           <p className="text-base font-medium">
-            Weighment API not configured for this project.
+            Weighment API URL is not configured for this project.
           </p>
           <p className="text-sm mt-1">
-            Set a Weighment API URL in the project settings or add{" "}
-            <code>REACT_APP_WEIGHMENT_API_URL</code> to your <code>.env</code>{" "}
-            file.
+            Set the Weighment API URL in the project settings.
           </p>
         </div>
       </div>

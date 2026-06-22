@@ -79,7 +79,7 @@ export const buildVehicleHistoryUrl = (
   overrideParams?: QueryParams,
   customBaseUrl?: string
 ): string => {
-  const baseUrl = customBaseUrl || GPS_API_CONFIG.vehicleHistory.baseUrl;
+  const baseUrl = customBaseUrl ?? GPS_API_CONFIG.vehicleHistory.baseUrl;
   const params = mergeParams(GPS_API_CONFIG.vehicleHistory.defaultParams, {
     vehicleId,
     fromDateUTC: String(fromDateUTC),
@@ -99,7 +99,7 @@ export const buildVehicleTrackingUrl = (
   overrideParams?: QueryParams,
   customBaseUrl?: string
 ): string => {
-  const baseUrl = customBaseUrl || GPS_API_CONFIG.vehicleTracking.baseUrl;
+  const baseUrl = customBaseUrl ?? GPS_API_CONFIG.vehicleTracking.baseUrl;
   const params = mergeParams(GPS_API_CONFIG.vehicleTracking.defaultParams, overrideParams);
 
   return buildUrlWithParams(baseUrl, params);
@@ -120,7 +120,7 @@ export const buildTripSummaryUrl = (
   overrideParams?: QueryParams,
   customBaseUrl?: string
 ): string => {
-  const baseUrl = customBaseUrl || GPS_API_CONFIG.tripSummary.baseUrl;
+  const baseUrl = customBaseUrl ?? GPS_API_CONFIG.tripSummary.baseUrl;
   const params = mergeParams(GPS_API_CONFIG.tripSummary.defaultParams, {
     vehicleId,
     fromDateUTC: String(fromDateUTC),
