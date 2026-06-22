@@ -377,7 +377,9 @@ export default function VehicleTracking() {
   useEffect(() => {
     fetchData();
 
-    const map = L.map(mapDivRef.current!).setView([28.61, 77.23], 11);
+    if (!API_URL || !mapDivRef.current) return;
+
+    const map = L.map(mapDivRef.current).setView([28.61, 77.23], 11);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
     const layer = L.layerGroup().addTo(map);
