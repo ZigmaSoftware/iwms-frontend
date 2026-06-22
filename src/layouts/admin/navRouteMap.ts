@@ -79,6 +79,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encSuperAdminMaster,
     encPanchayats,
     encPanchayatLeaders,
+    encDistrictLeaders,
     encAreaTypes,
     encMunicipalities,
     encTownPanchayats,
@@ -122,6 +123,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encMasters}/${encAreaTypes}`, nameKey: "admin.nav.area_type", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encPanchayats}`, nameKey: "admin.nav.panchayat", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encPanchayatLeaders}`, nameKey: "admin.nav.panchayat_leader", parentNameKey: "admin.nav.masters" },
+    { path: `/${encMasters}/${encDistrictLeaders}`, nameKey: "admin.nav.district_leader", parentNameKey: "admin.nav.masters" },
     // Waste Types
     { path: `/${encMasters}/${encProperties}`, nameKey: "admin.nav.property", parentNameKey: "admin.nav.wastetype" },
     { path: `/${encMasters}/${encSubProperties}`, nameKey: "admin.nav.sub_property", parentNameKey: "admin.nav.wastetype" },

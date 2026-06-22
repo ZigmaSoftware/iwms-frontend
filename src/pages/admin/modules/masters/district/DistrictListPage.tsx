@@ -81,9 +81,25 @@ export default function DistrictListPage() {
     let mounted = true;
 
     const loadDistricts = async () => {
+      if (isSuperAdmin && companies.length === 0) {
+        setAllDistricts([]);
+        return;
+      }
+
+      if (!companyUniqueId && !isSuperAdmin) {
+        setAllDistricts([]);
+        return;
+      }
+
       setIsLoading(true);
       try {
-        const data = await districtApi.readAll();
+        const params: Record<string, string> = {};
+        if (companyUniqueId) params.company_id = companyUniqueId;
+        if (projectId) params.project_id = projectId;
+
+        const data = await districtApi.readAll(
+          Object.keys(params).length ? { params } : undefined
+        );
         if (mounted) setAllDistricts(data as DistrictApiRow[]);
       } catch (error) {
         if (mounted) {
@@ -100,7 +116,7 @@ export default function DistrictListPage() {
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, [companies.length, companyUniqueId, isSuperAdmin, projectId, t]);
 
   const districts = ((): DistrictListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
