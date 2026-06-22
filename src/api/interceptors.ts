@@ -6,7 +6,6 @@ const attachAuthInterceptor = (api: AxiosInstance) => {
     (config) => {
       const token = localStorage.getItem("access_token");
 
-      // Robust login detection
       const isLoginRequest = config.url?.includes("login-user");
 
       if (token && !isLoginRequest) {
@@ -20,5 +19,5 @@ const attachAuthInterceptor = (api: AxiosInstance) => {
   );
 };
 
-// Attach once per instance
+
 attachAuthInterceptor(api);
