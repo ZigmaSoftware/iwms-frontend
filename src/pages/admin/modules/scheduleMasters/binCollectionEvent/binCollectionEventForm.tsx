@@ -98,7 +98,6 @@ export default function BinCollectionEventForm() {
 
   /* ── dropdown option lists ── */
   const [districtOptions, setDistrictOptions] = useState<SelectOption[]>([]);
-  const [zoneOptions, setZoneOptions] = useState<SelectOption[]>([]);
   const [panchayatOptions, setPanchayatOptions] = useState<SelectOption[]>([]);
   const [wardOptions, setWardOptions] = useState<SelectOption[]>([]);
   const [assignmentOptions, setAssignmentOptions] = useState<SelectOption[]>([]);
@@ -196,7 +195,6 @@ export default function BinCollectionEventForm() {
       setBinOptions(toOptions(bins, "unique_id", "bin_name"));
       setDistrictOptions(toOptions(normalizeList(districtRes), "unique_id", "name"));
       setAllRawCities(normalizeList(cityRes));
-      setZoneOptions(toOptions(normalizeList(zoneRes), "unique_id", "zone_name"));
       setAllRawZones(normalizeList(zoneRes));
       setPanchayatOptions(toOptions(normalizeList(panchRes), "unique_id", "panchayat_name"));
       setAllRawPanchayats(normalizeList(panchRes));
@@ -341,10 +339,15 @@ export default function BinCollectionEventForm() {
   );
 
   const cascadedWards = useMemo(() =>
-    allRawWards.filter((w) => !filterZone || String(w?.zone_id ?? "") === filterZone)
+    allRawWards
+      .filter((w) => {
+        if (filterZone) return String(w?.zone_id ?? "") === filterZone;
+        if (filterPanchayat) return String(w?.panchayat_id ?? "") === filterPanchayat;
+        return true;
+      })
       .map((w) => ({ value: String(w?.unique_id ?? ""), label: String(w?.ward_name ?? w?.name ?? "") }))
       .filter((o) => o.value),
-    [allRawWards, filterZone]
+    [allRawWards, filterZone, filterPanchayat]
   );
 
   /* ── bins filtered by selected collection point (trip CP) ── */
@@ -516,52 +519,58 @@ export default function BinCollectionEventForm() {
               />
             </div>
 
-            {/* Zone */}
-            <div>
-              <Label>Zone {filterZone && !filterPanchayat ? <span className="text-red-500">*</span> : null}</Label>
-              <Select
-                options={cascadedZones}
-                value={filterZone}
-                onChange={(v) => {
-                  setFilterZone(v);
-                  setFilterWard("");
-                  resetAssignment();
-                }}
-                placeholder={filterCity ? "Select Zone" : "Select City first"}
-                disabled={fetchingDropdowns || !filterCity || Boolean(filterPanchayat)}
-              />
-            </div>
+            {/* Zone — hidden when Panchayat is selected */}
+            {!filterPanchayat && (
+              <div>
+                <Label>Zone {filterZone ? <span className="text-red-500">*</span> : null}</Label>
+                <Select
+                  options={cascadedZones}
+                  value={filterZone}
+                  onChange={(v) => {
+                    setFilterZone(v);
+                    setFilterWard("");
+                    resetAssignment();
+                  }}
+                  placeholder={filterCity ? "Select Zone" : "Select City first"}
+                  disabled={fetchingDropdowns || !filterCity}
+                />
+              </div>
+            )}
 
-            {/* Ward */}
-            <div>
-              <Label>Ward {filterZone && !filterPanchayat ? <span className="text-red-500">*</span> : null}</Label>
-              <Select
-                options={cascadedWards}
-                value={filterWard}
-                onChange={(v) => {
-                  setFilterWard(v);
-                  resetAssignment();
-                }}
-                placeholder={filterZone ? "Select Ward" : "Select Zone first"}
-                disabled={fetchingDropdowns || !filterZone || Boolean(filterPanchayat)}
-              />
-            </div>
+            {/* Ward — shown when Zone or Panchayat is selected */}
+            {(filterZone || filterPanchayat) && (
+              <div>
+                <Label>Ward</Label>
+                <Select
+                  options={cascadedWards}
+                  value={filterWard}
+                  onChange={(v) => {
+                    setFilterWard(v);
+                    resetAssignment();
+                  }}
+                  placeholder={filterZone ? "Select Ward (Zone)" : "Select Ward (Panchayat)"}
+                  disabled={fetchingDropdowns}
+                />
+              </div>
+            )}
 
-            {/* Panchayat (mutually exclusive with zone/ward) */}
-            <div>
-              <Label>Panchayat</Label>
-              <Select
-                options={cascadedPanchayats}
-                value={filterPanchayat}
-                onChange={(v) => {
-                  setFilterPanchayat(v);
-                  if (v) { setFilterZone(""); setFilterWard(""); }
-                  resetAssignment();
-                }}
-                placeholder={filterCity ? "Select Panchayat" : "Select City first"}
-                disabled={fetchingDropdowns || !filterCity || Boolean(filterZone) || Boolean(filterWard)}
-              />
-            </div>
+            {/* Panchayat — hidden when Zone or Ward is selected */}
+            {!filterZone && !filterWard && (
+              <div>
+                <Label>Panchayat</Label>
+                <Select
+                  options={cascadedPanchayats}
+                  value={filterPanchayat}
+                  onChange={(v) => {
+                    setFilterPanchayat(v);
+                    if (v) { setFilterZone(""); setFilterWard(""); }
+                    resetAssignment();
+                  }}
+                  placeholder={filterCity ? "Select Panchayat" : "Select City first"}
+                  disabled={fetchingDropdowns || !filterCity}
+                />
+              </div>
+            )}
           </div>
 
           {/* Trip Assignment & Collection Point */}

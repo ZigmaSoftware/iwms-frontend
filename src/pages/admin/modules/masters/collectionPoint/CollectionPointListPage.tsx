@@ -357,10 +357,26 @@ export default function CollectionPointListPage() {
           <Column
             field="ward_name"
             header={t("admin.nav.ward")}
-            sortable
             filter
             showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => toDisplay(row.ward_name)}
+            body={(row: CollectionPointRecord) => {
+              const wards = row.wards as { unique_id: string; ward_name: string }[] | undefined;
+              if (wards && wards.length > 0) {
+                return (
+                  <div className="flex flex-wrap gap-1">
+                    {wards.map((w) => (
+                      <span
+                        key={w.unique_id}
+                        className="inline-block bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded-full"
+                      >
+                        {cap(w.ward_name)}
+                      </span>
+                    ))}
+                  </div>
+                );
+              }
+              return <span>{toDisplay(row.ward_name)}</span>;
+            }}
           />
         )}
         {showCol("latitude") && (

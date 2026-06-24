@@ -232,9 +232,11 @@ export default function TripPlanForm() {
       ["panchayat_name", "name"]
     ),
     wards: buildOptions(
-      (lookups.wards ?? []).filter((item) =>
-        !formData.zone_id || String(item?.zone_id ?? "") === formData.zone_id
-      ),
+      (lookups.wards ?? []).filter((item) => {
+        if (formData.zone_id) return String(item?.zone_id ?? "") === formData.zone_id;
+        if (formData.panchayat_id) return String(item?.panchayat_id ?? "") === formData.panchayat_id;
+        return true;
+      }),
       ["ward_name", "name"]
     ),
     staffTemplates: buildOptions(lookups.staffTemplates ?? [], ["display_code"]),
@@ -367,9 +369,9 @@ export default function TripPlanForm() {
             </div>
             <div><Label>District</Label><Select value={formData.district_id} onChange={setField("district_id")} options={options.districts} disabled={loading || !projectId} /></div>
             <div><Label>City</Label><Select value={formData.city_id} onChange={setField("city_id")} options={options.cities} disabled={loading || !formData.district_id} /></div>
-            <div><Label>Zone</Label><Select value={formData.zone_id} onChange={setField("zone_id")} options={options.zones} disabled={loading || !formData.city_id || Boolean(formData.panchayat_id)} /></div>
-            <div><Label>PLB (Participating Local Bodies)</Label><Select value={formData.panchayat_id} onChange={setField("panchayat_id")} options={options.panchayats} disabled={loading || !formData.city_id || Boolean(formData.ward_id)} /></div>
-            <div><Label>Ward</Label><Select value={formData.ward_id} onChange={setField("ward_id")} options={options.wards} disabled={loading || !formData.zone_id || Boolean(formData.panchayat_id)} /></div>
+            {!formData.panchayat_id && <div><Label>Zone</Label><Select value={formData.zone_id} onChange={setField("zone_id")} options={options.zones} disabled={loading || !formData.city_id} /></div>}
+            {!formData.zone_id && !formData.ward_id && <div><Label>PLB (Participating Local Bodies)</Label><Select value={formData.panchayat_id} onChange={setField("panchayat_id")} options={options.panchayats} disabled={loading || !formData.city_id} /></div>}
+            {(formData.zone_id || formData.panchayat_id) && <div><Label>Ward</Label><Select value={formData.ward_id} onChange={setField("ward_id")} options={options.wards} disabled={loading} /></div>}
             <div><Label>Staff Template</Label><Select value={formData.staff_template_id} onChange={setField("staff_template_id")} options={options.staffTemplates} disabled={loading || !projectId} /></div>
             <div><Label>Vehicle</Label><Select value={formData.vehicle_id} onChange={setField("vehicle_id")} options={options.vehicles} disabled={loading || !projectId} /></div>
             <div><Label>Supervisor</Label><Select value={formData.supervisor_id} onChange={setField("supervisor_id")} options={options.staff} disabled={loading || !projectId} /></div>

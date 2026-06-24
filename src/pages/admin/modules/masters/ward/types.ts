@@ -35,6 +35,15 @@ export type ZoneMeta = {
   isActive: boolean;
 };
 
+export type PanchayatMeta = {
+  id: string;
+  name: string;
+  cityId: string | null;
+  districtId: string | null;
+  stateId: string | null;
+  isActive: boolean;
+};
+
 export type WardRecord = {
   name?: string;
   is_active?: boolean;
@@ -45,19 +54,22 @@ export type WardRecord = {
   district_id?: string | number | null;
   city_id?: string | number | null;
   zone_id?: string | number | null;
+  panchayat_id?: string | number | null;
   continent?: string | number | null;
   country?: string | number | null;
   state?: string | number | null;
   district?: string | number | null;
   city?: string | number | null;
   zone?: string | number | null;
+  panchayat?: string | number | null;
 };
 
 export type WardListRecord = CompanyProjectFields & {
   unique_id: string;
   ward_name: string;
   is_active: boolean;
-  zone_name: string;
+  zone_name: string | null;
+  panchayat_name: string | null;
   city_name: string;
   district_name: string;
   state_name: string;
@@ -90,24 +102,28 @@ export type WardWithRelations = {
   district_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
   city_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
   zone_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  panchayat_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
   continent_unique_id?: string | number | null;
   country_unique_id?: string | number | null;
   state_unique_id?: string | number | null;
   district_unique_id?: string | number | null;
   city_unique_id?: string | number | null;
   zone_unique_id?: string | number | null;
+  panchayat_unique_id?: string | number | null;
   continent?: string | number | { unique_id?: string | number; id?: string | number } | null;
   country?: string | number | { unique_id?: string | number; id?: string | number } | null;
   state?: string | number | { unique_id?: string | number; id?: string | number } | null;
   district?: string | number | { unique_id?: string | number; id?: string | number } | null;
   city?: string | number | { unique_id?: string | number; id?: string | number } | null;
   zone?: string | number | { unique_id?: string | number; id?: string | number } | null;
+  panchayat?: string | number | { unique_id?: string | number; id?: string | number } | null;
   continent_name?: string | null;
   country_name?: string | null;
   state_name?: string | null;
   district_name?: string | null;
   city_name?: string | null;
   zone_name?: string | null;
+  panchayat_name?: string | null;
 };
 
 export type WardCityMeta = CityMeta & {
@@ -125,6 +141,14 @@ export type WardZoneMeta = ZoneMeta & {
   countryId?: string | null;
   stateId?: string | null;
   districtId?: string | null;
+  cityName?: string | null;
+  districtName?: string | null;
+  stateName?: string | null;
+};
+
+export type WardPanchayatMeta = PanchayatMeta & {
+  continentId?: string | null;
+  countryId?: string | null;
   cityName?: string | null;
   districtName?: string | null;
   stateName?: string | null;

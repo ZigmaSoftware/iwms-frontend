@@ -381,8 +381,9 @@ export default function DailyTripAssignmentForm() {
   );
   const resolvedWards = useMemo(() => {
     const filtered = wardRecords.filter((ward) => {
-      if (!formData.zone_id) return true;
-      return toEntityId(ward?.zone_id ?? ward?.zone) === formData.zone_id;
+      if (formData.zone_id) return toEntityId(ward?.zone_id ?? ward?.zone) === formData.zone_id;
+      if (formData.panchayat_id) return toEntityId(ward?.panchayat_id ?? ward?.panchayat) === formData.panchayat_id;
+      return true;
     });
     const options = buildOptions(filtered.length ? filtered : wardRecords, ["ward_name", "name"]);
     return ensureOption(
@@ -391,7 +392,7 @@ export default function DailyTripAssignmentForm() {
       getWardLabelFromRecord(recordData) ||
         getWardLabelFromRecord(tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === formData.trip_plan_id))
     );
-  }, [formData.zone_id, formData.ward_id, formData.trip_plan_id, recordData, tripPlanRecords, wardRecords]);
+  }, [formData.zone_id, formData.panchayat_id, formData.ward_id, formData.trip_plan_id, recordData, tripPlanRecords, wardRecords]);
   const resolvedWasteTypes = useMemo(() =>
     ensureOption(wasteTypes, formData.waste_type_id, (recordData?.waste_type as any)?.waste_type_name ?? recordData?.waste_type?.name as string | undefined),
     [wasteTypes, formData.waste_type_id, recordData]
@@ -578,53 +579,58 @@ export default function DailyTripAssignmentForm() {
               </div>
             )}
 
-            {/* Zone */}
-            <div>
-              <Label>Zone</Label>
-              <Select
-                value={formData.zone_id}
-                onChange={handleZoneChange}
-                options={resolvedZones}
-                placeholder="Select zone"
-                disabled={fetching || !projectId}
-              />
-            </div>
+            {/* Zone — hidden when Panchayat is selected */}
+            {!formData.panchayat_id && (
+              <div>
+                <Label>Zone</Label>
+                <Select
+                  value={formData.zone_id}
+                  onChange={handleZoneChange}
+                  options={resolvedZones}
+                  placeholder="Select zone"
+                  disabled={fetching || !projectId}
+                />
+              </div>
+            )}
 
-            {/* Ward */}
-            <div>
-              <Label>Ward</Label>
-              <Select
-                value={formData.ward_id}
-                onChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    ward_id: value,
-                    panchayat_id: value ? "" : prev.panchayat_id,
-                  }))
-                }
-                options={resolvedWards}
-                placeholder="Select ward"
-                disabled={fetching || !projectId || Boolean(formData.panchayat_id)}
-              />
-            </div>
+            {/* Ward — shown when Zone or Panchayat is selected */}
+            {(formData.zone_id || formData.panchayat_id) && (
+              <div>
+                <Label>Ward</Label>
+                <Select
+                  value={formData.ward_id}
+                  onChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      ward_id: value,
+                    }))
+                  }
+                  options={resolvedWards}
+                  placeholder={formData.zone_id ? "Select ward (Zone)" : "Select ward (Panchayat)"}
+                  disabled={fetching || !projectId}
+                />
+              </div>
+            )}
 
-            {/* Panchayat */}
-            <div>
-              <Label>PLB (Participating Local Bodies) <span className="text-red-500">*</span></Label>
-              <Select
-                value={formData.panchayat_id}
-                onChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    panchayat_id: value,
-                    ward_id: value ? "" : prev.ward_id,
-                  }))
-                }
-                options={resolvedPanchayats}
-                placeholder="Select PLB"
-                disabled={fetching || !projectId || Boolean(formData.ward_id)}
-              />
-            </div>
+            {/* Panchayat — hidden when Zone or Ward is selected */}
+            {!formData.zone_id && !formData.ward_id && (
+              <div>
+                <Label>PLB (Participating Local Bodies) <span className="text-red-500">*</span></Label>
+                <Select
+                  value={formData.panchayat_id}
+                  onChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      panchayat_id: value,
+                      ward_id: value ? "" : prev.ward_id,
+                    }))
+                  }
+                  options={resolvedPanchayats}
+                  placeholder="Select PLB"
+                  disabled={fetching || !projectId}
+                />
+              </div>
+            )}
 
             {/* Waste Type — single for bin, multi for household */}
             {hasBinStops && (
