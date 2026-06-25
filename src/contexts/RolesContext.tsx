@@ -35,11 +35,15 @@ export const RolesProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (!localStorage.getItem("access_token")) {
+      setIsLoading(false);
+      return;
+    }
+
     const loadRoles = async () => {
       try {
         const roles = await fetchAllRoles();
         setAllRoles(roles);
-        console.log("[RolesContext] Roles loaded successfully:", roles);
       } catch (error) {
         console.error("[RolesContext] Failed to load roles:", error);
       } finally {
