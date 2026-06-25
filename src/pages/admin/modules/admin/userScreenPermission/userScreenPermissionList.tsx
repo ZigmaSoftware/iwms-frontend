@@ -94,9 +94,9 @@ export default function UserScreenPermissionList() {
 
       setIsLoading(true);
       try {
-        const data = await userScreenPermissionApi.readAll({
-          params: { company_id: companyUniqueId, limit: 6000, offset: 0 },
-        });
+        const params: Record<string, string | number> = { limit: 6000, offset: 0 };
+        if (companyUniqueId) params.company_id = companyUniqueId;
+        const data = await userScreenPermissionApi.readAll({ params });
         if (mounted) setPermissionRows(data as StaffUserType[]);
       } catch {
         if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
@@ -124,7 +124,9 @@ export default function UserScreenPermissionList() {
       const selectedProjectLabel =
         projects.find((p) => p.value === projectId)?.label ?? "";
 
-      const filteredData = data.filter((item) => {
+      const filteredData = !companyUniqueId
+        ? data
+        : data.filter((item) => {
         const itemCompanyId = String(item.company_id ?? "").trim();
         const itemCompanyUniqueId = String(item.company_unique_id ?? "").trim();
         const itemCompanyName = String(item.company_name ?? "")
@@ -144,7 +146,7 @@ export default function UserScreenPermissionList() {
       const groupedObj: Record<string, any> = filteredData.reduce((acc, item) => {
         const companyId = String(item.company_id ?? item.company_unique_id ?? "");
         const companyKeyFallback = String(item.company_name ?? "").trim().toLowerCase();
-        const companyKey = companyId || companyKeyFallback || companyUniqueId;
+        const companyKey = companyId || companyKeyFallback;
         const staffTypeId = String(item.staffusertype_id ?? "");
         const screenId = String(item.mainscreen_id ?? "");
         const key = `${companyKey}__${staffTypeId}__${screenId}`;
@@ -153,7 +155,7 @@ export default function UserScreenPermissionList() {
           acc[key] = {
             unique_id: staffTypeId,
             composite_key: key,
-            company_id: companyId || companyUniqueId,
+            company_id: companyId,
             company_name: item.company_name ?? t("common.unknown"),
             project_name: item.project_name || selectedProjectLabel,
             usertype_name: item.usertype_name ?? "",
@@ -334,7 +336,6 @@ export default function UserScreenPermissionList() {
             })}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId}
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>

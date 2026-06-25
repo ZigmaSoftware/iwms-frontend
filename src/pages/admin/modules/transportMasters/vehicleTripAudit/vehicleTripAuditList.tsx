@@ -253,7 +253,7 @@ export default function VehicleTripAuditList() {
             label={t("admin.vehicle_trip_audit.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>

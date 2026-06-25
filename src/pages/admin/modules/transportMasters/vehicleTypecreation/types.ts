@@ -5,10 +5,4 @@ export type VehicleTypeRecord = {
   vehicleType: string;
   description?: string | null;
   is_active: boolean;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
 };

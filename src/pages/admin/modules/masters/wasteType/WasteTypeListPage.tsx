@@ -246,7 +246,7 @@ export default function WasteTypeListPage() {
             label={t("common.add_item", { item: t("common.waste_type") })}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
