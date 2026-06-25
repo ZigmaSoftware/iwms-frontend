@@ -7,7 +7,7 @@ export type FormState = {
   zone_id: string;
   panchayat_id: string;
   ward_id: string;
-  waste_type_id: string;
+  waste_type_ids: string[];
   household_waste_type_ids: string[];
   trip_date: string;
   scheduled_time: string;
@@ -33,10 +33,12 @@ export type DailyTripAssignmentRecord = {
   staff_template_id?: string;
   panchayat_id?: string;
   ward_id?: string;
-  waste_type_id?: string;
+  waste_type_ids?: string[];
   trip_plan?: {
     unique_id?: string;
     display_code?: string;
+    staff_template_id?: string;
+    staff_template?: { unique_id?: string; display_code?: string };
     scheduled_time?: string;
     zone?: NamedRef & { zone_name?: string };
     panchayat?: NamedRef & { panchayat_name?: string };
@@ -46,17 +48,39 @@ export type DailyTripAssignmentRecord = {
   };
   household_waste_types?: { unique_id?: string; waste_type_name?: string }[];
   collection_types?: { has_bin: boolean; has_household: boolean };
+  collection_points?: DailyTripCollectionPointInline[];
   staff_template?: { unique_id?: string; display_code?: string };
-  effective_staff?: { unique_id?: string; display_code?: string } | null;
+  alt_staff_template?: {
+    unique_id?: string;
+    display_code?: string;
+    from_date?: string;
+    to_date?: string;
+  } | null;
+  effective_staff?: { source?: string; unique_id?: string; display_code?: string } | null;
   panchayat?: NamedRef & { panchayat_name?: string };
   ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
   zone?: NamedRef & { zone_name?: string };
-  waste_type?: NamedRef & { waste_type_name?: string };
+  waste_types?: { unique_id?: string; waste_type_name?: string }[];
   trip_date?: string;
   scheduled_time?: string;
   status?: string;
   remarks?: string | null;
   [key: string]: unknown;
+};
+
+export type DailyTripCollectionPointInline = {
+  unique_id?: string;
+  collection_point_id?: string;
+  collection_point?: NamedRef & { cp_name?: string };
+  bin_id?: string;
+  bin?: NamedRef & { bin_name?: string };
+  sequence?: number;
+  is_collected?: boolean;
+  collected_at?: string | null;
+  collected_weight_kg?: string | number | null;
+  collected_by?: string | null;
+  collected_by_staff?: NamedRef & { employee_name?: string };
+  status?: string;
 };
 
 export type TripPlanRecord = {
@@ -68,5 +92,6 @@ export type TripPlanRecord = {
   zone?: NamedRef & { zone_name?: string };
   ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
   panchayat?: NamedRef & { panchayat_name?: string };
+  waste_type_ids?: string[];
   [key: string]: unknown;
 };
