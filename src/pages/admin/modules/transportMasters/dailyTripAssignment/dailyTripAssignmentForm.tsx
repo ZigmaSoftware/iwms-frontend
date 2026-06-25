@@ -1,4 +1,5 @@
 import type { DailyTripAssignmentRecord } from "./types";
+import type { DailyTripCollectionPointInline } from "./types";
 import type { FormState, SelectOption } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -52,6 +53,9 @@ const toEntityId = (value: unknown): string => {
   }
   return String(value).trim();
 };
+
+const uniqueIds = (values: unknown[]): string[] =>
+  Array.from(new Set(values.map(toEntityId).filter(Boolean)));
 
 const filterByCompanyProject = (items: any[], companyId: string, projectId: string) => {
   const hasContext = items.some((item) => item?.company_id || item?.company_unique_id);
@@ -118,6 +122,17 @@ const extractError = (error: any): string | null => {
   return null;
 };
 
+const pointLabel = (point: DailyTripCollectionPointInline): string =>
+  String(
+    point.collection_point?.cp_name ??
+      point.collection_point?.name ??
+      point.collection_point_id ??
+      ""
+  ).trim() || "—";
+
+const binLabel = (point: DailyTripCollectionPointInline): string =>
+  String(point.bin?.bin_name ?? point.bin?.name ?? point.bin_id ?? "").trim() || "—";
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DailyTripAssignmentForm() {
@@ -149,7 +164,7 @@ export default function DailyTripAssignmentForm() {
     zone_id: "",
     panchayat_id: "",
     ward_id: "",
-    waste_type_id: "",
+    waste_type_ids: [],
     household_waste_type_ids: [],
     trip_date: "",
     scheduled_time: "",
@@ -162,6 +177,7 @@ export default function DailyTripAssignmentForm() {
   const [hasHouseholdStops, setHasHouseholdStops] = useState(false);
 
   const [recordData, setRecordData] = useState<DailyTripAssignmentRecord | null>(null);
+  const [collectionPoints, setCollectionPoints] = useState<DailyTripCollectionPointInline[]>([]);
   // Holds raw record until lookups are ready — avoids Radix Select blank-value bug
   const [pendingRecord, setPendingRecord] = useState<DailyTripAssignmentRecord | null>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
@@ -256,6 +272,24 @@ export default function DailyTripAssignmentForm() {
     const rec = pendingRecord;
     const tripPlanId = rec.trip_plan?.unique_id ?? String(rec.trip_plan_id ?? "");
     const plan = tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === tripPlanId);
+    const selectedStaffTemplateId = uniqueIds([
+      rec.staff_template?.unique_id,
+      rec.staff_template_id,
+      rec.effective_staff?.source === "base" ? rec.effective_staff?.unique_id : undefined,
+      rec.trip_plan?.staff_template?.unique_id,
+      rec.trip_plan?.staff_template_id,
+      plan?.staff_template?.unique_id,
+      plan?.staff_template_id,
+    ])[0] ?? "";
+    const selectedWasteTypeIds = uniqueIds([
+      ...(Array.isArray(rec.waste_type_ids) ? rec.waste_type_ids : []),
+      ...(Array.isArray(rec.waste_types) ? rec.waste_types.map((item) => item?.unique_id) : []),
+      ...(Array.isArray(rec.household_waste_types) ? rec.household_waste_types.map((item) => item?.unique_id) : []),
+      ...(Array.isArray(plan?.waste_type_ids) ? plan.waste_type_ids : []),
+      ...(Array.isArray(plan?.waste_types) ? plan.waste_types.map((item: any) => item?.unique_id) : []),
+      plan?.waste_type?.unique_id,
+      plan?.waste_type_id,
+    ]);
 
     // Restore collection type flags from the saved record
     const ct = rec.collection_types;
@@ -266,20 +300,31 @@ export default function DailyTripAssignmentForm() {
 
     setFormData({
       trip_plan_id: tripPlanId,
-      staff_template_id: rec.staff_template?.unique_id ?? String(rec.staff_template_id ?? ""),
-      alt_staff_template_id: "",
+      staff_template_id: selectedStaffTemplateId,
+      alt_staff_template_id: String(
+        rec.alt_staff_template?.unique_id ??
+          (rec.effective_staff?.source === "alternative" ? rec.effective_staff?.unique_id : "") ??
+          ""
+      ),
       zone_id: getZoneIdFromRecord(rec) || getZoneIdFromRecord(plan),
       panchayat_id: rec.panchayat?.unique_id ?? String(rec.panchayat_id ?? ""),
       ward_id: getWardIdFromRecord(rec) || getWardIdFromRecord(plan),
-      waste_type_id: (rec.waste_type as any)?.unique_id ?? String(rec.waste_type_id ?? ""),
-      household_waste_type_ids: (rec.household_waste_types ?? [])
-        .map((wt: any) => String(wt?.unique_id ?? ""))
-        .filter(Boolean),
+      waste_type_ids: selectedWasteTypeIds,
+      household_waste_type_ids: selectedWasteTypeIds,
       trip_date: rec.trip_date ?? "",
       scheduled_time: rec.scheduled_time ?? "",
       status: rec.status ?? "Scheduled",
       remarks: String(rec.remarks ?? ""),
     });
+    setCollectionPoints(
+      Array.isArray(rec.collection_points)
+        ? rec.collection_points.map((point) => ({
+            ...point,
+            collected_weight_kg: point.collected_weight_kg ?? "",
+            collected_at: point.collected_at ? String(point.collected_at).slice(0, 16) : "",
+          }))
+        : [],
+    );
     setPendingRecord(null);   // clear so this effect doesn't re-fire
   }, [pendingRecord, tripPlan, tripPlanRecords, staffTemplates, zones, panchayats, wardRecords, wasteTypes]);
 
@@ -298,13 +343,21 @@ export default function DailyTripAssignmentForm() {
       if (!plan) return next;
 
       const planStaff = toEntityId(plan?.staff_template?.unique_id ?? plan?.staff_template_id);
-      const planWaste = toEntityId(plan?.waste_type?.unique_id ?? plan?.waste_type_id);
+      const planWasteIds = uniqueIds([
+        ...(Array.isArray(plan?.waste_type_ids) ? plan.waste_type_ids : []),
+        ...(Array.isArray(plan?.waste_types) ? plan.waste_types.map((item: any) => item?.unique_id) : []),
+        plan?.waste_type?.unique_id,
+        plan?.waste_type_id,
+      ]);
       const planPanchayat = toEntityId(plan?.panchayat?.unique_id ?? plan?.panchayat_id);
       const planWard = getWardIdFromRecord(plan);
       const planZone = getZoneIdFromRecord(plan);
 
       if (planStaff) next.staff_template_id = planStaff;
-      if (planWaste && hasBin) next.waste_type_id = planWaste;
+      if (planWasteIds.length) {
+        next.waste_type_ids = planWasteIds;
+        next.household_waste_type_ids = planWasteIds;
+      }
       if (planZone) next.zone_id = planZone;
       if (planPanchayat) {
         next.panchayat_id = planPanchayat;
@@ -322,6 +375,31 @@ export default function DailyTripAssignmentForm() {
   const handleZoneChange = (value: string) => {
     setFormData((prev) => ({ ...prev, zone_id: value, ward_id: "" }));
   };
+
+  useEffect(() => {
+    if (!formData.trip_plan_id || formData.staff_template_id) return;
+    const plan = tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === formData.trip_plan_id);
+    const staffTemplateId = uniqueIds([
+      recordData?.staff_template?.unique_id,
+      recordData?.staff_template_id,
+      recordData?.effective_staff?.source === "base" ? recordData?.effective_staff?.unique_id : undefined,
+      recordData?.trip_plan?.staff_template?.unique_id,
+      recordData?.trip_plan?.staff_template_id,
+      plan?.staff_template?.unique_id,
+      plan?.staff_template_id,
+    ])[0];
+    if (!staffTemplateId) return;
+    setFormData((prev) => (
+      prev.staff_template_id
+        ? prev
+        : { ...prev, staff_template_id: staffTemplateId }
+    ));
+  }, [
+    formData.trip_plan_id,
+    formData.staff_template_id,
+    recordData,
+    tripPlanRecords,
+  ]);
 
   // ── Effective alt-staff resolution ───────────────────────────────────────
   const resolvedAltStaff = useMemo(() => {
@@ -355,14 +433,20 @@ export default function DailyTripAssignmentForm() {
     [tripPlan, formData.trip_plan_id, recordData]
   );
   const resolvedStaffTemplates = useMemo(() =>
-    ensureOption(staffTemplates, formData.staff_template_id, recordData?.staff_template?.display_code),
+    ensureOption(
+      staffTemplates,
+      formData.staff_template_id,
+      recordData?.staff_template?.display_code ??
+        (recordData?.effective_staff?.source === "base" ? recordData?.effective_staff?.display_code : undefined) ??
+        recordData?.trip_plan?.staff_template?.display_code,
+    ),
     [staffTemplates, formData.staff_template_id, recordData]
   );
   const resolvedAltStaffOptions = useMemo(() =>
     ensureOption(
       altStaffOptions,
       formData.alt_staff_template_id,
-      recordData?.effective_staff?.display_code,
+      recordData?.alt_staff_template?.display_code ?? recordData?.effective_staff?.display_code,
     ),
     [altStaffOptions, formData.alt_staff_template_id, recordData]
   );
@@ -394,19 +478,26 @@ export default function DailyTripAssignmentForm() {
     );
   }, [formData.zone_id, formData.panchayat_id, formData.ward_id, formData.trip_plan_id, recordData, tripPlanRecords, wardRecords]);
   const resolvedWasteTypes = useMemo(() =>
-    ensureOption(wasteTypes, formData.waste_type_id, (recordData?.waste_type as any)?.waste_type_name ?? recordData?.waste_type?.name as string | undefined),
-    [wasteTypes, formData.waste_type_id, recordData]
+    formData.waste_type_ids.reduce(
+      (options, value) => ensureOption(
+        options,
+        value,
+        recordData?.waste_types?.find((item) => item.unique_id === value)?.waste_type_name ??
+          value,
+      ),
+      wasteTypes,
+    ),
+    [wasteTypes, formData.waste_type_ids, recordData]
   );
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const binWasteMissing = hasBinStops && !formData.waste_type_id;
-    const hhWasteMissing = hasHouseholdStops && formData.household_waste_type_ids.length === 0;
+    const wasteMissing = (hasBinStops || hasHouseholdStops) && formData.waste_type_ids.length === 0;
     if (!companyUniqueId || !projectId ||
       !formData.trip_plan_id || !formData.staff_template_id ||
       (!formData.panchayat_id && !formData.ward_id) ||
-      binWasteMissing || hhWasteMissing ||
+      wasteMissing ||
       !formData.trip_date || !formData.scheduled_time) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
@@ -419,13 +510,26 @@ export default function DailyTripAssignmentForm() {
       staff_template_id: formData.staff_template_id,
       panchayat_id: formData.panchayat_id || undefined,
       ward_id: formData.ward_id || undefined,
-      waste_type_id: hasBinStops ? formData.waste_type_id : undefined,
-      household_waste_type_ids: hasHouseholdStops ? formData.household_waste_type_ids : [],
+      waste_type_ids: formData.waste_type_ids,
+      household_waste_type_ids: hasHouseholdStops ? formData.waste_type_ids : [],
       trip_date: formData.trip_date,
       scheduled_time: formData.scheduled_time,
       status: formData.status,
       remarks: formData.remarks || undefined,
     };
+    if (isEdit) {
+      payload.collection_points_input = collectionPoints.map((point) => ({
+        unique_id: point.unique_id,
+        collection_point_id: point.collection_point_id,
+        bin_id: point.bin_id,
+        sequence: Number(point.sequence || 1),
+        is_collected: Boolean(point.is_collected),
+        collected_at: point.collected_at || null,
+        collected_weight_kg: point.collected_weight_kg || null,
+        collected_by: point.collected_by || null,
+        status: point.status || "Pending",
+      }));
+    }
 
     setIsSubmitting(true);
     try {
@@ -455,8 +559,8 @@ export default function DailyTripAssignmentForm() {
   return (
     <div className="p-3">
       <ComponentCard
-        title={isEdit ? "Edit Trip Assignment" : "New Trip Assignment"}
-        desc="Schedule a daily trip with vehicle, staff, route, and waste collection details"
+        title={isEdit ? "Edit Daily Trip Plan" : "New Daily Trip Plan"}
+        desc="Schedule a daily trip with vehicle, staff, route, and collection points"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -574,7 +678,7 @@ export default function DailyTripAssignmentForm() {
                 }`}>
                   {resolvedAltStaff
                     ? `Alt staff active: ${resolvedAltStaff.display_code ?? resolvedAltStaff.unique_id}`
-                    : `Base staff template: ${staffTemplates.find((s) => s.value === formData.staff_template_id)?.label ?? ""}`}
+                    : `Base staff template: ${resolvedStaffTemplates.find((s) => s.value === formData.staff_template_id)?.label ?? ""}`}
                 </div>
               </div>
             )}
@@ -632,37 +736,24 @@ export default function DailyTripAssignmentForm() {
               </div>
             )}
 
-            {/* Waste Type — single for bin, multi for household */}
-            {hasBinStops && (
+            {/* Waste Types */}
+            {(hasBinStops || hasHouseholdStops) && (
               <div>
                 <Label>
-                  Bin Collection Waste Type <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={formData.waste_type_id}
-                  onChange={set("waste_type_id")}
-                  options={resolvedWasteTypes}
-                  placeholder="Select waste type"
-                  disabled={fetching}
-                />
-              </div>
-            )}
-
-            {hasHouseholdStops && (
-              <div className={hasBinStops ? "" : "md:col-span-1"}>
-                <Label>
-                  Household Waste Types <span className="text-red-500">*</span>
+                  Waste Types <span className="text-red-500">*</span>
                   <span className="ml-1 text-xs font-normal text-gray-400">(select one or more)</span>
                 </Label>
                 <MultiSelect
-                  value={formData.household_waste_type_ids}
-                  onChange={(e) =>
+                  value={formData.waste_type_ids}
+                  onChange={(e) => {
+                    const values = Array.isArray(e.value) ? e.value.map(String) : [];
                     setFormData((prev) => ({
                       ...prev,
-                      household_waste_type_ids: Array.isArray(e.value) ? e.value.map(String) : [],
-                    }))
-                  }
-                  options={wasteTypes}
+                      waste_type_ids: values,
+                      household_waste_type_ids: values,
+                    }));
+                  }}
+                  options={resolvedWasteTypes}
                   optionLabel="label"
                   optionValue="value"
                   maxSelectedLabels={3}
@@ -703,6 +794,117 @@ export default function DailyTripAssignmentForm() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+          </div>
+
+          <div className="rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+              <div>
+                <h2 className="text-base font-semibold text-gray-800">Daily Trip Collection Points</h2>
+                <p className="text-xs text-gray-500">
+                  {isEdit
+                    ? "Generated from the selected TripPlan and saved with this daily trip plan."
+                    : "Collection points will be generated from the selected TripPlan after saving."}
+                </p>
+              </div>
+              {collectionPoints.length > 0 && (
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                  {collectionPoints.length} points
+                </span>
+              )}
+            </div>
+
+            {collectionPoints.length === 0 ? (
+              <div className="px-4 py-6 text-sm text-gray-500">
+                {isEdit ? "No collection points are attached to this daily trip plan." : "Save the daily trip plan to create collection points."}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+                    <tr>
+                      <th className="px-4 py-3">Seq</th>
+                      <th className="px-4 py-3">Collection Point</th>
+                      <th className="px-4 py-3">Bin</th>
+                      <th className="px-4 py-3">Weight (kg)</th>
+                      <th className="px-4 py-3">Collected</th>
+                      <th className="px-4 py-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {collectionPoints.map((point, index) => (
+                      <tr key={point.unique_id ?? `${point.collection_point_id}-${index}`}>
+                        <td className="px-4 py-3">
+                          <Input
+                            type="number"
+                            min={1}
+                            value={String(point.sequence ?? index + 1)}
+                            onChange={(event) => {
+                              const value = Number(event.target.value || 1);
+                              setCollectionPoints((prev) => prev.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, sequence: value } : item
+                              ));
+                            }}
+                            className="h-9 w-20"
+                          />
+                        </td>
+                        <td className="px-4 py-3 font-medium text-gray-800">{pointLabel(point)}</td>
+                        <td className="px-4 py-3 text-gray-700">{binLabel(point)}</td>
+                        <td className="px-4 py-3">
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={String(point.collected_weight_kg ?? "")}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setCollectionPoints((prev) => prev.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, collected_weight_kg: value } : item
+                              ));
+                            }}
+                            className="h-9 w-28"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(point.is_collected)}
+                            onChange={(event) => {
+                              const checked = event.target.checked;
+                              setCollectionPoints((prev) => prev.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, is_collected: checked, status: checked ? "Collected" : "Pending" }
+                                  : item
+                              ));
+                            }}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <select
+                            value={point.status ?? "Pending"}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setCollectionPoints((prev) => prev.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, status: value, is_collected: value === "Collected" }
+                                  : item
+                              ));
+                            }}
+                            className="h-9 rounded-md border border-gray-300 px-2 text-sm"
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Collected">Collected</option>
+                            <option value="Skipped">Skipped</option>
+                            <option value="Missed">Missed</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Actions */}
