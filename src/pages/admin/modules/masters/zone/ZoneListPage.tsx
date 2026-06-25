@@ -271,7 +271,7 @@ export default function ZoneList() {
               label={t("common.add_item", { item: t("admin.nav.zone") })}
               icon="pi pi-plus"
               className="p-button-success"
-              disabled={!companyUniqueId || !projectId}
+             
               onClick={() =>
                 navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
                   state: {

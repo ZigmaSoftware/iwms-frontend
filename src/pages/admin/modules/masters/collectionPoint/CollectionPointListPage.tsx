@@ -243,7 +243,7 @@ export default function CollectionPointListPage() {
             label={t("common.add_item", { item: t("admin.nav.collection_point") })}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>

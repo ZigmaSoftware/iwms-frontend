@@ -264,7 +264,7 @@ export default function PanchayatListPage() {
             label={t("common.add_item", { item: t("admin.nav.panchayat") })}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>

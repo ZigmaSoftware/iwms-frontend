@@ -316,7 +316,7 @@ export default function DailyTripAssignmentList() {
             label="New Assignment"
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>

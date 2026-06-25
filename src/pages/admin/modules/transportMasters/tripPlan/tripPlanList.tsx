@@ -68,6 +68,7 @@ export default function TripPlanList() {
     _staff: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _vehicle: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _waste_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    _stop_count: { value: null, matchMode: FilterMatchMode.CONTAINS },
     status: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
@@ -97,7 +98,10 @@ export default function TripPlanList() {
     _location: record.panchayat?.panchayat_name ?? record.ward?.ward_name ?? "",
     _staff: record.staff_template?.display_code ?? "",
     _vehicle: record.vehicle?.vehicle_no ?? "",
-    _waste_type: record.waste_type?.waste_type_name ?? "",
+    _waste_type: Array.isArray(record.waste_types) && record.waste_types.length
+      ? record.waste_types.map((wasteType) => wasteType?.waste_type_name).filter(Boolean).join(", ")
+      : record.waste_type?.waste_type_name ?? "",
+    _stop_count: String(Array.isArray(record.plan_collection_points) ? record.plan_collection_points.length : 0),
   })), [records]);
 
   const statusBody = (row: TripPlanRecord) => {
@@ -131,7 +135,7 @@ export default function TripPlanList() {
             <option value="">All Projects</option>
             {projects.map((project) => <option key={project.value} value={project.value}>{project.label}</option>)}
           </select>
-          <Button label="Add Trip Plan" icon="pi pi-plus" className="p-button-success p-button-sm" disabled={!companyUniqueId || !projectId} onClick={() => navigate(newPath, { state: { companyUniqueId, projectId } })} />
+          <Button label="Add Trip Plan" icon="pi pi-plus" className="p-button-success p-button-sm" onClick={() => navigate(newPath, { state: { companyUniqueId, projectId } })} />
         </div>
       </div>
       <div className="flex justify-end">
@@ -157,7 +161,7 @@ export default function TripPlanList() {
         loading={loading}
         filters={filters}
         onFilter={(event: DataTableFilterEvent) => setFilters(event.filters as TableFilters)}
-        globalFilterFields={["display_code", "_location", "_staff", "_vehicle", "_waste_type", "approval_status", "status"]}
+        globalFilterFields={["display_code", "_location", "_staff", "_vehicle", "_waste_type", "_stop_count", "approval_status", "status"]}
         header={header}
         stripedRows
         showGridlines
@@ -170,6 +174,7 @@ export default function TripPlanList() {
         <Column field="_staff" header="Staff Template" filter showFilterMatchModes={false} />
         <Column field="_vehicle" header="Vehicle" filter showFilterMatchModes={false} />
         <Column field="_waste_type" header="Waste Type" filter showFilterMatchModes={false} />
+        <Column field="_stop_count" header="Stops" filter showFilterMatchModes={false} style={{ width: 100 }} />
         <Column field="scheduled_time" header="Time" />
         <Column field="approval_status" header="Approval" />
         <Column header="Status" body={statusBody} style={{ width: 120 }} />

@@ -806,7 +806,7 @@ export default function CustomerCreationForm() {
   // const zoneOrWardSelected  = Boolean(formData.zone_id || formData.ward_id);
   // const panchayatSelected   = Boolean(formData.panchayat_id);
   const isPanchayatSelected = Boolean(formData.panchayat_id);
-  const isZoneOrWardSelected = Boolean(formData.zone_id || formData.ward_id);
+  const isZoneSelected = Boolean(formData.zone_id);
 
   /* ===============================
      VALIDATION
@@ -1453,8 +1453,8 @@ export default function CustomerCreationForm() {
             />
           )}
 
-          {/* ── PANCHAYAT — hidden when Zone or Ward is selected ── */}
-          {showField("panchayat_id") && !isZoneOrWardSelected && (
+          {/* ── PANCHAYAT — hidden when Zone is selected ── */}
+          {showField("panchayat_id") && !isZoneSelected && (
             <ShadcnSelect
               label={t("admin.nav.panchayat") || "PLB (Participating Local Bodies)"}
               value={formData.panchayat_id || "__none__"}

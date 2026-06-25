@@ -522,7 +522,7 @@ export default function VehicleCreationListPage() {
             label={t("admin.vehicle_creation.add")}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() =>
               navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
             }

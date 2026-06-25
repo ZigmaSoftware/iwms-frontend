@@ -473,42 +473,6 @@ export default function VehicleCreationForm() {
       <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-          {/* Vehicle No */}
-          {showField("vehicle_no") && (
-          <div>
-            <Label htmlFor="vehicleNo">
-              {t("admin.vehicle_creation.vehicle_no")}{" "}
-              <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="vehicleNo"
-              value={form.vehicleNo}
-              onChange={(e) => update("vehicleNo", e.target.value)}
-              placeholder={t("admin.vehicle_creation.vehicle_no_placeholder")}
-              className="input-validate w-full"
-              required
-            />
-          </div>
-          )}
-
-          {/* Status */}
-          {showField("is_active") && (
-          <div>
-            <Label htmlFor="isActive">{t("common.status")}</Label>
-            <Select
-              id="isActive"
-              value={form.isActive}
-              onChange={(value) => update("isActive", value)}
-              options={[
-                { value: "true", label: t("common.active") },
-                { value: "false", label: t("common.inactive") },
-              ]}
-              placeholder={t("common.select_status")}
-              className="input-validate w-full"
-            />
-          </div>
-          )}
-
           {/* Company */}
           {showField("company_id_input") && (
           <div>
@@ -622,6 +586,24 @@ export default function VehicleCreationForm() {
           </div>
           )}
 
+          {/* Vehicle No */}
+          {showField("vehicle_no") && (
+          <div>
+            <Label htmlFor="vehicleNo">
+              {t("admin.vehicle_creation.vehicle_no")}{" "}
+              <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="vehicleNo"
+              value={form.vehicleNo}
+              onChange={(e) => update("vehicleNo", e.target.value)}
+              placeholder={t("admin.vehicle_creation.vehicle_no_placeholder")}
+              className="input-validate w-full"
+              required
+            />
+          </div>
+          )}        
+
           {/* Capacity */}
           {showField("capacity") && (
           <div>
@@ -684,6 +666,24 @@ export default function VehicleCreationForm() {
               placeholder={t("common.select_item_placeholder", {
                 item: t("admin.vehicle_creation.vehicle_condition"),
               })}
+              className="input-validate w-full"
+            />
+          </div>
+          )}
+
+          {/* Status */}
+          {showField("is_active") && (
+          <div>
+            <Label htmlFor="isActive">{t("common.status")}</Label>
+            <Select
+              id="isActive"
+              value={form.isActive}
+              onChange={(value) => update("isActive", value)}
+              options={[
+                { value: "true", label: t("common.active") },
+                { value: "false", label: t("common.inactive") },
+              ]}
+              placeholder={t("common.select_status")}
               className="input-validate w-full"
             />
           </div>

@@ -184,7 +184,7 @@ export default function BinCollectionEventList() {
             label="Add Bin Collection Event"
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() => navigate(NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>

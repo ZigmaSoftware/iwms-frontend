@@ -78,7 +78,6 @@ const {
   encAlternativeStaffTemplate,
   encCommonAudit,
   encTripPlans,
-  encTripPlanCollectionPoints,
   encCompanyCreation,
   encProjectCreation,
   encSuperAdminMaster,
@@ -554,12 +553,6 @@ const scheduleMastersItems: NavItem[] = [
         path: `/${encScheduleMasters}/${encTripPlans}`,
         module: "schedule-masters",
         screen: "trip-plans",
-      },
-      {
-        nameKey: "admin.nav.trip_plan_collection_points",
-        path: `/${encScheduleMasters}/${encTripPlanCollectionPoints}`,
-        module: "schedule-masters",
-        screen: "trip-plan-collection-points",
       },
       {
         nameKey: "admin.nav.daily_trip_assignment",

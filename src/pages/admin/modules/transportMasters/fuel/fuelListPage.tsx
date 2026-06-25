@@ -240,7 +240,7 @@ export default function FuelList() {
             label={t("admin.fuel.add")}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>

@@ -250,7 +250,7 @@ export default function CityList() {
               label={t("common.add_item", { item: t("admin.nav.city") })}
               icon="pi pi-plus"
               className="p-button-success"
-              disabled={!companyUniqueId || !projectId}
+             
               onClick={() =>
                 navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
                   state: {
