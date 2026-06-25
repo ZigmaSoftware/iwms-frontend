@@ -5,6 +5,7 @@ export type CollectionPointOption = SelectOption & {
   cityId: string;
   panchayatId: string;
   wardId: string;
+  wards: { unique_id: string; ward_name: string; zone_id: string | null; panchayat_id: string | null }[];
 };
 
 export type CityOption = SelectOption & { districtId: string };

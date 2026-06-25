@@ -300,7 +300,7 @@ export default function StaffCreationList() {
             label={t("admin.staff_creation.create")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() =>
               navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
             }

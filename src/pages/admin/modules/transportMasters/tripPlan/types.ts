@@ -20,8 +20,6 @@ export type FormState = {
   staff_template_id: string;
   vehicle_id: string;
   supervisor_id: string;
-  property_id: string;
-  sub_property_id: string;
   waste_type_ids: string[];
   trip_trigger_weight_kg: string;
   max_vehicle_capacity_kg: string;

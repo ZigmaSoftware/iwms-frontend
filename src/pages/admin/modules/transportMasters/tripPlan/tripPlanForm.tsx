@@ -131,8 +131,6 @@ const emptyFormState = (): FormState => ({
   staff_template_id: "",
   vehicle_id: "",
   supervisor_id: "",
-  property_id: "",
-  sub_property_id: "",
   waste_type_ids: [],
   trip_trigger_weight_kg: "",
   max_vehicle_capacity_kg: "",
@@ -239,8 +237,6 @@ export default function TripPlanForm() {
       staff_template_id: record.staff_template?.unique_id ?? record.staff_template_id ?? "",
       vehicle_id: record.vehicle?.unique_id ?? record.vehicle_id ?? "",
       supervisor_id: record.supervisor?.unique_id ?? record.supervisor_id ?? "",
-      property_id: record.property?.unique_id ?? record.property_id ?? "",
-      sub_property_id: record.sub_property?.unique_id ?? record.sub_property_id ?? "",
       waste_type_ids: selectedWasteTypeIds.length ? selectedWasteTypeIds : fallbackWasteTypeId ? [String(fallbackWasteTypeId)] : [],
       trip_trigger_weight_kg: String(record.trip_trigger_weight_kg ?? ""),
       max_vehicle_capacity_kg: String(record.max_vehicle_capacity_kg ?? ""),
@@ -283,14 +279,12 @@ export default function TripPlanForm() {
       adminApi.staffTemplateCreation.readAll({ params }),
       adminApi.vehicleCreations.readAll({ params }),
       adminApi.staffCreation.readAll({ params }),
-      adminApi.properties.readAll({ params }),
-      adminApi.subProperties.readAll({ params }),
       adminApi.wasteTypes.readAll({ params }),
       adminApi.collectionPoints.readAll({ params }),
       adminApi.bins.readAll({ params }),
       adminApi.customerCreations.readAll({ params }),
     ])
-      .then(([districts, cities, zones, panchayats, wards, staffTemplates, vehicles, staff, properties, subProperties, wasteTypes, collectionPoints, bins, customers]) => {
+      .then(([districts, cities, zones, panchayats, wards, staffTemplates, vehicles, staff, wasteTypes, collectionPoints, bins, customers]) => {
         if (cancelled) return;
         setLookups({
           districts: normalizeList(districts),
@@ -301,8 +295,6 @@ export default function TripPlanForm() {
           staffTemplates: normalizeList(staffTemplates),
           vehicles: normalizeList(vehicles),
           staff: normalizeList(staff),
-          properties: normalizeList(properties),
-          subProperties: normalizeList(subProperties),
           wasteTypes: normalizeList(wasteTypes),
           collectionPoints: normalizeList(collectionPoints),
           bins: normalizeList(bins),
@@ -322,16 +314,12 @@ export default function TripPlanForm() {
     const zones = scopedItems(lookups.zones ?? [], companyUniqueId, projectId);
     const panchayats = scopedItems(lookups.panchayats ?? [], companyUniqueId, projectId);
     const wards = scopedItems(lookups.wards ?? [], companyUniqueId, projectId);
-    const properties = scopedItems(lookups.properties ?? [], companyUniqueId, projectId);
-    const subProperties = scopedItems(lookups.subProperties ?? [], companyUniqueId, projectId);
     const collectionPoints = scopedItems(lookups.collectionPoints ?? [], companyUniqueId, projectId);
     const customers = scopedItems(lookups.customers ?? [], companyUniqueId, projectId);
 
     const selectedDistrict = districts.find((item) => recordId(item) === formData.district_id);
     const selectedCity = cities.find((item) => recordId(item) === formData.city_id);
     const selectedZone = zones.find((item) => recordId(item) === formData.zone_id);
-    const selectedProperty = properties.find((item) => recordId(item) === formData.property_id);
-
     return {
       districts: buildOptions(districts, ["name", "district_name"]),
       cities: buildOptions(
@@ -368,34 +356,45 @@ export default function TripPlanForm() {
         ["panchayat_name", "name"]
       ),
       wards: buildOptions(
-        wards.filter((item) =>
-          relationMatches(
-            item?.zone_id ?? item?.zone ?? { name: item?.zone_name, zone_name: item?.zone_name },
-            formData.zone_id,
-            selectedZone,
-            ["name", "zone_name"]
-          )
-        ),
+        wards.filter((item) => {
+          if (formData.zone_id) {
+            return relationMatches(
+              item?.zone_id ?? item?.zone ?? { name: item?.zone_name, zone_name: item?.zone_name },
+              formData.zone_id,
+              selectedZone,
+              ["name", "zone_name"]
+            );
+          }
+          if (formData.panchayat_id) {
+            const selectedPanchayat = panchayats.find((p) => recordId(p) === formData.panchayat_id);
+            return relationMatches(
+              item?.panchayat_id ?? item?.panchayat ?? { panchayat_name: item?.panchayat_name, name: item?.panchayat_name },
+              formData.panchayat_id,
+              selectedPanchayat,
+              ["panchayat_name", "name"]
+            );
+          }
+          return false;
+        }),
         ["ward_name", "name"]
       ),
       staffTemplates: buildOptions(scopedItems(lookups.staffTemplates ?? [], companyUniqueId, projectId), ["display_code"]),
       vehicles: buildOptions(scopedItems(lookups.vehicles ?? [], companyUniqueId, projectId), ["vehicle_no"]),
-      staff: buildOptions(scopedItems(lookups.staff ?? [], companyUniqueId, projectId), ["employee_name", "username"]),
-      properties: buildOptions(properties, ["property_name"]),
-      subProperties: buildOptions(
-        subProperties.filter((item) =>
-          relationMatches(
-            item?.property_id ?? item?.property ?? { property_name: item?.property_name, name: item?.property_name },
-            formData.property_id,
-            selectedProperty,
-            ["property_name", "name"]
-          )
+      staff: buildOptions(
+        scopedItems(lookups.staff ?? [], companyUniqueId, projectId).filter((s) =>
+          String(s?.staffusertype_name ?? s?.designation ?? "").trim().toLowerCase().includes("supervisor")
         ),
-        ["sub_property_name"]
+        ["employee_name", "username"]
       ),
       wasteTypes: buildOptions(scopedItems(lookups.wasteTypes ?? [], companyUniqueId, projectId), ["waste_type_name", "name"]),
       collectionPoints: buildOptions(
         collectionPoints.filter((item) => {
+          if (formData.ward_id) {
+            const cpWards = Array.isArray(item?.wards) ? item.wards : [];
+            const matchesWard = cpWards.some((w: any) => recordId(w) === formData.ward_id) ||
+              recordId(item?.ward_id ?? item?.ward) === formData.ward_id;
+            return matchesWard;
+          }
           if (formData.panchayat_id) {
             const selectedPanchayat = panchayats.find((panchayat) => recordId(panchayat) === formData.panchayat_id);
             return relationMatches(
@@ -405,13 +404,12 @@ export default function TripPlanForm() {
               ["panchayat_name", "name"]
             );
           }
-          if (formData.ward_id) {
-            const selectedWard = wards.find((ward) => recordId(ward) === formData.ward_id);
+          if (formData.zone_id) {
             return relationMatches(
-              item?.ward_id ?? item?.ward ?? { ward_name: item?.ward_name, name: item?.ward_name },
-              formData.ward_id,
-              selectedWard,
-              ["ward_name", "name"]
+              item?.zone_id ?? item?.zone ?? { zone_name: item?.zone_name, name: item?.zone_name },
+              formData.zone_id,
+              selectedZone,
+              ["zone_name", "name"]
             );
           }
           return true;
@@ -429,15 +427,6 @@ export default function TripPlanForm() {
               ["panchayat_name", "name"]
             );
           }
-          if (formData.ward_id) {
-            const selectedWard = wards.find((ward) => recordId(ward) === formData.ward_id);
-            return relationMatches(
-              item?.ward ?? item?.ward_id ?? { ward_name: item?.ward_name, name: item?.ward_name },
-              formData.ward_id,
-              selectedWard,
-              ["ward_name", "name"]
-            );
-          }
           if (formData.zone_id) {
             return relationMatches(
               item?.zone ?? item?.zone_id ?? { zone_name: item?.zone_name, name: item?.zone_name },
@@ -451,23 +440,45 @@ export default function TripPlanForm() {
         ["customer_name", "name"]
       ),
     };
-  }, [companyUniqueId, projectId, formData.district_id, formData.city_id, formData.zone_id, formData.panchayat_id, formData.ward_id, formData.property_id, lookups]);
+  }, [companyUniqueId, projectId, formData.district_id, formData.city_id, formData.zone_id, formData.panchayat_id, formData.ward_id, lookups]);
 
-  const binOptionsFor = (collectionPointId: string) =>
-    buildOptions(
+  const binOptionsFor = (collectionPointId: string) => {
+    const normalizedWasteTypeIds = formData.waste_type_ids.map((v: any) =>
+      v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v)
+    );
+    // Build a set of waste type names for the selected IDs so we can match
+    // bins that store the waste type as a name string rather than an ID.
+    const selectedWasteTypeNames = new Set(
+      (lookups.wasteTypes ?? [])
+        .filter((wt) => normalizedWasteTypeIds.includes(recordId(wt)))
+        .flatMap((wt) => [
+          normalizedText(wt?.waste_type_name),
+          normalizedText(wt?.name),
+          normalizedText(wt?.wastetype_name),
+        ])
+        .filter(Boolean)
+    );
+
+    return buildOptions(
       scopedItems(lookups.bins ?? [], companyUniqueId, projectId).filter((bin) => {
-        const belongsToCollectionPoint = relationMatches(
+        const belongsToCollectionPoint = !collectionPointId || relationMatches(
           bin?.collection_point_id ?? bin?.collection_point ?? { cp_name: bin?.collection_point_name, name: bin?.collection_point_name },
           collectionPointId,
           collectionPointDetails(collectionPointId),
           ["cp_name", "collection_point_name", "name"]
         );
-        const binWasteTypeId = recordId(bin?.wastetype_id ?? bin?.waste_type_id ?? bin?.waste_type);
-        const matchesWasteType = formData.waste_type_ids.length === 0 || formData.waste_type_ids.includes(binWasteTypeId);
-        return belongsToCollectionPoint && matchesWasteType;
+        if (!belongsToCollectionPoint) return false;
+        if (normalizedWasteTypeIds.length === 0) return true;
+        // Try ID match first (if the API ever returns wastetype_id)
+        const binWasteTypeId = recordId(bin?.wastetype_id ?? bin?.waste_type_id);
+        if (binWasteTypeId && normalizedWasteTypeIds.includes(binWasteTypeId)) return true;
+        // Fall back to name match
+        const binWasteTypeName = normalizedText(bin?.waste_type_name ?? bin?.wastetype_name ?? bin?.waste_type);
+        return binWasteTypeName ? selectedWasteTypeNames.has(binWasteTypeName) : false;
       }),
       ["bin_name"]
     );
+  };
 
   const collectionPointDetails = (collectionPointId: string) =>
     scopedItems(lookups.collectionPoints ?? [], companyUniqueId, projectId).find((item) => recordId(item) === collectionPointId);
@@ -495,19 +506,12 @@ export default function TripPlanForm() {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
-      // Cascade: district → clear city + everything below
       ...(field === "district_id" ? { city_id: "", zone_id: "", panchayat_id: "", ward_id: "" } : {}),
-      // Cascade: city → clear zone + panchayat + ward
       ...(field === "city_id" ? { zone_id: "", panchayat_id: "", ward_id: "" } : {}),
-      // Cascade: zone → clear ward
-      ...(field === "zone_id" ? { ward_id: "" } : {}),
-      // Mutual exclusion: panchayat ↔ ward
-      ...(field === "panchayat_id" && value ? { ward_id: "" } : {}),
-      ...(field === "ward_id" && value ? { panchayat_id: "" } : {}),
-      // Cascade: property → clear sub-property
-      ...(field === "property_id" ? { sub_property_id: "" } : {}),
+      ...(field === "zone_id" && value ? { panchayat_id: "", ward_id: "" } : {}),
+      ...(field === "panchayat_id" && value ? { zone_id: "", ward_id: "" } : {}),
     }));
-    if (field === "panchayat_id" || field === "ward_id") {
+    if (field === "panchayat_id" || field === "zone_id") {
       setStops([emptyStop(1)]);
     }
   };
@@ -566,16 +570,18 @@ export default function TripPlanForm() {
     if (!formData.staff_template_id) missingFields.push("Staff Template");
     if (!formData.vehicle_id) missingFields.push("Vehicle");
     if (!formData.supervisor_id) missingFields.push("Supervisor");
-    if (!formData.property_id) missingFields.push("Property");
-    if (!formData.sub_property_id) missingFields.push("Sub Property");
     if (formData.waste_type_ids.length === 0) missingFields.push("Waste Type");
     if (!formData.scheduled_time) missingFields.push("Scheduled Time");
     if (missingFields.length) {
       Swal.fire(t("common.warning"), `Please fill: ${missingFields.join(", ")}`, "warning");
       return;
     }
-    if (!formData.panchayat_id && !formData.ward_id) {
-      Swal.fire(t("common.warning"), "Select either panchayat or ward.", "warning");
+    if (!formData.panchayat_id && !formData.zone_id) {
+      Swal.fire(t("common.warning"), "Select either Zone or PLB (Panchayat).", "warning");
+      return;
+    }
+    if (!formData.ward_id) {
+      Swal.fire(t("common.warning"), "Ward is required.", "warning");
       return;
     }
     if (!Number.isFinite(triggerWeight) || !Number.isFinite(maxCapacity) || triggerWeight >= maxCapacity) {
@@ -642,20 +648,22 @@ export default function TripPlanForm() {
             </div>
             <div><Label>District</Label><Select value={formData.district_id} onChange={setField("district_id")} options={options.districts} disabled={loading || !projectId} /></div>
             <div><Label>City</Label><Select value={formData.city_id} onChange={setField("city_id")} options={options.cities} disabled={loading || !formData.district_id} /></div>
-            <div><Label>Zone</Label><Select value={formData.zone_id} onChange={setField("zone_id")} options={options.zones} disabled={loading || !formData.city_id || Boolean(formData.panchayat_id)} /></div>
-            <div><Label>PLB (Participating Local Bodies)</Label><Select value={formData.panchayat_id} onChange={setField("panchayat_id")} options={options.panchayats} disabled={loading || !formData.city_id || Boolean(formData.ward_id)} /></div>
-            <div><Label>Ward</Label><Select value={formData.ward_id} onChange={setField("ward_id")} options={options.wards} disabled={loading || !formData.zone_id || Boolean(formData.panchayat_id)} /></div>
+            {!formData.panchayat_id && <div><Label>Zone</Label><Select value={formData.zone_id} onChange={setField("zone_id")} options={options.zones} disabled={loading || !formData.city_id} /></div>}
+            {!formData.zone_id && <div><Label>PLB (Participating Local Bodies)</Label><Select value={formData.panchayat_id} onChange={setField("panchayat_id")} options={options.panchayats} disabled={loading || !formData.city_id} /></div>}
+            {(formData.zone_id || formData.panchayat_id) && <div><Label>Ward</Label><Select key={formData.ward_id} value={formData.ward_id} onChange={setField("ward_id")} options={options.wards} disabled={loading} /></div>}
             <div><Label>Staff Template</Label><Select value={formData.staff_template_id} onChange={setField("staff_template_id")} options={options.staffTemplates} disabled={loading || !projectId} /></div>
             <div><Label>Vehicle</Label><Select value={formData.vehicle_id} onChange={setField("vehicle_id")} options={options.vehicles} disabled={loading || !projectId} /></div>
             <div><Label>Supervisor</Label><Select value={formData.supervisor_id} onChange={setField("supervisor_id")} options={options.staff} disabled={loading || !projectId} /></div>
-            <div><Label>Property</Label><Select value={formData.property_id} onChange={setField("property_id")} options={options.properties} disabled={loading || !projectId} /></div>
-            <div><Label>Sub Property</Label><Select value={formData.sub_property_id} onChange={setField("sub_property_id")} options={options.subProperties} disabled={loading || !formData.property_id} /></div>
             <div>
               <Label>Waste Type</Label>
               <MultiSelect
                 value={formData.waste_type_ids}
                 onChange={(event) => {
-                  const values = Array.isArray(event.value) ? event.value.map(String) : [];
+                  const raw = Array.isArray(event.value) ? event.value : [];
+                  // PrimeReact MultiSelect sometimes returns objects instead of the optionValue string
+                  const values = raw.map((v: any) =>
+                    v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v)
+                  );
                   setFormData((prev) => ({ ...prev, waste_type_ids: values }));
                   setStops((current) => current.map((stop) => ({ ...stop, bin_id: "" })));
                 }}

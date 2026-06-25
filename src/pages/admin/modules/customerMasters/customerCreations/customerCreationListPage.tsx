@@ -236,7 +236,7 @@ export default function CustomerCreationListPage() {
           label={t("admin.customer_creation.add")}
           icon="pi pi-plus"
           className="p-button-success"
-          disabled={!companyUniqueId || !projectId}
+         
           onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
         />
         <Button

@@ -203,13 +203,8 @@ export default function AlternativeStaffTemplateList() {
             label={t("admin.alternative_staff_template.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !selectedProjectId}
             onClick={() =>
-              navigate(
-                `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
-                  companyUniqueId
-                )}&project_id=${encodeURIComponent(selectedProjectId)}`
-              )
+              navigate(ENC_NEW_PATH, { state: selectedContext })
             }
           />
         </div>

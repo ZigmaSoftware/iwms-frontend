@@ -135,7 +135,7 @@ export default function TripPlanList() {
             <option value="">All Projects</option>
             {projects.map((project) => <option key={project.value} value={project.value}>{project.label}</option>)}
           </select>
-          <Button label="Add Trip Plan" icon="pi pi-plus" className="p-button-success p-button-sm" disabled={!companyUniqueId || !projectId} onClick={() => navigate(newPath, { state: { companyUniqueId, projectId } })} />
+          <Button label="Add Trip Plan" icon="pi pi-plus" className="p-button-success p-button-sm" onClick={() => navigate(newPath, { state: { companyUniqueId, projectId } })} />
         </div>
       </div>
       <div className="flex justify-end">

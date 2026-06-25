@@ -305,7 +305,7 @@ export default function SupervisorZoneMapList() {
             label={t("admin.supervisor_zone_map.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() =>
               navigate(
                 `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(

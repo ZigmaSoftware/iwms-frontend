@@ -280,7 +280,7 @@ export default function UnassignedStaffPoolList() {
             label={t("admin.unassigned_staff_pool.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() =>
               navigate(
                 `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
