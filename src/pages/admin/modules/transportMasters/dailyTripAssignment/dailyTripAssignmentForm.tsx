@@ -617,9 +617,9 @@ export default function DailyTripAssignmentForm() {
               />
             </div>
 
-            {/* Scheduled Time */}
+            {/* Start Time */}
             <div>
-              <Label>Scheduled Time <span className="text-red-500">*</span></Label>
+              <Label>Start Time <span className="text-red-500">*</span></Label>
               <Input
                 type="time"
                 value={formData.scheduled_time}

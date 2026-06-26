@@ -850,6 +850,7 @@ const enResource = {
           "daily_trip_tracking": "Daily Trip Tracking",
           "bin_collection_event": "Bin Collection Event",
           "daily_trip_log": "Daily Trip Logs",
+          "scheduler_config": "Trip Scheduler Config",
           "audit_items": "Audit Items",
           "common_audit": "Common Audit",
           "login_audit": "Login Audit",
