@@ -647,6 +647,18 @@ export default function DailyTripAssignmentForm() {
               />
             </div>
 
+            {/* Start Time */}
+            <div>
+              <Label>Start Time <span className="text-red-500">*</span></Label>
+              <Input
+                type="time"
+                value={formData.scheduled_time}
+                onChange={(e) => set("scheduled_time")(e.target.value)}
+                disabled={!projectId}
+                required
+              />
+            </div>
+
             {/* Trip Plan */}
             <div>
               <Label>Trip Plan <span className="text-red-500">*</span></Label>

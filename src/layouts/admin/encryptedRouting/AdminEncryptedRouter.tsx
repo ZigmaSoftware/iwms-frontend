@@ -103,6 +103,7 @@ import DailyTripCollectionPointList from "@/pages/admin/modules/transportMasters
 import DailyTripCollectionPointForm from "@/pages/admin/modules/transportMasters/dailyTripCollectionPoint/dailyTripCollectionPointForm";
 import DailyTripHouseholdCollectionList from "@/pages/admin/modules/transportMasters/dailyTripHouseholdCollection/dailyTripHouseholdCollectionList";
 import DailyTripTracking from "@/pages/admin/modules/scheduleMasters/dailyTripTracking/DailyTripTracking";
+import SchedulerConfigPage from "@/pages/admin/modules/scheduleMasters/schedulerConfig/SchedulerConfigPage";
 import DailyTripLogList from "@/pages/admin/modules/transportMasters/dailyTripLog/dailyTripLogList";
 
 // import CollectionMonitoringListPage from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringListPage";
@@ -238,6 +239,7 @@ const ROUTES: RouteMap = {
     "daily-trip-log": { list: DailyTripLogList },
     "daily-waste-comparisons": { list: DailyWasteComparisonList, form: DailyWasteComparisonForm },
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage, form: MonthlyWasteComparisonForm },
+    "scheduler-config": { component: SchedulerConfigPage },
   },
   "customer-master": {
     "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },

@@ -92,6 +92,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encBinCollectionEvent,
     encDailyTripLog,
     encDailyWasteComparison,
+    encSchedulerConfig,
   } = getEncryptedRoute();
 
   _cache = [
@@ -171,6 +172,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encScheduleMasters}/${encBinCollectionEvent}`, nameKey: "admin.nav.bin_collection_event", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encScheduleMasters}/${encDailyTripLog}`, nameKey: "admin.nav.daily_trip_log", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encScheduleMasters}/${encDailyWasteComparison}`, nameKey: "Daily Waste Comparison", parentNameKey: "admin.nav.schedule_masters" },
+    { path: `/${encScheduleMasters}/${encSchedulerConfig}`, nameKey: "admin.nav.scheduler_config", parentNameKey: "admin.nav.schedule_masters" },
     // Audits
     { path: `/${encAudits}/${encCommonAudit}`, nameKey: "admin.nav.common_audit", parentNameKey: "admin.nav.audit_items" },
     { path: `/${encTransportMaster}/${encVehicleTripAudit}`, nameKey: "admin.nav.vehicle_trip_audit", parentNameKey: "admin.nav.audit_items" },

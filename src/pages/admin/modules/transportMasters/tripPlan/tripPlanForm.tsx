@@ -572,7 +572,7 @@ export default function TripPlanForm() {
     if (!formData.vehicle_id) missingFields.push("Vehicle");
     if (!formData.supervisor_id) missingFields.push("Supervisor");
     if (formData.waste_type_ids.length === 0) missingFields.push("Waste Type");
-    if (!formData.scheduled_time) missingFields.push("Scheduled Time");
+    if (!formData.scheduled_time) missingFields.push("Start Time");
     if (missingFields.length) {
       Swal.fire(t("common.warning"), `Please fill: ${missingFields.join(", ")}`, "warning");
       return;
@@ -699,7 +699,7 @@ export default function TripPlanForm() {
                 className="!flex !h-10 !w-full !items-center !rounded-md !border !border-gray-300 !bg-white !px-3 !py-2 !text-sm !shadow-none"
               />
             </div>
-            <div><Label>Scheduled Time</Label><Input type="time" value={formData.scheduled_time} onChange={(e) => setField("scheduled_time")(e.target.value)} disabled={!projectId} /></div>
+            <div><Label>Start Time</Label><Input type="time" value={formData.scheduled_time} onChange={(e) => setField("scheduled_time")(e.target.value)} disabled={!projectId} /></div>
             <div><Label>Trigger Weight (kg)</Label><Input type="number" min={0} value={formData.trip_trigger_weight_kg} onChange={(e) => setField("trip_trigger_weight_kg")(e.target.value)} /></div>
             <div><Label>Max Vehicle Capacity (kg)</Label><Input type="number" min={0} value={formData.max_vehicle_capacity_kg} onChange={(e) => setField("max_vehicle_capacity_kg")(e.target.value)} /></div>
             <div><Label>Status</Label><Select value={formData.status} onChange={setField("status")} options={statusOptions} disabled={loading} /></div>
