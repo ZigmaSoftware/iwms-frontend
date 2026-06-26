@@ -16,7 +16,7 @@ export type FormState = {
   city_id: string;
   zone_id: string;
   panchayat_id: string;
-  ward_id: string;
+  ward_ids: string[];
   staff_template_id: string;
   vehicle_id: string;
   supervisor_id: string;
@@ -36,7 +36,7 @@ export type TripPlanRecord = {
   district?: { name?: string };
   city?: { name?: string };
   panchayat?: { panchayat_name?: string };
-  ward?: { ward_name?: string };
+  wards?: { unique_id?: string; ward_name?: string }[];
   staff_template?: { display_code?: string };
   vehicle?: { vehicle_no?: string };
   waste_type?: { waste_type_name?: string };
