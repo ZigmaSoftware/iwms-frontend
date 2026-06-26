@@ -175,7 +175,7 @@ export default function TripPlanList() {
         <Column field="_vehicle" header="Vehicle" filter showFilterMatchModes={false} />
         <Column field="_waste_type" header="Waste Type" filter showFilterMatchModes={false} />
         <Column field="_stop_count" header="Stops" filter showFilterMatchModes={false} style={{ width: 100 }} />
-        <Column field="scheduled_time" header="Time" />
+        <Column field="scheduled_time" header="Start Time" />
         <Column field="approval_status" header="Approval" />
         <Column header="Status" body={statusBody} style={{ width: 120 }} />
         <Column header={t("common.actions")} style={{ width: 120 }} body={(row: TripPlanRecord) => (
