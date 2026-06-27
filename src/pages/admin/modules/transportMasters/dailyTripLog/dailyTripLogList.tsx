@@ -445,8 +445,6 @@ export default function DailyTripLogList() {
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    company_name: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    project_name: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _assignment: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _waste: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _base_template: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -495,8 +493,6 @@ export default function DailyTripLogList() {
     _base_template: rec.staff_template?.base?.display_code ?? "",
     _alt_template: rec.staff_template?.alt?.display_code ?? "",
     _location: rec.panchayat?.panchayat_name ?? rec.ward?.ward_name ?? "",
-    _driver: rec.driver?.employee_name ?? "",
-    _operator: rec.operator?.employee_name ?? "",
     _computed_weight: computeCollectedWeight(rec.collection_points),
     _has_point_weights: (rec.collection_points ?? []).some(
       (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
@@ -727,15 +723,11 @@ export default function DailyTripLogList() {
         emptyMessage="No trip logs found. Select a company and project to load data."
         globalFilterFields={[
           "unique_id",
-          "company_name",
-          "project_name",
           "_assignment",
           "_location",
           "_waste",
           "_base_template",
           "_alt_template",
-          "_driver",
-          "_operator",
           "log_status",
           "collection_status",
           "trip_date",
@@ -754,22 +746,6 @@ export default function DailyTripLogList() {
           filter
           showFilterMatchModes={false}
           style={{ minWidth: 150 }}
-        />
-        <Column
-          field="company_name"
-          header="Company"
-          sortable
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: 140 }}
-        />
-        <Column
-          field="project_name"
-          header="Project"
-          sortable
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: 140 }}
         />
         <Column
           field="_assignment"
@@ -890,8 +866,6 @@ export default function DailyTripLogList() {
           showFilterMatchModes={false}
           style={{ minWidth: 145 }}
         />
-        <Column field="_driver" header="Driver" style={{ minWidth: 130 }} />
-        <Column field="_operator" header="Operator" style={{ minWidth: 130 }} />
         <Column
           field="trip_date"
           header="Trip Date"

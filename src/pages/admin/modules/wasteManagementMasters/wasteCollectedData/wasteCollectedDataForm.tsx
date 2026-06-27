@@ -11,10 +11,12 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
 
-import { customerCreationApi, wasteCollectionApi, dailyTripAssignmentApi, tripPlanApi, } from "@/helpers/admin";
+import { customerCreationApi, wasteCollectionApi, dailyTripAssignmentApi, dailyTripHouseholdCollectionApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
+
+type WasteTypeOption = { unique_id: string; waste_type_name: string };
 
 const extractError = (error: any): string | null => {
   const data = error?.response?.data;
@@ -26,6 +28,15 @@ const extractError = (error: any): string | null => {
     if (Array.isArray(first)) return String(first[0]);
     if (typeof first === "string") return first;
   }
+  return null;
+};
+
+// Map a waste type name to the fixed model field key
+const wasteTypeToField = (name: string): "wet_waste" | "dry_waste" | "mixed_waste" | null => {
+  const n = name.toLowerCase();
+  if (n.includes("wet")) return "wet_waste";
+  if (n.includes("dry")) return "dry_waste";
+  if (n.includes("mix")) return "mixed_waste";
   return null;
 };
 
@@ -53,43 +64,36 @@ export default function WasteCollectedForm() {
   /* ── form fields ── */
   const [customerId, setCustomerId] = useState("");
   const [tripAssignmentId, setTripAssignmentId] = useState("");
-  // const [panchayatId, setPanchayatId] = useState("");
-  // const [zoneId, setZoneId] = useState("");
-  // const [wardId, setWardId] = useState("");
-  const [wetWaste, setWetWaste] = useState(0);
-  const [dryWaste, setDryWaste] = useState(0);
-  const [mixedWaste, setMixedWaste] = useState(0);
-  const totalQuantity = wetWaste + dryWaste + mixedWaste;
+  // Per-waste-type amounts keyed by field name — stored as strings so the input can be cleared mid-edit
+  const [wasteAmounts, setWasteAmounts] = useState<Record<string, string>>({
+    wet_waste: "", dry_waste: "", mixed_waste: "",
+  });
 
-  /* ── dropdown data ── */
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [tripAssignments, setTripAssignments] = useState<{ value: string; label: string }[]>([]);
-  // const [panchayats, setPanchayats] = useState<{ value: string; label: string }[]>([]);
-  // const [zones, setZones] = useState<{ value: string; label: string }[]>([]);
-  // const [wards, setWards] = useState<{ value: string; label: string }[]>([]);
+  /* ── dropdown / derived data ── */
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
+  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
+  const [tripAssignments, setTripAssignments] = useState<{ value: string; label: string; raw: any }[]>([]);
+  // Waste types from the selected trip assignment
+  const [assignmentWasteTypes, setAssignmentWasteTypes] = useState<WasteTypeOption[]>([]);
   const [fetchingCustomers, setFetchingCustomers] = useState(false);
+  const [loadingAssignmentData, setLoadingAssignmentData] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Pending values stored from the raw API response — applied once their option
-  // lists finish loading (same pendingRecord pattern as panchayat / customer creation)
+  // Pending values for async hydration in edit mode
   const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
-    projectUniqueId: string;
-    projectId: string;
-    projectName: string;
+    projectUniqueId: string; projectId: string; projectName: string;
   } | null>(null);
   const [pendingCustomerCandidates, setPendingCustomerCandidates] = useState<{
-    customerUniqueId: string;
-    customerId: string;
-    customerName: string;
+    customerUniqueId: string; customerId: string; customerName: string;
   } | null>(null);
   const [pendingTripAssignmentId, setPendingTripAssignmentId] = useState("");
 
-  // Tracks whether the trip assignment was changed by the user (not by record loading)
   const userChangedTripRef = useRef(false);
 
   const resolveCustomerId = (c: Customer) => String(c.unique_id ?? c.id);
-  /* ── load trip assignments filtered by company + project ── */
+
+  /* ── load trip assignments ── */
   useEffect(() => {
     if (!companyUniqueId) { setTripAssignments([]); return; }
     const params: Record<string, string> = { company_id: companyUniqueId };
@@ -97,14 +101,18 @@ export default function WasteCollectedForm() {
     dailyTripAssignmentApi.readAll({ params })
       .then((res: any) => {
         const list: any[] = Array.isArray(res) ? res : res?.results ?? [];
-        setTripAssignments(list.map((a) => ({ value: String(a.unique_id), label: String(a.unique_id) })));
+        setTripAssignments(list.map((a) => ({
+          value: String(a.unique_id),
+          label: String(a.unique_id),
+          raw: a,
+        })));
       })
       .catch(() => {});
   }, [companyUniqueId, projectId]);
 
-  /* ── load customers filtered by company + project ── */
+  /* ── load all customers ── */
   useEffect(() => {
-    if (!companyUniqueId) { setCustomers([]); return; }
+    if (!companyUniqueId) { setAllCustomers([]); setFilteredCustomers([]); return; }
     let cancelled = false;
     setFetchingCustomers(true);
     const params: Record<string, string> = { company_id: companyUniqueId };
@@ -113,12 +121,68 @@ export default function WasteCollectedForm() {
       .then((res: any) => {
         if (cancelled) return;
         const list = Array.isArray(res) ? res : res?.results ?? [];
-        setCustomers(list);
+        setAllCustomers(list);
+        setFilteredCustomers(list); // default: all customers visible
       })
       .catch(() => { if (!cancelled) Swal.fire(t("common.error"), t("common.load_failed"), "error"); })
       .finally(() => { if (!cancelled) setFetchingCustomers(false); });
     return () => { cancelled = true; };
   }, [companyUniqueId, projectId, t]);
+
+  /* ── when trip assignment changes: filter customers + derive waste types ── */
+  useEffect(() => {
+    if (!tripAssignmentId || tripAssignmentId === "__none__") {
+      // No assignment — show all customers, show all three waste fields
+      setFilteredCustomers(allCustomers);
+      setAssignmentWasteTypes([]);
+      if (userChangedTripRef.current) {
+        setCustomerId("");
+        setWasteAmounts({ wet_waste: "", dry_waste: "", mixed_waste: "" });
+      }
+      return;
+    }
+
+    const raw = tripAssignments.find((a) => a.value === tripAssignmentId)?.raw;
+
+    // Derive waste types from trip assignment's waste_types array
+    const wts: WasteTypeOption[] = Array.isArray(raw?.waste_types)
+      ? raw.waste_types.filter((w: any) => w?.unique_id && w?.waste_type_name)
+      : [];
+    setAssignmentWasteTypes(wts);
+
+    if (userChangedTripRef.current) {
+      setWasteAmounts({ wet_waste: "", dry_waste: "", mixed_waste: "" });
+    }
+
+    // Filter customers to those who are household stops in this assignment
+    setLoadingAssignmentData(true);
+    (dailyTripHouseholdCollectionApi.readAll({ params: { trip_assignment_id: tripAssignmentId } }) as Promise<any[]>)
+      .then((stops: any) => {
+        const stopList: any[] = Array.isArray(stops) ? stops : (stops as any)?.results ?? [];
+        if (stopList.length === 0) {
+          // No household stops — show all customers
+          setFilteredCustomers(allCustomers);
+        } else {
+          const allowedIds = new Set(
+            stopList.map((s: any) =>
+              String(s.customer?.unique_id ?? s.customer_id ?? "")
+            ).filter(Boolean)
+          );
+          const filtered = allCustomers.filter((c) => allowedIds.has(resolveCustomerId(c)));
+          setFilteredCustomers(filtered.length > 0 ? filtered : allCustomers);
+
+          // Auto-select first customer if user changed trip
+          if (userChangedTripRef.current && filtered.length > 0) {
+            setCustomerId(resolveCustomerId(filtered[0]));
+          }
+        }
+      })
+      .catch(() => { setFilteredCustomers(allCustomers); })
+      .finally(() => {
+        setLoadingAssignmentData(false);
+        userChangedTripRef.current = false;
+      });
+  }, [tripAssignmentId, tripAssignments, allCustomers]);
 
   /* ── edit mode: load record ── */
   useEffect(() => {
@@ -128,13 +192,12 @@ export default function WasteCollectedForm() {
     wasteCollectionApi.read(id)
       .then((res: any) => {
         if (cancelled) return;
-        // Set waste values immediately (no async dependency)
-        setWetWaste(Number(res.wet_waste) || 0);
-        setDryWaste(Number(res.dry_waste) || 0);
-        setMixedWaste(Number(res.mixed_waste) || 0);
-        // Apply company (triggers project list load in the hook)
+        setWasteAmounts({
+          wet_waste: res.wet_waste != null ? String(res.wet_waste) : "",
+          dry_waste: res.dry_waste != null ? String(res.dry_waste) : "",
+          mixed_waste: res.mixed_waste != null ? String(res.mixed_waste) : "",
+        });
         applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
-        // Store project & customer identifiers — re-applied once their option lists load
         setPendingProjectCandidates({
           projectUniqueId: String(res.project_unique_id ?? res.project?.unique_id ?? ""),
           projectId: String(res.project_id ?? ""),
@@ -146,7 +209,7 @@ export default function WasteCollectedForm() {
           customerName: String(res.customer_name ?? res.customer?.customer_name ?? ""),
         });
         const tripId = String(res.trip_assignment_id ?? res.trip_assignment?.unique_id ?? "");
-        if (tripId && tripId !== "null") setPendingTripAssignmentId(tripId);     
+        if (tripId && tripId !== "null") setPendingTripAssignmentId(tripId);
         setLoadingRecord(false);
       })
       .catch((err: any) => {
@@ -157,7 +220,7 @@ export default function WasteCollectedForm() {
     return () => { cancelled = true; };
   }, [id, isEdit, applyCompanyProjectFromRecord, t]);
 
-  /* ── flush project: re-apply after hook loads project list ── */
+  /* ── flush pending project ── */
   useEffect(() => {
     if (!pendingProjectCandidates || projects.length === 0) return;
     const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
@@ -169,7 +232,7 @@ export default function WasteCollectedForm() {
     setPendingProjectCandidates(null);
   }, [projects, pendingProjectCandidates, setProjectId]);
 
-  /* ── flush trip assignment: re-apply after list loads ── */
+  /* ── flush pending trip assignment ── */
   useEffect(() => {
     if (!pendingTripAssignmentId || tripAssignments.length === 0) return;
     if (tripAssignments.some((a) => a.value === pendingTripAssignmentId)) {
@@ -178,48 +241,39 @@ export default function WasteCollectedForm() {
     }
   }, [pendingTripAssignmentId, tripAssignments]);
 
-  /* ── flush customer: re-apply after customers list loads ── */
+  /* ── flush pending customer ── */
   useEffect(() => {
-    if (!pendingCustomerCandidates || customers.length === 0) return;
+    if (!pendingCustomerCandidates || filteredCustomers.length === 0) return;
     const { customerUniqueId, customerId: rawId, customerName } = pendingCustomerCandidates;
-    let match = customers.find((c) => customerUniqueId && resolveCustomerId(c) === customerUniqueId);
-    if (!match) match = customers.find((c) => rawId && resolveCustomerId(c) === rawId);
+    let match = filteredCustomers.find((c) => customerUniqueId && resolveCustomerId(c) === customerUniqueId);
+    if (!match) match = filteredCustomers.find((c) => rawId && resolveCustomerId(c) === rawId);
     if (!match && customerName)
-      match = customers.find((c) => c.customer_name.toLowerCase() === customerName.toLowerCase());
+      match = filteredCustomers.find((c) => c.customer_name.toLowerCase() === customerName.toLowerCase());
     if (match) setCustomerId(resolveCustomerId(match));
     setPendingCustomerCandidates(null);
-  }, [customers, pendingCustomerCandidates]);
+  }, [filteredCustomers, pendingCustomerCandidates]);
 
-  /* ── autofill customer from trip assignment (only on user-initiated change) ── */
-  useEffect(() => {
-    if (!tripAssignmentId || tripAssignmentId === "__none__") return;
-    if (!userChangedTripRef.current) return;
-    userChangedTripRef.current = false;
+  const selectedCustomer = filteredCustomers.find((c) => resolveCustomerId(c) === customerId)
+    ?? allCustomers.find((c) => resolveCustomerId(c) === customerId);
 
-    dailyTripAssignmentApi.read(tripAssignmentId)
-      .then((tripAssignRes: any) => {
-        // trip_plan is the read-only SerializerMethodField (trip_plan_id is write-only)
-        const tripPlanId = tripAssignRes.trip_plan?.unique_id;
-        if (!tripPlanId) return Promise.reject("No trip plan");
-        return tripPlanApi.read(tripPlanId);
-      })
-      .then((tripPlanRes: any) => {
-        const collectionPoints: any[] = tripPlanRes.plan_collection_points || [];
-        const firstStop = collectionPoints.find((cp: any) => cp.is_active && cp.customer?.unique_id);
-        if (firstStop?.customer?.unique_id) {
-          const match = customers.find((c) => resolveCustomerId(c) === firstStop.customer.unique_id);
-          if (match) setCustomerId(resolveCustomerId(match));
-        }
-      })
-      .catch(() => {});
-  }, [tripAssignmentId, customers]);
+  // Which waste type inputs to show: assignment's types if selected, otherwise all three
+  const visibleWasteTypes: WasteTypeOption[] = assignmentWasteTypes.length > 0
+    ? assignmentWasteTypes
+    : [
+        { unique_id: "wet", waste_type_name: "Wet Waste" },
+        { unique_id: "dry", waste_type_name: "Dry Waste" },
+        { unique_id: "mix", waste_type_name: "Mixed Waste" },
+      ];
 
-  const selectedCustomer = customers.find((c) => resolveCustomerId(c) === customerId);
+  const totalQuantity = (parseFloat(wasteAmounts.wet_waste) || 0) + (parseFloat(wasteAmounts.dry_waste) || 0) + (parseFloat(wasteAmounts.mixed_waste) || 0);
+
+  // Location display: show zone or panchayat (not both)
+  const hasZone = Boolean(selectedCustomer?.zone_name);
+  const hasPanchayat = Boolean(selectedCustomer?.panchayat_name);
 
   /* ── submit ── */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!companyUniqueId || !projectId) {
       Swal.fire(t("common.warning"), "Company and project are required", "warning");
       return;
@@ -230,14 +284,12 @@ export default function WasteCollectedForm() {
     }
 
     const payload: Record<string, unknown> = {
-      // company_id_input / project_id_input are read by CompanyScopedViewSet
-      // to set the FK fields — required for superadmin; non-superadmin uses request.user.company
       company_id_input: companyUniqueId,
       project_id_input: projectId,
       customer: customerId,
-      wet_waste: wetWaste,
-      dry_waste: dryWaste,
-      mixed_waste: mixedWaste,
+      wet_waste: parseFloat(wasteAmounts.wet_waste) || 0,
+      dry_waste: parseFloat(wasteAmounts.dry_waste) || 0,
+      mixed_waste: parseFloat(wasteAmounts.mixed_waste) || 0,
       total_quantity: totalQuantity,
       trip_assignment_id: tripAssignmentId || null,
     };
@@ -272,7 +324,7 @@ export default function WasteCollectedForm() {
               <Label>{t("admin.nav.company")}</Label>
               <select
                 value={companyUniqueId}
-                onChange={(e) => { onCompanyChange(e.target.value); setCustomerId("");}}
+                onChange={(e) => { onCompanyChange(e.target.value); setCustomerId(""); setTripAssignmentId(""); }}
                 disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId) || companies.length === 0}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -292,7 +344,7 @@ export default function WasteCollectedForm() {
               <Label>{t("admin.nav.project")}</Label>
               <select
                 value={projectId}
-                onChange={(e) => { setProjectId(e.target.value); setCustomerId(""); }}
+                onChange={(e) => { setProjectId(e.target.value); setCustomerId(""); setTripAssignmentId(""); }}
                 disabled={!companyUniqueId || projects.length === 0}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -307,7 +359,22 @@ export default function WasteCollectedForm() {
               </select>
             </div>
 
-            {/* Customer */}
+            {/* Trip Assignment */}
+            <div>
+              <Label>Trip Assignment</Label>
+              <Select
+                value={tripAssignmentId}
+                onChange={(v) => {
+                  userChangedTripRef.current = true;
+                  setTripAssignmentId(v === "__none__" ? "" : v);
+                }}
+                options={[{ value: "__none__", label: "None (no assignment)" }, ...tripAssignments]}
+                placeholder="Select Trip Assignment (optional)"
+                disabled={!projectId}
+              />
+            </div>
+
+            {/* Customer — filtered to assignment's household stops */}
             <div>
               <Label>
                 {t("admin.waste_collected_data.customer")}
@@ -316,27 +383,22 @@ export default function WasteCollectedForm() {
               <Select
                 value={customerId}
                 onChange={setCustomerId}
-                options={customers.map((c) => ({
+                options={filteredCustomers.map((c) => ({
                   value: resolveCustomerId(c),
                   label: c.customer_name,
                 }))}
-                placeholder={fetchingCustomers ? "Loading..." : "Select customer"}
-                disabled={fetchingCustomers || !projectId}
+                placeholder={
+                  fetchingCustomers || loadingAssignmentData
+                    ? "Loading..."
+                    : filteredCustomers.length === 0 && tripAssignmentId
+                      ? "No customers in this trip"
+                      : "Select customer"
+                }
+                disabled={fetchingCustomers || loadingAssignmentData || !projectId}
               />
             </div>
 
-            {/* Trip Assignment (optional) */}
-            <div>
-              <Label>Trip Assignment</Label>
-              <Select
-                value={tripAssignmentId}
-                onChange={(v) => { userChangedTripRef.current = true; setTripAssignmentId(v === "__none__" ? "" : v); }}
-                options={[{ value: "__none__", label: "None (no assignment)" }, ...tripAssignments]}
-                placeholder="Select Trip Assignment (optional)"
-                disabled={!projectId}
-              />
-            </div>
-            {/* Address (read-only) */}
+            {/* Address */}
             <div>
               <Label>{t("admin.waste_collected_data.customer_address")}</Label>
               <Input
@@ -345,30 +407,35 @@ export default function WasteCollectedForm() {
                 value={
                   selectedCustomer
                     ? [selectedCustomer.building_no, selectedCustomer.street, selectedCustomer.area]
-                        .filter(Boolean)
-                        .join(", ")
+                        .filter(Boolean).join(", ")
                     : ""
                 }
               />
             </div>
 
-            {/* Zone */}
-            <div>
-              <Label>{t("admin.waste_collected_data.customer_zone")}</Label>
-              <Input disabled className="bg-gray-100" value={selectedCustomer?.zone_name || ""} />
-            </div>
+            {/* Zone — only if customer has zone, not panchayat */}
+            {hasZone && !hasPanchayat && (
+              <div>
+                <Label>{t("admin.waste_collected_data.customer_zone")}</Label>
+                <Input disabled className="bg-gray-100" value={selectedCustomer?.zone_name || ""} />
+              </div>
+            )}
+
+            {/* Panchayat (PLB) — only if customer has panchayat */}
+            {hasPanchayat && (
+              <div>
+                <Label>{t("admin.waste_collected_data.customer_panchayat")}</Label>
+                <Input disabled className="bg-gray-100" value={selectedCustomer?.panchayat_name || ""} />
+              </div>
+            )}
 
             {/* Ward */}
-            <div>
-              <Label>{t("admin.waste_collected_data.customer_ward")}</Label>
-              <Input disabled className="bg-gray-100" value={selectedCustomer?.ward_name || ""} />
-            </div>
-
-            {/* Panchayat (PLB) */}
-            <div>
-              <Label>{t("admin.waste_collected_data.customer_panchayat")}</Label>
-              <Input disabled className="bg-gray-100" value={selectedCustomer?.panchayat_name || ""} />
-            </div>
+            {selectedCustomer?.ward_name && (
+              <div>
+                <Label>{t("admin.waste_collected_data.customer_ward")}</Label>
+                <Input disabled className="bg-gray-100" value={selectedCustomer.ward_name} />
+              </div>
+            )}
 
             {/* City */}
             <div>
@@ -388,51 +455,47 @@ export default function WasteCollectedForm() {
               <Input disabled className="bg-gray-100" value={selectedCustomer?.state_name || ""} />
             </div>
 
-            {/* Country */}
-            <div>
-              <Label>{t("admin.waste_collected_data.customer_country")}</Label>
-              <Input disabled className="bg-gray-100" value={selectedCustomer?.country_name || ""} />
-            </div>
+          </div>
 
-            {/* Dry Waste */}
-            <div>
-              <Label>{t("admin.waste_collected_data.dry_waste")}</Label>
-              <Input
-                type="number"
-                min={0}
-                value={dryWaste}
-                onChange={(e) => setDryWaste(Math.max(0, Number(e.target.value) || 0))}
-              />
-            </div>
+          {/* Waste Type inputs — dynamic based on trip assignment */}
+          <div>
+            <h3 className="mb-3 text-sm font-semibold text-gray-700">
+              Waste Collection
+              {assignmentWasteTypes.length > 0 && (
+                <span className="ml-2 text-xs font-normal text-gray-400">
+                  (types from trip assignment)
+                </span>
+              )}
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {visibleWasteTypes.map((wt) => {
+                const field = wasteTypeToField(wt.waste_type_name);
+                if (!field) return null;
+                return (
+                  <div key={wt.unique_id}>
+                    <Label>{wt.waste_type_name} (kg)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={wasteAmounts[field] ?? ""}
+                      onChange={(e) =>
+                        setWasteAmounts((prev) => ({
+                          ...prev,
+                          [field]: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                );
+              })}
 
-            {/* Wet Waste */}
-            <div>
-              <Label>{t("admin.waste_collected_data.wet_waste")}</Label>
-              <Input
-                type="number"
-                min={0}
-                value={wetWaste}
-                onChange={(e) => setWetWaste(Math.max(0, Number(e.target.value) || 0))}
-              />
+              {/* Total */}
+              <div>
+                <Label>{t("admin.waste_collected_data.total_quantity")} (kg)</Label>
+                <Input disabled className="bg-gray-100" value={totalQuantity.toFixed(2)} />
+              </div>
             </div>
-
-            {/* Mixed Waste */}
-            <div>
-              <Label>{t("admin.waste_collected_data.mixed_waste")}</Label>
-              <Input
-                type="number"
-                min={0}
-                value={mixedWaste}
-                onChange={(e) => setMixedWaste(Math.max(0, Number(e.target.value) || 0))}
-              />
-            </div>
-
-            {/* Total (read-only, auto-calculated) */}
-            <div>
-              <Label>{t("admin.waste_collected_data.total_quantity")}</Label>
-              <Input disabled className="bg-gray-100" value={totalQuantity} />
-            </div>
-
           </div>
 
           <div className="flex justify-end gap-3">

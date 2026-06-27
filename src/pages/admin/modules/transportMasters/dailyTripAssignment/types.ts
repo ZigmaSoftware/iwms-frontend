@@ -51,6 +51,7 @@ export type DailyTripAssignmentRecord = {
   household_waste_types?: { unique_id?: string; waste_type_name?: string }[];
   collection_types?: { has_bin: boolean; has_household: boolean };
   collection_points?: DailyTripCollectionPointInline[];
+  household_collection_points?: DailyTripHouseholdCollectionInline[];
   staff_template?: { unique_id?: string; display_code?: string };
   alt_staff_template?: {
     unique_id?: string;
@@ -68,6 +69,17 @@ export type DailyTripAssignmentRecord = {
   status?: string;
   remarks?: string | null;
   [key: string]: unknown;
+};
+
+export type DailyTripHouseholdCollectionInline = {
+  unique_id?: string;
+  customer_id?: string;
+  customer?: NamedRef & { customer_name?: string; building_no?: string; street?: string };
+  sequence?: number;
+  is_collected?: boolean;
+  collected_at?: string | null;
+  collected_weight_kg?: string | number | null;
+  status?: string;
 };
 
 export type DailyTripCollectionPointInline = {

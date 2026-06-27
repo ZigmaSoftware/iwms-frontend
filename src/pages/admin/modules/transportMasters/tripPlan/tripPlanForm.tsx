@@ -743,7 +743,7 @@ export default function TripPlanForm() {
                     <>
                       <div className="lg:col-span-2">
                         <Label>Customer</Label>
-                        <Select value={stop.customer_id} onChange={(value) => setStop(index, { customer_id: value })} options={options.customers} disabled={loading || !projectId} />
+                        <Select value={stop.customer_id} onChange={(value) => setStop(index, { customer_id: value })} options={options.customers.filter((opt) => !opt.value || opt.value === stop.customer_id || !stops.some((s, si) => si !== index && s.customer_id === opt.value))} disabled={loading || !projectId} />
                       </div>
                       <div />
                     </>

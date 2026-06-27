@@ -827,7 +827,7 @@ const enResource = {
           "customer_masters": "Customer Masters",
           "customer_creation": "Customer Creation",
           "apartment_list": "Apartment List",
-          "waste_collected_data": "Waste Collected Data",
+          "waste_collected_data": "House Collection Event",
           "feedback": "Feedback",
           "customer_tag": "Customer Tag",
           "household_pickup_event": "Household Pickup Event",

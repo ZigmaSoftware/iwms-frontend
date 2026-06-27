@@ -1,5 +1,5 @@
 import type { DailyTripAssignmentRecord } from "./types";
-import type { DailyTripCollectionPointInline } from "./types";
+import type { DailyTripCollectionPointInline, DailyTripHouseholdCollectionInline } from "./types";
 import type { FormState, SelectOption } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -16,7 +16,7 @@ import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
 
 import { adminApi } from "@/helpers/admin/registry";
-import { dailyTripAssignmentApi } from "@/helpers/admin";
+import { dailyTripAssignmentApi, dailyTripHouseholdCollectionApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
@@ -193,6 +193,7 @@ export default function DailyTripAssignmentForm() {
 
   const [recordData, setRecordData] = useState<DailyTripAssignmentRecord | null>(null);
   const [collectionPoints, setCollectionPoints] = useState<DailyTripCollectionPointInline[]>([]);
+  const [householdCollectionPoints, setHouseholdCollectionPoints] = useState<DailyTripHouseholdCollectionInline[]>([]);
   // Holds raw record until lookups are ready — avoids Radix Select blank-value bug
   const [pendingRecord, setPendingRecord] = useState<DailyTripAssignmentRecord | null>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
@@ -337,6 +338,15 @@ export default function DailyTripAssignmentForm() {
             ...point,
             collected_weight_kg: point.collected_weight_kg ?? "",
             collected_at: point.collected_at ? String(point.collected_at).slice(0, 16) : "",
+          }))
+        : [],
+    );
+    setHouseholdCollectionPoints(
+      Array.isArray(rec.household_collection_points)
+        ? rec.household_collection_points.map((stop) => ({
+            ...stop,
+            collected_weight_kg: stop.collected_weight_kg ?? "",
+            collected_at: stop.collected_at ? String(stop.collected_at).slice(0, 16) : "",
           }))
         : [],
     );
@@ -511,12 +521,10 @@ export default function DailyTripAssignmentForm() {
   // The full list is always sent on save — this is display-only filtering.
   const visibleCollectionPoints = useMemo(() => {
     if (!isEdit || formData.ward_ids.length === 0) return collectionPoints;
-    const result = collectionPoints.filter((pt) => {
+    return collectionPoints.filter((pt) => {
       const ptWard = toEntityId((pt as any).ward_id);
-      console.log("[CP filter]", { ptWard, ward_ids: formData.ward_ids, match: !ptWard || formData.ward_ids.includes(ptWard) });
       return !ptWard || formData.ward_ids.includes(ptWard);
     });
-    return result;
   }, [collectionPoints, formData.ward_ids, isEdit]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
@@ -565,6 +573,20 @@ export default function DailyTripAssignmentForm() {
     try {
       if (isEdit && id) {
         await dailyTripAssignmentApi.update(id, payload);
+        if (householdCollectionPoints.length > 0) {
+          await Promise.all(
+            householdCollectionPoints
+              .filter((stop) => stop.unique_id)
+              .map((stop) =>
+                (dailyTripHouseholdCollectionApi.update(stop.unique_id!, {
+                  sequence: stop.sequence,
+                  status: stop.status,
+                  is_collected: stop.is_collected,
+                  collected_weight_kg: stop.collected_weight_kg || null,
+                }) as Promise<unknown>).catch(() => null)
+              )
+          );
+        }
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
         await dailyTripAssignmentApi.create(payload);
@@ -668,18 +690,6 @@ export default function DailyTripAssignmentForm() {
                 options={resolvedTripPlan}
                 placeholder="Select trip plan"
                 disabled={fetching || !projectId}
-              />
-            </div>
-
-            {/* Scheduled Time */}
-            <div>
-              <Label>Scheduled Time <span className="text-red-500">*</span></Label>
-              <Input
-                type="time"
-                value={formData.scheduled_time}
-                onChange={(e) => set("scheduled_time")(e.target.value)}
-                disabled={!projectId}
-                required
               />
             </div>
 
@@ -985,6 +995,131 @@ export default function DailyTripAssignmentForm() {
               </div>
             )}
           </div>
+
+          {/* Daily Trip Household Collection Points */}
+          {hasHouseholdStops && (
+            <div className="rounded-lg border border-purple-200">
+              <div className="flex items-center justify-between border-b border-purple-200 bg-purple-50 px-4 py-3">
+                <div>
+                  <h2 className="text-base font-semibold text-purple-800">Daily Trip Household Collection Points</h2>
+                  <p className="text-xs text-purple-600">
+                    {isEdit
+                      ? "Per-customer household stops generated from the selected Trip Plan."
+                      : "Household stops will be generated from the selected Trip Plan after saving."}
+                  </p>
+                </div>
+                {isEdit ? (
+                  householdCollectionPoints.length > 0 && (
+                    <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
+                      {householdCollectionPoints.length} stops
+                    </span>
+                  )
+                ) : (() => {
+                  const plan = tripPlanRecords.find(p => (p.unique_id ?? p.id) === formData.trip_plan_id);
+                  const count = (plan?.plan_collection_points ?? []).filter((s: any) => s.collection_type === "household_collection" && s.customer_id).length;
+                  return count > 0 ? (
+                    <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
+                      {count} stops (preview)
+                    </span>
+                  ) : null;
+                })()}
+              </div>
+
+              {!isEdit && (() => {
+                const plan = tripPlanRecords.find(p => (p.unique_id ?? p.id) === formData.trip_plan_id);
+                const previewStops: any[] = (plan?.plan_collection_points ?? []).filter(
+                  (s: any) => s.collection_type === "household_collection" && s.customer_id
+                );
+                if (previewStops.length === 0) {
+                  return (
+                    <div className="px-4 py-6 text-sm text-gray-500">
+                      {formData.trip_plan_id ? "No household stops found in the selected trip plan." : "Select a trip plan to preview household stops."}
+                    </div>
+                  );
+                }
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-purple-50 text-left text-xs font-semibold uppercase text-purple-600">
+                        <tr>
+                          <th className="px-4 py-3">Seq</th>
+                          <th className="px-4 py-3">Customer</th>
+                          <th className="px-4 py-3">Address</th>
+                          <th className="px-4 py-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {previewStops.map((stop: any, i: number) => (
+                          <tr key={stop.unique_id ?? i} className="italic text-gray-500">
+                            <td className="px-4 py-3">{stop.sequence ?? i + 1}</td>
+                            <td className="px-4 py-3">{stop.customer?.customer_name ?? stop.customer_id ?? "—"}</td>
+                            <td className="px-4 py-3 text-xs">{[stop.customer?.building_no, stop.customer?.street].filter(Boolean).join(", ") || "—"}</td>
+                            <td className="px-4 py-3">
+                              <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">Pending</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="px-4 py-2 text-xs italic text-gray-400">These household stops will be created when you save.</p>
+                  </div>
+                );
+              })()}
+
+              {isEdit && (
+                householdCollectionPoints.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-gray-500">No household collection stops are attached to this daily trip plan.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-purple-50 text-left text-xs font-semibold uppercase text-purple-600">
+                        <tr>
+                          <th className="px-4 py-3">Seq</th>
+                          <th className="px-4 py-3">Customer</th>
+                          <th className="px-4 py-3">Address</th>
+                          <th className="px-4 py-3">Weight (kg)</th>
+                          <th className="px-4 py-3">Collected</th>
+                          <th className="px-4 py-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {householdCollectionPoints.map((stop, index) => {
+                          const stopKey = stop.unique_id ?? stop.customer_id;
+                          const updateStop = (patch: Partial<DailyTripHouseholdCollectionInline>) =>
+                            setHouseholdCollectionPoints((prev) => prev.map((item) =>
+                              (item.unique_id ?? item.customer_id) === stopKey ? { ...item, ...patch } : item
+                            ));
+                          return (
+                            <tr key={stopKey ?? index}>
+                              <td className="px-4 py-3">
+                                <Input type="number" min={1} value={String(stop.sequence ?? index + 1)} onChange={(e) => updateStop({ sequence: Number(e.target.value || 1) })} className="h-9 w-20" />
+                              </td>
+                              <td className="px-4 py-3 font-medium text-gray-800">{stop.customer?.customer_name ?? stop.customer_id ?? "—"}</td>
+                              <td className="px-4 py-3 text-xs text-gray-600">{[stop.customer?.building_no, stop.customer?.street].filter(Boolean).join(", ") || "—"}</td>
+                              <td className="px-4 py-3">
+                                <Input type="number" min={0} step="0.01" value={String(stop.collected_weight_kg ?? "")} onChange={(e) => updateStop({ collected_weight_kg: e.target.value })} className="h-9 w-28" />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input type="checkbox" checked={Boolean(stop.is_collected)} onChange={(e) => updateStop({ is_collected: e.target.checked, status: e.target.checked ? "Collected" : "Pending" })} className="h-4 w-4 rounded border-gray-300" />
+                              </td>
+                              <td className="px-4 py-3">
+                                <select value={stop.status ?? "Pending"} onChange={(e) => updateStop({ status: e.target.value, is_collected: e.target.value === "Collected" })} className="h-9 rounded-md border border-purple-200 px-2 text-sm">
+                                  <option value="Pending">Pending</option>
+                                  <option value="Collected">Collected</option>
+                                  <option value="Skipped">Skipped</option>
+                                  <option value="Missed">Missed</option>
+                                </select>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              )}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end gap-3">

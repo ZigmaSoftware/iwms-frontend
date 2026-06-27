@@ -60,6 +60,7 @@ export default function TripPlanList() {
   const [records, setRecords] = useState<TripPlanRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | "bin_collection" | "household_collection">("all");
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -93,16 +94,22 @@ export default function TripPlanList() {
     return () => { mounted = false; };
   }, [companyUniqueId, projectId, t]);
 
-  const rows = useMemo(() => records.map((record) => ({
-    ...record,
-    _location: record.panchayat?.panchayat_name ?? record.ward?.ward_name ?? "",
-    _staff: record.staff_template?.display_code ?? "",
-    _vehicle: record.vehicle?.vehicle_no ?? "",
-    _waste_type: Array.isArray(record.waste_types) && record.waste_types.length
-      ? record.waste_types.map((wasteType) => wasteType?.waste_type_name).filter(Boolean).join(", ")
-      : record.waste_type?.waste_type_name ?? "",
-    _stop_count: String(Array.isArray(record.plan_collection_points) ? record.plan_collection_points.length : 0),
-  })), [records]);
+  const rows = useMemo(() => records
+    .filter((record) => {
+      if (collectionTypeFilter === "all") return true;
+      const stops = Array.isArray(record.plan_collection_points) ? record.plan_collection_points : [];
+      return stops.some((s: any) => (s.collection_type ?? "bin_collection") === collectionTypeFilter);
+    })
+    .map((record) => ({
+      ...record,
+      _location: record.panchayat?.panchayat_name ?? (record.ward as any)?.ward_name ?? "",
+      _staff: record.staff_template?.display_code ?? "",
+      _vehicle: record.vehicle?.vehicle_no ?? "",
+      _waste_type: Array.isArray(record.waste_types) && record.waste_types.length
+        ? record.waste_types.map((wasteType) => wasteType?.waste_type_name).filter(Boolean).join(", ")
+        : record.waste_type?.waste_type_name ?? "",
+      _stop_count: String(Array.isArray(record.plan_collection_points) ? record.plan_collection_points.length : 0),
+    })), [records, collectionTypeFilter]);
 
   const statusBody = (row: TripPlanRecord) => {
     const updateStatus = async (checked: boolean) => {
@@ -134,6 +141,15 @@ export default function TripPlanList() {
           <select value={projectId || ""} onChange={(e) => setProjectId(e.target.value)} disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} className="rounded border px-3 py-2 text-sm">
             <option value="">All Projects</option>
             {projects.map((project) => <option key={project.value} value={project.value}>{project.label}</option>)}
+          </select>
+          <select
+            value={collectionTypeFilter}
+            onChange={(e) => setCollectionTypeFilter(e.target.value as "all" | "bin_collection" | "household_collection")}
+            className="rounded border px-3 py-2 text-sm"
+          >
+            <option value="all">All Types</option>
+            <option value="bin_collection">Bin Collection</option>
+            <option value="household_collection">Household Collection</option>
           </select>
           <Button label="Add Trip Plan" icon="pi pi-plus" className="p-button-success p-button-sm" onClick={() => navigate(newPath, { state: { companyUniqueId, projectId } })} />
         </div>

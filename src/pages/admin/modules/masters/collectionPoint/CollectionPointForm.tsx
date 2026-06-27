@@ -181,6 +181,7 @@ export default function CollectionPointForm() {
   const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
     projectUniqueId: string; projectId: string; projectName: string;
   } | null>(null);
+  const [collectionType, setCollectionType] = useState<"bin_collection" | "household_collection">("bin_collection");
   const [cpName, setCpName] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
@@ -193,8 +194,22 @@ export default function CollectionPointForm() {
   const [panchayats, setPanchayats] = useState<WithCityIdOption[]>([]);
   const [zoneOptions, setZoneOptions] = useState<ZoneOption[]>([]);
   const [wards, setWards] = useState<WardOption[]>([]);
-  // Ward IDs already assigned to OTHER collection points in this project
-  const [usedWardIds, setUsedWardIds] = useState<Set<string>>(new Set());
+  // All CPs in this project (raw), used to compute usedWardIds per collection_type
+  const [allProjectCPs, setAllProjectCPs] = useState<Record<string, unknown>[]>([]);
+  // Ward IDs already assigned to OTHER collection points of the SAME collection_type
+  const usedWardIds = useMemo(() => {
+    const used = new Set<string>();
+    allProjectCPs.forEach((cp) => {
+      if (isEdit && id && normalizeIdValue(cp.unique_id) === id) return;
+      const cpType = (cp.collection_type as string | undefined) ?? "bin_collection";
+      if (cpType !== collectionType) return;
+      const cpWards = cp.wards as { unique_id: string }[] | undefined;
+      if (Array.isArray(cpWards)) {
+        cpWards.forEach((w) => { if (w?.unique_id) used.add(w.unique_id); });
+      }
+    });
+    return used;
+  }, [allProjectCPs, collectionType, isEdit, id]);
 
   const isPanchayatSelected = Boolean(panchayatId);
   const isZoneSelected = Boolean(zoneId);
@@ -263,17 +278,7 @@ export default function CollectionPointForm() {
       .then(([distData, cityData, panData, zoneData, wardData, cpData]) => {
         if (cancelled) return;
 
-        // Build set of ward IDs already assigned to OTHER collection points
-        const used = new Set<string>();
-        toRecordList(cpData).forEach((cp) => {
-          // Skip the current CP being edited so its own wards remain selectable
-          if (isEdit && id && normalizeIdValue(cp.unique_id) === id) return;
-          const cpWards = cp.wards as { unique_id: string }[] | undefined;
-          if (Array.isArray(cpWards)) {
-            cpWards.forEach((w) => { if (w?.unique_id) used.add(w.unique_id); });
-          }
-        });
-        setUsedWardIds(used);
+        setAllProjectCPs(toRecordList(cpData));
 
         setDistricts(
           toRecordList(distData)
@@ -378,6 +383,9 @@ export default function CollectionPointForm() {
         setPendingZoneId(_zoneId);
         setWardIds(_wardIds);
         setPendingWardIds(_wardIds);
+        const recType = toStringOrEmpty(record.collection_type);
+        if (recType === "household_collection") setCollectionType("household_collection");
+        else setCollectionType("bin_collection");
         setCpName(toStringOrEmpty(record.cp_name ?? record.collection_point_name));
         setLatitude(toStringOrEmpty(record.latitude));
         setLongitude(toStringOrEmpty(record.longitude));
@@ -631,6 +639,7 @@ export default function CollectionPointForm() {
       city_id: cityId,
       panchayat_id: panchayatId || null,
       ward_ids: wardIds,
+      collection_type: collectionType,
       cp_name: cpName.trim(),
       latitude: parsedLatitude.toFixed(6),
       longitude: parsedLongitude.toFixed(6),
@@ -879,6 +888,22 @@ export default function CollectionPointForm() {
           </div>
         )}
 
+        <div>
+          <Label>Collection Type *</Label>
+          <Select
+            value={collectionType}
+            onValueChange={(v) => setCollectionType(v as "bin_collection" | "household_collection")}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="bin_collection">Bin Collection</SelectItem>
+              <SelectItem value="household_collection">Household Collection</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         {/* Wards — multi-select checkbox dropdown, visible only when zone or panchayat is chosen */}
         {showField("ward_id") && (isZoneSelected || isPanchayatSelected) && (
           <div ref={wardDropdownRef} className="relative">
@@ -997,8 +1022,8 @@ export default function CollectionPointForm() {
           </div>
         )}
 
-        {/* ── BINS SECTION ────────────────────────────────────────────────── */}
-        <div className="md:col-span-2 space-y-3">
+        {/* ── BINS SECTION — only for bin_collection type ─────────────────── */}
+        {collectionType === "bin_collection" && <div className="md:col-span-2 space-y-3">
           <div className="flex items-center justify-between border-b pb-2">
             <div>
               <h3 className="text-sm font-semibold text-gray-800">Bins at this Collection Point</h3>
@@ -1095,7 +1120,7 @@ export default function CollectionPointForm() {
           >
             <span className="text-lg leading-none">+</span> Add Bin
           </button>
-        </div>
+        </div>}
         {/* ── END BINS SECTION ─────────────────────────────────────────────── */}
 
         <div className="md:col-span-2 flex justify-end gap-3">
