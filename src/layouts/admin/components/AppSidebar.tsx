@@ -450,12 +450,6 @@ const customerMasters: NavItem[] = [
         screen: "customercreations",
       },
       {
-        nameKey: "admin.nav.waste_collected_data",
-        path: `/${encWasteManagementMaster}/${encWasteCollectedData}`,
-        module: "customers",
-        screen: "wastecollections",
-      },
-      {
         nameKey: "admin.nav.feedback",
         path: `/${encCitizenGrivence}/${encFeedback}`,
         module: "customers",
@@ -561,12 +555,6 @@ const scheduleMastersItems: NavItem[] = [
         screen: "daily-trip-assignments",
       },
       {
-        nameKey: "admin.nav.daily_trip_household_collection",
-        path: `/${encScheduleMasters}/${encDailyTripHouseholdCollection}`,
-        module: "schedule-masters",
-        screen: "daily-trip-household-collections",
-      },
-      {
         nameKey: "admin.nav.daily_trip_tracking",
         path: `/${encScheduleMasters}/${encDailyTripTracking}`,
         module: "schedule-masters",
@@ -577,6 +565,12 @@ const scheduleMastersItems: NavItem[] = [
         path: `/${encScheduleMasters}/${encBinCollectionEvent}`,
         module: "schedule-masters",
         screen: "bin-collection-events",
+      },
+      {
+        nameKey: "admin.nav.waste_collected_data",
+        path: `/${encWasteManagementMaster}/${encWasteCollectedData}`,
+        module: "schedule-masters",
+        screen: "wastecollections",
       },
       {
         nameKey: "admin.nav.daily_trip_log",
