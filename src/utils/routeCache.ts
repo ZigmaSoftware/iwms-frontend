@@ -109,6 +109,7 @@ export type EncryptedRoutes = {
   encMunicipalities: string;
   encTownPanchayats: string;
   encBlockPanchayatUnions: string;
+  encVehicleBreakdown: string;
 };
 
 const plainRoutes: EncryptedRoutes = {
@@ -197,6 +198,7 @@ const plainRoutes: EncryptedRoutes = {
   encTripAttendance: "trip-attendance",
   encVehicleTripAudit: "vehicle-trip-audit",
   encTripExceptionLog: "trip-exception-log",
+  encVehicleBreakdown: "vehicle-breakdowns",
 
   // palakkad
 
