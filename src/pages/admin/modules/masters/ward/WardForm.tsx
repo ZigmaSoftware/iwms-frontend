@@ -1,4 +1,4 @@
-import type { WardCityMeta, WardDistrictMeta, WardRouteState, WardStateMeta, WardWithRelations, WardZoneMeta } from "./types";
+import type { WardCityMeta, WardDistrictMeta, WardPanchayatMeta, WardRouteState, WardStateMeta, WardWithRelations, WardZoneMeta } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, type FormEvent } from "react";
@@ -22,18 +22,19 @@ import { useTranslation } from "react-i18next";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { continentApi, countryApi, stateApi, districtApi, cityApi, zoneApi, wardApi } from "@/helpers/admin";
+import { continentApi, countryApi, stateApi, districtApi, cityApi, zoneApi, panchayatApi, wardApi } from "@/helpers/admin";
 
 const WARD_FORM_FIELDS: Record<string, string[]> = {
-  continent_id: ["continent_id"],
-  country_id:   ["country_id"],
-  state_id:     ["state_id"],
-  district_id:  ["district_id"],
-  city_id:      ["city_id"],
-  zone_id:      ["zone_id"],
-  ward_name:    ["ward_name"],
-  is_active:    ["is_active"],
-  description:  ["description"],
+  continent_id:  ["continent_id"],
+  country_id:    ["country_id"],
+  state_id:      ["state_id"],
+  district_id:   ["district_id"],
+  city_id:       ["city_id"],
+  zone_id:       ["zone_id"],
+  panchayat_id:  ["panchayat_id"],
+  ward_name:     ["ward_name"],
+  is_active:     ["is_active"],
+  description:   ["description"],
 };
 import type { SelectOption } from "@/types";
 import type { CountryMeta } from "./types";
@@ -116,6 +117,7 @@ export default function WardForm() {
   const [districtId, setDistrictId] = useState("");
   const [cityId, setCityId] = useState("");
   const [zoneId, setZoneId] = useState("");
+  const [panchayatId, setPanchayatId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [description, setDescription] = useState("");
 
@@ -126,6 +128,7 @@ export default function WardForm() {
   const [pendingDistrict, setPendingDistrict] = useState("");
   const [pendingCity, setPendingCity] = useState("");
   const [pendingZone, setPendingZone] = useState("");
+  const [pendingPanchayat, setPendingPanchayat] = useState("");
 
   /* MASTER DATA */
   const [continents, setContinents] = useState<SelectOption[]>([]);
@@ -143,6 +146,9 @@ export default function WardForm() {
 
   const [allZones, setAllZones] = useState<WardZoneMeta[]>([]);
   const [filteredZones, setFilteredZones] = useState<SelectOption[]>([]);
+
+  const [allPanchayats, setAllPanchayats] = useState<WardPanchayatMeta[]>([]);
+  const [filteredPanchayats, setFilteredPanchayats] = useState<SelectOption[]>([]);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -198,7 +204,8 @@ export default function WardForm() {
       districtApi.readAll(),
       cityApi.readAll(),
       zoneApi.readAll(),
-    ]).then(([continentRes, countryRes, stateRes, districtRes, cityRes, zoneRes]) => {
+      panchayatApi.readAll(),
+    ]).then(([continentRes, countryRes, stateRes, districtRes, cityRes, zoneRes, panchayatRes]) => {
       if (cancelled) return;
 
       const contData = (continentRes as any[]) ?? [];
@@ -265,6 +272,21 @@ export default function WardForm() {
         districtName: z.district_name ?? null,
         stateName: z.state_name ?? null,
         isActive: Boolean(z.is_active),
+      })));
+
+      const panData = (panchayatRes as any[]) ?? [];
+      setAllPanchayats(panData.map((p: any) => ({
+        id: String(p.unique_id),
+        name: p.panchayat_name ?? p.name,
+        continentId: normalizeNullable(p.continent_id ?? p.continent_unique_id ?? p.continent),
+        countryId: normalizeNullable(p.country_id ?? p.country_unique_id ?? p.country),
+        stateId: normalizeNullable(p.state_id ?? p.state_unique_id ?? p.state),
+        districtId: normalizeNullable(p.district_id ?? p.district_unique_id ?? p.district),
+        cityId: normalizeNullable(p.city_id ?? p.city_unique_id ?? p.city),
+        cityName: p.city_name ?? null,
+        districtName: p.district_name ?? null,
+        stateName: p.state_name ?? null,
+        isActive: Boolean(p.is_active),
       })));
     }).catch(() => {});
     return () => { cancelled = true; };
@@ -444,6 +466,33 @@ export default function WardForm() {
     setFilteredZones(filt);
   }, [cityId, pendingCity, allZones, zoneId, pendingZone, wardRecordData]);
 
+  useEffect(() => {
+    const ensurePanchayat = pendingPanchayat || panchayatId;
+    const effectiveCityId = cityId || pendingCity;
+
+    if (!effectiveCityId && !ensurePanchayat) {
+      setFilteredPanchayats([]);
+      return;
+    }
+
+    const filt = effectiveCityId
+      ? allPanchayats
+          .filter((p) => p.isActive && p.cityId === effectiveCityId)
+          .map((p) => ({ value: p.id, label: p.name }))
+      : [];
+
+    if (ensurePanchayat && !filt.some((o) => o.value === ensurePanchayat)) {
+      const found = allPanchayats.find((p) => p.id === ensurePanchayat);
+      if (found) {
+        filt.push({ value: found.id, label: found.name });
+      } else if (wardRecordData?.panchayat_name) {
+        filt.push({ value: ensurePanchayat, label: wardRecordData.panchayat_name });
+      }
+    }
+
+    setFilteredPanchayats(filt);
+  }, [cityId, pendingCity, allPanchayats, panchayatId, pendingPanchayat, wardRecordData]);
+
   /* ==========================================================
         EDIT MODE
   ========================================================== */
@@ -485,6 +534,11 @@ export default function WardForm() {
       normalizeNullable(data.zone_unique_id ?? data.zone_id ?? data.zone),
       data.zone_name
     );
+    const pan = resolveMetaId(
+      allPanchayats,
+      normalizeNullable(data.panchayat_unique_id ?? data.panchayat_id ?? data.panchayat),
+      data.panchayat_name
+    );
 
     // Resolve missing parent IDs by walking up from child records
     const selectedCity = cty ? allCities.find((c) => c.id === cty) : undefined;
@@ -512,6 +566,7 @@ export default function WardForm() {
     if (dis) { setDistrictId(dis); setPendingDistrict(dis); }
     if (cty) { setCityId(cty); setPendingCity(cty); }
     if (zne) { setZoneId(zne); setPendingZone(zne); }
+    if (pan) { setPanchayatId(pan); setPendingPanchayat(pan); }
 
     applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
   }, [
@@ -523,6 +578,7 @@ export default function WardForm() {
     allDistricts,
     allCities,
     allZones,
+    allPanchayats,
   ]);
 
   useEffect(() => {
@@ -556,7 +612,8 @@ export default function WardForm() {
       !pendingState &&
       !pendingDistrict &&
       !pendingCity &&
-      !pendingZone
+      !pendingZone &&
+      !pendingPanchayat
     ) {
       return;
     }
@@ -610,6 +667,15 @@ export default function WardForm() {
       setZoneId(pendingZone);
       setPendingZone("");
     }
+
+    if (
+      pendingPanchayat &&
+      filteredPanchayats.length > 0 &&
+      filteredPanchayats.some((o) => o.value === pendingPanchayat)
+    ) {
+      setPanchayatId(pendingPanchayat);
+      setPendingPanchayat("");
+    }
   }, [
     pendingContinent,
     pendingCountry,
@@ -617,12 +683,14 @@ export default function WardForm() {
     pendingDistrict,
     pendingCity,
     pendingZone,
+    pendingPanchayat,
     continents,
     filteredCountries,
     filteredStates,
     filteredDistricts,
     filteredCities,
     filteredZones,
+    filteredPanchayats,
   ]);
 
   const recordContinentId =
@@ -657,6 +725,10 @@ export default function WardForm() {
     normalizeNullable(
       wardRecordData?.zone_unique_id ?? wardRecordData?.zone_id ?? wardRecordData?.zone
     ) ?? "";
+  const recordPanchayatId =
+    normalizeNullable(
+      wardRecordData?.panchayat_unique_id ?? wardRecordData?.panchayat_id ?? wardRecordData?.panchayat
+    ) ?? "";
   const effectiveCountryId =
     countryId || (continentId === recordContinentId ? recordCountryId : "");
   const effectiveProjectId =
@@ -671,6 +743,8 @@ export default function WardForm() {
     cityId || (effectiveDistrictId === recordDistrictId ? recordCityId : "");
   const effectiveZoneId =
     zoneId || (effectiveCityId === recordCityId ? recordZoneId : "");
+  const effectivePanchayatId =
+    panchayatId || (effectiveCityId === recordCityId ? recordPanchayatId : "");
 
   const countryOptions = ensureSelectedOption(
     filteredCountries,
@@ -702,6 +776,11 @@ export default function WardForm() {
     effectiveZoneId,
     wardRecordData?.zone_name
   );
+  const panchayatOptions = ensureSelectedOption(
+    filteredPanchayats,
+    effectivePanchayatId,
+    wardRecordData?.panchayat_name
+  );
 
     /* ==========================================================
       FORM SUBMIT
@@ -724,6 +803,16 @@ export default function WardForm() {
 
     if (missingFields.length > 0) {
       Swal.fire(t("common.warning"), t("common.all_fields_required"), "warning");
+      return;
+    }
+
+    if (effectiveZoneId && effectivePanchayatId) {
+      Swal.fire(t("common.warning"), "Ward can belong to either Zone or Panchayat.", "warning");
+      return;
+    }
+
+    if (!effectiveZoneId && !effectivePanchayatId) {
+      Swal.fire(t("common.warning"), "Ward must belong to Zone or Panchayat.", "warning");
       return;
     }
 
@@ -751,6 +840,7 @@ export default function WardForm() {
       district_id: effectiveDistrictId || null,
       city_id: effectiveCityId || null,
       zone_id: effectiveZoneId || null,
+      panchayat_id: effectivePanchayatId || null,
       description,
       is_active: isActive,
       company_id: companyUniqueId,
@@ -918,7 +1008,7 @@ export default function WardForm() {
           {showField("city_id") && (
           <div>
             <Label>{t("admin.nav.city")}</Label>
-            <Select value={effectiveCityId} onValueChange={(val) => { setCityId(val); setZoneId(""); setPendingZone(""); }}>
+            <Select value={effectiveCityId} onValueChange={(val) => { setCityId(val); setZoneId(""); setPendingZone(""); setPanchayatId(""); setPendingPanchayat(""); }}>
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.city") })} />
               </SelectTrigger>
@@ -929,16 +1019,45 @@ export default function WardForm() {
           </div>
           )}
 
-          {/* Zone */}
-          {showField("zone_id") && (
+          {/* Zone — hidden when Panchayat is selected */}
+          {showField("zone_id") && !effectivePanchayatId && (
           <div>
             <Label>{t("admin.nav.zone")}</Label>
-            <Select value={effectiveZoneId} onValueChange={setZoneId}>
+            <Select
+              value={effectiveZoneId}
+              onValueChange={(val) => {
+                setZoneId(val);
+                setPanchayatId("");
+                setPendingPanchayat("");
+              }}
+            >
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.zone") })} />
               </SelectTrigger>
               <SelectContent>
                 {zoneOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          )}
+
+          {/* Panchayat — hidden when Zone is selected */}
+          {showField("panchayat_id") && !effectiveZoneId && (
+          <div>
+            <Label>{t("admin.nav.panchayat")}</Label>
+            <Select
+              value={effectivePanchayatId}
+              onValueChange={(val) => {
+                setPanchayatId(val);
+                setZoneId("");
+                setPendingZone("");
+              }}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") })} />
+              </SelectTrigger>
+              <SelectContent>
+                {panchayatOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

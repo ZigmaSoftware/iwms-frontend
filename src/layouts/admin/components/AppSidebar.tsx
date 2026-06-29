@@ -78,7 +78,6 @@ const {
   encAlternativeStaffTemplate,
   encCommonAudit,
   encTripPlans,
-  encTripPlanCollectionPoints,
   encCompanyCreation,
   encProjectCreation,
   encSuperAdminMaster,
@@ -92,7 +91,6 @@ const {
   encBins,
   encDailyTripAssignment,
   encDailyTripLog,
-  encDailyTripCollectionPoint,
   encDailyTripHouseholdCollection,
   encDailyTripTracking,
   encBinCollectionEvent,
@@ -451,12 +449,6 @@ const customerMasters: NavItem[] = [
         screen: "customercreations",
       },
       {
-        nameKey: "admin.nav.waste_collected_data",
-        path: `/${encWasteManagementMaster}/${encWasteCollectedData}`,
-        module: "customers",
-        screen: "wastecollections",
-      },
-      {
         nameKey: "admin.nav.feedback",
         path: `/${encCitizenGrivence}/${encFeedback}`,
         module: "customers",
@@ -556,28 +548,10 @@ const scheduleMastersItems: NavItem[] = [
         screen: "trip-plans",
       },
       {
-        nameKey: "admin.nav.trip_plan_collection_points",
-        path: `/${encScheduleMasters}/${encTripPlanCollectionPoints}`,
-        module: "schedule-masters",
-        screen: "trip-plan-collection-points",
-      },
-      {
-        nameKey: "admin.nav.daily_trip_assignment",
+        nameKey: "admin.nav.daily_trip_plan",
         path: `/${encScheduleMasters}/${encDailyTripAssignment}`,
         module: "schedule-masters",
         screen: "daily-trip-assignments",
-      },
-      {
-        nameKey: "admin.nav.daily_trip_collection_point",
-        path: `/${encScheduleMasters}/${encDailyTripCollectionPoint}`,
-        module: "schedule-masters",
-        screen: "daily-trip-collection-points",
-      },
-      {
-        nameKey: "admin.nav.daily_trip_household_collection",
-        path: `/${encScheduleMasters}/${encDailyTripHouseholdCollection}`,
-        module: "schedule-masters",
-        screen: "daily-trip-household-collections",
       },
       {
         nameKey: "admin.nav.daily_trip_tracking",
@@ -590,6 +564,12 @@ const scheduleMastersItems: NavItem[] = [
         path: `/${encScheduleMasters}/${encBinCollectionEvent}`,
         module: "schedule-masters",
         screen: "bin-collection-events",
+      },
+      {
+        nameKey: "admin.nav.waste_collected_data",
+        path: `/${encWasteManagementMaster}/${encWasteCollectedData}`,
+        module: "schedule-masters",
+        screen: "wastecollections",
       },
       {
         nameKey: "admin.nav.daily_trip_log",

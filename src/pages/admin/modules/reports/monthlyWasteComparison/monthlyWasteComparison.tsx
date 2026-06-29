@@ -47,6 +47,7 @@ export default function MonthlyWasteComparison() {
   const [monthValue, setMonthValue] = useState(currentMonth());
   const [appliedMonth, setAppliedMonth] = useState(currentMonth());
   const [sortMode, setSortMode] = useState("absolute");
+  const [source, setSource] = useState("all");
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [monthlyTrends, setMonthlyTrends] = useState<ReportResponse["monthly_trends"]>([]);
   const [panchayatComparison, setPanchayatComparison] = useState<ReportResponse["panchayat_comparison"]>([]);
@@ -66,6 +67,7 @@ export default function MonthlyWasteComparison() {
         params: {
           month: appliedMonth,
           sort: sortMode,
+          source,
         },
       });
       setRows(Array.isArray(data?.results) ? data.results : []);
@@ -85,7 +87,7 @@ export default function MonthlyWasteComparison() {
 
   useEffect(() => {
     fetchReport();
-  }, [appliedMonth, sortMode]);
+  }, [appliedMonth, sortMode, source]);
 
   const formatNumber = (value?: number | string | null, suffix = "") => {
     const numeric = Number(value);
@@ -169,6 +171,11 @@ export default function MonthlyWasteComparison() {
             max={currentMonth()}
             onChange={(event) => setMonthValue(event.target.value)}
           />
+          <select value={source} onChange={(event) => setSource(event.target.value)}>
+            <option value="all">All Sources</option>
+            <option value="bin">Bin Collection</option>
+            <option value="household">Household Collection</option>
+          </select>
           <select value={sortMode} onChange={(event) => setSortMode(event.target.value)}>
             <option value="absolute">Highest variance</option>
             <option value="deficit">Highest deficit</option>

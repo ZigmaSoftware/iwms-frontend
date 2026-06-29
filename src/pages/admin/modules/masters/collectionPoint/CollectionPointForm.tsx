@@ -1,5 +1,5 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -166,19 +166,22 @@ export default function CollectionPointForm() {
   const [cityId, setCityId] = useState("");
   const [panchayatId, setPanchayatId] = useState("");
   const [zoneId, setZoneId] = useState("");
-  const [wardId, setWardId] = useState("");
+  // Multi-ward selection
+  const [wardIds, setWardIds] = useState<string[]>([]);
+  const [wardDropdownOpen, setWardDropdownOpen] = useState(false);
+  const wardDropdownRef = useRef<HTMLDivElement>(null);
 
-  /* pending IDs for edit-mode prefill race condition:
-     set when record loads, cleared once the option list is available */
+  /* pending IDs for edit-mode prefill race condition */
   const [pendingStateId, setPendingStateId] = useState("");
   const [pendingDistrictId, setPendingDistrictId] = useState("");
   const [pendingCityId, setPendingCityId] = useState("");
   const [pendingPanchayatId, setPendingPanchayatId] = useState("");
   const [pendingZoneId, setPendingZoneId] = useState("");
-  const [pendingWardId, setPendingWardId] = useState("");
+  const [pendingWardIds, setPendingWardIds] = useState<string[]>([]);
   const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
     projectUniqueId: string; projectId: string; projectName: string;
   } | null>(null);
+  const [collectionType, setCollectionType] = useState<"bin_collection" | "household_collection">("bin_collection");
   const [cpName, setCpName] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
@@ -191,10 +194,25 @@ export default function CollectionPointForm() {
   const [panchayats, setPanchayats] = useState<WithCityIdOption[]>([]);
   const [zoneOptions, setZoneOptions] = useState<ZoneOption[]>([]);
   const [wards, setWards] = useState<WardOption[]>([]);
+  // All CPs in this project (raw), used to compute usedWardIds per collection_type
+  const [allProjectCPs, setAllProjectCPs] = useState<Record<string, unknown>[]>([]);
+  // Ward IDs already assigned to OTHER collection points of the SAME collection_type
+  const usedWardIds = useMemo(() => {
+    const used = new Set<string>();
+    allProjectCPs.forEach((cp) => {
+      if (isEdit && id && normalizeIdValue(cp.unique_id) === id) return;
+      const cpType = (cp.collection_type as string | undefined) ?? "bin_collection";
+      if (cpType !== collectionType) return;
+      const cpWards = cp.wards as { unique_id: string }[] | undefined;
+      if (Array.isArray(cpWards)) {
+        cpWards.forEach((w) => { if (w?.unique_id) used.add(w.unique_id); });
+      }
+    });
+    return used;
+  }, [allProjectCPs, collectionType, isEdit, id]);
 
   const isPanchayatSelected = Boolean(panchayatId);
   const isZoneSelected = Boolean(zoneId);
-  const isWardSelected = Boolean(wardId);
 
   const resetLocationFields = useCallback(() => {
     setStateId("");
@@ -202,7 +220,18 @@ export default function CollectionPointForm() {
     setCityId("");
     setPanchayatId("");
     setZoneId("");
-    setWardId("");
+    setWardIds([]);
+  }, []);
+
+  // Close ward dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wardDropdownRef.current && !wardDropdownRef.current.contains(e.target as Node)) {
+        setWardDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   /* ==========================================================
@@ -244,9 +273,12 @@ export default function CollectionPointForm() {
       panchayatApi.readAll({ params }),
       zoneApi.readAll({ params }),
       wardApi.readAll({ params }),
+      collectionPointApi.readAll({ params }),
     ])
-      .then(([distData, cityData, panData, zoneData, wardData]) => {
+      .then(([distData, cityData, panData, zoneData, wardData, cpData]) => {
         if (cancelled) return;
+
+        setAllProjectCPs(toRecordList(cpData));
 
         setDistricts(
           toRecordList(distData)
@@ -334,7 +366,10 @@ export default function CollectionPointForm() {
         const _cityId = normalizeIdValue(record.city_id ?? record.city);
         const _panchayatId = normalizeIdValue(record.panchayat_id ?? record.panchayat);
         const _zoneId = normalizeIdValue(record.zone_id ?? record.zone);
-        const _wardId = normalizeIdValue(record.ward_id ?? record.ward);
+
+        // wards is now M2M — the API returns an array of ward objects under "wards"
+        const wardsArray = Array.isArray(record.wards) ? record.wards : [];
+        const _wardIds = wardsArray.map((w: unknown) => normalizeIdValue(w)).filter(Boolean);
 
         setStateId(_stateId);
         setPendingStateId(_stateId);
@@ -346,8 +381,11 @@ export default function CollectionPointForm() {
         setPendingPanchayatId(_panchayatId);
         setZoneId(_zoneId);
         setPendingZoneId(_zoneId);
-        setWardId(_wardId);
-        setPendingWardId(_wardId);
+        setWardIds(_wardIds);
+        setPendingWardIds(_wardIds);
+        const recType = toStringOrEmpty(record.collection_type);
+        if (recType === "household_collection") setCollectionType("household_collection");
+        else setCollectionType("bin_collection");
         setCpName(toStringOrEmpty(record.cp_name ?? record.collection_point_name));
         setLatitude(toStringOrEmpty(record.latitude));
         setLongitude(toStringOrEmpty(record.longitude));
@@ -459,14 +497,16 @@ export default function CollectionPointForm() {
     }
   }, [pendingZoneId, zoneOptions]);
 
-  // Apply pending wardId once the tenant-filtered wards list is available
+  // Apply pending wardIds once the tenant-filtered wards list is available
   useEffect(() => {
-    if (!pendingWardId) return;
-    if (wards.length > 0 && wards.some((w) => w.value === pendingWardId)) {
-      setWardId(pendingWardId);
-      setPendingWardId("");
+    if (!pendingWardIds.length || wards.length === 0) return;
+    const available = wards.map((w) => w.value);
+    const resolved = pendingWardIds.filter((id) => available.includes(id));
+    if (resolved.length > 0) {
+      setWardIds(resolved);
+      setPendingWardIds([]);
     }
-  }, [pendingWardId, wards]);
+  }, [pendingWardIds, wards]);
 
   // Re-apply project after the hook loads the project list
   useEffect(() => {
@@ -523,18 +563,22 @@ export default function CollectionPointForm() {
   }, [cityId, districtId, stateId, zoneId, zoneOptions]);
 
   const wardOptions = useMemo(() => {
-    const filtered = wards
+    return wards
       .filter((option) => {
         if (stateId && option.stateId && option.stateId !== stateId) return false;
         if (districtId && option.districtId && option.districtId !== districtId) return false;
         if (cityId && option.cityId && option.cityId !== cityId) return false;
-        if (panchayatId && option.panchayatId && option.panchayatId !== panchayatId) return false;
-        if (zoneId && option.zoneId && option.zoneId !== zoneId) return false;
+        // XOR filter: show zone-wards when zone selected, panchayat-wards when panchayat selected
+        if (zoneId) return option.zoneId === zoneId;
+        if (panchayatId) return option.panchayatId === panchayatId;
         return true;
       })
-      .map((option) => ({ value: option.value, label: option.label }));
-    return ensureSelectedOption(filtered, wardId);
-  }, [cityId, districtId, panchayatId, stateId, wardId, wards, zoneId]);
+      .map((option) => ({
+        value: option.value,
+        label: option.label,
+        disabled: usedWardIds.has(option.value) && !wardIds.includes(option.value),
+      }));
+  }, [cityId, districtId, panchayatId, stateId, wards, zoneId, usedWardIds, wardIds]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -545,7 +589,7 @@ export default function CollectionPointForm() {
       district_id: districtId,
       city_id: cityId,
       panchayat_id: panchayatId,
-      ward_id: wardId,
+      ward_ids: wardIds,
       cp_name: cpName.trim(),
       latitude: latitude.trim(),
       longitude: longitude.trim(),
@@ -561,7 +605,7 @@ export default function CollectionPointForm() {
     if (getMissingRequiredFields(["city_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
       missingFields.push(t("common.city"));
     }
-    if ((showField("panchayat_id") || showField("ward_id")) && !panchayatId && !wardId) {
+    if ((showField("panchayat_id") || showField("ward_id")) && !panchayatId && wardIds.length === 0) {
       missingFields.push(`${t("admin.nav.panchayat")} / ${t("admin.nav.ward")}`);
     }
     if (getMissingRequiredFields(["cp_name"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
@@ -594,8 +638,8 @@ export default function CollectionPointForm() {
       district_id: districtId,
       city_id: cityId,
       panchayat_id: panchayatId || null,
-      zone_id: zoneId || null,
-      ward_id: wardId || null,
+      ward_ids: wardIds,
+      collection_type: collectionType,
       cp_name: cpName.trim(),
       latitude: parsedLatitude.toFixed(6),
       longitude: parsedLongitude.toFixed(6),
@@ -714,7 +758,7 @@ export default function CollectionPointForm() {
                 setCityId("");
                 setPanchayatId("");
                 setZoneId("");
-                setWardId("");
+                setWardIds([]);
               }}
             >
               <SelectTrigger className="input-validate w-full">
@@ -741,7 +785,7 @@ export default function CollectionPointForm() {
                 setCityId("");
                 setPanchayatId("");
                 setZoneId("");
-                setWardId("");
+                setWardIds([]);
               }}
               disabled={!stateId}
             >
@@ -768,7 +812,7 @@ export default function CollectionPointForm() {
                 setCityId(value);
                 setPanchayatId("");
                 setZoneId("");
-                setWardId("");
+                setWardIds([]);
               }}
               disabled={!districtId}
             >
@@ -786,7 +830,8 @@ export default function CollectionPointForm() {
           </div>
         )}
 
-        {showField("panchayat_id") && (
+        {/* Panchayat — hidden when Zone is selected */}
+        {showField("panchayat_id") && !isZoneSelected && (
           <div>
             <Label>{t("admin.nav.panchayat")}</Label>
             <Select
@@ -795,9 +840,9 @@ export default function CollectionPointForm() {
                 const next = value === "__none__" ? "" : value;
                 setPanchayatId(next);
                 setZoneId("");
-                setWardId("");
+                setWardIds([]);
               }}
-              disabled={!cityId || isZoneSelected || isWardSelected}
+              disabled={!cityId}
             >
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") })} />
@@ -814,7 +859,8 @@ export default function CollectionPointForm() {
           </div>
         )}
 
-        {showField("zone_id") && (
+        {/* Zone — hidden when Panchayat is selected */}
+        {showField("zone_id") && !isPanchayatSelected && (
           <div>
             <Label>{t("admin.nav.zone")}</Label>
             <Select
@@ -823,9 +869,9 @@ export default function CollectionPointForm() {
                 const next = value === "__none__" ? "" : value;
                 setZoneId(next);
                 setPanchayatId("");
-                setWardId("");
+                setWardIds([]);
               }}
-              disabled={!cityId || isPanchayatSelected}
+              disabled={!cityId}
             >
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.zone") })} />
@@ -842,30 +888,101 @@ export default function CollectionPointForm() {
           </div>
         )}
 
-        {showField("ward_id") && (
-          <div>
+        <div>
+          <Label>Collection Type *</Label>
+          <Select
+            value={collectionType}
+            onValueChange={(v) => setCollectionType(v as "bin_collection" | "household_collection")}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="bin_collection">Bin Collection</SelectItem>
+              <SelectItem value="household_collection">Household Collection</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Wards — multi-select checkbox dropdown, visible only when zone or panchayat is chosen */}
+        {showField("ward_id") && (isZoneSelected || isPanchayatSelected) && (
+          <div ref={wardDropdownRef} className="relative">
             <Label>{t("admin.nav.ward")}</Label>
-            <Select
-              value={wardId || "__none__"}
-              onValueChange={(value) => {
-                const next = value === "__none__" ? "" : value;
-                setWardId(next);
-                if (next) setPanchayatId("");
-              }}
-              disabled={!cityId || isPanchayatSelected}
+            <button
+              type="button"
+              onClick={() => setWardDropdownOpen((o) => !o)}
+              disabled={!cityId || wardOptions.length === 0}
+              className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <SelectTrigger className="input-validate w-full">
-                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.ward") })} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
-                {wardOptions.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <span className="truncate text-left">
+                {wardIds.length === 0
+                  ? t("common.select_item_placeholder", { item: t("admin.nav.ward") })
+                  : wardIds.length === 1
+                    ? (wardOptions.find((w) => w.value === wardIds[0])?.label ?? wardIds[0])
+                    : `${wardIds.length} wards selected`}
+              </span>
+              <svg className="h-4 w-4 opacity-50 shrink-0 ml-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            {wardDropdownOpen && (
+              <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
+                <div className="max-h-60 overflow-y-auto p-1">
+                  {wardOptions.length === 0 ? (
+                    <p className="px-2 py-1.5 text-sm text-muted-foreground">No wards found</p>
+                  ) : (
+                    wardOptions.map((w) => {
+                      const checked = wardIds.includes(w.value);
+                      const isDisabled = w.disabled === true;
+                      return (
+                        <label
+                          key={w.value}
+                          className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-accent"}`}
+                          title={isDisabled ? "Already assigned to another collection point" : undefined}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={isDisabled}
+                            onChange={() => {
+                              if (isDisabled) return;
+                              setWardIds((prev) =>
+                                checked ? prev.filter((id) => id !== w.value) : [...prev, w.value]
+                              );
+                            }}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          {w.label}
+                          {isDisabled && <span className="ml-auto text-xs text-muted-foreground">(assigned)</span>}
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                {wardIds.length > 0 && (
+                  <div className="border-t px-2 py-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setWardIds([])}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {wardIds.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {wardIds.map((id) => {
+                  const label = wardOptions.find((w) => w.value === id)?.label ?? id;
+                  return (
+                    <span key={id} className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">
+                      {label}
+                      <button type="button" onClick={() => setWardIds((prev) => prev.filter((v) => v !== id))} className="hover:text-red-600">×</button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -905,8 +1022,8 @@ export default function CollectionPointForm() {
           </div>
         )}
 
-        {/* ── BINS SECTION ────────────────────────────────────────────────── */}
-        <div className="md:col-span-2 space-y-3">
+        {/* ── BINS SECTION — only for bin_collection type ─────────────────── */}
+        {collectionType === "bin_collection" && <div className="md:col-span-2 space-y-3">
           <div className="flex items-center justify-between border-b pb-2">
             <div>
               <h3 className="text-sm font-semibold text-gray-800">Bins at this Collection Point</h3>
@@ -1003,7 +1120,7 @@ export default function CollectionPointForm() {
           >
             <span className="text-lg leading-none">+</span> Add Bin
           </button>
-        </div>
+        </div>}
         {/* ── END BINS SECTION ─────────────────────────────────────────────── */}
 
         <div className="md:col-span-2 flex justify-end gap-3">

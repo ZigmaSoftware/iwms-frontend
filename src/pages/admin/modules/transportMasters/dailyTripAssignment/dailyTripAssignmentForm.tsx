@@ -1,4 +1,5 @@
 import type { DailyTripAssignmentRecord } from "./types";
+import type { DailyTripCollectionPointInline, DailyTripHouseholdCollectionInline } from "./types";
 import type { FormState, SelectOption } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -15,7 +16,7 @@ import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
 
 import { adminApi } from "@/helpers/admin/registry";
-import { dailyTripAssignmentApi } from "@/helpers/admin";
+import { dailyTripAssignmentApi, dailyTripHouseholdCollectionApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
@@ -52,6 +53,9 @@ const toEntityId = (value: unknown): string => {
   }
   return String(value).trim();
 };
+
+const uniqueIds = (values: unknown[]): string[] =>
+  Array.from(new Set(values.map(toEntityId).filter(Boolean)));
 
 const filterByCompanyProject = (items: any[], companyId: string, projectId: string) => {
   const hasContext = items.some((item) => item?.company_id || item?.company_unique_id);
@@ -92,15 +96,30 @@ const getZoneLabelFromRecord = (record: any): string | undefined =>
       ""
   ).trim() || undefined;
 
-const getWardIdFromRecord = (record: any): string =>
-  toEntityId(record?.ward?.unique_id ?? record?.ward_id ?? record?.trip_plan?.ward?.unique_id ?? record?.trip_plan?.ward_id);
+const getWardIdFromRecord = (record: any): string => {
+  // Support both legacy single ward and new wards array from trip plan
+  const ward = record?.ward ?? record?.trip_plan?.ward;
+  if (ward) return toEntityId(ward?.unique_id ?? ward);
+  const wards: any[] = record?.wards ?? record?.trip_plan?.wards ?? [];
+  if (wards.length) return toEntityId(wards[0]?.unique_id ?? wards[0]);
+  return toEntityId(record?.ward_id ?? record?.trip_plan?.ward_id ?? "");
+};
+
+const getWardIdsFromRecord = (record: any): string[] => {
+  const wards: any[] = record?.wards ?? record?.trip_plan?.wards ?? [];
+  if (wards.length) return wards.map((w: any) => toEntityId(w?.unique_id ?? w)).filter(Boolean);
+  const single = getWardIdFromRecord(record);
+  return single ? [single] : [];
+};
 
 const getWardLabelFromRecord = (record: any): string | undefined =>
   String(
     record?.ward?.ward_name ??
       record?.ward?.name ??
+      (record?.wards?.[0]?.ward_name) ??
       record?.trip_plan?.ward?.ward_name ??
       record?.trip_plan?.ward?.name ??
+      (record?.trip_plan?.wards?.[0]?.ward_name) ??
       ""
   ).trim() || undefined;
 
@@ -117,6 +136,17 @@ const extractError = (error: any): string | null => {
   }
   return null;
 };
+
+const pointLabel = (point: DailyTripCollectionPointInline): string =>
+  String(
+    point.collection_point?.cp_name ??
+      point.collection_point?.name ??
+      point.collection_point_id ??
+      ""
+  ).trim() || "—";
+
+const binLabel = (point: DailyTripCollectionPointInline): string =>
+  String(point.bin?.bin_name ?? point.bin?.name ?? point.bin_id ?? "").trim() || "—";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -148,8 +178,8 @@ export default function DailyTripAssignmentForm() {
     alt_staff_template_id: "",
     zone_id: "",
     panchayat_id: "",
-    ward_id: "",
-    waste_type_id: "",
+    ward_ids: [],
+    waste_type_ids: [],
     household_waste_type_ids: [],
     trip_date: "",
     scheduled_time: "",
@@ -162,6 +192,8 @@ export default function DailyTripAssignmentForm() {
   const [hasHouseholdStops, setHasHouseholdStops] = useState(false);
 
   const [recordData, setRecordData] = useState<DailyTripAssignmentRecord | null>(null);
+  const [collectionPoints, setCollectionPoints] = useState<DailyTripCollectionPointInline[]>([]);
+  const [householdCollectionPoints, setHouseholdCollectionPoints] = useState<DailyTripHouseholdCollectionInline[]>([]);
   // Holds raw record until lookups are ready — avoids Radix Select blank-value bug
   const [pendingRecord, setPendingRecord] = useState<DailyTripAssignmentRecord | null>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
@@ -256,6 +288,24 @@ export default function DailyTripAssignmentForm() {
     const rec = pendingRecord;
     const tripPlanId = rec.trip_plan?.unique_id ?? String(rec.trip_plan_id ?? "");
     const plan = tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === tripPlanId);
+    const selectedStaffTemplateId = uniqueIds([
+      rec.staff_template?.unique_id,
+      rec.staff_template_id,
+      rec.effective_staff?.source === "base" ? rec.effective_staff?.unique_id : undefined,
+      rec.trip_plan?.staff_template?.unique_id,
+      rec.trip_plan?.staff_template_id,
+      plan?.staff_template?.unique_id,
+      plan?.staff_template_id,
+    ])[0] ?? "";
+    const selectedWasteTypeIds = uniqueIds([
+      ...(Array.isArray(rec.waste_type_ids) ? rec.waste_type_ids : []),
+      ...(Array.isArray(rec.waste_types) ? rec.waste_types.map((item) => item?.unique_id) : []),
+      ...(Array.isArray(rec.household_waste_types) ? rec.household_waste_types.map((item) => item?.unique_id) : []),
+      ...(Array.isArray(plan?.waste_type_ids) ? plan.waste_type_ids : []),
+      ...(Array.isArray(plan?.waste_types) ? plan.waste_types.map((item: any) => item?.unique_id) : []),
+      plan?.waste_type?.unique_id,
+      plan?.waste_type_id,
+    ]);
 
     // Restore collection type flags from the saved record
     const ct = rec.collection_types;
@@ -266,20 +316,40 @@ export default function DailyTripAssignmentForm() {
 
     setFormData({
       trip_plan_id: tripPlanId,
-      staff_template_id: rec.staff_template?.unique_id ?? String(rec.staff_template_id ?? ""),
-      alt_staff_template_id: "",
+      staff_template_id: selectedStaffTemplateId,
+      alt_staff_template_id: String(
+        rec.alt_staff_template?.unique_id ??
+          (rec.effective_staff?.source === "alternative" ? rec.effective_staff?.unique_id : "") ??
+          ""
+      ),
       zone_id: getZoneIdFromRecord(rec) || getZoneIdFromRecord(plan),
       panchayat_id: rec.panchayat?.unique_id ?? String(rec.panchayat_id ?? ""),
-      ward_id: getWardIdFromRecord(rec) || getWardIdFromRecord(plan),
-      waste_type_id: (rec.waste_type as any)?.unique_id ?? String(rec.waste_type_id ?? ""),
-      household_waste_type_ids: (rec.household_waste_types ?? [])
-        .map((wt: any) => String(wt?.unique_id ?? ""))
-        .filter(Boolean),
+      ward_ids: getWardIdsFromRecord(rec).length ? getWardIdsFromRecord(rec) : getWardIdsFromRecord(plan),
+      waste_type_ids: selectedWasteTypeIds,
+      household_waste_type_ids: selectedWasteTypeIds,
       trip_date: rec.trip_date ?? "",
       scheduled_time: rec.scheduled_time ?? "",
       status: rec.status ?? "Scheduled",
       remarks: String(rec.remarks ?? ""),
     });
+    setCollectionPoints(
+      Array.isArray(rec.collection_points)
+        ? rec.collection_points.map((point) => ({
+            ...point,
+            collected_weight_kg: point.collected_weight_kg ?? "",
+            collected_at: point.collected_at ? String(point.collected_at).slice(0, 16) : "",
+          }))
+        : [],
+    );
+    setHouseholdCollectionPoints(
+      Array.isArray(rec.household_collection_points)
+        ? rec.household_collection_points.map((stop) => ({
+            ...stop,
+            collected_weight_kg: stop.collected_weight_kg ?? "",
+            collected_at: stop.collected_at ? String(stop.collected_at).slice(0, 16) : "",
+          }))
+        : [],
+    );
     setPendingRecord(null);   // clear so this effect doesn't re-fire
   }, [pendingRecord, tripPlan, tripPlanRecords, staffTemplates, zones, panchayats, wardRecords, wasteTypes]);
 
@@ -298,30 +368,57 @@ export default function DailyTripAssignmentForm() {
       if (!plan) return next;
 
       const planStaff = toEntityId(plan?.staff_template?.unique_id ?? plan?.staff_template_id);
-      const planWaste = toEntityId(plan?.waste_type?.unique_id ?? plan?.waste_type_id);
+      const planWasteIds = uniqueIds([
+        ...(Array.isArray(plan?.waste_type_ids) ? plan.waste_type_ids : []),
+        ...(Array.isArray(plan?.waste_types) ? plan.waste_types.map((item: any) => item?.unique_id) : []),
+        plan?.waste_type?.unique_id,
+        plan?.waste_type_id,
+      ]);
       const planPanchayat = toEntityId(plan?.panchayat?.unique_id ?? plan?.panchayat_id);
-      const planWard = getWardIdFromRecord(plan);
       const planZone = getZoneIdFromRecord(plan);
+      const planWardIds = getWardIdsFromRecord(plan);
 
       if (planStaff) next.staff_template_id = planStaff;
-      if (planWaste && hasBin) next.waste_type_id = planWaste;
-      if (planZone) next.zone_id = planZone;
-      if (planPanchayat) {
-        next.panchayat_id = planPanchayat;
-        next.ward_id = "";
+      if (planWasteIds.length) {
+        next.waste_type_ids = planWasteIds;
+        next.household_waste_type_ids = planWasteIds;
       }
-      if (planWard) {
-        next.ward_id = planWard;
-        next.panchayat_id = "";
-      }
+      next.zone_id = planZone || "";
+      next.panchayat_id = planPanchayat || "";
+      next.ward_ids = planWardIds;
       if (plan?.scheduled_time) next.scheduled_time = String(plan.scheduled_time).slice(0, 5);
       return next;
     });
   };
 
   const handleZoneChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, zone_id: value, ward_id: "" }));
+    setFormData((prev) => ({ ...prev, zone_id: value, ward_ids: [] }));
   };
+
+  useEffect(() => {
+    if (!formData.trip_plan_id || formData.staff_template_id) return;
+    const plan = tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === formData.trip_plan_id);
+    const staffTemplateId = uniqueIds([
+      recordData?.staff_template?.unique_id,
+      recordData?.staff_template_id,
+      recordData?.effective_staff?.source === "base" ? recordData?.effective_staff?.unique_id : undefined,
+      recordData?.trip_plan?.staff_template?.unique_id,
+      recordData?.trip_plan?.staff_template_id,
+      plan?.staff_template?.unique_id,
+      plan?.staff_template_id,
+    ])[0];
+    if (!staffTemplateId) return;
+    setFormData((prev) => (
+      prev.staff_template_id
+        ? prev
+        : { ...prev, staff_template_id: staffTemplateId }
+    ));
+  }, [
+    formData.trip_plan_id,
+    formData.staff_template_id,
+    recordData,
+    tripPlanRecords,
+  ]);
 
   // ── Effective alt-staff resolution ───────────────────────────────────────
   const resolvedAltStaff = useMemo(() => {
@@ -355,21 +452,33 @@ export default function DailyTripAssignmentForm() {
     [tripPlan, formData.trip_plan_id, recordData]
   );
   const resolvedStaffTemplates = useMemo(() =>
-    ensureOption(staffTemplates, formData.staff_template_id, recordData?.staff_template?.display_code),
+    ensureOption(
+      staffTemplates,
+      formData.staff_template_id,
+      recordData?.staff_template?.display_code ??
+        (recordData?.effective_staff?.source === "base" ? recordData?.effective_staff?.display_code : undefined) ??
+        recordData?.trip_plan?.staff_template?.display_code,
+    ),
     [staffTemplates, formData.staff_template_id, recordData]
   );
   const resolvedAltStaffOptions = useMemo(() =>
     ensureOption(
       altStaffOptions,
       formData.alt_staff_template_id,
-      recordData?.effective_staff?.display_code,
+      recordData?.alt_staff_template?.display_code ?? recordData?.effective_staff?.display_code,
     ),
     [altStaffOptions, formData.alt_staff_template_id, recordData]
   );
-  const resolvedPanchayats = useMemo(() =>
-    ensureOption(panchayats, formData.panchayat_id, recordData?.panchayat?.panchayat_name ?? recordData?.panchayat?.name as string | undefined),
-    [panchayats, formData.panchayat_id, recordData]
-  );
+  const resolvedPanchayats = useMemo(() => {
+    const selectedPlan = tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === formData.trip_plan_id);
+    const label =
+      recordData?.panchayat?.panchayat_name ??
+      recordData?.panchayat?.name ??
+      selectedPlan?.panchayat?.panchayat_name ??
+      selectedPlan?.panchayat?.name ??
+      undefined;
+    return ensureOption(panchayats, formData.panchayat_id, label as string | undefined);
+  }, [panchayats, formData.panchayat_id, formData.trip_plan_id, recordData, tripPlanRecords]);
   const resolvedZones = useMemo(() =>
     ensureOption(
       zones,
@@ -380,32 +489,53 @@ export default function DailyTripAssignmentForm() {
     [zones, formData.zone_id, formData.trip_plan_id, recordData, tripPlanRecords]
   );
   const resolvedWards = useMemo(() => {
+    const selectedPlan = tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === formData.trip_plan_id);
+    // When a panchayat-based trip plan is selected, only show that plan's own wards
+    const planWards: any[] = selectedPlan?.wards ?? [];
+    if (formData.panchayat_id && planWards.length > 0) {
+      return planWards.map((w: any) => ({
+        value: String(w?.unique_id ?? ""),
+        label: String(w?.ward_name ?? w?.name ?? w?.unique_id ?? ""),
+      })).filter((o: any) => o.value);
+    }
     const filtered = wardRecords.filter((ward) => {
-      if (!formData.zone_id) return true;
-      return toEntityId(ward?.zone_id ?? ward?.zone) === formData.zone_id;
+      if (formData.zone_id) return toEntityId(ward?.zone_id ?? ward?.zone) === formData.zone_id;
+      return true;
     });
-    const options = buildOptions(filtered.length ? filtered : wardRecords, ["ward_name", "name"]);
-    return ensureOption(
-      options,
-      formData.ward_id,
-      getWardLabelFromRecord(recordData) ||
-        getWardLabelFromRecord(tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === formData.trip_plan_id))
-    );
-  }, [formData.zone_id, formData.ward_id, formData.trip_plan_id, recordData, tripPlanRecords, wardRecords]);
+    return buildOptions(filtered.length ? filtered : wardRecords, ["ward_name", "name"]);
+  }, [formData.zone_id, formData.panchayat_id, formData.trip_plan_id, tripPlanRecords, wardRecords]);
   const resolvedWasteTypes = useMemo(() =>
-    ensureOption(wasteTypes, formData.waste_type_id, (recordData?.waste_type as any)?.waste_type_name ?? recordData?.waste_type?.name as string | undefined),
-    [wasteTypes, formData.waste_type_id, recordData]
+    formData.waste_type_ids.reduce(
+      (options, value) => ensureOption(
+        options,
+        value,
+        recordData?.waste_types?.find((item) => item.unique_id === value)?.waste_type_name ??
+          value,
+      ),
+      wasteTypes,
+    ),
+    [wasteTypes, formData.waste_type_ids, recordData]
   );
+
+  // In edit mode, show only collection points matching the selected wards.
+  // The full list is always sent on save — this is display-only filtering.
+  const visibleCollectionPoints = useMemo(() => {
+    if (!isEdit || formData.ward_ids.length === 0) return collectionPoints;
+    return collectionPoints.filter((pt) => {
+      const ptWard = toEntityId((pt as any).ward_id);
+      return !ptWard || formData.ward_ids.includes(ptWard);
+    });
+  }, [collectionPoints, formData.ward_ids, isEdit]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    const binWasteMissing = hasBinStops && !formData.waste_type_id;
-    const hhWasteMissing = hasHouseholdStops && formData.household_waste_type_ids.length === 0;
+    const wasteMissing = (hasBinStops || hasHouseholdStops) && formData.waste_type_ids.length === 0;
+    const wardMissing = formData.ward_ids.length === 0;
     if (!companyUniqueId || !projectId ||
       !formData.trip_plan_id || !formData.staff_template_id ||
-      (!formData.panchayat_id && !formData.ward_id) ||
-      binWasteMissing || hhWasteMissing ||
+      wardMissing ||
+      wasteMissing ||
       !formData.trip_date || !formData.scheduled_time) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
@@ -417,19 +547,46 @@ export default function DailyTripAssignmentForm() {
       trip_plan_id: formData.trip_plan_id,
       staff_template_id: formData.staff_template_id,
       panchayat_id: formData.panchayat_id || undefined,
-      ward_id: formData.ward_id || undefined,
-      waste_type_id: hasBinStops ? formData.waste_type_id : undefined,
-      household_waste_type_ids: hasHouseholdStops ? formData.household_waste_type_ids : [],
+      ward_ids: formData.ward_ids,
+      waste_type_ids: formData.waste_type_ids,
+      household_waste_type_ids: hasHouseholdStops ? formData.waste_type_ids : [],
       trip_date: formData.trip_date,
       scheduled_time: formData.scheduled_time,
       status: formData.status,
       remarks: formData.remarks || undefined,
     };
+    if (isEdit) {
+      payload.collection_points_input = collectionPoints.map((point) => ({
+        unique_id: point.unique_id,
+        collection_point_id: point.collection_point_id,
+        bin_id: point.bin_id,
+        sequence: Number(point.sequence || 1),
+        is_collected: Boolean(point.is_collected),
+        collected_at: point.collected_at || null,
+        collected_weight_kg: point.collected_weight_kg || null,
+        collected_by: point.collected_by || null,
+        status: point.status || "Pending",
+      }));
+    }
 
     setIsSubmitting(true);
     try {
       if (isEdit && id) {
         await dailyTripAssignmentApi.update(id, payload);
+        if (householdCollectionPoints.length > 0) {
+          await Promise.all(
+            householdCollectionPoints
+              .filter((stop) => stop.unique_id)
+              .map((stop) =>
+                (dailyTripHouseholdCollectionApi.update(stop.unique_id!, {
+                  sequence: stop.sequence,
+                  status: stop.status,
+                  is_collected: stop.is_collected,
+                  collected_weight_kg: stop.collected_weight_kg || null,
+                }) as Promise<unknown>).catch(() => null)
+              )
+          );
+        }
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
         await dailyTripAssignmentApi.create(payload);
@@ -454,8 +611,8 @@ export default function DailyTripAssignmentForm() {
   return (
     <div className="p-3">
       <ComponentCard
-        title={isEdit ? "Edit Trip Assignment" : "New Trip Assignment"}
-        desc="Schedule a daily trip with vehicle, staff, route, and waste collection details"
+        title={isEdit ? "Edit Daily Trip Plan" : "New Daily Trip Plan"}
+        desc="Schedule a daily trip with vehicle, staff, route, and collection points"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -512,9 +669,9 @@ export default function DailyTripAssignmentForm() {
               />
             </div>
 
-            {/* Scheduled Time */}
+            {/* Start Time */}
             <div>
-              <Label>Scheduled Time <span className="text-red-500">*</span></Label>
+              <Label>Start Time <span className="text-red-500">*</span></Label>
               <Input
                 type="time"
                 value={formData.scheduled_time}
@@ -548,20 +705,22 @@ export default function DailyTripAssignmentForm() {
               />
             </div>
 
-            {/* Alternative Staff Template */}
-            <div className="md:col-span-2">
-              <Label>
-                Alternative Staff Template{" "}
-                <span className="text-xs font-normal text-gray-400">(Optional — auto-resolved from date range if left blank)</span>
-              </Label>
-              <Select
-                value={formData.alt_staff_template_id}
-                onChange={set("alt_staff_template_id")}
-                options={resolvedAltStaffOptions}
-                placeholder="Select staff template first"
-                disabled={fetching || !projectId || !formData.staff_template_id}
-              />
-            </div>
+            {/* Alternative Staff Template — only shown when alternatives exist for the selected staff template */}
+            {altStaffOptions.length > 0 && (
+              <div className="md:col-span-2">
+                <Label>
+                  Alternative Staff Template{" "}
+                  <span className="text-xs font-normal text-gray-400">(Optional — auto-resolved from date range if left blank)</span>
+                </Label>
+                <Select
+                  value={formData.alt_staff_template_id}
+                  onChange={set("alt_staff_template_id")}
+                  options={resolvedAltStaffOptions}
+                  placeholder="Select alternative staff template"
+                  disabled={fetching || !projectId}
+                />
+              </div>
+            )}
 
             {/* Effective Staff Banner */}
             {formData.staff_template_id && formData.trip_date && (
@@ -573,90 +732,91 @@ export default function DailyTripAssignmentForm() {
                 }`}>
                   {resolvedAltStaff
                     ? `Alt staff active: ${resolvedAltStaff.display_code ?? resolvedAltStaff.unique_id}`
-                    : `Base staff template: ${staffTemplates.find((s) => s.value === formData.staff_template_id)?.label ?? ""}`}
+                    : `Base staff template: ${resolvedStaffTemplates.find((s) => s.value === formData.staff_template_id)?.label ?? ""}`}
                 </div>
               </div>
             )}
 
-            {/* Zone */}
-            <div>
-              <Label>Zone</Label>
-              <Select
-                value={formData.zone_id}
-                onChange={handleZoneChange}
-                options={resolvedZones}
-                placeholder="Select zone"
-                disabled={fetching || !projectId}
-              />
-            </div>
-
-            {/* Ward */}
-            <div>
-              <Label>Ward</Label>
-              <Select
-                value={formData.ward_id}
-                onChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    ward_id: value,
-                    panchayat_id: value ? "" : prev.panchayat_id,
-                  }))
-                }
-                options={resolvedWards}
-                placeholder="Select ward"
-                disabled={fetching || !projectId || Boolean(formData.panchayat_id)}
-              />
-            </div>
-
-            {/* Panchayat */}
-            <div>
-              <Label>PLB (Participating Local Bodies) <span className="text-red-500">*</span></Label>
-              <Select
-                value={formData.panchayat_id}
-                onChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    panchayat_id: value,
-                    ward_id: value ? "" : prev.ward_id,
-                  }))
-                }
-                options={resolvedPanchayats}
-                placeholder="Select PLB"
-                disabled={fetching || !projectId || Boolean(formData.ward_id)}
-              />
-            </div>
-
-            {/* Waste Type — single for bin, multi for household */}
-            {hasBinStops && (
+            {/* Zone — shown when trip plan has a zone (auto-filled, read-only) */}
+            {formData.zone_id && (
               <div>
-                <Label>
-                  Bin Collection Waste Type <span className="text-red-500">*</span>
-                </Label>
+                <Label>Zone</Label>
                 <Select
-                  value={formData.waste_type_id}
-                  onChange={set("waste_type_id")}
-                  options={resolvedWasteTypes}
-                  placeholder="Select waste type"
-                  disabled={fetching}
+                  value={formData.zone_id}
+                  onChange={handleZoneChange}
+                  options={resolvedZones}
+                  placeholder="Select zone"
+                  
                 />
               </div>
             )}
 
-            {hasHouseholdStops && (
-              <div className={hasBinStops ? "" : "md:col-span-1"}>
+            {/* Panchayat — shown when trip plan has a panchayat (auto-filled) */}
+            {formData.panchayat_id && (
+              <div>
+                <Label>PLB (Participating Local Bodies)</Label>
+                <Select
+                  value={formData.panchayat_id}
+                  onChange={(value) =>
+                    setFormData((prev) => ({ ...prev, panchayat_id: value, ward_ids: [] }))
+                  }
+                  options={resolvedPanchayats}
+                  placeholder="Select PLB"
+                  disabled={fetching || !projectId}
+                />
+              </div>
+            )}
+
+            {/* Wards — shown when zone or panchayat is set */}
+            {(formData.zone_id || formData.panchayat_id) && (
+              <div>
                 <Label>
-                  Household Waste Types <span className="text-red-500">*</span>
+                  Wards <span className="text-red-500">*</span>
                   <span className="ml-1 text-xs font-normal text-gray-400">(select one or more)</span>
                 </Label>
                 <MultiSelect
-                  value={formData.household_waste_type_ids}
-                  onChange={(e) =>
+                  value={formData.ward_ids}
+                  onChange={(e) => {
+                    const values = Array.isArray(e.value) ? e.value.map(String) : [];
+                    setFormData((prev) => ({ ...prev, ward_ids: values }));
+                  }}
+                  options={resolvedWards}
+                  optionLabel="label"
+                  optionValue="value"
+                  placeholder="Select wards"
+                  display="chip"
+                  className="w-full"
+                  disabled={fetching || !projectId}
+                />
+              </div>
+            )}
+
+            {/* Fallback — no trip plan selected yet: let user manually pick Zone or Panchayat */}
+            {!formData.trip_plan_id && !formData.zone_id && !formData.panchayat_id && (
+              <div>
+                <Label>Zone / PLB <span className="text-red-500">*</span></Label>
+                <p className="mt-1 text-xs text-gray-400">Select a trip plan to auto-fill zone or PLB.</p>
+              </div>
+            )}
+
+            {/* Waste Types */}
+            {(hasBinStops || hasHouseholdStops) && (
+              <div>
+                <Label>
+                  Waste Types <span className="text-red-500">*</span>
+                  <span className="ml-1 text-xs font-normal text-gray-400">(select one or more)</span>
+                </Label>
+                <MultiSelect
+                  value={formData.waste_type_ids}
+                  onChange={(e) => {
+                    const values = Array.isArray(e.value) ? e.value.map(String) : [];
                     setFormData((prev) => ({
                       ...prev,
-                      household_waste_type_ids: Array.isArray(e.value) ? e.value.map(String) : [],
-                    }))
-                  }
-                  options={wasteTypes}
+                      waste_type_ids: values,
+                      household_waste_type_ids: values,
+                    }));
+                  }}
+                  options={resolvedWasteTypes}
                   optionLabel="label"
                   optionValue="value"
                   maxSelectedLabels={3}
@@ -698,6 +858,268 @@ export default function DailyTripAssignmentForm() {
               />
             </div>
           </div>
+
+          <div className="rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+              <div>
+                <h2 className="text-base font-semibold text-gray-800">Daily Trip Collection Points</h2>
+                <p className="text-xs text-gray-500">
+                  {isEdit
+                    ? "Generated from the selected TripPlan and saved with this daily trip plan."
+                    : "Collection points will be generated from the selected TripPlan after saving."}
+                </p>
+              </div>
+              {(visibleCollectionPoints.length > 0 || (!isEdit && formData.trip_plan_id)) && (
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                  {collectionPoints.length > 0
+                    ? `${visibleCollectionPoints.length} points`
+                    : `${(tripPlanRecords.find(p => (p.unique_id ?? p.id) === formData.trip_plan_id)?.plan_collection_points ?? []).filter((s: any) => s.collection_type === "bin_collection" && s.bin_id).length} points (preview)`}
+                </span>
+              )}
+            </div>
+
+            {visibleCollectionPoints.length === 0 ? (
+              (() => {
+                const plan = tripPlanRecords.find(p => (p.unique_id ?? p.id) === formData.trip_plan_id);
+                const previewStops: any[] = (plan?.plan_collection_points ?? []).filter(
+                  (s: any) => s.collection_type === "bin_collection" && s.bin_id
+                );
+                if (!isEdit && previewStops.length > 0) {
+                  return (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+                          <tr>
+                            <th className="px-4 py-3">Seq</th>
+                            <th className="px-4 py-3">Collection Point</th>
+                            <th className="px-4 py-3">Bin</th>
+                            <th className="px-4 py-3">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 bg-white">
+                          {previewStops.map((stop: any, i: number) => (
+                            <tr key={stop.unique_id ?? i} className="text-gray-500 italic">
+                              <td className="px-4 py-3">{stop.sequence ?? i + 1}</td>
+                              <td className="px-4 py-3">{stop.collection_point?.cp_name ?? stop.collection_point_id ?? "—"}</td>
+                              <td className="px-4 py-3">{stop.bin?.bin_name ?? stop.bin_id ?? "—"}</td>
+                              <td className="px-4 py-3">
+                                <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">Pending</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p className="px-4 py-2 text-xs text-gray-400 italic">These collection points will be created when you save.</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="px-4 py-6 text-sm text-gray-500">
+                    {isEdit
+                      ? "No collection points are attached to this daily trip plan."
+                      : formData.trip_plan_id
+                        ? "No bin collection stops found in the selected trip plan."
+                        : "Select a trip plan to preview collection points."}
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+                    <tr>
+                      <th className="px-4 py-3">Seq</th>
+                      <th className="px-4 py-3">Collection Point</th>
+                      <th className="px-4 py-3">Bin</th>
+                      <th className="px-4 py-3">Weight (kg)</th>
+                      <th className="px-4 py-3">Collected</th>
+                      <th className="px-4 py-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {visibleCollectionPoints.map((point, index) => {
+                      const ptKey = point.unique_id ?? point.collection_point_id;
+                      const updatePoint = (patch: Partial<DailyTripCollectionPointInline>) =>
+                        setCollectionPoints((prev) => prev.map((item) =>
+                          (item.unique_id ?? item.collection_point_id) === ptKey ? { ...item, ...patch } : item
+                        ));
+                      return (
+                      <tr key={ptKey ?? index}>
+                        <td className="px-4 py-3">
+                          <Input
+                            type="number"
+                            min={1}
+                            value={String(point.sequence ?? index + 1)}
+                            onChange={(e) => updatePoint({ sequence: Number(e.target.value || 1) })}
+                            className="h-9 w-20"
+                          />
+                        </td>
+                        <td className="px-4 py-3 font-medium text-gray-800">{pointLabel(point)}</td>
+                        <td className="px-4 py-3 text-gray-700">{binLabel(point)}</td>
+                        <td className="px-4 py-3">
+                          <Input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={String(point.collected_weight_kg ?? "")}
+                            onChange={(e) => updatePoint({ collected_weight_kg: e.target.value })}
+                            className="h-9 w-28"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(point.is_collected)}
+                            onChange={(e) => updatePoint({ is_collected: e.target.checked, status: e.target.checked ? "Collected" : "Pending" })}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <select
+                            value={point.status ?? "Pending"}
+                            onChange={(e) => updatePoint({ status: e.target.value, is_collected: e.target.value === "Collected" })}
+                            className="h-9 rounded-md border border-gray-300 px-2 text-sm"
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Collected">Collected</option>
+                            <option value="Skipped">Skipped</option>
+                            <option value="Missed">Missed</option>
+                          </select>
+                        </td>
+                      </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Daily Trip Household Collection Points */}
+          {hasHouseholdStops && (
+            <div className="rounded-lg border border-purple-200">
+              <div className="flex items-center justify-between border-b border-purple-200 bg-purple-50 px-4 py-3">
+                <div>
+                  <h2 className="text-base font-semibold text-purple-800">Daily Trip Household Collection Points</h2>
+                  <p className="text-xs text-purple-600">
+                    {isEdit
+                      ? "Per-customer household stops generated from the selected Trip Plan."
+                      : "Household stops will be generated from the selected Trip Plan after saving."}
+                  </p>
+                </div>
+                {isEdit ? (
+                  householdCollectionPoints.length > 0 && (
+                    <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
+                      {householdCollectionPoints.length} stops
+                    </span>
+                  )
+                ) : (() => {
+                  const plan = tripPlanRecords.find(p => (p.unique_id ?? p.id) === formData.trip_plan_id);
+                  const count = (plan?.plan_collection_points ?? []).filter((s: any) => s.collection_type === "household_collection" && s.customer_id).length;
+                  return count > 0 ? (
+                    <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
+                      {count} stops (preview)
+                    </span>
+                  ) : null;
+                })()}
+              </div>
+
+              {!isEdit && (() => {
+                const plan = tripPlanRecords.find(p => (p.unique_id ?? p.id) === formData.trip_plan_id);
+                const previewStops: any[] = (plan?.plan_collection_points ?? []).filter(
+                  (s: any) => s.collection_type === "household_collection" && s.customer_id
+                );
+                if (previewStops.length === 0) {
+                  return (
+                    <div className="px-4 py-6 text-sm text-gray-500">
+                      {formData.trip_plan_id ? "No household stops found in the selected trip plan." : "Select a trip plan to preview household stops."}
+                    </div>
+                  );
+                }
+                return (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-purple-50 text-left text-xs font-semibold uppercase text-purple-600">
+                        <tr>
+                          <th className="px-4 py-3">Seq</th>
+                          <th className="px-4 py-3">Customer</th>
+                          <th className="px-4 py-3">Address</th>
+                          <th className="px-4 py-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {previewStops.map((stop: any, i: number) => (
+                          <tr key={stop.unique_id ?? i} className="italic text-gray-500">
+                            <td className="px-4 py-3">{stop.sequence ?? i + 1}</td>
+                            <td className="px-4 py-3">{stop.customer?.customer_name ?? stop.customer_id ?? "—"}</td>
+                            <td className="px-4 py-3 text-xs">{[stop.customer?.building_no, stop.customer?.street].filter(Boolean).join(", ") || "—"}</td>
+                            <td className="px-4 py-3">
+                              <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">Pending</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="px-4 py-2 text-xs italic text-gray-400">These household stops will be created when you save.</p>
+                  </div>
+                );
+              })()}
+
+              {isEdit && (
+                householdCollectionPoints.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-gray-500">No household collection stops are attached to this daily trip plan.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-purple-50 text-left text-xs font-semibold uppercase text-purple-600">
+                        <tr>
+                          <th className="px-4 py-3">Seq</th>
+                          <th className="px-4 py-3">Customer</th>
+                          <th className="px-4 py-3">Address</th>
+                          <th className="px-4 py-3">Weight (kg)</th>
+                          <th className="px-4 py-3">Collected</th>
+                          <th className="px-4 py-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {householdCollectionPoints.map((stop, index) => {
+                          const stopKey = stop.unique_id ?? stop.customer_id;
+                          const updateStop = (patch: Partial<DailyTripHouseholdCollectionInline>) =>
+                            setHouseholdCollectionPoints((prev) => prev.map((item) =>
+                              (item.unique_id ?? item.customer_id) === stopKey ? { ...item, ...patch } : item
+                            ));
+                          return (
+                            <tr key={stopKey ?? index}>
+                              <td className="px-4 py-3">
+                                <Input type="number" min={1} value={String(stop.sequence ?? index + 1)} onChange={(e) => updateStop({ sequence: Number(e.target.value || 1) })} className="h-9 w-20" />
+                              </td>
+                              <td className="px-4 py-3 font-medium text-gray-800">{stop.customer?.customer_name ?? stop.customer_id ?? "—"}</td>
+                              <td className="px-4 py-3 text-xs text-gray-600">{[stop.customer?.building_no, stop.customer?.street].filter(Boolean).join(", ") || "—"}</td>
+                              <td className="px-4 py-3">
+                                <Input type="number" min={0} step="0.01" value={String(stop.collected_weight_kg ?? "")} onChange={(e) => updateStop({ collected_weight_kg: e.target.value })} className="h-9 w-28" />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input type="checkbox" checked={Boolean(stop.is_collected)} onChange={(e) => updateStop({ is_collected: e.target.checked, status: e.target.checked ? "Collected" : "Pending" })} className="h-4 w-4 rounded border-gray-300" />
+                              </td>
+                              <td className="px-4 py-3">
+                                <select value={stop.status ?? "Pending"} onChange={(e) => updateStop({ status: e.target.value, is_collected: e.target.value === "Collected" })} className="h-9 rounded-md border border-purple-200 px-2 text-sm">
+                                  <option value="Pending">Pending</option>
+                                  <option value="Collected">Collected</option>
+                                  <option value="Skipped">Skipped</option>
+                                  <option value="Missed">Missed</option>
+                                </select>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              )}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end gap-3">

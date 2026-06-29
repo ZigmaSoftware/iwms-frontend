@@ -358,7 +358,7 @@ export default function ZonePropertyLoadTrackerList() {
             label={t("admin.zone_property_load_tracker.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>

@@ -49,6 +49,7 @@ export default function CollectionPointListPage() {
   const [records, setRecords] = useState<CollectionPointRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | "bin_collection" | "household_collection">("all");
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -125,7 +126,8 @@ export default function CollectionPointListPage() {
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
       const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
       const projectMatches = !projectId || rowProjectId === projectId;
-      return companyMatches && projectMatches;
+      const typeMatches = collectionTypeFilter === "all" || (row as any).collection_type === collectionTypeFilter;
+      return companyMatches && projectMatches && typeMatches;
     });
   })();
 
@@ -239,11 +241,21 @@ export default function CollectionPointListPage() {
             ))}
           </select>
 
+          <select
+            value={collectionTypeFilter}
+            onChange={(e) => setCollectionTypeFilter(e.target.value as "all" | "bin_collection" | "household_collection")}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="all">All Types</option>
+            <option value="bin_collection">Bin Collection</option>
+            <option value="household_collection">Household Collection</option>
+          </select>
+
           <Button
             label={t("common.add_item", { item: t("admin.nav.collection_point") })}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
+
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
@@ -283,6 +295,19 @@ export default function CollectionPointListPage() {
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.collection_point") })}
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+        <Column
+          header="Collection Type"
+          style={{ minWidth: 160 }}
+          body={(row: CollectionPointRecord) => {
+            const type = (row as any).collection_type as string | undefined;
+            const isBin = !type || type === "bin_collection";
+            return (
+              <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${isBin ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"}`}>
+                {isBin ? "Bin Collection" : "Household Collection"}
+              </span>
+            );
+          }}
+        />
         {showCol("cp_name") && (
           <Column
             field="cp_name"
@@ -291,26 +316,6 @@ export default function CollectionPointListPage() {
             filter
             showFilterMatchModes={false}
             body={(row: CollectionPointRecord) => cap(toOptionalString(row.cp_name ?? row.collection_point_name))}
-          />
-        )}
-        {showCol("company_name") && (
-          <Column
-            field="company_name"
-            header={t("admin.nav.company")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => cap(toOptionalString(row.company_name))}
-          />
-        )}
-        {showCol("project_name") && (
-          <Column
-            field="project_name"
-            header={t("admin.nav.project")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => cap(toOptionalString(row.project_name))}
           />
         )}
         {showCol("state_name") && (
@@ -357,10 +362,26 @@ export default function CollectionPointListPage() {
           <Column
             field="ward_name"
             header={t("admin.nav.ward")}
-            sortable
             filter
             showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => toDisplay(row.ward_name)}
+            body={(row: CollectionPointRecord) => {
+              const wards = row.wards as { unique_id: string; ward_name: string }[] | undefined;
+              if (wards && wards.length > 0) {
+                return (
+                  <div className="flex flex-wrap gap-1">
+                    {wards.map((w) => (
+                      <span
+                        key={w.unique_id}
+                        className="inline-block bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded-full"
+                      >
+                        {cap(w.ward_name)}
+                      </span>
+                    ))}
+                  </div>
+                );
+              }
+              return <span>{toDisplay(row.ward_name)}</span>;
+            }}
           />
         )}
         {showCol("latitude") && (

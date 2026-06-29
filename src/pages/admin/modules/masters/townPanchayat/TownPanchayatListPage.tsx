@@ -181,7 +181,7 @@ export default function TownPanchayatListPage() {
             label="Add Town Panchayat"
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>

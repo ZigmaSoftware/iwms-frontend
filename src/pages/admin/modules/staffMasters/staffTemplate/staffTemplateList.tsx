@@ -516,7 +516,6 @@ export default function StaffTemplateList() {
             label={t("admin.staff_template.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !selectedProjectId}
             onClick={() =>
               navigate(ENC_NEW_PATH, { state: selectedContext })
             }

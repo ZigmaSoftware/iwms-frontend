@@ -65,7 +65,6 @@ export type EncryptedRoutes = {
   encMainScreen: string;
   encUserScreen: string;
   encTripPlans: string;
-  encTripPlanCollectionPoints: string;
   encDailyTripAssignment: string;
   encDailyTripCollectionPoint: string;
   encDailyTripHouseholdCollection: string;
@@ -73,6 +72,7 @@ export type EncryptedRoutes = {
   encDailyTripLog: string;
   encBinCollectionEvent: string;
   encDailyWasteComparison: string;
+  encSchedulerConfig: string;
   encBinLoadLog: string;
   encCustomerTag: string;
   encHouseholdPickupEvent: string;
@@ -181,7 +181,6 @@ const plainRoutes: EncryptedRoutes = {
   encUserScreen: "userscreens",
   encUserScreenPermission: "userscreenpermissions",
   encTripPlans: "trip-plans",
-  encTripPlanCollectionPoints: "trip-plan-collection-points",
   encDailyTripAssignment: "daily-trip-assignment",
   encDailyTripCollectionPoint: "daily-trip-collection-point",
   encDailyTripHouseholdCollection: "daily-trip-household-collection",
@@ -189,6 +188,7 @@ const plainRoutes: EncryptedRoutes = {
   encDailyTripLog: "daily-trip-log",
   encBinCollectionEvent: "bin-collection-event",
   encDailyWasteComparison: "daily-waste-comparisons",
+  encSchedulerConfig: "scheduler-config",
   encBinLoadLog: "bin-load-log",
   encCustomerTag: "customer-tag",
   encHouseholdPickupEvent: "household-pickup-event",

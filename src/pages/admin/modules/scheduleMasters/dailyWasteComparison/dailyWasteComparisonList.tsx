@@ -199,7 +199,7 @@ export default function DailyWasteComparisonList() {
   const [dateValue, setDateValue] = useState("");
   const [appliedDate, setAppliedDate] = useState("");
   const [sortMode, setSortMode] = useState("absolute");
-  const [source, setSource] = useState("bin");
+  const [source, setSource] = useState("all");
   const [rows, setRows] = useState<DailyReportRow[]>([]);
   const [dateTrends, setDateTrends] = useState<
     DailyReportResponse["date_trends"]
@@ -406,9 +406,9 @@ export default function DailyWasteComparisonList() {
             onChange={(e) => setSource(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-400"
           >
+            <option value="all">All Sources</option>
             <option value="bin">Bin Collection</option>
             <option value="household">Household Collection</option>
-            <option value="all">All Sources</option>
           </select>
           <button
             onClick={() => setAppliedDate(dateValue)}

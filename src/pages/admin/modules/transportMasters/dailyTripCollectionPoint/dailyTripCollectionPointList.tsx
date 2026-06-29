@@ -201,7 +201,7 @@ export default function DailyTripCollectionPointList() {
             label="New Collection Point"
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() => navigate(NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>

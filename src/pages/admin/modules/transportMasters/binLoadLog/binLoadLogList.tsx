@@ -288,7 +288,7 @@ export default function BinLoadLogList() {
             label={t("admin.bin_load_log.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !projectId}
+           
             onClick={() =>
               navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
             }
