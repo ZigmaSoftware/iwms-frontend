@@ -43,6 +43,7 @@ export default function UserScreenPermissionList() {
     onCompanyChange,
     setProjectId,
     isSuperAdmin,
+    showAllProjectsOption,
   } = useCompanyProjectSelection({
     isEdit: false,
     defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
@@ -320,7 +321,7 @@ export default function UserScreenPermissionList() {
               disabled={projects.length === 0}
               className="border rounded px-3 py-2 text-sm"
             >
-              <option value="">All Projects</option>
+              {showAllProjectsOption && <option value="">All Projects</option>}
 
               {projects.map((p: any) => (
                 <option key={p.value} value={p.value}>

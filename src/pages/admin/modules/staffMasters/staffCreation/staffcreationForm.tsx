@@ -1287,8 +1287,18 @@ export default function StaffCreationForm() {
 
       const formBody = new FormData();
 
+      // Nullable FK fields that must be explicitly cleared when null
+      const nullableFkFields = ["project_id"];
+
       Object.entries(payload).forEach(([key, value]) => {
-        if (value === undefined || value === null) return;
+        if (value === undefined) return;
+        if (value === null) {
+          // For nullable FK fields, send "" so the backend knows to clear them
+          if (nullableFkFields.includes(key)) {
+            formBody.append(key, "");
+          }
+          return;
+        }
 
         if (typeof value === "object") {
           formBody.append(key, JSON.stringify(value));
@@ -1375,9 +1385,12 @@ export default function StaffCreationForm() {
           </Label>
           <Select
             id="project_id"
-            value={hookProjectId}
-            onChange={(value) => handleSelectChange("project_id", value)}
-            options={hookProjects}
+            value={hookProjectId === "" && isSuperAdmin ? "__all__" : hookProjectId}
+            onChange={(value) => handleSelectChange("project_id", value === "__all__" ? "" : value)}
+            options={[
+              ...(isSuperAdmin ? [{ value: "__all__", label: t("common.all_projects") || "All Projects" }] : []),
+              ...hookProjects,
+            ]}
             placeholder={t("admin.nav.project_placeholder") || "Select project"}
           />
         </div>
