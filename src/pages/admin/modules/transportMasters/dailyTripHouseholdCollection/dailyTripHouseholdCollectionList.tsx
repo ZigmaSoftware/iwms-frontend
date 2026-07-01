@@ -81,6 +81,7 @@ export default function DailyTripHouseholdCollectionList() {
     projects,
     companies,
     isSuperAdmin,
+    showAllProjectsOption,
     setProjectId,
     onCompanyChange,
   } = useCompanyProjectSelection({
@@ -227,7 +228,7 @@ export default function DailyTripHouseholdCollectionList() {
             }
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="">All Projects</option>
+            {showAllProjectsOption && <option value="">All Projects</option>}
             {projects.map((p) => (
               <option key={p.value} value={p.value}>
                 {p.label}

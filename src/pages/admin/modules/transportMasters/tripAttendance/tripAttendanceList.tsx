@@ -99,6 +99,7 @@ export default function TripAttendanceList() {
     projects,
     companies,
     isSuperAdmin,
+    showAllProjectsOption,
     setProjectId,
     onCompanyChange,
   } = useCompanyProjectSelection({
@@ -256,7 +257,7 @@ export default function TripAttendanceList() {
             disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="">All Projects</option>
+            {showAllProjectsOption && <option value="">All Projects</option>}
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}

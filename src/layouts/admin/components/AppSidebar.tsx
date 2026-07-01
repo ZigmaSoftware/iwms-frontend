@@ -159,20 +159,20 @@ const superadminMasterItems: NavItem[] = [
   {
     nameKey: "admin.nav.superAdmin_masters",
     icon: <Settings size={18} />,
-    module: "admin",
-    screen: "SuperAdminMasters",
+    module: "superadmin-masters",
+    screen: "superadmin-masters",
     subItems: [
       {
         nameKey: "admin.nav.company",
         path: `/${encSuperAdminMaster}/${encCompanyCreation}`,
-        module: "admin",
-        screen: "CompanyCreation",
+        module: "superadmin-masters",
+        screen: "company",
       },
       {
         nameKey: "admin.nav.project",
         path: `/${encSuperAdminMaster}/${encProjectCreation}`,
-        module: "admin",
-        screen: "ProjectCreation",
+        module: "superadmin-masters",
+        screen: "project",
       },
     ],
   },
