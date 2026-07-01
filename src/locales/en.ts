@@ -99,6 +99,7 @@ const enResource = {
         missing_fields: "Please fill all required fields.",
         all_fields_required: "All fields are required.",
         all: "All",
+        all_projects: "All Projects",
         invalid_data: "Invalid data",
         update_status_failed: "Failed to update status",
         fetch_failed: "Failed to fetch records",

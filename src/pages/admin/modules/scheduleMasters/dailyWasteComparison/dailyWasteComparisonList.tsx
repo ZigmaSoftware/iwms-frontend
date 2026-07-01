@@ -192,6 +192,7 @@ export default function DailyWasteComparisonList() {
     projects,
     companies,
     isSuperAdmin,
+    showAllProjectsOption,
     setProjectId,
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false });
@@ -378,7 +379,7 @@ export default function DailyWasteComparisonList() {
             }
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-400"
           >
-            <option value="">All Projects</option>
+            {showAllProjectsOption && <option value="">All Projects</option>}
             {projects.map((p) => (
               <option key={p.value} value={p.value}>
                 {p.label}

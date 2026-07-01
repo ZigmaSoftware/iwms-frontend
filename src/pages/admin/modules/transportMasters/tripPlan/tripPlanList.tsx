@@ -44,6 +44,7 @@ export default function TripPlanList() {
     projects,
     companies,
     isSuperAdmin,
+    showAllProjectsOption,
     setProjectId,
     onCompanyChange,
   } = useCompanyProjectSelection({
@@ -139,7 +140,7 @@ export default function TripPlanList() {
             {companies.map((company) => <option key={company.value} value={company.value}>{company.label}</option>)}
           </select>
           <select value={projectId || ""} onChange={(e) => setProjectId(e.target.value)} disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} className="rounded border px-3 py-2 text-sm">
-            <option value="">All Projects</option>
+            {showAllProjectsOption && <option value="">All Projects</option>}
             {projects.map((project) => <option key={project.value} value={project.value}>{project.label}</option>)}
           </select>
           <select
