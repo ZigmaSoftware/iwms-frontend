@@ -27,6 +27,11 @@ interface ProjectSelectorContextValue {
   selectedProject: ProjectConfig | null;
   setProjectId: (id: string) => void;
 
+  /* re-seed company/project state from localStorage after login/logout,
+     since the provider is mounted once at the app root and won't otherwise
+     pick up a freshly persisted session without a full page reload */
+  reloadFromSession: () => void;
+
   /* resolved API URLs (project-specific, env-fallback) */
   gpsApiUrl: string;
   gpsVehicleHistoryApi: string;
@@ -63,28 +68,42 @@ function resolveInitialProjectId(projects: ProjectConfig[]): string {
 // ─── provider ────────────────────────────────────────────────────────────────
 
 export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
-  const profile = getStoredProfile();
-  const storedProjects = getStoredProjects();
-
   // Company state — seeded from the user's login profile
   const [companyId, setCompanyIdState] = useState<string>(
-    () => (profile?.company_unique_id as string) ?? ""
+    () => (getStoredProfile()?.company_unique_id as string) ?? ""
   );
   const [companyName, setCompanyName] = useState<string>(
-    () => (profile?.company_name as string) ?? ""
+    () => (getStoredProfile()?.company_name as string) ?? ""
   );
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
 
-  // Project state — seeded from the login response projects list
-  const [projects, setProjects] = useState<ProjectConfig[]>(storedProjects);
+  // Project state — seeded from the login response projects list. For a
+  // regular (non-superadmin) login this is already scoped server-side to the
+  // user's own company, so it's used as-is.
+  const [projects, setProjects] = useState<ProjectConfig[]>(() => getStoredProjects());
   const [projectId, setProjectIdState] = useState<string>(() =>
-    resolveInitialProjectId(storedProjects)
+    resolveInitialProjectId(getStoredProjects())
   );
   const [loading, setLoading] = useState(false);
 
+  // Re-seed company/project state from localStorage. Needed after
+  // login/logout since this provider lives above the router and isn't
+  // remounted on navigation — only a hard refresh would otherwise pick up a
+  // freshly persisted session.
+  const reloadFromSession = useCallback(() => {
+    const profile = getStoredProfile();
+    const freshProjects = getStoredProjects();
+    setCompanyIdState((profile?.company_unique_id as string) ?? "");
+    setCompanyName((profile?.company_name as string) ?? "");
+    setCompanies([]);
+    setProjects(freshProjects);
+    sessionStorage.removeItem(SESSION_KEY);
+    setProjectIdState(resolveInitialProjectId(freshProjects));
+  }, []);
+
   // ── For superadmin / empty stored list — fetch via API ─────────────────────
   useEffect(() => {
-    if (storedProjects.length > 0) return;
+    if (getStoredProjects().length > 0) return;
 
     let cancelled = false;
     setLoading(true);
@@ -231,6 +250,7 @@ export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
         projects,
         selectedProject,
         setProjectId,
+        reloadFromSession,
         gpsApiUrl,
         gpsVehicleHistoryApi,
         gpsVehicleTrackingApi,

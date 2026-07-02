@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { useUser } from "@/contexts/UserContext";
 import { usePermission } from "@/contexts/PermissionContext";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import {
   DEFAULT_ROLE,
   normalizeRole,
@@ -76,6 +77,7 @@ export default function Auth() {
 
   // Get updatePermissions so we can force React state sync after login
   const { updatePermissions } = usePermission();
+  const { reloadFromSession } = useProjectSelector();
 
   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -91,6 +93,7 @@ export default function Auth() {
 
       const payload = unwrapLoginPayload(res.data);
       persistLoginSession(payload);
+      reloadFromSession();
 
       const normalizedRole =
         normalizeRole(payload.user?.role ?? payload.role ?? null) ?? DEFAULT_ROLE;
