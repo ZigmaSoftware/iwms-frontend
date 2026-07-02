@@ -837,7 +837,7 @@ const taResource = {
           "bin_master": "குப்பைத்தொட்டி மாஸ்டர்",
           "bin_creation": "குப்பைத்தொட்டி உருவாக்கம்",
           "waste_management": "கழிவு மேலாண்மை",
-          "waste_collected_data": "வீட்டு சேகரிப்பு நிகழ்வு",
+          "waste_collected_data": "சேகரிக்கப்பட்ட கழிவு தரவு",
           "collection_monitoring": "சேகரிப்பு கண்காணிப்பு",
           "panchayat_base_collection": "PLB பேஸ் கலெக்ஷன்",
           "ward_base_collection": "வார்டு பேஸ் கலெக்ஷன்",

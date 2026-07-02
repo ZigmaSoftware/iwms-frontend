@@ -64,7 +64,6 @@ const {
   encVehicleTracking,
   encVehicleType,
   encWasteCollectedData,
-  encWasteManagementMaster,
   encWorkforceManagement,
   encStaffUserType,
   encMainComplaintCategory,
@@ -567,7 +566,7 @@ const scheduleMastersItems: NavItem[] = [
       },
       {
         nameKey: "admin.nav.waste_collected_data",
-        path: `/${encWasteManagementMaster}/${encWasteCollectedData}`,
+        path: `/${encScheduleMasters}/${encWasteCollectedData}`,
         module: "schedule-masters",
         screen: "wastecollections",
       },
