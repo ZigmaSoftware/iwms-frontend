@@ -190,7 +190,7 @@ export default function ZoneForm() {
           ctrData.map((c: any) => ({
             id: String(c.unique_id),
             name: c.name,
-            continentId: normalizeNullable(c.continent_id ?? c.continent_unique_id ?? c.continent),
+            continentId: normalizeNullable(c.continent_unique_id ?? c.continent_id ?? c.continent),
             isActive: Boolean(c.is_active),
           }))
         );
@@ -200,7 +200,7 @@ export default function ZoneForm() {
           steData.map((s: any) => ({
             id: String(s.unique_id),
             name: s.name,
-            countryId: normalizeNullable(s.country_id ?? s.country_unique_id ?? s.country),
+            countryId: normalizeNullable(s.country_unique_id ?? s.country_id ?? s.country),
             isActive: Boolean(s.is_active),
           }))
         );
@@ -210,9 +210,9 @@ export default function ZoneForm() {
           disData.map((d: any) => ({
             id: String(d.unique_id),
             name: d.name,
-            stateId: normalizeNullable(d.state_id ?? d.state_unique_id ?? d.state),
-            countryId: normalizeNullable(d.country_id ?? d.country_unique_id ?? d.country),
-            continentId: normalizeNullable(d.continent_id ?? d.continent_unique_id ?? d.continent),
+            stateId: normalizeNullable(d.state_unique_id ?? d.state_id ?? d.state),
+            countryId: normalizeNullable(d.country_unique_id ?? d.country_id ?? d.country),
+            continentId: normalizeNullable(d.continent_unique_id ?? d.continent_id ?? d.continent),
             isActive: Boolean(d.is_active),
           }))
         );
@@ -222,10 +222,10 @@ export default function ZoneForm() {
           cityData.map((c: any) => ({
             id: String(c.unique_id),
             name: c.name ?? c.city_name,
-            continentId: normalizeNullable(c.continent_id ?? c.continent_unique_id ?? c.continent),
-            countryId: normalizeNullable(c.country_id ?? c.country_unique_id ?? c.country),
-            stateId: normalizeNullable(c.state_id ?? c.state_unique_id ?? c.state),
-            districtId: normalizeNullable(c.district_id ?? c.district_unique_id ?? c.district),
+            continentId: normalizeNullable(c.continent_unique_id ?? c.continent_id ?? c.continent),
+            countryId: normalizeNullable(c.country_unique_id ?? c.country_id ?? c.country),
+            stateId: normalizeNullable(c.state_unique_id ?? c.state_id ?? c.state),
+            districtId: normalizeNullable(c.district_unique_id ?? c.district_id ?? c.district),
             continentName: c.continent_name ?? null,
             countryName: c.country_name ?? null,
             stateName: c.state_name ?? null,
@@ -297,38 +297,14 @@ export default function ZoneForm() {
   /* ==========================================================
         FILTER CHAINS
   ========================================================== */
+
+  // State: show all active states directly — no continent/country prerequisite.
+  // Auto-resolve country + continent when state is selected (see onStateChange).
   useEffect(() => {
-    if (!continentId) {
-      setFilteredCountries([]);
-      return;
-    }
-
-    const filt = allCountries
-      .filter((c) => c.isActive && (c.continentId === continentId || (pendingContinent && c.continentId === pendingContinent)))
-      .map((c) => ({ value: c.id, label: c.name }));
-
-    // Always keep the currently-selected country visible — prevents blank after pending is cleared
-    const ensureId = pendingCountry || countryId;
-    if (ensureId && !filt.some((o) => o.value === ensureId)) {
-      const found = allCountries.find((c) => c.id === ensureId);
-      if (found) filt.push({ value: found.id, label: found.name });
-    }
-
-    setFilteredCountries(filt);
-  }, [continentId, allCountries, countryId, pendingContinent, pendingCountry]);
-
-  useEffect(() => {
-    if (!countryId && !pendingCountry) {
-      setFilteredStates([]);
-      return;
-    }
-
-    const effectiveCountryId = countryId || pendingCountry;
     const filt = allStates
-      .filter((s) => s.isActive && (s.countryId === effectiveCountryId))
+      .filter((s) => s.isActive)
       .map((s) => ({ value: s.id, label: s.name }));
 
-    // Always keep the currently-selected state visible
     const ensureId = pendingState || stateId;
     if (ensureId && !filt.some((o) => o.value === ensureId)) {
       const found = allStates.find((s) => s.id === ensureId);
@@ -339,7 +315,7 @@ export default function ZoneForm() {
       }
     }
     setFilteredStates(filt);
-  }, [countryId, pendingCountry, allStates, stateId, pendingState, zoneData]);
+  }, [allStates, stateId, pendingState, zoneData]);
 
   useEffect(() => {
     const effectiveStateId = stateId || pendingState;
@@ -817,7 +793,17 @@ export default function ZoneForm() {
           {showField("state_id") && (
           <div>
             <Label>{t("admin.nav.state")} *</Label>
-            <Select value={effectiveStateId} onValueChange={(val) => { setStateId(val); setDistrictId(""); setCityId(""); setPendingDistrict(""); setPendingCity(""); }}>
+            <Select value={effectiveStateId} onValueChange={(val) => {
+              setStateId(val);
+              setDistrictId(""); setCityId(""); setPendingDistrict(""); setPendingCity("");
+              // Auto-resolve country and continent from selected state
+              const selectedState = allStates.find((s) => s.id === val);
+              if (selectedState) {
+                setCountryId(selectedState.countryId ?? "");
+                const selectedCountry = allCountries.find((c) => c.id === selectedState.countryId);
+                setContinentId(selectedCountry?.continentId ?? "");
+              }
+            }}>
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.state") })} />
               </SelectTrigger>

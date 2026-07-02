@@ -4,8 +4,14 @@ import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 import { Input } from "@/components/ui/input";
 import ComponentCard from "@/components/common/ComponentCard";
-import Label from "@/components/form/Label";
-import Select from "@/components/form/Select";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { adminApi } from "@/helpers/admin/registry";
@@ -50,7 +56,24 @@ function PropertyEditor({
   isSubmitting,
   onCancel,
   onSubmit,
-}: PropertyEditorProps) {
+  companyUniqueId,
+  projectId,
+  companies,
+  projects,
+  isSuperAdmin,
+  loggedInCompanyUniqueId,
+  onCompanyChange,
+  setProjectId,
+}: PropertyEditorProps & {
+  companyUniqueId: string;
+  projectId: string;
+  companies: { value: string; label: string }[];
+  projects: { value: string; label: string }[];
+  isSuperAdmin: boolean;
+  loggedInCompanyUniqueId: string;
+  onCompanyChange: (val: string) => void;
+  setProjectId: (val: string) => void;
+}) {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
     useFieldVisibility("masters", "properties", PROPERTY_FIELDS);
@@ -60,6 +83,23 @@ function PropertyEditor({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = propertyName.trim();
+
+    if (!companyUniqueId) {
+      Swal.fire(
+        "Error",
+        !loggedInCompanyUniqueId && !isSuperAdmin
+          ? "Company is not mapped to this login. Only super admin can choose a company."
+          : "Company is required",
+        "error"
+      );
+      return;
+    }
+
+    if (!projectId) {
+      Swal.fire("Error", "Project is required", "error");
+      return;
+    }
+
     const fieldValues: Record<string, unknown> = {
       property_name: trimmedName,
       is_active: isActive,
@@ -81,17 +121,84 @@ function PropertyEditor({
     const rawPayload = {
       property_name: trimmedName,
       is_active: isActive,
+      company_id: companyUniqueId,
+      project_id: projectId,
     };
 
-    await onSubmit(filterPayload(rawPayload) as PropertyPayload);
+    await onSubmit(filterPayload(rawPayload, ["company_id", "project_id"]) as PropertyPayload);
   };
 
   return (
     <form onSubmit={handleSubmit} noValidate>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <Label>Company *</Label>
+          <Select
+            value={companyUniqueId}
+            onValueChange={onCompanyChange}
+            disabled={
+              Boolean(loggedInCompanyUniqueId) ||
+              (!isSuperAdmin && !loggedInCompanyUniqueId) ||
+              companies.length === 0
+            }
+          >
+            <SelectTrigger>
+              <SelectValue
+                placeholder={
+                  loggedInCompanyUniqueId
+                    ? "Company from logged-in profile"
+                    : isSuperAdmin
+                      ? "Select Company"
+                      : "Only super admin can select company"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {companies.map((company) => (
+                <SelectItem key={company.value} value={company.value}>
+                  {company.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {!loggedInCompanyUniqueId && !isSuperAdmin && (
+            <p className="mt-1 text-xs text-red-500">
+              Company is not mapped to this login. Only super admin can view all companies.
+            </p>
+          )}
+          {isSuperAdmin && !loggedInCompanyUniqueId && companies.length === 0 && (
+            <p className="mt-1 text-xs text-red-500">No companies found.</p>
+          )}
+        </div>
+
+        <div>
+          <Label>Project *</Label>
+          <Select
+            value={projectId}
+            onValueChange={setProjectId}
+            disabled={!companyUniqueId || projects.length === 0}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select Project" />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((project) => (
+                <SelectItem key={project.value} value={project.value}>
+                  {project.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {companyUniqueId && projects.length === 0 && (
+            <p className="mt-1 text-xs text-red-500">
+              No projects found for this company.
+            </p>
+          )}
+        </div>
+
         {showField("property_name") && (
           <div>
-            <Label htmlFor="name">
+            <Label htmlFor="propertyName">
               {t("common.item_name", { item: t("admin.nav.property") })}{" "}
               <span className="text-red-500">*</span>
             </Label>
@@ -116,17 +223,18 @@ function PropertyEditor({
               {t("common.status")} <span className="text-red-500">*</span>
             </Label>
             <Select
-              id="isActive"
               value={isActive ? "true" : "false"}
-              onChange={(val) => setIsActive(val === "true")}
-              options={[
-                { value: "true", label: t("common.active") },
-                { value: "false", label: t("common.inactive") },
-              ]}
-              className="input-validate w-full"
+              onValueChange={(val) => setIsActive(val === "true")}
               disabled={isSubmitting}
-              required
-            />
+            >
+              <SelectTrigger id="isActive" className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_status")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">{t("common.active")}</SelectItem>
+                <SelectItem value="false">{t("common.inactive")}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         )}
       </div>
@@ -166,7 +274,17 @@ function PropertyForm() {
 
   const location = useLocation();
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const { applyCompanyProjectFromRecord, companyUniqueId, projectId } = useCompanyProjectSelection({
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    loggedInCompanyUniqueId,
+    setProjectId,
+    onCompanyChange,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({
     isEdit,
     initialCompanyId: routeState?.companyUniqueId,
     initialProjectId: routeState?.projectId,
@@ -265,6 +383,14 @@ function PropertyForm() {
         initialPayload={initialPayload}
         isEdit={isEdit}
         isSubmitting={isSubmitting}
+        companyUniqueId={companyUniqueId}
+        projectId={projectId}
+        companies={companies}
+        projects={projects}
+        isSuperAdmin={isSuperAdmin}
+        loggedInCompanyUniqueId={loggedInCompanyUniqueId}
+        onCompanyChange={onCompanyChange}
+        setProjectId={setProjectId}
         onCancel={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
         onSubmit={submitProperty}
       />

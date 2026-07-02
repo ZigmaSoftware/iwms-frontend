@@ -83,7 +83,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encAreaTypes,
     encMunicipalities,
     encTownPanchayats,
-    encBlockPanchayatUnions,
+  
     encBins,
     encScheduleMasters,
     encDailyTripAssignment,
@@ -116,8 +116,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encMasters}/${encCities}`, nameKey: "admin.nav.city", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encMunicipalities}`, nameKey: "admin.nav.municipality", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encTownPanchayats}`, nameKey: "admin.nav.town_panchayat", parentNameKey: "admin.nav.masters" },
-    // Rural Local Bodies — as per Rule 40
-    { path: `/${encMasters}/${encBlockPanchayatUnions}`, nameKey: "admin.nav.block_panchayat_union", parentNameKey: "admin.nav.masters" },
+
     // Operational / Field Level
     { path: `/${encMasters}/${encWards}`, nameKey: "admin.nav.ward", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encAreaTypes}`, nameKey: "admin.nav.area_type", parentNameKey: "admin.nav.masters" },

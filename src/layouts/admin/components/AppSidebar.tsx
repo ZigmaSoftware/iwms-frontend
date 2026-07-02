@@ -87,7 +87,7 @@ const {
   encAreaTypes,
   encMunicipalities,
   encTownPanchayats,
-  encBlockPanchayatUnions,
+
   encBins,
   encDailyTripAssignment,
   encDailyTripLog,
@@ -259,13 +259,7 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "town-panchayats",
       },
-      // ── Rural Local Bodies — as per Rule 40 ─────────────────
-      {
-        nameKey: "admin.nav.block_panchayat_union",
-        path: `/${encMasters}/${encBlockPanchayatUnions}`,
-        module: "masters",
-        screen: "block-panchayat-unions",
-      },
+
       // ── Operational / Field Level ────────────────────────────
       {
         nameKey: "admin.nav.ward",
