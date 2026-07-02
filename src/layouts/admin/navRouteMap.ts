@@ -149,7 +149,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     // Customer Masters
     { path: `/${encCustomerMaster}/${encCustomerCreation}`, nameKey: "admin.nav.customer_creation", parentNameKey: "admin.nav.customer_masters" },
     { path: `/${encCustomerMaster}/${encApartmentList}`, nameKey: "admin.nav.apartment_list", parentNameKey: "admin.nav.customer_masters" },
-    { path: `/${encWasteManagementMaster}/${encWasteCollectedData}`, nameKey: "admin.nav.waste_collected_data", parentNameKey: "admin.nav.customer_masters" },
     { path: `/${encCitizenGrivence}/${encFeedback}`, nameKey: "admin.nav.feedback", parentNameKey: "admin.nav.customer_masters" },
     // Citizen Grievance
     { path: `/${encCitizenGrivence}/${encComplaint}`, nameKey: "admin.nav.complaints", parentNameKey: "admin.nav.citizen_grievance" },
@@ -169,6 +168,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encScheduleMasters}/${encDailyTripCollectionPoint}`, nameKey: "admin.nav.daily_trip_collection_point", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encScheduleMasters}/${encDailyTripTracking}`, nameKey: "admin.nav.daily_trip_tracking", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encScheduleMasters}/${encBinCollectionEvent}`, nameKey: "admin.nav.bin_collection_event", parentNameKey: "admin.nav.schedule_masters" },
+    { path: `/${encScheduleMasters}/${encWasteCollectedData}`, nameKey: "admin.nav.waste_collected_data", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encScheduleMasters}/${encDailyTripLog}`, nameKey: "admin.nav.daily_trip_log", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encScheduleMasters}/${encDailyWasteComparison}`, nameKey: "Daily Waste Comparison", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encScheduleMasters}/${encSchedulerConfig}`, nameKey: "admin.nav.scheduler_config", parentNameKey: "admin.nav.schedule_masters" },
