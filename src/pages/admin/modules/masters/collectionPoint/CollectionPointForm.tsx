@@ -409,9 +409,9 @@ export default function CollectionPointForm() {
       LOAD WASTE TYPES + EXISTING BINS
   ========================================================== */
   useEffect(() => {
-    if (!companyUniqueId) return;
+    if (!companyUniqueId || !projectId) return;
     let cancelled = false;
-    adminApi.wasteTypes.readAll({ params: { company_id: companyUniqueId } })
+    adminApi.wasteTypes.readAll({ params: { company_id: companyUniqueId, project_id: projectId } })
       .then((data: unknown) => {
         if (cancelled) return;
         const list = Array.isArray(data) ? data : (data as any)?.data ?? (data as any)?.results ?? [];
@@ -424,7 +424,7 @@ export default function CollectionPointForm() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [companyUniqueId]);
+  }, [companyUniqueId, projectId]);
 
   useEffect(() => {
     if (!isEdit || !id || !companyUniqueId) return;
@@ -605,8 +605,8 @@ export default function CollectionPointForm() {
     if (getMissingRequiredFields(["city_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
       missingFields.push(t("common.city"));
     }
-    if ((showField("panchayat_id") || showField("ward_id")) && !panchayatId && wardIds.length === 0) {
-      missingFields.push(`${t("admin.nav.panchayat")} / ${t("admin.nav.ward")}`);
+    if ((showField("panchayat_id") || showField("zone_id") || showField("ward_id")) && !panchayatId && !zoneId && wardIds.length === 0) {
+      missingFields.push(`${t("admin.nav.panchayat")} / ${t("admin.nav.zone")} / ${t("admin.nav.ward")}`);
     }
     if (getMissingRequiredFields(["cp_name"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
       missingFields.push(t("common.item_name", { item: t("admin.nav.collection_point") }));
@@ -638,6 +638,7 @@ export default function CollectionPointForm() {
       district_id: districtId,
       city_id: cityId,
       panchayat_id: panchayatId || null,
+      zone_id: zoneId || null,
       ward_ids: wardIds,
       collection_type: collectionType,
       cp_name: cpName.trim(),
@@ -645,7 +646,7 @@ export default function CollectionPointForm() {
       longitude: parsedLongitude.toFixed(6),
       is_active: isActive,
     };
-    const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
+    const payload = filterPayload(rawPayload, ["company_id", "project_id", "ward_ids", "panchayat_id", "zone_id", "collection_type"]) as typeof rawPayload;
 
     try {
       setIsSubmitting(true);

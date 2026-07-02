@@ -45,8 +45,7 @@ import MunicipalityListPage from "@/pages/admin/modules/masters/municipality/Mun
 import MunicipalityForm from "@/pages/admin/modules/masters/municipality/MunicipalityForm";
 import TownPanchayatListPage from "@/pages/admin/modules/masters/townPanchayat/TownPanchayatListPage";
 import TownPanchayatForm from "@/pages/admin/modules/masters/townPanchayat/TownPanchayatForm";
-import BlockPanchayatUnionListPage from "@/pages/admin/modules/masters/blockPanchayatUnion/BlockPanchayatUnionListPage";
-import BlockPanchayatUnionForm from "@/pages/admin/modules/masters/blockPanchayatUnion/BlockPanchayatUnionForm";
+
 
 
 import PropertyList from "@/pages/admin/modules/masters/property/PropertyListPage";
@@ -203,7 +202,7 @@ const ROUTES: RouteMap = {
     hierarchies: { list: HierarchyListPage, form: HierarchyForm },
     municipalities: { list: MunicipalityListPage, form: MunicipalityForm },
     "town-panchayats": { list: TownPanchayatListPage, form: TownPanchayatForm },
-    "block-panchayat-unions": { list: BlockPanchayatUnionListPage, form: BlockPanchayatUnionForm },
+
 
     
     properties: { list: PropertyList, form: PropertyForm },

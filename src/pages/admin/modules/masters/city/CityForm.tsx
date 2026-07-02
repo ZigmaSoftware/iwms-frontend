@@ -322,10 +322,10 @@ export default function CityForm() {
       id: String(c.unique_id),
       name: c.name,
       continentId:
-        normalizeNullable(c.continent_id ?? c.continent) === recordContinentId &&
+        normalizeNullable(c.continent_unique_id ?? c.continent_id ?? c.continent) === recordContinentId &&
         resolvedContinentId
           ? resolvedContinentId
-          : normalizeNullable(c.continent_id ?? c.continent),
+          : normalizeNullable(c.continent_unique_id ?? c.continent_id ?? c.continent),
       isActive: Boolean(c.is_active),
     }));
     setAllCountries(mapped);
@@ -333,7 +333,7 @@ export default function CityForm() {
 
   useEffect(() => {
     const res = statesRaw;
-    const mapped = res.map((s) => ({ id: String(s.unique_id), name: s.name, countryId: normalizeNullable(s.country_id ?? s.country), isActive: Boolean(s.is_active) }));
+    const mapped = res.map((s) => ({ id: String(s.unique_id), name: s.name, countryId: normalizeNullable(s.country_unique_id ?? s.country_id ?? s.country), isActive: Boolean(s.is_active) }));
     setAllStates(mapped);
   }, [statesRaw]);
 
@@ -341,7 +341,7 @@ export default function CityForm() {
     const res = districtsRaw;
     const mapped = res.map((d) => {
       const district = d as typeof d & { state?: string | number | null };
-      return { id: String(district.unique_id), name: district.name, stateId: normalizeNullable(district.state_id ?? district.state), isActive: Boolean(district.is_active) };
+      return { id: String(district.unique_id), name: district.name, stateId: normalizeNullable(district.state_unique_id ?? district.state_id ?? district.state), isActive: Boolean(district.is_active) };
     });
     setAllDistricts(mapped);
   }, [districtsRaw]);

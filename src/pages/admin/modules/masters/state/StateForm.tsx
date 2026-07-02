@@ -109,7 +109,7 @@ export default function StateForm() {
           data.map((c) => ({
             id: String(c.unique_id),
             name: String(c.name ?? ""),
-            continentId: normalizeNull(c.continent_id ?? c.continent_unique_id ?? c.continent),
+            continentId: normalizeNull(c.continent_unique_id ?? c.continent_id ?? c.continent),
             isActive: Boolean(c.is_active),
           }))
         );
@@ -185,9 +185,9 @@ export default function StateForm() {
         setIsActive(Boolean(res.is_active));
         applyCompanyProjectFromRecord(res as Record<string, unknown>);
 
-        const rawContId = normalizeNull(res.continent_id ?? res.continent_unique_id ?? res.continent);
+        const rawContId = normalizeNull(res.continent_unique_id ?? res.continent_id ?? res.continent);
         const contName = res.continent_name ?? null;
-        const rawCountId = normalizeNull(res.country_id ?? res.country_unique_id ?? res.country);
+        const rawCountId = normalizeNull(res.country_unique_id ?? res.country_id ?? res.country);
         const countName = res.country_name ?? null;
 
         /* Continent */

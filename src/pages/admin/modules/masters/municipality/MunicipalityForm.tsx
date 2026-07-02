@@ -115,7 +115,7 @@ export default function MunicipalityForm() {
       setAllDistricts(toRecordList(res).map((x: any) => ({
         value: normalizeNullable(x.unique_id) ?? "",
         label: String(x.name ?? ""),
-        stateId: normalizeNullable(x.state_id ?? x.state),
+        stateId: normalizeNullable(x.state_unique_id ?? x.state_id ?? x.state),
       } as SelectOption & { stateId: string | null })).filter((x) => x.value && x.label));
     }).catch(() => {});
     return () => { cancelled = true; };
@@ -176,9 +176,9 @@ export default function MunicipalityForm() {
     setIsActive(Boolean(data.is_active));
     applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
 
-    const rawStateId = normalizeNullable(data.state_id ?? data.state);
+    const rawStateId = normalizeNullable(data.state_unique_id ?? data.state_id ?? data.state);
     const resolvedState = resolveId(allStates, rawStateId, data.state_name ?? null);
-    const rawDistrictId = normalizeNullable(data.district_id ?? data.district);
+    const rawDistrictId = normalizeNullable(data.district_unique_id ?? data.district_id ?? data.district);
     const resolvedDistrict = resolveId(allDistricts, rawDistrictId, data.district_name ?? null);
 
     if (resolvedState) { setStateId(resolvedState); setPendingState(resolvedState); }
