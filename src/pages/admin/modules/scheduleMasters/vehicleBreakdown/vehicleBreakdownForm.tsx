@@ -294,16 +294,33 @@ export default function VehicleBreakdownForm() {
           if (projectId) params.project_id = projectId;
 
           setFetchingVehicles(true);
+          // In edit mode pass exclude_id so this record's own replacement vehicle
+          // is not filtered out by the pending-replacements exclusion logic.
+          if (isEdit && id) params.exclude_id = id;
           api
             .get("/schedule-masters/vehicle-breakdowns/available-vehicles/", { params })
             .then((res) => {
               const list = Array.isArray(res.data) ? res.data : [];
-              setAvailableVehicleOptions(
-                list.map((v: any) => ({
-                  value: String(v.unique_id ?? ""),
-                  label: `${v.vehicle_no ?? ""}${v.capacity ? " (" + v.capacity + ")" : ""}`,
-                })).filter((o: any) => o.value),
-              );
+              const opts: SelectOption[] = list.map((v: any) => ({
+                value: String(v.unique_id ?? ""),
+                label: `${v.vehicle_no ?? ""}${v.capacity ? " (" + v.capacity + ")" : ""}`,
+              })).filter((o: any) => o.value);
+
+              // Safety net: if edit mode and the current replacement vehicle is still
+              // not in the list (e.g. already assigned to a trip), inject it manually
+              // so the dropdown shows the saved value.
+              if (isEdit && record?.replacement_vehicle_detail) {
+                const existingId = String(record.replacement_vehicle_id ?? "");
+                if (existingId && !opts.find((o) => o.value === existingId)) {
+                  const vd = record.replacement_vehicle_detail;
+                  opts.unshift({
+                    value: existingId,
+                    label: `${vd.vehicle_no ?? ""}${vd.capacity ? " (" + vd.capacity + ")" : ""}`,
+                  });
+                }
+              }
+
+              setAvailableVehicleOptions(opts);
               if (pendingReplacementVehicleId) {
                 setPendingReplacementVehicleId((prev) => prev);
               }
@@ -324,8 +341,30 @@ export default function VehicleBreakdownForm() {
                     label: `${s.employee_name ?? ""} (${s.staff_unique_id ?? ""})`,
                   }))
                   .filter((o) => o.value);
-              setDriverOptions(toOpts(driverRes.data));
-              setOperatorOptions(toOpts(operatorRes.data));
+
+              const driverOpts = toOpts(driverRes.data);
+              const operatorOpts = toOpts(operatorRes.data);
+
+              // Safety net: if edit mode and the replacement driver/operator is not in
+              // the available list (e.g. already on another trip), inject them so the
+              // dropdown still shows the saved value.
+              if (isEdit && record?.replacement_driver_detail) {
+                const existingId = String(record.replacement_driver_id ?? "");
+                if (existingId && !driverOpts.find((o) => o.value === existingId)) {
+                  const dd = record.replacement_driver_detail;
+                  driverOpts.unshift({ value: existingId, label: `${dd.name ?? ""} (${existingId})` });
+                }
+              }
+              if (isEdit && record?.replacement_operator_detail) {
+                const existingId = String(record.replacement_operator_id ?? "");
+                if (existingId && !operatorOpts.find((o) => o.value === existingId)) {
+                  const od = record.replacement_operator_detail;
+                  operatorOpts.unshift({ value: existingId, label: `${od.name ?? ""} (${existingId})` });
+                }
+              }
+
+              setDriverOptions(driverOpts);
+              setOperatorOptions(operatorOpts);
             })
             .catch(() => { setDriverOptions([]); setOperatorOptions([]); })
             .finally(() => setFetchingStaff(false));

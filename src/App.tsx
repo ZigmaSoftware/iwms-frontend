@@ -115,23 +115,33 @@ function DashboardRouteGuard({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <Routes>
+      {/* ── Public auth routes ── */}
       <Route path="/auth" element={<Auth />} />
       <Route path="/auth/forgot-password" element={<ForgotPassword />} />
       <Route path="/auth/verify-otp" element={<VerifyOTP />} />
       <Route path="/auth/reset-password" element={<ResetPassword />} />
+
+      {/* ── Panchayat / district leader portals ── */}
       <Route path="/auth/localbody" element={<LocalBodyAuth />} />
       <Route path="/localbody" element={<LocalBodyDashboard />} />
       <Route path="/auth/district" element={<DistrictAuth />} />
       <Route path="/district" element={<DistrictDashboard />} />
+
+      {/* ── Home redirect ── */}
       <Route path="/" element={<HomeRedirect />} />
+
+      {/* ── Staff / user dashboard ── */}
       <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />
       <Route path="/dashboard/overview" element={withDashboard(<Dashboard />)} />
       <Route path="/dashboard/:encModule" element={withDashboard(<DashboardEncryptedRouter />)} />
+
+      {/* ── Admin panel (Company Admin, superadmin, etc.) ── */}
       <Route path="/admin" element={withAdmin(<AdminHome />)} />
       <Route path="/audits/common-audit" element={withAdmin(<CommonAuditList />)} />
       <Route path="/:encMaster/:encModule" element={withAdmin(<AdminEncryptedRouter />)} />
       <Route path="/:encMaster/:encModule/new" element={withAdmin(<AdminEncryptedRouter />)} />
       <Route path="/:encMaster/:encModule/:id/edit" element={withAdmin(<AdminEncryptedRouter />)} />
+
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

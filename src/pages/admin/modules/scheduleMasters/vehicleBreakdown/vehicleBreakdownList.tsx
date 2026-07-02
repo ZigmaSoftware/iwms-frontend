@@ -372,37 +372,48 @@ export default function VehicleBreakdownList() {
 
   /* ── Action column ──────────────────────────────────────────────── */
   const actionTemplate = (row: VehicleBreakdownRecord) => (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center justify-center gap-3">
+      {/* Edit — only pending records */}
       {row.approval_status === "PENDING" && (
         <button
+          title={t("common.edit")}
           onClick={() => navigate(editPath(row.unique_id), { state: { record: row, ...selectedContext } })}
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+          className="text-blue-600 hover:text-blue-800 transition-colors"
         >
-          <i className="pi pi-pencil text-xs" /> Edit
+          <i className="pi pi-pencil" />
         </button>
       )}
+
+      {/* Verify — only pending records */}
       {row.approval_status === "PENDING" && (
         <button
+          title="Verify & Approve"
           onClick={() => setVerifyTarget(row)}
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+          className="text-green-600 hover:text-green-800 transition-colors"
         >
-          <i className="pi pi-check-circle text-xs" /> Verify
+          <i className="pi pi-check-circle" />
         </button>
       )}
+
+      {/* Reject — only pending records */}
       {row.approval_status === "PENDING" && (
         <button
+          title="Reject"
           onClick={() => setRejectTarget(row)}
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+          className="text-orange-500 hover:text-orange-700 transition-colors"
         >
-          <i className="pi pi-times-circle text-xs" /> Reject
+          <i className="pi pi-times-circle" />
         </button>
       )}
+
+      {/* Delete — not allowed on approved records */}
       {row.approval_status !== "APPROVED" && (
         <button
+          title={t("common.delete")}
           onClick={() => handleDelete(row)}
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-700 transition-colors"
+          className="text-red-600 hover:text-red-800 transition-colors"
         >
-          <i className="pi pi-trash text-xs" /> Delete
+          <i className="pi pi-trash" />
         </button>
       )}
     </div>

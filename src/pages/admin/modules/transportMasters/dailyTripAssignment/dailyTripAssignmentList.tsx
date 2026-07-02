@@ -40,6 +40,38 @@ const Badge = ({ value, styleMap }: { value?: string; styleMap: Record<string, s
   </span>
 );
 
+const BreakdownCell = ({ row }: { row: DailyTripAssignmentRecord }) => {
+  const bd = row.breakdown_info;
+  if (!bd) return <span className="text-xs text-gray-300">—</span>;
+
+  const isApproved = bd.approval_status === "APPROVED";
+  const isPending  = bd.approval_status === "PENDING";
+
+  return (
+    <div className="space-y-1">
+      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+        isApproved ? "bg-green-100 text-green-700" :
+        isPending  ? "bg-orange-100 text-orange-700" :
+                     "bg-red-100 text-red-700"
+      }`}>
+        {isApproved ? "✓ Replaced" : isPending ? "⚠ Pending" : "✕ Rejected"}
+      </span>
+      {isApproved && bd.replacement_vehicle_no && (
+        <div className="text-[10px] text-gray-600 leading-tight">
+          <span className="font-medium">Veh:</span> {bd.replacement_vehicle_no}
+        </div>
+      )}
+      {isApproved && (bd.replacement_driver || bd.replacement_operator) && (
+        <div className="text-[10px] text-gray-600 leading-tight">
+          {bd.replacement_driver && <span><span className="font-medium">Drv:</span> {bd.replacement_driver}</span>}
+          {bd.replacement_driver && bd.replacement_operator && <span className="mx-1">·</span>}
+          {bd.replacement_operator && <span><span className="font-medium">Opr:</span> {bd.replacement_operator}</span>}
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 const COLLECTION_TYPE_STYLES: Record<CollectionTypeKey, string> = {
   bin:       "bg-blue-100 text-blue-800",
@@ -578,6 +610,11 @@ export default function DailyTripAssignmentList() {
           body={statusTemplate}
           filter showFilterMatchModes={false}
           style={{ minWidth: 160 }}
+        />
+        <Column
+          header="Breakdown"
+          body={(row: DailyTripAssignmentRecord) => <BreakdownCell row={row} />}
+          style={{ minWidth: 180 }}
         />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 80 }} />
       </DataTable>
