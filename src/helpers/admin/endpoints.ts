@@ -67,6 +67,7 @@ export const adminEndpoints = {
   dailyWasteComparison: "schedule-masters/daily-waste-comparisons",
   monthlyWasteComparison: "schedule-masters/monthly-waste-comparison",
   schedulerConfig: "schedule-masters/daily-trip-assignments/scheduler-config/",
+  wasteCollections: "schedule-masters/wastecollections",
 
   /* =========================
      SCREEN MANAGEMENT
@@ -104,7 +105,6 @@ export const adminEndpoints = {
      CUSTOMERS
   ========================= */
   customerCreations: "customer-masters/customercreations",
-  wasteCollections: "customer-masters/wastecollections",
   feedbacks: "customer-masters/feedbacks",
 
   /* =========================

@@ -835,7 +835,7 @@ const hiResource = {
           "bin_master": "बिन मास्टर",
           "bin_creation": "बिन निर्माण",
           "waste_management": "कचरा प्रबंधन",
-          "waste_collected_data": "घर संग्रह घटना",
+          "waste_collected_data": "एकत्रित अपशिष्ट डेटा",
           "collection_monitoring": "संग्रह मॉनिटरिंग",
           "panchayat_base_collection": "PLB बेस कलेक्शन",
           "ward_base_collection": "वार्ड बेस कलेक्शन",
