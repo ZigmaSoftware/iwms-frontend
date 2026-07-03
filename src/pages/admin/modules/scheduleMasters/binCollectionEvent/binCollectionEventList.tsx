@@ -78,7 +78,7 @@ export default function BinCollectionEventList() {
 
   const {
     companyUniqueId, projectId, projects, companies,
-    isSuperAdmin, setProjectId, onCompanyChange,
+    isSuperAdmin, showAllProjectsOption, setProjectId, onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
     defaultToAll: true,
@@ -209,7 +209,7 @@ export default function BinCollectionEventList() {
             disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="rounded border px-3 py-2 text-sm"
           >
-            <option value="">All Projects</option>
+            {showAllProjectsOption && <option value="">All Projects</option>}
             {projects.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
           <Button

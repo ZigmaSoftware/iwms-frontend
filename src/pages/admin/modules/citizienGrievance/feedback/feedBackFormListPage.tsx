@@ -46,7 +46,7 @@ export default function FeedBackFormList() {
 
   const {
     companyUniqueId, projectId, projects, companies,
-    isSuperAdmin, setProjectId, onCompanyChange,
+    isSuperAdmin, showAllProjectsOption, setProjectId, onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
     defaultToAll: true,
@@ -166,7 +166,7 @@ export default function FeedBackFormList() {
             disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="">All Projects</option>
+            {showAllProjectsOption && <option value="">All Projects</option>}
             {projects.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}

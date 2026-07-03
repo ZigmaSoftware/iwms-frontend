@@ -58,8 +58,8 @@ export default function WasteCollectedForm() {
     initialProjectId: routeState?.projectId,
   });
 
-  const { encWasteManagementMaster, encWasteCollectedData } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encWasteManagementMaster, encWasteCollectedData);
+  const { encScheduleMasters, encWasteCollectedData } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encWasteCollectedData);
 
   /* ── form fields ── */
   const [customerId, setCustomerId] = useState("");

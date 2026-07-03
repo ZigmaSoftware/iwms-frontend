@@ -39,15 +39,15 @@ export default function WasteCollectedDataList() {
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
-  const { encWasteManagementMaster, encWasteCollectedData } = getEncryptedRoute();
+  const { encScheduleMasters, encWasteCollectedData } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encWasteManagementMaster,
+    encScheduleMasters,
     encWasteCollectedData,
   );
 
   const {
     companyUniqueId, projectId, projects, companies,
-    isSuperAdmin, setProjectId, onCompanyChange,
+    isSuperAdmin, showAllProjectsOption, setProjectId, onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
     defaultToAll: true,
@@ -187,7 +187,7 @@ export default function WasteCollectedDataList() {
             disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="">All Projects</option>
+            {showAllProjectsOption && <option value="">All Projects</option>}
             {projects.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}

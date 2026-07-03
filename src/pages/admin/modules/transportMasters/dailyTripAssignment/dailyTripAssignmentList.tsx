@@ -148,12 +148,12 @@ const wasteTypeText = (record: DailyTripAssignmentRecord): string =>
 const zoneText = (record: DailyTripAssignmentRecord): string =>
   record.zone?.zone_name ??
   record.trip_plan?.zone?.zone_name ??
-  record.ward?.zone_name ??
-  record.trip_plan?.ward?.zone_name ??
+  record.wards?.[0]?.zone_name ??
+  record.trip_plan?.wards?.[0]?.zone_name ??
   "—";
 
 const wardText = (record: DailyTripAssignmentRecord): string =>
-  record.ward?.ward_name ?? record.trip_plan?.ward?.ward_name ?? "—";
+  record.wards?.[0]?.ward_name ?? record.trip_plan?.wards?.[0]?.ward_name ?? "—";
 
 const locationText = (record: DailyTripAssignmentRecord): string =>
   record.panchayat?.panchayat_name ??
@@ -187,7 +187,7 @@ export default function DailyTripAssignmentList() {
 
   const {
     companyUniqueId, projectId, projects, companies,
-    isSuperAdmin, setProjectId, onCompanyChange,
+    isSuperAdmin, showAllProjectsOption, setProjectId, onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
     defaultToAll: true,
@@ -398,7 +398,7 @@ export default function DailyTripAssignmentList() {
             disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="">All Projects</option>
+            {showAllProjectsOption && <option value="">All Projects</option>}
             {projects.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}

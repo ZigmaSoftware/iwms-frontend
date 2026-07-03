@@ -38,7 +38,7 @@ export const adminEndpoints = {
   hierarchies: "masters/hierarchy",
   municipalities: "masters/municipalities",
   townPanchayats: "masters/town-panchayats",
-  blockPanchayatUnions: "masters/block-panchayat-unions",
+
 
   /* =========================
      WASTE TYPES
@@ -68,6 +68,7 @@ export const adminEndpoints = {
   monthlyWasteComparison: "schedule-masters/monthly-waste-comparison",
   vehicleBreakdown: "schedule-masters/vehicle-breakdowns",
   schedulerConfig: "schedule-masters/daily-trip-assignments/scheduler-config/",
+  wasteCollections: "schedule-masters/wastecollections",
 
   /* =========================
      SCREEN MANAGEMENT
@@ -105,7 +106,6 @@ export const adminEndpoints = {
      CUSTOMERS
   ========================= */
   customerCreations: "customer-masters/customercreations",
-  wasteCollections: "customer-masters/wastecollections",
   feedbacks: "customer-masters/feedbacks",
 
   /* =========================

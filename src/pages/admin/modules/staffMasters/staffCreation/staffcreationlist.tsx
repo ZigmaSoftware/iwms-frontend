@@ -60,6 +60,7 @@ export default function StaffCreationList() {
     projects,
     companies,
     isSuperAdmin,
+    showAllProjectsOption,
     setProjectId,
     onCompanyChange,
   } = useCompanyProjectSelection({
@@ -288,7 +289,7 @@ export default function StaffCreationList() {
             disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             className="h-10 rounded-lg border px-3 text-sm"
           >
-            <option value="">All Projects</option>
+            {showAllProjectsOption && <option value="">All Projects</option>}
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}

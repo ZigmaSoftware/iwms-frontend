@@ -45,8 +45,7 @@ import MunicipalityListPage from "@/pages/admin/modules/masters/municipality/Mun
 import MunicipalityForm from "@/pages/admin/modules/masters/municipality/MunicipalityForm";
 import TownPanchayatListPage from "@/pages/admin/modules/masters/townPanchayat/TownPanchayatListPage";
 import TownPanchayatForm from "@/pages/admin/modules/masters/townPanchayat/TownPanchayatForm";
-import BlockPanchayatUnionListPage from "@/pages/admin/modules/masters/blockPanchayatUnion/BlockPanchayatUnionListPage";
-import BlockPanchayatUnionForm from "@/pages/admin/modules/masters/blockPanchayatUnion/BlockPanchayatUnionForm";
+
 
 
 import PropertyList from "@/pages/admin/modules/masters/property/PropertyListPage";
@@ -101,6 +100,7 @@ import DailyTripAssignmentList from "@/pages/admin/modules/transportMasters/dail
 import DailyTripAssignmentForm from "@/pages/admin/modules/transportMasters/dailyTripAssignment/dailyTripAssignmentForm";
 import DailyTripCollectionPointList from "@/pages/admin/modules/transportMasters/dailyTripCollectionPoint/dailyTripCollectionPointList";
 import DailyTripCollectionPointForm from "@/pages/admin/modules/transportMasters/dailyTripCollectionPoint/dailyTripCollectionPointForm";
+import DailyTripHouseholdCollectionList from "@/pages/admin/modules/transportMasters/dailyTripHouseholdCollection/dailyTripHouseholdCollectionList";
 import DailyTripTracking from "@/pages/admin/modules/scheduleMasters/dailyTripTracking/DailyTripTracking";
 import SchedulerConfigPage from "@/pages/admin/modules/scheduleMasters/schedulerConfig/SchedulerConfigPage";
 import DailyTripLogList from "@/pages/admin/modules/transportMasters/dailyTripLog/dailyTripLogList";
@@ -205,7 +205,7 @@ const ROUTES: RouteMap = {
     hierarchies: { list: HierarchyListPage, form: HierarchyForm },
     municipalities: { list: MunicipalityListPage, form: MunicipalityForm },
     "town-panchayats": { list: TownPanchayatListPage, form: TownPanchayatForm },
-    "block-panchayat-unions": { list: BlockPanchayatUnionListPage, form: BlockPanchayatUnionForm },
+
 
     
     properties: { list: PropertyList, form: PropertyForm },
@@ -234,8 +234,10 @@ const ROUTES: RouteMap = {
     "trip-plans": { list: TripPlanList, form: TripPlanForm },
     "daily-trip-assignment": { list: DailyTripAssignmentList, form: DailyTripAssignmentForm },
     "daily-trip-collection-point": { list: DailyTripCollectionPointList, form: DailyTripCollectionPointForm },
+    "daily-trip-household-collection": { list: DailyTripHouseholdCollectionList },
     "daily-trip-tracking": { component: DailyTripTracking },
     "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
+    "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
     "daily-trip-log": { list: DailyTripLogList },
     "vehicle-breakdowns": { list: VehicleBreakdownList, form: VehicleBreakdownForm },
     "daily-waste-comparisons": { list: DailyWasteComparisonList, form: DailyWasteComparisonForm },
@@ -252,7 +254,6 @@ const ROUTES: RouteMap = {
     "vehicle-history": { component: VehicleHistory },
   },
   "waste-management": {
-    "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
     // "collection-monitoring": { list: CollectionMonitoringListPage, form: CollectionMonitoringForm },
     "panchayat-base-collection": { list: PanchayatBaseCollectionListPage },
     "ward-base-collection": { list: WardBaseCollectionListPage },

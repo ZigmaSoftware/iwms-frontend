@@ -217,7 +217,7 @@ export default function WardForm() {
       setAllCountries(ctrData.map((c: any) => ({
         id: String(c.unique_id),
         name: c.name,
-        continentId: normalizeNullable(c.continent_id ?? c.continent_unique_id ?? c.continent),
+        continentId: normalizeNullable(c.continent_unique_id ?? c.continent_id ?? c.continent),
         isActive: Boolean(c.is_active),
       })));
 
@@ -225,8 +225,8 @@ export default function WardForm() {
       setAllStates(steData.map((s: any) => ({
         id: String(s.unique_id),
         name: s.name,
-        countryId: normalizeNullable(s.country_id ?? s.country_unique_id ?? s.country),
-        continentId: normalizeNullable(s.continent_id ?? s.continent_unique_id ?? s.continent),
+        countryId: normalizeNullable(s.country_unique_id ?? s.country_id ?? s.country),
+        continentId: normalizeNullable(s.continent_unique_id ?? s.continent_id ?? s.continent),
         countryName: s.country_name ?? null,
         isActive: Boolean(s.is_active),
       })));
@@ -235,9 +235,9 @@ export default function WardForm() {
       setAllDistricts(disData.map((d: any) => ({
         id: String(d.unique_id),
         name: d.name,
-        stateId: normalizeNullable(d.state_id ?? d.state_unique_id ?? d.state),
-        countryId: normalizeNullable(d.country_id ?? d.country_unique_id ?? d.country),
-        continentId: normalizeNullable(d.continent_id ?? d.continent_unique_id ?? d.continent),
+        stateId: normalizeNullable(d.state_unique_id ?? d.state_id ?? d.state),
+        countryId: normalizeNullable(d.country_unique_id ?? d.country_id ?? d.country),
+        continentId: normalizeNullable(d.continent_unique_id ?? d.continent_id ?? d.continent),
         stateName: d.state_name ?? null,
         countryName: d.country_name ?? null,
         continentName: d.continent_name ?? null,
@@ -248,10 +248,10 @@ export default function WardForm() {
       setAllCities(cityData.map((c: any) => ({
         id: String(c.unique_id),
         name: c.name ?? c.city_name,
-        continentId: normalizeNullable(c.continent_id ?? c.continent_unique_id ?? c.continent),
-        countryId: normalizeNullable(c.country_id ?? c.country_unique_id ?? c.country),
-        stateId: normalizeNullable(c.state_id ?? c.state_unique_id ?? c.state),
-        districtId: normalizeNullable(c.district_id ?? c.district_unique_id ?? c.district),
+        continentId: normalizeNullable(c.continent_unique_id ?? c.continent_id ?? c.continent),
+        countryId: normalizeNullable(c.country_unique_id ?? c.country_id ?? c.country),
+        stateId: normalizeNullable(c.state_unique_id ?? c.state_id ?? c.state),
+        districtId: normalizeNullable(c.district_unique_id ?? c.district_id ?? c.district),
         continentName: c.continent_name ?? null,
         countryName: c.country_name ?? null,
         stateName: c.state_name ?? null,
@@ -263,11 +263,11 @@ export default function WardForm() {
       setAllZones(zoneData.map((z: any) => ({
         id: String(z.unique_id),
         name: z.zone_name,
-        continentId: normalizeNullable(z.continent_id ?? z.continent_unique_id ?? z.continent),
-        countryId: normalizeNullable(z.country_id ?? z.country_unique_id ?? z.country),
-        stateId: normalizeNullable(z.state_id ?? z.state_unique_id ?? z.state),
-        districtId: normalizeNullable(z.district_id ?? z.district_unique_id ?? z.district),
-        cityId: normalizeNullable(z.city_id ?? z.city_unique_id ?? z.city),
+        continentId: normalizeNullable(z.continent_unique_id ?? z.continent_id ?? z.continent),
+        countryId: normalizeNullable(z.country_unique_id ?? z.country_id ?? z.country),
+        stateId: normalizeNullable(z.state_unique_id ?? z.state_id ?? z.state),
+        districtId: normalizeNullable(z.district_unique_id ?? z.district_id ?? z.district),
+        cityId: normalizeNullable(z.city_unique_id ?? z.city_id ?? z.city),
         cityName: z.city_name ?? null,
         districtName: z.district_name ?? null,
         stateName: z.state_name ?? null,
@@ -278,11 +278,11 @@ export default function WardForm() {
       setAllPanchayats(panData.map((p: any) => ({
         id: String(p.unique_id),
         name: p.panchayat_name ?? p.name,
-        continentId: normalizeNullable(p.continent_id ?? p.continent_unique_id ?? p.continent),
-        countryId: normalizeNullable(p.country_id ?? p.country_unique_id ?? p.country),
-        stateId: normalizeNullable(p.state_id ?? p.state_unique_id ?? p.state),
-        districtId: normalizeNullable(p.district_id ?? p.district_unique_id ?? p.district),
-        cityId: normalizeNullable(p.city_id ?? p.city_unique_id ?? p.city),
+        continentId: normalizeNullable(p.continent_unique_id ?? p.continent_id ?? p.continent),
+        countryId: normalizeNullable(p.country_unique_id ?? p.country_id ?? p.country),
+        stateId: normalizeNullable(p.state_unique_id ?? p.state_id ?? p.state),
+        districtId: normalizeNullable(p.district_unique_id ?? p.district_id ?? p.district),
+        cityId: normalizeNullable(p.city_unique_id ?? p.city_id ?? p.city),
         cityName: p.city_name ?? null,
         districtName: p.district_name ?? null,
         stateName: p.state_name ?? null,
@@ -360,18 +360,13 @@ export default function WardForm() {
     setFilteredCountries(filt);
   }, [continentId, allCountries, countryId, pendingContinent, pendingCountry]);
 
+  // State: show all active states directly — no continent/country prerequisite.
+  // Auto-resolve country + continent when state is selected (see onValueChange below).
   useEffect(() => {
-    if (!countryId && !pendingCountry) {
-      setFilteredStates([]);
-      return;
-    }
-
-    const effectiveCountryId = countryId || pendingCountry;
     const filt = allStates
-      .filter((s) => s.isActive && s.countryId === effectiveCountryId)
+      .filter((s) => s.isActive)
       .map((s) => ({ value: s.id, label: s.name }));
 
-    // Always keep the currently-selected state visible
     const ensureState = pendingState || stateId;
     if (ensureState && !filt.some((o) => o.value === ensureState)) {
       const found = allStates.find((s) => s.id === ensureState);
@@ -383,7 +378,7 @@ export default function WardForm() {
     }
 
     setFilteredStates(filt);
-  }, [countryId, pendingCountry, allStates, stateId, pendingState, wardRecordData]);
+  }, [allStates, stateId, pendingState, wardRecordData]);
 
   useEffect(() => {
     const effectiveStateId = stateId || pendingState;
@@ -978,7 +973,15 @@ export default function WardForm() {
           {showField("state_id") && (
           <div>
             <Label>{t("admin.nav.state")} *</Label>
-            <Select value={effectiveStateId} onValueChange={(val) => { setStateId(val); setDistrictId(""); setCityId(""); setZoneId(""); setPendingDistrict(""); setPendingCity(""); setPendingZone(""); }}>
+            <Select value={effectiveStateId} onValueChange={(val) => {
+              setStateId(val); setDistrictId(""); setCityId(""); setZoneId(""); setPendingDistrict(""); setPendingCity(""); setPendingZone("");
+              // Auto-resolve country and continent from selected state
+              const selectedState = allStates.find((s) => s.id === val);
+              if (selectedState) {
+                setCountryId(selectedState.countryId ?? "");
+                setContinentId(selectedState.continentId ?? "");
+              }
+            }}>
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.state") })} />
               </SelectTrigger>

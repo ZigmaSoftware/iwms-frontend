@@ -96,14 +96,18 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "citizen-grievance": ["grivences", "grievance"],
   grivences: ["citizen-grievance", "grievance"],
   grievance: ["citizen-grievance", "grivences"],
-  "superadmin-masters": ["superadmin"],
-  superadmin: ["superadmin-masters"],
+  "superadmin-masters": ["superadmin", "admin"],
+  superadmin: ["superadmin-masters", "admin"],
+  admin: ["superadmin-masters", "superadmin"],
   "common-masters": ["masters"],
   "waste-types": ["masters"],
   assets: ["masters"],
   masters: ["common-masters", "waste-types", "assets"],
   "waste-management": ["collections"],
   collections: ["waste-management"],
+  "vehicle-tracking": ["reports"],
+  "workforce-management": ["reports"],
+  workforce: ["reports", "workforce-management"],
 };
 
 const SCREEN_ALIASES: Record<string, string[]> = {
@@ -151,6 +155,11 @@ const SCREEN_ALIASES: Record<string, string[]> = {
   "collection-monitoring": ["collectionmonitoring", "collection-monitoring", "collection monitoring"],
   "vehicle-type": ["vehicletype", "vehicletypes", "vehicle-type", "vehicle type"],
   "vehicle-creation": ["vehiclecreation", "vehiclecreations", "vehicle-creation", "vehicle creation"],
+  "vehicle-track": ["VehicleTrack", "vehicletrack", "vehicle track"],
+  "vehicle-history": ["VehicleHistory", "vehiclehistory", "vehicle history"],
+  "workforce-management": ["WorkforceManagement", "workforcemanagement", "workforce management", "workforce"],
+  "date-report": ["DateReport", "datereport", "date report"],
+  "day-report": ["DayReport", "dayreport", "day report"],
 };
 
 // ============================================================

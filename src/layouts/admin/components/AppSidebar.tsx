@@ -64,7 +64,6 @@ const {
   encVehicleTracking,
   encVehicleType,
   encWasteCollectedData,
-  encWasteManagementMaster,
   encWorkforceManagement,
   encStaffUserType,
   encMainComplaintCategory,
@@ -87,7 +86,7 @@ const {
   encAreaTypes,
   encMunicipalities,
   encTownPanchayats,
-  encBlockPanchayatUnions,
+
   encBins,
   encDailyTripAssignment,
   encDailyTripLog,
@@ -160,20 +159,20 @@ const superadminMasterItems: NavItem[] = [
   {
     nameKey: "admin.nav.superAdmin_masters",
     icon: <Settings size={18} />,
-    module: "admin",
-    screen: "SuperAdminMasters",
+    module: "superadmin-masters",
+    screen: "superadmin-masters",
     subItems: [
       {
         nameKey: "admin.nav.company",
         path: `/${encSuperAdminMaster}/${encCompanyCreation}`,
-        module: "admin",
-        screen: "CompanyCreation",
+        module: "superadmin-masters",
+        screen: "company",
       },
       {
         nameKey: "admin.nav.project",
         path: `/${encSuperAdminMaster}/${encProjectCreation}`,
-        module: "admin",
-        screen: "ProjectCreation",
+        module: "superadmin-masters",
+        screen: "project",
       },
     ],
   },
@@ -260,13 +259,7 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "town-panchayats",
       },
-      // ── Rural Local Bodies — as per Rule 40 ─────────────────
-      {
-        nameKey: "admin.nav.block_panchayat_union",
-        path: `/${encMasters}/${encBlockPanchayatUnions}`,
-        module: "masters",
-        screen: "block-panchayat-unions",
-      },
+
       // ── Operational / Field Level ────────────────────────────
       {
         nameKey: "admin.nav.ward",
@@ -561,6 +554,12 @@ const scheduleMastersItems: NavItem[] = [
         screen: "daily-trip-collection-points",
       },
       {
+        nameKey: "admin.nav.daily_trip_household_collection",
+        path: `/${encScheduleMasters}/${encDailyTripHouseholdCollection}`,
+        module: "schedule-masters",
+        screen: "daily-trip-household-collections",
+      },
+      {
         nameKey: "admin.nav.bin_collection_event",
         path: `/${encScheduleMasters}/${encBinCollectionEvent}`,
         module: "schedule-masters",
@@ -568,7 +567,7 @@ const scheduleMastersItems: NavItem[] = [
       },
       {
         nameKey: "admin.nav.waste_collected_data",
-        path: `/${encWasteManagementMaster}/${encWasteCollectedData}`,
+        path: `/${encScheduleMasters}/${encWasteCollectedData}`,
         module: "schedule-masters",
         screen: "wastecollections",
       },

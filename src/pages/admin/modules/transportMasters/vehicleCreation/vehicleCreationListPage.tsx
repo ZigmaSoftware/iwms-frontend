@@ -144,6 +144,7 @@ export default function VehicleCreationListPage() {
     projects,
     companies,
     isSuperAdmin,
+    showAllProjectsOption,
     setProjectId,
     onCompanyChange,
   } = useCompanyProjectSelection({
@@ -509,7 +510,7 @@ export default function VehicleCreationListPage() {
             }
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="">All Projects</option>
+            {showAllProjectsOption && <option value="">All Projects</option>}
             {projects.map((project) => (
               <option key={project.value} value={project.value}>
                 {project.label}

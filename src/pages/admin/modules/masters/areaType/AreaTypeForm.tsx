@@ -163,8 +163,8 @@ export default function AreaTypeForm() {
           data.map((c) => ({
             id: String(c.unique_id),
             name: c.name,
-            stateId: normalizeNullable(c.state_id ?? c.state_unique_id ?? c.state),
-            districtId: normalizeNullable(c.district_id ?? c.district_unique_id ?? c.district),
+            stateId: normalizeNullable(c.state_unique_id ?? c.state_id ?? c.state),
+            districtId: normalizeNullable(c.district_unique_id ?? c.district_id ?? c.district),
             isActive: Boolean(c.is_active),
           }))
         );

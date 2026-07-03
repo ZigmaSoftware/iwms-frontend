@@ -222,8 +222,26 @@ export const useCompanyProjectSelection = ({
   }, [defaultToAll, isEdit, isSuperAdmin]);
 
   useEffect(() => {
+    // Non-superadmin: use only the projects from the login session
+    if (!isSuperAdmin) {
+      const sessionProjects = getStoredProjects();
+      const options: CompanyProjectOption[] = sessionProjects.map((p) => ({
+        value: p.unique_id,
+        label: p.name,
+      }));
+      setProjects(options);
+      setProjectId((prev) => {
+        if (prev && options.some((o) => o.value === prev)) return prev;
+        // Single project: always auto-select it, never leave on "All"
+        if (options.length === 1) return options[0].value;
+        return defaultToAll ? "" : options[0]?.value ?? "";
+      });
+      return;
+    }
+
+    // Superadmin: fetch from API
     if (!companyUniqueId) {
-      if (defaultToAll && isSuperAdmin) {
+      if (defaultToAll) {
         let active = true;
 
         projectApi
@@ -360,12 +378,16 @@ export const useCompanyProjectSelection = ({
     [isSuperAdmin, loggedInCompanyUniqueId]
   );
 
+  // Show "All Projects" only for superadmin or non-superadmin with multiple projects
+  const showAllProjectsOption = isSuperAdmin || projects.length > 1;
+
   return {
     companyUniqueId,
     projectId,
     projects,
     companies,
     isSuperAdmin,
+    showAllProjectsOption,
     loggedInCompanyUniqueId,
     setProjectId,
     onCompanyChange,

@@ -5,7 +5,7 @@ import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
-import Label from "@/components/form/Label";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useTranslation } from "react-i18next";
 
@@ -63,7 +63,24 @@ function SubPropertyEditor({
   isSubmitting,
   onCancel,
   onSubmit,
-}: SubPropertyEditorProps) {
+  companyUniqueId,
+  projectId,
+  companies,
+  projects,
+  isSuperAdmin,
+  loggedInCompanyUniqueId,
+  onCompanyChange,
+  setProjectId,
+}: SubPropertyEditorProps & {
+  companyUniqueId: string;
+  projectId: string;
+  companies: { value: string; label: string }[];
+  projects: { value: string; label: string }[];
+  isSuperAdmin: boolean;
+  loggedInCompanyUniqueId: string;
+  onCompanyChange: (val: string) => void;
+  setProjectId: (val: string) => void;
+}) {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
     useFieldVisibility("masters", "sub-properties", SUB_PROPERTY_FIELDS);
@@ -90,6 +107,23 @@ function SubPropertyEditor({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = subPropertyName.trim();
+
+    if (!companyUniqueId) {
+      Swal.fire(
+        "Error",
+        !loggedInCompanyUniqueId && !isSuperAdmin
+          ? "Company is not mapped to this login. Only super admin can choose a company."
+          : "Company is required",
+        "error"
+      );
+      return;
+    }
+
+    if (!projectId) {
+      Swal.fire("Error", "Project is required", "error");
+      return;
+    }
+
     const fieldValues: Record<string, unknown> = {
       sub_property_name: trimmedName,
       property_id: propertyId,
@@ -113,14 +147,81 @@ function SubPropertyEditor({
       sub_property_name: trimmedName,
       property_id: propertyId,
       is_active: isActive,
+      company_id: companyUniqueId,
+      project_id: projectId,
     };
 
-    await onSubmit(filterPayload(rawPayload) as SubPropertyPayload);
+    await onSubmit(filterPayload(rawPayload, ["company_id", "project_id"]) as SubPropertyPayload);
   };
 
   return (
     <form onSubmit={handleSubmit} noValidate>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <Label>Company *</Label>
+          <Select
+            value={companyUniqueId}
+            onValueChange={onCompanyChange}
+            disabled={
+              Boolean(loggedInCompanyUniqueId) ||
+              (!isSuperAdmin && !loggedInCompanyUniqueId) ||
+              companies.length === 0
+            }
+          >
+            <SelectTrigger>
+              <SelectValue
+                placeholder={
+                  loggedInCompanyUniqueId
+                    ? "Company from logged-in profile"
+                    : isSuperAdmin
+                      ? "Select Company"
+                      : "Only super admin can select company"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {companies.map((company) => (
+                <SelectItem key={company.value} value={company.value}>
+                  {company.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {!loggedInCompanyUniqueId && !isSuperAdmin && (
+            <p className="mt-1 text-xs text-red-500">
+              Company is not mapped to this login. Only super admin can view all companies.
+            </p>
+          )}
+          {isSuperAdmin && !loggedInCompanyUniqueId && companies.length === 0 && (
+            <p className="mt-1 text-xs text-red-500">No companies found.</p>
+          )}
+        </div>
+
+        <div>
+          <Label>Project *</Label>
+          <Select
+            value={projectId}
+            onValueChange={setProjectId}
+            disabled={!companyUniqueId || projects.length === 0}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select Project" />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map((project) => (
+                <SelectItem key={project.value} value={project.value}>
+                  {project.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {companyUniqueId && projects.length === 0 && (
+            <p className="mt-1 text-xs text-red-500">
+              No projects found for this company.
+            </p>
+          )}
+        </div>
+
         {showField("property_id") && (
           <div>
             <Label htmlFor="property">
@@ -230,7 +331,17 @@ export default function SubPropertyForm() {
 
   const location = useLocation();
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const { applyCompanyProjectFromRecord, companyUniqueId, projectId } = useCompanyProjectSelection({
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    loggedInCompanyUniqueId,
+    setProjectId,
+    onCompanyChange,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({
     isEdit,
     initialCompanyId: routeState?.companyUniqueId,
     initialProjectId: routeState?.projectId,
@@ -246,8 +357,12 @@ export default function SubPropertyForm() {
     : t("common.add_item", { item: t("admin.nav.sub_property") });
 
   useEffect(() => {
+    if (!companyUniqueId || !projectId) {
+      setProperties([]);
+      return;
+    }
     let cancelled = false;
-    adminApi.properties.readAll()
+    adminApi.properties.readAll({ params: { company_id: companyUniqueId, project_id: projectId } })
       .then((res: any) => {
         if (cancelled) return;
         setProperties(Array.isArray(res) ? res : (res?.results ?? []));
@@ -261,7 +376,7 @@ export default function SubPropertyForm() {
         );
       });
     return () => { cancelled = true; };
-  }, [t]);
+  }, [companyUniqueId, projectId, t]);
 
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -343,7 +458,7 @@ export default function SubPropertyForm() {
 
   const formKey = isEdit
     ? String(subPropertyData?.unique_id ?? id)
-    : "new-sub-property";
+    : `new-sub-property-${companyUniqueId}-${projectId}`;
 
   return (
     <ComponentCard title={title}>
@@ -353,6 +468,14 @@ export default function SubPropertyForm() {
         properties={properties}
         isEdit={isEdit}
         isSubmitting={isSubmitting}
+        companyUniqueId={companyUniqueId}
+        projectId={projectId}
+        companies={companies}
+        projects={projects}
+        isSuperAdmin={isSuperAdmin}
+        loggedInCompanyUniqueId={loggedInCompanyUniqueId}
+        onCompanyChange={onCompanyChange}
+        setProjectId={setProjectId}
         onCancel={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
         onSubmit={submitSubProperty}
       />
