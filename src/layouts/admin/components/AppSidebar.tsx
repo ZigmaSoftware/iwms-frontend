@@ -94,7 +94,8 @@ const {
   encDailyTripTracking,
   encBinCollectionEvent,
   encLoginAudits,
-  encDailyWasteComparison
+  encDailyWasteComparison,
+  encVehicleBreakdown,
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -552,12 +553,12 @@ const scheduleMastersItems: NavItem[] = [
         module: "schedule-masters",
         screen: "daily-trip-collection-points",
       },
-      {
-        nameKey: "admin.nav.daily_trip_household_collection",
-        path: `/${encScheduleMasters}/${encDailyTripHouseholdCollection}`,
-        module: "schedule-masters",
-        screen: "daily-trip-household-collections",
-      },
+      // {
+      //   nameKey: "admin.nav.daily_trip_household_collection",
+      //   path: `/${encScheduleMasters}/${encDailyTripHouseholdCollection}`,
+      //   module: "schedule-masters",
+      //   screen: "daily-trip-household-collections",
+      // },
       {
         nameKey: "admin.nav.bin_collection_event",
         path: `/${encScheduleMasters}/${encBinCollectionEvent}`,
@@ -575,6 +576,12 @@ const scheduleMastersItems: NavItem[] = [
         path: `/${encScheduleMasters}/${encDailyTripLog}`,
         module: "schedule-masters",
         screen: "daily-trip-logs",
+      },
+      {
+        nameKey: "Vehicle Breakdown",
+        path: `/${encScheduleMasters}/${encVehicleBreakdown}`,
+        module: "schedule-masters",
+        screen: "vehicle-breakdowns",
       },
       {
         nameKey: "Daily Waste Comparison",

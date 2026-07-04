@@ -18,7 +18,7 @@ type CreateApiOptions = {
 
 const createApi = (opts: CreateApiOptions): AxiosInstance => {
   const api = axios.create({
-    baseURL: API_ROOT, // no desktop/mobile
+    baseURL: API_ROOT,
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",

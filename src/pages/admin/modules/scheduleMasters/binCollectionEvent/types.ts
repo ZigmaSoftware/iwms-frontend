@@ -39,6 +39,7 @@ export type BinCERecord = {
   bin?: { bin_name?: string; bin_capacity?: number; bin_type?: string };
   waste_type?: { waste_type_name?: string };
   vehicle?: { vehicle_no?: string };
+  vehicle_breakdown_id?: string | null;
   effective_staff_template?: unknown;
   collected_weight_kg?: string | number;
   collection_date?: string;
@@ -53,5 +54,17 @@ export type BinCERecord = {
   panchayat_name?: string | null;
   ward_name?: string | null;
   zone_name?: string | null;
+  breakdown_info?: {
+    unique_id: string;
+    status: string;
+    approval_status: string;
+    breakdown_reason?: string | null;
+    breakdown_time?: string | null;
+    breakdown_location?: string | null;
+    breakdown_vehicle_no?: string | null;
+    replacement_vehicle_no?: string | null;
+    replacement_driver?: string | null;
+    replacement_operator?: string | null;
+  } | null;
   [key: string]: unknown;
 };

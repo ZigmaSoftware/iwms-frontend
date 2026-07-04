@@ -134,6 +134,8 @@ import AlternativeStaffTemplateList from "@/pages/admin/modules/staffMasters/alt
 import AlternativeStaffTemplateForm from "@/pages/admin/modules/staffMasters/alternativeStaffTemplate/alternativeStaffTemplateForm";
 import BinCollectionEventList from "@/pages/admin/modules/scheduleMasters/binCollectionEvent/binCollectionEventList";
 import BinCollectionEventForm from "@/pages/admin/modules/scheduleMasters/binCollectionEvent/binCollectionEventForm";
+import VehicleBreakdownList from "@/pages/admin/modules/scheduleMasters/vehicleBreakdown/vehicleBreakdownList";
+import VehicleBreakdownForm from "@/pages/admin/modules/scheduleMasters/vehicleBreakdown/vehicleBreakdownForm";
 import DailyWasteComparisonList from "@/pages/admin/modules/scheduleMasters/dailyWasteComparison/dailyWasteComparisonList";
 import DailyWasteComparisonForm from "@/pages/admin/modules/scheduleMasters/dailyWasteComparison/dailyWasteComparisonForm";
 import StaffTemplateAuditList from "@/pages/admin/modules/staffMasters/staffTemplateAudit/staffTemplateAuditList";
@@ -237,6 +239,7 @@ const ROUTES: RouteMap = {
     "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
     "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
     "daily-trip-log": { list: DailyTripLogList },
+    "vehicle-breakdowns": { list: VehicleBreakdownList, form: VehicleBreakdownForm },
     "daily-waste-comparisons": { list: DailyWasteComparisonList, form: DailyWasteComparisonForm },
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage, form: MonthlyWasteComparisonForm },
     "scheduler-config": { component: SchedulerConfigPage },

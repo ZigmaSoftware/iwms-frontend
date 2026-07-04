@@ -29,30 +29,6 @@ import ZigmaLogo from "../images/logo.png";
 
 type LoginResponse = LoginEnvelope;
 
-/**
- * Check if the permissions object has at least one module
- * with at least one screen that has any action allowed.
- * Handles both formats:
- *   - Array format:  { "common-masters": { "continents": ["view"] } }
- *   - Object format: { "common-masters": { "continents": { "view": true } } }
- */
-function hasAnyPermission(permissions: Record<string, any>): boolean {
-  if (!permissions || typeof permissions !== "object") return false;
-
-  return Object.values(permissions).some((module) => {
-    if (typeof module === "boolean") return module;
-    if (!module || typeof module !== "object") return false;
-
-    return Object.values(module).some((screenValue) => {
-      if (typeof screenValue === "boolean") return screenValue;
-      if (Array.isArray(screenValue)) return screenValue.length > 0;
-      if (typeof screenValue === "object" && screenValue !== null) {
-        return Object.values(screenValue).some((v) => v === true);
-      }
-      return false;
-    });
-  });
-}
 
 export default function Auth() {
   const [username, setUsername] = useState("");
@@ -111,24 +87,19 @@ export default function Auth() {
         email: payload.user?.email ?? payload.email ?? "",
       });
 
-      // Check admin access by role name OR by any permission granted by superadmin
-      const hasAdminAccess =
-        isAdmin(normalizedRole) ||
-        hasAnyPermission(freshPermissions) ||
-        hasAnyPermission((payload.permissions ?? {}) as Record<string, any>);
+      // Route based on role:
+      //   Admin-type roles (Company Admin, superadmin, etc.) → /admin
+      //   All other staff (Driver, Operator, Supervisor, User) → /dashboard
+      const hasAdminRole = isAdmin(normalizedRole);
 
-      console.log(
-        "[Auth] Role:", normalizedRole,
-        "| permissions:", freshPermissions,
-        "| hasAdminAccess:", hasAdminAccess
-      );
+      console.log("[Auth] Role:", normalizedRole, "| isAdmin:", hasAdminRole);
 
-      if (hasAdminAccess) {
+      if (hasAdminRole) {
         setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);
         navigate("/admin", { replace: true });
       } else {
         clearAdminViewPreference();
-        navigate("/", { replace: true });
+        navigate("/dashboard", { replace: true });
       }
     } catch (error: any) {
       console.error("[Auth] ❌ Login failed:", error);
