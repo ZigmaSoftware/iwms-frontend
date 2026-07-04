@@ -39,6 +39,7 @@ export type BinCERecord = {
   bin?: { bin_name?: string; bin_capacity?: number; bin_type?: string };
   waste_type?: { waste_type_name?: string };
   vehicle?: { vehicle_no?: string };
+  vehicle_breakdown_id?: string | null;
   effective_staff_template?: unknown;
   collected_weight_kg?: string | number;
   collection_date?: string;

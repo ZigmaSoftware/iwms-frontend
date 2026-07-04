@@ -81,6 +81,7 @@ export type EncryptedRoutes = {
   encTripAttendance: string;
   encVehicleTripAudit: string;
   encTripExceptionLog: string;
+  encVehicleBreakdown: string;
 
   // dashboard
   encDashboardOverall: string;
