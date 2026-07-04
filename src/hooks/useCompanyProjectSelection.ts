@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { companyApi, projectApi } from "@/helpers/admin";
-import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
+import { getCurrentCompanyUniqueId, getCurrentProjectId } from "@/utils/projectContext";
 import { USER_ROLE_STORAGE_KEY, normalizeRole } from "@/types/roles";
 import { getStoredProjects } from "@/utils/authStorage";
 
@@ -273,6 +273,36 @@ export const useCompanyProjectSelection = ({
       setProjects([]);
       setProjectId("");
       return;
+    }
+
+    // For non-superadmin users, try to resolve the project list from the login
+    // cache first to avoid an extra API round-trip.
+    //
+    // Safety: only skip the API call when we know the staff's project ID
+    // (stored in localStorage["project_id"] after login).  If the project ID
+    // is not yet set (old session before this fix), we fall through to the API
+    // — the API itself is now scoped by the backend, so it also returns the
+    // correct result.
+    if (!isSuperAdmin) {
+      const staffProjectId = getCurrentProjectId();
+      if (staffProjectId) {
+        const storedProjects = getStoredProjects();
+        const scoped = storedProjects.filter((p) => p.unique_id === staffProjectId);
+        if (scoped.length > 0) {
+          const options: CompanyProjectOption[] = scoped.map((p) => ({
+            value: p.unique_id,
+            label: p.name,
+          }));
+          setProjects(options);
+          setProjectId((prev) => {
+            if (prev && options.some((option) => option.value === prev)) {
+              return prev;
+            }
+            return defaultToAll ? "" : (options[0]?.value ?? "");
+          });
+          return;
+        }
+      }
     }
 
     let active = true;

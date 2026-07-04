@@ -81,6 +81,7 @@ export type EncryptedRoutes = {
   encTripAttendance: string;
   encVehicleTripAudit: string;
   encTripExceptionLog: string;
+  encVehicleBreakdown: string;
 
   // dashboard
   encDashboardOverall: string;
@@ -197,6 +198,7 @@ const plainRoutes: EncryptedRoutes = {
   encTripAttendance: "trip-attendance",
   encVehicleTripAudit: "vehicle-trip-audit",
   encTripExceptionLog: "trip-exception-log",
+  encVehicleBreakdown: "vehicle-breakdowns",
 
   // palakkad
 

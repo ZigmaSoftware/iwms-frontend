@@ -120,6 +120,7 @@ export const dailyTripCollectionPointApi = adminApi.dailyTripCollectionPoint;
 export const dailyTripHouseholdCollectionApi = adminApi.dailyTripHouseholdCollection;
 export const binCollectionEventApi = adminApi.binCollectionEvent;
 export const dailyWasteComparisonApi = adminApi.dailyWasteComparison;
+export const vehicleBreakdownApi = adminApi.vehicleBreakdown;
 
 /* =========================
    AUDITS
