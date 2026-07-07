@@ -45,6 +45,15 @@ export type TripPlanRecord = {
   scheduled_time?: string;
   approval_status?: string;
   status?: string;
+  active_breakdown?: {
+    unique_id: string;
+    status: string;
+    trip_date: string;
+    breakdown_vehicle_no?: string | null;
+    replacement_vehicle_no?: string | null;
+    replacement_driver?: string | null;
+    replacement_operator?: string | null;
+  } | null;
   [key: string]: unknown;
 };
 
