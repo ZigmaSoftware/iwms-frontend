@@ -297,6 +297,28 @@ function TripLogModal({
           )}
         </div>
 
+        {row.breakdown_info && (
+          <>
+            <Divider className="!my-0" />
+            <div>
+              <SectionLabel>Vehicle Breakdown</SectionLabel>
+              <div className="mb-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
+                  ✓ Replacement Arranged
+                </span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <InfoRow label="Reason" value={row.breakdown_info.breakdown_reason} />
+                <InfoRow label="Reported At" value={row.breakdown_info.breakdown_time} />
+                <InfoRow label="Broken Vehicle" value={row.breakdown_info.breakdown_vehicle_no} />
+                <InfoRow label="Replacement Vehicle" value={row.breakdown_info.replacement_vehicle_no} />
+                <InfoRow label="Replacement Driver" value={row.breakdown_info.replacement_driver} />
+                <InfoRow label="Replacement Operator" value={row.breakdown_info.replacement_operator} />
+              </div>
+            </div>
+          </>
+        )}
+
         <Divider className="!my-0" />
 
         {/* Collection Points */}
