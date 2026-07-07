@@ -198,6 +198,9 @@ export default function TripPlanForm() {
   const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
   // Holds raw edit record until lookups are ready — avoids Radix Select blank-value bug
   const [pendingRecord, setPendingRecord] = useState<any>(null);
+  // Kept separately from pendingRecord (which is cleared once the form is hydrated)
+  // so the breakdown banner stays visible for the life of the edit screen.
+  const [activeBreakdown, setActiveBreakdown] = useState<any>(null);
 
   // Step 1: fetch the record, store it, trigger company/project → which triggers lookup fetch
   useEffect(() => {
@@ -209,6 +212,7 @@ export default function TripPlanForm() {
         if (cancelled) return;
         applyCompanyProjectFromRecord(record);
         setPendingRecord(record);
+        setActiveBreakdown(record.active_breakdown ?? null);
       })
       .catch((error) => Swal.fire(t("common.error"), extractErrorMessage(error) ?? t("common.load_failed"), "error"))
       .finally(() => {
@@ -632,6 +636,28 @@ export default function TripPlanForm() {
     <div className="p-3">
       <ComponentCard title={isEdit ? "Edit Trip Plan" : "New Trip Plan"} desc="Configure route geography, staff, vehicle, schedule, and stop list">
         <form onSubmit={handleSubmit} className="space-y-6">
+          {activeBreakdown && (
+            <div className="flex flex-col gap-1 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <i className="pi pi-exclamation-triangle text-orange-500" />
+                <span className="text-sm font-semibold text-orange-800">
+                  Vehicle breakdown on {activeBreakdown.trip_date}
+                </span>
+              </div>
+              <p className="text-xs text-orange-700">
+                {activeBreakdown.breakdown_vehicle_no ?? "The assigned vehicle"} broke down and was
+                replaced with <span className="font-semibold">{activeBreakdown.replacement_vehicle_no ?? "a replacement vehicle"}</span>
+                {(activeBreakdown.replacement_driver || activeBreakdown.replacement_operator) && (
+                  <>
+                    {" "}(driver: {activeBreakdown.replacement_driver ?? "-"}, operator:{" "}
+                    {activeBreakdown.replacement_operator ?? "-"})
+                  </>
+                )}{" "}
+                for that trip. The vehicle configured below is this plan's default and is unaffected
+                going forward.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div>
               <Label>{t("admin.nav.company")}</Label>

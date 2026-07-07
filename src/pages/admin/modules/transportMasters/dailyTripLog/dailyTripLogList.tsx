@@ -53,6 +53,38 @@ const CollectionStatusBadge = ({ value }: { value?: string }) => (
   </span>
 );
 
+const BreakdownCell = ({ row }: { row: DailyTripLogRecord }) => {
+  const bd = row.breakdown_info;
+  if (!bd) return <span className="text-xs text-gray-300">—</span>;
+
+  const isApproved = bd.approval_status === "APPROVED";
+  const isPending  = bd.approval_status === "PENDING";
+
+  return (
+    <div className="space-y-1">
+      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+        isApproved ? "bg-green-100 text-green-700" :
+        isPending  ? "bg-orange-100 text-orange-700" :
+                     "bg-red-100 text-red-700"
+      }`}>
+        {isApproved ? "✓ Replaced" : isPending ? "⚠ Pending" : "✕ Rejected"}
+      </span>
+      {isApproved && bd.replacement_vehicle_no && (
+        <div className="text-[10px] text-gray-600 leading-tight">
+          <span className="font-medium">Veh:</span> {bd.replacement_vehicle_no}
+        </div>
+      )}
+      {isApproved && (bd.replacement_driver || bd.replacement_operator) && (
+        <div className="text-[10px] text-gray-600 leading-tight">
+          {bd.replacement_driver && <span><span className="font-medium">Drv:</span> {bd.replacement_driver}</span>}
+          {bd.replacement_driver && bd.replacement_operator && <span className="mx-1">·</span>}
+          {bd.replacement_operator && <span><span className="font-medium">Opr:</span> {bd.replacement_operator}</span>}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const SectionLabel = ({ children }: { children: React.ReactNode }) => (
   <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">{children}</p>
 );
@@ -264,6 +296,28 @@ function TripLogModal({
             </div>
           )}
         </div>
+
+        {row.breakdown_info && (
+          <>
+            <Divider className="!my-0" />
+            <div>
+              <SectionLabel>Vehicle Breakdown</SectionLabel>
+              <div className="mb-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
+                  ✓ Replacement Arranged
+                </span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <InfoRow label="Reason" value={row.breakdown_info.breakdown_reason} />
+                <InfoRow label="Reported At" value={row.breakdown_info.breakdown_time} />
+                <InfoRow label="Broken Vehicle" value={row.breakdown_info.breakdown_vehicle_no} />
+                <InfoRow label="Replacement Vehicle" value={row.breakdown_info.replacement_vehicle_no} />
+                <InfoRow label="Replacement Driver" value={row.breakdown_info.replacement_driver} />
+                <InfoRow label="Replacement Operator" value={row.breakdown_info.replacement_operator} />
+              </div>
+            </div>
+          </>
+        )}
 
         <Divider className="!my-0" />
 
@@ -809,6 +863,11 @@ export default function DailyTripLogList() {
               <span className="text-sm text-gray-400">-</span>
             )
           }
+        />
+        <Column
+          header="Vehicle Breakdown"
+          style={{ minWidth: 140 }}
+          body={(row: DailyTripLogRecord) => <BreakdownCell row={row} />}
         />
         <Column
           field="_waste"

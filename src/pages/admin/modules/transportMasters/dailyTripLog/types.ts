@@ -67,5 +67,16 @@ export type DailyTripLogRecord = {
   collection_status?: string;
   verified_by_name?: string | null;
   verified_at?: string | null;
+  breakdown_info?: {
+    unique_id: string;
+    status: string;
+    approval_status: string;
+    breakdown_reason?: string | null;
+    breakdown_time?: string | null;
+    breakdown_vehicle_no?: string | null;
+    replacement_vehicle_no?: string | null;
+    replacement_driver?: string | null;
+    replacement_operator?: string | null;
+  } | null;
   [key: string]: unknown;
 };
