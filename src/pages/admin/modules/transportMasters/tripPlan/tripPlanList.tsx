@@ -127,6 +127,23 @@ export default function TripPlanList() {
     return <Switch checked={row.status === "ACTIVE"} disabled={updating} onCheckedChange={updateStatus} />;
   };
 
+  const breakdownBody = (row: TripPlanRecord) => {
+    const bd = row.active_breakdown;
+    if (!bd) return <span className="text-xs text-gray-300">—</span>;
+    return (
+      <div className="space-y-1">
+        <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700">
+          ⚠ Replacement Active
+        </span>
+        {bd.replacement_vehicle_no && (
+          <div className="text-[10px] text-gray-600 leading-tight">
+            <span className="font-medium">Veh:</span> {bd.replacement_vehicle_no}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const header = (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -190,6 +207,7 @@ export default function TripPlanList() {
         <Column field="_location" header="Location" filter showFilterMatchModes={false} />
         <Column field="_staff" header="Staff Template" filter showFilterMatchModes={false} />
         <Column field="_vehicle" header="Vehicle" filter showFilterMatchModes={false} />
+        <Column header="Vehicle Breakdown" body={breakdownBody} style={{ minWidth: 140 }} />
         <Column field="_waste_type" header="Waste Type" filter showFilterMatchModes={false} />
         <Column field="_stop_count" header="Stops" filter showFilterMatchModes={false} style={{ width: 100 }} />
         <Column field="scheduled_time" header="Start Time" />
