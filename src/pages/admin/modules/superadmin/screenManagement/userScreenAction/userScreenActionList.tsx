@@ -21,7 +21,7 @@ import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { filterRowsForExport } from "@/utils/adminListExport";
 
-import type { UserScreenAction } from "../types/admin.types";
+import type { UserScreenAction } from "../shared/admin.types";
 
 const USER_SCREEN_ACTION_SEARCH_FIELDS = ["action_name", "variable_name"];
 

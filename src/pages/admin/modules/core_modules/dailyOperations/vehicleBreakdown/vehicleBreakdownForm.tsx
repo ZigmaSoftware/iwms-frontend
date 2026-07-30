@@ -299,7 +299,7 @@ export default function VehicleBreakdownForm() {
           // is not filtered out by the pending-replacements exclusion logic.
           if (isEdit && id) params.exclude_id = id;
           api
-            .get("/schedule-masters/vehicle-breakdowns/available-vehicles/", { params })
+            .get("/schedule-operations/vehicle-breakdowns/available-vehicles/", { params })
             .then((res) => {
               const list = Array.isArray(res.data) ? res.data : [];
               const opts: SelectOption[] = list.map((v: any) => ({
@@ -331,8 +331,8 @@ export default function VehicleBreakdownForm() {
 
           setFetchingStaff(true);
           Promise.all([
-            api.get("/schedule-masters/vehicle-breakdowns/available-staff/", { params: { ...params, role: "Company Driver" } }),
-            api.get("/schedule-masters/vehicle-breakdowns/available-staff/", { params: { ...params, role: "Company Operator" } }),
+            api.get("/schedule-operations/vehicle-breakdowns/available-staff/", { params: { ...params, role: "Company Driver" } }),
+            api.get("/schedule-operations/vehicle-breakdowns/available-staff/", { params: { ...params, role: "Company Operator" } }),
           ])
             .then(([driverRes, operatorRes]) => {
               const toOpts = (list: any[]): SelectOption[] =>

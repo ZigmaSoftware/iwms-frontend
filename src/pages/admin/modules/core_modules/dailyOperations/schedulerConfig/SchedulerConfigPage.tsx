@@ -43,7 +43,7 @@ export default function SchedulerConfigPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   const configUrl = adminEndpoints.schedulerConfig;
-  const statusUrl = `schedule-masters/daily-trip-assignments/scheduler-status/`;
+  const statusUrl = `schedule-operations/daily-trip-assignments/scheduler-status/`;
 
   async function fetchAll() {
     try {

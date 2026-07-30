@@ -92,16 +92,24 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "user-creation": ["staff-masters", "user-creations"],
   "transport-master": ["transport-masters"],
   "transport-masters": ["transport-master"],
-  "schedule-masters": ["schedule masters"],
-  "citizen-grievance": ["grivences", "grievance"],
-  grivences: ["citizen-grievance", "grievance"],
-  grievance: ["citizen-grievance", "grivences"],
+  // "schedule-setup"/"schedule-operations" are a pure split of the legacy
+  // "schedule-masters" module — kept as fallbacks so permissions granted
+  // before the split still authorize both halves.
+  "schedule-masters": ["schedule masters", "schedule-setup", "schedule-operations"],
+  "schedule-setup": ["schedule-masters", "schedule masters"],
+  "schedule-operations": ["schedule-masters", "schedule masters"],
+  // "complaint-ticket" is the renamed "citizen-grievance"/"grivences" module.
+  "citizen-grievance": ["grivences", "grievance", "complaint-ticket"],
+  grivences: ["citizen-grievance", "grievance", "complaint-ticket"],
+  grievance: ["citizen-grievance", "grivences", "complaint-ticket"],
+  "complaint-ticket": ["citizen-grievance", "grivences", "grievance"],
   "superadmin-masters": ["superadmin", "admin"],
   superadmin: ["superadmin-masters", "admin"],
   admin: ["superadmin-masters", "superadmin"],
   "common-masters": ["masters"],
-  "waste-types": ["masters"],
-  assets: ["masters"],
+  // "waste-types" absorbed the legacy "assets" module (bins/wastetype/collection-point).
+  "waste-types": ["masters", "assets"],
+  assets: ["masters", "waste-types"],
   masters: ["common-masters", "waste-types", "assets"],
   "waste-management": ["collections"],
   collections: ["waste-management"],
@@ -111,9 +119,14 @@ const MODULE_ALIASES: Record<string, string[]> = {
 };
 
 const SCREEN_ALIASES: Record<string, string[]> = {
-  complaint: ["complaints"],
-  "main-complaint-category": ["main-category"],
-  "sub-complaint-category": ["sub-category"],
+  complaint: ["complaints", "tickets"],
+  "main-complaint-category": ["main-category", "categories"],
+  "sub-complaint-category": ["sub-category", "subcategories"],
+  // renamed complaint-ticket screen names — fall back to the pre-rename names
+  // so permissions granted before the rename still authorize the new screens.
+  tickets: ["complaint", "complaints"],
+  categories: ["main-complaint-category", "main-category"],
+  subcategories: ["sub-complaint-category", "sub-category"],
   feedback: ["feedbacks"],
   fuel: ["fuels"],
   panchayats: ["panchayat"],

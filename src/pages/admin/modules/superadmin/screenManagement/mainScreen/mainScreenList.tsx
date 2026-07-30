@@ -20,7 +20,7 @@ import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { filterRowsForExport } from "@/utils/adminListExport";
 
-import type { MainScreen } from "../types/admin.types"; // Correct import
+import type { MainScreen } from "../shared/admin.types"; // Correct import
 
 const MAIN_SCREEN_SEARCH_FIELDS = [
   "mainscreen_name",
