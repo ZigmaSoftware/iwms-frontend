@@ -791,8 +791,6 @@ const taResource = {
           "collection_point": "சேகரிப்பு இடம்",
           "panchayat_leader": "PLB தலைவர்",
           "district_leader": "மாநில தலைவர்",
-          "municipality": "நகராட்சி",
-          "town_panchayat": "நகர் பஞ்சாயத்து",
           "block_panchayat_union": "வட்டம் / பஞ்சாயத்து யூனியன்",
           "property": "சொத்து",
           "sub_property": "உப சொத்து",

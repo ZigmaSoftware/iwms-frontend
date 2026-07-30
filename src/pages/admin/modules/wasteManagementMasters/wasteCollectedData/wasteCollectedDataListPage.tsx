@@ -25,9 +25,6 @@ import { adminApi } from "@/helpers/admin/registry";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const cap = (str?: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
@@ -71,6 +68,7 @@ export default function WasteCollectedDataList() {
 
   /* ── load data ── */
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) { setWasteCollections([]); return; }
     if (!companyUniqueId && !isSuperAdmin) { setWasteCollections([]); return; }
     let mounted = true;
     setLoading(true);
@@ -81,29 +79,12 @@ export default function WasteCollectedDataList() {
       .then((res: any) => {
         if (!mounted) return;
         const rows: WasteCollection[] = Array.isArray(res) ? res : res?.results ?? [];
-
-        // Only filter client-side when the records actually carry company/project IDs.
-        // If they don't (API already filtered server-side), show all rows as-is.
-        const hasContextFields = rows.some((row) =>
-          Boolean(normalizeId(row.company_id ?? row.company_unique_id) || normalizeId(row.project_id ?? row.project_unique_id))
-        );
-
-        if (!hasContextFields) {
-          setWasteCollections(rows);
-          return;
-        }
-
-        const filtered = rows.filter((row) => {
-          const rc = normalizeId(row.company_id ?? row.company_unique_id);
-          const rp = normalizeId(row.project_id ?? row.project_unique_id);
-          return (!companyUniqueId || rc === companyUniqueId) && (!projectId || rp === projectId);
-        });
-        setWasteCollections(filtered);
+        setWasteCollections(rows);
       })
       .catch((err) => { if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: String(err) }); })
       .finally(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, t]);
 
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
 

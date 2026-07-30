@@ -32,9 +32,6 @@ const DISTRICT_COLUMN_FIELDS: Record<string, string[]> = {
 };
 
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 export default function DistrictListPage() {
   const { t } = useTranslation();
   const { showColumn: showCol } = useFieldVisibility(
@@ -119,6 +116,9 @@ export default function DistrictListPage() {
     };
   }, [companies.length, companyUniqueId, isSuperAdmin, projectId, t]);
 
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
   const districts = ((): DistrictListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId && !isSuperAdmin) return [];
@@ -140,18 +140,8 @@ export default function DistrictListPage() {
       project_name: d.project_name ? String(d.project_name) : undefined,
     }));
 
-    const filtered = mapped.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-
-      return companyMatches && projectMatches;
-    });
-
-    filtered.sort((a, b) => a.name.localeCompare(b.name));
-    return filtered;
+    mapped.sort((a, b) => a.name.localeCompare(b.name));
+    return mapped;
   })();
 
   const cap = (str?: string) =>

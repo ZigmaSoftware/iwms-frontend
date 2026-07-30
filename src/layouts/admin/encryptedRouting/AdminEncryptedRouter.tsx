@@ -37,14 +37,8 @@ import PanchayatLeaderListPage from "@/pages/admin/modules/masters/panchayatLead
 import PanchayatLeaderForm from "@/pages/admin/modules/masters/panchayatLeader/PanchayatLeaderForm";
 import DistrictLeaderListPage from "@/pages/admin/modules/masters/districtLeader/DistrictLeaderListPage";
 import DistrictLeaderForm from "@/pages/admin/modules/masters/districtLeader/DistrictLeaderForm";
-import AreaTypeListPage from "@/pages/admin/modules/masters/areaType/AreaTypeListPage";
-import AreaTypeForm from "@/pages/admin/modules/masters/areaType/AreaTypeForm";
 import HierarchyListPage from "@/pages/admin/modules/masters/hierarchy/HierarchyListPage";
 import HierarchyForm from "@/pages/admin/modules/masters/hierarchy/HierarchyForm";
-import MunicipalityListPage from "@/pages/admin/modules/masters/municipality/MunicipalityListPage";
-import MunicipalityForm from "@/pages/admin/modules/masters/municipality/MunicipalityForm";
-import TownPanchayatListPage from "@/pages/admin/modules/masters/townPanchayat/TownPanchayatListPage";
-import TownPanchayatForm from "@/pages/admin/modules/masters/townPanchayat/TownPanchayatForm";
 
 
 
@@ -204,10 +198,7 @@ const ROUTES: RouteMap = {
     panchayats: { list: PanchayatListPage, form: PanchayatForm },
     "panchayat-leaders": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
     "district-leaders": { list: DistrictLeaderListPage, form: DistrictLeaderForm },
-    "area-types": { list: AreaTypeListPage, form: AreaTypeForm },
     hierarchies: { list: HierarchyListPage, form: HierarchyForm },
-    municipalities: { list: MunicipalityListPage, form: MunicipalityForm },
-    "town-panchayats": { list: TownPanchayatListPage, form: TownPanchayatForm },
 
 
     
@@ -309,7 +300,6 @@ const MODULE_ALIASES: Record<string, string[]> = {
   feedback: ["feedbacks"],
   fuel: ["fuels"],
   panchayats: ["panchayat"],
-  "area-types": ["areatypes"],
   hierarchies: ["hierarchy"],
   "collection-points": ["collection-point"],
   "sub-properties": ["subproperties"],

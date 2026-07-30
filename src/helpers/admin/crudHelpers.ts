@@ -1,5 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { AxiosRequestConfig } from "axios";
 import { api } from "@/api";
+import {
+  getRegisteredServerListPageSize,
+  setLatestServerListMetadata,
+} from "./serverListMode";
 /* -----------------------------------------
    Normalize API path (idempotent)
 ----------------------------------------- */
@@ -150,10 +155,41 @@ export const createCrudHelpers = <T = any>(
     return rows;
   };
 
-  return {
+  const helpers: CrudHelpers<T> = {
     /* ---------- READ ---------- */
 
-    readAll: readAllPages,
+    readAll: async (config) => {
+      const registeredPageSize = getRegisteredServerListPageSize(helpers);
+      if (!registeredPageSize) {
+        return readAllPages(config);
+      }
+
+      const response = await readPaginatedResource(resource, {
+        ...config,
+        params: {
+          ...config?.params,
+          page: 1,
+          limit: registeredPageSize,
+        },
+      });
+
+      if (Array.isArray(response)) {
+        setLatestServerListMetadata(helpers, {
+          count: response.length,
+          config,
+          rawRows: response as unknown as Record<string, unknown>[],
+        });
+        return response;
+      }
+
+      const results = Array.isArray(response?.results) ? response.results : [];
+      setLatestServerListMetadata(helpers, {
+        count: typeof response?.count === "number" ? response.count : results.length,
+        config,
+        rawRows: results as unknown as Record<string, unknown>[],
+      });
+      return results;
+    },
 
     readAllForExport: readAllPages,
 
@@ -242,4 +278,6 @@ export const createCrudHelpers = <T = any>(
       return data;
     },
   };
+
+  return helpers;
 };

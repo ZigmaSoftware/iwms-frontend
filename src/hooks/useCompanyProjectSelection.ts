@@ -4,6 +4,7 @@ import { companyApi, projectApi } from "@/helpers/admin";
 import { getCurrentCompanyUniqueId, getCurrentProjectId } from "@/utils/projectContext";
 import { USER_ROLE_STORAGE_KEY, normalizeRole } from "@/types/roles";
 import { getStoredProjects } from "@/utils/authStorage";
+import { setListCompanyProjectContext } from "@/utils/listQueryContext";
 
 export type CompanyProjectOption = {
   value: string;
@@ -207,8 +208,11 @@ export const useCompanyProjectSelection = ({
     }
 
     setCompaniesLoaded(false);
+    // readAllForExport always walks every page regardless of whether companyApi
+    // has been put into server-list (paginated) mode by some other list page —
+    // this dropdown always needs the complete company list, not just one page.
     companyApi
-      .readAll()
+      .readAllForExport()
       .then((res) => {
         const options: CompanyProjectOption[] = toRecordList(res).map((x) => ({
           value: toStringId(x.unique_id),
@@ -254,8 +258,9 @@ export const useCompanyProjectSelection = ({
       if (defaultToAll) {
         let active = true;
 
+        // See companyApi.readAllForExport() note above — same reasoning.
         projectApi
-          .readAll()
+          .readAllForExport()
           .then((res) => {
             if (!active) return;
 
@@ -323,8 +328,9 @@ export const useCompanyProjectSelection = ({
 
     let active = true;
 
+    // See companyApi.readAllForExport() note above — same reasoning.
     projectApi
-      .readAll({ params: { company_unique_id: companyUniqueId } })
+      .readAllForExport({ params: { company_unique_id: companyUniqueId } })
       .then((res) => {
         if (!active) return;
 
@@ -400,6 +406,16 @@ export const useCompanyProjectSelection = ({
 
   // Show "All Projects" only for superadmin or non-superadmin with multiple projects
   const showAllProjectsOption = isSuperAdmin || projects.length > 1;
+
+  useEffect(() => {
+    setListCompanyProjectContext({
+      companyId: companyUniqueId,
+      projectId,
+    });
+    return () => {
+      setListCompanyProjectContext({ companyId: "", projectId: "" });
+    };
+  }, [companyUniqueId, projectId]);
 
   return {
     companyUniqueId,

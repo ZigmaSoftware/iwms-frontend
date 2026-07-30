@@ -45,9 +45,6 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const PROPERTY_COLUMN_FIELDS: Record<string, string[]> = {
   property_name: ["property_name"],
   is_active: ["is_active"],
@@ -97,7 +94,11 @@ export default function PropertyList() {
   const loadProperties = async () => {
     setIsLoading(true);
     try {
-      const response = await adminApi.properties.readAll();
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+
+      const response = await adminApi.properties.readAll({ params });
       const list = Array.isArray(response)
         ? response
         : ((response as { results?: PropertyRecord[] })?.results ?? []);
@@ -114,37 +115,19 @@ export default function PropertyList() {
   };
 
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
     void loadProperties();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Calculate filtered properties based on company and project
-  const filteredProperties = (() => {
-    if (isSuperAdmin && companies.length === 0) {
-      return [];
-    }
-
-    if (!companyUniqueId && !isSuperAdmin) {
-      return [];
-    }
-
-    const hasContextFields = properties.some((property) => {
-      const rowCompanyId = normalizeId(property.company_id || property.company_unique_id);
-      const rowProjectId = normalizeId(property.project_id || property.project_unique_id);
-      return Boolean(rowCompanyId || rowProjectId);
-    });
-
-    if (!hasContextFields) {
-      return properties;
-    }
-
-    return properties.filter((property) => {
-      const rowCompanyId = normalizeId(property.company_id || property.company_unique_id);
-      const rowProjectId = normalizeId(property.project_id || property.project_unique_id);
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-      return companyMatches && projectMatches;
-    });
-  })();
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
+  const filteredProperties: PropertyRecord[] =
+    (isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)
+      ? []
+      : properties;
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);

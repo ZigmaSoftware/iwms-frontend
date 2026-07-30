@@ -106,7 +106,7 @@ export default function FeedBackForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    feedbackApi.read(id)
+    adminApi.feedbacks.read(id)
       .then((res: any) => {
         if (cancelled) return;
         // Set simple fields immediately

@@ -109,6 +109,7 @@ export default function BinCollectionEventList() {
   });
 
   const loadRecords = useCallback(() => {
+    if (isSuperAdmin && companies.length === 0) { setRecords([]); return; }
     if (!companyUniqueId && !isSuperAdmin) { setRecords([]); return; }
     setLoading(true);
     const params: Record<string, string> = {};
@@ -124,7 +125,7 @@ export default function BinCollectionEventList() {
         Swal.fire(t("common.error"), extractError(error) ?? t("common.fetch_failed"), "error");
       })
       .finally(() => setLoading(false));
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, t]);
 
   useEffect(() => { loadRecords(); }, [loadRecords]);
 
@@ -139,7 +140,7 @@ export default function BinCollectionEventList() {
         _vehicle: r.vehicle?.vehicle_no ?? "-",
         _panchayat: r.panchayat_name ?? r.panchayat_id ?? "-",
         _ward: r.ward_name ?? r.ward_id ?? "-",
-        _zone: r.zone_name ?? "-",
+        _zone: typeof r.zone_name === "object" && r.zone_name !== null ? (r.zone_name as Record<string, unknown>).zone_name ?? "-" : r.zone_name ?? "-",
         collection_date: r.collection_date ?? "",
       })),
     [records],

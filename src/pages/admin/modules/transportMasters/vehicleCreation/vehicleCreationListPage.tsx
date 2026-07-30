@@ -69,9 +69,6 @@ const VEHICLE_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const formatDate = (value?: string | null) =>
   value ? String(value).split("T")[0] : "-";
 
@@ -163,10 +160,23 @@ export default function VehicleCreationListPage() {
 
   // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) {
+      setAllVehicles([]);
+      return;
+    }
+    if (!companyUniqueId && !isSuperAdmin) {
+      setAllVehicles([]);
+      return;
+    }
+
     let mounted = true;
     setIsLoading(true);
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
+    if (projectId) params.project_id = projectId;
+
     vehicleCreationApi
-      .readAll()
+      .readAll({ params })
       .then((data: unknown) => {
         if (!mounted) return;
         const list = Array.isArray(data)
@@ -197,23 +207,14 @@ export default function VehicleCreationListPage() {
     return () => {
       mounted = false;
     };
-  }, [t, refetchTrigger]);
+  }, [t, refetchTrigger, companyUniqueId, projectId, isSuperAdmin, companies.length]);
 
-  // ── Derived rows with client-side filter ──────────────────────────────────
-  const rows = (() => {
-    if (isSuperAdmin && companies.length === 0)
-      return [] as VehicleCreationRecord[];
-    if (!companyUniqueId && !isSuperAdmin) return [] as VehicleCreationRecord[];
-
-    return allVehicles.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      const companyMatches =
-        !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-      return companyMatches && projectMatches;
-    });
-  })();
+  // Company/project scoping is now applied server-side via params above —
+  // no client-side narrowing needed.
+  const rows: VehicleCreationRecord[] =
+    (isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)
+      ? []
+      : allVehicles;
 
   // ── Filter handlers ───────────────────────────────────────────────────────
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters);

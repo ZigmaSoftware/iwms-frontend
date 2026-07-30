@@ -28,7 +28,6 @@ export type WardRecord = AdminRecord;
 export type PanchayatRecord = AdminRecord;
 export type PropertyRecord = AdminRecord & { property_name: string };
 export type SubPropertyRecord = AdminRecord;
-export type AreaTypeRecord = AdminRecord;
 export type HierarchyRecord = AdminRecord;
 export type BinRecord = AdminRecord;
 export type CollectionPointRecord = AdminRecord;
@@ -61,7 +60,6 @@ export type WardPayload = Record<string, any>;
 export type PanchayatPayload = Record<string, any>;
 export type PropertyPayload = Record<string, any>;
 export type SubPropertyPayload = Record<string, any>;
-export type AreaTypePayload = Record<string, any>;
 export type HierarchyPayload = Record<string, any>;
 export type BinPayload = Record<string, any>;
 export type CollectionPointPayload = Record<string, any>;
@@ -339,11 +337,6 @@ export const useSubPropertiesQuery = () => useList<SubPropertyRecord>("subProper
 export const useSubPropertyQuery = (id: string | number | null | undefined) => useDetail<SubPropertyRecord>("subProperties", id);
 export const useCreateSubPropertyMutation = () => useCreate<SubPropertyPayload, SubPropertyRecord>("subProperties");
 export const useUpdateSubPropertyMutation = () => useUpdate<SubPropertyPayload, SubPropertyRecord>("subProperties");
-
-export const useAreaTypesQuery = () => useList<AreaTypeRecord>("areatypes");
-export const useAreaTypeQuery = (id: string | number | null | undefined) => useDetail<AreaTypeRecord>("areatypes", id);
-export const useCreateAreaTypeMutation = () => useCreate<AreaTypePayload, AreaTypeRecord>("areatypes");
-export const useUpdateAreaTypeMutation = () => useUpdate<AreaTypePayload, AreaTypeRecord>("areatypes");
 
 export const useHierarchiesQuery = () => useList<HierarchyRecord>("hierarchies");
 export const useHierarchyQuery = (id: string | number | null | undefined) => useDetail<HierarchyRecord>("hierarchies", id);

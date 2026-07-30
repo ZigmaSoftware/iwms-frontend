@@ -117,7 +117,6 @@ const SCREEN_ALIASES: Record<string, string[]> = {
   feedback: ["feedbacks"],
   fuel: ["fuels"],
   panchayats: ["panchayat"],
-  "area-types": ["areatypes"],
   hierarchies: ["hierarchy"],
   "collection-points": ["collection-point"],
   "staff-templates": ["staff-template", "stafftemplatecreation", "stafftemplate", "staff template"],

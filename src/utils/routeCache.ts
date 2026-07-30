@@ -104,12 +104,10 @@ export type EncryptedRoutes = {
 
 
   encPanchayats: string;
-  encAreaTypes: string;
+  encBlockPanchayatUnions: string;
   encHierarchies: string;
   encPanchayatLeaders: string;
   encDistrictLeaders: string;
-  encMunicipalities: string;
-  encTownPanchayats: string;
 
 };
 
@@ -205,12 +203,10 @@ const plainRoutes: EncryptedRoutes = {
   // palakkad
 
   encPanchayats: "panchayats",
-  encAreaTypes: "area-types",
+  encBlockPanchayatUnions: "block-panchayat-unions",
   encHierarchies: "hierarchies",
   encPanchayatLeaders: "panchayat-leaders",
   encDistrictLeaders: "district-leaders",
-  encMunicipalities: "municipalities",
-  encTownPanchayats: "town-panchayats",
 
 
   //dashboard

@@ -84,9 +84,6 @@ const {
   encPanchayats,
   encPanchayatLeaders,
   encDistrictLeaders,
-  encAreaTypes,
-  encMunicipalities,
-  encTownPanchayats,
 
   encBins,
   encDailyTripAssignment,
@@ -241,38 +238,18 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "zones",
       },
-      // ── Urban Local Bodies (ULB) — parallel at same level ───
       {
         nameKey: "admin.nav.city",
         path: `/${encMasters}/${encCities}`,
         module: "masters",
         screen: "cities",
       },
-      {
-        nameKey: "admin.nav.municipality",
-        path: `/${encMasters}/${encMunicipalities}`,
-        module: "masters",
-        screen: "municipalities",
-      },
-      {
-        nameKey: "admin.nav.town_panchayat",
-        path: `/${encMasters}/${encTownPanchayats}`,
-        module: "masters",
-        screen: "town-panchayats",
-      },
-
       // ── Operational / Field Level ────────────────────────────
       {
         nameKey: "admin.nav.ward",
         path: `/${encMasters}/${encWards}`,
         module: "masters",
         screen: "wards",
-      },
-      {
-        nameKey: "admin.nav.area_type",
-        path: `/${encMasters}/${encAreaTypes}`,
-        module: "masters",
-        screen: "areatypes",
       },
       {
         nameKey: "admin.nav.panchayat",

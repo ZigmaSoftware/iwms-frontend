@@ -1,5 +1,5 @@
 import type { LoginAuditRecord } from "./types";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -14,22 +14,6 @@ import { adminApi } from "@/helpers/admin/registry";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
-const filterByCompanyProject = (rows: any[], companyId: string, projectId: string) => {
-  if (!companyId && !projectId) return rows;
-
-  return rows.filter((item) => {
-    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
-    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
-    // Pass records with no company/project set (unknown context)
-    const companyMatches = !companyId || !rowCompanyId || rowCompanyId === companyId;
-    const projectMatches = !projectId || !rowProjectId || rowProjectId === projectId;
-    return companyMatches && projectMatches;
-  });
-};
 
 const formatDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString() : "-");
 
@@ -91,11 +75,6 @@ export default function LoginAuditList() {
       mounted = false;
     };
   }, [companyUniqueId, projectId, t]);
-
-  const filteredRecords = useMemo(
-    () => filterByCompanyProject(rows, companyUniqueId ?? "", projectId ?? ""),
-    [rows, companyUniqueId, projectId]
-  );
 
   const openDetails = useCallback((record: LoginAuditRecord) => {
     setSelectedAudit(record);
@@ -182,12 +161,12 @@ export default function LoginAuditList() {
   return (
     <div className="p-3">
       <DataTable
-        value={filteredRecords}
+        value={rows}
         dataKey="unique_id"
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && filteredRecords.length === 0}
+        loading={isLoading && rows.length === 0}
         filters={filters}
         onFilter={(e) => setFilters(e.filters as DataTableFilterMeta)}
         header={header}

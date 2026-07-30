@@ -18,9 +18,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { BlockPanchayatUnionListRecord } from "./types";
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const BLOCK_COLUMN_FIELDS: Record<string, string[]> = {
   block_name: ["block_name", "name"],
   state_name: ["state_id", "state", "state_name"],
@@ -66,11 +63,18 @@ export default function BlockPanchayatUnionListPage() {
   );
 
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
     let mounted = true;
     const load = async () => {
       setIsLoading(true);
       try {
-        const data = await blockPanchayatUnionApi.readAll();
+        const params: Record<string, string> = {};
+        if (companyUniqueId) params.company_id = companyUniqueId;
+        if (projectId) params.project_id = projectId;
+
+        const data = await blockPanchayatUnionApi.readAll({ params });
         if (mounted) setAllBlocks(data as BlockPanchayatUnionListRecord[]);
       } catch (error) {
         if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
@@ -80,17 +84,15 @@ export default function BlockPanchayatUnionListPage() {
     };
     void load();
     return () => { mounted = false; };
-  }, [t]);
+  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length]);
 
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
   const data = ((): BlockPanchayatUnionListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId && !isSuperAdmin) return [];
-    return (Array.isArray(allBlocks) ? allBlocks : []).filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      return (!companyUniqueId || rowCompanyId === companyUniqueId) &&
-             (!projectId || rowProjectId === projectId);
-    });
+    return Array.isArray(allBlocks) ? allBlocks : [];
   })();
 
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);

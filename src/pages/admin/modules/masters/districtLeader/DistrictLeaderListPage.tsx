@@ -18,15 +18,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-const normalizeId = (value: unknown): string => {
-  if (value === null || value === undefined) return "";
-  if (typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return normalizeId(record.unique_id ?? record.id ?? record.value);
-  }
-  return String(value).trim();
-};
-
 const extractRows = (value: unknown): DistrictLeader[] => {
   if (Array.isArray(value)) return value as DistrictLeader[];
   if (!value || typeof value !== "object") return [];
@@ -121,17 +112,14 @@ export default function DistrictLeaderListPage() {
     return () => { mounted = false; };
   }, [companies.length, companyUniqueId, isSuperAdmin, projectId, t]);
 
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
   const data = (() => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId && !isSuperAdmin) return [];
 
-    return allRecords.filter((row) => {
-      const rowCompany = normalizeId(row.company_id ?? row.company_unique_id);
-      const rowProject = normalizeId(row.project_id ?? row.project_unique_id);
-      const companyOk = !companyUniqueId || rowCompany === companyUniqueId;
-      const projectOk = !projectId || rowProject === projectId;
-      return companyOk && projectOk;
-    });
+    return allRecords;
   })();
 
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as typeof filters);
