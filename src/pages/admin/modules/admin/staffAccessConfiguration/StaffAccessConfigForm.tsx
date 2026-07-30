@@ -21,8 +21,11 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { staffAccessConfigurationApi, staffUserTypeApi, userTypeApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-import LocationScopeSelector from "./LocationScopeSelector";
+import LocationScopeSelector, { type LocationScopeOptions } from "./LocationScopeSelector";
+import { MultiSelect } from "@/components/form/MultiSelect";
+import { useCascadingSelection } from "./useCascadingSelection";
 import type {
+  AvailableMainScreen,
   AvailablePermissionsResponse,
   DataScopeForm,
   GrantedScreenPermission,
@@ -133,7 +136,6 @@ export default function StaffAccessConfigForm() {
 
   const {
     companyUniqueId,
-    projectId,
     projects,
     projectsLoaded,
     companies,
@@ -141,13 +143,16 @@ export default function StaffAccessConfigForm() {
     isSuperAdmin,
     loggedInCompanyUniqueId,
     onCompanyChange,
-    setProjectId,
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({
     isEdit,
     initialCompanyId: routeState?.companyUniqueId,
     initialProjectId: routeState?.projectId,
   });
+
+  const [projectIds, setProjectIds] = useState<string[]>(
+    routeState?.projectId ? [routeState.projectId] : []
+  );
 
   const [activeTab, setActiveTab] = useState(0);
   const [stepError, setStepError] = useState<string | null>(null);
@@ -167,6 +172,9 @@ export default function StaffAccessConfigForm() {
   const [userTypeOptions, setUserTypeOptions] = useState<Option[]>([]);
   const [staffUserTypeOptions, setStaffUserTypeOptions] = useState<Option[]>([]);
   const [dataScope, setDataScope] = useState<DataScopeForm>({});
+  const [geoOptions, setGeoOptions] = useState<LocationScopeOptions>({
+    states: [], districts: [], cities: [], zones: [], panchayats: [], wards: [],
+  });
   const [description, setDescription] = useState("");
   const [availablePermissions, setAvailablePermissions] = useState<AvailablePermissionsResponse | null>(null);
   const [loadingPermissions, setLoadingPermissions] = useState(false);
@@ -176,6 +184,12 @@ export default function StaffAccessConfigForm() {
   >(null);
   const [fetching, setFetching] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const eligibleProjectIds = useMemo(() => new Set(projects.map((p) => p.value)), [projects]);
+  useCascadingSelection(projectIds, eligibleProjectIds, setProjectIds, {
+    canReconcile: projectsLoaded && (!isEdit || !fetching),
+    skipFirstReconcile: isEdit,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -241,13 +255,14 @@ export default function StaffAccessConfigForm() {
         setUserTypeId(toId(data.user_type_id));
         setStaffUserTypeId(toId(data.staffusertype_id));
         setDescription(data.description ?? "");
+        setProjectIds((data.project_ids ?? []).map((id) => toId(id)));
         setDataScope({
-          state_id: data.state_id ? toId(data.state_id) : undefined,
-          district_id: data.district_id ? toId(data.district_id) : undefined,
-          city_id: data.city_id ? toId(data.city_id) : undefined,
-          zone_id: data.zone_id ? toId(data.zone_id) : undefined,
-          panchayat_id: data.panchayat_id ? toId(data.panchayat_id) : undefined,
-          ward_id: data.ward_id ? toId(data.ward_id) : undefined,
+          state_ids: (data.state_ids ?? []).map((id) => toId(id)),
+          district_ids: (data.district_ids ?? []).map((id) => toId(id)),
+          city_ids: (data.city_ids ?? []).map((id) => toId(id)),
+          zone_ids: (data.zone_ids ?? []).map((id) => toId(id)),
+          panchayat_ids: (data.panchayat_ids ?? []).map((id) => toId(id)),
+          ward_ids: (data.ward_ids ?? []).map((id) => toId(id)),
         });
         applyCompanyProjectFromRecord(data as UnknownRecord);
         setPendingGrantedPermissions(
@@ -273,7 +288,7 @@ export default function StaffAccessConfigForm() {
   }, [isEdit, staffUniqueIdParam]);
 
   useEffect(() => {
-    if (!projectId) {
+    if (!companyUniqueId) {
       setAvailablePermissions(null);
       return;
     }
@@ -281,8 +296,10 @@ export default function StaffAccessConfigForm() {
     let cancelled = false;
     setLoadingPermissions(true);
 
-    const params: Record<string, string> = { project_id: projectId };
-    if (companyUniqueId) params.company_id = companyUniqueId;
+    // Omitting project_id entirely (no projects selected) means "every
+    // project under the company" — matching the company-only-mandatory scope.
+    const params: Record<string, string> = { company_id: companyUniqueId };
+    if (projectIds.length > 0) params.project_id = projectIds.join(",");
 
     staffAccessConfigurationApi
       .action("available-permissions", undefined, { params })
@@ -305,14 +322,22 @@ export default function StaffAccessConfigForm() {
     return () => {
       cancelled = true;
     };
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectIds, t]);
 
   useEffect(() => {
     if (!availablePermissions) return;
+    // Union allowed actions for a screen across every project it appears in,
+    // so a saved action stays checked regardless of which project's section
+    // it renders under.
     const allowedActionsByScreen = new Map<string, Set<string>>();
-    availablePermissions.mainscreens.forEach((ms) => {
-      ms.screens.forEach((scr) => {
-        allowedActionsByScreen.set(toId(scr.userScreenId), new Set(scr.actions.map((a) => toId(a.actionId))));
+    availablePermissions.projects.forEach((project) => {
+      project.mainscreens.forEach((ms) => {
+        ms.screens.forEach((scr) => {
+          const screenId = toId(scr.userScreenId);
+          const existing = allowedActionsByScreen.get(screenId) ?? new Set<string>();
+          scr.actions.forEach((a) => existing.add(toId(a.actionId)));
+          allowedActionsByScreen.set(screenId, existing);
+        });
       });
     });
 
@@ -336,20 +361,25 @@ export default function StaffAccessConfigForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availablePermissions]);
 
+  const screenInfoById = useMemo(() => {
+    const map = new Map<string, { name: string; actionNameById: Map<string, string> }>();
+    availablePermissions?.projects.forEach((project) => {
+      project.mainscreens.forEach((ms) => {
+        ms.screens.forEach((screen) => {
+          const screenId = toId(screen.userScreenId);
+          const entry = map.get(screenId) ?? { name: screen.userScreenName, actionNameById: new Map<string, string>() };
+          screen.actions.forEach((action) => entry.actionNameById.set(toId(action.actionId), action.actionName));
+          map.set(screenId, entry);
+        });
+      });
+    });
+    return map;
+  }, [availablePermissions]);
+
   const filteredStaffUserTypeOptions = useMemo(() => {
     if (!userTypeId) return staffUserTypeOptions;
     return staffUserTypeOptions.filter((option) => !option.userTypeId || option.userTypeId === userTypeId);
   }, [staffUserTypeOptions, userTypeId]);
-
-  const actionOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    availablePermissions?.mainscreens.forEach((module) => {
-      module.screens.forEach((screen) => {
-        screen.actions.forEach((action) => map.set(toId(action.actionId), action.actionName));
-      });
-    });
-    return Array.from(map.entries()).map(([value, label]) => ({ value, label }));
-  }, [availablePermissions]);
 
   const totalSelectedScreens = Object.keys(selections).length;
   const totalSelectedActions = Object.values(selections).reduce((sum, sel) => sum + sel.actionIds.length, 0);
@@ -378,12 +408,10 @@ export default function StaffAccessConfigForm() {
     });
   }, []);
 
-  const toggleModule = useCallback((mainScreenId: string, checked: boolean) => {
-    const module = availablePermissions?.mainscreens.find((item) => item.mainScreenId === mainScreenId);
-    if (!module) return;
+  const toggleModule = useCallback((screens: AvailableMainScreen["screens"], checked: boolean) => {
     setSelections((prev) => {
       const next = { ...prev };
-      module.screens.forEach((screen) => {
+      screens.forEach((screen) => {
         const screenId = toId(screen.userScreenId);
         if (checked) {
           next[screenId] = { userScreenId: screenId, actionIds: screen.actions.map((a) => toId(a.actionId)) };
@@ -393,7 +421,7 @@ export default function StaffAccessConfigForm() {
       });
       return next;
     });
-  }, [availablePermissions]);
+  }, []);
 
   const validateTab = (tab: number): boolean => {
     setStepError(null);
@@ -419,8 +447,8 @@ export default function StaffAccessConfigForm() {
         return false;
       }
     }
-    if (tab === DATA_SCOPE_TAB && (!companyUniqueId || !projectId)) {
-      setStepError("Select company and project to define the staff scope.");
+    if (tab === DATA_SCOPE_TAB && !companyUniqueId) {
+      setStepError("Select a company to define the staff scope.");
       return false;
     }
     return true;
@@ -438,13 +466,13 @@ export default function StaffAccessConfigForm() {
   const buildPayload = (): StaffAccessConfigPayload => ({
     ...(staffId ? { staff_id: staffId } : {}),
     company_id: companyUniqueId,
-    project_id: projectId,
-    state_id: dataScope.state_id || null,
-    district_id: dataScope.district_id || null,
-    city_id: dataScope.city_id || null,
-    zone_id: dataScope.zone_id || null,
-    panchayat_id: dataScope.panchayat_id || null,
-    ward_id: dataScope.ward_id || null,
+    project_ids: projectIds,
+    state_ids: dataScope.state_ids ?? [],
+    district_ids: dataScope.district_ids ?? [],
+    city_ids: dataScope.city_ids ?? [],
+    zone_ids: dataScope.zone_ids ?? [],
+    panchayat_ids: dataScope.panchayat_ids ?? [],
+    ward_ids: dataScope.ward_ids ?? [],
     description: description.trim(),
     permissions: Object.values(selections).map((sel) => ({
       userscreen_id: sel.userScreenId,
@@ -468,13 +496,13 @@ export default function StaffAccessConfigForm() {
     },
     dataScope: {
       companyId: companyUniqueId,
-      projectId,
-      stateId: dataScope.state_id || null,
-      districtId: dataScope.district_id || null,
-      cityId: dataScope.city_id || null,
-      zoneId: dataScope.zone_id || null,
-      panchayatId: dataScope.panchayat_id || null,
-      wardId: dataScope.ward_id || null,
+      projectIds,
+      stateIds: dataScope.state_ids ?? [],
+      districtIds: dataScope.district_ids ?? [],
+      cityIds: dataScope.city_ids ?? [],
+      zoneIds: dataScope.zone_ids ?? [],
+      panchayatIds: dataScope.panchayat_ids ?? [],
+      wardIds: dataScope.ward_ids ?? [],
     },
   });
 
@@ -494,7 +522,7 @@ export default function StaffAccessConfigForm() {
         await staffAccessConfigurationApi.create(buildPayload());
       }
       await Swal.fire("Saved", "Staff access configuration saved successfully.", "success");
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId: projectIds[0] } });
     } catch (error) {
       Swal.fire("Error", extractErrorMessage(error, "Unable to save staff access configuration."), "error");
     } finally {
@@ -505,15 +533,20 @@ export default function StaffAccessConfigForm() {
   const labelFromOptions = (options: Option[], value: string) =>
     options.find((option) => option.value === value)?.label || "";
 
+  const labelsFromOptions = (options: Option[], values: string[]) =>
+    values.map((value) => labelFromOptions(options, value) || value);
+
   const scopeSummary = [
     companyUniqueId && labelFromOptions(companies, companyUniqueId),
-    projectId && labelFromOptions(projects, projectId),
-    dataScope.state_id && `State: ${dataScope.state_id}`,
-    dataScope.district_id && `District: ${dataScope.district_id}`,
-    dataScope.city_id && `City: ${dataScope.city_id}`,
-    dataScope.zone_id && `Zone: ${dataScope.zone_id}`,
-    dataScope.panchayat_id && `Panchayat: ${dataScope.panchayat_id}`,
-    dataScope.ward_id && `Ward: ${dataScope.ward_id}`,
+    projectIds.length > 0
+      ? `Projects: ${labelsFromOptions(projects, projectIds).join(", ")}`
+      : "Projects: All (company-wide)",
+    (dataScope.state_ids?.length ?? 0) > 0 && `State: ${labelsFromOptions(geoOptions.states, dataScope.state_ids!).join(", ")}`,
+    (dataScope.district_ids?.length ?? 0) > 0 && `District: ${labelsFromOptions(geoOptions.districts, dataScope.district_ids!).join(", ")}`,
+    (dataScope.city_ids?.length ?? 0) > 0 && `City: ${labelsFromOptions(geoOptions.cities, dataScope.city_ids!).join(", ")}`,
+    (dataScope.zone_ids?.length ?? 0) > 0 && `Zone: ${labelsFromOptions(geoOptions.zones, dataScope.zone_ids!).join(", ")}`,
+    (dataScope.panchayat_ids?.length ?? 0) > 0 && `Panchayat: ${labelsFromOptions(geoOptions.panchayats, dataScope.panchayat_ids!).join(", ")}`,
+    (dataScope.ward_ids?.length ?? 0) > 0 && `Ward: ${labelsFromOptions(geoOptions.wards, dataScope.ward_ids!).join(", ")}`,
   ].filter(Boolean).join(", ");
 
   const reviewRow = (label: string, value?: string | null) => (
@@ -659,30 +692,23 @@ export default function StaffAccessConfigForm() {
             )}
           </div>
           <div>
-            <Label>Project</Label>
+            <Label>Project <span className="font-normal text-gray-400">(optional — leave blank for all projects under the company)</span></Label>
             {isEdit && (!companiesLoaded || !projectsLoaded) ? (
               <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
                 Loading…
               </div>
             ) : (
-              <Select
-                value={projectId}
-                onValueChange={(value) => {
-                  setProjectId(value);
+              <MultiSelect
+                value={projectIds}
+                onChange={(next) => {
+                  setProjectIds(next);
                   setSelections({});
                   setAvailablePermissions(null);
                 }}
+                options={projects}
+                placeholder="Select project(s)"
                 disabled={!companyUniqueId || projects.length === 0}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.value} value={project.value}>{project.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             )}
           </div>
           <div className="md:col-span-2">
@@ -693,10 +719,13 @@ export default function StaffAccessConfigForm() {
         <div className="mt-4">
           <LocationScopeSelector
             value={dataScope}
-            onChange={setDataScope}
+            onChange={(patch) => setDataScope((prev) => ({ ...prev, ...patch }))}
             companyUniqueId={companyUniqueId}
-            projectId={projectId}
-            disabled={!companyUniqueId || !projectId}
+            projectIds={projectIds}
+            disabled={!companyUniqueId}
+            readyForReconcile={!isEdit || !fetching}
+            isEdit={isEdit}
+            onOptionsResolved={setGeoOptions}
           />
         </div>
       </div>
@@ -705,86 +734,90 @@ export default function StaffAccessConfigForm() {
 
   const renderPermissions = () => (
     <div className="space-y-5">
-      {!projectId ? (
+      {!companyUniqueId ? (
         <div className="rounded-lg border border-dashed border-gray-300 p-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-          Select company and project on the Data Scope tab first.
+          Select a company on the Data Scope tab first.
         </div>
       ) : loadingPermissions ? (
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading permissions
         </div>
-      ) : !availablePermissions?.mainscreens.length ? (
+      ) : !availablePermissions?.projects.some((project) => project.mainscreens.length > 0) ? (
         <div className="rounded-lg border border-dashed border-gray-300 p-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-          No screens are enabled for this project.
+          No screens are enabled for the selected project(s).
         </div>
       ) : (
         <>
           <div className="border-l-2 border-blue-500 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
-            Only screens and actions enabled by Super Admin for this project are shown.
+            Only screens and actions enabled by Super Admin are shown, grouped by project.
           </div>
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase text-gray-500">Module & screen permissions</p>
-            {availablePermissions.mainscreens.map((module, moduleIndex) => {
-              const screenIds = module.screens.map((screen) => toId(screen.userScreenId));
-              const moduleChecked = screenIds.length > 0 && screenIds.every((screenId) => {
-                const screen = module.screens.find((item) => toId(item.userScreenId) === screenId);
-                return screen && selections[screenId]?.actionIds.length === screen.actions.length;
-              });
-              return (
-                <details key={module.mainScreenId} className="group overflow-hidden rounded-md border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950" open={moduleIndex === 0}>
-                  <summary className="flex cursor-pointer list-none items-center gap-3 bg-stone-50 px-3 py-2.5 dark:bg-gray-900">
-                    <LayoutGrid className="h-3.5 w-3.5 text-gray-500" />
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800 dark:text-gray-100">
-                      {module.mainScreenName}
-                    </span>
-                    <Toggle checked={moduleChecked} onChange={(checked) => toggleModule(module.mainScreenId, checked)} />
-                    <ChevronDown className="h-4 w-4 text-gray-400 transition group-open:rotate-180" />
-                  </summary>
-                  <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {module.screens.map((screen) => {
-                      const screenId = toId(screen.userScreenId);
-                      const selectedActionIds = selections[screenId]?.actionIds ?? [];
-                      const allActionIds = screen.actions.map((action) => toId(action.actionId));
-                      const allChecked = allActionIds.length > 0 && selectedActionIds.length === allActionIds.length;
-                      return (
-                        <div key={screenId} className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(190px,1fr)_minmax(360px,2fr)]">
-                          <span className="truncate text-sm font-medium text-gray-700 dark:text-gray-200">
-                            {screen.userScreenName}
-                          </span>
-                          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
-                            <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                              <input
-                                type="checkbox"
-                                className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900 dark:accent-gray-100"
-                                checked={allChecked}
-                                onChange={(event) => toggleAllActionsForScreen(screenId, allActionIds, event.target.checked)}
-                              />
-                              All
-                            </label>
-                            {screen.actions.map((action) => {
-                              const actionId = toId(action.actionId);
-                              return (
-                                <label key={actionId} className="flex items-center gap-1.5 text-xs capitalize text-gray-600 dark:text-gray-300">
+          {availablePermissions.projects
+            .filter((project) => project.mainscreens.length > 0)
+            .map((project) => (
+              <div key={project.projectId} className="space-y-2">
+                <p className="text-xs font-semibold uppercase text-gray-500">{project.projectName}</p>
+                {project.mainscreens.map((module, moduleIndex) => {
+                  const screenIds = module.screens.map((screen) => toId(screen.userScreenId));
+                  const moduleChecked = screenIds.length > 0 && screenIds.every((screenId) => {
+                    const screen = module.screens.find((item) => toId(item.userScreenId) === screenId);
+                    return screen && selections[screenId]?.actionIds.length === screen.actions.length;
+                  });
+                  return (
+                    <details key={`${project.projectId}-${module.mainScreenId}`} className="group overflow-hidden rounded-md border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950" open={moduleIndex === 0}>
+                      <summary className="flex cursor-pointer list-none items-center gap-3 bg-stone-50 px-3 py-2.5 dark:bg-gray-900">
+                        <LayoutGrid className="h-3.5 w-3.5 text-gray-500" />
+                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800 dark:text-gray-100">
+                          {module.mainScreenName}
+                        </span>
+                        <Toggle checked={moduleChecked} onChange={(checked) => toggleModule(module.screens, checked)} />
+                        <ChevronDown className="h-4 w-4 text-gray-400 transition group-open:rotate-180" />
+                      </summary>
+                      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                        {module.screens.map((screen) => {
+                          const screenId = toId(screen.userScreenId);
+                          const selectedActionIds = selections[screenId]?.actionIds ?? [];
+                          const allActionIds = screen.actions.map((action) => toId(action.actionId));
+                          const allChecked = allActionIds.length > 0 && selectedActionIds.length === allActionIds.length;
+                          return (
+                            <div key={screenId} className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(190px,1fr)_minmax(360px,2fr)]">
+                              <span className="truncate text-sm font-medium text-gray-700 dark:text-gray-200">
+                                {screen.userScreenName}
+                              </span>
+                              <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+                                <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200">
                                   <input
                                     type="checkbox"
                                     className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900 dark:accent-gray-100"
-                                    checked={selectedActionIds.includes(actionId)}
-                                    onChange={(event) => toggleAction(screenId, actionId, event.target.checked)}
+                                    checked={allChecked}
+                                    onChange={(event) => toggleAllActionsForScreen(screenId, allActionIds, event.target.checked)}
                                   />
-                                  {action.actionName}
+                                  All
                                 </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </details>
-              );
-            })}
-          </div>
+                                {screen.actions.map((action) => {
+                                  const actionId = toId(action.actionId);
+                                  return (
+                                    <label key={actionId} className="flex items-center gap-1.5 text-xs capitalize text-gray-600 dark:text-gray-300">
+                                      <input
+                                        type="checkbox"
+                                        className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900 dark:accent-gray-100"
+                                        checked={selectedActionIds.includes(actionId)}
+                                        onChange={(event) => toggleAction(screenId, actionId, event.target.checked)}
+                                      />
+                                      {action.actionName}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            ))}
         </>
       )}
     </div>
@@ -813,18 +846,24 @@ export default function StaffAccessConfigForm() {
       {reviewCard("Permissions granted", <KeyRound className="h-4 w-4 text-gray-500" />, (
         totalSelectedActions ? (
           <div className="flex flex-wrap gap-2">
-            {Object.values(selections).slice(0, 18).map((screen) => (
-              <span key={screen.userScreenId} className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-200">
-                {screen.userScreenId} - {screen.actionIds.length} actions
-              </span>
-            ))}
+            {Object.values(selections).slice(0, 18).map((screen) => {
+              const info = screenInfoById.get(screen.userScreenId);
+              const actionNames = screen.actionIds
+                .map((actionId) => info?.actionNameById.get(actionId) ?? actionId)
+                .join(", ");
+              return (
+                <span key={screen.userScreenId} className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-200">
+                  {info?.name ?? screen.userScreenId} ({actionNames})
+                </span>
+              );
+            })}
           </div>
         ) : <p className="text-gray-500">No screens enabled</p>
       ))}
       {reviewCard("Data scope", <MapPinned className="h-4 w-4 text-gray-500" />, (
         <>
           {reviewRow("Company", labelFromOptions(companies, companyUniqueId))}
-          {reviewRow("Project", labelFromOptions(projects, projectId))}
+          {reviewRow("Project", labelsFromOptions(projects, projectIds).join(", "))}
           {reviewRow("Scope", scopeSummary)}
           {reviewRow("Description", description)}
         </>
@@ -843,7 +882,7 @@ export default function StaffAccessConfigForm() {
         <button type="button" onClick={() => setActiveTab(PERMISSIONS_TAB)} className={SECONDARY_BUTTON_CLASS}>
           Back
         </button>
-        <button type="button" onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })} className={CANCEL_BUTTON_CLASS}>
+        <button type="button" onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId: projectIds[0] } })} className={CANCEL_BUTTON_CLASS}>
           Cancel
         </button>
         <button type="button" onClick={handleSave} disabled={saving} className={PRIMARY_BUTTON_CLASS}>
@@ -915,7 +954,7 @@ export default function StaffAccessConfigForm() {
               </p>
             )}
             <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })} className={CANCEL_BUTTON_CLASS}>
+              <button type="button" onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId: projectIds[0] } })} className={CANCEL_BUTTON_CLASS}>
                 Cancel
               </button>
               {activeTab > 0 && (

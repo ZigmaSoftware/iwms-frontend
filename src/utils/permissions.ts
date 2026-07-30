@@ -5,7 +5,7 @@ import { adminEndpoints } from "@/helpers/admin/endpoints";
 // Types
 // ============================================================
 
-export type PermissionAction = "view" | "add" | "edit" | "delete" | string;
+export type PermissionAction = "view" | "add" | "edit" | "delete" | "use" | string;
 export type PermissionsMap = Record<string, Record<string, string[]>>;
 
 export type PermissionDetailsColumn = {
@@ -27,6 +27,7 @@ export type PermissionDetailsScreen = {
     add: boolean;
     edit: boolean;
     delete: boolean;
+    use: boolean;
   };
   columns: PermissionDetailsColumn[];
 };
@@ -70,10 +71,11 @@ export const PERMISSION_DETAILS_STORAGE_KEY = "permission_details";
 export const COLUMN_PERMISSIONS_STORAGE_KEY = "column_permissions";
 
 const ACTION_ALIASES: Record<string, string[]> = {
-  view: ["view", "display", "visible", "list", "read", "use", "show"],
+  view: ["view", "display", "visible", "list", "read", "show"],
   add: ["add", "create"],
   edit: ["edit", "update", "change"],
   delete: ["delete", "remove"],
+  use: ["use", "select", "reference"],
 };
 
 const MODULE_ALIASES: Record<string, string[]> = {
@@ -291,6 +293,7 @@ const sanitizePermissionDetails = (source: unknown): PermissionDetailsMap => {
           add: Boolean(perms.add ?? false),
           edit: Boolean(perms.edit ?? false),
           delete: Boolean(perms.delete ?? false),
+          use: Boolean(perms.use ?? false),
         },
         columns,
       };
@@ -605,6 +608,7 @@ export const hasPermission = (
   permissions: PermissionsMap = getStoredPermissions(),
 ): boolean => {
   if (!moduleName || !screenName || !action) return false;
+  if (isStoredSuperAdmin()) return true;
 
   const moduleEntry = resolveModuleEntry(permissions, moduleName);
   if (!moduleEntry) return false;
@@ -693,6 +697,19 @@ export const hasSidebarPermission = (
   screenName: string,
   permissions: PermissionsMap = getStoredPermissions(),
 ): boolean => hasPermission(moduleName, screenName, "view", permissions);
+
+/**
+ * True if the user can consume a screen's records as reference data (e.g. as
+ * dropdown/autocomplete options in another form) — granted by either the
+ * full "view" action or the lighter-weight "use" action.
+ */
+export const canUseScreenData = (
+  moduleName: string,
+  screenName: string,
+  permissions: PermissionsMap = getStoredPermissions(),
+): boolean =>
+  hasPermission(moduleName, screenName, "view", permissions) ||
+  hasPermission(moduleName, screenName, "use", permissions);
 
 export const hasAnyPermission = (
   action: PermissionAction = "view",

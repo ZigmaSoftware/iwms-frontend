@@ -212,6 +212,26 @@ const normalizeEntityId = (value: unknown): string => {
   return normalizeId(value);
 };
 
+type ApiRecord = Record<string, unknown>;
+type DepartmentOption = { value: string; label: string; name: string; code?: string };
+
+const isApiRecord = (value: unknown): value is ApiRecord =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const normalizeListResponse = (res: unknown): ApiRecord[] => {
+  if (Array.isArray(res)) return res.filter(isApiRecord);
+  if (isApiRecord(res) && Array.isArray(res.results)) {
+    return res.results.filter(isApiRecord);
+  }
+  if (isApiRecord(res) && Array.isArray(res.data)) {
+    return res.data.filter(isApiRecord);
+  }
+  if (isApiRecord(res) && isApiRecord(res.data) && Array.isArray(res.data.results)) {
+    return res.data.results.filter(isApiRecord);
+  }
+  return [];
+};
+
 const mapLocationOptions = (items: any[]): LocationOption[] =>
   (items ?? [])
     .filter((item) => item?.name && item.is_active !== false)
@@ -620,14 +640,12 @@ export default function StaffCreationForm() {
           states,
           districts,
           cities,
-          departments,
         ] =
           await Promise.all([
             countryApi.readAll(),
             stateApi.readAll(),
             districtApi.readAll(),
             cityApi.readAll(),
-            departmentApi.readAll({ params: { status: "active" } }),
           ]);
 
         const countryList = mapLocationOptions(countries);
@@ -667,26 +685,6 @@ export default function StaffCreationForm() {
         setStateOptions(stateList);
         setDistrictOptions(districtList);
         setCityOptions(cityList);
-
-        const normalize = (arr: any[]) =>
-          arr.filter((i) => i?.is_active !== false && i?.is_deleted !== true);
-        const normalizeResponse = (res: any) =>
-          Array.isArray(res)
-            ? res
-            : Array.isArray(res?.data)
-              ? res.data
-              : res?.data?.results ?? [];
-
-        setDepartmentOptions(
-          normalize(normalizeResponse(departments)).map((d: any) => ({
-            value: String(d?.unique_id ?? d?.id ?? ""),
-            label: d.department_code
-              ? `${d.department_name} (${d.department_code})`
-              : d.department_name,
-            name: d.department_name,
-            code: d.department_code,
-          })),
-        );
       } catch (error) {
         console.error("Failed to load location masters", error);
       }
@@ -696,17 +694,74 @@ export default function StaffCreationForm() {
   }, []);
 
   useEffect(() => {
+    if (!companyUniqueId) {
+      setDepartmentOptions([]);
+      return;
+    }
+
+    let active = true;
+
+    departmentApi
+      .readAll({
+        params: {
+          status: "active",
+          company_id: companyUniqueId,
+          ...(hookProjectId ? { project_id: hookProjectId } : {}),
+        },
+      })
+      .then((departments: unknown) => {
+        if (!active) return;
+
+        const options: DepartmentOption[] = normalizeListResponse(departments)
+          .filter((item) => item.is_active !== false && item.is_deleted !== true)
+          .map((d) => ({
+            value: String(d?.unique_id ?? d?.id ?? ""),
+            label: d.department_code
+              ? `${d.department_name} (${d.department_code})`
+              : String(d.department_name ?? ""),
+            name: String(d.department_name ?? ""),
+            code: d.department_code ? String(d.department_code) : undefined,
+          }))
+          .filter((option) => option.value && option.name);
+
+        setDepartmentOptions(options);
+        setFormData((prev) => {
+          if (!prev.department_id || options.some((option) => option.value === prev.department_id)) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            department: "",
+            department_id: "",
+            designation: "",
+            designation_id: "",
+            staff_head: "",
+            staff_head_id: "",
+          };
+        });
+      })
+      .catch((error) => {
+        if (!active) return;
+        console.error("Failed to load departments", error);
+        setDepartmentOptions([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [companyUniqueId, hookProjectId]);
+
+  useEffect(() => {
     if (!formData.department_id) {
       setDesignationOptions([]);
       return;
     }
-    const normalizeResponse = (res: any) =>
-      Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : res?.data?.results ?? [];
 
     designationApi
       .readAll({ params: { status: "active", department_id: formData.department_id } })
       .then((res: any) => {
-        const list = normalizeResponse(res).filter(
+        const list = normalizeListResponse(res).filter(
           (d: any) => d?.is_active !== false && d?.is_deleted !== true,
         );
         setDesignationOptions(
