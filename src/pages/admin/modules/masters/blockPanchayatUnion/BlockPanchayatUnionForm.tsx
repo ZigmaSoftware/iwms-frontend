@@ -15,6 +15,7 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { blockPanchayatUnionApi, stateApi, districtApi } from "@/helpers/admin";
 import type { SelectOption } from "@/types";
+import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
 
 const BLOCK_FIELDS: Record<string, string[]> = {
   state_id: ["state_id", "state"],
@@ -296,7 +297,15 @@ export default function BlockPanchayatUnionForm() {
         {showField("longitude") && (
           <div>
             <Label>Longitude</Label>
-            <Input value={longitude} onChange={(e) => setLongitude(e.target.value)} />
+            <div className="flex items-center gap-2">
+              <Input value={longitude} onChange={(e) => setLongitude(e.target.value)} />
+              <AutoDetectLocationButton
+                onDetected={({ latitude: lat, longitude: lng }) => {
+                  setLatitude(String(lat));
+                  setLongitude(String(lng));
+                }}
+              />
+            </div>
           </div>
         )}
 

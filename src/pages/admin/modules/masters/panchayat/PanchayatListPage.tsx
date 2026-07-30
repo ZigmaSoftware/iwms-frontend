@@ -1,14 +1,11 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import Swal from "@/lib/notify";
 import { PencilIcon } from "@/icons";
@@ -17,6 +14,8 @@ import { panchayatApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { PanchayatListRecord } from "./types";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 
 const PANCHAYAT_COLUMN_FIELDS: Record<string, string[]> = {
   panchayat_name: ["panchayat_name", "name"],
@@ -40,36 +39,18 @@ export default function PanchayatListPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    panchayat_name: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-    state_name: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-    district_name: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-    city_name: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-    agreed_weight_kg: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.CONTAINS,
-    },
-    weight_unit: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-    effective_from: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
+  const {
+    filters, onFilter, globalFilterValue, onGlobalFilterChange,
+    statusValue, onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      state_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      district_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      agreed_weight_kg: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      weight_unit: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      effective_from: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     },
   });
   const location = useLocation();
@@ -137,27 +118,12 @@ export default function PanchayatListPage() {
       : [];
   })();
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as DataTableFilterMeta);
-  };
-
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({
-      ...prev,
-      global: { ...prev.global, value },
-    }));
-    setGlobalFilterValue(value);
-  };
-
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("admin.nav.panchayat"),
-      }),
-    });
+  const exportRows = data.filter((row) => {
+    if (statusValue !== "all" && Boolean(row.is_active) !== (statusValue === "active")) return false;
+    const search = globalFilterValue.trim().toLowerCase();
+    return !search || Object.values(row).some((value) =>
+      String(value ?? "").toLowerCase().includes(search));
+  });
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -229,34 +195,6 @@ export default function PanchayatListPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           <Button
             label={t("common.add_item", { item: t("admin.nav.panchayat") })}
             icon="pi pi-plus"
@@ -267,8 +205,20 @@ export default function PanchayatListPage() {
         </div>
       </div>
 
+      <FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.panchayat") })}
+        statusValue={statusValue} onStatusChange={onStatusFilterChange} className="mb-4">
+        <FilterBarSelect value={companyUniqueId || ""} onChange={onCompanyChange} options={companies}
+          placeholder="All Companies" disabled={!isSuperAdmin || companies.length === 0} />
+        <FilterBarSelect value={projectId || ""} onChange={setProjectId} options={projects}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} />
+      </FilterBar>
+
       <DataTable
         value={data}
+        exportRows={exportRows}
+        exportSheetName="Panchayats"
         dataKey="unique_id"
         paginator
         rows={10}
@@ -276,7 +226,6 @@ export default function PanchayatListPage() {
         loading={isLoading && data.length === 0}
         filters={filters}
         onFilter={onFilter}
-        header={renderHeader()}
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", {

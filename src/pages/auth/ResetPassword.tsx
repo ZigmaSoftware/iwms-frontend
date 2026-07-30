@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, KeyRound } from "lucide-react";
 import ZigmaLogo from "@/images/logo.png";
+import LoginBg from "@/images/bgSignin.png";
 
 type StrengthLevel = "weak" | "fair" | "good" | "strong";
 
@@ -75,35 +76,38 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex items-center justify-center bg-slate-50 p-4">
-      <div className="pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-green-300/55 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-orange-200/55 blur-3xl" />
+    <div
+      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-900 bg-cover bg-center bg-no-repeat px-4 py-10 md:justify-end md:px-16"
+      style={{ backgroundImage: `url(${LoginBg})` }}
+    >
+      {/* readability scrim over the photo */}
+      <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-black/10 via-transparent to-black/30" />
+
+      {/* ── Logo (top-left) ─────────────────────────────────────── */}
+      <img
+        src={ZigmaLogo}
+        alt="Zigma IWMS"
+        className="absolute left-6 top-6 z-10 h-10 w-auto object-contain drop-shadow-md md:left-10 md:top-8 md:h-14"
+      />
 
       <div className="relative z-10 w-full max-w-md">
-        <Card className="border border-white/80 shadow-2xl shadow-slate-300/50 rounded-3xl overflow-hidden">
-          <CardHeader className="bg-white px-8 pt-8 pb-4">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="rounded-full border-2 border-green-200 bg-green-50 p-2">
-                <img src={ZigmaLogo} className="h-8 w-8 object-contain" alt="Zigma" />
-              </div>
-              <p className="text-xs font-black uppercase tracking-widest text-gray-800">ZIGMA IWMS</p>
-            </div>
-
-            <div className="mb-4">
-              <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-green-200 bg-green-50">
-                <KeyRound className="h-5 w-5 text-green-600" />
+        <Card className="overflow-hidden rounded-4xl border border-white/60 bg-white/95 shadow-2xl shadow-slate-900/30 backdrop-blur-sm">
+          <CardHeader className="px-8 pt-8 pb-4">
+            <div className="mb-6 flex justify-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-green-100 bg-green-50">
+                <KeyRound className="h-8 w-8 text-green-600" />
               </div>
             </div>
 
-            <CardTitle className="text-2xl font-bold tracking-tight text-gray-900">
+            <CardTitle className="text-center text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">
               Reset Password
             </CardTitle>
-            <CardDescription className="text-sm text-gray-500 mt-1 leading-relaxed">
+            <CardDescription className="mx-auto mt-2 max-w-xs text-center text-sm leading-relaxed text-slate-500">
               Choose a strong new password for your account.
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="bg-white px-8 pb-8">
+          <CardContent className="px-8 pb-8">
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
                 <Alert variant="destructive" className="rounded-xl">
@@ -113,7 +117,7 @@ export default function ResetPassword() {
 
               {/* New Password */}
               <div className="space-y-1.5">
-                <Label htmlFor="new_password" className="text-[11px] font-bold uppercase tracking-widest text-gray-500">
+                <Label htmlFor="new_password" className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
                   New Password
                 </Label>
                 <div className="relative">
@@ -123,13 +127,13 @@ export default function ResetPassword() {
                     placeholder="Enter new password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="h-12 rounded-xl border-slate-200 bg-slate-50 pr-12 text-gray-900 placeholder:text-gray-400 focus-visible:border-green-400 focus-visible:ring-green-300/50"
+                    className="h-12 rounded-xl border-slate-200 bg-slate-50 pr-12 text-slate-900 placeholder:text-slate-400 focus-visible:border-green-400 focus-visible:ring-green-300/50"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowNew((v) => !v)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   >
                     {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -155,7 +159,7 @@ export default function ResetPassword() {
 
               {/* Confirm Password */}
               <div className="space-y-1.5">
-                <Label htmlFor="confirm_password" className="text-[11px] font-bold uppercase tracking-widest text-gray-500">
+                <Label htmlFor="confirm_password" className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
                   Confirm Password
                 </Label>
                 <div className="relative">
@@ -165,7 +169,7 @@ export default function ResetPassword() {
                     placeholder="Re-enter new password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className={`h-12 rounded-xl border-slate-200 bg-slate-50 pr-12 text-gray-900 placeholder:text-gray-400 focus-visible:ring-green-300/50 transition-all ${
+                    className={`h-12 rounded-xl border-slate-200 bg-slate-50 pr-12 text-slate-900 placeholder:text-slate-400 focus-visible:ring-green-300/50 transition-all ${
                       confirmPassword
                         ? passwordsMatch
                           ? "border-green-400 focus-visible:border-green-400"
@@ -177,7 +181,7 @@ export default function ResetPassword() {
                   <button
                     type="button"
                     onClick={() => setShowConfirm((v) => !v)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   >
                     {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -193,11 +197,11 @@ export default function ResetPassword() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 rounded-xl bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 text-white font-semibold shadow-lg shadow-orange-200/70 mt-2"
+                className="mt-2 h-12 w-full rounded-xl bg-linear-to-r from-orange-400 to-orange-500 font-semibold text-white shadow-lg shadow-orange-200/70 hover:from-orange-500 hover:to-orange-600"
               >
                 {loading ? (
                   <>
-                    <svg className="animate-spin mr-2 h-4 w-4" viewBox="0 0 24 24" fill="none">
+                    <svg className="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
                     </svg>
@@ -208,6 +212,12 @@ export default function ResetPassword() {
                 )}
               </Button>
             </form>
+
+            {/* card footer */}
+            <p className="mt-6 text-center text-[11px] text-slate-400">
+              Secure login ·{" "}
+              <span className="font-semibold text-slate-500">Zigma IWMS</span>
+            </p>
           </CardContent>
         </Card>
       </div>

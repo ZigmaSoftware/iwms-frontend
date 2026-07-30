@@ -1,13 +1,11 @@
-import type { MainCategoryRecord, TableFilters } from "./types";
+import type { MainCategoryRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
@@ -17,10 +15,19 @@ import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { mainCategoryApi } from "@/helpers/admin";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { applyTableFilters } from "@/utils/tableFilterMatch";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
+
+const GLOBAL_FIELDS = ["main_categoryName"];
 
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
@@ -51,7 +58,6 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 
 export default function MainComplaintCategoryList() {
   const { t } = useTranslation();
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [records, setRecords] = useState<MainCategoryRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -66,9 +72,13 @@ export default function MainComplaintCategoryList() {
     encMainComplaintCategory,
   );
 
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    main_categoryName: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  const {
+    filters, onFilter, globalFilterValue, onGlobalFilterChange,
+    statusValue, onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      main_categoryName: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    },
   });
 
   useEffect(() => {
@@ -163,23 +173,38 @@ export default function MainComplaintCategoryList() {
   const indexTemplate = (_row: MainCategoryRecord, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as TableFilters);
+  const filteredForExport = useMemo(
+    () => applyTableFilters(records, filters, GLOBAL_FIELDS),
+    [records, filters],
+  );
+
+  const handleExport = () => {
+    exportRecordsToExcel(
+      filteredForExport,
+      getAdminScreenExcelFilename("all"),
+      "Main Category",
+    );
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const updated = { ...filters };
-    updated.global.value = value;
-    setFilters(updated);
-    setGlobalFilterValue(value);
-  };
-
-  const header = renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("admin.citizen_grievance.main_category.search_placeholder"),
-    });
+  const header = (
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={onGlobalFilterChange}
+      searchPlaceholder={t("admin.citizen_grievance.main_category.search_placeholder")}
+      statusValue={statusValue}
+      onStatusChange={onStatusFilterChange}
+      trailing={
+        <button
+          type="button"
+          onClick={handleExport}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+        >
+          <i className="pi pi-file-excel mr-1.5 text-green-600" />
+          {t("common.export_excel", "Export to Excel")}
+        </button>
+      }
+    />
+  );
 
   return (
     <div className="p-6">

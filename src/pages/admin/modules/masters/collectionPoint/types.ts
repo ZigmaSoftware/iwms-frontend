@@ -33,5 +33,6 @@ export type TableFilters = {
 export type CollectionPointRecord = {
   unique_id: string | number;
   is_active: boolean;
+  collection_type?: string;
   [key: string]: unknown;
 };

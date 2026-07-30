@@ -9,13 +9,18 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 const ALTERNATIVE_STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "display_code"],
@@ -60,14 +65,22 @@ export default function AlternativeStaffTemplateList() {
 
   const [records, setRecords] = useState<AlternativeStaffTemplate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [datatableFilters, setDatatableFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    effective_date: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    driver_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    operator_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    change_reason: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    approval_status: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+  const {
+    filters: datatableFilters,
+    setFilters: setDatatableFilters,
+    globalFilterValue,
+    onGlobalFilterChange,
+  } = useFilterBarFilters({
+    withStatusFilter: false,
+    initialFilters: {
+      effective_date: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      driver_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      operator_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      change_reason: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      approval_status: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    } as TableFilters,
   });
 
   const { encScheduleMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
@@ -150,13 +163,35 @@ export default function AlternativeStaffTemplateList() {
     setDatatableFilters(e.filters as TableFilters);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setDatatableFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
+  const filteredExportRows = (): AlternativeStaffTemplate[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    if (!search) return records;
+    return records.filter((record) =>
+      [
+        record.display_code ?? record.unique_id,
+        record.staff_template_display_code ?? record.staff_template,
+        record.driver_name ?? record.driver,
+        record.operator_name ?? record.operator,
+        record.change_reason,
+        record.approval_status,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search))
+    );
+  };
+
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = filteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "AlternativeStaffTemplate");
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
 
   const header = (
@@ -201,6 +236,14 @@ export default function AlternativeStaffTemplateList() {
           </select>
 
           <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+
+          <Button
             label={t("admin.alternative_staff_template.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
@@ -212,15 +255,11 @@ export default function AlternativeStaffTemplateList() {
       </div>
 
       <div className="flex justify-end">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.alternative_staff_template.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={onGlobalFilterChange}
+          searchPlaceholder={t("admin.alternative_staff_template.search_placeholder")}
+        />
       </div>
     </div>
   );

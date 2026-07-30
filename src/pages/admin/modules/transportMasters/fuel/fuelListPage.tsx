@@ -1,6 +1,5 @@
 import type { Fuel } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -22,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { fuelApi } from "@/helpers/admin";
+import { FilterBar, FilterBarSelect, type StatusFilterValue } from "@/components/common/FilterBar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,14 +48,17 @@ export default function FuelList() {
   );
 
   const [allFuels, setAllFuels] = useState<Fuel[]>([]);
+  const [filteredRows, setFilteredRows] = useState<Fuel[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [statusValue, setStatusValue] = useState<StatusFilterValue>("all");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     fuel_type: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    is_active: { value: null as boolean | null, matchMode: FilterMatchMode.EQUALS },
   });
 
   // ── Company / project selection ───────────────────────────────────────────
@@ -118,6 +121,13 @@ export default function FuelList() {
       ? []
       : allFuels;
 
+  // Keeps exported Excel rows in sync with the currently displayed
+  // (filtered/searched) rows rather than the full unfiltered set.
+  useEffect(() => {
+    setFilteredRows(rows);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allFuels, companyUniqueId, isSuperAdmin, companies.length]);
+
   // ── Filter handlers ───────────────────────────────────────────────────────
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters);
 
@@ -127,6 +137,17 @@ export default function FuelList() {
     setFilters((prev) => ({
       ...prev,
       global: { value, matchMode: FilterMatchMode.CONTAINS },
+    }));
+  };
+
+  const onStatusFilterChange = (value: StatusFilterValue) => {
+    setStatusValue(value);
+    setFilters((prev) => ({
+      ...prev,
+      is_active: {
+        value: value === "all" ? null : value === "active",
+        matchMode: FilterMatchMode.EQUALS,
+      },
     }));
   };
 
@@ -183,11 +204,32 @@ export default function FuelList() {
     rowIndex + 1;
 
   // ── Table header ──────────────────────────────────────────────────────────
-  const header = renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("admin.fuel.search_placeholder"),
-    });
+  const header = (
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={(value) =>
+        onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+      }
+      searchPlaceholder={t("admin.fuel.search_placeholder")}
+      statusValue={statusValue}
+      onStatusChange={onStatusFilterChange}
+    >
+      <FilterBarSelect
+        value={companyUniqueId || ""}
+        onChange={onCompanyChange}
+        placeholder="All Companies"
+        options={companies}
+        disabled={!isSuperAdmin || companies.length === 0}
+      />
+      <FilterBarSelect
+        value={projectId || ""}
+        onChange={setProjectId}
+        placeholder={showAllProjectsOption ? "All Projects" : undefined}
+        options={projects}
+        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+      />
+    </FilterBar>
+  );
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -201,36 +243,6 @@ export default function FuelList() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Company filter */}
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Project filter */}
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           {/* Add button */}
           <Button
             label={t("admin.fuel.add")}
@@ -244,6 +256,8 @@ export default function FuelList() {
 
       <DataTable
         value={rows}
+        exportRows={filteredRows}
+        onValueChange={(value) => setFilteredRows(value as Fuel[])}
         dataKey="unique_id"
         paginator
         rows={10}

@@ -8,7 +8,6 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -18,12 +17,13 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import QrPreviewDialog from "@/components/common/QrPreviewDialog";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { customerCreationApi } from "@/helpers/admin";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
+import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar";
 import {
   excelFileToCsvFile,
   exportRecordsToExcel,
@@ -100,6 +100,7 @@ export default function CustomerCreationListPage() {
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [statusFilterValue, setStatusFilterValue] = useState<StatusFilterValue>("all");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -187,6 +188,20 @@ export default function CustomerCreationListPage() {
     setGlobalFilterValue(value);
   };
 
+  const onSearchValueChange = (value: string) =>
+    onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>);
+
+  const onStatusFilterChange = (value: StatusFilterValue) => {
+    setStatusFilterValue(value);
+    setFilters((prev) => ({
+      ...prev,
+      is_active: {
+        value: value === "all" ? null : value === "active",
+        matchMode: FilterMatchMode.EQUALS,
+      },
+    } as TableFilters));
+  };
+
   // ── Download template ─────────────────────────────────────────────────────
   const downloadTemplate = () => {
     exportTemplateToExcel(
@@ -247,8 +262,14 @@ export default function CustomerCreationListPage() {
 
   const filteredExportRows = (): Customer[] => {
     const search = globalFilterValue.trim().toLowerCase();
-    if (!search) return customers;
-    return customers.filter((customer) =>
+    const statusFiltered =
+      statusFilterValue === "all"
+        ? customers
+        : customers.filter((customer) =>
+            statusFilterValue === "active" ? customer.is_active : !customer.is_active
+          );
+    if (!search) return statusFiltered;
+    return statusFiltered.filter((customer) =>
       [
         customer.customer_name,
         customer.contact_no,
@@ -339,22 +360,20 @@ export default function CustomerCreationListPage() {
         />
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.customer_creation.search_placeholder")}
-            className="p-inputtext-sm !border-0 !shadow-none"
-          />
-          <input
-            id="excelUpload"
-            type="file"
-            accept=".xlsx,.xls"
-            hidden
-            onChange={handleFileUpload}
-          />
-        </div>
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={onSearchValueChange}
+          searchPlaceholder={t("admin.customer_creation.search_placeholder")}
+          statusValue={showCol("is_active") ? statusFilterValue : undefined}
+          onStatusChange={showCol("is_active") ? onStatusFilterChange : undefined}
+        />
+        <input
+          id="excelUpload"
+          type="file"
+          accept=".xlsx,.xls"
+          hidden
+          onChange={handleFileUpload}
+        />
       </div>
     </div>
   );
@@ -365,6 +384,7 @@ export default function CustomerCreationListPage() {
     }
     return (
       <button
+        type="button"
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
         onClick={() => setSelectedQrCustomer(customer)}
       >
@@ -607,45 +627,41 @@ export default function CustomerCreationListPage() {
         <Column header={t("common.actions")} body={actionTemplate} style={{ textAlign: "center" }} />
       </DataTable>
     </div>
-    <Dialog
+    <QrPreviewDialog
       open={Boolean(selectedQrCustomer)}
       onOpenChange={(open) => !open && setSelectedQrCustomer(null)}
-    >
-      <DialogContent className="w-auto max-w-[90vw] p-4">
-        <DialogTitle className="sr-only">{t("admin.customer_creation.qr_title")}</DialogTitle>
-        {selectedQrCustomer?.qr_code && (
-          <div className="flex flex-col items-center gap-4">
-            <img
-              src={selectedQrCustomer.qr_code}
-              alt={t("admin.customer_creation.qr_title")}
-              className="h-auto w-[min(75vw,320px)] object-contain"
-            />
-            <div className="text-center">
-              <p className="font-semibold text-gray-800">{selectedQrCustomer.customer_name}</p>
-              <p className="text-sm text-gray-500">{selectedQrCustomer.unique_id}</p>
-            </div>
-            <div className="flex w-full gap-2">
-              <Button
-                label={isPreviewingQr ? "Preparing..." : "Preview"}
-                icon="pi pi-eye"
-                loading={isPreviewingQr}
-                disabled={isPreviewingQr || isPrintingQr}
-                onClick={handlePreviewQr}
-                className="flex-1 p-button-outlined"
-              />
-              <Button
-                label={isPrintingQr ? "Preparing..." : "Print"}
-                icon="pi pi-print"
-                loading={isPrintingQr}
-                disabled={isPrintingQr || isPreviewingQr}
-                onClick={handlePrintQr}
-                className="flex-1"
-              />
-            </div>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+      title={t("admin.customer_creation.qr_title")}
+      qrImageUrl={selectedQrCustomer?.qr_code}
+      fileName={`${selectedQrCustomer?.unique_id || selectedQrCustomer?.customer_name || "customer"}_qr`}
+      description={
+        selectedQrCustomer && (
+          <>
+            <p className="font-semibold text-gray-800">{selectedQrCustomer.customer_name}</p>
+            <p className="text-sm text-gray-500">{selectedQrCustomer.unique_id}</p>
+          </>
+        )
+      }
+      extraActions={
+        <>
+          <Button
+            label={isPreviewingQr ? "Preparing..." : "Preview"}
+            icon="pi pi-eye"
+            loading={isPreviewingQr}
+            disabled={isPreviewingQr || isPrintingQr}
+            onClick={handlePreviewQr}
+            className="flex-1 p-button-outlined"
+          />
+          <Button
+            label={isPrintingQr ? "Preparing..." : "Print"}
+            icon="pi pi-print"
+            loading={isPrintingQr}
+            disabled={isPrintingQr || isPreviewingQr}
+            onClick={handlePrintQr}
+            className="flex-1"
+          />
+        </>
+      }
+    />
     </>
   );
 }

@@ -16,6 +16,11 @@ import { PencilIcon } from "@/icons";
 import { binCollectionEventApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { FilterBar } from "@/components/common/FilterBar";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 
 const extractError = (error: unknown): string | null => {
@@ -171,6 +176,25 @@ export default function BinCollectionEventList() {
     });
   }, [rows, filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleExport = () => {
+    exportRecordsToExcel(
+      filteredRows.map((r) => ({
+        "Trip Plan": r._trip_plan,
+        "Collection Point": r._collection_point,
+        PLB: r._panchayat,
+        Ward: r._ward,
+        Zone: r._zone,
+        Bin: r._bin,
+        "Waste Type": r._waste_type,
+        Vehicle: r._vehicle,
+        "Weight (kg)": r.collected_weight_kg ?? "-",
+        "Collection Date": r.collection_date,
+      })),
+      getAdminScreenExcelFilename("all"),
+      "Bin Collection Events",
+    );
+  };
+
   /* ── summary stats — computed from filtered rows only ── */
   const { dailyWeight, overallWeight, totalRecords } = useMemo(() => {
     let daily = 0;
@@ -230,31 +254,36 @@ export default function BinCollectionEventList() {
         <span className="bg-slate-100 px-4 py-2 rounded-full">Records: {totalRecords}</span>
       </div>
 
-      <div className="flex justify-end">
-        <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1">
-          <InputText
-            type="date"
-            value={filters.collection_date.value ?? ""}
-            onChange={(e) =>
-              setFilters((f) => ({
-                ...f,
-                collection_date: { value: e.target.value, matchMode: FilterMatchMode.CONTAINS },
-              }))
-            }
-            className="p-inputtext-sm border-none text-sm"
-          />
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={(e) => {
-              setGlobalFilterValue(e.target.value);
-              setFilters((f) => ({ ...f, global: { value: e.target.value, matchMode: FilterMatchMode.CONTAINS } }));
-            }}
-            placeholder={t("common.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
-      </div>
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={(value) => {
+          setGlobalFilterValue(value);
+          setFilters((f) => ({ ...f, global: { value, matchMode: FilterMatchMode.CONTAINS } }));
+        }}
+        searchPlaceholder={t("common.search_placeholder")}
+        trailing={
+          <button
+            type="button"
+            onClick={handleExport}
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          >
+            <i className="pi pi-file-excel mr-1.5 text-green-600" />
+            {t("common.export_excel", "Export to Excel")}
+          </button>
+        }
+      >
+        <InputText
+          type="date"
+          value={filters.collection_date.value ?? ""}
+          onChange={(e) =>
+            setFilters((f) => ({
+              ...f,
+              collection_date: { value: e.target.value, matchMode: FilterMatchMode.CONTAINS },
+            }))
+          }
+          className="p-inputtext-sm rounded border px-3 py-2 text-sm"
+        />
+      </FilterBar>
     </div>
   );
 

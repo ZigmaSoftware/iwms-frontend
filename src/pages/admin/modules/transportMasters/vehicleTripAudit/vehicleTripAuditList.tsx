@@ -10,7 +10,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
@@ -18,6 +17,7 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 
 const normalizeId = (value: unknown): string =>
@@ -115,6 +115,7 @@ export default function VehicleTripAuditList() {
   const [dailyTripAssignments, setDailyTripAssignments] = useState<DailyTripAssignmentRecord[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [filteredRows, setFilteredRows] = useState<VehicleTripAuditRecord[]>([]);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
@@ -169,6 +170,12 @@ export default function VehicleTripAuditList() {
   // no client-side narrowing needed for the main list.
   const records = audits;
 
+  // Keeps exported Excel rows in sync with the currently displayed
+  // (filtered/searched) rows rather than the full unfiltered set.
+  useEffect(() => {
+    setFilteredRows(records);
+  }, [records]);
+
   const tripLookup = useMemo(
     () =>
       buildLookup(
@@ -220,55 +227,38 @@ export default function VehicleTripAuditList() {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           <Button
             label={t("admin.vehicle_trip_audit.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-           
+
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
       </div>
 
-      <div className="flex justify-end">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.vehicle_trip_audit.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
-      </div>
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={(value) =>
+          onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+        }
+        searchPlaceholder={t("admin.vehicle_trip_audit.search_placeholder")}
+      >
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={onCompanyChange}
+          placeholder="All Companies"
+          options={companies}
+          disabled={!isSuperAdmin || companies.length === 0}
+        />
+        <FilterBarSelect
+          value={projectId || ""}
+          onChange={setProjectId}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          options={projects}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+        />
+      </FilterBar>
     </div>
   );
 
@@ -290,6 +280,8 @@ export default function VehicleTripAuditList() {
     <div className="p-3">
       <DataTable
         value={records}
+        exportRows={filteredRows}
+        onValueChange={(value) => setFilteredRows(value as VehicleTripAuditRecord[])}
         dataKey="id"
         paginator
         rows={10}

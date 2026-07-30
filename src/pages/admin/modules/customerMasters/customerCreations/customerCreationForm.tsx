@@ -34,6 +34,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
+import type { DetectedCoordinates } from "@/utils/geolocation";
 
 /* ===============================
    TYPES
@@ -609,6 +611,14 @@ export default function CustomerCreationForm() {
 
   const update = (key: keyof FormDataType, value: any) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleLocationDetected = ({ latitude, longitude }: DetectedCoordinates) => {
+    setFormData((prev) => ({
+      ...prev,
+      latitude: String(latitude),
+      longitude: String(longitude),
+    }));
   };
 
   const clearScopedCustomerFields = () => {
@@ -1499,6 +1509,14 @@ export default function CustomerCreationForm() {
               type="number"
               step="0.0001"
             />
+          )}
+          {(showField("latitude") || showField("longitude")) && (
+            <div className="flex items-end">
+              <AutoDetectLocationButton
+                onDetected={handleLocationDetected}
+                label={t("common.detect_current_location") || "Detect current location"}
+              />
+            </div>
           )}
           {showField("country_id") && (
             <ShadcnSelect

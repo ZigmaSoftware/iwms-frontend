@@ -8,12 +8,18 @@ import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
+import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 
 import { staffTemplateAuditLogApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 
 export default function StaffTemplateAuditList() {
@@ -22,19 +28,22 @@ export default function StaffTemplateAuditList() {
 
   const [records, setRecords] = useState<StaffTemplateAuditRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  // const [filters, setFilters] = useState<any>({
-  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  // });
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    entity_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    entity_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    action: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    performed_by: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    performed_role: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    change_remarks: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  const {
+    filters,
+    globalFilterValue,
+    onGlobalFilterChange,
+  } = useFilterBarFilters({
+    withStatusFilter: false,
+    initialFilters: {
+      entity_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      entity_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      action: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      performed_by: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      performed_role: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      change_remarks: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    } as TableFilters,
   });
 
 
@@ -57,10 +66,36 @@ export default function StaffTemplateAuditList() {
     fetchRecords();
   }, []);
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
+  const filteredExportRows = (): StaffTemplateAuditRecord[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    if (!search) return records;
+    return records.filter((record) =>
+      [
+        record.entity_type,
+        record.entity_id,
+        record.action,
+        record.performed_by,
+        record.performed_by_name,
+        record.performed_role,
+        record.change_remarks,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search))
+    );
+  };
+
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = filteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "StaffTemplateAudit");
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
 
   const actionTemplate = (row: StaffTemplateAuditRecord) => (
@@ -86,18 +121,21 @@ export default function StaffTemplateAuditList() {
             {t("admin.staff_template_audit.list_subtitle")}
           </p>
         </div>
+        <Button
+          label={isExportingExcel ? "Downloading..." : "Download Excel"}
+          icon="pi pi-file-excel"
+          className="p-button-outlined"
+          disabled={isExportingExcel}
+          onClick={handleDownloadExcel}
+        />
       </div>
 
       <div className="flex justify-end mb-4">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("common.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={onGlobalFilterChange}
+          searchPlaceholder={t("common.search_placeholder")}
+        />
       </div>
 
       <DataTable

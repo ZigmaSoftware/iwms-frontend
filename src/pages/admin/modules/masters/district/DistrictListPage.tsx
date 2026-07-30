@@ -1,6 +1,5 @@
 import type { DistrictApiRow } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -9,7 +8,6 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -17,6 +15,9 @@ import { Switch } from "@/components/ui/switch";
 import { districtApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import type { DistrictListRecord } from "./types";
 
 /**
@@ -45,14 +46,21 @@ export default function DistrictListPage() {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global:      { value: null, matchMode: FilterMatchMode.CONTAINS },
-    countryName: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    stateName:   { value: null, matchMode: FilterMatchMode.CONTAINS },
-    name:        { value: null, matchMode: FilterMatchMode.CONTAINS },
-    is_active:   { value: null, matchMode: FilterMatchMode.EQUALS },
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      countryName: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      stateName:   { value: null, matchMode: FilterMatchMode.CONTAINS },
+      name:        { value: null, matchMode: FilterMatchMode.CONTAINS },
+    },
   });
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
@@ -147,21 +155,33 @@ export default function DistrictListPage() {
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
-    setGlobalFilterValue(value);
+  const getFilteredExportRows = (): DistrictListRecord[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    return districts.filter((row) => {
+      if (statusValue !== "all") {
+        const wantActive = statusValue === "active";
+        if (Boolean(row.is_active) !== wantActive) return false;
+      }
+      if (!search) return true;
+      return [row.name, row.countryName, row.stateName]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search));
+    });
   };
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", { item: t("admin.nav.district") }),
-    });
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = getFilteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No districts to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Districts");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   type TextFilterOptions = {
     value?: string | null;
@@ -237,39 +257,11 @@ export default function DistrictListPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           <Button
             label={t("common.add_item", { item: t("admin.nav.district") })}
             icon="pi pi-plus"
             className="p-button-success"
-           
+
             onClick={() =>
               navigate(ENC_NEW_PATH, {
                 state: {
@@ -282,6 +274,39 @@ export default function DistrictListPage() {
         </div>
       </div>
 
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.district") })}
+        statusValue={statusValue}
+        onStatusChange={onStatusFilterChange}
+        className="mb-4"
+        trailing={
+          <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+        }
+      >
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={onCompanyChange}
+          options={companies}
+          placeholder="All Companies"
+          disabled={!isSuperAdmin || companies.length === 0}
+        />
+        <FilterBarSelect
+          value={projectId || ""}
+          onChange={setProjectId}
+          options={projects}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+        />
+      </FilterBar>
+
       <DataTable
         value={districts}
         dataKey="unique_id"
@@ -290,9 +315,8 @@ export default function DistrictListPage() {
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
         filters={filters}
-        onFilter={(e) => setFilters(e.filters)}
+        onFilter={onFilter}
         filterDisplay="menu"
-        header={renderHeader()}
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.district") })}

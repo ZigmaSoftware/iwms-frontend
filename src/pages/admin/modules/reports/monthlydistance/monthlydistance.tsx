@@ -1,10 +1,6 @@
 import type { HistoryRow, RawVehicle, VehicleDistanceRow, VehicleOption } from "./types";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
-import { recordExcelAudit } from "@/helpers/admin/commonAudit";
-import { getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import { applyTableFilters } from "@/utils/tableFilterMatch";
 
 import "./monthlydistance.css";
 
@@ -15,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { Truck } from "lucide-react";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
+import { FilterBar } from "@/components/common/FilterBar";
 import { buildTripSummaryUrl, buildVehicleTrackingUrl } from "@/config/gpsApiConfig";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -293,18 +290,15 @@ export default function MonthlyDistance() {
 
   /* ================= SEARCH ================= */
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const onGlobalFilterChange = (value: string) => {
     setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
     setGlobalFilterValue(value);
   };
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("admin.reports.monthly_distance.search_placeholder"),
-    });
+  const filteredRows = useMemo(
+    () => applyTableFilters(fleetRows, filters, ["vehicleId"]),
+    [fleetRows, filters],
+  );
 
   /* ================= EXPORT ================= */
   const exportLabels = useMemo(
@@ -318,8 +312,8 @@ export default function MonthlyDistance() {
     [i18n.language, t],
   );
 
-  const handleExport = () => {
-    const data = fleetRows.map((r, i) => {
+  const exportRows = useMemo(
+    () => filteredRows.map((r, i) => {
       const rec: Record<string, string> = {
         [exportLabels.index]: String(i + 1),
         [exportLabels.vehicle]: r.vehicleId,
@@ -329,22 +323,9 @@ export default function MonthlyDistance() {
       });
       rec[exportLabels.total] = formatCellValue(r.total);
       return rec;
-    });
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, exportLabels.sheetName);
-    const filename = getAdminScreenExcelFilename("all");
-    recordExcelAudit("download_all_excel", {
-      file_name: filename,
-      row_count: data.length,
-    });
-
-    saveAs(
-      new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })]),
-      filename
-    );
-  };
+    }),
+    [exportLabels, filteredRows, monthDays],
+  );
 
   /* ================= UI ================= */
 
@@ -384,12 +365,6 @@ export default function MonthlyDistance() {
             >
               {t("common.go")}
             </button>
-            <button
-              onClick={handleExport}
-              className="bg-green-600 text-white px-4 py-2 rounded"
-            >
-              {t("common.download")}
-            </button>
           </div>
         </div>
 
@@ -418,12 +393,20 @@ export default function MonthlyDistance() {
           ) : null}
           <DataTable
             value={fleetRows}
+            exportRows={exportRows}
+            exportSheetName={exportLabels.sheetName}
             loading={false}
             paginator
             rows={10}
             rowsPerPageOptions={[5, 10, 25, 50]}
             filters={filters}
-            header={renderHeader()}
+            header={
+              <FilterBar
+                searchValue={globalFilterValue}
+                onSearchChange={onGlobalFilterChange}
+                searchPlaceholder={t("admin.reports.monthly_distance.search_placeholder")}
+              />
+            }
             stripedRows
             showGridlines
             responsiveLayout="scroll"

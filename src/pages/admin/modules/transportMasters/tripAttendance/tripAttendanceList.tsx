@@ -8,7 +8,6 @@ import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
@@ -18,6 +17,7 @@ import { api } from "@/api";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 const TRIP_ATTENDANCE_COLUMN_FIELDS: Record<string, string[]> = {
   daily_trip_assignment_id: ["daily_trip_assignment_id", "daily_trip_assignment"],
@@ -86,6 +86,7 @@ export default function TripAttendanceList() {
   const vehicleApi = adminApi.vehicleCreations;
 
   const [records, setRecords] = useState<TripAttendanceRecord[]>([]);
+  const [filteredRows, setFilteredRows] = useState<TripAttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [tripLookup, setTripLookup] = useState<Record<string, string>>({});
@@ -202,6 +203,12 @@ export default function TripAttendanceList() {
     fetchRecords();
   }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
+  // Keeps exported Excel rows in sync with the currently displayed
+  // (filtered/searched) rows rather than the full unfiltered set.
+  useEffect(() => {
+    setFilteredRows(records);
+  }, [records]);
+
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setGlobalFilterValue(value);
@@ -237,55 +244,38 @@ export default function TripAttendanceList() {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           <Button
             label={t("admin.trip_attendance.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-           
+
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
       </div>
 
-      <div className="flex justify-end">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.trip_attendance.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
-      </div>
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={(value) =>
+          onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+        }
+        searchPlaceholder={t("admin.trip_attendance.search_placeholder")}
+      >
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={onCompanyChange}
+          placeholder="All Companies"
+          options={companies}
+          disabled={!isSuperAdmin || companies.length === 0}
+        />
+        <FilterBarSelect
+          value={projectId || ""}
+          onChange={setProjectId}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          options={projects}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+        />
+      </FilterBar>
     </div>
   );
 
@@ -305,6 +295,8 @@ export default function TripAttendanceList() {
     <div className="p-3">
       <DataTable
         value={records}
+        exportRows={filteredRows}
+        onValueChange={(value) => setFilteredRows(value as TripAttendanceRecord[])}
         dataKey="id"
         paginator
         rows={10}

@@ -1,11 +1,9 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
@@ -22,6 +20,8 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import type { PropertyRecord } from "./types";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -52,14 +52,16 @@ const PROPERTY_COLUMN_FIELDS: Record<string, string[]> = {
 
 export default function PropertyList() {
   const { t } = useTranslation();
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [properties, setProperties] = useState<PropertyRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [filters, setFilters] = useState<any>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    property_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  const {
+    filters, onFilter, globalFilterValue, onGlobalFilterChange,
+    statusValue, onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      property_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    },
   });
 
   const navigate = useNavigate();
@@ -129,26 +131,12 @@ export default function PropertyList() {
       ? []
       : properties;
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters);
-  };
-
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const _filters = { ...filters };
-    _filters.global.value = value;
-    setFilters(_filters);
-    setGlobalFilterValue(value);
-  };
-
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("admin.nav.property"),
-      }),
-    });
+  const exportRows = filteredProperties.filter((row) => {
+    if (statusValue !== "all" && row.is_active !== (statusValue === "active")) return false;
+    const search = globalFilterValue.trim().toLowerCase();
+    return !search || [row.property_name, row.company_name, row.project_name]
+      .some((value) => String(value ?? "").toLowerCase().includes(search));
+  });
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -223,34 +211,6 @@ export default function PropertyList() {
           </div>
 
           <div className="flex items-center gap-3">
-            <select
-              value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
-              disabled={!isSuperAdmin || companies.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Companies</option>
-              {companies.map((company) => (
-                <option key={company.value} value={company.value}>
-                  {company.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={projectId || ""}
-              onChange={(e) => setProjectId(e.target.value)}
-              disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              {showAllProjectsOption && <option value="">All Projects</option>}
-              {projects.map((project) => (
-                <option key={project.value} value={project.value}>
-                  {project.label}
-                </option>
-              ))}
-            </select>
-
             <Button
               label={t("common.add_item", { item: t("admin.nav.property") })}
               icon="pi pi-plus"
@@ -261,8 +221,20 @@ export default function PropertyList() {
           </div>
         </div>
 
+        <FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
+          searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.property") })}
+          statusValue={statusValue} onStatusChange={onStatusFilterChange} className="mb-4">
+          <FilterBarSelect value={companyUniqueId || ""} onChange={onCompanyChange} options={companies}
+            placeholder="All Companies" disabled={!isSuperAdmin || companies.length === 0} />
+          <FilterBarSelect value={projectId || ""} onChange={setProjectId} options={projects}
+            placeholder={showAllProjectsOption ? "All Projects" : undefined}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} />
+        </FilterBar>
+
         <DataTable
           value={filteredProperties}
+          exportRows={exportRows}
+          exportSheetName="Properties"
           dataKey="unique_id"
           paginator
           rows={10}
@@ -270,7 +242,6 @@ export default function PropertyList() {
           loading={isLoading}
           filters={filters}
           onFilter={onFilter}
-          header={renderHeader()}
           stripedRows
           showGridlines
           emptyMessage={t("common.no_items_found", {

@@ -7,11 +7,20 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Column } from "primereact/column";
 import { Dropdown } from "primereact/dropdown";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { commonAuditApi } from "@/helpers/admin";
 import { normalizeList } from "@/utils/forms";
+import { filterRowsForExport } from "@/utils/adminListExport";
+import { FilterBar } from "@/components/common/FilterBar";
+
+const COMMON_AUDIT_SEARCH_FIELDS = [
+  "module_name",
+  "endpoint_name",
+  "method",
+  "object_id",
+  "createdBy",
+];
 
 
 const ALL_MODULES = "__all__";
@@ -211,6 +220,11 @@ export default function CommonAuditList() {
 
   const loading = isLoading && records.length === 0;
 
+  const exportRows = useMemo(
+    () => filterRowsForExport(filteredRecords, COMMON_AUDIT_SEARCH_FIELDS, globalFilterValue),
+    [filteredRecords, globalFilterValue],
+  );
+
   const onGlobalFilterChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setGlobalFilterValue(value);
@@ -282,8 +296,12 @@ export default function CommonAuditList() {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-col justify-end gap-3 sm:flex-row sm:items-center">
-        <div className="w-full sm:w-64">
+      <div className="mb-4">
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={(value) => onGlobalFilterChange({ target: { value } } as ChangeEvent<HTMLInputElement>)}
+          searchPlaceholder={t("admin.common_audit.search_placeholder")}
+        >
           <Dropdown
             value={moduleFilter}
             onChange={(e) => setModuleFilter(e.value)}
@@ -291,23 +309,14 @@ export default function CommonAuditList() {
             optionLabel="label"
             optionValue="value"
             placeholder={t("admin.common_audit.module_filter")}
-            className="w-full text-sm"
+            className="w-full text-sm sm:w-64"
           />
-        </div>
-
-        <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-1">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.common_audit.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
+        </FilterBar>
       </div>
 
       <DataTable
         value={filteredRecords}
+        exportRows={exportRows}
         dataKey="uuid"
         paginator
         rows={10}

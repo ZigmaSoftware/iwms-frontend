@@ -1,7 +1,6 @@
 import type { DailyTripAssignmentRecord } from "./types";
 import type { CollectionTypeKey } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -21,6 +20,7 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { dailyTripAssignmentApi } from "@/helpers/admin";
 import { api } from "@/api";
 import { adminEndpoints } from "@/helpers/admin/endpoints";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -187,6 +187,7 @@ export default function DailyTripAssignmentList() {
   });
 
   const [allAssignments, setAllAssignments] = useState<DailyTripAssignmentRecord[]>([]);
+  const [filteredRows, setFilteredRows] = useState<DailyTripAssignmentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
   const [isSchedulerRunning, setIsSchedulerRunning] = useState(false);
@@ -318,6 +319,15 @@ export default function DailyTripAssignmentList() {
       }));
   })();
 
+  // Keeps the exported Excel rows in sync with whatever the table is
+  // currently displaying (global search + column filters), not the full
+  // unfiltered `rows` array — SafeDataTable's own export otherwise exports
+  // the raw `value` prop as-is.
+  useEffect(() => {
+    setFilteredRows(rows);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allAssignments, companyUniqueId, isSuperAdmin, schedulerDate, collectionTypeFilter]);
+
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -354,12 +364,40 @@ export default function DailyTripAssignmentList() {
     );
   };
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: "Search assignments...",
-    });
+  const renderHeader = () => (
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={(value) =>
+        onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+      }
+      searchPlaceholder="Search assignments..."
+    >
+      <FilterBarSelect
+        value={companyUniqueId || ""}
+        onChange={onCompanyChange}
+        placeholder="All Companies"
+        options={companies}
+        disabled={!isSuperAdmin || companies.length === 0}
+      />
+      <FilterBarSelect
+        value={projectId || ""}
+        onChange={setProjectId}
+        placeholder={showAllProjectsOption ? "All Projects" : undefined}
+        options={projects}
+        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+      />
+      <FilterBarSelect
+        value={collectionTypeFilter}
+        onChange={(value) => setCollectionTypeFilter(value as "all" | CollectionTypeKey)}
+        options={[
+          { value: "all", label: "All Types" },
+          { value: "bin", label: "Bin Collection" },
+          { value: "household", label: "Household" },
+          { value: "both", label: "Bin + Household" },
+        ]}
+      />
+    </FilterBar>
+  );
 
   return (
     <div className="p-3">
@@ -369,41 +407,6 @@ export default function DailyTripAssignmentList() {
           <p className="text-sm text-gray-500">Manage daily trip plans with assigned collection points</p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={collectionTypeFilter}
-            onChange={(e) => setCollectionTypeFilter(e.target.value as "all" | CollectionTypeKey)}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="all">All Types</option>
-            <option value="bin">Bin Collection</option>
-            <option value="household">Household</option>
-            <option value="both">Bin + Household</option>
-          </select>
-
           <label className="inline-flex items-center gap-2 text-sm text-gray-600">
             Trip Date
             <input
@@ -485,6 +488,8 @@ export default function DailyTripAssignmentList() {
 
       <DataTable
         value={rows}
+        exportRows={filteredRows}
+        onValueChange={(value) => setFilteredRows(value as DailyTripAssignmentRecord[])}
         dataKey="unique_id"
         paginator
         rows={10}

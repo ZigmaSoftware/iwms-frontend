@@ -261,7 +261,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
@@ -270,6 +269,11 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 const STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "display_code", "template_id"],
@@ -320,6 +324,8 @@ export default function StaffTemplateList() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [statusFilterValue, setStatusFilterValue] = useState<StatusFilterValue>("all");
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   const [datatableFilters, setDatatableFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -419,6 +425,55 @@ export default function StaffTemplateList() {
     }));
   };
 
+  const onSearchValueChange = (value: string) =>
+    onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>);
+
+  const onStatusFilterChange = (value: StatusFilterValue) => {
+    setStatusFilterValue(value);
+    setDatatableFilters((prev) => ({
+      ...prev,
+      status: {
+        value: value === "all" ? null : value === "active" ? "ACTIVE" : "INACTIVE",
+        matchMode: FilterMatchMode.EQUALS,
+      },
+    } as TableFilters));
+  };
+
+  const filteredExportRows = (): StaffTemplate[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    const statusFiltered =
+      statusFilterValue === "all"
+        ? templates
+        : templates.filter((template) =>
+            statusFilterValue === "active" ? template.status === "ACTIVE" : template.status !== "ACTIVE"
+          );
+    if (!search) return statusFiltered;
+    return statusFiltered.filter((template) =>
+      [
+        template.display_code ?? template.unique_id,
+        template.driver_name,
+        template.operator_name,
+        template.approval_status,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search))
+    );
+  };
+
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = filteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "StaffTemplate");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   /* ================= STATUS TOGGLE ================= */
 
   const statusBodyTemplate = (row: StaffTemplate) => {
@@ -514,6 +569,14 @@ export default function StaffTemplateList() {
           </select>
 
           <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+
+          <Button
             label={t("admin.staff_template.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
@@ -525,15 +588,13 @@ export default function StaffTemplateList() {
       </div>
 
       <div className="flex justify-end">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.staff_template.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={onSearchValueChange}
+          searchPlaceholder={t("admin.staff_template.search_placeholder")}
+          statusValue={showCol("status") ? statusFilterValue : undefined}
+          onStatusChange={showCol("status") ? onStatusFilterChange : undefined}
+        />
       </div>
     </div>
   );

@@ -1,10 +1,7 @@
-import type { TableFilters } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Switch } from "@/components/ui/switch";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -16,6 +13,9 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -67,13 +67,21 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 export default function ContinentList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [continents, setContinents] = useState<ContinentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    },
   });
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
@@ -101,17 +109,30 @@ export default function ContinentList() {
     void loadContinents();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as TableFilters);
+  const getFilteredExportRows = (): ContinentRecord[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    return continents.filter((row) => {
+      if (statusValue !== "all") {
+        const wantActive = statusValue === "active";
+        if (Boolean(row.is_active) !== wantActive) return false;
+      }
+      if (!search) return true;
+      return String(row.name ?? "").toLowerCase().includes(search);
+    });
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const updatedFilters = { ...filters };
-
-    updatedFilters.global.value = value;
-    setFilters(updatedFilters);
-    setGlobalFilterValue(value);
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = getFilteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No continents to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Continents");
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
 
   const updateStatus = async (
@@ -178,14 +199,6 @@ export default function ContinentList() {
     options: { rowIndex: number }
   ) => options.rowIndex + 1;
 
-  const header = renderListSearchHeader({
-    value: globalFilterValue,
-    onChange: onGlobalFilterChange,
-    placeholder: t("common.search_placeholder", {
-      item: t("admin.nav.continent"),
-    }),
-  });
-
   return (
     <div className="p-3">
       <div className="mb-6 flex items-center justify-between">
@@ -209,6 +222,24 @@ export default function ContinentList() {
         />
       </div>
 
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.continent") })}
+        statusValue={statusValue}
+        onStatusChange={onStatusFilterChange}
+        className="mb-4"
+        trailing={
+          <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+        }
+      />
+
       <DataTable
         value={continents}
         dataKey="unique_id"
@@ -219,7 +250,6 @@ export default function ContinentList() {
         filters={filters}
         onFilter={onFilter}
         globalFilterFields={["name"]}
-        header={header}
         stripedRows
         showGridlines
         className="p-datatable-sm"

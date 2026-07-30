@@ -1,7 +1,5 @@
 import type { ErrorWithResponse, StateRecord } from "./types";
-import type { TableFilters } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 // import { useEffect, useState, useCallback } from "react";
 // import { useNavigate } from "react-router-dom";
 // import Swal from "@/lib/notify";
@@ -261,7 +259,6 @@ import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
@@ -276,6 +273,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { stateApi } from "@/helpers/admin";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 
 
 const STATE_COLUMN_FIELDS: Record<string, string[]> = {
@@ -317,13 +316,15 @@ export default function StateList() {
     STATE_COLUMN_FIELDS,
   );
 
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    country_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    label: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  const {
+    filters, onFilter, globalFilterValue, onGlobalFilterChange,
+    statusValue, onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      country_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      label: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    },
   });
 
   const navigate = useNavigate();
@@ -363,26 +364,11 @@ export default function StateList() {
     };
   }, [t]);
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as TableFilters);
-  };
-
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-
-    const updated = { ...filters };
-    updated.global.value = value;
-
-    setFilters(updated);
-    setGlobalFilterValue(value);
-  };
-
-  const header = renderListSearchHeader({
-    value: globalFilterValue,
-    onChange: onGlobalFilterChange,
-    placeholder: t("common.search_placeholder", {
-      item: t("admin.nav.state"),
-    }),
+  const exportRows = states.filter((row) => {
+    if (statusValue !== "all" && row.is_active !== (statusValue === "active")) return false;
+    const search = globalFilterValue.trim().toLowerCase();
+    return !search || [row.name, row.country_name, row.label]
+      .some((value) => String(value ?? "").toLowerCase().includes(search));
   });
 
   const cap = (str?: string) =>
@@ -460,8 +446,14 @@ export default function StateList() {
 
       </div>
 
+      <FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.state") })}
+        statusValue={statusValue} onStatusChange={onStatusFilterChange} className="mb-4" />
+
       <DataTable
         value={states}
+        exportRows={exportRows}
+        exportSheetName="States"
         dataKey="unique_id"
         paginator
         rows={10}
@@ -469,7 +461,6 @@ export default function StateList() {
         loading={isLoading && states.length === 0}
         filters={filters}
         onFilter={onFilter}
-        header={header}
         stripedRows
         showGridlines
         globalFilterFields={["name", "country_name", "label"]}

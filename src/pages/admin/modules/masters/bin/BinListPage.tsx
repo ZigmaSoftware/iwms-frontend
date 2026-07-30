@@ -1,9 +1,9 @@
-import type { Bin, BinApiRow, TableFilters } from "./types";
+import type { Bin, BinApiRow } from "./types";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useEffect } from "react";
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
@@ -16,12 +16,14 @@ import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
+import QrPreviewDialog from "@/components/common/QrPreviewDialog";
 import { PencilIcon } from "@/icons";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { binApi } from "@/helpers/admin";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 
 const { encMasters, encBins } = getEncryptedRoute();
@@ -43,8 +45,7 @@ const BIN_COLUMN_FIELDS: Record<string, string[]> = {
 export default function BinList() {
   const { t } = useTranslation();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [selectedQr, setSelectedQr] = useState<string | null>(null);
+  const [selectedQrBin, setSelectedQrBin] = useState<Bin | null>(null);
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
@@ -60,14 +61,24 @@ export default function BinList() {
     isEdit: false,
     defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    bin_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    bin_capacity: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    waste_type_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      bin_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      bin_capacity: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      waste_type_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    },
   });
+
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   const navigate = useNavigate();
   const [binRows, setBinRows] = useState<BinApiRow[]>([]);
@@ -148,17 +159,43 @@ export default function BinList() {
     return mapped;
   })();
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as TableFilters);
+  const getFilteredExportRows = (): Bin[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    return bins.filter((bin) => {
+      if (statusValue !== "all") {
+        const wantActive = statusValue === "active";
+        if (Boolean(bin.is_active) !== wantActive) return false;
+      }
+      if (!search) return true;
+      return [
+        bin.bin_name,
+        bin.ward_name,
+        bin.ward,
+        bin.panchayat_name,
+        bin.panchayat,
+        bin.waste_type_name,
+        bin.wastetype_name,
+        bin.waste_type,
+        bin.company_name,
+        bin.project_name,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search));
+    });
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
-    setGlobalFilterValue(value);
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = getFilteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No bins to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Bins");
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
 
   const statusBodyTemplate = (row: Bin) => {
@@ -216,20 +253,15 @@ export default function BinList() {
 
   const indexTemplate = (_: Bin, options: { rowIndex: number }) => options.rowIndex + 1;
 
-  const header = renderListSearchHeader({
-    value: globalFilterValue,
-    onChange: onGlobalFilterChange,
-    placeholder: t("common.search_placeholder", { item: t("admin.nav.bin_master") }),
-  });
-
   const qrTemplate = (bin: Bin) => {
     if (!bin.bin_qr) {
       return <span className="text-gray-400 text-xs">No QR</span>;
     }
     return (
       <button
+        type="button"
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
-        onClick={() => setSelectedQr(bin.bin_qr!)}
+        onClick={() => setSelectedQrBin(bin)}
         title={t("admin.bin.qr_show")}
       >
         <img src={bin.bin_qr} alt="QR" className="w-12 h-12 object-contain" />
@@ -254,43 +286,48 @@ export default function BinList() {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           <Button
             label={t("common.add_item", { item: t("admin.nav.bin_creation") })}
             icon="pi pi-plus"
             className="p-button-success"
-           
+
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
       </div>
+
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.bin_master") })}
+        statusValue={statusValue}
+        onStatusChange={onStatusFilterChange}
+        className="mb-4"
+        trailing={
+          <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+        }
+      >
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={onCompanyChange}
+          options={companies}
+          placeholder="All Companies"
+          disabled={!isSuperAdmin || companies.length === 0}
+        />
+        <FilterBarSelect
+          value={projectId || ""}
+          onChange={setProjectId}
+          options={projects}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+        />
+      </FilterBar>
 
       <DataTable
         value={bins}
@@ -311,7 +348,6 @@ export default function BinList() {
           "company_name",
           "project_name",
         ]}
-        header={header}
         stripedRows
         showGridlines
         loading={isLoading}
@@ -396,18 +432,21 @@ export default function BinList() {
         />
       </DataTable>
 
-      <Dialog open={Boolean(selectedQr)} onOpenChange={(open) => !open && setSelectedQr(null)}>
-        <DialogContent className="w-auto max-w-[90vw] p-4">
-          <DialogTitle className="sr-only">{t("admin.bin.qr_title")}</DialogTitle>
-          {selectedQr && (
-            <img
-              src={selectedQr}
-              alt={t("admin.bin.qr_title")}
-              className="h-auto w-[min(75vw,320px)] object-contain"
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <QrPreviewDialog
+        open={Boolean(selectedQrBin)}
+        onOpenChange={(open) => !open && setSelectedQrBin(null)}
+        title={t("admin.bin.qr_title")}
+        qrImageUrl={selectedQrBin?.bin_qr}
+        fileName={`${selectedQrBin?.unique_id || selectedQrBin?.bin_name || "bin"}_qr`}
+        description={
+          selectedQrBin && (
+            <>
+              <p className="font-semibold text-gray-800">{cap(selectedQrBin.bin_name)}</p>
+              <p className="text-sm text-gray-500">{selectedQrBin.unique_id}</p>
+            </>
+          )
+        }
+      />
     </div>
   );
 }

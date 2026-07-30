@@ -5,37 +5,62 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
 import { Switch } from "@/components/ui/switch";
 import { PencilIcon } from "@/icons";
 import { designationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 const { encMasters, encDesignations } = getEncryptedRoute();
 const { newPath: NEW_PATH } = createCrudRoutePaths(encMasters, encDesignations);
 const { editPath } = createCrudRoutePaths(encMasters, encDesignations);
 
+type DesignationRecord = {
+  unique_id: string | number;
+  designation_name?: string;
+  department_id?: string | number | null;
+  department_name?: string;
+  description?: string;
+  is_active?: boolean;
+};
+
+const unwrapRows = (response: unknown): DesignationRecord[] => {
+  if (Array.isArray(response)) return response as DesignationRecord[];
+  const data = (response as { data?: unknown } | null)?.data;
+  if (Array.isArray(data)) return data as DesignationRecord[];
+  return ((data as { results?: DesignationRecord[] } | null)?.results ?? []);
+};
+
 export default function DesignationListPage() {
   const navigate = useNavigate();
-  const [records, setRecords] = useState<any[]>([]);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    designation_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  const [records, setRecords] = useState<DesignationRecord[]>([]);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      designation_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    },
   });
 
   const load = async () => {
-    const response: any = await designationApi.readAll();
-    setRecords(Array.isArray(response) ? response : response?.data?.results ?? response?.data ?? []);
+    const response: unknown = await designationApi.readAll();
+    setRecords(unwrapRows(response));
   };
 
   useEffect(() => {
     load().catch(() => Swal.fire("Error", "Failed to load designations", "error"));
   }, []);
 
-  const toggleStatus = async (row: any, value: boolean) => {
+  const toggleStatus = async (row: DesignationRecord, value: boolean) => {
     await designationApi.update(row.unique_id, {
       designation_name: row.designation_name,
       department_id: row.department_id ?? null,
@@ -43,6 +68,34 @@ export default function DesignationListPage() {
       status: value ? "active" : "inactive",
     });
     await load();
+  };
+
+  const getFilteredExportRows = () => {
+    const search = globalFilterValue.trim().toLowerCase();
+    return records.filter((row) => {
+      if (statusValue !== "all") {
+        const wantActive = statusValue === "active";
+        if (Boolean(row.is_active) !== wantActive) return false;
+      }
+      if (!search) return true;
+      return [row.designation_name, row.department_name, row.description]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search));
+    });
+  };
+
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = getFilteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire("Warning", "No designations to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Designations");
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
 
   return (
@@ -54,26 +107,32 @@ export default function DesignationListPage() {
         </div>
         <Button label="Add Designation" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(NEW_PATH)} />
       </div>
+
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder="Search designations"
+        statusValue={statusValue}
+        onStatusChange={onStatusFilterChange}
+        className="mb-4"
+        trailing={
+          <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+        }
+      />
+
       <DataTable
         value={records}
         paginator
         rows={10}
         filters={filters}
-        onFilter={(e: any) => setFilters(e.filters)}
+        onFilter={onFilter}
         globalFilterFields={["designation_name", "department_name", "description"]}
-        header={
-          <div className="flex justify-end">
-            <InputText
-              value={globalFilterValue}
-              onChange={(e) => {
-                setGlobalFilterValue(e.target.value);
-                setFilters((prev) => ({ ...prev, global: { ...prev.global, value: e.target.value } }));
-              }}
-              placeholder="Search designations"
-              className="p-inputtext-sm"
-            />
-          </div>
-        }
       >
         <Column header="S.No" body={(_, opts) => opts.rowIndex + 1} />
         <Column field="designation_name" header="Designation Name" sortable filter />

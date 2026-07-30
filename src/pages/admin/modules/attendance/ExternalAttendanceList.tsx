@@ -1,14 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { FilterMatchMode } from "primereact/api";
 import { Column } from "primereact/column";
 import type { DataTableFilterMeta } from "primereact/datatable";
-import { InputText } from "primereact/inputtext";
 
 import { api } from "@/api";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Button } from "@/components/ui/button";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import Swal from "@/lib/notify";
+import { FilterBar } from "@/components/common/FilterBar";
+import { applyTableFilters } from "@/utils/tableFilterMatch";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
+
+const GLOBAL_FIELDS = ["emp_id", "employee_id", "name", "employee_name", "recognition_date", "recognition_time", "punch_type"];
 
 type AttendanceRecord = Record<string, unknown>;
 
@@ -94,6 +101,19 @@ export default function ExternalAttendanceList() {
     if (companyUniqueId && projectId) fetchAttendance();
   }, [companyUniqueId, fetchAttendance, projectId]);
 
+  const filteredForExport = useMemo(
+    () => applyTableFilters(rows, filters, GLOBAL_FIELDS),
+    [rows, filters],
+  );
+
+  const handleExport = () => {
+    exportRecordsToExcel(
+      filteredForExport,
+      getAdminScreenExcelFilename("all"),
+      "External Attendance",
+    );
+  };
+
   const header = (
       <div className="space-y-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -160,19 +180,25 @@ export default function ExternalAttendanceList() {
             </Button>
           </div>
         </div>
-        <div className="flex max-w-md items-center gap-3 rounded-full border bg-white px-3 py-1">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={(event) => {
-              const value = event.target.value;
-              setGlobalFilterValue(value);
-              setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
-            }}
-            placeholder="Search attendance..."
-            className="w-full border-none text-sm"
-          />
-        </div>
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={(value) => {
+            setGlobalFilterValue(value);
+            setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
+          }}
+          searchPlaceholder="Search attendance..."
+          trailing={
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={filteredForExport.length === 0}
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            >
+              <i className="pi pi-file-excel mr-1.5 text-green-600" />
+              Export to Excel
+            </button>
+          }
+        />
       </div>
   );
 

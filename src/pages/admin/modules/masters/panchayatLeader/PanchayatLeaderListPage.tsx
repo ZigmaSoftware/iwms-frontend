@@ -1,13 +1,11 @@
 import type { PanchayatLeader } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
@@ -17,6 +15,8 @@ import { panchayatLeaderApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 
 
 const cap = (str?: string | null) =>
@@ -52,12 +52,15 @@ export default function PanchayatLeaderListPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
-    global:        { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    username:      { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    leader_name:   { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    panchayat_name:{ value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+  const {
+    filters, onFilter, globalFilterValue, onGlobalFilterChange,
+    statusValue, onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      username: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      leader_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    },
   });
 
   /* ── fetch, scoped server-side by company+project ── */
@@ -74,9 +77,11 @@ export default function PanchayatLeaderListPage() {
         if (companyUniqueId) params.company_id = companyUniqueId;
         if (projectId) params.project_id = projectId;
 
-        const data: any = await panchayatLeaderApi.readAll({ params });
+        const data: unknown = await panchayatLeaderApi.readAll({ params });
         if (!mounted) return;
-        const rows: PanchayatLeader[] = Array.isArray(data) ? data : (data?.results ?? []);
+        const rows: PanchayatLeader[] = Array.isArray(data)
+          ? data as PanchayatLeader[]
+          : ((data as { results?: PanchayatLeader[] } | null)?.results ?? []);
         if (mounted) setAllRecords(rows);
       } catch {
         if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
@@ -99,23 +104,12 @@ export default function PanchayatLeaderListPage() {
     return allRecords;
   })();
 
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as typeof filters);
-
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
-    setGlobalFilterValue(value);
-  };
-
-  /* ── search header (search bar only — same as PanchayatListPage) ── */
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("admin.nav.panchayat_leader"),
-      }),
-    });
+  const exportRows = data.filter((row) => {
+    if (statusValue !== "all" && row.is_active !== (statusValue === "active")) return false;
+    const search = globalFilterValue.trim().toLowerCase();
+    return !search || Object.values(row).some((value) =>
+      String(value ?? "").toLowerCase().includes(search));
+  });
 
   const statusTemplate = (row: PanchayatLeader) => {
     const toggle = async (checked: boolean) => {
@@ -173,30 +167,6 @@ export default function PanchayatLeaderListPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-
           <Button
             label={t("common.add_item", { item: t("admin.nav.panchayat_leader") })}
             icon="pi pi-plus"
@@ -207,9 +177,21 @@ export default function PanchayatLeaderListPage() {
         </div>
       </div>
 
+      <FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.panchayat_leader") })}
+        statusValue={statusValue} onStatusChange={onStatusFilterChange} className="mb-4">
+        <FilterBarSelect value={companyUniqueId || ""} onChange={onCompanyChange} options={companies}
+          placeholder="All Companies" disabled={!isSuperAdmin || companies.length === 0} />
+        <FilterBarSelect value={projectId || ""} onChange={setProjectId} options={projects}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} />
+      </FilterBar>
+
       {/* ── DataTable ── */}
       <DataTable
         value={data}
+        exportRows={exportRows}
+        exportSheetName="PanchayatLeaders"
         dataKey="unique_id"
         paginator
         rows={10}
@@ -217,7 +199,6 @@ export default function PanchayatLeaderListPage() {
         loading={isLoading && data.length === 0}
         filters={filters}
         onFilter={onFilter}
-        header={renderHeader()}
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.panchayat_leader") })}

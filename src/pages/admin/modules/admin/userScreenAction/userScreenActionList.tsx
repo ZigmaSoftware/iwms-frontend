@@ -1,13 +1,11 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
-import { type ChangeEvent, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -19,8 +17,13 @@ import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 import { userScreenActionApi } from "@/helpers/admin";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { filterRowsForExport } from "@/utils/adminListExport";
 
-import type { UserScreenAction } from "../types/admin.types"; 
+import type { UserScreenAction } from "../types/admin.types";
+
+const USER_SCREEN_ACTION_SEARCH_FIELDS = ["action_name", "variable_name"];
 
 export default function UserScreenActionList() {
   const { t } = useTranslation();
@@ -28,11 +31,14 @@ export default function UserScreenActionList() {
   const [isLoading, setIsLoading] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    action_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters();
 
   const navigate = useNavigate();
   const { encAdmins, encUserScreenAction } = getEncryptedRoute();
@@ -64,14 +70,6 @@ export default function UserScreenActionList() {
       mounted = false;
     };
   }, [t]);
-
-  const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const _filters = { ...filters };
-    _filters["global"].value = value;
-    setFilters(_filters);
-    setGlobalFilterValue(value);
-  };
 
   const indexTemplate = (
     _: UserScreenAction,
@@ -126,13 +124,28 @@ export default function UserScreenActionList() {
     );
   };
 
-  const header = renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
+  const header = (
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={onGlobalFilterChange}
+      searchPlaceholder={t("common.search_placeholder", {
         item: t("admin.user_screen_action.action_label"),
-      }),
-    });
+      })}
+      statusValue={statusValue}
+      onStatusChange={onStatusFilterChange}
+    />
+  );
+
+  const exportRows = useMemo(
+    () =>
+      filterRowsForExport(
+        records,
+        USER_SCREEN_ACTION_SEARCH_FIELDS,
+        globalFilterValue,
+        statusValue,
+      ),
+    [records, globalFilterValue, statusValue],
+  );
 
   return (
     <div className="px-3 py-3 w-full">
@@ -163,12 +176,14 @@ export default function UserScreenActionList() {
         {/* Table */}
         <DataTable
           value={records}
+          exportRows={exportRows}
           paginator
           rows={10}
           loading={isLoading}
           filters={filters}
+          onFilter={onFilter}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          globalFilterFields={["action_name", "variable_name"]}
+          globalFilterFields={USER_SCREEN_ACTION_SEARCH_FIELDS}
           header={header}
           emptyMessage={t("common.no_items_found", {
             item: t("admin.user_screen_action.action_label"),

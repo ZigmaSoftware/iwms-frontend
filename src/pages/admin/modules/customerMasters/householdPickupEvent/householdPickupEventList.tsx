@@ -8,8 +8,6 @@ import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
 import {
@@ -24,6 +22,12 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 
 const householdPickupEventApi = createCrudHelpers<HouseholdPickupEventRecord>(
@@ -70,9 +74,9 @@ export default function HouseholdPickupEventList() {
   const [collectorLookup, setCollectorLookup] = useState<Record<string, string>>({});
   const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>({});
 
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<any>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const { filters, globalFilterValue, onGlobalFilterChange } = useFilterBarFilters({
+    withStatusFilter: false,
   });
 
   const { encCustomerMaster, encHouseholdPickupEvent } = getEncryptedRoute();
@@ -124,14 +128,40 @@ export default function HouseholdPickupEventList() {
     fetchRecords();
   }, []);
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
-  };
-
   const formatDate = (value?: string | null) =>
     value ? new Date(value).toLocaleString() : "-";
+
+  const filteredExportRows = (): HouseholdPickupEventRecord[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    if (!search) return records;
+    return records.filter((record) =>
+      [
+        customerLookup[record.customer_id] ?? record.customer_id,
+        zoneLookup[record.zone_id] ?? record.zone_id,
+        propertyLookup[record.property_id] ?? record.property_id,
+        subPropertyLookup[record.sub_property_id] ?? record.sub_property_id,
+        collectorLookup[record.collector_staff_id] ?? record.collector_staff_id,
+        vehicleLookup[record.vehicle_id] ?? record.vehicle_id,
+        record.source,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search))
+    );
+  };
+
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = filteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "HouseholdPickupEvents");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   const header = (
     <div className="space-y-4">
@@ -145,24 +175,29 @@ export default function HouseholdPickupEventList() {
           </p>
         </div>
 
-        <Button
-          label={t("admin.household_pickup_event.create_button")}
-          icon="pi pi-plus"
-          className="p-button-success p-button-sm"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <div className="flex items-center gap-2">
+          <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+          <Button
+            label={t("admin.household_pickup_event.create_button")}
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </div>
       </div>
 
       <div className="flex justify-end">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.household_pickup_event.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={onGlobalFilterChange}
+          searchPlaceholder={t("admin.household_pickup_event.search_placeholder")}
+        />
       </div>
     </div>
   );

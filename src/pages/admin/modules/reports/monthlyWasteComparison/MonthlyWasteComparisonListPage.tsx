@@ -37,6 +37,7 @@ import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 /* ── Types ──────────────────────────────────────────────────────── */
 
@@ -211,6 +212,7 @@ export default function MonthlyWasteComparisonListPage() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
+  const [searchValue, setSearchValue] = useState("");
 
   const { encScheduleMasters, encMonthlyWasteComparison } = getEncryptedRoute();
   const { newPath: monthlyComparisonNewPath } = createCrudRoutePaths(
@@ -290,6 +292,15 @@ export default function MonthlyWasteComparisonListPage() {
   /* ── derived ── */
   const eff = Number(kpis.collection_efficiency_percent ?? 0);
   const effC = effColor(eff);
+  const filteredRows = useMemo(() => {
+    const search = searchValue.trim().toLowerCase();
+    if (!search) return rows;
+    return rows.filter((r) =>
+      [r.month, r.panchayat_name ?? r.panchayat_id, r.waste_type, r.report_status]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search)),
+    );
+  }, [rows, searchValue]);
   const plbChartData = useMemo(
     () =>
       (plbComparison as any[]).slice(0, 8).map((p) => ({
@@ -312,9 +323,17 @@ export default function MonthlyWasteComparisonListPage() {
       if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
 
-      const exportRows = await adminApi.monthlyWasteComparison.readAllForExport(
+      const allExportRows = await adminApi.monthlyWasteComparison.readAllForExport(
         { params },
       );
+      const search = searchValue.trim().toLowerCase();
+      const exportRows = search
+        ? allExportRows.filter((r) =>
+            [r.month, r.panchayat_name ?? r.panchayat_id, r.waste_type, r.report_status]
+              .filter(Boolean)
+              .some((value) => String(value).toLowerCase().includes(search)),
+          )
+        : allExportRows;
       exportRecordsToExcel(
         exportRows.map((r) => ({
           Month: r.month,
@@ -362,35 +381,21 @@ export default function MonthlyWasteComparisonListPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isSuperAdmin && (
-            <select
+            <FilterBarSelect
               value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
+              onChange={onCompanyChange}
+              options={companies}
+              placeholder="All Companies"
               disabled={companies.length === 0}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            >
-              <option value="">All Companies</option>
-              {companies.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+            />
           )}
-          <select
+          <FilterBarSelect
             value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={
-              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-            }
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
+            onChange={setProjectId}
+            options={projects}
+            placeholder={showAllProjectsOption ? "All Projects" : undefined}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+          />
           <input
             type="month"
             value={monthValue}
@@ -924,10 +929,17 @@ export default function MonthlyWasteComparisonListPage() {
           {/* Waste-type breakdown table */}
           {rows.length > 0 && (
             <div className="border-t border-gray-100 px-6 py-5">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                Breakdown by PLB &amp; Waste Type — {rows.length} row
-                {rows.length !== 1 ? "s" : ""}
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
+                  Breakdown by PLB &amp; Waste Type — {filteredRows.length} of {rows.length} row
+                  {rows.length !== 1 ? "s" : ""}
+                </p>
+                <FilterBar
+                  searchValue={searchValue}
+                  onSearchChange={setSearchValue}
+                  searchPlaceholder="Search PLB, waste type, status..."
+                />
+              </div>
               <div className="overflow-x-auto rounded-xl border border-gray-200">
                 <table className="min-w-full text-xs">
                   <thead>
@@ -965,7 +977,7 @@ export default function MonthlyWasteComparisonListPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
-                    {rows.map((r) => {
+                    {filteredRows.map((r) => {
                       const rowEff = Number(
                         r.collection_efficiency_percent ?? 0,
                       );

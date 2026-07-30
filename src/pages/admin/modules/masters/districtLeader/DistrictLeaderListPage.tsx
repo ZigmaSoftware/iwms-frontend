@@ -1,13 +1,11 @@
 import type { DistrictLeader } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
@@ -17,6 +15,9 @@ import { districtLeaderApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 const extractRows = (value: unknown): DistrictLeader[] => {
   if (Array.isArray(value)) return value as DistrictLeader[];
@@ -68,13 +69,21 @@ export default function DistrictLeaderListPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    username: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    leader_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    district_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      username: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      leader_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      district_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    },
   });
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -122,22 +131,33 @@ export default function DistrictLeaderListPage() {
     return allRecords;
   })();
 
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as typeof filters);
-
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
-    setGlobalFilterValue(value);
+  const getFilteredExportRows = (): DistrictLeader[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    return data.filter((row) => {
+      if (statusValue !== "all") {
+        const wantActive = statusValue === "active";
+        if (Boolean(row.is_active ?? row.active_status) !== wantActive) return false;
+      }
+      if (!search) return true;
+      return [row.username, row.leader_name, row.district_name, row.email, row.company_name]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search));
+    });
   };
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("admin.nav.district_leader"),
-      }),
-    });
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = getFilteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No district leaders to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "DistrictLeaders");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   const statusTemplate = (row: DistrictLeader) => {
     const toggle = async (checked: boolean) => {
@@ -192,39 +212,48 @@ export default function DistrictLeaderListPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-
           <Button
             label={t("common.add_item", { item: t("admin.nav.district_leader") })}
             icon="pi pi-plus"
             className="p-button-success"
-           
+
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
       </div>
+
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.district_leader") })}
+        statusValue={statusValue}
+        onStatusChange={onStatusFilterChange}
+        className="mb-4"
+        trailing={
+          <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+        }
+      >
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={onCompanyChange}
+          options={companies}
+          placeholder="All Companies"
+          disabled={!isSuperAdmin || companies.length === 0}
+        />
+        <FilterBarSelect
+          value={projectId || ""}
+          onChange={setProjectId}
+          options={projects}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+        />
+      </FilterBar>
 
       <DataTable
         value={data}
@@ -235,7 +264,6 @@ export default function DistrictLeaderListPage() {
         loading={isLoading && data.length === 0}
         filters={filters}
         onFilter={onFilter}
-        header={renderHeader()}
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.district_leader") })}

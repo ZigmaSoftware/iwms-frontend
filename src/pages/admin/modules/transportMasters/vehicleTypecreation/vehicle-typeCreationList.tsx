@@ -1,6 +1,5 @@
 import type { VehicleTypeRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -21,6 +20,7 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { vehicleTypeApi } from "@/helpers/admin";
+import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar";
 
 const cap = (str?: string | null) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -30,14 +30,17 @@ export default function VehicleTypeCreationList() {
   const navigate = useNavigate();
 
   const [allVehicleTypes, setAllVehicleTypes] = useState<VehicleTypeRecord[]>([]);
+  const [filteredRows, setFilteredRows] = useState<VehicleTypeRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [statusValue, setStatusValue] = useState<StatusFilterValue>("all");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     vehicleType: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    is_active: { value: null as boolean | null, matchMode: FilterMatchMode.EQUALS },
   });
 
   const { encTransportMaster, encVehicleType } = getEncryptedRoute();
@@ -62,6 +65,12 @@ export default function VehicleTypeCreationList() {
     return () => { mounted = false; };
   }, [t]);
 
+  // Keeps exported Excel rows in sync with the currently displayed
+  // (filtered/searched) rows rather than the full unfiltered set.
+  useEffect(() => {
+    setFilteredRows(allVehicleTypes);
+  }, [allVehicleTypes]);
+
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters);
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,6 +79,17 @@ export default function VehicleTypeCreationList() {
     setFilters((prev) => ({
       ...prev,
       global: { value, matchMode: FilterMatchMode.CONTAINS },
+    }));
+  };
+
+  const onStatusFilterChange = (value: StatusFilterValue) => {
+    setStatusValue(value);
+    setFilters((prev) => ({
+      ...prev,
+      is_active: {
+        value: value === "all" ? null : value === "active",
+        matchMode: FilterMatchMode.EQUALS,
+      },
     }));
   };
 
@@ -122,12 +142,17 @@ export default function VehicleTypeCreationList() {
     { rowIndex }: { rowIndex: number }
   ) => rowIndex + 1;
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("admin.vehicle_type.search_placeholder"),
-    });
+  const renderHeader = () => (
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={(value) =>
+        onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+      }
+      searchPlaceholder={t("admin.vehicle_type.search_placeholder")}
+      statusValue={statusValue}
+      onStatusChange={onStatusFilterChange}
+    />
+  );
 
   return (
     <div className="p-3">
@@ -153,6 +178,8 @@ export default function VehicleTypeCreationList() {
 
       <DataTable
         value={allVehicleTypes}
+        exportRows={filteredRows}
+        onValueChange={(value) => setFilteredRows(value as VehicleTypeRecord[])}
         dataKey="unique_id"
         paginator
         rows={10}

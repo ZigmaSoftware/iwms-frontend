@@ -1,12 +1,10 @@
-import type { Project, TableFilters } from "./types";
+import type { Project } from "./types";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -19,6 +17,9 @@ import "primeicons/primeicons.css";
 import { projectApi } from "@/helpers/admin";
 import { Switch } from "@/components/ui/switch";
 import { PencilIcon } from "@/icons";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 
 const normalizeIsActive = (value: unknown): boolean => {
@@ -56,13 +57,21 @@ export default function ProjectListPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    company_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    company_unique_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    description: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      company_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      company_unique_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      description: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    },
   });
 
   const fetchProjects = useCallback(async () => {
@@ -89,15 +98,32 @@ export default function ProjectListPage() {
     fetchProjects();
   }, [fetchProjects]);
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as TableFilters);
+  const getFilteredExportRows = (): Project[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    return projects.filter((project) => {
+      if (statusValue !== "all") {
+        const wantActive = statusValue === "active";
+        if (Boolean(project.is_active) !== wantActive) return false;
+      }
+      if (!search) return true;
+      return [project.name, project.company_name, project.description]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search));
+    });
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const updated = { ...filters };
-    updated.global.value = e.target.value;
-    setFilters(updated);
-    setGlobalFilterValue(e.target.value);
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = getFilteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning"), t("common.no_items_found", { item: t("admin.nav.project") }), "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Projects");
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
 
   const actionBodyTemplate = (row: Project) => (
@@ -151,32 +177,6 @@ export default function ProjectListPage() {
 
   const descriptionTemplate = (row: Project) => row.description || t("common.not_available");
 
-  const header = (
-    <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-end">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("common.search_placeholder", { item: t("admin.nav.project") })}
-          className="p-inputtext-sm border-0 shadow-none"
-        />
-      </div>
-      {companyUniqueId ? (
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <span>{t("admin.project.filtered_company", { id: companyUniqueId })}</span>
-          <button
-            type="button"
-            className="text-blue-600 hover:text-blue-800 font-medium"
-            onClick={() => navigate(ENC_LIST_PATH)}
-          >
-            {t("common.view_all")}
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-
   return (
     <div className="p-3">
       <div className="flex justify-between items-center mb-6">
@@ -197,6 +197,38 @@ export default function ProjectListPage() {
         />
       </div>
 
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.project") })}
+        statusValue={statusValue}
+        onStatusChange={onStatusFilterChange}
+        className="mb-4"
+        trailing={
+          <div className="flex items-center gap-3">
+            {companyUniqueId ? (
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <span>{t("admin.project.filtered_company", { id: companyUniqueId })}</span>
+                <button
+                  type="button"
+                  className="text-blue-600 hover:text-blue-800 font-medium"
+                  onClick={() => navigate(ENC_LIST_PATH)}
+                >
+                  {t("common.view_all")}
+                </button>
+              </div>
+            ) : null}
+            <Button
+              label={isExportingExcel ? "Downloading..." : "Download Excel"}
+              icon="pi pi-file-excel"
+              className="p-button-outlined"
+              disabled={isExportingExcel}
+              onClick={handleDownloadExcel}
+            />
+          </div>
+        }
+      />
+
       <DataTable
         value={projects}
         dataKey="unique_id"
@@ -207,7 +239,6 @@ export default function ProjectListPage() {
         filters={filters}
         onFilter={onFilter}
         globalFilterFields={["name", "company_name", "company_unique_id", "description"]}
-        header={header}
         stripedRows
         showGridlines
         className="p-datatable-sm"

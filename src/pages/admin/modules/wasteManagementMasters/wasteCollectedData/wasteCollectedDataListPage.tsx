@@ -1,6 +1,5 @@
 import type { WasteCollection } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -8,17 +7,18 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,16 +54,24 @@ export default function WasteCollectedDataList() {
 
   const [wasteCollections, setWasteCollections] = useState<WasteCollection[]>([]);
   const [loading, setLoading] = useState(false);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    customer_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    zone_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    ward_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    panchayat_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    city_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    company_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    project_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      company_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      project_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    },
   });
 
   /* ── load data ── */
@@ -86,12 +94,40 @@ export default function WasteCollectedDataList() {
     return () => { mounted = false; };
   }, [companyUniqueId, projectId, isSuperAdmin, companies.length, t]);
 
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
+  const getFilteredExportRows = (): WasteCollection[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    return wasteCollections.filter((row) => {
+      if (statusValue !== "all") {
+        const wantActive = statusValue === "active";
+        if (Boolean(row.is_active) !== wantActive) return false;
+      }
+      if (!search) return true;
+      return [
+        row.customer_name,
+        row.zone_name,
+        row.ward_name,
+        row.panchayat_name,
+        row.city_name,
+        row.company_name,
+        row.project_name,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search));
+    });
+  };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
-    setGlobalFilterValue(value);
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = getFilteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning"), t("admin.waste_collected_data.empty_message"), "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Waste Collected Data");
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
 
   /* ── status toggle ── */
@@ -131,13 +167,6 @@ export default function WasteCollectedDataList() {
 
   const indexTemplate = (_: WasteCollection, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("admin.waste_collected_data.search_placeholder"),
-    });
-
   return (
     <div className="p-3">
       <div className="mb-6 flex items-center justify-between">
@@ -150,30 +179,6 @@ export default function WasteCollectedDataList() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-
           <Button
             label={t("admin.waste_collected_data.add_new")}
             icon="pi pi-plus"
@@ -182,6 +187,39 @@ export default function WasteCollectedDataList() {
           />
         </div>
       </div>
+
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("admin.waste_collected_data.search_placeholder")}
+        statusValue={statusValue}
+        onStatusChange={onStatusFilterChange}
+        className="mb-4"
+        trailing={
+          <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+        }
+      >
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={onCompanyChange}
+          options={companies}
+          placeholder="All Companies"
+          disabled={!isSuperAdmin || companies.length === 0}
+        />
+        <FilterBarSelect
+          value={projectId || ""}
+          onChange={setProjectId}
+          options={projects}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+        />
+      </FilterBar>
 
       <DataTable
         value={wasteCollections}
@@ -192,7 +230,6 @@ export default function WasteCollectedDataList() {
         loading={loading && wasteCollections.length === 0}
         filters={filters}
         onFilter={onFilter}
-        header={renderHeader()}
         stripedRows
         showGridlines
         emptyMessage={t("admin.waste_collected_data.empty_message")}

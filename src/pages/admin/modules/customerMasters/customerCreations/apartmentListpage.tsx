@@ -5,9 +5,9 @@ import { useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import QrPreviewDialog from "@/components/common/QrPreviewDialog";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -17,6 +17,11 @@ import "primeicons/primeicons.css";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useTranslation } from "react-i18next";
 import { customerCreationApi } from "@/helpers/admin";
+import { FilterBar } from "@/components/common/FilterBar";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 
 /* ---------------- HELPERS ---------------- */
@@ -28,6 +33,11 @@ const readCustomerText = (
   row: CustomerCreationRecord,
   key: keyof CustomerCreationRecord
 ): string => normalizeId(row[key]);
+
+type ApartmentQrApiRow = {
+  apartment_name?: string;
+  qr_code?: string | null;
+};
 
 /* ---------------- COMPONENT ---------------- */
 
@@ -47,6 +57,7 @@ export default function ApartmentListPage() {
   }, [t])
 
   const [viewLevel, setViewLevel] = useState<ViewLevel>("apartment");
+  const [selectedQrApartment, setSelectedQrApartment] = useState<ApartmentRow | null>(null);
 
   const [selectedApartment, setSelectedApartment] = useState("");
   const [selectedBlock, setSelectedBlock] = useState("");
@@ -71,6 +82,42 @@ export default function ApartmentListPage() {
   } = useCompanyProjectSelection({
     isEdit: false,
     defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+
+  const [apartmentQrByName, setApartmentQrByName] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
+    let mounted = true;
+    setApartmentQrByName({});
+
+    customerCreationApi
+      .action<ApartmentQrApiRow[]>("apartment-count", undefined, {
+        params: {
+          company_id: companyUniqueId || undefined,
+          project_id: projectId || undefined,
+        },
+      })
+      .then((rows) => {
+        if (!mounted) return;
+
+        const nextQrByName: Record<string, string> = {};
+        for (const row of Array.isArray(rows) ? rows : []) {
+          const apartmentName = normalizeId(row.apartment_name).toUpperCase();
+          const qrCode = normalizeId(row.qr_code);
+          if (apartmentName && qrCode) nextQrByName[apartmentName] = qrCode;
+        }
+        setApartmentQrByName(nextQrByName);
+      })
+      .catch(() => {
+        if (mounted) setApartmentQrByName({});
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [companies.length, companyUniqueId, isSuperAdmin, projectId]);
 
   const filteredCustomers = useMemo<CustomerCreationRecord[]>(() => {
     if (isSuperAdmin && companies.length === 0) return [];
@@ -98,7 +145,7 @@ export default function ApartmentListPage() {
   const apartments = useMemo<ApartmentRow[]>(() => {
     const byApartment = new Map<
       string,
-      { blocks: Set<string>; flats: Set<string>; users: number; qr_code?: string }
+      { blocks: Set<string>; flats: Set<string>; users: number }
     >();
 
     filteredCustomers.forEach((row) => {
@@ -114,7 +161,6 @@ export default function ApartmentListPage() {
       if (blockNo) current.blocks.add(blockNo);
       if (flatNo) current.flats.add(`${blockNo}::${flatNo}`);
       current.users += 1;
-      current.qr_code = current.qr_code || readCustomerText(row, "qr_code");
       byApartment.set(apartmentName, current);
     });
 
@@ -124,10 +170,10 @@ export default function ApartmentListPage() {
         total_users: meta.users,
         total_blocks: meta.blocks.size,
         total_flats: meta.flats.size,
-        qr_code: meta.qr_code,
+        qr_code: apartmentQrByName[apartment_name.trim().toUpperCase()],
       }))
       .sort((a, b) => a.apartment_name.localeCompare(b.apartment_name));
-  }, [filteredCustomers]);
+  }, [apartmentQrByName, filteredCustomers]);
 
   const blocks = useMemo<BlockRow[]>(() => {
     const byBlock = new Map<string, Set<string>>();
@@ -252,19 +298,66 @@ export default function ApartmentListPage() {
     return crumbs;
   };
 
+  /* ---- export current drill-level rows (respecting the active search) ---- */
+
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+  const currentLevelRows = (): Array<Record<string, unknown>> => {
+    switch (viewLevel) {
+      case "apartment":
+        return apartments;
+      case "block":
+        return blocks;
+      case "flat":
+        return flats;
+      case "user":
+      default:
+        return users;
+    }
+  };
+
+  const filteredExportRows = (): Array<Record<string, unknown>> => {
+    const search = globalFilterValue.trim().toLowerCase();
+    const rows = currentLevelRows();
+    if (!search) return rows;
+    const fields = globalFilterFields[viewLevel];
+    return rows.filter((row) =>
+      fields.some((field) => String(row[field] ?? "").toLowerCase().includes(search))
+    );
+  };
+
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = filteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire({ icon: "warning", title: "Warning", text: "No records to export" });
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Apartments");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   /* ---- table search header ---- */
 
   const tableHeader = (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder="Search…"
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
+    <div className="flex justify-between items-center">
+      <Button
+        label={isExportingExcel ? "Downloading..." : "Download Excel"}
+        icon="pi pi-file-excel"
+        className="p-button-outlined"
+        disabled={isExportingExcel}
+        onClick={handleDownloadExcel}
+      />
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={(value) =>
+          onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+        }
+        searchPlaceholder="Search…"
+      />
     </div>
   );
 
@@ -273,26 +366,16 @@ export default function ApartmentListPage() {
   const indexTemplate = (_: unknown, options: { rowIndex: number }) =>
     options.rowIndex + 1;
 
-  // ✅ QR POPUP
-  const openQrPopup = (qrUrl: string) => {
-    Swal.fire({
-      title: "Apartment QR Code",
-      html: `<div class="flex justify-center">
-               <img src="${qrUrl}" style="width:200px;height:200px;" />
-             </div>`,
-      width: 350,
-    });
-  };
-
-  // ✅ QR TEMPLATE — shows thumbnail; click to open popup
+  // ✅ QR TEMPLATE — shows thumbnail; click to open preview dialog
   const qrTemplate = (row: ApartmentRow) => {
     if (!row.qr_code) {
       return <span className="text-gray-400 text-xs">No QR</span>;
     }
     return (
       <button
+        type="button"
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
-        onClick={() => openQrPopup(row.qr_code!)}
+        onClick={() => setSelectedQrApartment(row)}
       >
         <img
           src={row.qr_code}
@@ -557,6 +640,18 @@ export default function ApartmentListPage() {
         </div>
       )}
 
+      <QrPreviewDialog
+        open={Boolean(selectedQrApartment)}
+        onOpenChange={(open) => !open && setSelectedQrApartment(null)}
+        title="Apartment QR Code"
+        qrImageUrl={selectedQrApartment?.qr_code}
+        fileName={`${selectedQrApartment?.apartment_name || "apartment"}_qr`}
+        description={
+          selectedQrApartment && (
+            <p className="font-semibold text-gray-800">{selectedQrApartment.apartment_name}</p>
+          )
+        }
+      />
     </div>
   );
 }
