@@ -93,7 +93,7 @@ export default function TripPlanList() {
         if (mounted) setLoading(false);
       });
     return () => { mounted = false; };
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, t]);
 
   const rows = useMemo(() => records
     .filter((record) => {

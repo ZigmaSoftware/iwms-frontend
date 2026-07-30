@@ -122,37 +122,9 @@ export default function BinLoadLogList() {
       const binLoadRes = await binLoadLogApi.readAll({ params });
       const rows = normalizeList(binLoadRes) as BinLoadLogApiRecord[];
 
-      const hasContextFields = rows.some((row) => {
-        const rowCompanyId = normalizeId(
-          row.company_id || row.company_unique_id,
-        );
-        const rowProjectId = normalizeId(
-          row.project_id || row.project_unique_id,
-        );
-        return Boolean(rowCompanyId || rowProjectId);
-      });
-
-      if (!hasContextFields) {
-        setRecords(rows);
-        return;
-      }
-
-      const filtered = rows.filter((row) => {
-        const rowCompanyId = normalizeId(
-          row.company_id || row.company_unique_id,
-        );
-        const rowProjectId = normalizeId(
-          row.project_id || row.project_unique_id,
-        );
-
-        const companyMatches =
-          !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-
-        return companyMatches && projectMatches;
-      });
-
-      setRecords(filtered);
+      // Company/project scoping is now applied server-side via the params
+      // above — no client-side narrowing needed.
+      setRecords(rows);
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {

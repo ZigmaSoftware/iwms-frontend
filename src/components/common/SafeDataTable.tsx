@@ -5,14 +5,24 @@ import {
 import {
   Children,
   isValidElement,
+  useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
   type ReactNode,
 } from "react";
 import Swal from "@/lib/notify";
-import { getCurrentAdminBulkImportApi } from "@/helpers/admin/bulkImportRoutes";
+import {
+  getCurrentAdminBulkImportApi,
+  getCurrentAdminServerListApi,
+} from "@/helpers/admin/bulkImportRoutes";
+import {
+  getLatestServerListMetadata,
+  registerServerListApi,
+} from "@/helpers/admin/serverListMode";
+import { getListCompanyProjectContext } from "@/utils/listQueryContext";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import type { CrudHelpers } from "@/helpers/admin/crudHelpers";
 import {
@@ -179,6 +189,7 @@ type DataTableHeaderActionsProps = {
   onImportComplete?: () => void | Promise<void>;
   filename?: string;
   sheetName?: string;
+  loadExportRows?: () => Promise<SafeTableRows>;
 };
 
 const DataTableHeaderActions = ({
@@ -195,6 +206,7 @@ const DataTableHeaderActions = ({
   onImportComplete,
   filename,
   sheetName,
+  loadExportRows,
 }: DataTableHeaderActionsProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [importing, setImporting] = useState(false);
@@ -225,8 +237,13 @@ const DataTableHeaderActions = ({
     };
   }, [discoverImportColumns, importApi, importColumns]);
 
-  const handleExport = () => {
-    exportRecordsToExcel(rows, toExportFilename(filename), sheetName || "Data");
+  const handleExport = async () => {
+    const exportRows = loadExportRows ? await loadExportRows() : rows;
+    exportRecordsToExcel(
+      exportRows,
+      toExportFilename(filename),
+      sheetName || "Data",
+    );
   };
 
   const handleTemplate = () => {
@@ -329,7 +346,7 @@ const DataTableHeaderActions = ({
   const exportButton = (
     <button
       type="button"
-      onClick={handleExport}
+      onClick={() => void handleExport()}
       disabled={rows.length === 0}
       className="inline-flex items-center gap-2 rounded-md border border-green-200 bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
     >
@@ -399,8 +416,199 @@ export const DataTable = <TValue extends SafeTableRows>(
     ...tableProps
   } = props;
   const safeRows = toSafeRows(tableProps.value);
-  const rowsForExport = exportRows ?? safeRows;
   const resolvedImportApi = importApi ?? getCurrentAdminBulkImportApi();
+  const serverApi = getCurrentAdminServerListApi();
+  const initialPageSize =
+    typeof tableProps.rows === "number" && tableProps.rows > 0
+      ? tableProps.rows
+      : 10;
+  if (serverApi) {
+    registerServerListApi(serverApi, initialPageSize);
+  }
+
+  const [serverRows, setServerRows] = useState<SafeTableRows>(safeRows);
+  const [serverTotal, setServerTotal] = useState(safeRows.length);
+  const [serverFirst, setServerFirst] = useState(0);
+  const [serverPageSize, setServerPageSize] = useState(initialPageSize);
+  const [serverLoading, setServerLoading] = useState(false);
+  const [serverConfig, setServerConfig] = useState(
+    serverApi ? getLatestServerListMetadata(serverApi)?.config : undefined,
+  );
+  const rowShape = useRef<string[]>([]);
+  const appliedMetadataVersion = useRef(0);
+
+  const mapServerRows = useCallback((rows: SafeTableRows) => {
+    const targetKeys = rowShape.current;
+    if (targetKeys.length === 0) return rows;
+
+    return rows.map((row) => {
+      const mapped: SafeTableRow = {};
+      const rawKeys = Object.keys(row);
+
+      targetKeys.forEach((targetKey) => {
+        if (targetKey in row) {
+          mapped[targetKey] = row[targetKey];
+          return;
+        }
+
+        const normalizedTarget = targetKey.replace(/[^a-z0-9]/gi, "").toLowerCase();
+        const sourceKey = rawKeys.find(
+          (key) =>
+            key.replace(/[^a-z0-9]/gi, "").toLowerCase() === normalizedTarget,
+        );
+        if (sourceKey) mapped[targetKey] = row[sourceKey];
+      });
+
+      return { ...row, ...mapped };
+    });
+  }, []);
+
+  const globalSearch = useMemo(() => {
+    const filters = tableProps.filters as
+      | Record<string, { value?: unknown }>
+      | undefined;
+    const value = filters?.global?.value;
+    return typeof value === "string" ? value.trim() : "";
+  }, [tableProps.filters]);
+
+  const columnFilterParams = useMemo(() => {
+    const filters = tableProps.filters as
+      | Record<
+          string,
+          { value?: unknown; constraints?: Array<{ value?: unknown }> }
+        >
+      | undefined;
+
+    return Object.entries(filters ?? {}).reduce<Record<string, string | number | boolean>>(
+      (params, [field, filter]) => {
+        if (field === "global") return params;
+        const value = filter?.value ?? filter?.constraints?.[0]?.value;
+        if (
+          typeof value === "string" ||
+          typeof value === "number" ||
+          typeof value === "boolean"
+        ) {
+          if (value !== "") params[field] = value;
+        }
+        return params;
+      },
+      {},
+    );
+  }, [tableProps.filters]);
+  const columnFilterKey = useMemo(
+    () => JSON.stringify(columnFilterParams),
+    [columnFilterParams],
+  );
+
+  // Read fresh on every render (cheap, plain getter) so the effect below sees
+  // the current company/project selection without needing its own state.
+  const activeCompanyProject = getListCompanyProjectContext();
+  const companyProjectKey = `${activeCompanyProject.companyId}::${activeCompanyProject.projectId}`;
+
+  const loadServerPage = useCallback(
+    async (
+      first: number,
+      rows: number,
+      sortField?: string,
+      sortOrder?: number | null,
+    ) => {
+      if (!serverApi) return;
+
+      setServerLoading(true);
+      try {
+        const companyProject = getListCompanyProjectContext();
+        const response = await serverApi.readAllwithPaginated(
+          Math.floor(first / rows) + 1,
+          rows,
+          {
+            ...serverConfig,
+            params: {
+              ...serverConfig?.params,
+              ...(companyProject.companyId
+                ? { company_id: companyProject.companyId }
+                : {}),
+              ...(companyProject.projectId
+                ? { project_id: companyProject.projectId }
+                : {}),
+              ...(globalSearch ? { search: globalSearch } : {}),
+              ...columnFilterParams,
+              ...(sortField
+                ? { ordering: `${sortOrder === -1 ? "-" : ""}${sortField}` }
+                : {}),
+            },
+          },
+        );
+        const nextRows = Array.isArray(response) ? response : response.results ?? [];
+        const count = Array.isArray(response)
+          ? nextRows.length
+          : (response.count ?? nextRows.length);
+
+        if (nextRows.length === 0 && first > 0 && count > 0) {
+          setServerFirst(Math.max(0, first - rows));
+          return;
+        }
+
+        setServerRows(mapServerRows(nextRows as SafeTableRows));
+        setServerTotal(count);
+      } finally {
+        setServerLoading(false);
+      }
+    },
+    [
+      columnFilterParams,
+      globalSearch,
+      mapServerRows,
+      serverApi,
+      serverConfig,
+    ],
+  );
+
+  useEffect(() => {
+    if (!serverApi) {
+      setServerRows(safeRows);
+      return;
+    }
+
+    const metadata = getLatestServerListMetadata(serverApi);
+    if (!metadata) return;
+
+    if (safeRows[0]) {
+      rowShape.current = Object.keys(safeRows[0]);
+    }
+
+    if (metadata.version !== appliedMetadataVersion.current) {
+      appliedMetadataVersion.current = metadata.version;
+      setServerRows(safeRows);
+      setServerTotal(metadata.count);
+      setServerConfig(metadata.config);
+      setServerFirst(0);
+      return;
+    }
+
+    if (serverFirst === 0) {
+      setServerRows(safeRows);
+    } else {
+      void loadServerPage(
+        serverFirst,
+        serverPageSize,
+        tableProps.sortField,
+        tableProps.sortOrder,
+      );
+    }
+    // Pagination changes are loaded by onPage/onSort. This effect only reacts
+    // to parent-owned row changes (initial loads, tenant changes, mutations).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safeRows, serverApi]);
+
+  useEffect(() => {
+    if (!serverApi || !getLatestServerListMetadata(serverApi)) return;
+    setServerFirst(0);
+    void loadServerPage(0, serverPageSize);
+    // Reset to page 1 and refetch whenever the search term, a column filter,
+    // or the active company/project selection changes.
+  }, [columnFilterKey, globalSearch, companyProjectKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const rowsForExport = exportRows ?? (serverApi ? serverRows : safeRows);
   const resolvedImportColumns =
     importColumns ?? readImportColumns(tableProps.children);
   const header =
@@ -419,12 +627,67 @@ export const DataTable = <TValue extends SafeTableRows>(
         onImportComplete={onImportComplete}
         filename={exportFilename}
         sheetName={exportSheetName}
+        loadExportRows={
+          serverApi
+            ? async () => {
+                const companyProject = getListCompanyProjectContext();
+                return (await serverApi.readAllForExport({
+                  ...serverConfig,
+                  params: {
+                    ...serverConfig?.params,
+                    ...(companyProject.companyId
+                      ? { company_id: companyProject.companyId }
+                      : {}),
+                    ...(companyProject.projectId
+                      ? { project_id: companyProject.projectId }
+                      : {}),
+                    ...(globalSearch ? { search: globalSearch } : {}),
+                    ...columnFilterParams,
+                  },
+                })) as SafeTableRows;
+              }
+            : undefined
+        }
       />
     ) : (
       tableProps.header
     );
 
-  return <PrimeDataTable {...tableProps} header={header} value={safeRows} />;
+  const serverTableProps = serverApi
+    ? {
+        ...tableProps,
+        lazy: true,
+        paginator: true,
+        first: serverFirst,
+        rows: serverPageSize,
+        totalRecords: serverTotal,
+        loading: serverLoading || tableProps.loading,
+        onPage: (event: Parameters<NonNullable<typeof tableProps.onPage>>[0]) => {
+          setServerFirst(event.first);
+          setServerPageSize(event.rows);
+          tableProps.onPage?.(event);
+          void loadServerPage(
+            event.first,
+            event.rows,
+            tableProps.sortField,
+            tableProps.sortOrder,
+          );
+        },
+        onSort: (event: Parameters<NonNullable<typeof tableProps.onSort>>[0]) => {
+          setServerFirst(0);
+          tableProps.onSort?.(event);
+          void loadServerPage(0, serverPageSize, event.sortField, event.sortOrder);
+        },
+      }
+    : tableProps;
+
+  return (
+    <PrimeDataTable
+      {...serverTableProps}
+      header={header}
+      value={(serverApi ? serverRows : safeRows) as TValue}
+    />
+  );
 };
 
 export type { DataTableFilterEvent } from "primereact/datatable";

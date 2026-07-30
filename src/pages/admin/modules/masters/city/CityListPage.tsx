@@ -34,9 +34,6 @@ const CITY_COLUMN_FIELDS: Record<string, string[]> = {
 };
 
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 export default function CityList() {
   const { t } = useTranslation();
   const { showColumn: showCol } = useFieldVisibility(
@@ -88,12 +85,19 @@ export default function CityList() {
     });
 
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
     let mounted = true;
 
     const loadCities = async () => {
       setIsLoading(true);
       try {
-        const data = await cityApi.readAll();
+        const params: Record<string, string> = {};
+        if (companyUniqueId) params.company_id = companyUniqueId;
+        if (projectId) params.project_id = projectId;
+
+        const data = await cityApi.readAll({ params });
         if (mounted) setAllCities(data as CityRecord[]);
       } catch (error) {
         if (mounted) {
@@ -110,21 +114,16 @@ export default function CityList() {
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length]);
 
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
   const cities = useMemo(() => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId && !isSuperAdmin) return [];
 
-    return allCities.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-
-      return companyMatches && projectMatches;
-    });
+    return allCities;
   }, [allCities, companyUniqueId, companies.length, isSuperAdmin, projectId]);
 
   const onFilter = (e: DataTableFilterEvent) => {

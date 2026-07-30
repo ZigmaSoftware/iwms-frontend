@@ -1,7 +1,7 @@
-import type { CompanyOption, ProjectCreateResponse, ProjectRecord } from "./types";
+import type { ProjectCreateResponse, ProjectRecord } from "./types";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -19,7 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { companyApi, projectApi } from "@/helpers/admin";
+import { projectApi } from "@/helpers/admin";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 
 const normalizeIsActive = (value: unknown): boolean => {
@@ -66,9 +67,18 @@ export default function ProjectForm() {
     return `${ENC_LIST_PATH}?company_unique_id=${encodeURIComponent(companyUniqueIdFromQuery)}`;
   }, [companyUniqueIdFromQuery]);
 
-  const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyUniqueId, setCompanyUniqueId] = useState(companyUniqueIdFromQuery ?? "");
-  const [pendingCompanyId, setPendingCompanyId] = useState<string | null>(null);
+  const {
+    companyUniqueId,
+    companies,
+    onCompanyChange,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({
+    isEdit,
+    initialCompanyId: companyUniqueIdFromQuery ?? undefined,
+    // A superadmin choosing among many companies shouldn't get a silent
+    // default — only auto-select below when there's exactly one option.
+    defaultToAll: true,
+  });
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
@@ -91,50 +101,12 @@ export default function ProjectForm() {
   const [adminEmail, setAdminEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const fetchCompanies = useCallback(async () => {
-    let cancelled = false;
-    try {
-      const records = await companyApi.readAll();
-      if (cancelled) return;
-      const options = records.map((company) => ({
-        unique_id: company.unique_id,
-        name: company.name,
-      }));
-      setCompanies(options);
-      setCompanyUniqueId((current) => {
-        if (!current && options.length === 1) return options[0].unique_id;
-        return current;
-      });
-      setPendingCompanyId((pending) => {
-        if (pending && options.some((o) => o.unique_id === pending)) {
-          setCompanyUniqueId(pending);
-          return null;
-        }
-        return pending;
-      });
-    } catch {
-      // Some roles may not have company listing permission.
-      if (!cancelled) setCompanies([]);
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  // Convenience default preserved from the pre-shared-hook behavior: if there's
+  // only one company to choose from, select it automatically (create mode only).
   useEffect(() => {
-    fetchCompanies();
-  }, [fetchCompanies]);
-
-  // Apply pendingCompanyId once the companies list is loaded.
-  // Handles the common case where the project record resolves after companies.
-  useEffect(() => {
-    if (!pendingCompanyId || companies.length === 0) return;
-    const found = companies.some((c) => c.unique_id === pendingCompanyId);
-    if (found) {
-      setCompanyUniqueId(pendingCompanyId);
-      setPendingCompanyId(null);
-    }
-  }, [pendingCompanyId, companies]);
+    if (isEdit || companyUniqueId || companies.length !== 1) return;
+    onCompanyChange(companies[0].value);
+  }, [isEdit, companyUniqueId, companies, onCompanyChange]);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -167,7 +139,7 @@ export default function ProjectForm() {
         setDayWiseWeighmentApiUrl(record.day_wise_weighment_api_url ?? "");
         setAttendanceApiUrl(record.attendance_api_url ?? "");
         setAttendanceApiConfigured(Boolean(record.attendance_api_configured));
-        setPendingCompanyId(record.company_unique_id ?? null);
+        applyCompanyProjectFromRecord(record as unknown as Record<string, unknown>);
         setIsActive(normalizeIsActive(record.is_active));
       })
       .catch((error: unknown) => {
@@ -182,7 +154,7 @@ export default function ProjectForm() {
     return () => {
       cancelled = true;
     };
-  }, [id, isEdit, t]);
+  }, [id, isEdit, t, applyCompanyProjectFromRecord]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -307,7 +279,7 @@ export default function ProjectForm() {
             <Label htmlFor="projectCompany">{t("admin.nav.company")}</Label>
             <Select
               value={companyUniqueId}
-              onValueChange={setCompanyUniqueId}
+              onValueChange={onCompanyChange}
               disabled={isEdit}
             >
               <SelectTrigger className="input-validate w-full" id="projectCompany">
@@ -319,8 +291,8 @@ export default function ProjectForm() {
               </SelectTrigger>
               <SelectContent>
                 {companies.map((company) => (
-                  <SelectItem key={company.unique_id} value={company.unique_id}>
-                    {company.name}
+                  <SelectItem key={company.value} value={company.value}>
+                    {company.label}
                   </SelectItem>
                 ))}
               </SelectContent>

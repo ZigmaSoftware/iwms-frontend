@@ -19,9 +19,6 @@ import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const cap = (str?: string | null) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
 
@@ -63,14 +60,21 @@ export default function PanchayatLeaderListPage() {
     panchayat_name:{ value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
-  /* ── fetch all, filter client-side by company+project ── */
+  /* ── fetch, scoped server-side by company+project ── */
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
     let mounted = true;
 
     const load = async () => {
       if (mounted) setIsLoading(true);
       try {
-        const data: any = await panchayatLeaderApi.readAll();
+        const params: Record<string, string> = {};
+        if (companyUniqueId) params.company_id = companyUniqueId;
+        if (projectId) params.project_id = projectId;
+
+        const data: any = await panchayatLeaderApi.readAll({ params });
         if (!mounted) return;
         const rows: PanchayatLeader[] = Array.isArray(data) ? data : (data?.results ?? []);
         if (mounted) setAllRecords(rows);
@@ -83,20 +87,16 @@ export default function PanchayatLeaderListPage() {
 
     void load();
     return () => { mounted = false; };
-  }, [t]);
+  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length]);
 
-  /* ── client-side company+project filter (same as PanchayatListPage) ── */
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
   const data = (() => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId && !isSuperAdmin) return [];
 
-    return allRecords.filter((row) => {
-      const rowCompany  = normalizeId(row.company_id  || row.company_unique_id);
-      const rowProject  = normalizeId(row.project_id  || row.project_unique_id);
-      const companyOk = !companyUniqueId || rowCompany === companyUniqueId;
-      const projectOk = !projectId       || rowProject === projectId;
-      return companyOk && projectOk;
-    });
+    return allRecords;
   })();
 
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as typeof filters);

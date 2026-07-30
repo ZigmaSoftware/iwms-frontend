@@ -18,9 +18,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { PanchayatListRecord } from "./types";
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const PANCHAYAT_COLUMN_FIELDS: Record<string, string[]> = {
   panchayat_name: ["panchayat_name", "name"],
   state_name: ["state_id", "state", "state_name"],
@@ -98,12 +95,19 @@ export default function PanchayatListPage() {
   );
 
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
     let mounted = true;
 
     const loadPanchayats = async () => {
       setIsLoading(true);
       try {
-        const data = await panchayatApi.readAll();
+        const params: Record<string, string> = {};
+        if (companyUniqueId) params.company_id = companyUniqueId;
+        if (projectId) params.project_id = projectId;
+
+        const data = await panchayatApi.readAll({ params });
         if (mounted) setAllPanchayats(data as PanchayatListRecord[]);
       } catch (error) {
         if (mounted) {
@@ -119,26 +123,18 @@ export default function PanchayatListPage() {
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length]);
 
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
   const data = ((): PanchayatListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId && !isSuperAdmin) return [];
 
-    const rows = Array.isArray(allPanchayats)
+    return Array.isArray(allPanchayats)
       ? (allPanchayats as PanchayatListRecord[])
       : [];
-    const filtered = rows.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-
-      return companyMatches && projectMatches;
-    });
-
-    return filtered as PanchayatListRecord[];
   })();
 
   const onFilter = (e: DataTableFilterEvent) => {

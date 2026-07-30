@@ -33,9 +33,6 @@ const WARD_COLUMN_FIELDS: Record<string, string[]> = {
 };
 
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const extractErrorMessage = (error: unknown, fallbackMessage: string) => {
   if (!error) return fallbackMessage;
   if (typeof error === "string") return error;
@@ -131,12 +128,19 @@ export default function WardList() {
   };
 
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
     let mounted = true;
 
     const loadWards = async () => {
       setIsLoading(true);
       try {
-        const data = await wardApi.readAll();
+        const params: Record<string, string> = {};
+        if (companyUniqueId) params.company_id = companyUniqueId;
+        if (projectId) params.project_id = projectId;
+
+        const data = await wardApi.readAll({ params });
         if (mounted) setAllWards(data as WardListRecord[]);
       } catch (error) {
         if (mounted) {
@@ -153,26 +157,18 @@ export default function WardList() {
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length]);
 
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
   const wards = ((): WardListRecord[] => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId && !isSuperAdmin) return [];
 
-    const rows = Array.isArray(allWards)
+    return Array.isArray(allWards)
       ? (allWards as unknown as WardListRecord[])
       : [];
-    const filtered = rows.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-
-      return companyMatches && projectMatches;
-    });
-
-    return filtered as WardListRecord[];
   })();
 
   const onFilter = (e: DataTableFilterEvent) => {

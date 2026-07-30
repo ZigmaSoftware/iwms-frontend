@@ -30,9 +30,6 @@ const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
   encBins,
 );
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const BIN_COLUMN_FIELDS: Record<string, string[]> = {
   bin_name: ["bin_name", "name"],
   bin_capacity: ["bin_capacity", "capacity_liters"],
@@ -83,14 +80,12 @@ export default function BinList() {
   );
 
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
     let mounted = true;
 
     const loadBins = async () => {
-      if (!companyUniqueId && !isSuperAdmin) {
-        setBinRows([]);
-        return;
-      }
-
       setIsLoading(true);
       try {
         const data = await binApi.readAll({
@@ -115,8 +110,11 @@ export default function BinList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, t]);
 
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
   const bins = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as Bin[];
     if (!companyUniqueId && !isSuperAdmin) return [] as Bin[];
@@ -147,13 +145,7 @@ export default function BinList() {
       is_active: Boolean(row.is_active),
     }));
 
-    return mapped.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-      return companyMatches && projectMatches;
-    });
+    return mapped;
   })();
 
   const onFilter = (e: DataTableFilterEvent) => {

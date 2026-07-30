@@ -33,9 +33,6 @@ const Badge = ({ value }: { value?: string }) => (
   </span>
 );
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const text = (value: unknown): string =>
   value === null || value === undefined || String(value).trim() === ""
     ? "-"
@@ -108,6 +105,10 @@ export default function DailyTripHouseholdCollectionList() {
   });
 
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) {
+      setAllRecords([]);
+      return;
+    }
     if (!companyUniqueId && !isSuperAdmin) {
       setAllRecords([]);
       return;
@@ -139,7 +140,7 @@ export default function DailyTripHouseholdCollectionList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, t]);
 
   const rows = allRecords.map((rec) => ({
     ...rec,
@@ -165,18 +166,12 @@ export default function DailyTripHouseholdCollectionList() {
     ),
   }));
 
-  const data = (() => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
-    return rows.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      return (
-        (!companyUniqueId || rowCompanyId === companyUniqueId) &&
-        (!projectId || rowProjectId === projectId)
-      );
-    });
-  })();
+  // Company/project scoping is now applied server-side via params in the
+  // fetch effect above — no client-side narrowing needed here.
+  const data =
+    (isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)
+      ? []
+      : rows;
 
   const onFilter = (e: DataTableFilterEvent) =>
     setFilters(e.filters as DataTableFilterMeta);

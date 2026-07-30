@@ -19,9 +19,6 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { wasteTypeApi } from "@/helpers/admin";
 import type { WasteTypeListRecord } from "./types";
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const WASTE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
   waste_type_name: ["waste_type_name", "name"],
   company_name: ["company_id", "company_name"],
@@ -83,14 +80,12 @@ export default function WasteTypeListPage() {
   );
 
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
     let mounted = true;
 
     const loadWasteTypes = async () => {
-      if (!companyUniqueId && !isSuperAdmin) {
-        setAllWasteTypes([]);
-        return;
-      }
-
       setIsLoading(true);
       try {
         const data = await wasteTypeApi.readAll({
@@ -107,24 +102,17 @@ export default function WasteTypeListPage() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId]);
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length]);
 
-  const rows = (() => {
-    if (isSuperAdmin && companies.length === 0) return [] as WasteTypeListRecord[];
-    if (!companyUniqueId && !isSuperAdmin) return [] as WasteTypeListRecord[];
-
-    const list = Array.isArray(allWasteTypes) ? allWasteTypes : [];
-    return list.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-      const companyMatches =
-        !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-
-      return companyMatches && projectMatches;
-    });
-  })();
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
+  const rows: WasteTypeListRecord[] =
+    (isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)
+      ? []
+      : Array.isArray(allWasteTypes)
+        ? allWasteTypes
+        : [];
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as DataTableFilterMeta);

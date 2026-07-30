@@ -126,11 +126,9 @@ export default function TripExceptionLogList() {
         dailyTripAssignmentApi.readAll({ params }),
       ]);
 
-      const logRows = filterByCompanyProject(
-        normalizeList(logRes),
-        companyUniqueId,
-        projectId
-      );
+      // Company/project scoping for the main list is now applied
+      // server-side via params above — no client-side narrowing needed.
+      const logRows = normalizeList(logRes);
       const tripRows = filterByCompanyProject(
         normalizeList(tripRes),
         companyUniqueId,

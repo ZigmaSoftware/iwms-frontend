@@ -51,7 +51,6 @@ import {
   Building2,
   Globe,
   Filter,
-  MapPin,
 } from "lucide-react";
 
 // ─── MOCK DATA ────────────────────────────────────────────────────
@@ -121,26 +120,6 @@ const localBodyTypes = [
     iconCls: "text-sky-600",
     iconBg: "bg-sky-50 border-sky-100",
     desc: "Municipal Corporation",
-  },
-  {
-    type: "Municipality",
-    count: 152,
-    active: 148,
-    Icon: Building2,
-    accentCls: "bg-blue-500",
-    iconCls: "text-blue-600",
-    iconBg: "bg-blue-50 border-blue-100",
-    desc: "Municipal Council",
-  },
-  {
-    type: "Town Panchayat",
-    count: 528,
-    active: 516,
-    Icon: MapPin,
-    accentCls: "bg-violet-500",
-    iconCls: "text-violet-600",
-    iconBg: "bg-violet-50 border-violet-100",
-    desc: "Town & Nagara Panchayat",
   },
   {
     type: "Panchayat",
@@ -374,8 +353,6 @@ export default function OverallDashboard() {
           <SelectContent>
             <SelectItem value="all">All Local Bodies</SelectItem>
             <SelectItem value="corporation">Corporation</SelectItem>
-            <SelectItem value="municipality">Municipality</SelectItem>
-            <SelectItem value="town-panchayat">Town Panchayat</SelectItem>
             <SelectItem value="panchayat">Panchayat</SelectItem>
           </SelectContent>
         </Select>
