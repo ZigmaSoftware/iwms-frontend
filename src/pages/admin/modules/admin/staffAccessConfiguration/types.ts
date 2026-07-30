@@ -2,12 +2,13 @@
 // Matches StaffAccessConfigurationSerializer (backend) — read/write shapes.
 
 export type DataScopeForm = {
-  state_id?: string;
-  district_id?: string;
-  city_id?: string;
-  zone_id?: string;
-  panchayat_id?: string;
-  ward_id?: string;
+  project_ids?: string[];
+  state_ids?: string[];
+  district_ids?: string[];
+  city_ids?: string[];
+  zone_ids?: string[];
+  panchayat_ids?: string[];
+  ward_ids?: string[];
 };
 
 /** One granted screen's actions — {userscreen_id, action_ids} in write payload. */
@@ -20,13 +21,13 @@ export type PermissionGrant = {
 export type StaffAccessConfigPayload = {
   staff_id?: string;
   company_id: string;
-  project_id: string;
-  state_id?: string | null;
-  district_id?: string | null;
-  city_id?: string | null;
-  zone_id?: string | null;
-  panchayat_id?: string | null;
-  ward_id?: string | null;
+  project_ids: string[];
+  state_ids?: string[];
+  district_ids?: string[];
+  city_ids?: string[];
+  zone_ids?: string[];
+  panchayat_ids?: string[];
+  ward_ids?: string[];
   description?: string;
   permissions: PermissionGrant[];
   basicInfo?: Record<string, unknown>;
@@ -49,13 +50,13 @@ export type StaffAccessConfigRecord = {
   staff_id?: string;
   staff_unique_id?: string;
   company_id?: string;
-  project_id?: string;
-  state_id?: string | null;
-  district_id?: string | null;
-  city_id?: string | null;
-  zone_id?: string | null;
-  panchayat_id?: string | null;
-  ward_id?: string | null;
+  project_ids?: string[];
+  state_ids?: string[];
+  district_ids?: string[];
+  city_ids?: string[];
+  zone_ids?: string[];
+  panchayat_ids?: string[];
+  ward_ids?: string[];
   description?: string;
   permissions?: PermissionGrant[];
 
@@ -70,13 +71,13 @@ export type StaffAccessConfigRecord = {
   staffusertype_id?: string | null;
   staffusertype_name?: string | null;
   company_name?: string;
-  project_name?: string;
-  state_name?: string | null;
-  district_name?: string | null;
-  city_name?: string | null;
-  zone_name?: string | null;
-  panchayat_name?: string | null;
-  ward_name?: string | null;
+  project_names?: string[];
+  state_names?: string[];
+  district_names?: string[];
+  city_names?: string[];
+  zone_names?: string[];
+  panchayat_names?: string[];
+  ward_names?: string[];
   granted_permissions?: GrantedPermissionRecord[];
   main_screen_count?: number;
   screen_count?: number;
@@ -103,10 +104,16 @@ export type AvailableMainScreen = {
   screens: AvailableScreen[];
 };
 
+export type AvailableProjectPermissions = {
+  projectId: string;
+  projectName: string;
+  mainscreens: AvailableMainScreen[];
+};
+
 export type AvailablePermissionsResponse = {
   company_id: string;
-  project_id: string;
-  mainscreens: AvailableMainScreen[];
+  project_ids: string[];
+  projects: AvailableProjectPermissions[];
 };
 
 /** Selections tracked by the permission checkbox-tree UI, keyed by userScreenId. */
@@ -122,12 +129,14 @@ export type SelectOption = {
   label: string;
 };
 
-export type WithStateIdOption = SelectOption & { stateId?: string };
+export type WithStateIdOption = SelectOption & { projectId?: string; stateId?: string };
 export type WithDistrictIdOption = SelectOption & {
+  projectId?: string;
   stateId?: string;
   districtId?: string;
 };
 export type WithCityIdOption = SelectOption & {
+  projectId?: string;
   stateId?: string;
   districtId?: string;
   cityId?: string;
