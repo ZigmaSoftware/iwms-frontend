@@ -1,6 +1,6 @@
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -18,10 +18,42 @@ import { PencilIcon, TrashBinIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
 import { userScreenPermissionApi } from "@/helpers/admin";
+import { adminApi } from "@/helpers/admin/registry";
+import { recordExcelAudit } from "@/helpers/admin/commonAudit";
+import {
+  excelFileToCsvFile,
+  exportTemplateToExcel,
+  getAdminScreenExcelFilename,
+  type ExcelTemplateColumn,
+} from "@/utils/exportExcel";
 
-import type { StaffUserType } from "../types/admin.types";
+import type { PermissionRow, ProjectPermissionSummaryRow } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+
+/* -----------------------------------------------------------
+   CONSTANTS
+----------------------------------------------------------- */
+
+const BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
+  { field: "company_id", header: "company_id", required: true, sample: "COMPANY-0001" },
+  { field: "project_id", header: "project_id", required: true, sample: "PROJECT-0001" },
+  { field: "permission_type", header: "permission_type", sample: "screen" },
+  { field: "main_screen_id_or_name", header: "main_screen_id_or_name", required: true, sample: "Transport Masters" },
+  { field: "user_screen_id_or_name", header: "user_screen_id_or_name", required: true, sample: "Vehicle Creation" },
+  { field: "action_id_or_name", header: "action_id_or_name", required: true, sample: "view" },
+  { field: "description", header: "description", sample: "" },
+];
+
+const toStrId = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+};
+
+const PERMISSION_TYPE_LABELS: Record<string, string> = {
+  screen: "Screen Permission",
+  field: "Field Permission",
+};
 
 /* -----------------------------------------------------------
    COMPONENT
@@ -32,6 +64,7 @@ export default function UserScreenPermissionList() {
   const navigate = useNavigate();
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
@@ -47,20 +80,17 @@ export default function UserScreenPermissionList() {
   } = useCompanyProjectSelection({
     isEdit: false,
     defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
-  const [permissionRows, setPermissionRows] = useState<StaffUserType[]>([]);
+  const [permissionRows, setPermissionRows] = useState<PermissionRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    staffusertype_name: {
-      value: null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
     company_name: {
       value: null,
       matchMode: FilterMatchMode.STARTS_WITH,
     },
-    mainscreen_name: {
+    project_name: {
       value: null,
       matchMode: FilterMatchMode.STARTS_WITH,
     },
@@ -75,13 +105,13 @@ export default function UserScreenPermissionList() {
   });
 
   const ENC_EDIT_PATH = (
-    staffTypeId: string,
+    projectIdValue: string,
     companyId: string,
-    mainScreenId: string
+    permissionType: string
   ) =>
-    appendRouteQuery(permissionEditPath(staffTypeId), {
+    appendRouteQuery(permissionEditPath(projectIdValue), {
       company_unique_id: companyId,
-      mainscreen_id: mainScreenId,
+      permission_type: permissionType,
     });
 
   useEffect(() => {
@@ -97,8 +127,9 @@ export default function UserScreenPermissionList() {
       try {
         const params: Record<string, string | number> = { limit: 6000, offset: 0 };
         if (companyUniqueId) params.company_id = companyUniqueId;
+        if (projectId) params.project_id = projectId;
         const data = await userScreenPermissionApi.readAll({ params });
-        if (mounted) setPermissionRows(data as StaffUserType[]);
+        if (mounted) setPermissionRows(data as PermissionRow[]);
       } catch {
         if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
       } finally {
@@ -111,80 +142,96 @@ export default function UserScreenPermissionList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, t]);
+  }, [companyUniqueId, projectId, t, refetchTrigger]);
 
-  const records = useMemo<StaffUserType[]>(() => {
+  const records = useMemo<ProjectPermissionSummaryRow[]>(() => {
     if (!companyUniqueId && !isSuperAdmin) return [];
     const data = permissionRows;
-      const selectedCompanyLabel = (
-        companies.find((company) => company.value === companyUniqueId)?.label ?? ""
-      )
-        .trim()
-        .toLowerCase();
+    const selectedCompanyLabel = (
+      companies.find((company) => company.value === companyUniqueId)?.label ?? ""
+    )
+      .trim()
+      .toLowerCase();
 
-      const selectedProjectLabel =
-        projects.find((p) => p.value === projectId)?.label ?? "";
+    const filteredData = !companyUniqueId
+      ? data
+      : data.filter((item) => {
+          const itemCompanyId = toStrId(item.company_id);
+          const itemCompanyName = String(item.company_name ?? "")
+            .trim()
+            .toLowerCase();
 
-      const filteredData = !companyUniqueId
-        ? data
-        : data.filter((item) => {
-        const itemCompanyId = String(item.company_id ?? "").trim();
-        const itemCompanyUniqueId = String(item.company_unique_id ?? "").trim();
-        const itemCompanyName = String(item.company_name ?? "")
-          .trim()
-          .toLowerCase();
+          if (itemCompanyId && itemCompanyId === companyUniqueId) return true;
+          if (!itemCompanyId && selectedCompanyLabel) {
+            return itemCompanyName === selectedCompanyLabel;
+          }
 
-        if (itemCompanyId && itemCompanyId === companyUniqueId) return true;
-        if (itemCompanyUniqueId && itemCompanyUniqueId === companyUniqueId) return true;
-        if (!itemCompanyId && !itemCompanyUniqueId && selectedCompanyLabel) {
-          return itemCompanyName === selectedCompanyLabel;
-        }
+          return false;
+        });
 
-        return false;
-      });
+    // Group by project + permission type so screen and field grants are managed independently.
+    type GroupAccum = {
+      composite_key: string;
+      project_id: string;
+      project_name: string;
+      company_id: string;
+      company_name: string;
+      permission_type: string;
+      permission_type_label: string;
+      mainScreenIds: Set<string>;
+      userScreenIds: Set<string>;
+    };
 
-      // Group by company + staff type + mainscreen to prevent cross-company merge.
-      const groupedObj: Record<string, any> = filteredData.reduce((acc, item) => {
-        const companyId = String(item.company_id ?? item.company_unique_id ?? "");
-        const companyKeyFallback = String(item.company_name ?? "").trim().toLowerCase();
-        const companyKey = companyId || companyKeyFallback;
-        const staffTypeId = String(item.staffusertype_id ?? "");
-        const screenId = String(item.mainscreen_id ?? "");
-        const key = `${companyKey}__${staffTypeId}__${screenId}`;
+    const groupedObj: Record<string, GroupAccum> = filteredData.reduce(
+      (acc, item) => {
+        const projId = toStrId(item.project_id);
+        const permissionType = String(item.permission_type ?? "screen") || "screen";
+        const key = `${projId || "__no_project__"}__${permissionType}`;
 
         if (!acc[key]) {
           acc[key] = {
-            unique_id: staffTypeId,
             composite_key: key,
-            company_id: companyId,
-            company_name: item.company_name ?? t("common.unknown"),
-            project_name: item.project_name || selectedProjectLabel,
-            usertype_name: item.usertype_name ?? "",
-            staffusertype_name: item.staffusertype_name ?? t("common.unknown"),
-            mainscreen_name: item.mainscreen_name ?? t("common.unknown"),
-            mainscreen_id: screenId,
-            is_active: item.is_active,
-            screens: [],
+            project_id: projId,
+            project_name: String(item.project_name ?? t("common.unknown")),
+            company_id: toStrId(item.company_id),
+            company_name: String(item.company_name ?? t("common.unknown")),
+            permission_type: permissionType,
+            permission_type_label: PERMISSION_TYPE_LABELS[permissionType] ?? permissionType,
+            mainScreenIds: new Set<string>(),
+            userScreenIds: new Set<string>(),
           };
         }
 
-        acc[key].screens.push({
-          screen: item.userscreen_name,
-          action: item.userscreenaction_name,
-          order: item.order_no,
-        });
+        const mainScreenId = toStrId(item.mainscreen_id);
+        if (mainScreenId) acc[key].mainScreenIds.add(mainScreenId);
+
+        const userScreenId = toStrId(item.userscreen_id);
+        if (userScreenId) acc[key].userScreenIds.add(userScreenId);
 
         return acc;
-      }, {} as Record<string, any>);
+      },
+      {} as Record<string, GroupAccum>
+    );
 
-      return Object.values(groupedObj);
-  }, [companies, companyUniqueId, permissionRows, projects, projectId, t]);
+    return Object.values(groupedObj).map((group) => ({
+      project_id: group.project_id,
+      project_name: group.project_name,
+      company_id: group.company_id,
+      company_name: group.company_name,
+      permission_type: group.permission_type,
+      permission_type_label: group.permission_type_label,
+      main_screen_count: group.mainScreenIds.size,
+      screen_count: group.userScreenIds.size,
+      mainscreen_ids: Array.from(group.mainScreenIds),
+      composite_key: group.composite_key,
+    }));
+  }, [companies, companyUniqueId, permissionRows, t]);
 
   /* -----------------------------------------------------------
-     DELETE RECORD
+     DELETE RECORD — loop delete-by-project per distinct mainscreen_id
   ----------------------------------------------------------- */
 
-  const handleDelete = useCallback(async (row: any) => {
+  const handleDelete = useCallback(async (row: ProjectPermissionSummaryRow) => {
     const confirmDelete = await Swal.fire({
       title: t("common.confirm_title"),
       text: t("admin.user_screen_permission.confirm_delete"),
@@ -196,17 +243,21 @@ export default function UserScreenPermissionList() {
     if (!confirmDelete.isConfirmed) return;
 
     try {
-      const deletePath =
-        row?.company_id && row?.mainscreen_id
-          ? `delete-by-staffusertype/${row.unique_id}/?company_id=${row.company_id}&mainscreen_id=${row.mainscreen_id}`
-          : `delete-by-staffusertype/${row.unique_id}`;
+      const mainScreenIds = row.mainscreen_ids.length > 0 ? row.mainscreen_ids : [""];
 
-      await userScreenPermissionApi.delete(deletePath);
+      await Promise.all(
+        mainScreenIds.map((mainScreenId) =>
+          userScreenPermissionApi.delete(
+            `delete-by-project/${row.project_id}/?mainscreen_id=${encodeURIComponent(mainScreenId)}&permission_type=${encodeURIComponent(row.permission_type)}`
+          )
+        )
+      );
+
       setPermissionRows((current) =>
         current.filter((item) => {
-          const sameStaffType = String(item.staffusertype_id ?? "") === String(row.unique_id);
-          const sameMainScreen = String(item.mainscreen_id ?? "") === String(row.mainscreen_id ?? "");
-          return !(sameStaffType && sameMainScreen);
+          const sameProject = toStrId(item.project_id) === row.project_id;
+          const samePermissionType = String(item.permission_type ?? "screen") === row.permission_type;
+          return !(sameProject && samePermissionType);
         })
       );
 
@@ -228,23 +279,98 @@ export default function UserScreenPermissionList() {
   }, [t]);
 
   /* -----------------------------------------------------------
+     BULK UPLOAD — Download Template / Upload Excel
+  ----------------------------------------------------------- */
+
+  const downloadTemplate = () => {
+    exportTemplateToExcel(
+      BULK_TEMPLATE_COLUMNS,
+      getAdminScreenExcelFilename("template"),
+      "ScreenPermissions",
+    );
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const csvFile = await excelFileToCsvFile(file, "screen_permission_bulk_upload.csv");
+      const formData = new FormData();
+      formData.append("file", csvFile);
+
+      const res = await adminApi.companyWiseScreenPermissions.action(
+        "bulk-upload",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
+
+      const errors = Array.isArray(res.errors) ? res.errors : [];
+      recordExcelAudit("upload_excel", {
+        file_name: file.name,
+        status: "completed",
+        success_count: Number(res.success_count ?? 0),
+        error_count: errors.length,
+      });
+
+      const errorPreview =
+        errors.length > 0
+          ? `<hr/><div class="text-left text-xs mt-2">${errors
+              .slice(0, 3)
+              .map((entry: { row: number; error: unknown }) => {
+                const detail =
+                  typeof entry.error === "string"
+                    ? entry.error
+                    : JSON.stringify(entry.error);
+                return `Row ${entry.row}: ${detail}`;
+              })
+              .join("<br/>")}</div>`
+          : "";
+
+      Swal.fire({
+        icon: "success",
+        title: t("admin.user_screen_permission.upload_completed_title"),
+        html: `<b>Success:</b> ${res.success_count}<br/><b>Errors:</b> ${errors.length}${errorPreview}`,
+      });
+
+      setRefetchTrigger((prev) => prev + 1);
+    } catch (err) {
+      console.error("Screen permission bulk upload failed:", err);
+      recordExcelAudit("upload_excel", {
+        file_name: file.name,
+        status: "failed",
+      });
+      Swal.fire(t("common.error"), t("admin.user_screen_permission.upload_failed"), "error");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  /* -----------------------------------------------------------
      ACTION BUTTONS
   ----------------------------------------------------------- */
 
-  const actionTemplate = (row: any) => (
+  const actionTemplate = (row: ProjectPermissionSummaryRow) => (
     <div className="flex gap-2 justify-center">
       <button
         title={t("common.edit")}
         className="text-blue-600 hover:text-blue-800"
-        onClick={() =>
+        onClick={() => {
+          if (!row.project_id) {
+            Swal.fire(
+              t("common.warning"),
+              t("admin.user_screen_permission.no_project_edit_warning"),
+              "warning"
+            );
+            return;
+          }
           navigate(
-            ENC_EDIT_PATH(
-              row.unique_id,
-              String(row.company_id ?? ""),
-              String(row.mainscreen_id ?? "")
-            )
-          )
-        }
+            ENC_EDIT_PATH(row.project_id, row.company_id, row.permission_type),
+            { state: { companyUniqueId: row.company_id, projectId: row.project_id } }
+          );
+        }}
       >
         <PencilIcon className="size-5" />
       </button>
@@ -256,11 +382,17 @@ export default function UserScreenPermissionList() {
       >
         <TrashBinIcon className="size-5" />
       </button>
-     
+
     </div>
   );
 
   const indexTemplate = (_: any, { rowIndex }: any) => rowIndex + 1;
+
+  const mainScreenCountTemplate = (row: ProjectPermissionSummaryRow) =>
+    t("admin.user_screen_permission.main_screens_count", { count: row.main_screen_count });
+
+  const screenCountTemplate = (row: ProjectPermissionSummaryRow) =>
+    t("admin.user_screen_permission.screens_count", { count: row.screen_count });
 
   /* -----------------------------------------------------------
      GLOBAL SEARCH
@@ -332,6 +464,27 @@ export default function UserScreenPermissionList() {
           )}
 
           <Button
+            label={t("admin.user_screen_permission.download_template")}
+            icon="pi pi-download"
+            severity="secondary"
+            className="p-button-sm"
+            onClick={downloadTemplate}
+          />
+          <Button
+            label={t("admin.user_screen_permission.upload_excel")}
+            icon="pi pi-upload"
+            className="p-button-sm"
+            onClick={() => fileInputRef.current?.click()}
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            hidden
+            onChange={handleFileUpload}
+          />
+
+          <Button
             label={t("common.add_item", {
               item: t("admin.user_screen_permission.permission_label"),
             })}
@@ -350,7 +503,7 @@ export default function UserScreenPermissionList() {
         loading={isLoading}
         filters={filters}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        globalFilterFields={["staffusertype_name", "company_name", "mainscreen_name"]}
+        globalFilterFields={["project_name", "company_name", "permission_type_label"]}
         header={header}
         stripedRows
         showGridlines
@@ -366,33 +519,35 @@ export default function UserScreenPermissionList() {
         />
 
         <Column
-          field="company_name"
-          header={t("admin.nav.company")}
-          sortable
-        />
-
-        <Column
           field="project_name"
           header={t("admin.nav.project")}
           sortable
         />
 
         <Column
-          field="mainscreen_name"
+          field="company_name"
+          header={t("admin.nav.company")}
+          sortable
+        />
+
+        <Column
+          field="permission_type_label"
+          header="Permission Type"
+          sortable
+        />
+
+        <Column
           header={t("admin.nav.main_screen")}
+          body={mainScreenCountTemplate}
           sortable
+          sortField="main_screen_count"
         />
 
         <Column
-          field="usertype_name"
-          header={t("admin.nav.user_type")}
+          header={t("admin.nav.user_screen")}
+          body={screenCountTemplate}
           sortable
-        />
-
-        <Column
-          field="staffusertype_name"
-          header={t("admin.nav.staff_user_type")}
-          sortable
+          sortField="screen_count"
         />
 
         <Column

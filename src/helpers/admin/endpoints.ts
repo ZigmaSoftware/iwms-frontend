@@ -96,6 +96,7 @@ export const adminEndpoints = {
   staffCreation: "user-creations/staffcreation",
   supervisorZoneMap: "user-creations/supervisor-zone-map",
   unassignedStaffPool: "user-creations/unassigned-staff-pool",
+  staffAccessConfiguration: "user-creations/staff-access-configuration",
 
   /* =========================
      PROCESS

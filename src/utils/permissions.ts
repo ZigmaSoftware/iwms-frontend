@@ -5,7 +5,7 @@ import { adminEndpoints } from "@/helpers/admin/endpoints";
 // Types
 // ============================================================
 
-export type PermissionAction = "view" | "add" | "edit" | "delete" | "show" | string;
+export type PermissionAction = "view" | "add" | "edit" | "delete" | string;
 export type PermissionsMap = Record<string, Record<string, string[]>>;
 
 export type PermissionDetailsColumn = {
@@ -23,7 +23,6 @@ export type PermissionDetailsColumn = {
 export type PermissionDetailsScreen = {
   userScreenId: string;
   permissions: {
-    show: boolean;
     view: boolean;
     add: boolean;
     edit: boolean;
@@ -71,8 +70,7 @@ export const PERMISSION_DETAILS_STORAGE_KEY = "permission_details";
 export const COLUMN_PERMISSIONS_STORAGE_KEY = "column_permissions";
 
 const ACTION_ALIASES: Record<string, string[]> = {
-  show: ["show", "display", "visible"],
-  view: ["view", "list", "read"],
+  view: ["view", "display", "visible", "list", "read", "use", "show"],
   add: ["add", "create"],
   edit: ["edit", "update", "change"],
   delete: ["delete", "remove"],
@@ -211,7 +209,7 @@ const sanitizePermissions = (source: unknown): PermissionsMap => {
 
   Object.entries(root).forEach(([moduleName, screens]) => {
     if (typeof screens === "boolean") {
-      if (screens) sanitized[moduleName] = { [moduleName]: ["show", "view"] };
+      if (screens) sanitized[moduleName] = { [moduleName]: ["view"] };
       return;
     }
 
@@ -221,7 +219,7 @@ const sanitizePermissions = (source: unknown): PermissionsMap => {
 
     Object.entries(screens).forEach(([screenName, actions]) => {
       if (typeof actions === "boolean") {
-        if (actions) sanitizedScreens[screenName] = ["show", "view"];
+        if (actions) sanitizedScreens[screenName] = ["view"];
         return;
       }
 
@@ -233,7 +231,7 @@ const sanitizePermissions = (source: unknown): PermissionsMap => {
           .filter(Boolean);
 
         if (actionList.length > 0) {
-          sanitizedScreens[screenName] = Array.from(new Set(["show", ...actionList]));
+          sanitizedScreens[screenName] = Array.from(new Set(["view", ...actionList]));
         }
         return;
       }
@@ -290,7 +288,6 @@ const sanitizePermissionDetails = (source: unknown): PermissionDetailsMap => {
       sanitizedScreens[screenName] = {
         userScreenId: String(screen.userScreenId ?? screen.userscreen_id ?? ""),
         permissions: {
-          show: Boolean(perms.show ?? false),
           view: Boolean(perms.view ?? false),
           add: Boolean(perms.add ?? false),
           edit: Boolean(perms.edit ?? false),
@@ -696,7 +693,7 @@ export const hasSidebarPermission = (
   moduleName: string,
   screenName: string,
   permissions: PermissionsMap = getStoredPermissions(),
-): boolean => hasPermission(moduleName, screenName, "show", permissions);
+): boolean => hasPermission(moduleName, screenName, "view", permissions);
 
 export const hasAnyPermission = (
   action: PermissionAction = "view",

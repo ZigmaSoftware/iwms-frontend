@@ -79,7 +79,9 @@ export const useCompanyProjectSelection = ({
   );
   const [projectId, setProjectId] = useState(initialProjectId || "");
   const [apiCompanies, setApiCompanies] = useState<CompanyProjectOption[]>([]);
+  const [companiesLoaded, setCompaniesLoaded] = useState(false);
   const [projects, setProjects] = useState<CompanyProjectOption[]>([]);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [resolvedLoggedInCompanyLabel, setResolvedLoggedInCompanyLabel] =
     useState("");
 
@@ -200,9 +202,11 @@ export const useCompanyProjectSelection = ({
 
   useEffect(() => {
     if (!isSuperAdmin) {
+      setCompaniesLoaded(true);
       return;
     }
 
+    setCompaniesLoaded(false);
     companyApi
       .readAll()
       .then((res) => {
@@ -218,10 +222,15 @@ export const useCompanyProjectSelection = ({
       })
       .catch(() => {
         setApiCompanies([]);
+      })
+      .finally(() => {
+        setCompaniesLoaded(true);
       });
   }, [defaultToAll, isEdit, isSuperAdmin]);
 
   useEffect(() => {
+    setProjectsLoaded(false);
+
     // Non-superadmin: use only the projects from the login session
     if (!isSuperAdmin) {
       const sessionProjects = getStoredProjects();
@@ -236,6 +245,7 @@ export const useCompanyProjectSelection = ({
         if (options.length === 1) return options[0].value;
         return defaultToAll ? "" : options[0]?.value ?? "";
       });
+      setProjectsLoaded(true);
       return;
     }
 
@@ -263,6 +273,10 @@ export const useCompanyProjectSelection = ({
             if (!active) return;
             setProjects([]);
             setProjectId("");
+          })
+          .finally(() => {
+            if (!active) return;
+            setProjectsLoaded(true);
           });
 
         return () => {
@@ -272,6 +286,7 @@ export const useCompanyProjectSelection = ({
 
       setProjects([]);
       setProjectId("");
+      setProjectsLoaded(true);
       return;
     }
 
@@ -300,6 +315,7 @@ export const useCompanyProjectSelection = ({
             }
             return defaultToAll ? "" : (options[0]?.value ?? "");
           });
+          setProjectsLoaded(true);
           return;
         }
       }
@@ -336,6 +352,10 @@ export const useCompanyProjectSelection = ({
 
         setProjects([]);
         setProjectId("");
+      })
+      .finally(() => {
+        if (!active) return;
+        setProjectsLoaded(true);
       });
 
     return () => {
@@ -385,7 +405,9 @@ export const useCompanyProjectSelection = ({
     companyUniqueId,
     projectId,
     projects,
+    projectsLoaded,
     companies,
+    companiesLoaded,
     isSuperAdmin,
     showAllProjectsOption,
     loggedInCompanyUniqueId,

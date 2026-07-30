@@ -452,28 +452,28 @@ export const useUserScreenPermissionsByCompanyQuery = (companyId?: string) =>
 
 export const useUserScreenPermissionFormattedQuery = (
   companyId?: string,
-  staffTypeId?: string,
+  projectId?: string,
   mainScreenId?: string
 ) =>
   useDirectQuery<any>(
     () =>
       userScreenPermissionApi.read(
-        `by-staff-format/?company_id=${encodeURIComponent(companyId ?? "")}&staffusertype_id=${encodeURIComponent(staffTypeId ?? "")}&mainscreen_id=${encodeURIComponent(mainScreenId ?? "")}`
+        `by-project-format/?company_id=${encodeURIComponent(companyId ?? "")}&project_id=${encodeURIComponent(projectId ?? "")}&mainscreen_id=${encodeURIComponent(mainScreenId ?? "")}`
       ),
-    [companyId, staffTypeId, mainScreenId],
-    Boolean(companyId && staffTypeId && mainScreenId)
+    [companyId, projectId, mainScreenId],
+    Boolean(companyId && projectId && mainScreenId)
   );
 
 export const useSyncUserScreenPermissionMutation = () =>
   useMutationAction<
-    { staffTypeId: string; payload: any; isEdit: boolean },
+    { projectId: string; payload: any; isEdit: boolean },
     any
   >(
-    ({ staffTypeId, payload, isEdit }) =>
+    ({ projectId, payload, isEdit }) =>
       userScreenPermissionApi.action(
         isEdit
-          ? `update-by-staffusertype/${staffTypeId}`
-          : `bulk-sync-multi/${staffTypeId}`,
+          ? `update-by-project/${projectId}`
+          : `bulk-sync-multi-project/${projectId}`,
         payload
       ),
     ["companyWiseScreenPermissions"]

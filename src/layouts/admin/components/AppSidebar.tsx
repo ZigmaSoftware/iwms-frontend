@@ -72,6 +72,7 @@ const {
   encUserScreenAction,
   encMainScreen,
   encUserScreenPermission,
+  encStaffAccessConfiguration,
   encStaffMasters,
   encStaffTemplate,
   encAlternativeStaffTemplate,
@@ -418,6 +419,12 @@ const userCreationMasters: NavItem[] = [
         module: "user-creations",
         screen: "staffcreation",
       },
+      {
+        nameKey: "admin.nav.staff_access_configuration",
+        path: `/${encAdmins}/${encStaffAccessConfiguration}`,
+        module: "user-creations",
+        screen: "staff-access-configuration",
+      },
     ],
   },
 ];
@@ -722,12 +729,11 @@ const AppSidebar: React.FC = () => {
   //  Detect if current user is superadmin
   const isSuperAdmin = useMemo(() => isSuperAdminUser(), []);
 
-  // Check permission with proper logging
+  // Check sidebar visibility using the read/view permission returned by login.
   const checkPermission = useCallback(
     (module: string | undefined, screen: string | undefined): boolean => {
       if (!module || !screen) return true;
-      const allowed = hasPermission(module, screen, "show");
-      return allowed;
+      return hasPermission(module, screen, "view");
     },
     [hasPermission]
   );
@@ -742,13 +748,7 @@ const AppSidebar: React.FC = () => {
     if (isSuperAdmin) return subItems;
 
     // Regular users: only show items they have permission for
-    return subItems.filter((sub) => {
-      const allowed = checkPermission(sub.module, sub.screen);
-      console.log(
-        `[Filter SubItem] ${sub.nameKey} (${sub.module}/${sub.screen}) = ${allowed}`
-      );
-      return allowed;
-    });
+    return subItems.filter((sub) => checkPermission(sub.module, sub.screen));
   };
 
   // Check if menu item should be shown
@@ -756,26 +756,18 @@ const AppSidebar: React.FC = () => {
     item: NavItem,
     filteredSubItems: NavItem["subItems"]
   ): boolean => {
-
     if (item.nameKey === "admin.nav.dashboard") {
-    return true;
-  }
+      return true;
+    }
+
     // If no subItems, check direct permission or show if no permission needed
     if (!item.subItems || item.subItems.length === 0) {
       if (!item.module || !item.screen) return true;
-      const allowed = checkPermission(item.module, item.screen);
-      console.log(
-        `[Show Item] ${item.nameKey} (no children, ${item.module}/${item.screen}) = ${allowed}`
-      );
-      return allowed;
+      return checkPermission(item.module, item.screen);
     }
 
     // If has subItems, show only if filtered children exist
-    const hasChildren = !!(filteredSubItems && filteredSubItems.length > 0);
-    console.log(
-      `[Show Item] ${item.nameKey} (parent, has ${filteredSubItems?.length || 0} children) = ${hasChildren}`
-    );
-    return hasChildren;
+    return !!(filteredSubItems && filteredSubItems.length > 0);
   };
 
   // Build sidebar sections with strict filtering
@@ -807,7 +799,6 @@ const AppSidebar: React.FC = () => {
       }
 
       // For regular users: strict filtering
-      console.log("[Sidebar] Regular user - applying permission filters");
       return allSections
         .map((section) => {
           // Filter items within section
