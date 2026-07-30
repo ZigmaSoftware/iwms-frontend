@@ -25,9 +25,6 @@ const toDisplay = (value: unknown): string =>
 const toOptionalString = (value: unknown): string | null =>
   value === null || value === undefined ? null : String(value);
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const COLLECTION_POINT_COLUMN_FIELDS: Record<string, string[]> = {
   cp_name: ["cp_name", "collection_point_name", "name"],
   company_name: ["company_id", "company_name"],
@@ -90,14 +87,12 @@ export default function CollectionPointListPage() {
   );
 
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
     let mounted = true;
 
     const loadCollectionPoints = async () => {
-      if (!companyUniqueId && !isSuperAdmin) {
-        setRecords([]);
-        return;
-      }
-
       setIsLoading(true);
       try {
         const data = await collectionPointApi.readAll({
@@ -116,20 +111,21 @@ export default function CollectionPointListPage() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId]);
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length]);
 
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — only the local collection-type
+  // filter still needs to be applied client-side.
   const rows = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as CollectionPointRecord[];
     if (!companyUniqueId && !isSuperAdmin) return [] as CollectionPointRecord[];
 
-    return records.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-      const typeMatches = collectionTypeFilter === "all" || (row as any).collection_type === collectionTypeFilter;
-      return companyMatches && projectMatches && typeMatches;
-    });
+    if (collectionTypeFilter === "all") return records;
+
+    return records.filter(
+      (row) => (row as any).collection_type === collectionTypeFilter
+    );
   })();
 
   const onFilter = (e: DataTableFilterEvent) => {

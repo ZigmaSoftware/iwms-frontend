@@ -19,9 +19,6 @@ import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
 
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const HIERARCHY_COLUMN_FIELDS: Record<string, string[]> = {
   level_name: ["level_name", "name"],
   is_active: ["is_active"],
@@ -93,20 +90,22 @@ export default function HierarchyListPage() {
     encHierarchies,
   );
 
-  const records = hierarchies.filter((row) => {
-    const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-    const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-    const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-    const projectMatches = !projectId || rowProjectId === projectId;
-
-    return companyMatches && projectMatches;
-  });
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params below) — no client-side narrowing needed.
+  const records: HierarchyRecord[] =
+    (isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)
+      ? []
+      : hierarchies;
 
   const loadHierarchies = async () => {
     setIsLoading(true);
     try {
-      const response = await adminApi.hierarchies.readAll();
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+
+      const response = await adminApi.hierarchies.readAll({ params });
       setHierarchies(Array.isArray(response) ? response : []);
     } catch (error) {
       Swal.fire(
@@ -120,8 +119,11 @@ export default function HierarchyListPage() {
   };
 
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
     void loadHierarchies();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);

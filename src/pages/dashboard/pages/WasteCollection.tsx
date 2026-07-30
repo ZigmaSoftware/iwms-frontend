@@ -1194,6 +1194,7 @@ export default function WasteCollection() {
   const fetchWaste = async (fromDate: string, toDate: string) => {
     try {
       const result = await fetchWasteReport<ApiWasteRow>(
+        "",
         "date_wise_data",
         fromDate,
         toDate
@@ -1253,6 +1254,7 @@ export default function WasteCollection() {
       const endDate = getLocalDateKey();
       try {
         const result = await fetchWasteReport<ApiWasteRow>(
+          "",
           "date_wise_data",
           ALL_MONTHS_START,
           endDate
@@ -1682,6 +1684,7 @@ export default function WasteCollection() {
       try {
         const { fromDate, toDate } = vehicleDialogRange;
         const result = await fetchWasteReport(
+          "",
           "day_wise_data",
           fromDate,
           toDate
@@ -1733,6 +1736,7 @@ export default function WasteCollection() {
       setMonthlyVehicleError("");
       try {
         const result = await fetchWasteReport(
+          "",
           "day_wise_data",
           fromDate,
           toDate
@@ -1786,6 +1790,7 @@ export default function WasteCollection() {
       setMonthlyDailyError("");
       try {
         const result = await fetchWasteReport<ApiWasteRow>(
+          "",
           "date_wise_data",
           fromDate,
           toDate
@@ -1827,6 +1832,7 @@ export default function WasteCollection() {
     const prefetchMonthlyVehicles = async () => {
       try {
         const result = await fetchWasteReport(
+          "",
           "day_wise_data",
           range.start,
           range.end

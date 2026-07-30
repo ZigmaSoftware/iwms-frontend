@@ -24,9 +24,6 @@ import { adminApi } from "@/helpers/admin/registry";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const cap = (str?: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
@@ -77,31 +74,16 @@ export default function FeedBackFormList() {
       .then((res: any) => {
         if (!mounted) return;
         const rows: FeedbackRecord[] = Array.isArray(res) ? res : res?.results ?? [];
-
-        // Only do client-side filtering if rows carry context fields
-        const hasContextFields = rows.some((row) =>
-          Boolean(normalizeId(row.company_id ?? row.company_unique_id) || normalizeId(row.project_id ?? row.project_unique_id))
-        );
-
-        if (!hasContextFields) {
-          setFeedbackList(rows);
-          return;
-        }
-
-        setFeedbackList(
-          rows.filter((row) => {
-            const rc = normalizeId(row.company_id ?? row.company_unique_id);
-            const rp = normalizeId(row.project_id ?? row.project_unique_id);
-            return (!companyUniqueId || rc === companyUniqueId) && (!projectId || rp === projectId);
-          })
-        );
+        // Company/project scoping is applied server-side via the params above
+        // — no client-side narrowing needed.
+        setFeedbackList(rows);
       })
       .catch((err) => {
         if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: String(err) });
       })
       .finally(() => { if (mounted) setIsLoading(false); });
     return () => { mounted = false; };
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, t]);
 
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
 

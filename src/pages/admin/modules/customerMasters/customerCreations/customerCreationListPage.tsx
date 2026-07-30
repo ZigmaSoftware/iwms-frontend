@@ -35,9 +35,6 @@ import { createCustomerQrPdfBlob, downloadCustomerQrPdf } from "./customerQrPdf"
 import { downloadAllCustomersPdf } from "./customerAllDetailsPdf";
 
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   customer_name: ["customer_name", "name"],
   contact_no: ["contact_no", "mobile"],
@@ -139,9 +136,17 @@ export default function CustomerCreationListPage() {
 
   // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
     let mounted = true;
     setIsLoading(true);
-    customerCreationApi.readAll()
+
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
+    if (projectId) params.project_id = projectId;
+
+    customerCreationApi.readAll({ params })
       .then((data: unknown) => {
         if (mounted) setAllCustomers(Array.isArray(data) ? (data as Customer[]) : []);
       })
@@ -156,24 +161,19 @@ export default function CustomerCreationListPage() {
       })
       .finally(() => { if (mounted) setIsLoading(false); });
     return () => { mounted = false; };
-  }, [t, refetchTrigger]);
+  }, [t, refetchTrigger, companyUniqueId, projectId, isSuperAdmin, companies.length]);
 
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
   const customers = useMemo<Customer[]>(() => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId && !isSuperAdmin) return [];
 
-    return allCustomers
-      .filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-        return companyMatches && projectMatches;
-      })
-      .sort((a, b) =>
-        String(a.customer_name ?? "").localeCompare(String(b.customer_name ?? ""))
-      );
-  }, [allCustomers, companies.length, companyUniqueId, isSuperAdmin, projectId]);
+    return [...allCustomers].sort((a, b) =>
+      String(a.customer_name ?? "").localeCompare(String(b.customer_name ?? ""))
+    );
+  }, [allCustomers, companies.length, companyUniqueId, isSuperAdmin]);
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";

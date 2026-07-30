@@ -123,15 +123,6 @@ const extractError = (error: any): string | null => {
   return null;
 };
 
-const normalizeId = (value: unknown): string => {
-  if (value === null || value === undefined) return "";
-  if (typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return normalizeId(record.unique_id ?? record.id ?? record.value);
-  }
-  return String(value).trim();
-};
-
 const toDateInputValue = (date = new Date()): string => {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return localDate.toISOString().slice(0, 10);
@@ -303,14 +294,12 @@ export default function DailyTripAssignmentList() {
   };
 
   /* ── enrich + filter rows ── */
+  // Company/project scoping is now applied server-side via params in
+  // loadAssignments — no client-side narrowing needed here.
   const rows = (() => {
     if (!companyUniqueId && !isSuperAdmin) return [];
     return allAssignments
       .filter((row) => {
-        const rc = normalizeId(row.company_id ?? row.company_unique_id);
-        const rp = normalizeId(row.project_id ?? row.project_unique_id);
-        if (!(!companyUniqueId || rc === companyUniqueId)) return false;
-        if (!(!projectId || rp === projectId)) return false;
         if (schedulerDate && row.trip_date !== schedulerDate) return false;
         if (collectionTypeFilter !== "all" && getCollectionTypeKey(row) !== collectionTypeFilter) return false;
         return true;

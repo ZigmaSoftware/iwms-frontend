@@ -31,9 +31,6 @@ const Badge = ({ value }: { value?: string }) => (
   </span>
 );
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const text = (value: unknown): string =>
   value === null || value === undefined || String(value).trim() === ""
     ? "-"
@@ -121,20 +118,17 @@ export default function DailyTripCollectionPointList() {
         Swal.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error");
       })
       .finally(() => setLoading(false));
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, t]);
 
   useEffect(() => {
     loadRecords();
   }, [loadRecords]);
 
+  // Company/project scoping is now applied server-side via params in
+  // loadRecords — no client-side narrowing needed here.
   const rows = useMemo(
     () =>
       records
-        .filter((row) => {
-          const rowCompany = normalizeId(row.company_id ?? row.company_unique_id);
-          const rowProject = normalizeId(row.project_id ?? row.project_unique_id);
-          return (!rowCompany || rowCompany === companyUniqueId) && (!projectId || !rowProject || rowProject === projectId);
-        })
         .map((row) => {
           const tripAssign = row.trip_assignment as NamedRef;
           const tripPlan = (tripAssign?.trip_plan as NamedRef) ?? (tripAssign?.trip_plan_id as NamedRef);
@@ -156,7 +150,7 @@ export default function DailyTripCollectionPointList() {
             _waste_type: nestedText(wasteType, ["waste_type_name", "name"]),
           };
         }),
-    [companyUniqueId, projectId, records],
+    [records],
   );
 
   const onFilter = (event: DataTableFilterEvent) =>

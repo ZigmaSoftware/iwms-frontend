@@ -33,9 +33,6 @@ const FUEL_COLUMN_FIELDS: Record<string, string[]> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const cap = (str?: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
@@ -86,9 +83,22 @@ export default function FuelList() {
 
   // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) {
+      setAllFuels([]);
+      return;
+    }
+    if (!companyUniqueId && !isSuperAdmin) {
+      setAllFuels([]);
+      return;
+    }
+
     let mounted = true;
     setIsLoading(true);
-    fuelApi.readAll()
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
+    if (projectId) params.project_id = projectId;
+
+    fuelApi.readAll({ params })
       .then((data: unknown) => {
         if (mounted) setAllFuels(Array.isArray(data) ? (data as Fuel[]) : []);
       })
@@ -99,29 +109,14 @@ export default function FuelList() {
       })
       .finally(() => { if (mounted) setIsLoading(false); });
     return () => { mounted = false; };
-  }, [t]);
+  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length]);
 
-  // ── Derived rows with client-side company/project filter ──────────────────
-  const rows = (() => {
-    if (isSuperAdmin && companies.length === 0) return [] as Fuel[];
-    if (!companyUniqueId && !isSuperAdmin) return [] as Fuel[];
-
-    const hasContextFields = allFuels.some((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      return Boolean(rowCompanyId || rowProjectId);
-    });
-
-    if (!hasContextFields) return allFuels;
-
-    return allFuels.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-      return companyMatches && projectMatches;
-    });
-  })();
+  // Company/project scoping is now applied server-side via params above —
+  // no client-side narrowing needed.
+  const rows: Fuel[] =
+    (isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)
+      ? []
+      : allFuels;
 
   // ── Filter handlers ───────────────────────────────────────────────────────
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters);

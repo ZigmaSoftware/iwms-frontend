@@ -81,9 +81,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     encPanchayats,
     encPanchayatLeaders,
     encDistrictLeaders,
-    encAreaTypes,
-    encMunicipalities,
-    encTownPanchayats,
   
     encBins,
     encScheduleMasters,
@@ -114,14 +111,10 @@ export function buildNavRouteMap(): RouteEntry[] {
     // Administrative / Geographic Hierarchy
     { path: `/${encMasters}/${encDistricts}`, nameKey: "admin.nav.district", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encZones}`, nameKey: "admin.nav.zone", parentNameKey: "admin.nav.masters" },
-    // Urban Local Bodies (ULB) — parallel at same level
     { path: `/${encMasters}/${encCities}`, nameKey: "admin.nav.city", parentNameKey: "admin.nav.masters" },
-    { path: `/${encMasters}/${encMunicipalities}`, nameKey: "admin.nav.municipality", parentNameKey: "admin.nav.masters" },
-    { path: `/${encMasters}/${encTownPanchayats}`, nameKey: "admin.nav.town_panchayat", parentNameKey: "admin.nav.masters" },
 
     // Operational / Field Level
     { path: `/${encMasters}/${encWards}`, nameKey: "admin.nav.ward", parentNameKey: "admin.nav.masters" },
-    { path: `/${encMasters}/${encAreaTypes}`, nameKey: "admin.nav.area_type", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encPanchayats}`, nameKey: "admin.nav.panchayat", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encPanchayatLeaders}`, nameKey: "admin.nav.panchayat_leader", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encDistrictLeaders}`, nameKey: "admin.nav.district_leader", parentNameKey: "admin.nav.masters" },

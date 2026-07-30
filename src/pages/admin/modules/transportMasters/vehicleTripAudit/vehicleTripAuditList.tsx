@@ -163,13 +163,11 @@ export default function VehicleTripAuditList() {
     return () => {
       cancelled = true;
     };
-  }, [companyUniqueId, projectId]);
+  }, [companyUniqueId, projectId, isSuperAdmin]);
 
-  const records = useMemo(
-    () =>
-      filterByCompanyProject(audits, companyUniqueId, projectId) as VehicleTripAuditRecord[],
-    [audits, companyUniqueId, projectId]
-  );
+  // Company/project scoping is now applied server-side via params above —
+  // no client-side narrowing needed for the main list.
+  const records = audits;
 
   const tripLookup = useMemo(
     () =>

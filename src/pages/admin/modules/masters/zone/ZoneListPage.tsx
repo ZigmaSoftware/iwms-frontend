@@ -30,9 +30,6 @@ const ZONE_COLUMN_FIELDS: Record<string, string[]> = {
   is_active: ["is_active"],
 };
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 // ===========================
 //   Component
 // ===========================
@@ -96,12 +93,19 @@ export default function ZoneList() {
   };
 
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
     let mounted = true;
 
     const loadZones = async () => {
       setIsLoading(true);
       try {
-        const data = await zoneApi.readAll();
+        const params: Record<string, string> = {};
+        if (companyUniqueId) params.company_id = companyUniqueId;
+        if (projectId) params.project_id = projectId;
+
+        const data = await zoneApi.readAll({ params });
         if (mounted) setAllZones(data as ZoneListRecord[]);
       } catch (error) {
         if (mounted) {
@@ -118,25 +122,17 @@ export default function ZoneList() {
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length]);
 
-  const zones = ((): ZoneListRecord[] => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
-
-    const rows = Array.isArray(allZones)
-      ? (allZones as unknown as ZoneListRecord[])
-      : [];
-    const filtered = rows.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-      return companyMatches && projectMatches;
-    });
-
-    return filtered as ZoneListRecord[];
-  })();
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
+  const zones: ZoneListRecord[] =
+    (isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)
+      ? []
+      : Array.isArray(allZones)
+        ? (allZones as unknown as ZoneListRecord[])
+        : [];
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);

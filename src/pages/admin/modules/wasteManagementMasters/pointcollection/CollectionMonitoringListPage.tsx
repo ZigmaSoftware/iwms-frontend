@@ -16,9 +16,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { binCollectionEventApi } from "@/helpers/admin";
 
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const text = (value: unknown): string =>
   value === null || value === undefined || String(value).trim() === ""
     ? "-"
@@ -104,13 +101,7 @@ export default function CollectionMonitoringListPage() {
       if (projectId) params.project_id = projectId;
       const response = await binCollectionEventApi.readAll({ params });
       const data = normalizeList(response);
-      setRecords(
-        data.filter((row) => {
-          const rowCompany = normalizeId(row.company_id ?? row.company_unique_id);
-          const rowProject = normalizeId(row.project_id ?? row.project_unique_id);
-          return (!rowCompany || rowCompany === companyUniqueId) && (!projectId || !rowProject || rowProject === projectId);
-        }),
-      );
+      setRecords(data);
     } catch (error) {
       console.error("Failed to fetch bin collection events", error);
       setRecords([]);

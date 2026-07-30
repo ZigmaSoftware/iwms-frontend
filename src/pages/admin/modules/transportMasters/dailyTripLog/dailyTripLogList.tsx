@@ -109,9 +109,6 @@ const extractError = (error: any): string | null => {
   return null;
 };
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const computeCollectedWeight = (collectionPoints?: DailyTripLogRecord["collection_points"]): number => {
   return (collectionPoints ?? []).reduce((sum, cp) => {
     if (cp?.collected_weight_kg === null || cp?.collected_weight_kg === undefined) {
@@ -511,6 +508,10 @@ export default function DailyTripLogList() {
 
   /* ── load logs ── */
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) {
+      setAllLogs([]);
+      return;
+    }
     if (!companyUniqueId && !isSuperAdmin) {
       setAllLogs([]);
       return;
@@ -534,7 +535,7 @@ export default function DailyTripLogList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, t]);
 
   /* ── enrich rows ── */
   const rows = allLogs.map((rec) => ({
@@ -554,15 +555,12 @@ export default function DailyTripLogList() {
     ),
   }));
 
-  /* ── filter by company + project + collection type ── */
+  /* ── filter by collection type (company/project scoping is applied
+     server-side via params in the fetch effect above) ── */
   const data = (() => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId && !isSuperAdmin) return [];
     return rows.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      if (!(!companyUniqueId || rowCompanyId === companyUniqueId)) return false;
-      if (!(!projectId || rowProjectId === projectId)) return false;
       if (collectionType === "bin") {
         const hasBinWeight =
           (row._has_point_weights && (row._computed_weight ?? 0) > 0) ||
