@@ -598,7 +598,7 @@ export default function DailyTripLogList() {
     setIsVerifying(true);
     try {
       await api.patch(
-        `/schedule-masters/daily-trip-logs/${modalState.row.unique_id}/verify/`,
+        `/schedule-operations/daily-trip-logs/${modalState.row.unique_id}/verify/`,
         { remarks }
       );
       setAllLogs((current) =>
@@ -635,7 +635,7 @@ export default function DailyTripLogList() {
     if (!result.isConfirmed) return;
     try {
       const res = await api.patch(
-        `/schedule-masters/daily-trip-logs/${row.unique_id}/change-status/`,
+        `/schedule-operations/daily-trip-logs/${row.unique_id}/change-status/`,
         { log_status: newStatus }
       );
       const updated = (res as any)?.data ?? res;

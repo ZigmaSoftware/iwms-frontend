@@ -22,7 +22,7 @@ import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { filterRowsForExport } from "@/utils/adminListExport";
 
-import type { StaffUserType } from "../types/admin.types";
+import type { StaffUserType } from "../../screenManagement/shared/admin.types";
 
 const STAFF_USER_TYPE_SEARCH_FIELDS = ["name", "usertype_name", "category"];
 

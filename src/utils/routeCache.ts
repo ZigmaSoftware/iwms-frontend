@@ -10,6 +10,12 @@ export type EncryptedRoutes = {
   encPanchayatBaseCollection: string;
   encWardBaseCollection: string;
   encComplaint: string;
+  // renamed from encCitizenGrivence/encComplaint/encMainComplaintCategory/
+  // encSubComplaintCategory to match the backend's "complaint-ticket" group
+  encComplaintTicket: string;
+  encTickets: string;
+  encCategories: string;
+  encSubcategories: string;
   encContinents: string;
   encCountries: string;
   encBins: string;
@@ -25,6 +31,11 @@ export type EncryptedRoutes = {
   encMasters: string;
   encStaffMasters: string;
   encScheduleMasters: string;
+  // split from encScheduleMasters to match the backend's schedule-setup /
+  // schedule-operations groups; encScheduleMasters is kept for the
+  // reporting sub-resources still registered under that legacy group
+  encScheduleSetup: string;
+  encScheduleOperations: string;
   encStaffTemplate: string;
   encAlternativeStaffTemplate: string;
   encStaffTemplateAudit: string;
@@ -121,6 +132,10 @@ const plainRoutes: EncryptedRoutes = {
   encPanchayatBaseCollection: "panchayat-base-collection",
   encWardBaseCollection: "ward-base-collection",
   encComplaint: "complaint",
+  encComplaintTicket: "complaint-ticket",
+  encTickets: "tickets",
+  encCategories: "categories",
+  encSubcategories: "subcategories",
   encContinents: "continents",
   encCountries: "countries",
   encBins: "bins",
@@ -141,6 +156,8 @@ const plainRoutes: EncryptedRoutes = {
   encMasters: "masters",
   encStaffMasters: "staff-masters",
   encScheduleMasters: "schedule-masters",
+  encScheduleSetup: "schedule-setup",
+  encScheduleOperations: "schedule-operations",
   encStaffTemplate: "staff-template",
   encAlternativeStaffTemplate: "alternative-staff-template",
   encStaffTemplateAudit: "staff-template-audit",

@@ -16,20 +16,19 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 
-import type { UserType } from "../types/admin.types";
-
-import { userTypeApi } from "@/helpers/admin";
+import { mainScreenTypeApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { filterRowsForExport } from "@/utils/adminListExport";
 
-const USER_TYPE_SEARCH_FIELDS = ["name"];
+import type { MainScreenType } from "../shared/admin.types";
 
-export default function UserTypePage() {
+const MAIN_SCREEN_TYPE_SEARCH_FIELDS = ["type_name"];
+
+export default function MainScreenTypeList() {
   const { t } = useTranslation();
-  const [userTypes, setUserTypes] = useState<UserType[]>([]);
+  const [mainScreenTypes, setMainScreenTypes] = useState<MainScreenType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const {
@@ -42,41 +41,39 @@ export default function UserTypePage() {
   } = useFilterBarFilters();
 
   const navigate = useNavigate();
-  const { encAdmins, encUserType } = getEncryptedRoute();
+  const { encAdmins, encMainScreenType } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
     encAdmins,
-    encUserType,
+    encMainScreenType,
   );
 
   useEffect(() => {
     let mounted = true;
 
-    const loadUserTypes = async () => {
+    const loadMainScreenTypes = async () => {
       setIsLoading(true);
       try {
-        const data = await userTypeApi.readAll();
-        if (mounted) setUserTypes(data as UserType[]);
+        const data = await mainScreenTypeApi.readAll();
+        if (mounted) setMainScreenTypes(data as MainScreenType[]);
       } catch {
-        if (mounted) {
-          Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-        }
+        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
       } finally {
         if (mounted) setIsLoading(false);
       }
     };
 
-    void loadUserTypes();
+    void loadMainScreenTypes();
 
     return () => {
       mounted = false;
     };
   }, [t]);
 
-  const indexTemplate = (_: UserType, { rowIndex }: { rowIndex: number }) =>
+  const indexTemplate = (_: MainScreenType, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
-  const actionTemplate = (row: UserType) => (
+  const actionTemplate = (row: MainScreenType) => (
     <div className="flex gap-2 justify-center">
       <button
         title={t("common.edit")}
@@ -96,33 +93,30 @@ export default function UserTypePage() {
     </div>
   );
 
-  const updateStatus = async (row: UserType, checked: boolean) => {
-    const id = String(row.unique_id);
-    setPendingStatusId(id);
-    setIsUpdating(true);
+  const statusTemplate = (row: MainScreenType) => {
+    const updateStatus = async (value: boolean) => {
+      const id = String(row.unique_id);
+      setPendingStatusId(id);
 
-    try {
-      await userTypeApi.update(row.unique_id, { is_active: checked });
-      setUserTypes((current) =>
-        current.map((item) =>
-          item.unique_id === row.unique_id ? { ...item, is_active: checked } : item
-        )
-      );
-    } catch {
-      Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
-    } finally {
-      setPendingStatusId(null);
-      setIsUpdating(false);
-    }
-  };
+      try {
+        await mainScreenTypeApi.update(row.unique_id, { is_active: value });
+        setMainScreenTypes((current) =>
+          current.map((item) =>
+            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
+          )
+        );
+      } catch {
+        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+      } finally {
+        setPendingStatusId(null);
+      }
+    };
 
-  const statusTemplate = (row: UserType) => {
-    const id = String(row.unique_id);
     return (
       <Switch
         checked={row.is_active}
-        disabled={isUpdating && pendingStatusId === id}
-        onCheckedChange={(checked) => void updateStatus(row, checked)}
+        disabled={pendingStatusId === String(row.unique_id)}
+        onCheckedChange={updateStatus}
       />
     );
   };
@@ -132,7 +126,7 @@ export default function UserTypePage() {
       searchValue={globalFilterValue}
       onSearchChange={onGlobalFilterChange}
       searchPlaceholder={t("common.search_placeholder", {
-        item: t("admin.nav.user_type"),
+        item: t("admin.nav.main_screen_type"),
       })}
       statusValue={statusValue}
       onStatusChange={onStatusFilterChange}
@@ -140,27 +134,36 @@ export default function UserTypePage() {
   );
 
   const exportRows = useMemo(
-    () => filterRowsForExport(userTypes, USER_TYPE_SEARCH_FIELDS, globalFilterValue, statusValue),
-    [userTypes, globalFilterValue, statusValue],
+    () =>
+      filterRowsForExport(
+        mainScreenTypes,
+        MAIN_SCREEN_TYPE_SEARCH_FIELDS,
+        globalFilterValue,
+        statusValue,
+      ),
+    [mainScreenTypes, globalFilterValue, statusValue],
   );
 
   return (
     <div className="px-3 py-3 w-full ">
+    
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 mb-1">
-              {t("admin.nav.user_type")}
+              {t("admin.nav.main_screen_type")}
             </h1>
             <p className="text-gray-500 text-sm">
               {t("common.manage_item_records", {
-                item: t("admin.nav.user_type"),
+                item: t("admin.nav.main_screen_type"),
               })}
             </p>
           </div>
 
           <Button
-            label={t("common.add_item", { item: t("admin.nav.user_type") })}
+            label={t("common.add_item", {
+              item: t("admin.nav.main_screen_type"),
+            })}
             icon="pi pi-plus"
             className="p-button-success"
             onClick={() => navigate(ENC_NEW_PATH)}
@@ -168,46 +171,34 @@ export default function UserTypePage() {
         </div>
 
         <DataTable
-          value={userTypes}
+          value={mainScreenTypes}
           exportRows={exportRows}
           paginator
           rows={10}
-          loading={isLoading && userTypes.length === 0}
+          loading={isLoading}
           filters={filters}
           onFilter={onFilter}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          globalFilterFields={USER_TYPE_SEARCH_FIELDS}
+          globalFilterFields={MAIN_SCREEN_TYPE_SEARCH_FIELDS}
           header={header}
           emptyMessage={t("common.no_items_found", {
-            item: t("admin.nav.user_type"),
+            item: t("admin.nav.main_screen_type"),
           })}
           stripedRows
           showGridlines
           className="p-datatable-sm"
         >
+          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
           <Column
-            header={t("common.s_no")}
-            body={indexTemplate}
-            style={{ width: "80px" }}
-          />
-          <Column
-            field="name"
-            header={t("admin.nav.user_type")}
+            field="type_name"
+            header={t("admin.nav.main_screen_type")}
             sortable
             style={{ minWidth: "200px" }}
           />
-          <Column
-            header={t("common.status")}
-            body={statusTemplate}
-            style={{ width: "150px" }}
-          />
-          <Column
-            header={t("common.actions")}
-            body={actionTemplate}
-            style={{ width: "150px" }}
-          />
+          <Column header={t("common.status")} body={statusTemplate} style={{ width: "150px" }} />
+          <Column header={t("common.actions")} body={actionTemplate} style={{ width: "150px" }} />
         </DataTable>
-    
+ 
     </div>
   );
 }

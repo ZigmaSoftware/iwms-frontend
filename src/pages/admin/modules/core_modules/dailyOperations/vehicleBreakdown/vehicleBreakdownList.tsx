@@ -336,7 +336,7 @@ export default function VehicleBreakdownList() {
     setIsVerifying(true);
     try {
       await api.patch(
-        `/schedule-masters/vehicle-breakdowns/${verifyTarget.unique_id}/verify/`,
+        `/schedule-operations/vehicle-breakdowns/${verifyTarget.unique_id}/verify/`,
         { remarks },
       );
       setRecords((prev) =>
@@ -361,7 +361,7 @@ export default function VehicleBreakdownList() {
     setIsRejecting(true);
     try {
       await api.patch(
-        `/schedule-masters/vehicle-breakdowns/${rejectTarget.unique_id}/reject/`,
+        `/schedule-operations/vehicle-breakdowns/${rejectTarget.unique_id}/reject/`,
         { rejection_remarks: remarks },
       );
       setRecords((prev) =>

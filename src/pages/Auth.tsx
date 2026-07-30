@@ -24,11 +24,27 @@ import {
   unwrapLoginPayload,
   type LoginEnvelope,
 } from "@/utils/authStorage";
-import { ArrowRight, Eye, EyeOff, Lock, User } from "lucide-react";
+import { Eye, EyeOff, Lock, LogIn, User, UserRound, Leaf } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
-import LoginBg from "../images/bgSignin.png";
+import LoginBg from "../images/bg1.png";
 
 type LoginResponse = LoginEnvelope;
+
+/** Renders a translated heading with its last word accented, matching the
+ * government reference app's two-tone "Welcome <accent>Back!</accent>" style
+ * without hardcoding English text (works for any locale's word order). */
+function AccentLastWord({ text }: { text: string }) {
+  const words = text.trim().split(/\s+/);
+  if (words.length <= 1) {
+    return <span className="text-green-600">{text}</span>;
+  }
+  const lastWord = words.pop();
+  return (
+    <>
+      {words.join(" ")} <span className="text-green-600">{lastWord}</span>
+    </>
+  );
+}
 
 
 export default function Auth() {
@@ -122,33 +138,31 @@ export default function Auth() {
 
   return (
     <div
-      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-900 bg-cover bg-center bg-no-repeat px-4 py-10 font-sans md:justify-end md:px-16"
+      className="relative flex min-h-screen items-center justify-center bg-cover bg-center bg-no-repeat px-4 py-10 font-sans md:justify-end md:px-16"
       style={{ backgroundImage: `url(${LoginBg})` }}
     >
-      {/* readability scrim over the photo */}
-      <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-black/10 via-transparent to-black/30" />
-
       {/* ── Logo (top-left) ─────────────────────────────────────── */}
       <img
         src={ZigmaLogo}
         alt="Zigma IWMS"
-        className="absolute left-6 top-6 z-10 h-10 w-auto object-contain drop-shadow-md md:left-10 md:top-8 md:h-14"
+        className="absolute left-6 top-6 z-10 h-10 w-auto object-contain md:left-10 md:top-8 md:h-14"
       />
 
       {/* ── Login card ──────────────────────────────────────────── */}
-      <div className="relative z-10 w-full max-w-md rounded-4xl border border-white/60 bg-white/95 p-8 shadow-2xl shadow-slate-900/30 backdrop-blur-sm sm:p-10">
+      <div className="relative z-10 w-full max-w-md rounded-4xl border border-white/60 bg-white/95 p-8 shadow-2xl shadow-slate-400/30 backdrop-blur-sm sm:p-10">
 
         {/* avatar ring */}
         <div className="mb-6 flex justify-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-green-100 bg-green-50">
-            <Lock className="h-8 w-8 text-green-600" />
+          <div className="relative flex h-24 w-24 items-center justify-center rounded-full border-2 border-green-100 bg-green-50">
+            <UserRound className="h-11 w-11 text-green-600" />
+            <Leaf className="absolute bottom-3 right-4 h-4 w-4 text-green-500" />
           </div>
         </div>
 
         {/* heading */}
         <div className="mb-7 text-center">
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">
-            {t("login.title")}
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-800">
+            <AccentLastWord text={t("login.title")} />
           </h1>
           <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-slate-500">
             {t("login.subtitle")}
@@ -156,11 +170,11 @@ export default function Auth() {
         </div>
 
         {/* form */}
-        <form onSubmit={handleSignIn} className="space-y-4">
+        <form onSubmit={handleSignIn} className="space-y-5">
 
           {/* username */}
           <div className="space-y-1.5">
-            <label htmlFor="username" className="block text-[11px] font-bold uppercase tracking-widest text-slate-500">
+            <label htmlFor="username" className="block text-sm font-semibold text-slate-700">
               {t("login.username")}
             </label>
             <div className="relative">
@@ -171,7 +185,7 @@ export default function Auth() {
                 placeholder={t("login.username_placeholder")}
                 value={username}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
-                className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 text-slate-900 placeholder:text-slate-400 focus-visible:border-green-400 focus-visible:ring-green-300/50 transition-all"
+                className="h-12 rounded-xl border-slate-200 bg-white pl-10 text-slate-900 placeholder:text-slate-400 focus-visible:border-green-400 focus-visible:ring-green-300/50 transition-all"
                 required
               />
             </div>
@@ -179,7 +193,7 @@ export default function Auth() {
 
           {/* password */}
           <div className="space-y-1.5">
-            <label htmlFor="password" className="block text-[11px] font-bold uppercase tracking-widest text-slate-500">
+            <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
               {t("login.password")}
             </label>
             <div className="relative">
@@ -190,7 +204,7 @@ export default function Auth() {
                 placeholder={t("login.password_placeholder")}
                 value={password}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 pr-12 text-slate-900 placeholder:text-slate-400 focus-visible:border-green-400 focus-visible:ring-green-300/50 transition-all"
+                className="h-12 rounded-xl border-slate-200 bg-white pl-10 pr-12 text-slate-900 placeholder:text-slate-400 focus-visible:border-green-400 focus-visible:ring-green-300/50 transition-all"
                 required
               />
               <button
@@ -199,7 +213,7 @@ export default function Auth() {
                 className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
           </div>
@@ -208,18 +222,18 @@ export default function Auth() {
           <div className="flex justify-end">
             <button
               type="button"
-              className="text-[11px] font-semibold text-green-600 hover:underline"
+              className="text-sm font-semibold text-green-600 hover:underline"
               onClick={() => navigate("/auth/forgot-password")}
             >
               {t("login.forgot_password")}
             </button>
           </div>
 
-          {/* submit — orange gradient matching existing brand accent */}
+          {/* submit */}
           <button
             type="submit"
             disabled={loading}
-            className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-linear-to-r from-orange-400 to-orange-500 text-sm font-semibold text-white shadow-lg shadow-orange-200/70 transition-all hover:from-orange-500 hover:to-orange-600 active:scale-[0.98] disabled:opacity-60"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-700 text-sm font-semibold text-white shadow-lg shadow-green-200 transition-all hover:bg-green-800 active:scale-[0.98] disabled:opacity-60"
           >
             {loading ? (
               <>
@@ -231,17 +245,18 @@ export default function Auth() {
               </>
             ) : (
               <>
+                <LogIn size={18} />
                 {t("login.sign_in")}
-                <ArrowRight size={15} />
               </>
             )}
           </button>
         </form>
 
         {/* card footer */}
-        <p className="mt-8 text-center text-[11px] text-slate-400">
+        <p className="mt-7 flex items-center justify-center gap-1.5 text-sm text-slate-500">
+          <Leaf className="h-4 w-4 text-green-500" />
           Secure login ·{" "}
-          <span className="font-semibold text-slate-500">Zigma IWMS</span>
+          <span className="font-semibold text-slate-600">Zigma IWMS</span>
         </p>
       </div>
     </div>
