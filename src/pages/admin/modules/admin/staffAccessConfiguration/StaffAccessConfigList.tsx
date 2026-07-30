@@ -6,9 +6,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -20,10 +17,15 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
 import { staffAccessConfigurationApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { filterRowsForExport } from "@/utils/adminListExport";
 
 import type { StaffAccessConfigRecord } from "./types";
 
 type ListRow = StaffAccessConfigRecord;
+
+const STAFF_ACCESS_SEARCH_FIELDS = ["staff_name", "staffusertype_name", "project_name", "company_name"];
 
 const extractErrorMessage = (error: unknown, fallback: string): string => {
   const data = (error as { response?: { data?: unknown } })?.response?.data;
@@ -44,7 +46,6 @@ export default function StaffAccessConfigList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [rows, setRows] = useState<StaffAccessConfigRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -66,9 +67,14 @@ export default function StaffAccessConfigList() {
     initialProjectId: restoredState?.projectId,
   });
 
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({ statusField: "active_status" });
 
   const { encAdmins, encStaffAccessConfiguration } = getEncryptedRoute();
   const { newPath, editPath } = createCrudRoutePaths(encAdmins, encStaffAccessConfiguration);
@@ -143,14 +149,17 @@ export default function StaffAccessConfigList() {
 
   const indexTemplate = (_: unknown, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({
-      ...prev,
-      global: { ...prev.global, value },
-    }));
-    setGlobalFilterValue(value);
-  };
+  const exportRows = useMemo(
+    () =>
+      filterRowsForExport(
+        records,
+        STAFF_ACCESS_SEARCH_FIELDS,
+        globalFilterValue,
+        statusValue,
+        "active_status",
+      ),
+    [records, globalFilterValue, statusValue],
+  );
 
   const header = (
     <div className="space-y-4">
@@ -173,46 +182,33 @@ export default function StaffAccessConfigList() {
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="p-input-icon-left w-full md:w-80">
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("common.search_placeholder")}
-            className="w-full"
-          />
-        </span>
-
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder")}
+        statusValue={statusValue}
+        onStatusChange={onStatusFilterChange}
+      >
         {isSuperAdmin && (
-          <select
+          <FilterBarSelect
             value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
+            onChange={onCompanyChange}
+            placeholder={t("common.all_companies") || "All Companies"}
             disabled={companies.length === 0}
-            className="rounded border border-gray-300 px-3 py-2 text-sm"
-          >
-            <option value="">{t("common.all_companies") || "All Companies"}</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
+            options={companies}
+          />
         )}
 
         {companyUniqueId && (
-          <select
+          <FilterBarSelect
             value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
+            onChange={setProjectId}
+            placeholder={showAllProjectsOption ? (t("common.all_projects") || "All Projects") : undefined}
             disabled={projects.length === 0}
-            className="rounded border border-gray-300 px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && (
-              <option value="">{t("common.all_projects") || "All Projects"}</option>
-            )}
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
+            options={projects}
+          />
         )}
-      </div>
+      </FilterBar>
     </div>
   );
 
@@ -220,13 +216,15 @@ export default function StaffAccessConfigList() {
     <ComponentCard title="">
       <DataTable
         value={records}
+        exportRows={exportRows}
         dataKey="unique_id"
         paginator
         rows={10}
         loading={isLoading}
         filters={filters}
+        onFilter={onFilter}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        globalFilterFields={["staff_name", "staffusertype_name", "project_name", "company_name"]}
+        globalFilterFields={STAFF_ACCESS_SEARCH_FIELDS}
         header={header}
         stripedRows
         emptyMessage={t("common.no_items_found", {

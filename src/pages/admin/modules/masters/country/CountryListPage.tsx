@@ -1,7 +1,5 @@
 import type { CountryRecord, ErrorWithResponse } from "./types";
-import type { TableFilters } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 // import { useEffect, useState, useCallback } from "react";
 // import { useNavigate } from "react-router-dom";
 // import Swal from "@/lib/notify";
@@ -264,7 +262,6 @@ import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
@@ -279,6 +276,9 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { countryApi } from "@/helpers/admin";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 
 const COUNTRY_COLUMN_FIELDS: Record<string, string[]> = {
@@ -321,14 +321,22 @@ export default function CountryList() {
     COUNTRY_COLUMN_FIELDS,
   );
 
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    continent_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    currency: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    mob_code: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      continent_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      currency: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      mob_code: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    },
   });
 
   const navigate = useNavigate();
@@ -368,18 +376,33 @@ export default function CountryList() {
     };
   }, [t]);
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as TableFilters);
+  const getFilteredExportRows = (): CountryRecord[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    return countries.filter((row) => {
+      const r = row as CountryRecord & { continent_name?: string };
+      if (statusValue !== "all") {
+        const wantActive = statusValue === "active";
+        if (Boolean(r.is_active) !== wantActive) return false;
+      }
+      if (!search) return true;
+      return [r.name, r.continent_name, r.currency, r.mob_code]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search));
+    });
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-
-    const updated = { ...filters };
-    updated.global.value = value;
-
-    setFilters(updated);
-    setGlobalFilterValue(value);
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = getFilteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No countries to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Countries");
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
 
   const cap = (str?: string) =>
@@ -435,14 +458,6 @@ export default function CountryList() {
   const indexTemplate = (_: CountryRecord, options: { rowIndex: number }) =>
     options.rowIndex + 1;
 
-  const header = renderListSearchHeader({
-    value: globalFilterValue,
-    onChange: onGlobalFilterChange,
-    placeholder: t("common.search_placeholder", {
-      item: t("admin.nav.country"),
-    }),
-  });
-
   return (
     <div className="p-3">
 
@@ -469,6 +484,24 @@ export default function CountryList() {
 
       </div>
 
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.country") })}
+        statusValue={statusValue}
+        onStatusChange={onStatusFilterChange}
+        className="mb-4"
+        trailing={
+          <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+        }
+      />
+
       <DataTable
         value={countries}
         dataKey="unique_id"
@@ -478,7 +511,6 @@ export default function CountryList() {
         loading={isLoading && countries.length === 0}
         filters={filters}
         onFilter={onFilter}
-        header={header}
         globalFilterFields={[
           "name",
           "continent_name",

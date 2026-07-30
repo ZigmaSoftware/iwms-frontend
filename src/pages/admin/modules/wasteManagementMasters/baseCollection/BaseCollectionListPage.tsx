@@ -1,22 +1,21 @@
-import type { BaseCollectionScope, CollectionApiResponse, CollectionRecord, Props, SummaryRow, TableFilters, ViewLevel } from "./types";
+import type { BaseCollectionScope, CollectionApiResponse, CollectionRecord, Props, SummaryRow, ViewLevel } from "./types";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useTranslation } from "react-i18next";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import Swal from "@/lib/notify";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
-
-/* ================= TYPES ================= */
-
 
 /* ================= HELPERS ================= */
 
@@ -81,9 +80,9 @@ export default function BaseCollectionListPage({ scope }: Props) {
   const [viewLevel, setViewLevel] = useState<ViewLevel>("summary");
   const [loading, setLoading] = useState(true);
 
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const { filters, globalFilterValue, onGlobalFilterChange } = useFilterBarFilters({
+    withStatusFilter: false,
   });
 
   /* ================= FETCH ================= */
@@ -212,20 +211,8 @@ export default function BaseCollectionListPage({ scope }: Props) {
 
   /* ================= FILTER ================= */
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
-    setGlobalFilterValue(value);
-  };
-
   function resetFilter() {
-    setGlobalFilterValue("");
-    setFilters({
-      global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    });
+    onGlobalFilterChange("");
   }
 
   const selectedRecords = useMemo(
@@ -264,6 +251,60 @@ export default function BaseCollectionListPage({ scope }: Props) {
     };
   }, [summaryRows, scope]);
 
+  /* ================= EXPORT ================= */
+
+  const getFilteredExportRows = (): Record<string, unknown>[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    const matches = (values: Array<unknown>) =>
+      !search || values.filter(Boolean).some((value) => String(value).toLowerCase().includes(search));
+
+    if (viewLevel === "records") {
+      return selectedRecords
+        .filter((row) =>
+          matches([
+            row[locationField as keyof CollectionRecord],
+            row.zone_name,
+            row.wastetype_name,
+            row.bin_name,
+            row.collection_point_name,
+            row.collection_date,
+            row.trip_id,
+            row.company_name,
+            row.project_name,
+          ]),
+        )
+        .map((row) => ({ ...row, weight: getRecordWeight(row, scope).toFixed(2) }));
+    }
+
+    return summaryRows.filter((row) =>
+      matches([
+        row.name,
+        row.zone_name,
+        row.company_names.join(", "),
+        row.project_names.join(", "),
+        row.collection_dates.join(", "),
+      ]),
+    );
+  };
+
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = getFilteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire("Warning", "No records to export.", "warning");
+        return;
+      }
+      exportRecordsToExcel(
+        rows,
+        getAdminScreenExcelFilename("all"),
+        viewLevel === "records" ? `${scopeLabel} Records` : `${scopeLabel} Summary`,
+      );
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   /* ================= NAVIGATION ================= */
 
   const drillToRecords = (row: SummaryRow) => {
@@ -289,18 +330,22 @@ export default function BaseCollectionListPage({ scope }: Props) {
   const weightField =
     scope === "panchayat" ? "panchayat_total_weight" : "ward_total_weight";
 
-  const tableHeader = (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder="Search..."
-          className="p-inputtext-sm !border-0 !shadow-none"
+  const filterBar = (
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={onGlobalFilterChange}
+      searchPlaceholder="Search..."
+      className="mb-4"
+      trailing={
+        <Button
+          label={isExportingExcel ? "Downloading..." : "Download Excel"}
+          icon="pi pi-file-excel"
+          className="p-button-outlined"
+          disabled={isExportingExcel}
+          onClick={handleDownloadExcel}
         />
-      </div>
-    </div>
+      }
+    />
   );
 
   const viewActionTemplate = (onClick: () => void) => (
@@ -347,33 +392,20 @@ export default function BaseCollectionListPage({ scope }: Props) {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
+          <FilterBarSelect
             value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
+            onChange={onCompanyChange}
+            options={companies}
+            placeholder="All Companies"
             disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
+          />
+          <FilterBarSelect
             value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
+            onChange={setProjectId}
+            options={projects}
+            placeholder={showAllProjectsOption ? "All Projects" : undefined}
             disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
+          />
         </div>
       </div>
 
@@ -401,6 +433,8 @@ export default function BaseCollectionListPage({ scope }: Props) {
         </span>
       </div>
 
+      {filterBar}
+
       {viewLevel === "summary" && (
         <DataTable
           value={summaryRows}
@@ -421,7 +455,6 @@ export default function BaseCollectionListPage({ scope }: Props) {
                 ]
               : ["name", "company_names", "project_names", "collection_dates"]
           }
-          header={tableHeader}
           emptyMessage={`No ${scopeLabel.toLowerCase()} collection records found.`}
           stripedRows
           showGridlines
@@ -513,7 +546,6 @@ export default function BaseCollectionListPage({ scope }: Props) {
               "company_name",
               "project_name",
             ]}
-            header={tableHeader}
             emptyMessage={`No records found for this ${scopeLabel.toLowerCase()}.`}
             stripedRows
             showGridlines

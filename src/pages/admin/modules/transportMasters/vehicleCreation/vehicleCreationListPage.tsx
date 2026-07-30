@@ -7,10 +7,10 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
+import { FilterBar, FilterBarSelect, type StatusFilterValue } from "@/components/common/FilterBar";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -96,6 +96,8 @@ export default function VehicleCreationListPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [statusValue, setStatusValue] = useState<StatusFilterValue>("all");
+  const [filteredRows, setFilteredRows] = useState<VehicleCreationRecord[]>([]);
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: {
       value: null as string | null,
@@ -120,6 +122,10 @@ export default function VehicleCreationListPage() {
     insurance_expiry_date: {
       value: null as string | null,
       matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    is_active: {
+      value: null as boolean | null,
+      matchMode: FilterMatchMode.EQUALS,
     },
   });
 
@@ -216,6 +222,13 @@ export default function VehicleCreationListPage() {
       ? []
       : allVehicles;
 
+  // Keeps exported Excel rows in sync with the currently displayed
+  // (filtered/searched) rows rather than the full unfiltered set.
+  useEffect(() => {
+    setFilteredRows(rows);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allVehicles, companyUniqueId, isSuperAdmin, companies.length]);
+
   // ── Filter handlers ───────────────────────────────────────────────────────
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters);
 
@@ -225,6 +238,17 @@ export default function VehicleCreationListPage() {
     setFilters((prev) => ({
       ...prev,
       global: { value, matchMode: FilterMatchMode.CONTAINS },
+    }));
+  };
+
+  const onStatusFilterChange = (value: StatusFilterValue) => {
+    setStatusValue(value);
+    setFilters((prev) => ({
+      ...prev,
+      is_active: {
+        value: value === "all" ? null : value === "active",
+        matchMode: FilterMatchMode.EQUALS,
+      },
     }));
   };
 
@@ -433,43 +457,58 @@ export default function VehicleCreationListPage() {
 
   // ── Table header ──────────────────────────────────────────────────────────
   const renderHeader = () => (
-    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.vehicle_creation.search_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none !outline-none"
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <Button
-          label={t("admin.vehicle_creation.download_template", {
-            defaultValue: "Download Template",
-          })}
-          icon="pi pi-download"
-          severity="secondary"
-          className="p-button-sm"
-          onClick={downloadVehicleTemplate}
-        />
-        <Button
-          label={t("admin.vehicle_creation.upload_csv", {
-            defaultValue: "Upload Excel",
-          })}
-          icon="pi pi-upload"
-          className="p-button-sm"
-          onClick={() => fileInputRef.current?.click()}
-        />
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls"
-          hidden
-          onChange={handleVehicleFileUpload}
-        />
-      </div>
-    </div>
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={(value) =>
+        onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+      }
+      searchPlaceholder={t("admin.vehicle_creation.search_placeholder")}
+      statusValue={statusValue}
+      onStatusChange={onStatusFilterChange}
+      trailing={
+        <div className="flex items-center gap-2">
+          <Button
+            label={t("admin.vehicle_creation.download_template", {
+              defaultValue: "Download Template",
+            })}
+            icon="pi pi-download"
+            severity="secondary"
+            className="p-button-sm"
+            onClick={downloadVehicleTemplate}
+          />
+          <Button
+            label={t("admin.vehicle_creation.upload_csv", {
+              defaultValue: "Upload Excel",
+            })}
+            icon="pi pi-upload"
+            className="p-button-sm"
+            onClick={() => fileInputRef.current?.click()}
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            hidden
+            onChange={handleVehicleFileUpload}
+          />
+        </div>
+      }
+    >
+      <FilterBarSelect
+        value={companyUniqueId || ""}
+        onChange={onCompanyChange}
+        placeholder="All Companies"
+        options={companies}
+        disabled={!isSuperAdmin || companies.length === 0}
+      />
+      <FilterBarSelect
+        value={projectId || ""}
+        onChange={setProjectId}
+        placeholder={showAllProjectsOption ? "All Projects" : undefined}
+        options={projects}
+        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+      />
+    </FilterBar>
   );
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -487,38 +526,6 @@ export default function VehicleCreationListPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Company filter */}
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Project filter */}
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={
-              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-            }
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           {/* Add button */}
           <Button
             label={t("admin.vehicle_creation.add")}
@@ -535,6 +542,8 @@ export default function VehicleCreationListPage() {
       {/* Table */}
       <DataTable
         value={rows}
+        exportRows={filteredRows}
+        onValueChange={(value) => setFilteredRows(value as VehicleCreationRecord[])}
         bulkImportable={false}
         dataKey="unique_id"
         paginator

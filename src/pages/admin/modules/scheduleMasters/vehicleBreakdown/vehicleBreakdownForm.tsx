@@ -15,6 +15,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
 import { api } from "@/api";
+import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
 
 type SelectOption = { value: string; label: string };
 
@@ -582,13 +583,24 @@ export default function VehicleBreakdownForm() {
           {/* Breakdown Latitude */}
           <div>
             <Label>Breakdown Latitude <span className="text-red-500">*</span></Label>
-            <Input
-              type="number"
-              step="any"
-              value={form.breakdown_lat}
-              onChange={(e) => setField("breakdown_lat", e.target.value)}
-              placeholder="e.g. 28.6139"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                step="any"
+                value={form.breakdown_lat}
+                onChange={(e) => setField("breakdown_lat", e.target.value)}
+                placeholder="e.g. 28.6139"
+              />
+              <AutoDetectLocationButton
+                onDetected={({ latitude, longitude }) => {
+                  setField("breakdown_lat", String(latitude));
+                  setField("breakdown_lng", String(longitude));
+                }}
+                label="Detect"
+                className="shrink-0 whitespace-nowrap"
+                title="Auto-detect current GPS coordinates"
+              />
+            </div>
           </div>
 
           {/* Breakdown Longitude */}

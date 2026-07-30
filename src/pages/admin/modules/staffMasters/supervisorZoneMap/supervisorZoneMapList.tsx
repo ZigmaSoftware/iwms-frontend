@@ -8,7 +8,6 @@ import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 
@@ -17,6 +16,11 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 const SUPERVISOR_ZONE_MAP_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "mapping_id"],
@@ -98,6 +102,8 @@ export default function SupervisorZoneMapList() {
   const [records, setRecords] = useState<SupervisorZoneMapRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [statusFilterValue, setStatusFilterValue] = useState<StatusFilterValue>("all");
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     unique_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -212,6 +218,20 @@ export default function SupervisorZoneMapList() {
     }));
   };
 
+  const onSearchValueChange = (value: string) =>
+    onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>);
+
+  const onStatusFilterChange = (value: StatusFilterValue) => {
+    setStatusFilterValue(value);
+    setFilters((prev) => ({
+      ...prev,
+      status: {
+        value: value === "all" ? null : value === "active" ? "ACTIVE" : "INACTIVE",
+        matchMode: FilterMatchMode.EQUALS,
+      },
+    } as TableFilters));
+  };
+
   const resolveDistrict = (row: SupervisorZoneMapRecord) =>
     row.district_id ? districtLookup[String(row.district_id)] ?? row.district_id : "-";
 
@@ -261,6 +281,42 @@ export default function SupervisorZoneMapList() {
     </div>
   );
 
+  const filteredExportRows = (): SupervisorZoneMapRecord[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    const statusFiltered =
+      statusFilterValue === "all"
+        ? records
+        : records.filter((record) =>
+            statusFilterValue === "active" ? record.status === "ACTIVE" : record.status !== "ACTIVE"
+          );
+    if (!search) return statusFiltered;
+    return statusFiltered.filter((record) =>
+      [
+        record.unique_id,
+        resolveSupervisor(record),
+        resolveDistrict(record),
+        resolveCity(record),
+        resolveZones(record),
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search))
+    );
+  };
+
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = filteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "SupervisorZoneMap");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   return (
     <div className="p-3">
       <div className="flex justify-between items-center mb-6">
@@ -303,10 +359,18 @@ export default function SupervisorZoneMapList() {
           </select>
 
           <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+
+          <Button
             label={t("admin.supervisor_zone_map.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-           
+
             onClick={() =>
               navigate(
                 `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
@@ -319,15 +383,13 @@ export default function SupervisorZoneMapList() {
       </div>
 
       <div className="flex justify-end mb-4">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("common.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={onSearchValueChange}
+          searchPlaceholder={t("common.search_placeholder")}
+          statusValue={showCol("status") ? statusFilterValue : undefined}
+          onStatusChange={showCol("status") ? onStatusFilterChange : undefined}
+        />
       </div>
 
       <DataTable

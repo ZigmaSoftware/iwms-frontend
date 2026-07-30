@@ -1,11 +1,10 @@
 import type { LoginAuditRecord } from "./types";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
@@ -13,6 +12,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { adminApi } from "@/helpers/admin/registry";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
+import { FilterBar } from "@/components/common/FilterBar";
+import { filterRowsForExport } from "@/utils/adminListExport";
+
+const LOGIN_AUDIT_SEARCH_FIELDS = ["unique_id", "username", "ip_address", "user_agent", "reason"];
 
 
 const formatDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString() : "-");
@@ -110,58 +113,58 @@ export default function LoginAuditList() {
           <h1 className="text-2xl font-semibold text-gray-800">{t("admin.nav.login_audit")}</h1>
           <p className="text-sm text-gray-500">{t("admin.login_audit_subtitle", "Login audit records")}</p>
         </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
-      <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1 max-w-md">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.login_audit_search", "Search login audits...")}
-          className="border-none text-sm w-full"
-        />
-      </div>
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={(value) => onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)}
+        searchPlaceholder={t("admin.login_audit_search", "Search login audits...")}
+      >
+        <select
+          value={companyUniqueId || ""}
+          onChange={(e) => onCompanyChange(e.target.value)}
+          disabled={!isSuperAdmin || companies.length === 0}
+          className="border rounded px-3 py-2 text-sm"
+        >
+          <option value="" disabled>
+            {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+          </option>
+          {companies.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={projectId || ""}
+          onChange={(e) => setProjectId(e.target.value)}
+          disabled={!companyUniqueId || projects.length === 0}
+          className="border rounded px-3 py-2 text-sm"
+        >
+          <option value="" disabled>
+            {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+          </option>
+          {projects.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </FilterBar>
     </div>
+  );
+
+  const exportRows = useMemo(
+    () => filterRowsForExport(rows, LOGIN_AUDIT_SEARCH_FIELDS, globalFilterValue),
+    [rows, globalFilterValue],
   );
 
   return (
     <div className="p-3">
       <DataTable
         value={rows}
+        exportRows={exportRows}
         dataKey="unique_id"
         paginator
         rows={10}

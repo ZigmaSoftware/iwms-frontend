@@ -1,5 +1,4 @@
 import type { DailyTripHouseholdCollectionRecord, NamedRef } from "./types";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -14,6 +13,7 @@ import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { dailyTripHouseholdCollectionApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 
 const STATUS_STYLES: Record<string, string> = {
@@ -89,6 +89,9 @@ export default function DailyTripHouseholdCollectionList() {
   });
 
   const [allRecords, setAllRecords] = useState<
+    DailyTripHouseholdCollectionRecord[]
+  >([]);
+  const [filteredRows, setFilteredRows] = useState<
     DailyTripHouseholdCollectionRecord[]
   >([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -173,6 +176,13 @@ export default function DailyTripHouseholdCollectionList() {
       ? []
       : rows;
 
+  // Keeps exported Excel rows in sync with the currently displayed
+  // (filtered/searched) rows rather than the full unfiltered set.
+  useEffect(() => {
+    setFilteredRows(data);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRecords, companyUniqueId, isSuperAdmin, companies.length, projectId]);
+
   const onFilter = (e: DataTableFilterEvent) =>
     setFilters(e.filters as DataTableFilterMeta);
 
@@ -182,12 +192,30 @@ export default function DailyTripHouseholdCollectionList() {
     setGlobalFilterValue(value);
   };
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: "Search household collections...",
-    });
+  const renderHeader = () => (
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={(value) =>
+        onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+      }
+      searchPlaceholder="Search household collections..."
+    >
+      <FilterBarSelect
+        value={companyUniqueId || ""}
+        onChange={onCompanyChange}
+        placeholder="All Companies"
+        options={companies}
+        disabled={!isSuperAdmin || companies.length === 0}
+      />
+      <FilterBarSelect
+        value={projectId || ""}
+        onChange={setProjectId}
+        placeholder={showAllProjectsOption ? "All Projects" : undefined}
+        options={projects}
+        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+      />
+    </FilterBar>
+  );
 
   return (
     <div className="p-3">
@@ -200,41 +228,12 @@ export default function DailyTripHouseholdCollectionList() {
             Per-household collection status within daily trip assignments
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={
-              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-            }
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
       <DataTable
         value={data}
+        exportRows={filteredRows}
+        onValueChange={(value) => setFilteredRows(value as typeof data)}
         dataKey="unique_id"
         paginator
         rows={10}

@@ -2,11 +2,7 @@ import type { ReportResponse, ReportRow } from "./types";
 import { useEffect, useMemo, useState } from "react";
 import "./monthlyWasteComparison.css";
 import { api } from "@/api";
-import { saveAs } from "file-saver";
-import * as XLSX from "xlsx";
-import { recordExcelAudit } from "@/helpers/admin/commonAudit";
-import { getAdminScreenExcelFilename } from "@/utils/exportExcel";
-import { Download, Search } from "lucide-react";
+import { applyTableFilters } from "@/utils/tableFilterMatch";
 import {
   Bar,
   BarChart,
@@ -21,8 +17,8 @@ import {
 } from "recharts";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import { FilterBar } from "@/components/common/FilterBar";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 
@@ -42,6 +38,14 @@ const currentMonth = () => {
   const today = new Date();
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
 };
+
+const MONTHLY_COMPARISON_GLOBAL_FIELDS = [
+  "month",
+  "panchayat_id",
+  "panchayat_name",
+  "waste_type",
+  "report_status",
+];
 
 export default function MonthlyWasteComparison() {
   const [monthValue, setMonthValue] = useState(currentMonth());
@@ -102,27 +106,14 @@ export default function MonthlyWasteComparison() {
     return <span className={`mwc-status ${className}`}>{status}</span>;
   };
 
-  const renderHeader = () => (
-    <div className="flex justify-end items-center">
-      <div className="mwc-search">
-        <Search size={16} color="#6b7280" />
-        <InputText
-          value={globalFilterValue}
-          onChange={(event) => {
-            const value = event.target.value;
-            setGlobalFilterValue(value);
-            setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
-          }}
-          placeholder="Search report..."
-          className="p-inputtext-sm"
-        />
-      </div>
-    </div>
+  const filteredRows = useMemo(
+    () => applyTableFilters(rows, filters, MONTHLY_COMPARISON_GLOBAL_FIELDS),
+    [filters, rows],
   );
 
   const exportRows = useMemo(
     () =>
-      rows.map((row) => ({
+      filteredRows.map((row) => ({
         month: row.month,
         panchayat_id: row.panchayat_id,
         panchayat_name: row.panchayat_name,
@@ -138,23 +129,8 @@ export default function MonthlyWasteComparison() {
         coverage_efficiency_percent: row.coverage_efficiency_percent,
         average_weight_per_trip: row.average_weight_per_trip,
       })),
-    [rows],
+    [filteredRows],
   );
-
-  const handleDownload = () => {
-    const filename = getAdminScreenExcelFilename("all");
-    recordExcelAudit("download_all_excel", {
-      file_name: filename,
-      row_count: exportRows.length,
-    });
-    const ws = XLSX.utils.json_to_sheet(exportRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Monthly Waste Comparison");
-    saveAs(
-      new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })]),
-      filename,
-    );
-  };
 
   return (
     <div className="mwc-page">
@@ -192,10 +168,6 @@ export default function MonthlyWasteComparison() {
             }}
           >
             All Months
-          </button>
-          <button className="mwc-button success" onClick={handleDownload} disabled={!rows.length}>
-            <Download size={16} />
-            Download
           </button>
         </div>
       </div>
@@ -253,22 +225,29 @@ export default function MonthlyWasteComparison() {
 
       <DataTable
         value={rows}
+        exportRows={exportRows}
+        exportSheetName="Monthly Waste Comparison"
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
         filters={filters}
-        header={renderHeader()}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={(value) => {
+              setGlobalFilterValue(value);
+              setFilters({
+                global: { value, matchMode: FilterMatchMode.CONTAINS },
+              });
+            }}
+            searchPlaceholder="Search report..."
+          />
+        }
         loading={loading}
         stripedRows
         showGridlines
         emptyMessage="No monthly comparison data found."
-        globalFilterFields={[
-          "month",
-          "panchayat_id",
-          "panchayat_name",
-          "waste_type",
-          "report_status",
-        ]}
+        globalFilterFields={MONTHLY_COMPARISON_GLOBAL_FIELDS}
         className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowRight, Building2, Eye, EyeOff, Lock, User } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
+import LoginBg from "../images/bgSignin.png";
 import {
   persistLoginSession,
   unwrapLoginPayload,
@@ -67,174 +68,115 @@ export default function LocalBodyAuth() {
   };
 
   return (
-    <>
-      <style>{`
-        @keyframes lb-blob {
-          0%,100% { transform: translate(0,0) scale(1); }
-          33%      { transform: translate(20px,-18px) scale(1.05); }
-          66%      { transform: translate(-15px,15px) scale(0.97); }
-        }
-        .lb-blob-a { animation: lb-blob 9s ease-in-out infinite; }
-        .lb-blob-b { animation: lb-blob 11s ease-in-out infinite reverse; animation-delay:-3s; }
-        .lb-blob-c { animation: lb-blob 13s ease-in-out infinite; animation-delay:-6s; }
-      `}</style>
+    <div
+      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-900 bg-cover bg-center bg-no-repeat px-4 py-10 font-sans md:justify-end md:px-16"
+      style={{ backgroundImage: `url(${LoginBg})` }}
+    >
+      {/* readability scrim over the photo */}
+      <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-black/10 via-transparent to-black/30" />
 
-      <div className="relative min-h-screen overflow-hidden flex items-center justify-center bg-slate-50 p-4 font-sans">
+      {/* ── Logo (top-left) ─────────────────────────────────────── */}
+      <img
+        src={ZigmaLogo}
+        alt="Zigma IWMS"
+        className="absolute left-6 top-6 z-10 h-10 w-auto object-contain drop-shadow-md md:left-10 md:top-8 md:h-14"
+      />
 
-        {/* Background blobs — blue/teal palette for local body portal */}
-        <div className="lb-blob-a pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-blue-300/45 blur-3xl" />
-        <div className="lb-blob-b pointer-events-none absolute -bottom-40 -right-40 h-112 w-112 rounded-full bg-teal-200/45 blur-3xl" />
-        <div className="lb-blob-c pointer-events-none absolute top-1/2 left-1/3 h-56 w-56 -translate-x-1/2 rounded-full bg-cyan-200/40 blur-3xl" />
+      {/* ── Login card ──────────────────────────────────────────── */}
+      <div className="relative z-10 w-full max-w-md rounded-4xl border border-white/60 bg-white/95 p-8 shadow-2xl shadow-slate-900/30 backdrop-blur-sm sm:p-10">
 
-        <div className="relative z-10 w-full max-w-4xl overflow-hidden rounded-3xl border border-white/80 shadow-2xl shadow-slate-300/50 grid md:grid-cols-2">
-
-          {/* LEFT panel */}
-          <div className="relative hidden md:flex flex-col items-center justify-between overflow-hidden bg-blue-50 p-8 border-r border-blue-100">
-            <div className="lb-blob-a pointer-events-none absolute -top-10 -right-10 h-56 w-56 rounded-full bg-blue-200/50 blur-2xl" />
-            <div className="lb-blob-b pointer-events-none absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-teal-200/50 blur-2xl" />
-
-            <p className="relative z-10 w-full text-center text-[10px] font-bold uppercase tracking-[0.25em] text-blue-700/60">
-              PLB (Participating Local Bodies) Portal
-            </p>
-
-            <div className="relative z-10 flex flex-1 items-center justify-center w-full py-4">
-              <div className="relative flex flex-col items-center justify-center gap-4">
-                <div className="lb-blob-a absolute h-60 w-60 rounded-full bg-blue-200/45 blur-3xl" />
-                <div className="relative z-10 rounded-full border-2 border-blue-200 bg-white p-3 shadow-xl shadow-blue-100/60">
-                  <div className="rounded-full bg-blue-50 p-4">
-                    <img src={ZigmaLogo} className="h-28 w-28 object-contain" alt="Zigma IWMS" />
-                  </div>
-                </div>
-                <div className="relative z-10 flex items-center justify-center gap-2 rounded-full bg-blue-100 px-4 py-2">
-                  <Building2 className="h-4 w-4 text-blue-600" />
-                  <span className="text-xs font-semibold text-blue-700">PLB Management</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="relative z-10 flex flex-wrap justify-center gap-1.5 mb-4">
-              {["Waste Tracking", "Collection Reports", "Civic Data"].map((f) => (
-                <span key={f} className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-semibold text-blue-700">
-                  <span className="h-1 w-1 rounded-full bg-blue-500" />
-                  {f}
-                </span>
-              ))}
-            </div>
-
-            <div className="relative z-10 text-center mb-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-blue-600">ZIGMA</p>
-              <p className="text-[10px] text-blue-500/70 italic mt-0.5">Alchemists of the MSW</p>
-            </div>
-
-            <div className="relative z-10 flex items-center gap-2">
-              <div className="h-2 w-6 rounded-full bg-blue-500" />
-              <div className="h-2 w-2 rounded-full bg-blue-200" />
-              <div className="h-2 w-2 rounded-full bg-blue-200" />
-            </div>
+        {/* avatar ring */}
+        <div className="mb-6 flex justify-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-blue-100 bg-blue-50">
+            <Building2 className="h-8 w-8 text-blue-600" />
           </div>
-
-          {/* RIGHT: form panel */}
-          <div className="flex flex-col justify-center bg-white p-10">
-
-            {/* mobile logo */}
-            <div className="flex md:hidden items-center gap-3 mb-6">
-              <img src={ZigmaLogo} className="h-9 w-9 object-contain" alt="Zigma" />
-              <div>
-                <p className="text-sm font-black tracking-wide text-gray-800">ZIGMA IWMS</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-blue-500">Local Body Portal</p>
-              </div>
-            </div>
-
-            <div className="mb-5">
-              <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-blue-200 bg-blue-50">
-                <Building2 className="h-5 w-5 text-blue-600" />
-              </div>
-            </div>
-
-            <div className="mb-7">
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-                PLB Leader Login
-              </h1>
-              <p className="mt-1 text-sm text-gray-500 leading-relaxed">
-                Sign in to access your PLB dashboard
-              </p>
-            </div>
-
-            <form onSubmit={handleSignIn} className="space-y-4">
-
-              <div className="space-y-1.5">
-                <label htmlFor="lb-username" className="block text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                  Username
-                </label>
-                <div className="relative">
-                  <User className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="lb-username"
-                    type="text"
-                    placeholder="Enter your username"
-                    value={username}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
-                    className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 text-gray-900 placeholder:text-gray-400 focus-visible:border-blue-400 focus-visible:ring-blue-300/50 transition-all"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="lb-password" className="block text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="lb-password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                    className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 pr-12 text-gray-900 placeholder:text-gray-400 focus-visible:border-blue-400 focus-visible:ring-blue-300/50 transition-all"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex w-full h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 active:scale-[0.98] disabled:opacity-60 text-white text-sm font-semibold shadow-lg shadow-blue-200/70 transition-all mt-1"
-              >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
-                    </svg>
-                    Authenticating…
-                  </>
-                ) : (
-                  <>
-                    Sign In
-                    <ArrowRight size={15} />
-                  </>
-                )}
-              </button>
-            </form>
-
-            <p className="mt-8 text-center text-[11px] text-gray-400">
-              Secure login ·{" "}
-              <span className="font-semibold text-gray-500">Zigma IWMS · Local Body Portal</span>
-            </p>
-          </div>
-
         </div>
+
+        {/* heading */}
+        <div className="mb-7 text-center">
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-800 sm:text-3xl">
+            PLB Leader Login
+          </h1>
+          <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-slate-500">
+            Sign in to access your PLB dashboard
+          </p>
+        </div>
+
+        {/* form */}
+        <form onSubmit={handleSignIn} className="space-y-4">
+
+          <div className="space-y-1.5">
+            <label htmlFor="lb-username" className="block text-[11px] font-bold uppercase tracking-widest text-slate-500">
+              Username
+            </label>
+            <div className="relative">
+              <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="lb-username"
+                type="text"
+                placeholder="Enter your username"
+                value={username}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
+                className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 text-slate-900 placeholder:text-slate-400 focus-visible:border-blue-400 focus-visible:ring-blue-300/50 transition-all"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="lb-password" className="block text-[11px] font-bold uppercase tracking-widest text-slate-500">
+              Password
+            </label>
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="lb-password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 pr-12 text-slate-900 placeholder:text-slate-400 focus-visible:border-blue-400 focus-visible:ring-blue-300/50 transition-all"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-linear-to-r from-blue-500 to-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-200/70 transition-all hover:from-blue-600 hover:to-blue-700 active:scale-[0.98] disabled:opacity-60"
+          >
+            {loading ? (
+              <>
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+                </svg>
+                Authenticating…
+              </>
+            ) : (
+              <>
+                Sign In
+                <ArrowRight size={15} />
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* card footer */}
+        <p className="mt-8 text-center text-[11px] text-slate-400">
+          Secure login ·{" "}
+          <span className="font-semibold text-slate-500">Zigma IWMS · Local Body Portal</span>
+        </p>
       </div>
-    </>
+    </div>
   );
 }

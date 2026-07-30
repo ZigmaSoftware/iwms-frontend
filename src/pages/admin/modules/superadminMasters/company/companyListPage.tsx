@@ -1,9 +1,8 @@
-import type { Company, TableFilters } from "./types";
+import type { Company } from "./types";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useState } from "react";
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
@@ -16,10 +15,12 @@ import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
 import { Switch } from "@/components/ui/switch";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 
 import { companyApi } from "@/helpers/admin";
 import { PencilIcon } from "@/icons";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 
 const { encSuperAdminMaster: encSuperAdminMasters, encCompanyCreation } = getEncryptedRoute();
@@ -33,11 +34,19 @@ export default function CompanyList() {
   const { t } = useTranslation();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(false);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    },
   });
 
   const navigate = useNavigate();
@@ -58,15 +67,30 @@ export default function CompanyList() {
     fetchCompanies();
   }, [fetchCompanies]);
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as TableFilters);
+  const getFilteredExportRows = (): Company[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    return companies.filter((company) => {
+      if (statusValue !== "all") {
+        const wantActive = statusValue === "active";
+        if (Boolean(company.is_active) !== wantActive) return false;
+      }
+      if (!search) return true;
+      return String(company.name ?? "").toLowerCase().includes(search);
+    });
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const updated = { ...filters };
-    updated.global.value = e.target.value;
-    setFilters(updated);
-    setGlobalFilterValue(e.target.value);
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = getFilteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning"), t("common.no_items_found", { item: t("admin.nav.company") }), "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Companies");
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
 
   const statusBodyTemplate = (row: Company) => {
@@ -101,14 +125,6 @@ export default function CompanyList() {
   const indexTemplate = (_row: Company, options: { rowIndex: number }) =>
     options.rowIndex + 1;
 
-  const header = renderListSearchHeader({
-    value: globalFilterValue,
-    onChange: onGlobalFilterChange,
-    placeholder: t("common.search_placeholder", {
-      item: t("admin.nav.company"),
-    }),
-  });
-
   return (
     <div className="p-3">
       <div className="flex justify-between items-center mb-6">
@@ -131,6 +147,26 @@ export default function CompanyList() {
         />
       </div>
 
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder", {
+          item: t("admin.nav.company"),
+        })}
+        statusValue={statusValue}
+        onStatusChange={onStatusFilterChange}
+        className="mb-4"
+        trailing={
+          <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+        }
+      />
+
       <DataTable
         value={companies}
         dataKey="unique_id"
@@ -141,7 +177,6 @@ export default function CompanyList() {
         filters={filters}
         onFilter={onFilter}
         globalFilterFields={["name"]}
-        header={header}
         stripedRows
         showGridlines
         className="p-datatable-sm"

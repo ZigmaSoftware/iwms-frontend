@@ -39,6 +39,7 @@ import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
+import { FilterBar } from "@/components/common/FilterBar";
 
 /* ── Types ───────────────────────────────────────────────────────── */
 
@@ -92,6 +93,27 @@ const statusBadgeCls = (s: string) =>
     : s === "Deficit"
       ? "bg-red-100 text-red-800 border-red-200"
       : "bg-blue-100 text-blue-800 border-blue-200";
+
+const matchesDailyWasteSearch = (row: DailyReportRow, value: string) => {
+  const search = value.trim().toLowerCase();
+  if (!search) return true;
+
+  return [
+    row.collection_date,
+    row.panchayat_name,
+    row.panchayat_id,
+    row.waste_type,
+    row.report_status,
+    row.agreed_weight_kg,
+    row.actual_weight_kg,
+    row.variance_kg,
+    row.collection_efficiency_percent,
+    row.total_trips,
+    row.collection_points_covered,
+  ].some((fieldValue) =>
+    String(fieldValue ?? "").toLowerCase().includes(search),
+  );
+};
 
 /* ── PLB Efficiency Row ─────────────────────────────────────────── */
 const PlbEffRow = ({ plb }: { plb: any }) => {
@@ -212,6 +234,7 @@ export default function DailyWasteComparisonList() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
 
   const { encScheduleMasters, encDailyWasteComparison } = getEncryptedRoute();
   const { newPath: dailyComparisonNewPath, editPath: dailyComparisonEditPath } =
@@ -288,6 +311,13 @@ export default function DailyWasteComparisonList() {
   const eff = Number(kpis.collection_efficiency_percent ?? 0);
   const effC = effColor(eff);
   const reportStatus = kpis.report_status ?? "On Target";
+  const visibleRows = useMemo(
+    () =>
+      rows.filter((row) =>
+        matchesDailyWasteSearch(row, globalFilterValue),
+      ),
+    [globalFilterValue, rows],
+  );
 
   const plbChartData = useMemo(
     () =>
@@ -314,18 +344,22 @@ export default function DailyWasteComparisonList() {
         params,
       });
       exportRecordsToExcel(
-        exportRows.map((r) => ({
-          Date: r.collection_date,
-          PLB: r.panchayat_name ?? r.panchayat_id,
-          "Waste Type": r.waste_type,
-          "Agreed (kg)": r.agreed_weight_kg,
-          "Actual (kg)": r.actual_weight_kg,
-          "Variance (kg)": r.variance_kg,
-          "Variance %": r.variance_percent,
-          Status: r.report_status,
-          Trips: r.total_trips,
-          Points: r.collection_points_covered,
-        })),
+        exportRows
+          .filter((row) =>
+            matchesDailyWasteSearch(row, globalFilterValue),
+          )
+          .map((r) => ({
+            Date: r.collection_date,
+            PLB: r.panchayat_name ?? r.panchayat_id,
+            "Waste Type": r.waste_type,
+            "Agreed (kg)": r.agreed_weight_kg,
+            "Actual (kg)": r.actual_weight_kg,
+            "Variance (kg)": r.variance_kg,
+            "Variance %": r.variance_percent,
+            Status: r.report_status,
+            Trips: r.total_trips,
+            Points: r.collection_points_covered,
+          })),
         getAdminScreenExcelFilename("all"),
         "Daily Waste Comparison",
       );
@@ -444,6 +478,14 @@ export default function DailyWasteComparisonList() {
           </button>
         </div>
       </div>
+
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={setGlobalFilterValue}
+        searchPlaceholder="Search daily waste comparison..."
+        searchAriaLabel="Search daily waste comparison rows"
+        className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
+      />
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
@@ -944,11 +986,11 @@ export default function DailyWasteComparisonList() {
           )}
 
           {/* Waste-type breakdown table */}
-          {rows.length > 0 && (
+          {visibleRows.length > 0 && (
             <div className="border-t border-gray-100 px-6 py-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                Breakdown by PLB &amp; Waste Type — {rows.length} row
-                {rows.length !== 1 ? "s" : ""}
+                Breakdown by PLB &amp; Waste Type — {visibleRows.length} row
+                {visibleRows.length !== 1 ? "s" : ""}
               </p>
               <div className="overflow-x-auto rounded-xl border border-gray-200">
                 <table className="min-w-full text-xs">
@@ -990,7 +1032,7 @@ export default function DailyWasteComparisonList() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
-                    {rows.map((r) => {
+                    {visibleRows.map((r) => {
                       const rowEff = Number(
                         r.collection_efficiency_percent ?? 0,
                       );

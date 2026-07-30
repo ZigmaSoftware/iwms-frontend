@@ -1,7 +1,6 @@
 import type { DailyTripCollectionPointRecord } from "./types";
 import type { NamedRef } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-/* eslint-disable react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -10,13 +9,13 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 import { PencilIcon } from "@/icons";
 import { dailyTripCollectionPointApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 
 const STATUS_STYLES: Record<string, string> = {
@@ -90,6 +89,7 @@ export default function DailyTripCollectionPointList() {
   });
 
   const [records, setRecords] = useState<DailyTripCollectionPointRecord[]>([]);
+  const [filteredRows, setFilteredRows] = useState<DailyTripCollectionPointRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -153,6 +153,12 @@ export default function DailyTripCollectionPointList() {
     [records],
   );
 
+  // Keeps exported Excel rows in sync with the currently displayed
+  // (filtered/searched) rows rather than the full unfiltered set.
+  useEffect(() => {
+    setFilteredRows(rows);
+  }, [rows]);
+
   const onFilter = (event: DataTableFilterEvent) =>
     setFilters(event.filters as DataTableFilterMeta);
 
@@ -170,33 +176,11 @@ export default function DailyTripCollectionPointList() {
           <p className="text-sm text-gray-500">Manage collection points assigned to daily trips</p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(event) => onCompanyChange(event.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>{company.label}</option>
-            ))}
-          </select>
-          <select
-            value={projectId || ""}
-            onChange={(event) => setProjectId(event.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>{project.label}</option>
-            ))}
-          </select>
           <Button
             label="New Collection Point"
             icon="pi pi-plus"
             className="p-button-success"
-           
+
             onClick={() => navigate(NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
@@ -204,6 +188,8 @@ export default function DailyTripCollectionPointList() {
 
       <DataTable
         value={rows}
+        exportRows={filteredRows}
+        onValueChange={(value) => setFilteredRows(value as typeof rows)}
         dataKey="unique_id"
         paginator
         rows={10}
@@ -212,17 +198,28 @@ export default function DailyTripCollectionPointList() {
         filters={filters}
         onFilter={onFilter}
         header={
-          <div className="flex justify-end items-center">
-            <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-              <i className="pi pi-search text-gray-500" />
-              <InputText
-                value={globalFilterValue}
-                onChange={onGlobalFilterChange}
-                placeholder="Search trip collection points..."
-                className="p-inputtext-sm !border-0 !shadow-none !outline-none"
-              />
-            </div>
-          </div>
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={(value) =>
+              onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+            }
+            searchPlaceholder="Search trip collection points..."
+          >
+            <FilterBarSelect
+              value={companyUniqueId || ""}
+              onChange={onCompanyChange}
+              placeholder="All Companies"
+              options={companies}
+              disabled={!isSuperAdmin || companies.length === 0}
+            />
+            <FilterBarSelect
+              value={projectId || ""}
+              onChange={setProjectId}
+              placeholder={showAllProjectsOption ? "All Projects" : undefined}
+              options={projects}
+              disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+            />
+          </FilterBar>
         }
         stripedRows
         showGridlines

@@ -19,6 +19,7 @@ import { adminApi } from "@/helpers/admin/registry";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
 
 
 const extractError = (error: any): string | null => {
@@ -467,13 +468,24 @@ export default function BinCollectionEventForm() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>GPS Latitude</Label>
-              <Input
-                type="number"
-                step="any"
-                value={form.driver_latitude}
-                onChange={(e) => set("driver_latitude")(e.target.value)}
-                placeholder="e.g. 11.1271"
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  step="any"
+                  value={form.driver_latitude}
+                  onChange={(e) => set("driver_latitude")(e.target.value)}
+                  placeholder="e.g. 11.1271"
+                />
+                <AutoDetectLocationButton
+                  onDetected={({ latitude, longitude }) => {
+                    set("driver_latitude")(String(latitude));
+                    set("driver_longitude")(String(longitude));
+                  }}
+                  label="Detect"
+                  className="shrink-0 whitespace-nowrap"
+                  title="Auto-detect current GPS coordinates"
+                />
+              </div>
             </div>
             <div>
               <Label>GPS Longitude</Label>

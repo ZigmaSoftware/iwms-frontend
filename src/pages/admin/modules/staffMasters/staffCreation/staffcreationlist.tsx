@@ -9,7 +9,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 
@@ -17,8 +16,14 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 import { Switch } from "@/components/ui/switch";
+import QrPreviewDialog from "@/components/common/QrPreviewDialog";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 const STAFF_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "staff_unique_id", "zigma_id"],
@@ -52,6 +57,7 @@ export default function StaffCreationList() {
   );
   const [staffs, setStaffs] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedQrStaff, setSelectedQrStaff] = useState<Staff | null>(null);
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
@@ -191,6 +197,48 @@ export default function StaffCreationList() {
     setDatatableFilters(updated);
   };
 
+  const statusFilterValue: StatusFilterValue =
+    filterParams.active_status === "1"
+      ? "active"
+      : filterParams.active_status === "0"
+        ? "inactive"
+        : "all";
+
+  const onStatusFilterChange = (value: StatusFilterValue) => {
+    setFilterParams((prev) => ({
+      ...prev,
+      active_status: value === "all" ? "" : value === "active" ? "1" : "0",
+    }));
+    setRefetchTrigger((n) => n + 1);
+  };
+
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+  const filteredExportRows = (): Staff[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    if (!search) return staffs;
+    return staffs.filter((staff) =>
+      globalFilterFields
+        .map((field) => (staff as Record<string, unknown>)[field])
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search))
+    );
+  };
+
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = filteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No staff records to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Staff");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   const statusTemplate = (row: Staff) => {
     const updateStatus = async (value: boolean) => {
       try {
@@ -216,24 +264,15 @@ export default function StaffCreationList() {
     );
   };
 
-  const openQrPopup = (qrUrl: string) => {
-    Swal.fire({
-      title: t("admin.staff_creation.qr_title"),
-      html: `<div class="flex justify-center">
-              <img src="${qrUrl}" style="width:200px;height:200px;" />
-            </div>`,
-      width: 350,
-    });
-  };
-
   const qrTemplate = (row: Staff) => {
     if (!row.qr_code) {
       return <span className="text-gray-400 text-xs">No QR</span>;
     }
     return (
       <button
+        type="button"
         className="p-1 border rounded hover:bg-gray-50 flex justify-center"
-        onClick={() => openQrPopup(row.qr_code!)}
+        onClick={() => setSelectedQrStaff(row)}
         title={t("admin.staff_creation.qr_show")}
       >
         <img src={row.qr_code} alt="QR" className="w-12 h-12 object-contain" />
@@ -298,10 +337,18 @@ export default function StaffCreationList() {
           </select>
 
           <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+
+          <Button
             label={t("admin.staff_creation.create")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-           
+
             onClick={() =>
               navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
             }
@@ -326,22 +373,6 @@ export default function StaffCreationList() {
             <option value="Monthly">{t("admin.staff_creation.salary_monthly")}</option>
             <option value="Daily">{t("admin.staff_creation.salary_daily")}</option>
             <option value="Contract">{t("admin.staff_creation.salary_contract")}</option>
-          </select>
-        </div>
-        )}
-
-        {showCol("active_status") && (
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold">{t("common.status")}</span>
-          <select
-            name="active_status"
-            value={filterParams.active_status}
-            onChange={handleFilterChange}
-            className="h-10 rounded-lg border px-3 text-sm"
-          >
-            <option value="">{t("common.all")}</option>
-            <option value="1">{t("common.active")}</option>
-            <option value="0">{t("common.inactive")}</option>
           </select>
         </div>
         )}
@@ -386,17 +417,17 @@ export default function StaffCreationList() {
         </div>
       </div>
 
-      {/* Search Bar */}
+      {/* Search + Status */}
       <div className="flex justify-end">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.staff_creation.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={(value) =>
+            onGlobalFilterChange({ target: { value } } as ChangeEvent<HTMLInputElement>)
+          }
+          searchPlaceholder={t("admin.staff_creation.search_placeholder")}
+          statusValue={showCol("active_status") ? statusFilterValue : undefined}
+          onStatusChange={showCol("active_status") ? onStatusFilterChange : undefined}
+        />
       </div>
     </div>
   );
@@ -502,6 +533,22 @@ export default function StaffCreationList() {
           />
         </DataTable>
       </div>
+
+      <QrPreviewDialog
+        open={Boolean(selectedQrStaff)}
+        onOpenChange={(open) => !open && setSelectedQrStaff(null)}
+        title={t("admin.staff_creation.qr_title")}
+        qrImageUrl={selectedQrStaff?.qr_code}
+        fileName={`${selectedQrStaff?.unique_id || selectedQrStaff?.employee_name || "staff"}_qr`}
+        description={
+          selectedQrStaff && (
+            <>
+              <p className="font-semibold text-gray-800">{selectedQrStaff.employee_name}</p>
+              <p className="text-sm text-gray-500">{selectedQrStaff.unique_id}</p>
+            </>
+          )
+        }
+      />
     </>
   );
 }

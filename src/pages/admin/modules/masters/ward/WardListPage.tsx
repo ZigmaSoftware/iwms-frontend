@@ -1,16 +1,13 @@
 import type { ErrorWithResponse } from "./types";
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -24,6 +21,8 @@ import { wardApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { WardListRecord } from "./types";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 
 const WARD_COLUMN_FIELDS: Record<string, string[]> = {
   zone_name: ["zone_id"],
@@ -68,12 +67,15 @@ export default function WardList() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  const {
+    filters, onFilter, globalFilterValue, onGlobalFilterChange,
+    statusValue, onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    },
   });
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
@@ -171,33 +173,18 @@ export default function WardList() {
       : [];
   })();
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters);
-  };
-
   // ===========================
   //   Delete
   // ===========================
   // ===========================
   //   Search
   // ===========================
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
-    setGlobalFilterValue(value);
-  };
-
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("admin.nav.ward"),
-      }),
-    });
+  const exportRows = wards.filter((row) => {
+    if (statusValue !== "all" && row.is_active !== (statusValue === "active")) return false;
+    const search = globalFilterValue.trim().toLowerCase();
+    return !search || Object.values(row).some((value) =>
+      String(value ?? "").toLowerCase().includes(search));
+  });
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -281,34 +268,6 @@ export default function WardList() {
           </div>
 
           <div className="flex items-center gap-3">
-            <select
-              value={companyUniqueId || ""}
-              onChange={(e) => onFilterCompanyChange(e.target.value)}
-              disabled={!isSuperAdmin || companies.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Companies</option>
-              {companies.map((company) => (
-                <option key={company.value} value={company.value}>
-                  {company.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={projectId || ""}
-              onChange={(e) => onFilterProjectChange(e.target.value)}
-              disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              {showAllProjectsOption && <option value="">All Projects</option>}
-              {projects.map((project) => (
-                <option key={project.value} value={project.value}>
-                  {project.label}
-                </option>
-              ))}
-            </select>
-
             <Button
               label={t("common.add_item", { item: t("admin.nav.ward") })}
               icon="pi pi-plus"
@@ -326,8 +285,20 @@ export default function WardList() {
           </div>
         </div>
 
+        <FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
+          searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.ward") })}
+          statusValue={statusValue} onStatusChange={onStatusFilterChange} className="mb-4">
+          <FilterBarSelect value={companyUniqueId || ""} onChange={onFilterCompanyChange} options={companies}
+            placeholder="All Companies" disabled={!isSuperAdmin || companies.length === 0} />
+          <FilterBarSelect value={projectId || ""} onChange={onFilterProjectChange} options={projects}
+            placeholder={showAllProjectsOption ? "All Projects" : undefined}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} />
+        </FilterBar>
+
         <DataTable
           value={wards}
+          exportRows={exportRows}
+          exportSheetName="Wards"
           dataKey="unique_id"
           paginator
           rows={10}
@@ -335,7 +306,6 @@ export default function WardList() {
           loading={isLoading && wards.length === 0}
           filters={filters}
           onFilter={onFilter}
-          header={renderHeader()}
           stripedRows
           showGridlines
           emptyMessage={t("common.no_items_found", {

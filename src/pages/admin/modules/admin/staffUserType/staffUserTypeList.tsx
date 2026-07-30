@@ -1,6 +1,5 @@
 import type { StaffUserTypeRow } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -9,7 +8,6 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -20,8 +18,13 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { contractorUserTypeApi, staffUserTypeApi } from "@/helpers/admin";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { filterRowsForExport } from "@/utils/adminListExport";
 
 import type { StaffUserType } from "../types/admin.types";
+
+const STAFF_USER_TYPE_SEARCH_FIELDS = ["name", "usertype_name", "category"];
 
 
 const toRecordList = (value: unknown): StaffUserType[] => {
@@ -59,14 +62,15 @@ export default function StaffUserTypeList() {
   const [isUpdatingStaff, setIsUpdatingStaff] = useState(false);
   const [isUpdatingContractor, setIsUpdatingContractor] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
 
-  const [filters, setFilters] = useState<any>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    usertype_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    category: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters();
 
   const navigate = useNavigate();
   const { encAdmins, encStaffUserType } = getEncryptedRoute();
@@ -185,23 +189,26 @@ export default function StaffUserTypeList() {
   const indexTemplate = (_: StaffUserType, { rowIndex }: any) =>
     rowIndex + 1;
 
-  /* -----------------------------------------------------------
-     GLOBAL FILTER
-  ----------------------------------------------------------- */
-  const onGlobalFilterChange = (e: any) => {
-    const value = e.target.value;
-    const updated = { ...filters };
-    updated["global"].value = value;
+  const header = (
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={onGlobalFilterChange}
+      searchPlaceholder={t("common.search_placeholder_placeholder")}
+      statusValue={statusValue}
+      onStatusChange={onStatusFilterChange}
+    />
+  );
 
-    setFilters(updated);
-    setGlobalFilterValue(value);
-  };
-
-  const header = renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder_placeholder"),
-    });
+  const exportRows = useMemo(
+    () =>
+      filterRowsForExport(
+        records,
+        STAFF_USER_TYPE_SEARCH_FIELDS,
+        globalFilterValue,
+        statusValue,
+      ),
+    [records, globalFilterValue, statusValue],
+  );
 
   /* -----------------------------------------------------------
      RENDER
@@ -234,12 +241,14 @@ export default function StaffUserTypeList() {
 
         <DataTable
           value={records}
+          exportRows={exportRows}
           paginator
           rows={10}
           loading={isLoading && records.length === 0}
           filters={filters}
+          onFilter={onFilter}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          globalFilterFields={["name", "usertype_name", "category"]}
+          globalFilterFields={STAFF_USER_TYPE_SEARCH_FIELDS}
           header={header}
           stripedRows
           showGridlines

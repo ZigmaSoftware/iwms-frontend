@@ -1,6 +1,6 @@
 import type { VehicleBreakdownRecord, BreakdownStatus, ApprovalStatus } from "./types";
 import { BREAKDOWN_REASON_LABELS } from "./types";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -9,7 +9,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { InputTextarea } from "primereact/inputtextarea";
 import { Dialog } from "primereact/dialog";
 import { FilterMatchMode } from "primereact/api";
@@ -20,6 +19,26 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { api } from "@/api";
 import { vehicleBreakdownApi } from "@/helpers/admin";
+import { FilterBar } from "@/components/common/FilterBar";
+import { applyTableFilters } from "@/utils/tableFilterMatch";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
+
+const GLOBAL_FIELDS = [
+  "unique_id",
+  "trip_assignment_id",
+  "_trip_date",
+  "_panchayat",
+  "_breakdown_vehicle",
+  "_replacement_vehicle",
+  "_repl_driver",
+  "_repl_operator",
+  "_breakdown_reason",
+  "status",
+  "approval_status",
+];
 
 /* ── Badge helpers ─────────────────────────────────────────────── */
 
@@ -364,10 +383,34 @@ export default function VehicleBreakdownList() {
   /* ── Filters ─────────────────────────────────────────────────────── */
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const onGlobalFilterChange = (value: string) => {
     setGlobalFilterValue(value);
     setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
+  };
+
+  const filteredForExport = useMemo(
+    () => applyTableFilters(rows, filters, GLOBAL_FIELDS),
+    [rows, filters],
+  );
+
+  const handleExport = () => {
+    exportRecordsToExcel(
+      filteredForExport.map((r) => ({
+        "Breakdown ID": r.unique_id,
+        "Trip ID": r.trip_assignment_id,
+        "Trip Date": r._trip_date,
+        Panchayat: r._panchayat,
+        "Broken Vehicle": r._breakdown_vehicle,
+        "Replacement Vehicle": r._replacement_vehicle,
+        "Repl. Driver": r._repl_driver,
+        "Repl. Operator": r._repl_operator,
+        Reason: r._breakdown_reason,
+        Status: r.status,
+        Approval: r.approval_status,
+      })),
+      getAdminScreenExcelFilename("all"),
+      "Vehicle Breakdown",
+    );
   };
 
   /* ── Action column ──────────────────────────────────────────────── */
@@ -421,15 +464,21 @@ export default function VehicleBreakdownList() {
 
   /* ── Header ─────────────────────────────────────────────────────── */
   const header = (
-    <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white w-fit">
-      <i className="pi pi-search text-gray-500" />
-      <InputText
-        value={globalFilterValue}
-        onChange={onGlobalFilterChange}
-        placeholder="Search breakdowns…"
-        className="border-none text-sm"
-      />
-    </div>
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={onGlobalFilterChange}
+      searchPlaceholder="Search breakdowns…"
+      trailing={
+        <button
+          type="button"
+          onClick={handleExport}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+        >
+          <i className="pi pi-file-excel mr-1.5 text-green-600" />
+          Export to Excel
+        </button>
+      }
+    />
   );
 
   /* ════════════════════════════════════════════════════════════════

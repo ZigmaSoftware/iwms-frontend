@@ -1,6 +1,4 @@
 import type { DailyTripLogRecord } from "./types";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -19,6 +17,7 @@ import type { DataTableFilterMeta } from "primereact/datatable";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { dailyTripLogApi } from "@/helpers/admin";
 import { api } from "@/api";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 
 const STATUS_STYLES: Record<string, string> = {
@@ -486,6 +485,7 @@ export default function DailyTripLogList() {
   });
 
   const [allLogs, setAllLogs] = useState<DailyTripLogRecord[]>([]);
+  const [filteredRows, setFilteredRows] = useState<DailyTripLogRecord[]>([]);
   const [collectionType, setCollectionType] = useState<"all" | "bin" | "household">("all");
   const [isLoading, setIsLoading] = useState(false);
   const [modalState, setModalState] = useState<{
@@ -576,6 +576,13 @@ export default function DailyTripLogList() {
       return true;
     });
   })();
+
+  // Keeps exported Excel rows in sync with the currently displayed
+  // (filtered/searched) rows rather than the full unfiltered set.
+  useEffect(() => {
+    setFilteredRows(data);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allLogs, companyUniqueId, isSuperAdmin, companies.length, collectionType]);
 
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
 
@@ -706,12 +713,39 @@ export default function DailyTripLogList() {
     );
   };
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: "Search trip logs...",
-    });
+  const renderHeader = () => (
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={(value) =>
+        onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+      }
+      searchPlaceholder="Search trip logs..."
+    >
+      <FilterBarSelect
+        value={companyUniqueId || ""}
+        onChange={onCompanyChange}
+        placeholder="All Companies"
+        options={companies}
+        disabled={!isSuperAdmin || companies.length === 0}
+      />
+      <FilterBarSelect
+        value={projectId || ""}
+        onChange={setProjectId}
+        placeholder={showAllProjectsOption ? "All Projects" : undefined}
+        options={projects}
+        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+      />
+      <FilterBarSelect
+        value={collectionType}
+        onChange={(value) => setCollectionType(value as "all" | "bin" | "household")}
+        options={[
+          { value: "all", label: "All Collections" },
+          { value: "bin", label: "Bin Collection" },
+          { value: "household", label: "Household Collection" },
+        ]}
+      />
+    </FilterBar>
+  );
 
   return (
     <div className="p-3">
@@ -720,49 +754,12 @@ export default function DailyTripLogList() {
           <h1 className="text-3xl font-bold text-gray-800 mb-1">Daily Trip Logs</h1>
           <p className="text-sm text-gray-500">Capture and verify actual collection trip results</p>
         </div>
-        <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={collectionType}
-            onChange={(e) => setCollectionType(e.target.value as "all" | "bin" | "household")}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="all">All Collections</option>
-            <option value="bin">Bin Collection</option>
-            <option value="household">Household Collection</option>
-          </select>
-        </div>
       </div>
 
       <DataTable
         value={data}
+        exportRows={filteredRows}
+        onValueChange={(value) => setFilteredRows(value as typeof data)}
         dataKey="unique_id"
         paginator
         rows={10}

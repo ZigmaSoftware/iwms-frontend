@@ -18,6 +18,7 @@ import {
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
 import { stateApi, districtApi, cityApi, panchayatApi, zoneApi, wardApi, collectionPointApi } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
 import type { SelectOption } from "@/types";
@@ -1004,7 +1005,15 @@ export default function CollectionPointForm() {
         {showField("longitude") && (
           <div>
             <Label>{t("common.longitude")} *</Label>
-            <Input type="number" step="0.000001" value={longitude} onChange={(e) => setLongitude(e.target.value)} placeholder="80.271000" required />
+            <div className="flex items-center gap-2">
+              <Input type="number" step="0.000001" value={longitude} onChange={(e) => setLongitude(e.target.value)} placeholder="80.271000" required />
+              <AutoDetectLocationButton
+                onDetected={({ latitude: lat, longitude: lng }) => {
+                  setLatitude(String(lat));
+                  setLongitude(String(lng));
+                }}
+              />
+            </div>
           </div>
         )}
 

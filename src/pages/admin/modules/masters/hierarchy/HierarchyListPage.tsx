@@ -1,15 +1,12 @@
 import type { HierarchyRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
 import { Switch } from "@/components/ui/switch";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -17,6 +14,8 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 
 
 const HIERARCHY_COLUMN_FIELDS: Record<string, string[]> = {
@@ -52,15 +51,19 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 
 export default function HierarchyListPage() {
   const { t } = useTranslation();
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [hierarchies, setHierarchies] = useState<HierarchyRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    level_name: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      level_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     },
   });
   const location = useLocation();
@@ -125,27 +128,14 @@ export default function HierarchyListPage() {
     void loadHierarchies();
   }, [companyUniqueId, projectId, isSuperAdmin, companies.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters);
-  };
-
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({
-      ...prev,
-      global: { ...prev.global, value },
-    }));
-    setGlobalFilterValue(value);
-  };
-
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("admin.nav.hierarchy"),
-      }),
-    });
+  const exportRows = records.filter((row) => {
+    if (statusValue !== "all" && Boolean(row.is_active) !== (statusValue === "active")) {
+      return false;
+    }
+    const search = globalFilterValue.trim().toLowerCase();
+    return !search || [row.level_name]
+      .some((value) => String(value ?? "").toLowerCase().includes(search));
+  });
 
   const statusTemplate = (row: HierarchyRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -221,34 +211,6 @@ export default function HierarchyListPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           <Button
             label={t("common.add_item", { item: t("admin.nav.hierarchy") })}
             icon="pi pi-plus"
@@ -259,8 +221,25 @@ export default function HierarchyListPage() {
         </div>
       </div>
 
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.hierarchy") })}
+        statusValue={statusValue}
+        onStatusChange={onStatusFilterChange}
+        className="mb-4"
+      >
+        <FilterBarSelect value={companyUniqueId || ""} onChange={onCompanyChange} options={companies}
+          placeholder="All Companies" disabled={!isSuperAdmin || companies.length === 0} />
+        <FilterBarSelect value={projectId || ""} onChange={setProjectId} options={projects}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} />
+      </FilterBar>
+
       <DataTable
         value={records}
+        exportRows={exportRows}
+        exportSheetName="Hierarchies"
         dataKey="unique_id"
         paginator
         rows={10}
@@ -268,7 +247,6 @@ export default function HierarchyListPage() {
         loading={isLoading && records.length === 0}
         filters={filters}
         onFilter={onFilter}
-        header={renderHeader()}
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", {

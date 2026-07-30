@@ -1,14 +1,11 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -19,8 +16,18 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { mainScreenApi } from "@/helpers/admin";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { filterRowsForExport } from "@/utils/adminListExport";
 
 import type { MainScreen } from "../types/admin.types"; // Correct import
+
+const MAIN_SCREEN_SEARCH_FIELDS = [
+  "mainscreen_name",
+  "mainscreentype_name",
+  "icon_name",
+  "description",
+];
 
 const toRecordList = (value: unknown): MainScreen[] => {
   if (Array.isArray(value)) return value as MainScreen[];
@@ -38,10 +45,14 @@ export default function MainScreenList() {
   const [isLoading, setIsLoading] = useState(true);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters();
 
   const navigate = useNavigate();
   const { encAdmins, encMainScreen } = getEncryptedRoute();
@@ -129,25 +140,22 @@ export default function MainScreenList() {
   );
 
   /* ------------------------------
-      Search
-  ------------------------------ */
-  const onGlobalFilterChange = (e: any) => {
-    const val = e.target.value;
-    const _filters = { ...filters };
-    _filters["global"].value = val;
-
-    setFilters(_filters);
-    setGlobalFilterValue(val);
-  };
-
-  /* ------------------------------
       Table Header
   ------------------------------ */
-  const header = renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder"),
-    });
+  const header = (
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={onGlobalFilterChange}
+      searchPlaceholder={t("common.search_placeholder")}
+      statusValue={statusValue}
+      onStatusChange={onStatusFilterChange}
+    />
+  );
+
+  const exportRows = useMemo(
+    () => filterRowsForExport(records, MAIN_SCREEN_SEARCH_FIELDS, globalFilterValue, statusValue),
+    [records, globalFilterValue, statusValue],
+  );
 
   return (
     <div className="px-3 py-3 w-full "> 
@@ -174,17 +182,14 @@ export default function MainScreenList() {
 
         <DataTable
           value={records}
+          exportRows={exportRows}
           paginator
           rows={10}
           loading={isLoading}
           filters={filters}
+          onFilter={onFilter}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          globalFilterFields={[
-            "mainscreen_name",
-            "mainscreentype_name",
-            "icon_name",
-            "description",
-          ]}
+          globalFilterFields={MAIN_SCREEN_SEARCH_FIELDS}
           header={header}
           stripedRows
           showGridlines

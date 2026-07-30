@@ -1,8 +1,7 @@
 import type { FeedbackRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -18,6 +17,14 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
+import { FilterBar } from "@/components/common/FilterBar";
+import { applyTableFilters } from "@/utils/tableFilterMatch";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
+
+const GLOBAL_FIELDS = ["customer_name", "category", "feedback_details", "zone_name", "city_name"];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,10 +94,22 @@ export default function FeedBackFormList() {
 
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const onGlobalFilterChange = (value: string) => {
     setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
     setGlobalFilterValue(value);
+  };
+
+  const filteredForExport = useMemo(
+    () => applyTableFilters(feedbackList, filters, GLOBAL_FIELDS),
+    [feedbackList, filters],
+  );
+
+  const handleExport = () => {
+    exportRecordsToExcel(
+      filteredForExport,
+      getAdminScreenExcelFilename("all"),
+      "Feedback",
+    );
   };
 
   const actionTemplate = (row: FeedbackRecord) => (
@@ -111,12 +130,23 @@ export default function FeedBackFormList() {
 
   const indexTemplate = (_: FeedbackRecord, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("admin.citizen_grievance.feedback.search_placeholder"),
-    });
+  const renderHeader = () => (
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={onGlobalFilterChange}
+      searchPlaceholder={t("admin.citizen_grievance.feedback.search_placeholder")}
+      trailing={
+        <button
+          type="button"
+          onClick={handleExport}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+        >
+          <i className="pi pi-file-excel mr-1.5 text-green-600" />
+          {t("common.export_excel", "Export to Excel")}
+        </button>
+      }
+    />
+  );
 
   return (
     <div className="p-3">

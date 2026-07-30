@@ -1,4 +1,3 @@
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
@@ -9,6 +8,8 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { filterRowsForExport } from "@/utils/adminListExport";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -34,6 +35,8 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 /* -----------------------------------------------------------
    CONSTANTS
 ----------------------------------------------------------- */
+
+const PERMISSION_SEARCH_FIELDS = ["project_name", "company_name", "permission_type_label"];
 
 const BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   { field: "company_id", header: "company_id", required: true, sample: "COMPANY-0001" },
@@ -406,11 +409,38 @@ export default function UserScreenPermissionList() {
     setGlobalFilterValue(value);
   };
 
-  const header = renderListSearchHeader({
-    value: globalFilterValue,
-    onChange: onGlobalFilterChange,
-    placeholder: t("common.search_placeholder"),
-  });
+  const header = (
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={(value) => onGlobalFilterChange({ target: { value } })}
+      searchPlaceholder={t("common.search_placeholder")}
+    >
+      {isSuperAdmin && (
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={onCompanyChange}
+          placeholder="All Companies"
+          disabled={companies.length === 0}
+          options={companies}
+        />
+      )}
+
+      {companyUniqueId && (
+        <FilterBarSelect
+          value={projectId || ""}
+          onChange={setProjectId}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          disabled={projects.length === 0}
+          options={projects}
+        />
+      )}
+    </FilterBar>
+  );
+
+  const exportRows = useMemo(
+    () => filterRowsForExport(records, PERMISSION_SEARCH_FIELDS, globalFilterValue),
+    [records, globalFilterValue],
+  );
 
   /* -----------------------------------------------------------
      RENDER
@@ -429,40 +459,6 @@ export default function UserScreenPermissionList() {
         </div>
 
         <div className="flex gap-3 items-center">
-          {isSuperAdmin && (
-            <select
-              value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
-              disabled={companies.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Companies</option>
-
-              {companies.map((c: any) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {companyUniqueId && (
-            <select
-              value={projectId || ""}
-              onChange={(e) => setProjectId(e.target.value)}
-              disabled={projects.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              {showAllProjectsOption && <option value="">All Projects</option>}
-
-              {projects.map((p: any) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          )}
-
           <Button
             label={t("admin.user_screen_permission.download_template")}
             icon="pi pi-download"
@@ -497,13 +493,14 @@ export default function UserScreenPermissionList() {
 
       <DataTable
         value={records}
+        exportRows={exportRows}
         dataKey="composite_key"
         paginator
         rows={10}
         loading={isLoading}
         filters={filters}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        globalFilterFields={["project_name", "company_name", "permission_type_label"]}
+        globalFilterFields={PERMISSION_SEARCH_FIELDS}
         header={header}
         stripedRows
         showGridlines

@@ -11,6 +11,7 @@ export type StateRecord = {
   label: string;
   is_active: boolean;
   country_id: string | number;
+  country_name?: string;
   continent_id: string | number;
 };
 

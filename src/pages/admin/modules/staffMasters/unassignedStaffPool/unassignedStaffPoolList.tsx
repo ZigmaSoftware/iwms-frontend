@@ -9,7 +9,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
@@ -18,6 +17,11 @@ import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 import {
   unassignedStaffPoolApi,
   userCreationApi,
@@ -109,6 +113,8 @@ export default function UnassignedStaffPoolList() {
   const [dailyTripAssignmentLookup, setDailyTripAssignmentLookup] = useState<Record<string, string>>({});
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [statusFilterValue, setStatusFilterValue] = useState<StatusFilterValue>("all");
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     status: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -205,6 +211,20 @@ export default function UnassignedStaffPoolList() {
     }));
   };
 
+  const onSearchValueChange = (value: string) =>
+    onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>);
+
+  const onStatusFilterChange = (value: StatusFilterValue) => {
+    setStatusFilterValue(value);
+    setFilters((prev) => ({
+      ...prev,
+      status: {
+        value: value === "all" ? null : value === "active" ? "AVAILABLE" : "ASSIGNED",
+        matchMode: FilterMatchMode.EQUALS,
+      },
+    } as TableFilters));
+  };
+
   const statusBodyTemplate = (row: UnassignedStaffPoolRecord) => {
     const updateStatus = async (checked: boolean) => {
       setPendingStatusId(row.id);
@@ -235,6 +255,45 @@ export default function UnassignedStaffPoolList() {
 
   const resolveDateTime = (value?: string | null) =>
     value ? new Date(value).toLocaleString() : "-";
+
+  const filteredExportRows = (): UnassignedStaffPoolRecord[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    const statusFiltered =
+      statusFilterValue === "all"
+        ? records
+        : records.filter((record) =>
+            statusFilterValue === "active"
+              ? record.status === "AVAILABLE"
+              : record.status !== "AVAILABLE"
+          );
+    if (!search) return statusFiltered;
+    return statusFiltered.filter((record) =>
+      [
+        record._operator_name,
+        record._driver_name,
+        record._zone_name,
+        record._ward_name,
+        record.status,
+        record._daily_trip_assignment_name,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search))
+    );
+  };
+
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = filteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "UnassignedStaffPool");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   const header = (
     <div className="space-y-4">
@@ -278,10 +337,18 @@ export default function UnassignedStaffPoolList() {
           </select>
 
           <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+
+          <Button
             label={t("admin.unassigned_staff_pool.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-           
+
             onClick={() =>
               navigate(
                 `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
@@ -294,15 +361,14 @@ export default function UnassignedStaffPoolList() {
       </div>
 
       <div className="flex justify-end">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.unassigned_staff_pool.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={onSearchValueChange}
+          searchPlaceholder={t("admin.unassigned_staff_pool.search_placeholder")}
+          statusValue={showCol("status") ? statusFilterValue : undefined}
+          onStatusChange={showCol("status") ? onStatusFilterChange : undefined}
+          statusLabels={{ active: "Available", inactive: "Assigned" }}
+        />
       </div>
     </div>
   );

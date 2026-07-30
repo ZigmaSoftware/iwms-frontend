@@ -1,13 +1,11 @@
 import type { Complaint } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { PencilIcon } from "@/icons";
-import { FilterMatchMode } from "primereact/api";
 import { Column } from "primereact/column";
 import { DataTable } from "@/components/common/SafeDataTable";
-import { InputText } from "primereact/inputtext";
 
 const pdfImg = "/images/pdfimage/download.png";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -17,7 +15,26 @@ import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import { complaintApi } from "@/helpers/admin";
 import { useTranslation } from "react-i18next";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { applyTableFilters } from "@/utils/tableFilterMatch";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
+const GLOBAL_FIELDS = [
+  "unique_id",
+  "customer_name",
+  "contact_no",
+  "main_category",
+  "sub_category",
+  "priority",
+  "zone_name",
+  "ward_name",
+  "address",
+  "status",
+];
 
 export default function ComplaintsList() {
   const { t } = useTranslation();
@@ -25,12 +42,10 @@ export default function ComplaintsList() {
   const [loading, setLoading] = useState(false);
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Complaint[] | Record<string, boolean> | undefined>(undefined);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<{
-    global: { value: string | null; matchMode: FilterMatchMode };
-  }>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  // Complaint `status` is a workflow state (PROGRESSING/CLOSED), not an
+  // active/inactive toggle — omit the FilterBar status dropdown for this entity.
+  const { filters, onFilter, globalFilterValue, onGlobalFilterChange } =
+    useFilterBarFilters({ withStatusFilter: false });
 
   const navigate = useNavigate();
 
@@ -113,26 +128,36 @@ export default function ComplaintsList() {
     }
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters({
-      ...filters,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    });
-    setGlobalFilterValue(value);
+  const filteredForExport = useMemo(
+    () => applyTableFilters(complaints, filters, GLOBAL_FIELDS),
+    [complaints, filters],
+  );
+
+  const handleExport = () => {
+    exportRecordsToExcel(
+      filteredForExport,
+      getAdminScreenExcelFilename("all"),
+      "Complaints",
+    );
   };
 
   const tableHeader = (
     <div className="flex justify-end w-full">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.citizen_grievance.complaints.search_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("admin.citizen_grievance.complaints.search_placeholder")}
+        trailing={
+          <button
+            type="button"
+            onClick={handleExport}
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          >
+            <i className="pi pi-file-excel mr-1.5 text-green-600" />
+            {t("common.export_excel", "Export to Excel")}
+          </button>
+        }
+      />
     </div>
   );
 
@@ -233,18 +258,8 @@ export default function ComplaintsList() {
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
           filters={filters}
-          globalFilterFields={[
-            "unique_id",
-            "customer_name",
-            "contact_no",
-            "main_category",
-            "sub_category",
-            "priority",
-            "zone_name",
-            "ward_name",
-            "address",
-            "status",
-          ]}
+          onFilter={onFilter}
+          globalFilterFields={GLOBAL_FIELDS}
           header={tableHeader}
           emptyMessage={t("admin.citizen_grievance.complaints.empty_message")}
           responsiveLayout="scroll"

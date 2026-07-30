@@ -10,6 +10,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
+import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -489,6 +490,23 @@ export default function TripAttendanceForm() {
                 value={formData.longitude}
                 onChange={(e) => setFormData((prev) => ({ ...prev, longitude: e.target.value }))}
                 placeholder={t("admin.trip_attendance.longitude")}
+              />
+            </div>
+            )}
+
+            {(showField("latitude") || showField("longitude")) && (
+            <div className="md:col-span-2">
+              <AutoDetectLocationButton
+                onDetected={({ latitude, longitude }) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    ...(showField("latitude") ? { latitude: String(latitude) } : {}),
+                    ...(showField("longitude") ? { longitude: String(longitude) } : {}),
+                  }))
+                }
+                label={t("admin.trip_attendance.auto_detect_location", {
+                  defaultValue: "Auto-detect current location",
+                })}
               />
             </div>
             )}

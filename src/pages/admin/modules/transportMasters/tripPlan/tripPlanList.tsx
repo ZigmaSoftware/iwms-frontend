@@ -6,7 +6,6 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -17,6 +16,7 @@ import { tripPlanApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 
 const extractErrorMessage = (error: unknown): string | null => {
@@ -59,6 +59,7 @@ export default function TripPlanList() {
   const { editPath } = createCrudRoutePaths(encScheduleMasters, encTripPlans);
 
   const [records, setRecords] = useState<TripPlanRecord[]>([]);
+  const [filteredRows, setFilteredRows] = useState<TripPlanRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | "bin_collection" | "household_collection">("all");
@@ -112,6 +113,12 @@ export default function TripPlanList() {
       _stop_count: String(Array.isArray(record.plan_collection_points) ? record.plan_collection_points.length : 0),
     })), [records, collectionTypeFilter]);
 
+  // Keeps exported Excel rows in sync with the currently displayed
+  // (filtered/searched) rows rather than the full unfiltered set.
+  useEffect(() => {
+    setFilteredRows(rows);
+  }, [rows]);
+
   const statusBody = (row: TripPlanRecord) => {
     const updateStatus = async (checked: boolean) => {
       setUpdating(true);
@@ -152,36 +159,43 @@ export default function TripPlanList() {
           <p className="text-sm text-gray-500">Manage trip route, staff, vehicle, schedule, and stop list</p>
         </div>
         <div className="flex items-center gap-3">
-          <select value={companyUniqueId || ""} onChange={(e) => onCompanyChange(e.target.value)} disabled={!isSuperAdmin || companies.length === 0} className="rounded border px-3 py-2 text-sm">
-            <option value="">All Companies</option>
-            {companies.map((company) => <option key={company.value} value={company.value}>{company.label}</option>)}
-          </select>
-          <select value={projectId || ""} onChange={(e) => setProjectId(e.target.value)} disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} className="rounded border px-3 py-2 text-sm">
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => <option key={project.value} value={project.value}>{project.label}</option>)}
-          </select>
-          <select
-            value={collectionTypeFilter}
-            onChange={(e) => setCollectionTypeFilter(e.target.value as "all" | "bin_collection" | "household_collection")}
-            className="rounded border px-3 py-2 text-sm"
-          >
-            <option value="all">All Types</option>
-            <option value="bin_collection">Bin Collection</option>
-            <option value="household_collection">Household Collection</option>
-          </select>
           <Button label="Add Trip Plan" icon="pi pi-plus" className="p-button-success p-button-sm" onClick={() => navigate(newPath, { state: { companyUniqueId, projectId } })} />
         </div>
       </div>
-      <div className="flex justify-end">
-        <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-1">
-          <i className="pi pi-search text-gray-500" />
-          <InputText value={globalFilterValue} onChange={(event) => {
-            const value = event.target.value;
-            setGlobalFilterValue(value);
-            setFilters((current) => ({ ...current, global: { value, matchMode: FilterMatchMode.CONTAINS } }));
-          }} placeholder={t("common.search_placeholder")} className="border-none text-sm" />
-        </div>
-      </div>
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={(value) => {
+          setGlobalFilterValue(value);
+          setFilters((current) => ({ ...current, global: { value, matchMode: FilterMatchMode.CONTAINS } }));
+        }}
+        searchPlaceholder={t("common.search_placeholder")}
+      >
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={onCompanyChange}
+          placeholder="All Companies"
+          options={companies}
+          disabled={!isSuperAdmin || companies.length === 0}
+        />
+        <FilterBarSelect
+          value={projectId || ""}
+          onChange={setProjectId}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          options={projects}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+        />
+        <FilterBarSelect
+          value={collectionTypeFilter}
+          onChange={(value) =>
+            setCollectionTypeFilter(value as "all" | "bin_collection" | "household_collection")
+          }
+          options={[
+            { value: "all", label: "All Types" },
+            { value: "bin_collection", label: "Bin Collection" },
+            { value: "household_collection", label: "Household Collection" },
+          ]}
+        />
+      </FilterBar>
     </div>
   );
 
@@ -189,6 +203,8 @@ export default function TripPlanList() {
     <div className="p-3">
       <DataTable
         value={rows}
+        exportRows={filteredRows}
+        onValueChange={(value) => setFilteredRows(value as typeof rows)}
         dataKey="unique_id"
         paginator
         rows={10}

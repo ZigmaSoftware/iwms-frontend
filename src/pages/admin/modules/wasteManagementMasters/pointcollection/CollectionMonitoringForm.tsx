@@ -19,6 +19,8 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
+import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
+import type { DetectedCoordinates } from "@/utils/geolocation";
 
 
 const ShadcnSelect = ({
@@ -291,6 +293,11 @@ function CollectionMonitoringForm() {
     setPendingEvent(null);
   }, [pendingEvent, tripCollectionPoints]);
 
+  const handleLocationDetected = (coordinates: DetectedCoordinates) => {
+    setDriverLatitude(String(coordinates.latitude));
+    setDriverLongitude(String(coordinates.longitude));
+  };
+
   const selectedBinName = nested(selectedTripCp?.bin, ["bin_name", "name"]) || binId;
   const selectedWasteType = (() => {
     const waste = selectedTripCp?.bin && typeof selectedTripCp.bin === "object"
@@ -418,6 +425,13 @@ function CollectionMonitoringForm() {
             onChange={(e) => setDriverLongitude(e.target.value)}
             isRequired={false}
           />
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-gray-700">&nbsp;</Label>
+            <AutoDetectLocationButton
+              onDetected={handleLocationDetected}
+              className="w-full"
+            />
+          </div>
           <FormInput
             label="Notes"
             value={notes}

@@ -1,15 +1,12 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -18,6 +15,8 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { wasteTypeApi } from "@/helpers/admin";
 import type { WasteTypeListRecord } from "./types";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 
 const WASTE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
   waste_type_name: ["waste_type_name", "name"],
@@ -33,23 +32,14 @@ export default function WasteTypeListPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.CONTAINS,
-    },
-    waste_type_name: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-    company_name: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-    project_name: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
+  const {
+    filters, onFilter, globalFilterValue, onGlobalFilterChange,
+    statusValue, onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      waste_type_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      company_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      project_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     },
   });
   const location = useLocation();
@@ -114,27 +104,12 @@ export default function WasteTypeListPage() {
         ? allWasteTypes
         : [];
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as DataTableFilterMeta);
-  };
-
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
-  };
-
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("common.waste_type"),
-      }),
-    });
+  const exportRows = rows.filter((row) => {
+    if (statusValue !== "all" && Boolean(row.is_active) !== (statusValue === "active")) return false;
+    const search = globalFilterValue.trim().toLowerCase();
+    return !search || Object.values(row).some((value) =>
+      String(value ?? "").toLowerCase().includes(search));
+  });
 
   const indexTemplate = (
     _: WasteTypeListRecord,
@@ -203,34 +178,6 @@ export default function WasteTypeListPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           <Button
             label={t("common.add_item", { item: t("common.waste_type") })}
             icon="pi pi-plus"
@@ -241,8 +188,20 @@ export default function WasteTypeListPage() {
         </div>
       </div>
 
+      <FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder", { item: t("common.waste_type") })}
+        statusValue={statusValue} onStatusChange={onStatusFilterChange} className="mb-4">
+        <FilterBarSelect value={companyUniqueId || ""} onChange={onCompanyChange} options={companies}
+          placeholder="All Companies" disabled={!isSuperAdmin || companies.length === 0} />
+        <FilterBarSelect value={projectId || ""} onChange={setProjectId} options={projects}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} />
+      </FilterBar>
+
       <DataTable
         value={rows}
+        exportRows={exportRows}
+        exportSheetName="WasteTypes"
         dataKey="unique_id"
         paginator
         rows={10}
@@ -250,7 +209,6 @@ export default function WasteTypeListPage() {
         loading={isLoading}
         filters={filters}
         onFilter={onFilter}
-        header={renderHeader()}
         stripedRows
         showGridlines
         className="p-datatable-sm"

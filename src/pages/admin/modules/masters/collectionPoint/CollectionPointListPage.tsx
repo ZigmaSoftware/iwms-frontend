@@ -1,12 +1,11 @@
-import type { CollectionPointRecord, TableFilters } from "./types";
+import type { CollectionPointRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
@@ -17,6 +16,9 @@ import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { collectionPointApi } from "@/helpers/admin";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 
 const toDisplay = (value: unknown): string =>
@@ -47,18 +49,26 @@ export default function CollectionPointListPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | "bin_collection" | "household_collection">("all");
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    cp_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    company_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    project_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    state_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    district_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    city_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    panchayat_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    ward_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      cp_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      company_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      project_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      state_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      district_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    },
   });
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
@@ -123,30 +133,44 @@ export default function CollectionPointListPage() {
 
     if (collectionTypeFilter === "all") return records;
 
-    return records.filter(
-      (row) => (row as any).collection_type === collectionTypeFilter
-    );
+    return records.filter((row) => row.collection_type === collectionTypeFilter);
   })();
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as TableFilters);
-  };
-
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
-  };
-
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", { item: t("admin.nav.collection_point") }),
+  const getFilteredExportRows = (): CollectionPointRecord[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (statusValue !== "all") {
+        const wantActive = statusValue === "active";
+        if (Boolean(row.is_active) !== wantActive) return false;
+      }
+      if (!search) return true;
+      return [
+        row.cp_name,
+        row.collection_point_name,
+        row.state_name,
+        row.district_name,
+        row.city_name,
+        row.panchayat_name,
+        row.ward_name,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search));
     });
+  };
+
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const exportRows = getFilteredExportRows();
+      if (exportRows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No collection points to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "CollectionPoints");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   const indexTemplate = (_: CollectionPointRecord, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
@@ -210,44 +234,6 @@ export default function CollectionPointListPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={collectionTypeFilter}
-            onChange={(e) => setCollectionTypeFilter(e.target.value as "all" | "bin_collection" | "household_collection")}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="all">All Types</option>
-            <option value="bin_collection">Bin Collection</option>
-            <option value="household_collection">Household Collection</option>
-          </select>
-
           <Button
             label={t("common.add_item", { item: t("admin.nav.collection_point") })}
             icon="pi pi-plus"
@@ -258,6 +244,48 @@ export default function CollectionPointListPage() {
         </div>
       </div>
 
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.collection_point") })}
+        statusValue={statusValue}
+        onStatusChange={onStatusFilterChange}
+        className="mb-4"
+        trailing={
+          <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+        }
+      >
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={onCompanyChange}
+          options={companies}
+          placeholder="All Companies"
+          disabled={!isSuperAdmin || companies.length === 0}
+        />
+        <FilterBarSelect
+          value={projectId || ""}
+          onChange={setProjectId}
+          options={projects}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+        />
+        <FilterBarSelect
+          value={collectionTypeFilter}
+          onChange={(value) => setCollectionTypeFilter(value as "all" | "bin_collection" | "household_collection")}
+          aria-label="Collection type filter"
+        >
+          <option value="all">All Types</option>
+          <option value="bin_collection">Bin Collection</option>
+          <option value="household_collection">Household Collection</option>
+        </FilterBarSelect>
+      </FilterBar>
+
       <DataTable
         value={rows}
         dataKey="unique_id"
@@ -267,7 +295,6 @@ export default function CollectionPointListPage() {
         loading={isLoading}
         filters={filters}
         onFilter={onFilter}
-        header={renderHeader()}
         stripedRows
         showGridlines
         className="p-datatable-sm"
@@ -296,7 +323,7 @@ export default function CollectionPointListPage() {
           header="Collection Type"
           style={{ minWidth: 160 }}
           body={(row: CollectionPointRecord) => {
-            const type = (row as any).collection_type as string | undefined;
+            const type = row.collection_type;
             const isBin = !type || type === "bin_collection";
             return (
               <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${isBin ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"}`}>

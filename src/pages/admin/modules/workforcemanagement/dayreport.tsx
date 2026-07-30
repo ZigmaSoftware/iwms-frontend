@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 import { useNavigate } from "react-router-dom";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import { FilterBar } from "@/components/common/FilterBar";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { Button } from "primereact/button";
 
@@ -15,6 +15,7 @@ import "primeicons/primeicons.css";
 
 import "./dayreport.css";
 import { useTranslation } from "react-i18next";
+import { applyTableFilters } from "@/utils/tableFilterMatch";
 
 // Matches the actual day-wise API response shape
 type ApiRow = {
@@ -30,6 +31,8 @@ type ApiRow = {
   Mix_Wt: number;
   Net_Wt: number;
 };
+
+const DAY_REPORT_GLOBAL_FIELDS = ["Ticket_No", "Vehicle_No", "date"];
 
 // ---------- Helpers ----------
 const today = new Date();
@@ -68,8 +71,7 @@ export default function DayReport() {
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const onGlobalFilterChange = (value: string) => {
     setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
     setGlobalFilterValue(value);
   };
@@ -97,13 +99,11 @@ export default function DayReport() {
         </label>
         <Button label={t("common.go")} onClick={fetchData} />
       </div>
-      <span className="p-input-icon-left">
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.workforce_management.day_report.search_placeholder")}
-        />
-      </span>
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("admin.workforce_management.day_report.search_placeholder")}
+      />
     </div>
   );
 
@@ -184,6 +184,10 @@ export default function DayReport() {
   }, [dayWiseWeighmentApiUrl, contextLoading]);
 
   const indexTemplate = (_: ApiRow, { rowIndex }: any) => rowIndex + 1;
+  const exportRows = useMemo(
+    () => applyTableFilters(rows, filters, DAY_REPORT_GLOBAL_FIELDS),
+    [filters, rows],
+  );
 
   // ---------- UI ----------
   if (!contextLoading && !API_BASE) {
@@ -234,13 +238,14 @@ export default function DayReport() {
 
         <DataTable
           value={rows}
+          exportRows={exportRows}
           paginator
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
           filters={filters}
           header={renderHeader()}
           loading={loading}
-          globalFilterFields={["Ticket_No", "Vehicle_No", "date"]}
+          globalFilterFields={DAY_REPORT_GLOBAL_FIELDS}
           stripedRows
           showGridlines
           emptyMessage={t("admin.workforce_management.day_report.empty_message")}

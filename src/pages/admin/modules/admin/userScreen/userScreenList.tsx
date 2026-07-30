@@ -1,13 +1,11 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
-import { type ChangeEvent, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -18,8 +16,13 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { userScreenApi } from "@/helpers/admin";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { filterRowsForExport } from "@/utils/adminListExport";
 
-import type { UserScreen } from "../types/admin.types"; 
+import type { UserScreen } from "../types/admin.types";
+
+const USER_SCREEN_SEARCH_FIELDS = ["userscreen_name", "mainscreen_name", "folder_name"];
 
 export default function UserScreenList() {
   const { t } = useTranslation();
@@ -27,11 +30,14 @@ export default function UserScreenList() {
   const [isLoading, setIsLoading] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    userscreen_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters();
 
   const navigate = useNavigate();
   const { encAdmins, encUserScreen } = getEncryptedRoute();
@@ -62,14 +68,6 @@ export default function UserScreenList() {
       mounted = false;
     };
   }, [t]);
-
-  const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const _filters = { ...filters };
-    _filters.global.value = value;
-    setFilters(_filters);
-    setGlobalFilterValue(value);
-  };
 
   const indexTemplate = (_: UserScreen, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
@@ -122,13 +120,22 @@ export default function UserScreenList() {
     </div>
   );
 
-  const header = renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
+  const header = (
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={onGlobalFilterChange}
+      searchPlaceholder={t("common.search_placeholder", {
         item: t("admin.nav.user_screen"),
-      }),
-    });
+      })}
+      statusValue={statusValue}
+      onStatusChange={onStatusFilterChange}
+    />
+  );
+
+  const exportRows = useMemo(
+    () => filterRowsForExport(screens, USER_SCREEN_SEARCH_FIELDS, globalFilterValue, statusValue),
+    [screens, globalFilterValue, statusValue],
+  );
 
   return (
     <div className="px-3 py-3 w-full">
@@ -157,15 +164,13 @@ export default function UserScreenList() {
 
         <DataTable
           value={screens}
+          exportRows={exportRows}
           paginator
           rows={10}
           loading={isLoading}
           filters={filters}
-          globalFilterFields={[
-            "userscreen_name",
-            "mainscreen_name",
-            "folder_name",
-          ]}
+          onFilter={onFilter}
+          globalFilterFields={USER_SCREEN_SEARCH_FIELDS}
           rowsPerPageOptions={[5, 10, 25, 50]}
           stripedRows
           showGridlines
