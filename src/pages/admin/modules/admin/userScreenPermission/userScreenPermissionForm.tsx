@@ -1,10 +1,16 @@
-import type { ApiUserScreen, MainScreen, Option, PermissionResponse, PermissionScreen, ScreenMatrixRow, StaffUserType, UserScreenAction, UserScreenColumnRecord } from "./types";
-import { useEffect, useState, useMemo, Fragment, type FormEvent } from "react";
-import { useNavigate, useParams, useSearchParams, useLocation} from "react-router-dom";
+import type {
+  ApiUserScreen,
+  MainScreen,
+  Option,
+  PermissionType,
+  UserScreenAction,
+  UserScreenColumnRecord,
+} from "./types";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,30 +24,19 @@ import { useTranslation } from "react-i18next";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { api } from "@/api";
 import {
-  getColumnPermissions,
   createColumnPermission,
   updateColumnPermission,
-  type ColumnPermissionsResponse,
 } from "@/helpers/admin/columnPermissionService";
-
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
+import PermissionSection, { type PermissionSectionData } from "./PermissionSection";
 
 const { encAdmins, encUserScreenPermission } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
   encAdmins,
   encUserScreenPermission,
 );
-
-/* -----------------------------------------------------------
-   TYPES
------------------------------------------------------------ */
-
-
-/** Shape returned by the by-staff-format endpoint */
-
 
 /** Green lock: primary key, foreign key, or any field whose name ends with _id */
 const isLockedColumn = (col: UserScreenColumnRecord): boolean =>
@@ -50,30 +45,16 @@ const isLockedColumn = (col: UserScreenColumnRecord): boolean =>
   col.field_name === "unique_id" ||
   col.field_name.endsWith("_id");
 
-/** Yellow warning: required but not locked */
-const isWarningColumn = (col: UserScreenColumnRecord): boolean =>
-  col.is_required && !isLockedColumn(col);
-
 const toId = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   return String(value).trim();
 };
 
-const toUserTypeId = (record: {
-  usertype_id?: unknown;
-  usertype?: { unique_id?: unknown };
-}): string => {
-  const direct = record.usertype_id;
-  if (direct && typeof direct === "object") {
-    return toId((direct as { unique_id?: unknown }).unique_id);
-  }
-  return toId(direct ?? record.usertype?.unique_id);
-};
-
-const toOrder = (value: unknown): number => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
-};
+const capitalize = (value: string): string =>
+  value
+    .split(" ")
+    .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : part))
+    .join(" ");
 
 const uniqueIds = (values: unknown[]): string[] => {
   const seen = new Set<string>();
@@ -89,9 +70,6 @@ const uniqueIds = (values: unknown[]): string[] => {
   return normalized;
 };
 
-const isContractorRoleId = (value: string): boolean =>
-  value.trim().startsWith("CNTUSRTYPE-");
-
 const firstErrorMessage = (value: unknown): string | undefined => {
   if (Array.isArray(value) && typeof value[0] === "string") {
     return value[0];
@@ -102,29 +80,27 @@ const firstErrorMessage = (value: unknown): string | undefined => {
   return undefined;
 };
 
-/* -----------------------------------------------------------
-   HELPER — extract HTTP status from axios-style errors
------------------------------------------------------------ */
-const getErrorStatus = (err: unknown): number | null => {
-  return (
-    (err as { response?: { status?: number } })?.response?.status ?? null
-  );
-};
+const getErrorStatus = (err: unknown): number | null =>
+  (err as { response?: { status?: number } })?.response?.status ?? null;
+
+const PERMISSION_TYPE_OPTIONS: Array<{ value: PermissionType; label: string }> = [
+  { value: "screen", label: "Screen Permission" },
+  { value: "field", label: "Field Permission" },
+];
 
 export default function UserScreenPermissionForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const params = useParams();
-
-  const staffTypeId = params.id;
-  const companyIdFromQuery = searchParams.get("company_unique_id") ?? "";
-  const mainScreenIdFromQuery = searchParams.get("mainscreen_id") ?? "";
-
-  const isEdit = Boolean(staffTypeId);
-
   const location = useLocation();
+
+  const routeProjectId = params.id;
+  const companyIdFromQuery = searchParams.get("company_unique_id") ?? "";
+  const permissionTypeFromQuery = searchParams.get("permission_type") ?? "";
+  const isEdit = Boolean(routeProjectId);
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+
   const {
     companyUniqueId,
     projectId,
@@ -134,53 +110,33 @@ export default function UserScreenPermissionForm() {
     loggedInCompanyUniqueId,
     onCompanyChange,
     setProjectId,
-  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit,
+    initialCompanyId: routeState?.companyUniqueId ?? companyIdFromQuery,
+    initialProjectId: routeState?.projectId ?? (isEdit ? String(routeProjectId) : undefined),
+  });
 
-  const [staffUserTypeId, setStaffUserTypeId] = useState(() =>
-    isEdit && staffTypeId ? String(staffTypeId) : ""
+  const [permissionType, setPermissionType] = useState<PermissionType>(() =>
+    permissionTypeFromQuery === "field" ? "field" : "screen"
   );
-  const [mainScreenId, setMainScreenId] = useState(() =>
-    isEdit ? String(mainScreenIdFromQuery) : ""
-  );
-  const [description, setDescription] = useState("");
-  const [userTypeId, setUserTypeId] = useState("");
-  const [selectedUserTypeCategoryId, setSelectedUserTypeCategoryId] = useState("");
+  const [mainScreenIds, setMainScreenIds] = useState<string[]>([]);
+  const [addSectionValue, setAddSectionValue] = useState("");
+  const [loadingExistingSections, setLoadingExistingSections] = useState(isEdit);
 
-  const [userTypeOptions, setUserTypeOptions] = useState<Option[]>([]);
-  const [allRoleOptions, setAllRoleOptions] = useState<Option[]>([]);
-  const [staffUserTypes, setStaffUserTypes] = useState<Option[]>([]);
   const [mainScreens, setMainScreens] = useState<Option[]>([]);
   const [allUserScreens, setAllUserScreens] = useState<ApiUserScreen[]>([]);
   const [actions, setActions] = useState<Option[]>([]);
 
-  const [screenMatrix, setScreenMatrix] = useState<ScreenMatrixRow[]>([]);
-
-  /** Columns available per screen id (fetched from backend, keyed by userscreen_id) */
-  const [screenColumns, setScreenColumns] = useState<
-    Record<string, UserScreenColumnRecord[]>
-  >({});
-
-  /**
-   * Permission IDs from the dedicated column-permission API.
-   * Shape: screenId → columnId → permissionId
-   * Used to update existing records instead of creating duplicates.
-   */
-  const [columnPermissionIds, setColumnPermissionIds] = useState<
-    Record<string, Record<string, string>>
-  >({});
-
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
 
-  /* Formatted permissions state */
-  const [formattedPermissionData, setFormattedPermissionData] = useState<any>(null);
-  const [formattedPermissionError, setFormattedPermissionError] = useState<any>(null);
-  const [formattedPermissionLoading, setFormattedPermissionLoading] = useState(false);
+  const sectionDataRef = useRef<Record<string, PermissionSectionData>>({});
 
   const effectiveCompanyId = companyIdFromQuery || companyUniqueId;
+  const effectiveProjectId = isEdit ? String(routeProjectId) : projectId;
+  const hasProjectScope = Boolean(effectiveCompanyId && effectiveProjectId);
 
-  const isEditContextLocked =
-    isEdit && Boolean(companyIdFromQuery) && Boolean(mainScreenIdFromQuery);
+  const isEditContextLocked = isEdit && Boolean(companyIdFromQuery);
   const isCompanyLocked =
     Boolean(loggedInCompanyUniqueId) ||
     Boolean(companyIdFromQuery) ||
@@ -193,19 +149,12 @@ export default function UserScreenPermissionForm() {
       ? [{ value: companyUniqueId, label: selectedCompanyLabel }]
       : companies;
 
-  /* -----------------------------------------------------------
-     LOAD DROPDOWNS
-  ----------------------------------------------------------- */
-
   useEffect(() => {
     let cancelled = false;
 
     const fetchAll = async () => {
       try {
-        const [userTypesRes, staffUserTypesRes, contractorUserTypesRes, mainScreensRes, userScreensRes, userScreenActionsRes] = await Promise.allSettled([
-          adminApi.userTypes.readAll(),
-          adminApi.staffUserTypes.readAll(),
-          adminApi.contractorUserTypes.readAll(),
+        const [mainScreensRes, userScreensRes, userScreenActionsRes] = await Promise.allSettled([
           adminApi.mainScreens.readAll(),
           adminApi.userScreens.readAll(),
           adminApi.userScreenActions.readAll(),
@@ -213,16 +162,11 @@ export default function UserScreenPermissionForm() {
 
         if (cancelled) return;
 
-        const userTypesData = userTypesRes.status === "fulfilled" ? (userTypesRes.value as any[]) : [];
-        const staffUserTypesData = staffUserTypesRes.status === "fulfilled" ? (staffUserTypesRes.value as any[]) : [];
-        const contractorUserTypesData = contractorUserTypesRes.status === "fulfilled" ? (contractorUserTypesRes.value as any[]) : [];
         const mainScreensData = mainScreensRes.status === "fulfilled" ? (mainScreensRes.value as any[]) : [];
         const userScreensData = userScreensRes.status === "fulfilled" ? (userScreensRes.value as any[]) : [];
         const userScreenActionsData = userScreenActionsRes.status === "fulfilled" ? (userScreenActionsRes.value as any[]) : [];
 
-        // Check for 403 errors
         const firstError =
-          (staffUserTypesRes.status === "rejected" ? staffUserTypesRes.reason : null) ??
           (mainScreensRes.status === "rejected" ? mainScreensRes.reason : null) ??
           (userScreensRes.status === "rejected" ? userScreensRes.reason : null) ??
           (userScreenActionsRes.status === "rejected" ? userScreenActionsRes.reason : null);
@@ -239,25 +183,6 @@ export default function UserScreenPermissionForm() {
           }
           Swal.fire(t("common.error"), t("common.load_failed"), "error");
         }
-
-        setUserTypeOptions(
-          userTypesData.map((x: any) => ({
-            value: toId(x.unique_id),
-            label: String(x.name ?? ""),
-          }))
-        );
-
-        const staffRoles = staffUserTypesData.map((x: StaffUserType) => ({
-          value: toId(x.unique_id),
-          label: String(x.name ?? ""),
-          userTypeId: toUserTypeId(x),
-        }));
-        const contractorRoles = contractorUserTypesData.map((x: any) => ({
-          value: toId(x.unique_id),
-          label: String(x.name ?? ""),
-          userTypeId: toUserTypeId(x),
-        }));
-        setAllRoleOptions([...staffRoles, ...contractorRoles]);
 
         setMainScreens(
           mainScreensData.map((x: MainScreen) => ({
@@ -280,400 +205,110 @@ export default function UserScreenPermissionForm() {
     };
 
     fetchAll();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* -----------------------------------------------------------
-     LOAD FORMATTED PERMISSIONS (replaces useUserScreenPermissionFormattedQuery)
-  ----------------------------------------------------------- */
   useEffect(() => {
-    if (!effectiveCompanyId || !staffUserTypeId || !mainScreenId) return;
+    if (!companyIdFromQuery || companyUniqueId === companyIdFromQuery) return;
+    onCompanyChange(companyIdFromQuery);
+  }, [companyIdFromQuery, companyUniqueId, onCompanyChange]);
 
+  useEffect(() => {
+    if (!isEdit || !routeProjectId) return;
+    if (projectId !== String(routeProjectId)) {
+      setProjectId(String(routeProjectId));
+      sectionDataRef.current = {};
+      setMainScreenIds([]);
+    }
+  }, [isEdit, routeProjectId, projectId, setProjectId]);
+
+  useEffect(() => {
+    if (!isEdit || !hasProjectScope) return;
     let cancelled = false;
-    setFormattedPermissionLoading(true);
-    setFormattedPermissionData(null);
-    setFormattedPermissionError(null);
+    setLoadingExistingSections(true);
 
-    adminApi.companyWiseScreenPermissions.read(
-      `by-staff-format/?company_id=${encodeURIComponent(effectiveCompanyId)}&staffusertype_id=${encodeURIComponent(staffUserTypeId)}&mainscreen_id=${encodeURIComponent(mainScreenId)}`
-    )
-      .then((res: any) => {
-        if (cancelled) return;
-        setFormattedPermissionData(res);
-        setFormattedPermissionLoading(false);
+    adminApi.companyWiseScreenPermissions
+      .readAll({
+        params: {
+          company_id: effectiveCompanyId,
+          project_id: effectiveProjectId,
+          permission_type: permissionType,
+          limit: 6000,
+          offset: 0,
+        },
       })
-      .catch((err: any) => {
+      .then((rows: any) => {
         if (cancelled) return;
-        setFormattedPermissionError(err);
-        setFormattedPermissionLoading(false);
+        const ids = uniqueIds(
+          (Array.isArray(rows) ? rows : []).map((r: any) => r.mainscreen_id)
+        );
+        sectionDataRef.current = {};
+        setMainScreenIds(ids);
+      })
+      .catch(() => {
+        // Non-fatal: user can still add main screens manually.
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingExistingSections(false);
       });
 
-    return () => { cancelled = true; };
-  }, [effectiveCompanyId, staffUserTypeId, mainScreenId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, hasProjectScope, effectiveCompanyId, effectiveProjectId, permissionType]);
 
-  useEffect(() => {
-    if (!isEdit || !staffUserTypeId) return;
-
-    const matchingRole = allRoleOptions.find(
-      (role) => role.value === staffUserTypeId
-    );
-    const formattedUserTypeId = toId(
-      (formattedPermissionData as any)?.usertype_id ??
-        (formattedPermissionData as any)?.userTypeId
-    );
-    const nextUserTypeId = matchingRole?.userTypeId || formattedUserTypeId;
-
-    if (!nextUserTypeId || selectedUserTypeCategoryId === nextUserTypeId) return;
-
-    setSelectedUserTypeCategoryId(nextUserTypeId);
-    setUserTypeId(nextUserTypeId);
-  }, [
-    allRoleOptions,
-    formattedPermissionData,
-    isEdit,
-    selectedUserTypeCategoryId,
-    staffUserTypeId,
-  ]);
-
-  /* -----------------------------------------------------------
-     PREFILL COMPANY
-  ----------------------------------------------------------- */
-
-  useEffect(() => {
-    if (!companyIdFromQuery) return;
-    if (companyUniqueId === companyIdFromQuery) return;
-    onCompanyChange(companyIdFromQuery);
-  }, [
-    companyIdFromQuery,
-    companyUniqueId,
-    onCompanyChange,
-  ]);
-
-  /* -----------------------------------------------------------
-     EDIT MODE
-  ----------------------------------------------------------- */
-
-  useEffect(() => {
-    if (!isEdit || !staffTypeId) return;
-
-    if (staffUserTypeId !== String(staffTypeId)) {
-      setStaffUserTypeId(String(staffTypeId));
-      setScreenMatrix([]);
-    }
-
-    if (mainScreenIdFromQuery && mainScreenId !== String(mainScreenIdFromQuery)) {
-      setMainScreenId(String(mainScreenIdFromQuery));
-      setScreenMatrix([]);
-    }
-  }, [isEdit, mainScreenId, mainScreenIdFromQuery, staffTypeId, staffUserTypeId]);
-
-  /* -----------------------------------------------------------
-     LOAD PERMISSIONS
-  ----------------------------------------------------------- */
-
-  useEffect(() => {
-    if (!effectiveCompanyId || !staffUserTypeId || !mainScreenId) return;
-
-    if (formattedPermissionError) {
-      const err = formattedPermissionError;
-      if (getErrorStatus(err) === 403) {
-        Swal.fire({
-          icon: "error",
-          title: t("common.access_denied"),
-          text: t("common.no_permission"),
-          confirmButtonText: t("common.ok"),
-        }).then(() => navigate(ENC_LIST_PATH));
-        return;
-      }
-    }
-
-    try {
-        const formatted: PermissionResponse = (formattedPermissionData ??
-          ({
-            screens: [],
-            description: "",
-          } satisfies PermissionResponse)) as PermissionResponse;
-
-        const actionsByScreen = new Map<string, PermissionScreen>();
-        formatted.screens.forEach((scr: PermissionScreen) => {
-          const screenId = toId(scr.userscreen_id);
-          if (!screenId) return;
-
-          actionsByScreen.set(screenId, {
-            userscreen_id: screenId,
-            userscreen_name: String(scr.userscreen_name ?? "").trim(),
-            // FIX: API returns actionIds, not actions
-            actions: uniqueIds(scr.actionIds ?? scr.actions ?? []),
-            columnIds: uniqueIds(scr.columnIds ?? []),
-          });
-        });
-
-        const selectedMainScreens = allUserScreens
-        .filter((screen) => !screen.is_deleted)
-        .filter(
-          (screen) =>
-            toId(screen.mainscreen_id) === mainScreenId ||
-            toId((screen as any).mainscreen?.unique_id) === mainScreenId
-        )
-        .sort((a, b) => toOrder(a.order_no) - toOrder(b.order_no));
-
-        const matrix: ScreenMatrixRow[] = [];
-
-        selectedMainScreens.forEach((screen) => {
-          const screenId = toId(screen.unique_id);
-          if (!screenId) return;
-
-          const existing = actionsByScreen.get(screenId);
-          matrix.push({
-            userscreen_id: screenId,
-            userscreen_name: String(
-              screen.userscreen_name ?? existing?.userscreen_name ?? screenId
-            ).trim(),
-            actions: uniqueIds(existing?.actions ?? []),
-            // columnIds are loaded from the dedicated column-permission API
-            // in the screenIdsKey effect below — start empty to avoid stale flash.
-            columnIds: [],
-          });
-        });
-
-        actionsByScreen.forEach((existing, screenId) => {
-          if (matrix.some((row) => row.userscreen_id === screenId)) return;
-
-          matrix.push({
-            userscreen_id: screenId,
-            userscreen_name: String(existing.userscreen_name ?? screenId).trim(),
-            actions: uniqueIds(existing.actions ?? []),
-            columnIds: [],
-          });
-        });
-
-        setDescription(formatted.description || "");
-        setScreenMatrix(matrix);
-      } catch (err) {
-        console.error("Permission Load Failed:", err);
-
-        if (getErrorStatus(err) === 403) {
-          Swal.fire({
-            icon: "error",
-            title: t("common.access_denied"),
-            text: t("common.no_permission"),
-            confirmButtonText: t("common.ok"),
-          }).then(() => navigate(ENC_LIST_PATH));
-          return;
-        }
-
-        Swal.fire(
-          t("common.error"),
-          t("admin.user_screen_permission.load_matrix_failed"),
-          "error"
-        );
-      }
-  }, [
-    allUserScreens,
-    effectiveCompanyId,
-    formattedPermissionData,
-    formattedPermissionError,
-    formattedPermissionLoading,
-    mainScreenId,
-    navigate,
-    staffUserTypeId,
-    t,
-  ]);
-
-  /* -----------------------------------------------------------
-     FETCH COLUMNS FOR EACH SCREEN IN MATRIX
-  ----------------------------------------------------------- */
-
-  /**
-   * Key that only changes when the set of screen IDs changes,
-   * not when actions/columnIds within rows change.
-   */
-  const screenIdsKey = useMemo(
-    () => screenMatrix.map((r) => r.userscreen_id).sort().join(","),
-    [screenMatrix]
+  const availableMainScreens = useMemo(
+    () => mainScreens.filter((opt) => !mainScreenIds.includes(opt.value)),
+    [mainScreens, mainScreenIds]
   );
 
-  useEffect(() => {
-    if (!screenIdsKey) {
-      setScreenColumns({});
-      setColumnPermissionIds({});
-      return;
-    }
-
-    const ids = screenIdsKey.split(",").filter(Boolean);
-
-    Promise.all(
-      ids.map(async (screenId) => {
-        const [colResult, permResult] = await Promise.allSettled([
-          api.get<UserScreenColumnRecord[]>(
-            `/permissions/userscreen/${screenId}/columns/`
-          ),
-          staffUserTypeId
-            ? getColumnPermissions(screenId, staffUserTypeId, effectiveCompanyId || undefined)
-            : Promise.resolve<ColumnPermissionsResponse>({
-                userscreen_id: screenId,
-                column_permissions: [],
-              }),
-        ]);
-
-        const cols: UserScreenColumnRecord[] =
-          colResult.status === "fulfilled" && Array.isArray(colResult.value.data)
-            ? colResult.value.data
-            : [];
-
-        const permData: ColumnPermissionsResponse =
-          permResult.status === "fulfilled"
-            ? permResult.value
-            : { userscreen_id: screenId, column_permissions: [] };
-
-        // Build permId map and collect active (checked) column IDs
-        const permIds: Record<string, string> = {};
-        const checkedIds: string[] = [];
-        permData.column_permissions.forEach((cp) => {
-          permIds[cp.userscreencolumn_id] = cp.userscreencolumnpermission_id;
-          if (cp.is_active) checkedIds.push(cp.userscreencolumn_id);
-        });
-
-        return { screenId, cols, permIds, checkedIds } as const;
-      })
-    ).then((entries) => {
-      const colsMap: Record<string, UserScreenColumnRecord[]> = {};
-      const permIdsMap: Record<string, Record<string, string>> = {};
-
-      entries.forEach(({ screenId, cols, permIds }) => {
-        colsMap[screenId] = cols;
-        permIdsMap[screenId] = permIds;
-      });
-
-      setScreenColumns(colsMap);
-      setColumnPermissionIds(permIdsMap);
-
-      // Replace columnIds in the matrix with data from the dedicated API
-      setScreenMatrix((prev) =>
-        prev.map((row) => {
-          const entry = entries.find((e) => e.screenId === row.userscreen_id);
-          if (!entry) return row;
-          return { ...row, columnIds: entry.checkedIds };
-        })
-      );
-    });
-  }, [screenIdsKey, staffUserTypeId, effectiveCompanyId]);
-
-  /* -----------------------------------------------------------
-     FILTER ROLES BY SELECTED USER TYPE CATEGORY
-  ----------------------------------------------------------- */
-
-  useEffect(() => {
-    if (selectedUserTypeCategoryId) {
-      const filtered = allRoleOptions.filter(
-        (r) => r.userTypeId === selectedUserTypeCategoryId
-      );
-      setStaffUserTypes(filtered);
-      setUserTypeId(selectedUserTypeCategoryId);
-      // Clear the role selection if it no longer belongs to the new usertype
-      setStaffUserTypeId((prev) =>
-        filtered.some((r) => r.value === prev) ? prev : ""
-      );
-    } else {
-      setStaffUserTypes(allRoleOptions);
-      setUserTypeId("");
-    }
-  }, [selectedUserTypeCategoryId, allRoleOptions]);
-
-  /* -----------------------------------------------------------
-     TOGGLE ACTIONS
-  ----------------------------------------------------------- */
-
-  const handleActionToggle = (
-    screenId: string,
-    actionId: string,
-    checked: boolean
-  ) => {
-    setScreenMatrix((prev) =>
-      prev.map((row) =>
-        row.userscreen_id === screenId
-          ? {
-              ...row,
-              actions: checked
-                ? uniqueIds([...row.actions, actionId])
-                : row.actions.filter((a) => a !== actionId),
-            }
-          : row
-      )
-    );
+  const resetSections = () => {
+    sectionDataRef.current = {};
+    setMainScreenIds([]);
+    setAddSectionValue("");
   };
 
-  const handleSelectAll = (screenId: string, checked: boolean) => {
-    const allActions = actions.map((a) => a.value);
-    setScreenMatrix((prev) =>
-      prev.map((row) =>
-        row.userscreen_id === screenId
-          ? { ...row, actions: checked ? allActions : [] }
-          : row
-      )
-    );
+  const handleAddSection = (nextMainScreenId: string) => {
+    if (!nextMainScreenId || mainScreenIds.includes(nextMainScreenId)) return;
+    setMainScreenIds((prev) => [...prev, nextMainScreenId]);
+    setAddSectionValue("");
   };
 
-  /* -----------------------------------------------------------
-     TOGGLE COLUMNS
-  ----------------------------------------------------------- */
-
-  const handleColumnToggle = (
-    screenId: string,
-    columnId: string,
-    checked: boolean,
-    col: UserScreenColumnRecord
-  ) => {
-    if (isLockedColumn(col)) return;
-    setScreenMatrix((prev) =>
-      prev.map((row) =>
-        row.userscreen_id === screenId
-          ? {
-              ...row,
-              columnIds: checked
-                ? uniqueIds([...row.columnIds, columnId])
-                : row.columnIds.filter((c) => c !== columnId),
-            }
-          : row
-      )
-    );
+  const handleRemoveSection = (targetMainScreenId: string) => {
+    setMainScreenIds((prev) => prev.filter((id) => id !== targetMainScreenId));
+    delete sectionDataRef.current[targetMainScreenId];
   };
 
-  const handleSelectAllColumns = (screenId: string, checked: boolean) => {
-    const cols = screenColumns[screenId] ?? [];
-    const allIds = cols.map((c) => c.unique_id);
-    const lockedIds = cols.filter(isLockedColumn).map((c) => c.unique_id);
-    setScreenMatrix((prev) =>
-      prev.map((row) =>
-        row.userscreen_id === screenId
-          ? { ...row, columnIds: checked ? allIds : lockedIds }
-          : row
-      )
-    );
-  };
+  const handleSectionDataChange = useCallback(
+    (id: string, data: PermissionSectionData) => {
+      sectionDataRef.current[id] = data;
+    },
+    []
+  );
 
-  const handleMainScreenChange = (nextMainScreenId: string) => {
-    if (nextMainScreenId === mainScreenId) return;
-    setDescription("");
-    setScreenMatrix([]);
-    setScreenColumns({});
-    setColumnPermissionIds({});
-    setMainScreenId(nextMainScreenId);
-  };
-
-  /* -----------------------------------------------------------
-     SUBMIT
-  ----------------------------------------------------------- */
+  const handleAccessDenied = useCallback(() => {
+    Swal.fire({
+      icon: "error",
+      title: t("common.access_denied"),
+      text: t("common.no_permission"),
+      confirmButtonText: t("common.ok"),
+    }).then(() => navigate(ENC_LIST_PATH));
+  }, [navigate, t]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!effectiveCompanyId || !staffUserTypeId || !mainScreenId || !userTypeId) {
+    if (!effectiveCompanyId || !effectiveProjectId || mainScreenIds.length === 0) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
 
-    if (screenMatrix.length === 0) {
+    const missingScreens = mainScreenIds.some(
+      (id) => (sectionDataRef.current[id]?.screenMatrix.length ?? 0) === 0
+    );
+    if (missingScreens) {
       Swal.fire(
         t("common.warning"),
         t("admin.user_screen_permission.no_screens"),
@@ -686,96 +321,92 @@ export default function UserScreenPermissionForm() {
       actions.map((item) => toId(item.value)).filter(Boolean)
     );
 
-    // Action-only payload — column permissions are handled by the dedicated API below.
-    const normalizedScreens = screenMatrix
-      .map((screen) => {
-        const base: Record<string, unknown> = {
-          userscreen_id: toId(screen.userscreen_id),
-          actions: uniqueIds(screen.actions).filter(
-            (actionId) =>
-              validActionIds.size === 0 || validActionIds.has(actionId)
-          ),
-        };
-        // Only include columnIds when the columns have been fetched for this screen.
-        // Sending undefined means "no change"; sending [] means "clear all column perms".
-        if (screenColumns[screen.userscreen_id] !== undefined) {
-          const lockedIds = screenColumns[screen.userscreen_id]
-            .filter(isLockedColumn)
-            .map((c) => c.unique_id);
-          base.columnIds = uniqueIds([...lockedIds, ...screen.columnIds]);
-        }
-        return base;
-      })
-      .filter((screen) => Boolean(screen.userscreen_id));
-
-    const isContractorRole = isContractorRoleId(staffUserTypeId);
-    const payload = {
-      company_id: effectiveCompanyId,
-      staffusertype_id: isContractorRole ? null : staffUserTypeId,
-      contractorusertype_id: isContractorRole ? staffUserTypeId : null,
-      permission_for: isContractorRole ? "contractor" : "staff",
-      mainscreen_id: mainScreenId,
-      description: description.trim(),
-      usertype_id: userTypeId,
-      screens: normalizedScreens,
-    };
-
     setLoading(true);
 
     try {
-      if (isEdit) {
-        await adminApi.companyWiseScreenPermissions.action(
-          `update-by-staffusertype/${staffUserTypeId}`,
-          payload
-        );
-      } else {
-        await adminApi.companyWiseScreenPermissions.action(
-          `bulk-sync-multi/${staffUserTypeId}`,
-          payload
-        );
+      const actionPath = `bulk-sync-multi-project/${effectiveProjectId}`;
+
+      for (const mainScreenId of mainScreenIds) {
+        const sectionData = sectionDataRef.current[mainScreenId];
+        if (!sectionData) continue;
+
+        const normalizedScreens = sectionData.screenMatrix
+          .map((screen) => {
+            const base: Record<string, unknown> = {
+              userScreenId: toId(screen.userscreen_id),
+              actionIds: uniqueIds(screen.actions).filter(
+                (actionId) =>
+                  validActionIds.size === 0 || validActionIds.has(actionId)
+              ),
+            };
+            if (
+              permissionType === "field" &&
+              sectionData.screenColumns[screen.userscreen_id] !== undefined
+            ) {
+              const lockedIds = sectionData.screenColumns[screen.userscreen_id]
+                .filter(isLockedColumn)
+                .map((c) => c.unique_id);
+              base.columnIds = uniqueIds([...lockedIds, ...screen.columnIds]);
+            }
+            return base;
+          })
+          .filter((screen) => Boolean(screen.userScreenId));
+
+        const payload = {
+          companyId: effectiveCompanyId,
+          projectId: effectiveProjectId,
+          permissionType,
+          mainScreenId,
+          description: sectionData.description.trim(),
+          userScreens: normalizedScreens,
+        };
+
+        await adminApi.companyWiseScreenPermissions.action(actionPath, payload);
       }
 
-      // Sync column permissions via dedicated API (create or update, no duplicates).
-      const colSyncTasks: Promise<unknown>[] = [];
-      screenMatrix.forEach((screen) => {
-        const availableCols = screenColumns[screen.userscreen_id];
-        if (!availableCols) return; // columns not yet loaded — skip
+      if (permissionType === "field") {
+        const colSyncTasks: Promise<unknown>[] = [];
+        mainScreenIds.forEach((mainScreenId) => {
+          const sectionData = sectionDataRef.current[mainScreenId];
+          if (!sectionData) return;
 
-        const permIds = columnPermissionIds[screen.userscreen_id] ?? {};
+          sectionData.screenMatrix.forEach((screen) => {
+            const availableCols = sectionData.screenColumns[screen.userscreen_id];
+            if (!availableCols) return;
 
-        availableCols.forEach((col) => {
-          const permId = permIds[col.unique_id] ?? null;
-          const isChecked = screen.columnIds.includes(col.unique_id);
+            const permIds = sectionData.columnPermissionIds[screen.userscreen_id] ?? {};
 
-          if (permId) {
-            // Existing permission record — update in-place
-            colSyncTasks.push(updateColumnPermission(permId, { is_active: isChecked }));
-          } else if (isChecked) {
-            // New selection — create (backend uses get_or_create, safe to call)
-            colSyncTasks.push(
-              createColumnPermission({
-                userscreen_id: screen.userscreen_id,
-                column_id: col.unique_id,
-                staffusertype_id: isContractorRole ? undefined : staffUserTypeId,
-                contractorusertype_id: isContractorRole ? staffUserTypeId : undefined,
-                usertype_id: userTypeId,
-                is_active: true,
-                company_id: effectiveCompanyId,
-              })
-            );
-          }
+            availableCols.forEach((col) => {
+              const permId = permIds[col.unique_id] ?? null;
+              const isChecked = screen.columnIds.includes(col.unique_id);
+
+              if (permId) {
+                colSyncTasks.push(updateColumnPermission(permId, { is_active: isChecked }));
+              } else if (isChecked) {
+                colSyncTasks.push(
+                  createColumnPermission({
+                    userscreen_id: screen.userscreen_id,
+                    column_id: col.unique_id,
+                    project_id: effectiveProjectId,
+                    company_id: effectiveCompanyId,
+                    is_active: true,
+                  })
+                );
+              }
+            });
+          });
         });
-      });
 
-      await Promise.all(colSyncTasks);
-
-      if (isEdit) {
-        Swal.fire(t("common.success"), t("common.updated_success"), "success");
-      } else {
-        Swal.fire(t("common.success"), t("common.added_success"), "success");
+        await Promise.all(colSyncTasks);
       }
 
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      Swal.fire(
+        t("common.success"),
+        isEdit ? t("common.updated_success") : t("common.added_success"),
+        "success"
+      );
+
+      navigate(ENC_LIST_PATH, { state: { companyUniqueId: effectiveCompanyId, projectId: effectiveProjectId } });
     } catch (err: unknown) {
       if (getErrorStatus(err) === 403) {
         Swal.fire({
@@ -795,9 +426,13 @@ export default function UserScreenPermissionForm() {
         t("common.save_failed"),
         firstErrorMessage(errorData.detail) ||
           firstErrorMessage(errorData.company_id) ||
-          firstErrorMessage(errorData.staffusertype_id) ||
+          firstErrorMessage(errorData.companyId) ||
+          firstErrorMessage(errorData.project_id) ||
+          firstErrorMessage(errorData.projectId) ||
           firstErrorMessage(errorData.mainscreen_id) ||
+          firstErrorMessage(errorData.mainScreenId) ||
           firstErrorMessage(errorData.screens) ||
+          firstErrorMessage(errorData.userScreens) ||
           firstErrorMessage((errorData as any).columnIds) ||
           t("common.save_failed_desc"),
         "error"
@@ -806,10 +441,6 @@ export default function UserScreenPermissionForm() {
       setLoading(false);
     }
   };
-
-  /* -----------------------------------------------------------
-     RENDER
-  ----------------------------------------------------------- */
 
   if (loadingData) {
     return (
@@ -834,19 +465,14 @@ export default function UserScreenPermissionForm() {
       }
     >
       <form onSubmit={handleSubmit}>
-        <div className="grid md:grid-cols-4 gap-6">
+        <div className="grid md:grid-cols-3 gap-6">
           <div>
             <Label>{t("admin.nav.company")} *</Label>
             <Select
               value={companyUniqueId}
               onValueChange={(value) => {
                 onCompanyChange(value);
-                setMainScreenId("");
-                setScreenMatrix([]);
-                setScreenColumns({});
-                setColumnPermissionIds({});
-                setDescription("");
-                if (!isEdit) setStaffUserTypeId("");
+                resetSections();
               }}
               disabled={
                 isCompanyLocked ||
@@ -872,11 +498,14 @@ export default function UserScreenPermissionForm() {
           </div>
 
           <div>
-            <Label>{t("admin.nav.project")}</Label>
+            <Label>{t("admin.nav.project")} *</Label>
             <Select
               value={projectId}
-              onValueChange={setProjectId}
-              disabled={!companyUniqueId || projects.length === 0}
+              onValueChange={(value) => {
+                setProjectId(value);
+                if (!isEdit) resetSections();
+              }}
+              disabled={isEdit || !companyUniqueId || projects.length === 0}
             >
               <SelectTrigger>
                 <SelectValue
@@ -896,80 +525,21 @@ export default function UserScreenPermissionForm() {
           </div>
 
           <div>
-            <Label>{t("admin.nav.user_type")} *</Label>
+            <Label>Permission Type *</Label>
             <Select
-              value={selectedUserTypeCategoryId}
+              value={permissionType}
               onValueChange={(value) => {
-                setSelectedUserTypeCategoryId(value);
-                if (!isEdit) {
-                  setStaffUserTypeId("");
-                  setScreenMatrix([]);
-                  setScreenColumns({});
-                  setColumnPermissionIds({});
-                  setDescription("");
-                }
+                setPermissionType(value as PermissionType);
+                if (!isEdit) resetSections();
               }}
-              disabled={isEdit || !companyUniqueId}
             >
               <SelectTrigger>
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.user_type"),
-                  })}
-                />
+                <SelectValue placeholder="Select Permission Type" />
               </SelectTrigger>
               <SelectContent>
-                {userTypeOptions.map((opt) => (
+                {PERMISSION_TYPE_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>{t("admin.nav.staff_user_type")} *</Label>
-            <Select
-              value={staffUserTypeId}
-              onValueChange={setStaffUserTypeId}
-              disabled={isEdit || !selectedUserTypeCategoryId}
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.staff_user_type"),
-                  })}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {staffUserTypes.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>{t("admin.nav.main_screen")} *</Label>
-            <Select
-              value={mainScreenId}
-              onValueChange={handleMainScreenChange}
-              disabled={!companyUniqueId}
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.main_screen"),
-                  })}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {mainScreens.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
+                    {capitalize(opt.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -977,234 +547,91 @@ export default function UserScreenPermissionForm() {
           </div>
         </div>
 
-        {/* COLUMN LEGEND */}
-        {screenMatrix.length > 0 && (
-          <div className="mt-6 flex flex-wrap gap-4 text-xs text-gray-600">
-            <span className="flex items-center gap-1.5">
-              <input type="checkbox" checked disabled className="w-3.5 h-3.5 accent-green-600" readOnly />
-              <span className="text-gray-500">Key / FK field — always required</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <input type="checkbox" defaultChecked className="w-3.5 h-3.5 accent-amber-500" readOnly />
-              <span className="text-amber-700">⚠ Important field — hide with care</span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <input type="checkbox" defaultChecked className="w-3.5 h-3.5 accent-blue-600" readOnly />
-              <span>Optional field</span>
-            </span>
-          </div>
-        )}
-
-        {/* PERMISSION TABLE */}
-        {screenMatrix.length > 0 && (
-          <div className="mt-3 border rounded-lg overflow-x-auto bg-white">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
-                    {t("common.s_no")}
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold">
-                    {t("admin.nav.user_screen")}
-                  </th>
-                  <th className="px-4 py-3 text-center text-sm font-semibold">
-                    {t("admin.user_screen_permission.all")}
-                  </th>
-                  {actions.map((act) => (
-                    <th
-                      key={act.value}
-                      className="px-4 py-3 text-center text-sm font-semibold"
-                    >
-                      {act.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {screenMatrix.map((row, i) => {
-                  const allActionsChecked = row.actions.length === actions.length;
-                  const cols = screenColumns[row.userscreen_id];
-                  const allColsChecked =
-                    cols && cols.length > 0
-                      ? row.columnIds.length === cols.length
-                      : false;
-                  const someColsChecked =
-                    cols && cols.length > 0 && row.columnIds.length > 0;
-
-                  return (
-                    <Fragment key={row.userscreen_id}>
-                      {/* ── Action row ── */}
-                      <tr className="border-b hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm">{i + 1}</td>
-                        <td className="px-4 py-3 text-sm font-medium">
-                          {row.userscreen_name}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={allActionsChecked}
-                            onChange={(e) =>
-                              handleSelectAll(row.userscreen_id, e.target.checked)
-                            }
-                            className="w-4 h-4 cursor-pointer"
-                          />
-                        </td>
-                        {actions.map((act) => (
-                          <td key={act.value} className="px-4 py-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={row.actions.includes(act.value)}
-                              onChange={(e) =>
-                                handleActionToggle(
-                                  row.userscreen_id,
-                                  act.value,
-                                  e.target.checked
-                                )
-                              }
-                              className="w-4 h-4 cursor-pointer"
-                            />
-                          </td>
-                        ))}
-                      </tr>
-
-                      {/* ── Column permission row (only when columns exist) ── */}
-                      {cols && cols.length > 0 && (
-                        <tr className="border-b bg-slate-50/60">
-                          <td className="px-4 py-2" />
-                          <td className="px-4 py-2">
-                            <span className="text-xs font-semibold text-slate-500 pl-2">
-                              Columns
-                            </span>
-                            {someColsChecked && (
-                              <span className="ml-2 text-xs text-blue-600 font-medium">
-                                ({row.columnIds.length}/{cols.length})
-                              </span>
-                            )}
-                          </td>
-                          {/* "Select all columns" checkbox in the All column */}
-                          <td className="px-4 py-2 text-center">
-                            <input
-                              type="checkbox"
-                              checked={allColsChecked}
-                              onChange={(e) =>
-                                handleSelectAllColumns(
-                                  row.userscreen_id,
-                                  e.target.checked
-                                )
-                              }
-                              className="w-4 h-4 cursor-pointer accent-blue-600"
-                              title="Select all columns"
-                            />
-                          </td>
-                          {/* Column checkboxes span all remaining action columns */}
-                          <td
-                            colSpan={actions.length}
-                            className="px-4 py-2"
-                          >
-                            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                              {cols.map((col) => {
-                                const locked = isLockedColumn(col);
-                                const warning = !locked && isWarningColumn(col);
-                                const checked = locked || row.columnIds.includes(col.unique_id);
-
-                                if (locked) {
-                                  return (
-                                    <label
-                                      key={col.unique_id}
-                                      title="Required key field — always visible"
-                                      className="flex items-center gap-1.5 text-xs cursor-not-allowed"
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked
-                                        disabled
-                                        className="w-3.5 h-3.5 accent-green-600"
-                                      />
-                                      <span className="text-gray-400">
-                                        {col.display_name || col.field_name}
-                                      </span>
-                                    </label>
-                                  );
-                                }
-
-                                if (warning) {
-                                  return (
-                                    <label
-                                      key={col.unique_id}
-                                      title="Important field — hiding it may affect functionality"
-                                      className="flex items-center gap-1.5 text-xs cursor-pointer group"
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={checked}
-                                        onChange={(e) =>
-                                          handleColumnToggle(
-                                            row.userscreen_id,
-                                            col.unique_id,
-                                            e.target.checked,
-                                            col
-                                          )
-                                        }
-                                        className="w-3.5 h-3.5 cursor-pointer accent-amber-500"
-                                      />
-                                      <span className="text-amber-700 group-hover:text-amber-900">
-                                        {col.display_name || col.field_name}
-                                      </span>
-                                      <span className="text-amber-500 text-[10px] leading-none">⚠</span>
-                                    </label>
-                                  );
-                                }
-
-                                return (
-                                  <label
-                                    key={col.unique_id}
-                                    className="flex items-center gap-1.5 text-xs cursor-pointer group"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      onChange={(e) =>
-                                        handleColumnToggle(
-                                          row.userscreen_id,
-                                          col.unique_id,
-                                          e.target.checked,
-                                          col
-                                        )
-                                      }
-                                      className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
-                                    />
-                                    <span className="text-gray-700 group-hover:text-gray-900">
-                                      {col.display_name || col.field_name}
-                                    </span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {screenMatrix.length === 0 && mainScreenId && (
+        {isEdit && loadingExistingSections && (
           <div className="mt-6 p-8 border rounded-lg bg-gray-50 text-center text-gray-500">
-            {t("admin.user_screen_permission.no_screens")}
+            {t("admin.user_screen_permission.loading_message")}
           </div>
         )}
 
-        {mainScreenId && (
-          <div className="mt-6">
-            <Label>{t("common.description")}</Label>
-            <Input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={t("common.description_optional")}
-            />
+        {!(isEdit && loadingExistingSections) && mainScreenIds.length === 0 && (
+          <div className="mt-6 grid md:grid-cols-3 gap-6">
+            <div>
+              <Label>{t("admin.nav.main_screen")} *</Label>
+              <Select
+                value={addSectionValue}
+                onValueChange={handleAddSection}
+                disabled={!hasProjectScope}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={t("common.select_item_placeholder", {
+                      item: t("admin.nav.main_screen"),
+                    })}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {mainScreens.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {capitalize(opt.label)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
+        {!(isEdit && loadingExistingSections) && mainScreenIds.map((id) => (
+          <PermissionSection
+            key={id}
+            mainScreenId={id}
+            mainScreenLabel={
+              mainScreens.find((opt) => opt.value === id)?.label
+                ? capitalize(mainScreens.find((opt) => opt.value === id)!.label)
+                : id
+            }
+            permissionType={permissionType}
+            companyId={effectiveCompanyId}
+            projectId={effectiveProjectId}
+            hasScope={hasProjectScope}
+            allUserScreens={allUserScreens}
+            actions={actions}
+            canRemove
+            onRemove={() => handleRemoveSection(id)}
+            onDataChange={handleSectionDataChange}
+            onAccessDenied={handleAccessDenied}
+          />
+        ))}
+
+        {!(isEdit && loadingExistingSections) && mainScreenIds.length > 0 && (
+          <div className="mt-6 grid md:grid-cols-3 gap-6">
+            <div>
+              <Label>{t("admin.user_screen_permission.add_another_main_screen")}</Label>
+              <Select
+                value={addSectionValue}
+                onValueChange={handleAddSection}
+                disabled={!hasProjectScope || availableMainScreens.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      availableMainScreens.length === 0
+                        ? t("admin.user_screen_permission.all_main_screens_added")
+                        : t("common.select_item_placeholder", {
+                            item: t("admin.nav.main_screen"),
+                          })
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableMainScreens.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {capitalize(opt.label)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         )}
 
@@ -1212,7 +639,10 @@ export default function UserScreenPermissionForm() {
           <Button
             type="submit"
             disabled={
-              loading || !companyUniqueId || !staffUserTypeId || !mainScreenId
+              loading ||
+              !hasProjectScope ||
+              mainScreenIds.length === 0 ||
+              (isEdit && loadingExistingSections)
             }
           >
             {loading
@@ -1224,7 +654,7 @@ export default function UserScreenPermissionForm() {
           <Button
             type="button"
             variant="destructive"
-            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_LIST_PATH)}
           >
             {t("common.cancel")}
           </Button>

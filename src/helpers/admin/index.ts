@@ -77,6 +77,7 @@ export const staffTemplateApi = adminApi.staffTemplateCreation;
 export const alternativeStaffTemplateApi = adminApi.alternativeStaffTemplate;
 export const supervisorZoneMapApi = adminApi.supervisorZoneMap;
 export const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
+export const staffAccessConfigurationApi = adminApi.staffAccessConfiguration;
 
 /* =========================
    PROCESS

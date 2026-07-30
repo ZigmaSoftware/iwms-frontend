@@ -128,6 +128,8 @@ import UserScreenList from "@/pages/admin/modules/admin/userScreen/userScreenLis
 import UserScreenForm from "@/pages/admin/modules/admin/userScreen/userScreenForm";
 import UserScreenPermissionForm from "@/pages/admin/modules/admin/userScreenPermission/userScreenPermissionForm";
 import UserScreenPermissionList from "@/pages/admin/modules/admin/userScreenPermission/userScreenPermissionList";
+import StaffAccessConfigList from "@/pages/admin/modules/admin/staffAccessConfiguration/StaffAccessConfigList";
+import StaffAccessConfigForm from "@/pages/admin/modules/admin/staffAccessConfiguration/StaffAccessConfigForm";
 import StaffTemplateList from "@/pages/admin/modules/staffMasters/staffTemplate/staffTemplateList";
 import StaffTemplateForm from "@/pages/admin/modules/staffMasters/staffTemplate/staffTemplateForm";
 import AlternativeStaffTemplateList from "@/pages/admin/modules/staffMasters/alternativeStaffTemplate/alternativeStaffTemplateList";
@@ -177,7 +179,8 @@ const ROUTES: RouteMap = {
     "userscreen-action": {list:UserScreenActionList, form: UserScreenActionForm },
     "mainscreens": {list: MainScreenList, form: MainScreenForm},
     "userscreens": {list: UserScreenList, form: UserScreenForm},
-    "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm}
+    "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm},
+    "staff-access-configuration": { list: StaffAccessConfigList, form: StaffAccessConfigForm },
   },
   "superadmin-masters": {
     "company-creation": { list: CompanyList, form: CompanyListForm },

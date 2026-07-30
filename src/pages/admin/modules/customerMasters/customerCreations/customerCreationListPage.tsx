@@ -18,6 +18,7 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
@@ -25,10 +26,13 @@ import { customerCreationApi } from "@/helpers/admin";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import {
   excelFileToCsvFile,
+  exportRecordsToExcel,
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
+import { createCustomerQrPdfBlob, downloadCustomerQrPdf } from "./customerQrPdf";
+import { downloadAllCustomersPdf } from "./customerAllDetailsPdf";
 
 
 const normalizeId = (value: unknown): string =>
@@ -44,6 +48,7 @@ const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   city_name: ["city_id", "city_name"],
   state_name: ["state_id", "state_name"],
   panchayat_name: ["panchayat_id", "panchayat_name"],
+  waste_types: ["waste_type_ids", "waste_types", "waste_type"],
   qr_code: ["qr_code"],
   is_active: ["is_active"],
 };
@@ -59,6 +64,9 @@ const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   { field: "pincode", header: "pincode", sample: "600040" },
   { field: "latitude", header: "latitude", sample: "13.0827" },
   { field: "longitude", header: "longitude", sample: "80.2707" },
+  { field: "sqft", header: "sqft", sample: "1200" },
+  { field: "water_consumption_lpd", header: "water_consumption_lpd", sample: "200" },
+  { field: "waste_collection_kg_per_day", header: "waste_collection_kg_per_day", sample: "5" },
   { field: "ward_name", header: "ward_name", sample: "Ward 10" },
   { field: "zone_name", header: "zone_name", sample: "North Zone" },
   { field: "city_name", header: "city_name", required: true, sample: "Chennai" },
@@ -67,6 +75,8 @@ const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   { field: "country_name", header: "country_name", required: true, sample: "India" },
   { field: "property_name", header: "property_name", required: true, sample: "Residential" },
   { field: "sub_property_name", header: "sub_property_name", required: true, sample: "Apartment" },
+  { field: "waste_type_ids", header: "waste_type_ids", sample: "WST-001,WST-002" },
+  { field: "member_count", header: "member_count", sample: "4" },
   { field: "apartment_name", header: "apartment_name", sample: "Sunrise Apt" },
   { field: "block_no", header: "block_no", sample: "A" },
   { field: "flat_no", header: "flat_no", sample: "101" },
@@ -86,6 +96,11 @@ export default function CustomerCreationListPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
+  const [selectedQrCustomer, setSelectedQrCustomer] = useState<Customer | null>(null);
+  const [isPrintingQr, setIsPrintingQr] = useState(false);
+  const [isPreviewingQr, setIsPreviewingQr] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
@@ -230,6 +245,61 @@ export default function CustomerCreationListPage() {
     }
   };
 
+  const filteredExportRows = (): Customer[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    if (!search) return customers;
+    return customers.filter((customer) =>
+      [
+        customer.customer_name,
+        customer.contact_no,
+        customer.apartment_name,
+        customer.block_no,
+        customer.flat_no,
+        customer.ward_name,
+        customer.zone_name,
+        customer.city_name,
+        customer.company_name,
+        customer.project_name,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search))
+    );
+  };
+
+  const handleDownloadExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = filteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No customers to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Customers");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    setIsExportingPdf(true);
+    try {
+      const rows = filteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No customers to export", "warning");
+        return;
+      }
+      await downloadAllCustomersPdf(rows);
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to generate the customers PDF.",
+      });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   const header = (
     <div className="flex justify-between items-center">
       <div className="flex items-center gap-3 px-3 py-2">
@@ -253,35 +323,41 @@ export default function CustomerCreationListPage() {
           disabled={!companyUniqueId || !projectId || isUploading}
           onClick={() => document.getElementById("excelUpload")?.click()}
         />
+        <Button
+          label={isExportingExcel ? "Downloading..." : "Download Excel"}
+          icon="pi pi-file-excel"
+          className="p-button-outlined"
+          disabled={isExportingExcel}
+          onClick={handleDownloadExcel}
+        />
+        <Button
+          label={isExportingPdf ? "Preparing..." : "Download PDF"}
+          icon="pi pi-file-pdf"
+          className="p-button-outlined"
+          disabled={isExportingPdf}
+          onClick={handleDownloadPdf}
+        />
       </div>
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.customer_creation.search_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-        <input
-          id="excelUpload"
-          type="file"
-          accept=".xlsx,.xls"
-          hidden
-          onChange={handleFileUpload}
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
+          <i className="pi pi-search text-gray-500" />
+          <InputText
+            value={globalFilterValue}
+            onChange={onGlobalFilterChange}
+            placeholder={t("admin.customer_creation.search_placeholder")}
+            className="p-inputtext-sm !border-0 !shadow-none"
+          />
+          <input
+            id="excelUpload"
+            type="file"
+            accept=".xlsx,.xls"
+            hidden
+            onChange={handleFileUpload}
+          />
+        </div>
       </div>
     </div>
   );
-
-  const openQrPopup = (qrUrl: string) => {
-    Swal.fire({
-      title: t("admin.customer_creation.qr_title"),
-      html: `<div class="flex justify-center">
-              <img src="${qrUrl}" style="width:200px;height:200px;" />
-            </div>`,
-      width: 350,
-    });
-  };
 
   const qrTemplate = (customer: Customer) => {
     if (!customer.qr_code) {
@@ -290,11 +366,61 @@ export default function CustomerCreationListPage() {
     return (
       <button
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
-        onClick={() => openQrPopup(customer.qr_code!)}
+        onClick={() => setSelectedQrCustomer(customer)}
       >
         <img src={customer.qr_code} alt="QR" className="w-12 h-12 object-contain" />
       </button>
     );
+  };
+
+  const handlePreviewQr = async () => {
+    if (!selectedQrCustomer) return;
+
+    const previewWindow = window.open("", "_blank");
+    if (!previewWindow) {
+      Swal.fire({
+        icon: "warning",
+        title: "Preview blocked",
+        text: "Please allow pop-ups for this site to preview the PDF.",
+      });
+      return;
+    }
+
+    previewWindow.document.title = "Preparing customer QR PDF";
+    previewWindow.document.body.innerHTML =
+      '<p style="font-family:Arial,sans-serif;padding:24px;color:#475569">Preparing PDF preview…</p>';
+    setIsPreviewingQr(true);
+    try {
+      const pdfBlob = await createCustomerQrPdfBlob(selectedQrCustomer);
+      const previewUrl = URL.createObjectURL(pdfBlob);
+      previewWindow.location.replace(previewUrl);
+      window.setTimeout(() => URL.revokeObjectURL(previewUrl), 300_000);
+    } catch (error) {
+      previewWindow.close();
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to preview the customer QR PDF.",
+      });
+    } finally {
+      setIsPreviewingQr(false);
+    }
+  };
+
+  const handlePrintQr = async () => {
+    if (!selectedQrCustomer) return;
+    setIsPrintingQr(true);
+    try {
+      await downloadCustomerQrPdf(selectedQrCustomer);
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to generate the customer QR PDF.",
+      });
+    } finally {
+      setIsPrintingQr(false);
+    }
   };
 
   const statusTemplate = (row: Customer) => {
@@ -353,6 +479,7 @@ export default function CustomerCreationListPage() {
     options.rowIndex + 1;
 
   return (
+    <>
     <div className="p-3 ">
       <div className="flex justify-between items-center mb-6">
         <div>
@@ -398,6 +525,7 @@ export default function CustomerCreationListPage() {
       <DataTable
         value={customers}
         bulkImportable={false}
+        exportable={false}
         dataKey="unique_id"
         paginator
         rows={10}
@@ -407,7 +535,7 @@ export default function CustomerCreationListPage() {
         globalFilterFields={[
           "customer_name", "contact_no", "apartment_name",
           "block_no", "flat_no", "ward_name", "zone_name",
-          "city_name", "company_name", "project_name",
+          "city_name", "company_name", "project_name", "waste_types",
         ]}
         header={header}
         emptyMessage={t("admin.customer_creation.empty_message")}
@@ -459,6 +587,17 @@ export default function CustomerCreationListPage() {
             sortable
           />
         )}
+        {showCol("waste_types") && (
+          <Column
+            field="waste_types"
+            header={t("common.waste_type")}
+            body={(row: Customer) =>
+              row.waste_types?.length
+                ? row.waste_types.map((wasteType) => wasteType.waste_type_name).join(", ")
+                : "-"
+            }
+          />
+        )}
         {showCol("qr_code") && (
           <Column header={t("admin.customer_creation.qr_label")} body={qrTemplate} style={{ width: "100px" }} />
         )}
@@ -468,5 +607,45 @@ export default function CustomerCreationListPage() {
         <Column header={t("common.actions")} body={actionTemplate} style={{ textAlign: "center" }} />
       </DataTable>
     </div>
+    <Dialog
+      open={Boolean(selectedQrCustomer)}
+      onOpenChange={(open) => !open && setSelectedQrCustomer(null)}
+    >
+      <DialogContent className="w-auto max-w-[90vw] p-4">
+        <DialogTitle className="sr-only">{t("admin.customer_creation.qr_title")}</DialogTitle>
+        {selectedQrCustomer?.qr_code && (
+          <div className="flex flex-col items-center gap-4">
+            <img
+              src={selectedQrCustomer.qr_code}
+              alt={t("admin.customer_creation.qr_title")}
+              className="h-auto w-[min(75vw,320px)] object-contain"
+            />
+            <div className="text-center">
+              <p className="font-semibold text-gray-800">{selectedQrCustomer.customer_name}</p>
+              <p className="text-sm text-gray-500">{selectedQrCustomer.unique_id}</p>
+            </div>
+            <div className="flex w-full gap-2">
+              <Button
+                label={isPreviewingQr ? "Preparing..." : "Preview"}
+                icon="pi pi-eye"
+                loading={isPreviewingQr}
+                disabled={isPreviewingQr || isPrintingQr}
+                onClick={handlePreviewQr}
+                className="flex-1 p-button-outlined"
+              />
+              <Button
+                label={isPrintingQr ? "Preparing..." : "Print"}
+                icon="pi pi-print"
+                loading={isPrintingQr}
+                disabled={isPrintingQr || isPreviewingQr}
+                onClick={handlePrintQr}
+                className="flex-1"
+              />
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

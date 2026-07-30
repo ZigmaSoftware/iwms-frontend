@@ -15,6 +15,7 @@ import {
   stateApi,
   subPropertiesApi,
   wardApi,
+  wasteTypeApi,
   zoneApi,
 } from "@/helpers/admin";
 
@@ -48,6 +49,16 @@ const normalizeEntityId = (value: unknown): string => {
   return String(value).trim();
 };
 
+const BULK_WASTE_SQFT_THRESHOLD = 20000;
+const BULK_WASTE_WATER_LPD_THRESHOLD = 40000;
+const BULK_WASTE_COLLECTION_KG_THRESHOLD = 100;
+const RESIDENTIAL_WASTE_KEYWORDS = ["dry", "wet", "mixed", "sanitary"];
+const RESIDENTIAL_PROPERTY_KEYWORDS = ["residential", "residental"];
+const RESIDENTIAL_SUB_PROPERTY_KEYWORDS = ["residential", "residental", "individual", "house", "apartment", "villa", "townhouse"];
+const isResidentialName = (value: string) =>
+  RESIDENTIAL_PROPERTY_KEYWORDS.some((keyword) => value.includes(keyword)) ||
+  RESIDENTIAL_SUB_PROPERTY_KEYWORDS.some((keyword) => value.includes(keyword));
+
 const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   customer_name: ["customer_name", "name"],
   contact_no: ["contact_no", "mobile"],
@@ -61,10 +72,15 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   latitude: ["latitude"],
   longitude: ["longitude"],
   sqft: ["sqft"],
+  water_consumption_lpd: ["water_consumption_lpd"],
+  waste_collection_kg_per_day: ["waste_collection_kg_per_day"],
   property_id: ["property_id", "property"],
   sub_property_id: ["sub_property_id", "sub_property"],
+  waste_type_ids: ["waste_type_ids", "waste_types", "waste_type"],
   id_proof_type: ["id_proof_type"],
   id_no: ["id_no"],
+  member_count: ["member_count"],
+  family_members: ["family_members"],
   country_id: ["country_id", "country"],
   state_id: ["state_id", "state"],
   district_id: ["district_id", "district"],
@@ -239,31 +255,49 @@ const PasswordInput = ({
    STEP 1: PROPERTY SELECTION COMPONENT
 ================================ */
 const PropertySelectionStep = ({
+  companies,
+  projects,
+  companyUniqueId,
+  projectId,
   properties,
   subProperties,
   selectedProperty,
   selectedSubProperty,
+  onCompanyChange,
+  onProjectChange,
   onPropertyChange,
   onSubPropertyChange,
   onNext,
   showField,
   t,
+  isSuperAdmin,
+  loggedInCompanyUniqueId,
 }: {
+  companies: Option[];
+  projects: Option[];
+  companyUniqueId: string;
+  projectId: string;
   properties: any[];
   subProperties: any[];
   selectedProperty: string;
   selectedSubProperty: string;
+  onCompanyChange: (v: string) => void;
+  onProjectChange: (v: string) => void;
   onPropertyChange: (v: string) => void;
   onSubPropertyChange: (v: string) => void;
   onNext: () => void;
   showField: (fieldKey: string) => boolean;
   t: any;
+  isSuperAdmin: boolean;
+  loggedInCompanyUniqueId?: string | null;
 }) => {
   const filteredSubProps = subProperties.filter(
     (sp: any) => !selectedProperty || normalizeEntityId(sp.property_id ?? sp.property) === selectedProperty
   );
 
   const isStepComplete =
+    Boolean(companyUniqueId) &&
+    Boolean(projectId) &&
     (!showField("property_id") || selectedProperty) &&
     (!showField("sub_property_id") || selectedSubProperty);
 
@@ -277,6 +311,24 @@ const PropertySelectionStep = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <ShadcnSelect
+            label={t("admin.nav.company") || "Company"}
+            value={companyUniqueId}
+            onChange={onCompanyChange}
+            options={companies}
+            placeholder={t("admin.nav.company_placeholder") || "Select company"}
+            isRequired={true}
+            disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId)}
+          />
+          <ShadcnSelect
+            label={t("admin.nav.project") || "Project"}
+            value={projectId}
+            onChange={onProjectChange}
+            options={projects}
+            placeholder={t("admin.nav.project_placeholder") || "Select project"}
+            isRequired={true}
+            disabled={!companyUniqueId || projects.length === 0}
+          />
           {showField("property_id") && (
             <ShadcnSelect
               label={t("admin.customer_creation.property") || "Property"}
@@ -508,10 +560,15 @@ export default function CustomerCreationForm() {
     latitude: "",
     longitude: "",
     sqft: "",
+    water_consumption_lpd: "",
+    waste_collection_kg_per_day: "",
     property_id: "",
     sub_property_id: "",
+    waste_type_ids: [],
     id_proof_type: "",
     id_no: "",
+    member_count: "",
+    family_members: [],
     country_id: "",
     state_id: "",
     district_id: "",
@@ -554,6 +611,78 @@ export default function CustomerCreationForm() {
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
+  const clearScopedCustomerFields = () => {
+    setFormData((prev) => ({
+      ...prev,
+      property_id: "",
+      sub_property_id: "",
+      country_id: "",
+      state_id: "",
+      district_id: "",
+      city_id: "",
+      zone_id: "",
+      ward_id: "",
+      panchayat_id: "",
+      waste_type_ids: [],
+    }));
+  };
+
+  const handleCompanyScopeChange = (value: string) => {
+    onCompanyChange(value);
+    clearScopedCustomerFields();
+  };
+
+  const handleProjectScopeChange = (value: string) => {
+    setProjectId(value);
+    clearScopedCustomerFields();
+  };
+
+  const updateFamilyMember = (
+    index: number,
+    key: "member_name" | "id_proof_type" | "id_no",
+    value: string,
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      family_members: prev.family_members.map((member, memberIndex) =>
+        memberIndex === index ? { ...member, [key]: value } : member
+      ),
+    }));
+  };
+
+  const removeFamilyMember = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      family_members: prev.family_members.filter((_, memberIndex) => memberIndex !== index),
+    }));
+  };
+
+  const addFamilyMember = () => {
+    setFormData((prev) => {
+      const maxCount = Number.parseInt(prev.member_count || "0", 10);
+      if (!isNaN(maxCount) && prev.family_members.length >= maxCount) return prev;
+      return {
+        ...prev,
+        family_members: [...prev.family_members, { member_name: "", id_proof_type: "", id_no: "" }],
+      };
+    });
+  };
+
+  const syncFamilyMemberCount = (countValue: string) => {
+    const nextCount = Math.max(0, Number.parseInt(countValue || "0", 10) || 0);
+    setFormData((prev) => {
+      const nextMembers = [...prev.family_members];
+      while (nextMembers.length < nextCount) {
+        nextMembers.push({ member_name: "", id_proof_type: "", id_no: "" });
+      }
+      return {
+        ...prev,
+        member_count: countValue,
+        family_members: nextMembers.slice(0, nextCount),
+      };
+    });
+  };
+
   /* resolve a raw API id (integer PK or unique_id) to the option value used in dropdowns */
   const resolveOptionValue = (items: any[], rawId: any, nameField: string, nameValue?: string): string => {
     const strId = String(rawId ?? "").trim();
@@ -584,22 +713,42 @@ export default function CustomerCreationForm() {
   const [rawProperties, setRawProperties] = useState<any[]>([]);
   const [rawSubProperties, setRawSubProperties] = useState<any[]>([]);
   const [rawPanchayats, setRawPanchayats] = useState<any[]>([]);
+  const [rawWasteTypes, setRawWasteTypes] = useState<any[]>([]);
 
   useEffect(() => {
     let cancelled = false;
+    setDropdownsLoaded(false);
+
+    if (!companyUniqueId || !projectId) {
+      setRawWards([]);
+      setRawZones([]);
+      setRawCities([]);
+      setRawDistricts([]);
+      setRawStates([]);
+      setRawCountries([]);
+      setRawProperties([]);
+      setRawSubProperties([]);
+      setRawPanchayats([]);
+      setRawWasteTypes([]);
+      setDropdownsLoaded(true);
+      return () => { cancelled = true; };
+    }
+
+    const scopeParams = { company_id: companyUniqueId, project_id: projectId };
 
     Promise.all([
-      wardApi.readAll(),
-      zoneApi.readAll(),
-      cityApi.readAll(),
-      districtApi.readAll(),
-      stateApi.readAll(),
-      countryApi.readAll(),
-      propertiesApi.readAll(),
-      subPropertiesApi.readAll(),
-      panchayatApi.readAll(),
+      wardApi.readAll({ params: scopeParams }),
+      zoneApi.readAll({ params: scopeParams }),
+      cityApi.readAll({ params: scopeParams }),
+      districtApi.readAll({ params: scopeParams }),
+      stateApi.readAll({ params: scopeParams }),
+      countryApi.readAll({ params: scopeParams }),
+      propertiesApi.readAll({ params: scopeParams }),
+      subPropertiesApi.readAll({ params: scopeParams }),
+      panchayatApi.readAll({ params: scopeParams }),
+      wasteTypeApi.readAll({ params: scopeParams }),
     ])
-      .then(([wards, zones, cities, districts, states, countries, properties, subProperties, panchayats]) => {
+      .then(([wards, zones, cities, districts, states, countries, properties, subProperties, panchayats, wasteTypes]) => {
         if (cancelled) return;
         setRawWards(Array.isArray(wards) ? wards : (wards as any)?.results ?? []);
         setRawZones(Array.isArray(zones) ? zones : (zones as any)?.results ?? []);
@@ -610,6 +759,7 @@ export default function CustomerCreationForm() {
         setRawProperties(Array.isArray(properties) ? properties : (properties as any)?.results ?? []);
         setRawSubProperties(Array.isArray(subProperties) ? subProperties : (subProperties as any)?.results ?? []);
         setRawPanchayats(Array.isArray(panchayats) ? panchayats : (panchayats as any)?.results ?? []);
+        setRawWasteTypes(Array.isArray(wasteTypes) ? wasteTypes : (wasteTypes as any)?.results ?? []);
         setDropdownsLoaded(true);
       })
       .catch((err) => {
@@ -619,7 +769,7 @@ export default function CustomerCreationForm() {
       });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [companyUniqueId, projectId]);
 
   const dropdowns = useMemo(
     () => ({
@@ -632,8 +782,9 @@ export default function CustomerCreationForm() {
       properties: normalize(rawProperties),
       subProperties: normalize(rawSubProperties),
       panchayats: normalize(rawPanchayats),
+      wasteTypes: normalize(rawWasteTypes),
     }),
-    [rawWards, rawZones, rawCities, rawDistricts, rawStates, rawCountries, rawProperties, rawSubProperties, rawPanchayats]
+    [rawWards, rawZones, rawCities, rawDistricts, rawStates, rawCountries, rawProperties, rawSubProperties, rawPanchayats, rawWasteTypes]
   );
 
   /* ===============================
@@ -691,7 +842,7 @@ export default function CustomerCreationForm() {
       contact_no: String(data.contact_no ?? ""),
       username: String(data.username ?? ""),
       email: String(data.email ?? ""),
-      password: "",
+      password: String(data.password ?? ""),
       building_no: String(data.building_no ?? ""),
       street: String(data.street ?? ""),
       area: String(data.area ?? ""),
@@ -699,10 +850,19 @@ export default function CustomerCreationForm() {
       latitude: String(data.latitude ?? ""),
       longitude: String(data.longitude ?? ""),
       sqft: String(data.sqft ?? ""),
+      water_consumption_lpd: String(data.water_consumption_lpd ?? ""),
+      waste_collection_kg_per_day: String(data.waste_collection_kg_per_day ?? ""),
       property_id: propertyId,
       sub_property_id: subPropertyId,
+      waste_type_ids: Array.isArray(data.waste_type_ids)
+        ? data.waste_type_ids.map((item: unknown) => normalizeEntityId(item)).filter(Boolean)
+        : Array.isArray(data.waste_types)
+          ? data.waste_types.map((item: unknown) => normalizeEntityId(item)).filter(Boolean)
+          : [],
       id_proof_type: String(data.id_proof_type ?? ""),
       id_no: String(data.id_no ?? ""),
+      member_count: String(data.member_count ?? ""),
+      family_members: Array.isArray(data.family_members) ? data.family_members : [],
       country_id: countryId,
       state_id: stateId,
       district_id: districtId,
@@ -798,15 +958,69 @@ export default function CustomerCreationForm() {
     [formData.sub_property_id, dropdowns.subProperties]
   );
 
+  const selectedPropertyRecord = useMemo(
+    () => dropdowns.properties.find((property: any) => resolveId(property) === formData.property_id),
+    [formData.property_id, dropdowns.properties]
+  );
+
   const subName = selectedSubProperty?.sub_property_name?.toLowerCase() || "";
   const isIndividual = subName.includes("individual") || subName.includes("house");
   const isApartment = subName.includes("apartment");
   const isVilla = subName.includes("villa");
   const isIndustry = subName.includes("industry");
+  const propertyName = [
+    selectedPropertyRecord?.property_name,
+    selectedPropertyRecord?.name,
+    selectedSubProperty?.property_name,
+    selectedSubProperty?.property?.property_name,
+    selectedSubProperty?.property_id?.property_name,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const isResidentialProperty = !isIndustry && isResidentialName(`${propertyName} ${subName}`);
+  const visibleWasteTypes = useMemo(
+    () =>
+      dropdowns.wasteTypes.filter((wasteType: any) => {
+        if (!isResidentialProperty) return true;
+        const wasteTypeName = String(wasteType.waste_type_name ?? wasteType.name ?? "").toLowerCase();
+        if (wasteTypeName.includes("organic")) return false;
+        return RESIDENTIAL_WASTE_KEYWORDS.some((keyword) => wasteTypeName.includes(keyword));
+      }),
+    [dropdowns.wasteTypes, isResidentialProperty]
+  );
+  const isBulkWasteThresholdMatched = useMemo(() => {
+    const sqft = Number(formData.sqft || 0);
+    const waterConsumption = Number(formData.water_consumption_lpd || 0);
+    const wasteCollection = Number(formData.waste_collection_kg_per_day || 0);
+    return (
+      sqft > BULK_WASTE_SQFT_THRESHOLD ||
+      waterConsumption > BULK_WASTE_WATER_LPD_THRESHOLD ||
+      wasteCollection > BULK_WASTE_COLLECTION_KG_THRESHOLD
+    );
+  }, [formData.sqft, formData.water_consumption_lpd, formData.waste_collection_kg_per_day]);
+
   // const zoneOrWardSelected  = Boolean(formData.zone_id || formData.ward_id);
   // const panchayatSelected   = Boolean(formData.panchayat_id);
   const isPanchayatSelected = Boolean(formData.panchayat_id);
   const isZoneSelected = Boolean(formData.zone_id);
+
+  useEffect(() => {
+    if (!isResidentialProperty) return;
+    const allowedWasteTypeIds = new Set(visibleWasteTypes.map((wasteType: any) => resolveId(wasteType)));
+    setFormData((prev) => {
+      const filteredWasteTypeIds = prev.waste_type_ids.filter((wasteTypeId) => allowedWasteTypeIds.has(wasteTypeId));
+      if (filteredWasteTypeIds.length === prev.waste_type_ids.length) return prev;
+      return { ...prev, waste_type_ids: filteredWasteTypeIds };
+    });
+  }, [isResidentialProperty, visibleWasteTypes]);
+
+  useEffect(() => {
+    setFormData((prev) => {
+      if (prev.is_bulkwaste_generator === isBulkWasteThresholdMatched) return prev;
+      return { ...prev, is_bulkwaste_generator: isBulkWasteThresholdMatched };
+    });
+  }, [isBulkWasteThresholdMatched]);
 
   /* ===============================
      VALIDATION
@@ -893,6 +1107,16 @@ export default function CustomerCreationForm() {
       return false;
     }
 
+    for (const [label, rawValue] of [
+      ["Water Consumption", formData.water_consumption_lpd],
+      ["Waste Collection", formData.waste_collection_kg_per_day],
+    ] as const) {
+      if (rawValue && Number.parseFloat(rawValue) < 0) {
+        Swal.fire(`Invalid ${label}`, "Please enter a positive value", "warning");
+        return false;
+      }
+    }
+
     return true;
   };
 
@@ -911,6 +1135,11 @@ export default function CustomerCreationForm() {
       latitude: showField("latitude") ? String(parseFloat(formData.latitude)) : formData.latitude,
       longitude: showField("longitude") ? String(parseFloat(formData.longitude)) : formData.longitude,
       sqft: showField("sqft") ? String(parseFloat(formData.sqft)) : formData.sqft,
+      water_consumption_lpd: formData.water_consumption_lpd ? String(parseFloat(formData.water_consumption_lpd)) : null,
+      waste_collection_kg_per_day: formData.waste_collection_kg_per_day ? String(parseFloat(formData.waste_collection_kg_per_day)) : null,
+      member_count: formData.member_count ? Number.parseInt(formData.member_count, 10) : null,
+      family_members: formData.family_members,
+      waste_type_ids: formData.waste_type_ids,
       ...(isEdit && !formData.password ? { password: undefined } : {}), // Only include password for new records
     };
     const payload = filterPayload(rawPayload, ["company_id", "project_id"]);
@@ -945,10 +1174,16 @@ export default function CustomerCreationForm() {
   if (step === 0) {
     return (
       <PropertySelectionStep
+        companies={companies}
+        projects={projects}
+        companyUniqueId={companyUniqueId}
+        projectId={projectId}
         properties={dropdowns.properties}
         subProperties={dropdowns.subProperties}
         selectedProperty={formData.property_id}
         selectedSubProperty={formData.sub_property_id}
+        onCompanyChange={handleCompanyScopeChange}
+        onProjectChange={handleProjectScopeChange}
         onPropertyChange={(v: string) => {
           update("property_id", v);
           update("sub_property_id", "");
@@ -957,6 +1192,8 @@ export default function CustomerCreationForm() {
         onNext={() => setStep(1)}
         showField={showField}
         t={t}
+        isSuperAdmin={isSuperAdmin}
+        loggedInCompanyUniqueId={loggedInCompanyUniqueId}
       />
     );
   }
@@ -988,6 +1225,26 @@ export default function CustomerCreationForm() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        <FormSection title={t("admin.customer_creation.company_project_info") || "Company & Project Information"}>
+          <ShadcnSelect
+            label={t("admin.nav.company") || "Company"}
+            value={companyUniqueId}
+            onChange={handleCompanyScopeChange}
+            options={companies}
+            placeholder={t("admin.nav.company_placeholder") || "Select company"}
+            isRequired={true}
+            disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId)}
+          />
+          <ShadcnSelect
+            label={t("admin.nav.project") || "Project"}
+            value={projectId}
+            onChange={handleProjectScopeChange}
+            options={projects}
+            placeholder={t("admin.nav.project_placeholder") || "Select project"}
+            isRequired={true}
+            disabled={!companyUniqueId || projects.length === 0}
+          />
+        </FormSection>
 
         <FormSection title={t("admin.customer_creation.personal_info") || "Personal Information"}>
           {showField("customer_name") && (
@@ -1029,7 +1286,7 @@ export default function CustomerCreationForm() {
             />
           )}
 
-          {showField("password") && (
+          {(showField("password") || isEdit) && (
             <PasswordInput
               label={t("login.password") || "Password"}
               value={formData.password}
@@ -1083,7 +1340,7 @@ export default function CustomerCreationForm() {
           )}
         </FormSection>
 
-        <FormSection title={t("admin.customer_creation.address_info") || "Address Information"}>
+        <FormSection title={t("admin.customer_creation.address_info") || "Address & Location Information"}>
           {/* INDIVIDUAL HOUSE */}
           {isIndividual && (
             <>
@@ -1243,119 +1500,6 @@ export default function CustomerCreationForm() {
               step="0.0001"
             />
           )}
-        </FormSection>
-
-        <FormSection title={t("admin.customer_creation.property_info") || "Property Information"}>
-          {/* Display selected property and sub-property (read-only in form step) */}
-          {!isEdit && (showField("property_id") || showField("sub_property_id")) && (
-            <div className="md:col-span-3 bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  {showField("property_id") && (
-                    <p className="text-sm text-gray-600">
-                      {t("admin.customer_creation.selected_property") || "Selected Property"}:{" "}
-                      <span className="font-semibold text-gray-800">
-                        {dropdowns.properties.find((p: any) => resolveId(p) === formData.property_id)?.property_name || "-"}
-                      </span>
-                    </p>
-                  )}
-                  {showField("sub_property_id") && (
-                    <p className="text-sm text-gray-600">
-                      {t("admin.customer_creation.selected_sub_property") || "Selected Sub-Property"}:{" "}
-                      <span className="font-semibold text-gray-800">
-                        {dropdowns.subProperties.find((sp: any) => resolveId(sp) === formData.sub_property_id)?.sub_property_name || "-"}
-                      </span>
-                    </p>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setStep(0)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium transition"
-                >
-                  {t("common.change") || "Change"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {showField("sqft") && (
-            <FormInput
-              label={t("admin.customer_creation.sqft") || "Square Feet (Sqft)"}
-              value={formData.sqft}
-              onChange={(e) => update("sqft", e.target.value)}
-              placeholder="e.g., 1200.50"
-              type="number"
-              step="0.01"
-            />
-          )}
-          {showField("is_bulkwaste_generator") && (
-            <ShadcnSelect
-              label={tOrFallback("admin.customer_creation.bulk_waste_generator", "Bulk Waste Generator")}
-              value={formData.is_bulkwaste_generator ? "true" : "false"}
-              onChange={(v: string) => update("is_bulkwaste_generator", v === "true")}
-              options={[
-                { value: "true", label: tOrFallback("common.yes", "Yes") },
-                { value: "false", label: tOrFallback("common.no", "No") },
-              ]}
-              placeholder={tOrFallback("admin.customer_creation.bulk_waste_generator_placeholder", "Select option")}
-              isRequired={false}
-            />
-          )}
-        </FormSection>
-
-        <FormSection title={t("admin.customer_creation.identification") || "Identification"}>
-          {showField("id_proof_type") && (
-            <ShadcnSelect
-              label={t("admin.customer_creation.id_proof_type") || "ID Proof Type"}
-              value={formData.id_proof_type}
-              onChange={(v: string) => update("id_proof_type", v)}
-              options={[
-                { value: "AADHAAR", label: t("admin.customer_creation.id_proof_aadhaar") || "Aadhaar" },
-                { value: "VOTER_ID", label: t("admin.customer_creation.id_proof_voter") || "Voter ID" },
-                { value: "PAN_CARD", label: t("admin.customer_creation.id_proof_pan") || "PAN Card" },
-                { value: "DL", label: t("admin.customer_creation.id_proof_dl") || "Driving License" },
-                { value: "PASSPORT", label: t("admin.customer_creation.id_proof_passport") || "Passport" },
-              ]}
-              placeholder={t("admin.customer_creation.id_proof_placeholder") || "Select ID proof type"}
-            />
-          )}
-          {showField("id_no") && (
-            <div className="md:col-span-2">
-              <FormInput
-                label={t("admin.customer_creation.id_no") || "ID Number"}
-                value={formData.id_no}
-                onChange={(e) => update("id_no", e.target.value)}
-                placeholder="Enter identification number"
-              />
-            </div>
-          )}
-        </FormSection>
-
-        <FormSection title={t("admin.customer_creation.company_project_info") || "Company & Project Information"}>
-          <ShadcnSelect
-            label={t("admin.nav.company") || "Company"}
-            value={companyUniqueId}
-            onChange={(v: string) => {
-              onCompanyChange(v);
-            }}
-            options={companies}
-            placeholder={t("admin.nav.company_placeholder") || "Select company"}
-            isRequired={true}
-            disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId)}
-          />
-          <ShadcnSelect
-            label={t("admin.nav.project") || "Project"}
-            value={projectId}
-            onChange={setProjectId}
-            options={projects}
-            placeholder={t("admin.nav.project_placeholder") || "Select project"}
-            isRequired={true}
-            disabled={!companyUniqueId || projects.length === 0}
-          />
-        </FormSection>
-
-        <FormSection title={t("admin.customer_creation.location_details") || "Location Details"}>
           {showField("country_id") && (
             <ShadcnSelect
               label={t("common.country") || "Country"}
@@ -1430,7 +1574,6 @@ export default function CustomerCreationForm() {
               placeholder={t("common.select_item_placeholder", { item: t("common.city") }) || "Select city"}
             />
           )}
-          {/* ── ZONE — hidden when Panchayat is selected ── */}
           {showField("zone_id") && !isPanchayatSelected && (
             <ShadcnSelect
               label={t("common.zone") || "Zone"}
@@ -1452,8 +1595,6 @@ export default function CustomerCreationForm() {
               isRequired={false}
             />
           )}
-
-          {/* ── PANCHAYAT — hidden when Zone is selected ── */}
           {showField("panchayat_id") && !isZoneSelected && (
             <ShadcnSelect
               label={t("admin.nav.panchayat") || "PLB (Participating Local Bodies)"}
@@ -1477,8 +1618,6 @@ export default function CustomerCreationForm() {
               isRequired={false}
             />
           )}
-
-          {/* ── WARD — shown when Zone or Panchayat is selected ── */}
           {showField("ward_id") && (isPanchayatSelected || Boolean(formData.zone_id)) && (
             <ShadcnSelect
               label={t("common.ward") || "Ward"}
@@ -1498,8 +1637,270 @@ export default function CustomerCreationForm() {
               isRequired={false}
             />
           )}
+        </FormSection>
 
-          
+        <FormSection title={t("admin.customer_creation.property_info") || "Property Information"}>
+          {/* Display selected property and sub-property (read-only in form step) */}
+          {!isEdit && (showField("property_id") || showField("sub_property_id")) && (
+            <div className="md:col-span-3 bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  {showField("property_id") && (
+                    <p className="text-sm text-gray-600">
+                      {t("admin.customer_creation.selected_property") || "Selected Property"}:{" "}
+                      <span className="font-semibold text-gray-800">
+                        {dropdowns.properties.find((p: any) => resolveId(p) === formData.property_id)?.property_name || "-"}
+                      </span>
+                    </p>
+                  )}
+                  {showField("sub_property_id") && (
+                    <p className="text-sm text-gray-600">
+                      {t("admin.customer_creation.selected_sub_property") || "Selected Sub-Property"}:{" "}
+                      <span className="font-semibold text-gray-800">
+                        {dropdowns.subProperties.find((sp: any) => resolveId(sp) === formData.sub_property_id)?.sub_property_name || "-"}
+                      </span>
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStep(0)}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium transition"
+                >
+                  {t("common.change") || "Change"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isEdit && showField("property_id") && (
+            <ShadcnSelect
+              label={t("admin.customer_creation.property") || "Property"}
+              value={formData.property_id}
+              onChange={(v) => {
+                update("property_id", v);
+                update("sub_property_id", "");
+              }}
+              options={dropdowns.properties.map((p: any) => ({
+                value: resolveId(p),
+                label: p.property_name,
+              }))}
+              placeholder={t("common.select_item_placeholder", { item: t("admin.customer_creation.property") }) || "Select property"}
+            />
+          )}
+          {isEdit && showField("sub_property_id") && (
+            <ShadcnSelect
+              label={t("admin.customer_creation.sub_property") || "Sub Property"}
+              value={formData.sub_property_id}
+              onChange={(v) => update("sub_property_id", v)}
+              options={dropdowns.subProperties
+                .filter(
+                  (sp: any) =>
+                    !formData.property_id ||
+                    normalizeEntityId(sp.property_id ?? sp.property) === formData.property_id ||
+                    resolveId(sp) === formData.sub_property_id,
+                )
+                .map((sp: any) => ({
+                  value: resolveId(sp),
+                  label: sp.sub_property_name,
+                }))}
+              placeholder={t("common.select_item_placeholder", { item: t("admin.customer_creation.sub_property") }) || "Select sub property"}
+            />
+          )}
+
+          {showField("sqft") && (
+            <FormInput
+              label={t("admin.customer_creation.sqft") || "Square Feet (Sqft)"}
+              value={formData.sqft}
+              onChange={(e) => update("sqft", e.target.value)}
+              placeholder="e.g., 1200.50"
+              type="number"
+              step="0.01"
+            />
+          )}
+          {showField("water_consumption_lpd") && (
+            <FormInput
+              label="Water Consumption (L/day)"
+              value={formData.water_consumption_lpd}
+              onChange={(e) => update("water_consumption_lpd", e.target.value)}
+              placeholder="e.g., 40000"
+              type="number"
+              step="0.01"
+              isRequired={false}
+            />
+          )}
+          {showField("waste_collection_kg_per_day") && (
+            <FormInput
+              label="Waste Collection (kg/day)"
+              value={formData.waste_collection_kg_per_day}
+              onChange={(e) => update("waste_collection_kg_per_day", e.target.value)}
+              placeholder="e.g., 100"
+              type="number"
+              step="0.01"
+              isRequired={false}
+            />
+          )}
+          {showField("waste_type_ids") && (
+            <div className="space-y-2 md:col-span-3">
+              <Label className="text-sm font-medium text-gray-700">Waste Types</Label>
+              <div className="grid grid-cols-1 gap-2 rounded-md border border-gray-200 p-3 sm:grid-cols-2 lg:grid-cols-4">
+                {visibleWasteTypes.length > 0 ? (
+                  visibleWasteTypes.map((wasteType: any) => {
+                    const value = resolveId(wasteType);
+                    return (
+                      <label key={value} className="flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-blue-600"
+                          checked={formData.waste_type_ids.includes(value)}
+                          onChange={(event) => {
+                            update(
+                              "waste_type_ids",
+                              event.target.checked
+                                ? Array.from(new Set([...formData.waste_type_ids, value]))
+                                : formData.waste_type_ids.filter((item) => item !== value),
+                            );
+                          }}
+                        />
+                        {wasteType.waste_type_name ?? wasteType.name ?? value}
+                      </label>
+                    );
+                  })
+                ) : (
+                  <span className="text-sm text-gray-500">
+                    {isResidentialProperty
+                      ? "Residential property allows only Dry, Wet, Mixed, and Sanitary Waste."
+                      : "No waste types available"}
+                  </span>
+                )}
+              </div>
+              {isResidentialProperty && visibleWasteTypes.length > 0 && (
+                <p className="text-xs text-gray-500">
+                  Residential property allows only Dry, Wet, Mixed, and Sanitary Waste.
+                </p>
+              )}
+            </div>
+          )}
+          {showField("is_bulkwaste_generator") && (
+            <ShadcnSelect
+              label={tOrFallback("admin.customer_creation.bulk_waste_generator", "Bulk Waste Generator")}
+              value={formData.is_bulkwaste_generator ? "true" : "false"}
+              onChange={(v: string) => update("is_bulkwaste_generator", v === "true")}
+              options={[
+                { value: "true", label: tOrFallback("common.yes", "Yes") },
+                { value: "false", label: tOrFallback("common.no", "No") },
+              ]}
+              placeholder={tOrFallback("admin.customer_creation.bulk_waste_generator_placeholder", "Select option")}
+              isRequired={false}
+              disabled={true}
+            />
+          )}
+          <div className="md:col-span-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            Bulk waste generator is auto-enabled when Sqft &gt; 20000, water consumption &gt; 40000 L/day, or waste collection &gt; 100 kg/day.
+          </div>
+        </FormSection>
+
+        <FormSection title={t("admin.customer_creation.identification") || "Identification"}>
+          {showField("id_proof_type") && (
+            <ShadcnSelect
+              label={t("admin.customer_creation.id_proof_type") || "ID Proof Type"}
+              value={formData.id_proof_type}
+              onChange={(v: string) => update("id_proof_type", v)}
+              options={[
+                { value: "AADHAAR", label: t("admin.customer_creation.id_proof_aadhaar") || "Aadhaar" },
+                { value: "VOTER_ID", label: t("admin.customer_creation.id_proof_voter") || "Voter ID" },
+                { value: "PAN_CARD", label: t("admin.customer_creation.id_proof_pan") || "PAN Card" },
+                { value: "DL", label: t("admin.customer_creation.id_proof_dl") || "Driving License" },
+                { value: "PASSPORT", label: t("admin.customer_creation.id_proof_passport") || "Passport" },
+              ]}
+              placeholder={t("admin.customer_creation.id_proof_placeholder") || "Select ID proof type"}
+            />
+          )}
+          {showField("id_no") && (
+            <div className="md:col-span-2">
+              <FormInput
+                label={t("admin.customer_creation.id_no") || "ID Number"}
+                value={formData.id_no}
+                onChange={(e) => update("id_no", e.target.value)}
+                placeholder="Enter identification number"
+              />
+            </div>
+          )}
+          {showField("member_count") && (
+            <FormInput
+              label="Family Member Count"
+              value={formData.member_count}
+              onChange={(e) => syncFamilyMemberCount(e.target.value.replace(/[^0-9]/g, ""))}
+              placeholder="e.g., 4"
+              inputMode="numeric"
+              isRequired={false}
+            />
+          )}
+          {showField("family_members") && (() => {
+            const maxCount = Number.parseInt(formData.member_count || "", 10);
+            const hasMaxCount = !isNaN(maxCount) && maxCount >= 0;
+            const atLimit = hasMaxCount && formData.family_members.length >= maxCount;
+            return (
+            <div className="md:col-span-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium text-gray-700">Family Members ID Proof</Label>
+                <button
+                  type="button"
+                  onClick={addFamilyMember}
+                  disabled={atLimit}
+                  title={atLimit ? "Reached the Family Member Count limit" : undefined}
+                  className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+                >
+                  + Add Member
+                </button>
+              </div>
+              {hasMaxCount && (
+                <p className="text-xs text-gray-500">
+                  {formData.family_members.length}/{maxCount} member(s) added — set Family Member Count above to add more rows.
+                </p>
+              )}
+              {formData.family_members.length === 0 && (
+                <p className="text-sm text-gray-500">No family members added.</p>
+              )}
+              {formData.family_members.map((member, index) => (
+                <div key={index} className="grid grid-cols-1 gap-3 rounded-md border border-gray-200 p-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+                  <Input
+                    value={member.member_name}
+                    onChange={(e) => updateFamilyMember(index, "member_name", e.target.value)}
+                    placeholder={`Member ${index + 1} name`}
+                  />
+                  <Select
+                    value={member.id_proof_type || undefined}
+                    onValueChange={(value) => updateFamilyMember(index, "id_proof_type", value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="ID proof type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="AADHAAR">Aadhaar</SelectItem>
+                      <SelectItem value="VOTER_ID">Voter ID</SelectItem>
+                      <SelectItem value="PAN_CARD">PAN Card</SelectItem>
+                      <SelectItem value="DL">Driving License</SelectItem>
+                      <SelectItem value="PASSPORT">Passport</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={member.id_no}
+                    onChange={(e) => updateFamilyMember(index, "id_no", e.target.value)}
+                    placeholder="ID number"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeFamilyMember(index)}
+                    className="rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            );
+          })()}
         </FormSection>
 
         {showField("is_active") && (

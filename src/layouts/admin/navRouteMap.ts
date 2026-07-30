@@ -63,6 +63,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encUserScreenAction,
     encMainScreen,
     encUserScreenPermission,
+    encStaffAccessConfiguration,
     encStaffMasters,
     encStaffTemplate,
     encAlternativeStaffTemplate,
@@ -145,6 +146,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encStaffMasters}/${encStaffTemplate}`, nameKey: "admin.nav.staff_template", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encAlternativeStaffTemplate}`, nameKey: "admin.nav.alternative_staff_template", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encSupervisorZoneMap}`, nameKey: "admin.nav.supervisor_zone_map", parentNameKey: "admin.nav.user_creations" },
+    { path: `/${encAdmins}/${encStaffAccessConfiguration}`, nameKey: "admin.nav.staff_access_configuration", parentNameKey: "admin.nav.user_creations" },
     // Process Items
     { path: `/${encTransportMaster}/${encZonePropertyLoadTracker}`, nameKey: "admin.nav.zone_property_load_tracker", parentNameKey: "admin.nav.process_items" },
     // Customer Masters
