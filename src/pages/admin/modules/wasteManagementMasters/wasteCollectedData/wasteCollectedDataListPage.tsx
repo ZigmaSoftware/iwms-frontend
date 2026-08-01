@@ -71,6 +71,7 @@ export default function WasteCollectedDataList() {
       city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
       company_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
       project_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      status: { value: null, matchMode: FilterMatchMode.CONTAINS },
     },
   });
 
@@ -259,9 +260,29 @@ export default function WasteCollectedDataList() {
           sortable
         />
         <Column
+          field="sanitary_waste"
+          header={t("admin.waste_collected_data.sanitary_waste", "Sanitary Waste")}
+          sortable
+          body={(row: WasteCollection) => row.sanitary_waste ?? 0}
+        />
+        <Column
           field="total_quantity"
           header={t("admin.waste_collected_data.quantity")}
           sortable
+        />
+        <Column
+          field="collection_date"
+          header={t("admin.waste_collected_data.collection_date", "Collection Date")}
+          sortable
+          body={(row: WasteCollection) => row.collection_date || "-"}
+        />
+        <Column
+          field="status"
+          header={t("common.status")}
+          sortable
+          filter
+          showFilterMatchModes={false}
+          body={(row: WasteCollection) => row.status || "Pending"}
         />
         <Column
           field="zone_name"

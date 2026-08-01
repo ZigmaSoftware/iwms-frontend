@@ -23,6 +23,7 @@ import { stateApi, districtApi, cityApi, panchayatApi, zoneApi, wardApi, collect
 import { adminApi } from "@/helpers/admin/registry";
 import type { SelectOption } from "@/types";
 import type {
+  CollectionPointCollectionType,
   UnknownRecord,
   WardOption,
   WithCityIdOption,
@@ -95,6 +96,11 @@ const toRecordList = (value: unknown): Record<string, unknown>[] => {
 
 const { encScheduleMasters, encCollectionPoints } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encCollectionPoints);
+
+const COLLECTION_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "bin_collection", label: "Secondary Collection Point" },
+  { value: "bulk_waste_collection", label: "Bulk Waste Collection" },
+];
 
 const COLLECTION_POINT_FIELDS: Record<string, string[]> = {
   state_id: ["state_id", "state"],
@@ -182,7 +188,7 @@ export default function CollectionPointForm() {
   const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
     projectUniqueId: string; projectId: string; projectName: string;
   } | null>(null);
-  const [collectionType, setCollectionType] = useState<"bin_collection" | "household_collection">("bin_collection");
+  const [collectionType, setCollectionType] = useState<CollectionPointCollectionType>("bin_collection");
   const [cpName, setCpName] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
@@ -385,7 +391,7 @@ export default function CollectionPointForm() {
         setWardIds(_wardIds);
         setPendingWardIds(_wardIds);
         const recType = toStringOrEmpty(record.collection_type);
-        if (recType === "household_collection") setCollectionType("household_collection");
+        if (recType === "bulk_waste_collection") setCollectionType("bulk_waste_collection");
         else setCollectionType("bin_collection");
         setCpName(toStringOrEmpty(record.cp_name ?? record.collection_point_name));
         setLatitude(toStringOrEmpty(record.latitude));
@@ -894,14 +900,17 @@ export default function CollectionPointForm() {
           <Label>Collection Type *</Label>
           <Select
             value={collectionType}
-            onValueChange={(v) => setCollectionType(v as "bin_collection" | "household_collection")}
+            onValueChange={(v) => setCollectionType(v as CollectionPointCollectionType)}
           >
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="bin_collection">Bin Collection</SelectItem>
-              <SelectItem value="household_collection">Household Collection</SelectItem>
+              {COLLECTION_TYPE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

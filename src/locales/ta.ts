@@ -909,8 +909,6 @@ const taResource = {
           "primary_operator": "ஆபரேட்டர்",
           "extra_staff": "கூடுதல் ஆபரேட்டர்கள்",
           "extra_staff_placeholder": "கமாவால் பிரிக்கப்பட்ட ஆபரேட்டர் ஐடிகள்",
-          "approval_status": "ஒப்புதல் நிலை",
-          "approved_by": "ஒப்புதல் வழங்கியவர்",
           "created_by": "உருவாக்கியவர்",
           "updated_by": "புதுப்பித்தவர்",
           "columns": {
@@ -918,7 +916,6 @@ const taResource = {
             "primary_driver": "டிரைவர்",
             "primary_operator": "ஆபரேட்டர்",
             "extra_staff": "கூடுதல் ஆபரேட்டர்கள்",
-            "approval_status": "ஒப்புதல் நிலை",
             "created_at": "உருவாக்கப்பட்டது",
             "updated_at": "புதுப்பிக்கப்பட்டது"
           }

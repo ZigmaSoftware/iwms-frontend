@@ -20,10 +20,21 @@ import QrPreviewDialog from "@/components/common/QrPreviewDialog";
 import { PencilIcon } from "@/icons";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { binApi } from "@/helpers/admin";
+import { binApi, zoneApi, wardApi } from "@/helpers/admin";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+
+type LookupOption = { value: string; label: string };
+
+const toRecordList = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) return value as Record<string, unknown>[];
+  if (value && typeof value === "object") {
+    const results = (value as { results?: unknown }).results;
+    if (Array.isArray(results)) return results as Record<string, unknown>[];
+  }
+  return [];
+};
 
 
 const { encMasters, encBins } = getEncryptedRoute();
@@ -79,6 +90,10 @@ export default function BinList() {
   });
 
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [zoneFilterId, setZoneFilterId] = useState("");
+  const [wardFilterId, setWardFilterId] = useState("");
+  const [zoneOptions, setZoneOptions] = useState<LookupOption[]>([]);
+  const [wardOptions, setWardOptions] = useState<LookupOption[]>([]);
 
   const navigate = useNavigate();
   const [binRows, setBinRows] = useState<BinApiRow[]>([]);
@@ -89,6 +104,43 @@ export default function BinList() {
     "bins",
     BIN_COLUMN_FIELDS,
   );
+
+  // Load zone/ward filter options (scoped by company/project, mirrors A1's bin filters)
+  useEffect(() => {
+    if (!companyUniqueId) return;
+    let cancelled = false;
+    const params = { company_id: companyUniqueId, project_id: projectId || undefined };
+    Promise.all([zoneApi.readAll({ params }), wardApi.readAll({ params })])
+      .then(([zoneRes, wardRes]) => {
+        if (cancelled) return;
+        setZoneOptions(
+          toRecordList(zoneRes)
+            .filter((z) => z.is_active !== false)
+            .map((z) => ({
+              value: String(z.unique_id ?? ""),
+              label: String(z.zone_name ?? z.name ?? z.unique_id ?? ""),
+            }))
+            .filter((z) => z.value)
+        );
+        setWardOptions(
+          toRecordList(wardRes)
+            .filter((w) => w.is_active !== false)
+            .map((w) => ({
+              value: String(w.unique_id ?? ""),
+              label: String(w.ward_name ?? w.name ?? w.unique_id ?? ""),
+            }))
+            .filter((w) => w.value)
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setZoneOptions([]);
+        setWardOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [companyUniqueId, projectId]);
 
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) return;
@@ -103,6 +155,8 @@ export default function BinList() {
           params: {
             company_id: companyUniqueId,
             project_id: projectId || undefined,
+            zone_id: zoneFilterId || undefined,
+            ward_id: wardFilterId || undefined,
           },
         });
         if (mounted) setBinRows(data as BinApiRow[]);
@@ -121,7 +175,7 @@ export default function BinList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, zoneFilterId, wardFilterId, t]);
 
   // Company/project scoping is now applied server-side (tenant users are
   // scoped automatically by the backend; superadmin scoping is passed via
@@ -326,6 +380,20 @@ export default function BinList() {
           options={projects}
           placeholder={showAllProjectsOption ? "All Projects" : undefined}
           disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+        />
+        <FilterBarSelect
+          value={zoneFilterId}
+          onChange={setZoneFilterId}
+          options={zoneOptions}
+          placeholder={t("common.select_item_placeholder", { item: t("admin.nav.zone") }) || "All Zones"}
+          disabled={!companyUniqueId || zoneOptions.length === 0}
+        />
+        <FilterBarSelect
+          value={wardFilterId}
+          onChange={setWardFilterId}
+          options={wardOptions}
+          placeholder={t("common.select_item_placeholder", { item: t("common.ward") }) || "All Wards"}
+          disabled={!companyUniqueId || wardOptions.length === 0}
         />
       </FilterBar>
 

@@ -191,6 +191,7 @@ export default function DailyTripAssignmentList() {
   const [isLoading, setIsLoading] = useState(false);
   const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
   const [isSchedulerRunning, setIsSchedulerRunning] = useState(false);
+  const [isGeneratingDaily, setIsGeneratingDaily] = useState(false);
   const [isSavingSchedulerConfig, setIsSavingSchedulerConfig] = useState(false);
   const [schedulerDate, setSchedulerDate] = useState(toDateInputValue());
   const [schedulerRunTime, setSchedulerRunTime] = useState("04:00");
@@ -268,6 +269,30 @@ export default function DailyTripAssignmentList() {
     }
   };
 
+  // Manual "Generate Daily" run — POST /daily-trip-assignments/generate-daily/
+  // (A4 contract). Unlike Run Scheduler (force=true, ignores approval/weekday
+  // gating), this respects approval_status + repeat_days like the nightly
+  // job and requires an approval role (403 otherwise).
+  const runGenerateDailyNow = async () => {
+    setIsGeneratingDaily(true);
+    try {
+      const result = await dailyTripAssignmentApi.action<Record<string, unknown>, { date?: string }>(
+        "generate-daily",
+        schedulerDate ? { date: schedulerDate } : {},
+      );
+      Swal.fire({
+        icon: "success",
+        title: "Generate Daily completed",
+        text: String(result.message ?? `Created: ${result.created ?? 0}, skipped: ${result.skipped ?? 0}`),
+      });
+      loadAssignments();
+    } catch (err) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Generate Daily failed" });
+    } finally {
+      setIsGeneratingDaily(false);
+    }
+  };
+
   const saveSchedulerConfig = async () => {
     if (!schedulerRunTime) {
       Swal.fire({ icon: "warning", title: "Select auto-generation time" });
@@ -315,7 +340,10 @@ export default function DailyTripAssignmentList() {
         _waste: wasteTypeText(rec),
         _collection_type: getCollectionTypeKey(rec),
         _collection_type_label: COLLECTION_TYPE_LABELS[getCollectionTypeKey(rec)],
-        _collection_point_count: String(Array.isArray(rec.collection_points) ? rec.collection_points.length : 0),
+        _collection_point_count: String(
+          (Array.isArray(rec.collection_points) ? rec.collection_points.length : 0) +
+          (Array.isArray(rec.household_collection_points) ? rec.household_collection_points.length : 0)
+        ),
       }));
   })();
 
@@ -463,6 +491,14 @@ export default function DailyTripAssignmentList() {
             disabled={isSavingSchedulerConfig}
             onClick={saveSchedulerConfig}
           />
+          <Button
+            label={isGeneratingDaily ? "Generating..." : "Generate Daily"}
+            icon="pi pi-calendar-plus"
+            className="p-button-sm p-button-success"
+            disabled={isGeneratingDaily}
+            onClick={runGenerateDailyNow}
+            title="Manually run the approved, repeat-day-matched auto-assign plans for the selected date (generate-daily action)"
+          />
           <span className="text-gray-400">|</span>
           <span>Job: {schedulerStatus?.enabled ? "Enabled" : "Disabled"} at {schedulerStatus?.run_time ?? schedulerRunTime}</span>
           {schedulerStatus?.next_run_at && (
@@ -517,6 +553,28 @@ export default function DailyTripAssignmentList() {
           "trip_date",
           "scheduled_time",
         ]}
+        transformServerRows={(serverRows) => {
+          const records = serverRows as DailyTripAssignmentRecord[];
+          return records.map((rec) => ({
+            ...rec,
+            _trip_plan: rec.trip_plan?.display_code ?? rec.trip_plan_id ?? "",
+            _staff:
+              rec.effective_staff?.display_code ??
+              rec.staff_template?.display_code ??
+              rec.staff_template_id ??
+              "",
+            _zone: zoneText(rec),
+            _ward: wardText(rec),
+            _location: locationText(rec),
+            _waste: wasteTypeText(rec),
+            _collection_type: getCollectionTypeKey(rec),
+            _collection_type_label: COLLECTION_TYPE_LABELS[getCollectionTypeKey(rec)],
+            _collection_point_count: String(
+              (Array.isArray(rec.collection_points) ? rec.collection_points.length : 0) +
+              (Array.isArray(rec.household_collection_points) ? rec.household_collection_points.length : 0),
+            ),
+          }));
+        }}
       >
         <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 60 }} />
         <Column field="unique_id" header="ID" filter showFilterMatchModes={false} style={{ minWidth: 160 }} />
@@ -590,7 +648,10 @@ export default function DailyTripAssignmentList() {
         <Column
           field="_collection_point_count"
           header="Collection Points"
-          body={(row: DailyTripAssignmentRecord) => Array.isArray(row.collection_points) ? row.collection_points.length : 0}
+          body={(row: DailyTripAssignmentRecord) =>
+            (Array.isArray(row.collection_points) ? row.collection_points.length : 0) +
+            (Array.isArray(row.household_collection_points) ? row.household_collection_points.length : 0)
+          }
           sortable
           filter
           showFilterMatchModes={false}

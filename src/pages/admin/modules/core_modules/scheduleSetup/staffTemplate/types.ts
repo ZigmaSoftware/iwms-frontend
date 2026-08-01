@@ -30,8 +30,6 @@ export type StaffTemplateFormData = {
   operator_id: string;
   extra_operator_id: string[];
   status: "ACTIVE" | "INACTIVE";
-  approval_status: "PENDING" | "APPROVED" | "REJECTED";
-  approved_by: string;
 };
 
 export type StaffTemplate = {
@@ -54,7 +52,6 @@ export type StaffTemplate = {
   extra_operator_id?: string[];
 
   status: string;
-  approval_status: string;
 
   created_at: string;
   updated_at: string;
@@ -66,5 +63,4 @@ export type TableFilters = {
   unique_id: { value: string | null; matchMode: FilterMatchMode };
   driver_name: { value: string | null; matchMode: FilterMatchMode };
   operator_name: { value: string | null; matchMode: FilterMatchMode };
-  approval_status: { value: string | null; matchMode: FilterMatchMode };
 };

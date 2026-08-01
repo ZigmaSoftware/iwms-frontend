@@ -1,6 +1,7 @@
 import type { DailyTripLogRecord } from "./types";
+import { formatCollectionTime } from "./collectionTime";
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -14,8 +15,9 @@ import { Divider } from "primereact/divider";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
+import { MultiSelect } from "primereact/multiselect";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { dailyTripLogApi } from "@/helpers/admin";
+import { dailyTripLogApi, wasteTypeApi } from "@/helpers/admin";
 import { api } from "@/api";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
@@ -88,6 +90,29 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
   <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">{children}</p>
 );
 
+const WasteChips = ({
+  items,
+}: {
+  items?: { waste_type_name?: string | null; collected_weight_kg?: string | number | null }[];
+}) => {
+  if (!items || items.length === 0) return <span className="text-xs text-gray-400">—</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {items.map((item, index) => (
+        <span
+          key={`${item.waste_type_name}-${index}`}
+          className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700"
+        >
+          {item.waste_type_name ?? "—"}
+          <span className="font-semibold">
+            {item.collected_weight_kg != null ? `${Number(item.collected_weight_kg).toFixed(2)} kg` : "—"}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+};
+
 const InfoRow = ({ label, value }: { label: string; value?: string | number | null }) => (
   <div className="flex gap-2 text-sm">
     <span className="text-gray-500 w-36 shrink-0">{label}</span>
@@ -118,6 +143,28 @@ const computeCollectedWeight = (collectionPoints?: DailyTripLogRecord["collectio
   }, 0);
 };
 
+/**
+ * Total weight = bin-sourced weight (collected_weight_kg, auto-synced from
+ * BinCollectionEvent when such records exist, otherwise the last manually
+ * entered value per A6) + household-sourced weight
+ * (household_collected_weight_kg, synced from WasteCollection similarly).
+ * Read-only display — mirrors the linked assignment's aggregate.
+ */
+const computeTotalWeight = (row: DailyTripLogRecord): number => {
+  const cps = row.collection_points ?? [];
+  const hasPointWeights = cps.some(
+    (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+  );
+  const binWeight = hasPointWeights
+    ? computeCollectedWeight(cps)
+    : row.collected_weight_kg != null
+    ? Number(row.collected_weight_kg)
+    : 0;
+  const householdWeight =
+    row.household_collected_weight_kg != null ? Number(row.household_collected_weight_kg) : 0;
+  return (Number.isFinite(binWeight) ? binWeight : 0) + (Number.isFinite(householdWeight) ? householdWeight : 0);
+};
+
 /* ─────────────────────────────────────────────────────
    Trip Log Modal  (mode="view" | "verify")
 ───────────────────────────────────────────────────── */
@@ -129,7 +176,7 @@ function TripLogModal({
   isLoading,
 }: {
   row: DailyTripLogRecord;
-  mode: "view" | "verify";
+  mode: "view" | "verify" | "submit";
   onClose: () => void;
   onConfirm: (remarks: string) => void;
   isLoading: boolean;
@@ -150,11 +197,13 @@ function TripLogModal({
     : row.collected_weight_kg != null
     ? `${Number(row.collected_weight_kg).toFixed(2)} kg`
     : "-";
+  const totalWeight = computeTotalWeight(row);
+  const canSubmit = totalWeight > 0;
 
   const footer = (
     <div className="flex justify-end gap-2 pt-2">
       <Button
-        label={mode === "verify" ? "Cancel" : "Close"}
+        label={mode === "view" ? "Close" : "Cancel"}
         className="p-button-text p-button-secondary"
         onClick={onClose}
         disabled={isLoading}
@@ -168,10 +217,21 @@ function TripLogModal({
           onClick={() => onConfirm(remarks)}
         />
       )}
+      {mode === "submit" && (
+        <Button
+          label="Submit"
+          icon="pi pi-send"
+          className="p-button-info"
+          loading={isLoading}
+          disabled={!canSubmit}
+          onClick={() => onConfirm(remarks)}
+        />
+      )}
     </div>
   );
 
-  const title = mode === "verify" ? "Verify Trip Log" : "Trip Log Details";
+  const title =
+    mode === "verify" ? "Verify Trip Log" : mode === "submit" ? "Submit Trip Log" : "Trip Log Details";
   const statusColor: Record<string, string> = {
     Draft: "text-gray-600",
     Submitted: "text-blue-600",
@@ -225,8 +285,24 @@ function TripLogModal({
                 value={`${Number(row.household_collected_weight_kg).toFixed(2)} kg`}
               />
             )}
-            {row.actual_start_time && <InfoRow label="Start Time" value={row.actual_start_time} />}
-            {row.actual_end_time && <InfoRow label="End Time" value={row.actual_end_time} />}
+            <InfoRow label="Total Weight" value={`${totalWeight.toFixed(2)} kg`} />
+            {Array.isArray(row.waste_type_breakdown) && row.waste_type_breakdown.length > 0 && (
+              <div className="flex gap-2 text-sm">
+                <span className="text-gray-500 w-36 shrink-0">Waste Breakdown</span>
+                <WasteChips items={row.waste_type_breakdown} />
+              </div>
+            )}
+            {row.actual_start_time && (
+              <InfoRow label="Start Time" value={formatCollectionTime(row.actual_start_time)} />
+            )}
+            {row.actual_end_time && (
+              <InfoRow label="End Time" value={formatCollectionTime(row.actual_end_time)} />
+            )}
+            {mode === "submit" && !canSubmit && (
+              <p className="text-xs text-red-500 font-medium mt-1">
+                Total weight must be greater than 0 kg before this log can be submitted.
+              </p>
+            )}
             {(row.vehicle as any)?.vehicle_no && (
               <InfoRow label="Vehicle" value={(row.vehicle as any).vehicle_no} />
             )}
@@ -251,8 +327,8 @@ function TripLogModal({
             ) : null}
 
             {/* Zone */}
-            {row.trip_assignment?.zone?.zone_name && (
-              <InfoRow label="Zone" value={row.trip_assignment.zone.zone_name} />
+            {row.trip_assignment?.zone && (
+              <InfoRow label="Zone" value={row.trip_assignment.zone} />
             )}
           </div>
         </div>
@@ -349,6 +425,9 @@ function TripLogModal({
                     {!cp.is_collected && (
                       <span className="text-xs text-red-400">(Not collected)</span>
                     )}
+                    {Array.isArray(cp.waste_type_breakdown) && cp.waste_type_breakdown.length > 0 && (
+                      <WasteChips items={cp.waste_type_breakdown} />
+                    )}
                   </div>
                   {cp.collected_weight_kg != null ? (
                     <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full shrink-0">
@@ -393,6 +472,9 @@ function TripLogModal({
                       {!hh.is_collected && (
                         <span className="text-xs text-red-400">(Not collected)</span>
                       )}
+                      {Array.isArray(hh.waste_type_breakdown) && hh.waste_type_breakdown.length > 0 && (
+                        <WasteChips items={hh.waste_type_breakdown} />
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {hh.collected_weight_kg != null ? (
@@ -419,20 +501,20 @@ function TripLogModal({
         )}
 
         {/* Remarks */}
-        {(mode === "verify" || row.remarks) && (
+        {(mode === "verify" || mode === "submit" || row.remarks) && (
           <>
             <Divider className="!my-0" />
             <div>
               <SectionLabel>
-                {mode === "verify" ? "Remarks (optional)" : "Remarks"}
+                {mode === "verify" || mode === "submit" ? "Remarks (optional)" : "Remarks"}
               </SectionLabel>
-              {mode === "verify" ? (
+              {mode === "verify" || mode === "submit" ? (
                 <InputTextarea
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   rows={2}
                   className="w-full text-sm"
-                  placeholder="Add verification remarks..."
+                  placeholder={mode === "submit" ? "Add submission remarks..." : "Add verification remarks..."}
                   autoResize
                 />
               ) : (
@@ -466,6 +548,7 @@ function TripLogModal({
 export default function DailyTripLogList() {
   const { t } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
   const {
@@ -487,12 +570,16 @@ export default function DailyTripLogList() {
   const [allLogs, setAllLogs] = useState<DailyTripLogRecord[]>([]);
   const [filteredRows, setFilteredRows] = useState<DailyTripLogRecord[]>([]);
   const [collectionType, setCollectionType] = useState<"all" | "bin" | "household">("all");
+  const [dateFilter, setDateFilter] = useState("");
+  const [wasteTypeFilter, setWasteTypeFilter] = useState<string[]>([]);
+  const [wasteTypeOptions, setWasteTypeOptions] = useState<{ label: string; value: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [modalState, setModalState] = useState<{
     row: DailyTripLogRecord;
-    mode: "view" | "verify";
+    mode: "view" | "verify" | "submit";
   } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -505,6 +592,20 @@ export default function DailyTripLogList() {
     log_status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     trip_date: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
   });
+
+  /* ── waste type options for the filter multiselect ── */
+  useEffect(() => {
+    (wasteTypeApi.readAll() as Promise<any[]>)
+      .then((data) => {
+        setWasteTypeOptions(
+          (Array.isArray(data) ? data : []).map((wt) => ({
+            label: wt.waste_type_name ?? wt.name ?? wt.unique_id,
+            value: wt.unique_id,
+          }))
+        );
+      })
+      .catch(() => setWasteTypeOptions([]));
+  }, []);
 
   /* ── load logs ── */
   useEffect(() => {
@@ -521,6 +622,8 @@ export default function DailyTripLogList() {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
+    if (dateFilter) params.date = dateFilter;
+    if (wasteTypeFilter.length > 0) params.waste_type_id = wasteTypeFilter.join(",");
     (dailyTripLogApi.readAll({ params }) as Promise<DailyTripLogRecord[]>)
       .then((data) => {
         if (mounted) setAllLogs(Array.isArray(data) ? data : []);
@@ -535,25 +638,31 @@ export default function DailyTripLogList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, dateFilter, wasteTypeFilter, t]);
 
   /* ── enrich rows ── */
-  const rows = allLogs.map((rec) => ({
-    ...rec,
-    _assignment:
-      rec.trip_assignment?.display_code ??
-      rec.trip_assignment?.unique_id ??
-      rec.trip_assignment_id ??
-      "",
-    _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
-    _base_template: rec.staff_template?.base?.display_code ?? "",
-    _alt_template: rec.staff_template?.alt?.display_code ?? "",
-    _location: rec.panchayat?.panchayat_name ?? rec.ward?.ward_name ?? "",
-    _computed_weight: computeCollectedWeight(rec.collection_points),
-    _has_point_weights: (rec.collection_points ?? []).some(
-      (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
-    ),
-  }));
+  const rows = allLogs.map((rec) => {
+    const zoneName = rec.trip_assignment?.zone?.zone_name ?? null;
+    return {
+      ...rec,
+      trip_assignment: rec.trip_assignment
+        ? { ...rec.trip_assignment, zone: zoneName }
+        : null,
+      _assignment:
+        rec.trip_assignment?.display_code ??
+        rec.trip_assignment?.unique_id ??
+        rec.trip_assignment_id ??
+        "",
+      _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
+      _base_template: rec.staff_template?.base?.display_code ?? "",
+      _alt_template: rec.staff_template?.alt?.display_code ?? "",
+      _location: rec.panchayat?.panchayat_name ?? rec.ward?.ward_name ?? "",
+      _computed_weight: computeCollectedWeight(rec.collection_points),
+      _has_point_weights: (rec.collection_points ?? []).some(
+        (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+      ),
+    };
+  });
 
   /* ── filter by collection type (company/project scoping is applied
      server-side via params in the fetch effect above) ── */
@@ -623,6 +732,51 @@ export default function DailyTripLogList() {
     }
   };
 
+  /* ── submit confirm (from modal): Draft → Submitted via change-status,
+     with a client-side weight>0 pre-check per the A6 contract. The server
+     also enforces this gate in DailyTripLog.clean(); a 400 is still
+     handled gracefully below in case source records change between the
+     pre-check and the actual request. ── */
+  const handleSubmitConfirm = async (remarks: string) => {
+    if (!modalState) return;
+    const totalWeight = computeTotalWeight(modalState.row);
+    if (totalWeight <= 0) {
+      Swal.fire({
+        icon: "warning",
+        title: "Weight required",
+        text: "Total collected weight must be greater than 0 kg before submitting this log.",
+      });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await api.patch(
+        `/schedule-operations/daily-trip-logs/${modalState.row.unique_id}/change-status/`,
+        { log_status: "Submitted", ...(remarks ? { remarks } : {}) }
+      );
+      const updated = (res as any)?.data ?? res;
+      setAllLogs((current) =>
+        current.map((item) =>
+          item.unique_id === modalState.row.unique_id
+            ? { ...item, log_status: updated.log_status ?? "Submitted", remarks: updated.remarks ?? item.remarks }
+            : item
+        )
+      );
+      setModalState(null);
+      Swal.fire({
+        icon: "success",
+        title: "Submitted",
+        text: "Trip log has been submitted.",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (err: any) {
+      Swal.fire(t("common.error"), extractError(err) ?? "Failed to submit trip log", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   /* ── inline status change (Draft ↔ Verify) ── */
   const handleStatusChange = async (row: DailyTripLogRecord, newStatus: string) => {
     const result = await Swal.fire({
@@ -667,20 +821,40 @@ export default function DailyTripLogList() {
   const actionTemplate = (row: DailyTripLogRecord) => {
     const isVerified = row.log_status === "Verified";
     const isDraft = row.log_status === "Draft";
+    const isSubmitted = row.log_status === "Submitted";
+    const totalWeight = computeTotalWeight(row);
+    const canSubmit = isDraft && totalWeight > 0;
 
     return (
       <div className="flex items-center gap-1.5">
-        {/* View */}
+        {/* View — full trip detail report page */}
         <button
           title="View details"
-          onClick={() => setModalState({ row, mode: "view" })}
+          onClick={() => navigate(`${location.pathname.replace(/\/$/, "")}/${row.unique_id}/report`)}
           className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
         >
           <i className="pi pi-eye text-xs" />
           View
         </button>
 
-        {/* Verify — disabled when already Verified */}
+        {/* Submit — Draft only, requires total weight > 0 (A6 contract) */}
+        {isDraft && (
+          <button
+            title={canSubmit ? "Submit this log" : "Total weight must be greater than 0 kg to submit"}
+            disabled={!canSubmit}
+            onClick={() => setModalState({ row, mode: "submit" })}
+            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+              canSubmit
+                ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                : "bg-blue-50 text-blue-300 cursor-not-allowed opacity-60"
+            }`}
+          >
+            <i className="pi pi-send text-xs" />
+            Submit
+          </button>
+        )}
+
+        {/* Verify — Submitted/Draft only, disabled once already Verified (read-only) */}
         <button
           title={isVerified ? "Already verified" : "Verify this log"}
           disabled={isVerified}
@@ -695,13 +869,15 @@ export default function DailyTripLogList() {
           Verify
         </button>
 
-        {/* Draft — disabled when already Draft */}
+        {/* Draft — revert to Draft; disabled when already Draft, and
+           disabled once Verified since the backend rejects any further
+           change to a Verified log (read-only-once-Verified guard). */}
         <button
-          title={isDraft ? "Already in draft" : "Revert to draft"}
-          disabled={isDraft}
+          title={isVerified ? "Verified logs are read-only" : isDraft ? "Already in draft" : "Revert to draft"}
+          disabled={isDraft || isVerified}
           onClick={() => handleStatusChange(row, "Draft")}
           className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-            isDraft
+            isDraft || isVerified
               ? "bg-gray-50 text-gray-300 cursor-not-allowed opacity-60"
               : "bg-gray-100 text-gray-700 hover:bg-gray-200"
           }`}
@@ -709,6 +885,10 @@ export default function DailyTripLogList() {
           <i className="pi pi-undo text-xs" />
           Draft
         </button>
+
+        {isSubmitted && (
+          <span className="text-[10px] text-gray-400 italic">awaiting verify</span>
+        )}
       </div>
     );
   };
@@ -744,7 +924,29 @@ export default function DailyTripLogList() {
           { value: "household", label: "Household Collection" },
         ]}
       />
+      <input
+        type="date"
+        value={dateFilter}
+        onChange={(e) => setDateFilter(e.target.value)}
+        className="h-9 rounded-md border border-gray-300 px-2 text-sm text-gray-700"
+        title="Filter by trip date"
+      />
+      <MultiSelect
+        value={wasteTypeFilter}
+        onChange={(e) => setWasteTypeFilter(e.value)}
+        options={wasteTypeOptions}
+        placeholder="Waste Type"
+        display="chip"
+        className="h-9 text-sm"
+        style={{ minWidth: 180 }}
+      />
     </FilterBar>
+  );
+
+  const kpiRecordCount = data.length;
+  const kpiOverallWeight = data.reduce(
+    (sum, row) => sum + (row._computed_weight ?? 0) + Number(row.household_collected_weight_kg ?? 0),
+    0
   );
 
   return (
@@ -753,6 +955,17 @@ export default function DailyTripLogList() {
         <div>
           <h1 className="text-3xl font-bold text-gray-800 mb-1">Daily Trip Logs</h1>
           <p className="text-sm text-gray-500">Capture and verify actual collection trip results</p>
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-white p-3">
+        <div>
+          <p className="text-xs text-gray-400 uppercase tracking-wide">Records</p>
+          <p className="text-lg font-bold text-gray-900">{kpiRecordCount}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-400 uppercase tracking-wide">Overall Weight</p>
+          <p className="text-lg font-bold text-gray-900">{kpiOverallWeight.toFixed(2)} kg</p>
         </div>
       </div>
 
@@ -783,6 +996,17 @@ export default function DailyTripLogList() {
           "trip_date",
         ]}
         className="p-datatable-sm"
+        transformServerRows={(rows) =>
+          rows.map((row) => {
+            const zoneName = row.trip_assignment?.zone?.zone_name ?? null;
+            return {
+              ...row,
+              trip_assignment: row.trip_assignment
+                ? { ...row.trip_assignment, zone: zoneName }
+                : null,
+            };
+          })
+        }
       >
         <Column
           header={t("common.s_no")}
@@ -904,6 +1128,30 @@ export default function DailyTripLogList() {
           }
         />
         <Column
+          header="Total Weight (kg)"
+          sortable
+          style={{ minWidth: 140 }}
+          body={(row: DailyTripLogRecord) => (
+            <span className="font-semibold text-gray-800">{computeTotalWeight(row).toFixed(2)}</span>
+          )}
+        />
+        <Column
+          field="actual_start_time"
+          header="Start Time"
+          style={{ minWidth: 110 }}
+          body={(row: DailyTripLogRecord) => (
+            <span className="text-sm text-gray-700">{formatCollectionTime(row.actual_start_time)}</span>
+          )}
+        />
+        <Column
+          field="actual_end_time"
+          header="End Time"
+          style={{ minWidth: 110 }}
+          body={(row: DailyTripLogRecord) => (
+            <span className="text-sm text-gray-700">{formatCollectionTime(row.actual_end_time)}</span>
+          )}
+        />
+        <Column
           field="log_status"
           header="Log Status"
           body={(row: DailyTripLogRecord) => <Badge value={row.log_status} />}
@@ -932,7 +1180,7 @@ export default function DailyTripLogList() {
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ minWidth: 210 }}
+          style={{ minWidth: 260 }}
         />
       </DataTable>
 
@@ -941,8 +1189,8 @@ export default function DailyTripLogList() {
           row={modalState.row}
           mode={modalState.mode}
           onClose={() => setModalState(null)}
-          onConfirm={handleVerifyConfirm}
-          isLoading={isVerifying}
+          onConfirm={modalState.mode === "submit" ? handleSubmitConfirm : handleVerifyConfirm}
+          isLoading={modalState.mode === "submit" ? isSubmitting : isVerifying}
         />
       )}
     </div>

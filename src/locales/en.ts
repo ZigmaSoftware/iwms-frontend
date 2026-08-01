@@ -929,8 +929,6 @@ const enResource = {
           "primary_operator": "Operator",
           "extra_staff": "Extra Operators",
           "extra_staff_placeholder": "Comma-separated operator IDs",
-          "approval_status": "Approval Status",
-          "approved_by": "Approved By",
           "created_by": "Created By",
           "updated_by": "Updated By",
           "columns": {
@@ -938,7 +936,6 @@ const enResource = {
             "primary_driver": "Driver",
             "primary_operator": "Operator",
             "extra_staff": "Extra Operators",
-            "approval_status": "Approval Status",
             "created_at": "Created At",
             "updated_at": "Updated At"
           }

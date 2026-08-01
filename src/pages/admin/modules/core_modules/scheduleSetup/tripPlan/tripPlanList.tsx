@@ -19,6 +19,82 @@ import { normalizeList } from "@/utils/forms";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 
+// Server-paginated pages (SafeDataTable's own page-2+ fetches) return raw
+// records whose _location/_staff/_vehicle/etc. computed fields were never
+// added by the `rows` memo below — only page 1 (locally filtered/mapped) has
+// them. These accessors recompute the display string from whichever shape
+// the row actually has (raw nested object OR the already-computed string),
+// so Column `body` renderers never hand a raw object straight to React.
+const asDisplayText = (value: unknown): string => (typeof value === "string" ? value : "");
+
+const singleWardName = (row: TripPlanRecord): string => {
+  const ward = (row as { ward?: { ward_name?: string } }).ward;
+  return ward?.ward_name ?? "";
+};
+
+const wardNamesText = (row: TripPlanRecord): string =>
+  Array.isArray(row.wards) && row.wards.length
+    ? row.wards.map((ward) => ward?.ward_name).filter(Boolean).join(", ")
+    : singleWardName(row);
+
+const locationText = (row: TripPlanRecord): string => {
+  const existing = asDisplayText(row._location);
+  if (existing) return existing;
+  const zoneOrPanchayat = row.panchayat?.panchayat_name || row.zone?.name || "";
+  const wardNames = wardNamesText(row);
+  return [zoneOrPanchayat, wardNames].filter(Boolean).join(" - ");
+};
+
+// e.g. "13:00:00" -> "1:00 PM"
+const time12h = (value?: string): string => {
+  if (!value) return "";
+  const match = /^(\d{1,2}):(\d{2})/.exec(value);
+  if (!match) return value;
+  let hours = Number(match[1]);
+  const minutes = match[2];
+  const period = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  return `${hours}:${minutes} ${period}`;
+};
+
+const staffText = (row: TripPlanRecord): string =>
+  asDisplayText(row._staff) || row.staff_template?.display_code || "";
+
+const vehicleText = (row: TripPlanRecord): string =>
+  asDisplayText(row._vehicle) || row.vehicle?.vehicle_no || "";
+
+const wasteTypeText = (row: TripPlanRecord): string => {
+  const existing = asDisplayText(row._waste_type);
+  if (existing) return existing;
+  if (Array.isArray(row.waste_types) && row.waste_types.length) {
+    return row.waste_types.map((wasteType) => wasteType?.waste_type_name).filter(Boolean).join(", ");
+  }
+  return row.waste_type?.waste_type_name ?? "";
+};
+
+const rawStopCountText = (row: TripPlanRecord): string =>
+  row.stop_count !== undefined && row.stop_count !== null && row.stop_count !== ""
+    ? String(row.stop_count)
+    : String(Array.isArray(row.plan_collection_points) ? row.plan_collection_points.length : 0);
+
+const stopCountText = (row: TripPlanRecord): string =>
+  asDisplayText(row._stop_count) || rawStopCountText(row);
+
+const driverText = (row: TripPlanRecord): string =>
+  asDisplayText(row._driver) || row.staff_template?.driver || "";
+
+const operatorText = (row: TripPlanRecord): string =>
+  asDisplayText(row._operator) || row.staff_template?.operator || "";
+
+const COLLECTION_TYPE_LABELS: Record<string, string> = {
+  bin_collection: "Secondary Bin Collection",
+  household_collection: "Household Collection",
+  bulk_waste_collection: "Bulk Waste Collection",
+};
+
+const collectionTypeDisplay = (row: TripPlanRecord): string =>
+  asDisplayText(row._collection_type) || COLLECTION_TYPE_LABELS[row.collection_type ?? ""] || row.collection_type || "";
+
 const extractErrorMessage = (error: unknown): string | null => {
   const data = (error as { response?: { data?: unknown } })?.response?.data;
   if (!data) return null;
@@ -63,6 +139,7 @@ export default function TripPlanList() {
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | "bin_collection" | "household_collection">("all");
+  const [autoAssignFilter, setAutoAssignFilter] = useState<"all" | "auto" | "manual">("all");
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -72,6 +149,9 @@ export default function TripPlanList() {
     _vehicle: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _waste_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _stop_count: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    _driver: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    _operator: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    _collection_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
     status: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
@@ -98,20 +178,29 @@ export default function TripPlanList() {
 
   const rows = useMemo(() => records
     .filter((record) => {
-      if (collectionTypeFilter === "all") return true;
-      const stops = Array.isArray(record.plan_collection_points) ? record.plan_collection_points : [];
-      return stops.some((s: any) => (s.collection_type ?? "bin_collection") === collectionTypeFilter);
+      if (collectionTypeFilter !== "all") {
+        const stops = Array.isArray(record.plan_collection_points) ? record.plan_collection_points : [];
+        if (!stops.some((s: any) => (s.collection_type ?? "bin_collection") === collectionTypeFilter)) return false;
+      }
+      if (autoAssignFilter === "auto" && !record.is_auto_assign) return false;
+      if (autoAssignFilter === "manual" && record.is_auto_assign) return false;
+      return true;
     })
     .map((record) => ({
       ...record,
-      _location: record.panchayat?.panchayat_name ?? (record.ward as any)?.ward_name ?? "",
+      _location: [record.panchayat?.panchayat_name || record.zone?.name || "", wardNamesText(record)]
+        .filter(Boolean)
+        .join(" - "),
       _staff: record.staff_template?.display_code ?? "",
       _vehicle: record.vehicle?.vehicle_no ?? "",
       _waste_type: Array.isArray(record.waste_types) && record.waste_types.length
         ? record.waste_types.map((wasteType) => wasteType?.waste_type_name).filter(Boolean).join(", ")
         : record.waste_type?.waste_type_name ?? "",
-      _stop_count: String(Array.isArray(record.plan_collection_points) ? record.plan_collection_points.length : 0),
-    })), [records, collectionTypeFilter]);
+      _stop_count: rawStopCountText(record),
+      _driver: record.staff_template?.driver ?? "",
+      _operator: record.staff_template?.operator ?? "",
+      _collection_type: COLLECTION_TYPE_LABELS[record.collection_type ?? ""] ?? record.collection_type ?? "",
+    })), [records, collectionTypeFilter, autoAssignFilter]);
 
   // Keeps exported Excel rows in sync with the currently displayed
   // (filtered/searched) rows rather than the full unfiltered set.
@@ -195,6 +284,15 @@ export default function TripPlanList() {
             { value: "household_collection", label: "Household Collection" },
           ]}
         />
+        <FilterBarSelect
+          value={autoAssignFilter}
+          onChange={(value) => setAutoAssignFilter(value as "all" | "auto" | "manual")}
+          options={[
+            { value: "all", label: "All Plans" },
+            { value: "auto", label: "Auto-Assign" },
+            { value: "manual", label: "Manual" },
+          ]}
+        />
       </FilterBar>
     </div>
   );
@@ -211,7 +309,7 @@ export default function TripPlanList() {
         loading={loading}
         filters={filters}
         onFilter={(event: DataTableFilterEvent) => setFilters(event.filters as TableFilters)}
-        globalFilterFields={["display_code", "_location", "_staff", "_vehicle", "_waste_type", "_stop_count", "approval_status", "status"]}
+        globalFilterFields={["display_code", "_location", "_staff", "_vehicle", "_waste_type", "_stop_count", "_driver", "_operator", "_collection_type", "approval_status", "status"]}
         header={header}
         stripedRows
         showGridlines
@@ -220,13 +318,43 @@ export default function TripPlanList() {
       >
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
         <Column field="display_code" header="Plan Code" filter showFilterMatchModes={false} />
-        <Column field="_location" header="Location" filter showFilterMatchModes={false} />
-        <Column field="_staff" header="Staff Template" filter showFilterMatchModes={false} />
-        <Column field="_vehicle" header="Vehicle" filter showFilterMatchModes={false} />
+        <Column field="_location" header="Location" filter showFilterMatchModes={false} body={locationText} />
+        <Column field="_staff" header="Staff Template" filter showFilterMatchModes={false} body={staffText} />
+        <Column field="_vehicle" header="Vehicle" filter showFilterMatchModes={false} body={vehicleText} />
         <Column header="Vehicle Breakdown" body={breakdownBody} style={{ minWidth: 140 }} />
-        <Column field="_waste_type" header="Waste Type" filter showFilterMatchModes={false} />
-        <Column field="_stop_count" header="Stops" filter showFilterMatchModes={false} style={{ width: 100 }} />
-        <Column field="scheduled_time" header="Start Time" />
+        <Column field="_waste_type" header="Waste Type" filter showFilterMatchModes={false} body={wasteTypeText} />
+        <Column field="_stop_count" header="Stops" filter showFilterMatchModes={false} style={{ width: 100 }} body={stopCountText} />
+        <Column field="scheduled_time" header="Start Time" body={(row: TripPlanRecord) => time12h(row.scheduled_time)} />
+        <Column
+          header="Auto Assign"
+          body={(row: TripPlanRecord) => (
+            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${row.is_auto_assign ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-500"}`}>
+              {row.is_auto_assign ? "Auto" : "Manual"}
+            </span>
+          )}
+          style={{ width: 110 }}
+        />
+        <Column
+          field="_collection_type"
+          header="Collection Type"
+          body={collectionTypeDisplay}
+          filter showFilterMatchModes={false}
+          style={{ minWidth: 170 }}
+        />
+        <Column
+          field="_driver"
+          header="Driver"
+          body={driverText}
+          filter showFilterMatchModes={false}
+          style={{ minWidth: 130 }}
+        />
+        <Column
+          field="_operator"
+          header="Operator"
+          body={operatorText}
+          filter showFilterMatchModes={false}
+          style={{ minWidth: 130 }}
+        />
         <Column field="approval_status" header="Approval" />
         <Column header="Status" body={statusBody} style={{ width: 120 }} />
         <Column header={t("common.actions")} style={{ width: 120 }} body={(row: TripPlanRecord) => (

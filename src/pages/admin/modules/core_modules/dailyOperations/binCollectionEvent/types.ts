@@ -1,6 +1,9 @@
 import type { FilterMatchMode } from "primereact/api";
 
-export type SelectOption = { value: string; label: string };
+export type SelectOption = { value: string; label: string; disabled?: boolean };
+
+// A5: BinCollectionEvent.STATUS_CHOICES.
+export type BinCollectionEventStatus = "Collected" | "Not Collected" | "Collect Later";
 
 export type FormState = {
   trip_assignment_id: string;
@@ -8,6 +11,10 @@ export type FormState = {
   bin_id: string;
   collection_date: string;
   collected_weight_kg: string;
+  // A5: status/status_reason — collected_weight_kg is now required only when
+  // status === "Collected" (nullable on the backend for Not Collected / Collect Later).
+  status: BinCollectionEventStatus;
+  status_reason: string;
   driver_latitude: string;
   driver_longitude: string;
   notes: string;
@@ -23,6 +30,8 @@ export type TableFilters = {
   _ward: { value: string | null; matchMode: FilterMatchMode };
   _zone: { value: string | null; matchMode: FilterMatchMode };
   collection_date: { value: string | null; matchMode: FilterMatchMode };
+  // A5: status query-param filter (viewset supports ward_id/zone_id/status).
+  status: { value: string | null; matchMode: FilterMatchMode };
 };
 
 export type BinCERecord = {
@@ -36,13 +45,16 @@ export type BinCERecord = {
   zone_id?: string | null;
   trip_plan?: { display_code?: string };
   collection_point?: { cp_name?: string } | null;
-  bin?: { bin_name?: string; bin_capacity?: number; bin_type?: string };
+  bin?: { unique_id?: string; id?: string | number; bin_name?: string; bin_capacity?: number; bin_type?: string };
   waste_type?: { waste_type_name?: string };
   vehicle?: { vehicle_no?: string };
   vehicle_breakdown_id?: string | null;
   effective_staff_template?: unknown;
-  collected_weight_kg?: string | number;
+  collected_weight_kg?: string | number | null;
   collection_date?: string;
+  // A5
+  status?: BinCollectionEventStatus;
+  status_reason?: string | null;
   driver_latitude?: string | number | null;
   driver_longitude?: string | number | null;
   notes?: string | null;

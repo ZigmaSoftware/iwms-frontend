@@ -73,6 +73,25 @@ const formatDate = (val?: string) => {
   return new Date(val).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 };
 
+// A5: BinCollectionEvent.STATUS_CHOICES.
+const STATUS_OPTIONS = [
+  { value: "Collected", label: "Collected" },
+  { value: "Not Collected", label: "Not Collected" },
+  { value: "Collect Later", label: "Collect Later" },
+];
+
+const STATUS_STYLES: Record<string, string> = {
+  Collected: "bg-green-100 text-green-800",
+  "Not Collected": "bg-red-100 text-red-800",
+  "Collect Later": "bg-amber-100 text-amber-800",
+};
+
+const StatusBadge = ({ value }: { value?: string }) => (
+  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[value ?? ""] ?? "bg-gray-100 text-gray-600"}`}>
+    {value ?? "Collected"}
+  </span>
+);
+
 const today = new Date().toISOString().split("T")[0];
 
 export default function BinCollectionEventList() {
@@ -111,6 +130,7 @@ export default function BinCollectionEventList() {
     _ward: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _zone: { value: null, matchMode: FilterMatchMode.CONTAINS },
     collection_date: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    status: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
   const loadRecords = useCallback(() => {
@@ -122,6 +142,9 @@ export default function BinCollectionEventList() {
     if (projectId) params.project_id = projectId;
     const dateFilter = filters.collection_date?.value;
     if (dateFilter) params.collection_date = dateFilter;
+    // A5: viewset supports ward_id/zone_id/status query-param filters.
+    const statusFilter = filters.status?.value;
+    if (statusFilter) params.status = statusFilter;
     binCollectionEventApi
       .readAll({ params })
       .then((data) => setRecords(Array.isArray(data) ? (data as BinCERecord[]) : []))
@@ -130,7 +153,7 @@ export default function BinCollectionEventList() {
         Swal.fire(t("common.error"), extractError(error) ?? t("common.fetch_failed"), "error");
       })
       .finally(() => setLoading(false));
-  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, filters.collection_date, filters.status, t]);
 
   useEffect(() => { loadRecords(); }, [loadRecords]);
 
@@ -147,6 +170,7 @@ export default function BinCollectionEventList() {
         _ward: r.ward_name ?? r.ward_id ?? "-",
         _zone: typeof r.zone_name === "object" && r.zone_name !== null ? (r.zone_name as Record<string, unknown>).zone_name ?? "-" : r.zone_name ?? "-",
         collection_date: r.collection_date ?? "",
+        status: r.status ?? "Collected",
       })),
     [records],
   );
@@ -154,7 +178,7 @@ export default function BinCollectionEventList() {
   /* ── apply filters locally to get the visible subset ─────────────────────
      PrimeReact filters internally but doesn't expose the result. We replicate
      the same CONTAINS logic so the summary pills always match what's on screen. */
-  const GLOBAL_FIELDS = ["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "_ward", "_zone", "collection_date"] as const;
+  const GLOBAL_FIELDS = ["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "_ward", "_zone", "collection_date", "status"] as const;
   type FilterableField = (typeof GLOBAL_FIELDS)[number];
   const isFilterableField = (field: string): field is FilterableField =>
     (GLOBAL_FIELDS as readonly string[]).includes(field);
@@ -189,6 +213,7 @@ export default function BinCollectionEventList() {
         Vehicle: r._vehicle,
         "Weight (kg)": r.collected_weight_kg ?? "-",
         "Collection Date": r.collection_date,
+        Status: r.status ?? "Collected",
       })),
       getAdminScreenExcelFilename("all"),
       "Bin Collection Events",
@@ -283,6 +308,21 @@ export default function BinCollectionEventList() {
           }
           className="p-inputtext-sm rounded border px-3 py-2 text-sm"
         />
+        <select
+          value={filters.status.value ?? ""}
+          onChange={(e) =>
+            setFilters((f) => ({
+              ...f,
+              status: { value: e.target.value || null, matchMode: FilterMatchMode.CONTAINS },
+            }))
+          }
+          className="rounded border px-3 py-2 text-sm"
+        >
+          <option value="">All Statuses</option>
+          {STATUS_OPTIONS.map((s) => (
+            <option key={s.value} value={s.value}>{s.label}</option>
+          ))}
+        </select>
       </FilterBar>
     </div>
   );
@@ -330,6 +370,14 @@ export default function BinCollectionEventList() {
           showFilterMatchModes={false}
           body={(row: BinCERecord) => formatDate(row.collection_date)}
           style={{ width: 120 }}
+        />
+        <Column
+          field="status"
+          header="Status"
+          filter
+          showFilterMatchModes={false}
+          body={(row: BinCERecord) => <StatusBadge value={row.status} />}
+          style={{ width: 130 }}
         />
         <Column
           header={t("common.actions")}
