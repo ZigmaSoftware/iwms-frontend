@@ -75,7 +75,7 @@ const drawCustomerDetailsPage = async (
   }
   context.fillStyle = "#64748b";
   context.font = "22px Arial, sans-serif";
-  context.fillText(text(customer.unique_id), nameX, nameY + 12);
+  context.fillText(text(customer.customer_id || "-"), nameX, nameY + 12);
 
   let y = qrY + qrSize + 60;
   context.strokeStyle = "#cbd5e1";

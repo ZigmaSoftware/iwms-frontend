@@ -175,7 +175,7 @@ const createCustomerQrPdf = async (customer: Customer): Promise<jsPDF> => {
     summaryY += 44;
   }
   const summary = [
-    ["Customer ID", customer.unique_id],
+    ["Customer ID", customer.customer_id || "-"],
     ["Contact", customer.contact_no],
     ["Status", customer.is_active ? "Active" : "Inactive"],
     ["Bulk Waste Generator", customer.is_bulkwaste_generator ? "Yes" : "No"],
@@ -269,5 +269,5 @@ export const createCustomerQrPdfBlob = async (customer: Customer): Promise<Blob>
 
 export const downloadCustomerQrPdf = async (customer: Customer): Promise<void> => {
   const documentPdf = await createCustomerQrPdf(customer);
-  documentPdf.save(`${safeFilename(customer.customer_name)}_${safeFilename(customer.unique_id)}_QR.pdf`);
+  documentPdf.save(`${safeFilename(customer.customer_name)}_${safeFilename(customer.customer_id || customer.unique_id)}_QR.pdf`);
 };

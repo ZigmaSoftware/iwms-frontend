@@ -553,7 +553,7 @@ export default function CustomerCreationListPage() {
         loading={isLoading && customers.length === 0}
         filters={filters}
         globalFilterFields={[
-          "customer_name", "contact_no", "apartment_name",
+          "unique_id", "customer_id", "customer_name", "contact_no", "apartment_name",
           "block_no", "flat_no", "ward_name", "zone_name",
           "city_name", "company_name", "project_name", "waste_types",
         ]}
@@ -564,6 +564,13 @@ export default function CustomerCreationListPage() {
         className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+        <Column field="unique_id" header="Unique ID" sortable />
+        <Column
+          field="customer_id"
+          header="Customer ID"
+          sortable
+          body={(row: Customer) => row.customer_id || "-"}
+        />
         {showCol("customer_name") && (
           <Column field="customer_name" header={t("admin.customer_creation.customer")} sortable />
         )}
@@ -632,12 +639,14 @@ export default function CustomerCreationListPage() {
       onOpenChange={(open) => !open && setSelectedQrCustomer(null)}
       title={t("admin.customer_creation.qr_title")}
       qrImageUrl={selectedQrCustomer?.qr_code}
-      fileName={`${selectedQrCustomer?.unique_id || selectedQrCustomer?.customer_name || "customer"}_qr`}
+      fileName={`${selectedQrCustomer?.customer_id || selectedQrCustomer?.unique_id || selectedQrCustomer?.customer_name || "customer"}_qr`}
       description={
         selectedQrCustomer && (
           <>
             <p className="font-semibold text-gray-800">{selectedQrCustomer.customer_name}</p>
-            <p className="text-sm text-gray-500">{selectedQrCustomer.unique_id}</p>
+            <p className="text-sm text-gray-500">
+              {selectedQrCustomer.customer_id || "-"}
+            </p>
           </>
         )
       }
