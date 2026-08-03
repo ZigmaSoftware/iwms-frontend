@@ -6,6 +6,7 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import Swal from "@/lib/notify";
 import { PencilIcon } from "@/icons";
@@ -28,6 +29,16 @@ const PANCHAYAT_COLUMN_FIELDS: Record<string, string[]> = {
   is_active: ["is_active"],
 };
 
+const SORTABLE_FIELDS = new Set(["panchayat_name", "is_active"]);
+
+const toRecordList = (value: unknown): PanchayatListRecord[] => {
+  if (Array.isArray(value)) return value as PanchayatListRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: PanchayatListRecord[] }).results;
+  }
+  return [];
+};
+
 export default function PanchayatListPage() {
   const { t } = useTranslation();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
@@ -35,10 +46,15 @@ export default function PanchayatListPage() {
     "panchayats",
     PANCHAYAT_COLUMN_FIELDS,
   );
-  const [allPanchayats, setAllPanchayats] = useState<PanchayatListRecord[]>([]);
+  const [rows, setRows] = useState<PanchayatListRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const {
     filters, onFilter, globalFilterValue, onGlobalFilterChange,
     statusValue, onStatusFilterChange,
@@ -75,48 +91,67 @@ export default function PanchayatListPage() {
     encPanchayats,
   );
 
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  /* ── fetch, scoped server-side by company+project, search, sort, and pagination ── */
+  const loadRows = async (page: number, limit: number) => {
+    setIsLoading(true);
+    setRows([]);
+    try {
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+      if (globalFilterValue.trim()) params.search = globalFilterValue.trim();
+      if (ordering) params.ordering = ordering;
+
+      const response = await panchayatApi.readAllwithPaginated(page, limit, { params });
+      const list = toRecordList(response);
+      setRows(list);
+      setTotalRecords(
+        typeof (response as { count?: number })?.count === "number"
+          ? (response as { count?: number }).count as number
+          : list.length,
+      );
+    } catch (error) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (isSuperAdmin && companies.length === 0) return;
-    if (!companyUniqueId && !isSuperAdmin) return;
+    if (isSuperAdmin && companies.length === 0) {
+      setRows([]);
+      setTotalRecords(0);
+      return;
+    }
+    if (!companyUniqueId && !isSuperAdmin) {
+      setRows([]);
+      setTotalRecords(0);
+      return;
+    }
 
-    let mounted = true;
+    void loadRows(first / rowsPerPage + 1, rowsPerPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length, first, rowsPerPage, globalFilterValue, ordering]);
 
-    const loadPanchayats = async () => {
-      setIsLoading(true);
-      try {
-        const params: Record<string, string> = {};
-        if (companyUniqueId) params.company_id = companyUniqueId;
-        if (projectId) params.project_id = projectId;
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
 
-        const data = await panchayatApi.readAll({ params });
-        if (mounted) setAllPanchayats(data as PanchayatListRecord[]);
-      } catch (error) {
-        if (mounted) {
-          Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
-        }
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
-    void loadPanchayats();
-
-    return () => {
-      mounted = false;
-    };
-  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length]);
-
-  // Company/project scoping is now applied server-side (tenant users are
-  // scoped automatically by the backend; superadmin scoping is passed via
-  // company_id/project_id params above) — no client-side narrowing needed.
-  const data = ((): PanchayatListRecord[] => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
-
-    return Array.isArray(allPanchayats)
-      ? (allPanchayats as PanchayatListRecord[])
-      : [];
-  })();
+  // Company/project scoping, search, and ordering are applied server-side
+  // (tenant users are scoped automatically by the backend; superadmin scoping
+  // is passed via company_id/project_id params above).
+  const data = rows;
 
   const exportRows = data.filter((row) => {
     if (statusValue !== "all" && Boolean(row.is_active) !== (statusValue === "active")) return false;
@@ -154,7 +189,7 @@ export default function PanchayatListPage() {
           row.unique_id,
           filterPayload({ is_active: value }) as { is_active: boolean }
         );
-        setAllPanchayats((current) =>
+        setRows((current) =>
           current.map((item) =>
             item.unique_id === row.unique_id ? { ...item, is_active: value } : item
           )
@@ -199,7 +234,7 @@ export default function PanchayatListPage() {
             label={t("common.add_item", { item: t("admin.nav.panchayat") })}
             icon="pi pi-plus"
             className="p-button-success"
-           
+
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
@@ -220,10 +255,17 @@ export default function PanchayatListPage() {
         exportRows={exportRows}
         exportSheetName="Panchayats"
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && data.length === 0}
+        loading={isLoading}
         filters={filters}
         onFilter={onFilter}
         stripedRows

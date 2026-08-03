@@ -5,7 +5,7 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Switch } from "@/components/ui/switch";
 import { PencilIcon } from "@/icons";
 import { departmentApi } from "@/helpers/admin";
@@ -28,36 +28,90 @@ type DepartmentRecord = {
 
 const unwrapRows = (response: unknown): DepartmentRecord[] => {
   if (Array.isArray(response)) return response as DepartmentRecord[];
-  const data = (response as { data?: unknown } | null)?.data;
-  if (Array.isArray(data)) return data as DepartmentRecord[];
-  return ((data as { results?: DepartmentRecord[] } | null)?.results ?? []);
+  const results = (response as { results?: unknown } | null)?.results;
+  return Array.isArray(results) ? (results as DepartmentRecord[]) : [];
 };
+
+const toRecordList = (value: unknown): DepartmentRecord[] => {
+  if (Array.isArray(value)) return value as DepartmentRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: DepartmentRecord[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["department_name", "department_code"]);
 
 export default function DepartmentListPage() {
   const navigate = useNavigate();
   const [records, setRecords] = useState<DepartmentRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const {
-    filters,
-    onFilter,
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
     onStatusFilterChange,
-  } = useFilterBarFilters({
-    initialFilters: {
-      department_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    },
-  });
+  } = useFilterBarFilters();
 
-  const load = async () => {
-    const response: unknown = await departmentApi.readAll();
-    setRecords(unwrapRows(response));
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const loadRows = async (page: number, limit: number, search: string, status: string, orderingParam?: string) => {
+    setIsLoading(true);
+    setRecords([]);
+    try {
+      const response = await departmentApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(status !== "all" ? { status } : {}),
+          ...(orderingParam ? { ordering: orderingParam } : {}),
+        },
+      });
+      const rows = toRecordList(response);
+      setRecords(rows);
+      setTotalRecords(
+        typeof (response as { count?: number })?.count === "number"
+          ? (response as { count: number }).count
+          : rows.length,
+      );
+    } catch (error: any) {
+      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to load departments"), "error");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
-    load().catch(() => Swal.fire("Error", "Failed to load departments", "error"));
-  }, []);
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, statusValue, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, statusValue, ordering]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const toggleStatus = async (row: DepartmentRecord, value: boolean) => {
     await departmentApi.update(row.unique_id, {
@@ -66,12 +120,12 @@ export default function DepartmentListPage() {
       description: row.description ?? "",
       status: value ? "active" : "inactive",
     });
-    await load();
+    await loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, statusValue, ordering);
   };
 
-  const getFilteredExportRows = () => {
+  const getFilteredExportRows = (allRows: DepartmentRecord[]) => {
     const search = globalFilterValue.trim().toLowerCase();
-    return records.filter((row) => {
+    return allRows.filter((row) => {
       if (statusValue !== "all") {
         const wantActive = statusValue === "active";
         if (Boolean(row.is_active) !== wantActive) return false;
@@ -83,15 +137,18 @@ export default function DepartmentListPage() {
     });
   };
 
-  const handleDownloadExcel = () => {
+  const handleDownloadExcel = async () => {
     setIsExportingExcel(true);
     try {
-      const rows = getFilteredExportRows();
+      const response: unknown = await departmentApi.readAllForExport();
+      const rows = getFilteredExportRows(unwrapRows(response));
       if (rows.length === 0) {
         Swal.fire("Warning", "No departments to export", "warning");
         return;
       }
       exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Departments");
+    } catch (error: any) {
+      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to export departments"), "error");
     } finally {
       setIsExportingExcel(false);
     }
@@ -127,15 +184,21 @@ export default function DepartmentListPage() {
 
       <DataTable
         value={records}
+        dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
-        filters={filters}
-        onFilter={onFilter}
-        globalFilterFields={["department_name", "department_code", "description"]}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
+        loading={isLoading}
       >
         <Column header="S.No" body={(_, opts) => opts.rowIndex + 1} />
-        <Column field="department_name" header="Department Name" sortable filter />
-        <Column field="department_code" header="Code" sortable />
+        <Column field="department_name" header="Department Name" sortable={SORTABLE_FIELDS.has("department_name")} />
+        <Column field="department_code" header="Code" sortable={SORTABLE_FIELDS.has("department_code")} />
         <Column field="description" header="Description" />
         <Column header="Status" body={(row) => <Switch checked={Boolean(row.is_active)} onCheckedChange={(value) => toggleStatus(row, value)} />} />
         <Column header="Action" body={(row) => <button className="text-blue-600" onClick={() => navigate(editPath(row.unique_id))}><PencilIcon className="size-5" /></button>} />

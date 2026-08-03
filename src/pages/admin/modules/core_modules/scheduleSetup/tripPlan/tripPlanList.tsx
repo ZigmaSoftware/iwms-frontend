@@ -1,4 +1,4 @@
-import type { TableFilters, TripPlanRecord } from "./types";
+import type { TripPlanRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -6,10 +6,9 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Switch } from "@/components/ui/switch";
 import { PencilIcon } from "@/icons";
 import { tripPlanApi } from "@/helpers/admin";
@@ -22,12 +21,11 @@ import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
 
 
-// Server-paginated pages (SafeDataTable's own page-2+ fetches) return raw
-// records whose _location/_staff/_vehicle/etc. computed fields were never
-// added by the `rows` memo below — only page 1 (locally filtered/mapped) has
-// them. These accessors recompute the display string from whichever shape
-// the row actually has (raw nested object OR the already-computed string),
-// so Column `body` renderers never hand a raw object straight to React.
+// The `rows` memo below always derives _location/_staff/_vehicle/etc. from
+// the raw nested objects on every fetched page. These accessors read the
+// precomputed string when present and otherwise fall back to deriving it
+// directly from the raw record, so Column `body` renderers never hand a raw
+// object straight to React.
 const asDisplayText = (value: unknown): string => (typeof value === "string" ? value : "");
 
 const singleWardName = (row: TripPlanRecord): string => {
@@ -179,50 +177,76 @@ export default function TripPlanList() {
   const { newPath: newPath } = createCrudRoutePaths(encScheduleMasters, encTripPlans);
   const { editPath } = createCrudRoutePaths(encScheduleMasters, encTripPlans);
 
-  const [records, setRecords] = useState<TripPlanRecord[]>([]);
-  const [filteredRows, setFilteredRows] = useState<TripPlanRecord[]>([]);
+  const [rawRows, setRawRows] = useState<TripPlanRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | "bin_collection" | "household_collection">("all");
   const [autoAssignFilter, setAutoAssignFilter] = useState<"all" | "auto" | "manual">("all");
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    display_code: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _location: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _staff: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _vehicle: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _waste_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _stop_count: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _driver: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _operator: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _collection_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    status: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
+  // Debounce the search box so we don't fire a request per keystroke.
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const ordering = sortField ? `${sortOrder === -1 ? "-" : ""}${sortField}` : undefined;
+
+  const loadRows = (page: number, limit: number, search: string, orderingParam?: string) => {
     if (!companyUniqueId && !isSuperAdmin) {
-      setRecords([]);
-      return;
+      setRawRows([]);
+      setTotalRecords(0);
+      return () => {};
     }
     let mounted = true;
     setLoading(true);
+    setRawRows([]);
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
-    tripPlanApi.readAll({ params })
-      .then((data) => {
-        if (mounted) setRecords(normalizeList(data) as TripPlanRecord[]);
+    if (search) params.search = search;
+    if (orderingParam) params.ordering = orderingParam;
+    tripPlanApi.readAllwithPaginated(page, limit, { params })
+      .then((response) => {
+        if (!mounted) return;
+        setRawRows(normalizeList(response) as TripPlanRecord[]);
+        setTotalRecords(typeof response?.count === "number" ? response.count : normalizeList(response).length);
       })
       .catch((error) => Swal.fire(t("common.error"), extractErrorMessage(error) ?? t("common.fetch_failed"), "error"))
       .finally(() => {
         if (mounted) setLoading(false);
       });
     return () => { mounted = false; };
-  }, [companyUniqueId, projectId, isSuperAdmin, t]);
+  };
 
-  const rows = useMemo(() => records
+  useEffect(() => {
+    const cleanup = loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    return cleanup;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyUniqueId, projectId, isSuperAdmin, first, rowsPerPage, searchTerm, ordering]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  const rows = useMemo(() => rawRows
     .filter((record) => {
       if (collectionTypeFilter !== "all") {
         const stops = Array.isArray(record.plan_collection_points) ? record.plan_collection_points : [];
@@ -244,10 +268,11 @@ export default function TripPlanList() {
       _driver: record.staff_template?.driver ?? "",
       _operator: record.staff_template?.operator ?? "",
       _collection_type: COLLECTION_TYPE_LABELS[record.collection_type ?? ""] ?? record.collection_type ?? "",
-    })), [records, collectionTypeFilter, autoAssignFilter]);
+    })), [rawRows, collectionTypeFilter, autoAssignFilter]);
 
   // Keeps exported Excel rows in sync with the currently displayed
-  // (filtered/searched) rows rather than the full unfiltered set.
+  // (filtered/searched) page of rows rather than the full table.
+  const [filteredRows, setFilteredRows] = useState<TripPlanRecord[]>([]);
   useEffect(() => {
     setFilteredRows(rows);
   }, [rows]);
@@ -257,7 +282,7 @@ export default function TripPlanList() {
       setUpdating(true);
       try {
         await tripPlanApi.update(row.unique_id, { status: checked ? "ACTIVE" : "INACTIVE" });
-        setRecords((current) => current.map((item) => item.unique_id === row.unique_id ? { ...item, status: checked ? "ACTIVE" : "INACTIVE" } : item));
+        setRawRows((current) => current.map((item) => item.unique_id === row.unique_id ? { ...item, status: checked ? "ACTIVE" : "INACTIVE" } : item));
       } catch (error) {
         Swal.fire(t("common.error"), extractErrorMessage(error) ?? t("common.update_status_failed"), "error");
       } finally {
@@ -367,10 +392,7 @@ export default function TripPlanList() {
       </div>
       <FilterBar
         searchValue={globalFilterValue}
-        onSearchChange={(value) => {
-          setGlobalFilterValue(value);
-          setFilters((current) => ({ ...current, global: { value, matchMode: FilterMatchMode.CONTAINS } }));
-        }}
+        onSearchChange={(value) => setGlobalFilterValue(value)}
         searchPlaceholder={t("common.search_placeholder")}
         trailing={
           <div className="flex flex-wrap items-center gap-2">
@@ -436,12 +458,16 @@ export default function TripPlanList() {
         exportRows={filteredRows}
         onValueChange={(value) => setFilteredRows(value as typeof rows)}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         loading={loading}
-        filters={filters}
-        onFilter={(event: DataTableFilterEvent) => setFilters(event.filters as TableFilters)}
-        globalFilterFields={["display_code", "_location", "_staff", "_vehicle", "_waste_type", "_stop_count", "_driver", "_operator", "_collection_type", "approval_status", "status"]}
         header={header}
         stripedRows
         showGridlines
@@ -449,13 +475,13 @@ export default function TripPlanList() {
         emptyMessage="No trip plans found"
       >
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
-        <Column field="display_code" header="Plan Code" filter showFilterMatchModes={false} />
-        <Column field="_location" header="Location" filter showFilterMatchModes={false} body={locationText} />
-        <Column field="_staff" header="Staff Template" filter showFilterMatchModes={false} body={staffText} />
-        <Column field="_vehicle" header="Vehicle" filter showFilterMatchModes={false} body={vehicleText} />
+        <Column field="display_code" header="Plan Code" sortable />
+        <Column field="_location" header="Location" body={locationText} />
+        <Column field="_staff" header="Staff Template" body={staffText} />
+        <Column field="_vehicle" header="Vehicle" body={vehicleText} />
         <Column header="Vehicle Breakdown" body={breakdownBody} style={{ minWidth: 140 }} />
-        <Column field="_waste_type" header="Waste Type" filter showFilterMatchModes={false} body={WasteTypeChips} />
-        <Column field="_stop_count" header="Stops" filter showFilterMatchModes={false} style={{ width: 100 }} body={stopCountText} />
+        <Column field="_waste_type" header="Waste Type" body={WasteTypeChips} />
+        <Column field="_stop_count" header="Stops" style={{ width: 100 }} body={stopCountText} />
         <Column field="scheduled_time" header="Start Time" body={(row: TripPlanRecord) => time12h(row.scheduled_time)} />
         <Column
           header="Auto Assign"
@@ -470,24 +496,21 @@ export default function TripPlanList() {
           field="_collection_type"
           header="Collection Type"
           body={CollectionTypeBadge}
-          filter showFilterMatchModes={false}
           style={{ minWidth: 170 }}
         />
         <Column
           field="_driver"
           header="Driver"
           body={driverText}
-          filter showFilterMatchModes={false}
           style={{ minWidth: 130 }}
         />
         <Column
           field="_operator"
           header="Operator"
           body={operatorText}
-          filter showFilterMatchModes={false}
           style={{ minWidth: 130 }}
         />
-        <Column field="approval_status" header="Approval" />
+        <Column field="approval_status" header="Approval" sortable />
         <Column header="Status" body={statusBody} style={{ width: 120 }} />
         <Column header={t("common.actions")} style={{ width: 120 }} body={(row: TripPlanRecord) => (
           <button title={t("common.edit")} onClick={() => navigate(editPath(row.unique_id), { state: { record: row, companyUniqueId, projectId } })} className="text-blue-600 hover:text-blue-800">

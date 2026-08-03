@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -7,6 +7,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { useTranslation } from "react-i18next";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -19,13 +20,28 @@ import { staffAccessConfigurationApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
-import { filterRowsForExport } from "@/utils/adminListExport";
 
 import type { StaffAccessConfigRecord } from "./types";
 
 type ListRow = StaffAccessConfigRecord;
 
-const STAFF_ACCESS_SEARCH_FIELDS = ["staff_name", "staffusertype_name", "project_name", "company_name"];
+// Backend allow-lists `ordering` to these dotted paths (see
+// StaffAccessConfigurationViewSet.ordering_fields) — the serializer's flat
+// response field names (employee_name / staff_unique_id / doj) don't match
+// the model paths 1:1, so sortable columns are mapped to the backend's
+// actual ordering param values here.
+const SORTABLE_FIELD_ORDERING: Record<string, string> = {
+  staff_name: "staff_id__employee_name",
+  staff_id: "staff_id__staff_unique_id",
+};
+
+const toRecordList = (value: unknown): StaffAccessConfigRecord[] => {
+  if (Array.isArray(value)) return value as StaffAccessConfigRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: StaffAccessConfigRecord[] }).results;
+  }
+  return [];
+};
 
 const extractErrorMessage = (error: unknown, fallback: string): string => {
   const data = (error as { response?: { data?: unknown } })?.response?.data;
@@ -47,7 +63,14 @@ export default function StaffAccessConfigList() {
   const navigate = useNavigate();
 
   const [rows, setRows] = useState<StaffAccessConfigRecord[]>([]);
+  const [exportRows, setExportRows] = useState<StaffAccessConfigRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
@@ -68,13 +91,16 @@ export default function StaffAccessConfigList() {
   });
 
   const {
-    filters,
-    onFilter,
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
-  } = useFilterBarFilters({ statusField: "active_status" });
+    onStatusFilterChange: setStatusValueFilter,
+  } = useFilterBarFilters({ statusField: "is_active" });
+
+  const onStatusFilterChange = (value: Parameters<typeof setStatusValueFilter>[0]) => {
+    setFirst(0);
+    setStatusValueFilter(value);
+  };
 
   const { encAdmins, encStaffAccessConfiguration } = getEncryptedRoute();
   const { newPath, editPath } = createCrudRoutePaths(encAdmins, encStaffAccessConfiguration);
@@ -82,37 +108,74 @@ export default function StaffAccessConfigList() {
     company_unique_id: companyUniqueId,
   });
 
+  const ordering = sortField && SORTABLE_FIELD_ORDERING[sortField]
+    ? `${sortOrder === -1 ? "-" : ""}${SORTABLE_FIELD_ORDERING[sortField]}`
+    : undefined;
+
+  const loadRows = async (page: number, limit: number) => {
+    setIsLoading(true);
+    setRows([]);
+    try {
+      const params: Record<string, string | number> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+      if (searchTerm) params.search = searchTerm;
+      if (statusValue !== "all") params.is_active = statusValue === "active" ? "true" : "false";
+      if (ordering) params.ordering = ordering;
+
+      const response = await staffAccessConfigurationApi.readAllwithPaginated(page, limit, { params });
+      const list = toRecordList(response);
+      setRows(list);
+      setTotalRecords(
+        typeof (response as { count?: number })?.count === "number"
+          ? (response as { count?: number }).count as number
+          : list.length,
+      );
+    } catch (error) {
+      Swal.fire(t("common.error"), extractErrorMessage(error, t("common.load_failed")), "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyUniqueId, projectId, first, rowsPerPage, searchTerm, statusValue, ordering, t]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  // SafeDataTable's built-in "Download All Excel" button reads `exportRows`
+  // synchronously, so keep it refreshed with the full (unpaginated),
+  // currently-filtered result set whenever filters/company/project change.
   useEffect(() => {
     let mounted = true;
+    const params: Record<string, string | number> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
+    if (projectId) params.project_id = projectId;
+    if (searchTerm) params.search = searchTerm;
+    if (statusValue !== "all") params.is_active = statusValue === "active" ? "true" : "false";
 
-    const loadRows = async () => {
-      setIsLoading(true);
-      try {
-        const params: Record<string, string | number> = { limit: 6000, offset: 0 };
-        if (companyUniqueId) params.company_id = companyUniqueId;
-        if (projectId) params.project_id = projectId;
-        const data = await staffAccessConfigurationApi.readAll({ params });
-        if (mounted) setRows(data as StaffAccessConfigRecord[]);
-      } catch (error) {
-        if (mounted) {
-          Swal.fire(t("common.error"), extractErrorMessage(error, t("common.load_failed")), "error");
-        }
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
-
-    void loadRows();
-
+    staffAccessConfigurationApi
+      .readAllForExport({ params })
+      .then((data: unknown) => {
+        if (mounted) setExportRows(toRecordList(data));
+      })
+      .catch(() => {
+        if (mounted) setExportRows([]);
+      });
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectId, searchTerm, statusValue]);
 
-  const records = useMemo<ListRow[]>(
-    () => rows,
-    [rows]
-  );
+  const records = rows;
 
   const actionTemplate = (row: ListRow) => {
     const staffUniqueId = String(row.staff_unique_id ?? row.staff_id ?? "");
@@ -149,17 +212,16 @@ export default function StaffAccessConfigList() {
 
   const indexTemplate = (_: unknown, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
-  const exportRows = useMemo(
-    () =>
-      filterRowsForExport(
-        records,
-        STAFF_ACCESS_SEARCH_FIELDS,
-        globalFilterValue,
-        statusValue,
-        "active_status",
-      ),
-    [records, globalFilterValue, statusValue],
-  );
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const header = (
     <div className="space-y-4">
@@ -218,13 +280,17 @@ export default function StaffAccessConfigList() {
         value={records}
         exportRows={exportRows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         loading={isLoading}
-        filters={filters}
-        onFilter={onFilter}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        globalFilterFields={STAFF_ACCESS_SEARCH_FIELDS}
         header={header}
         stripedRows
         emptyMessage={t("common.no_items_found", {
@@ -233,11 +299,15 @@ export default function StaffAccessConfigList() {
         className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 80 }} />
-        <Column field="staff_id" header="ID" />
-        <Column field="staff_name" header={t("admin.staff_access_configuration.staff_name")} sortable />
+        <Column field="staff_id" header="ID" sortable={Boolean(SORTABLE_FIELD_ORDERING.staff_id)} />
+        <Column
+          field="staff_name"
+          header={t("admin.staff_access_configuration.staff_name")}
+          sortable={Boolean(SORTABLE_FIELD_ORDERING.staff_name)}
+        />
         <Column header="Role" body={roleTemplate} />
-        <Column field="project_name" header={t("admin.nav.project")} sortable />
-        <Column field="company_name" header={t("admin.nav.company")} sortable />
+        <Column field="project_name" header={t("admin.nav.project")} />
+        <Column field="company_name" header={t("admin.nav.company")} />
         <Column
           header="Permissions"
           body={(row: ListRow) => row.screen_count ?? row.main_screen_count ?? "-"}

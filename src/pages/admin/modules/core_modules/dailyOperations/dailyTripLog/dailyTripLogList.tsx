@@ -1,19 +1,17 @@
 import type { DailyTripLogRecord } from "./types";
 import { formatCollectionTime } from "./collectionTime";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputTextarea } from "primereact/inputtextarea";
 import { Dialog } from "primereact/dialog";
 import { Divider } from "primereact/divider";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { MultiSelect } from "primereact/multiselect";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
@@ -123,6 +121,17 @@ const InfoRow = ({ label, value }: { label: string; value?: string | number | nu
     <span className="font-medium text-gray-800">{value ?? "-"}</span>
   </div>
 );
+
+/* ── backend's manual `?ordering=` allowlist (see daily_trip_log_viewset.py) ── */
+const SORTABLE_FIELDS = new Set(["unique_id", "trip_date", "collected_weight_kg", "log_status"]);
+
+const toRecordList = (value: unknown): DailyTripLogRecord[] => {
+  if (Array.isArray(value)) return value as DailyTripLogRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: DailyTripLogRecord[] }).results;
+  }
+  return [];
+};
 
 const extractError = (error: any): string | null => {
   const data = error?.response?.data;
@@ -596,8 +605,12 @@ export default function DailyTripLogList() {
     initialProjectId: restoredState?.projectId,
   });
 
-  const [allLogs, setAllLogs] = useState<DailyTripLogRecord[]>([]);
-  const [filteredRows, setFilteredRows] = useState<DailyTripLogRecord[]>([]);
+  const [rawRows, setRawRows] = useState<DailyTripLogRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [collectionType, setCollectionType] = useState<"all" | "bin" | "household">("all");
   const [dateFilter, setDateFilter] = useState("");
   const [wasteTypeFilter, setWasteTypeFilter] = useState<string[]>([]);
@@ -611,17 +624,7 @@ export default function DailyTripLogList() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _assignment: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _waste: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _base_template: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _alt_template: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _location: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    log_status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    trip_date: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
 
   /* ── waste type options for the filter multiselect ── */
   useEffect(() => {
@@ -637,41 +640,103 @@ export default function DailyTripLogList() {
       .catch(() => setWasteTypeOptions([]));
   }, []);
 
-  /* ── load logs ── */
-  useEffect(() => {
-    if (isSuperAdmin && companies.length === 0) {
-      setAllLogs([]);
-      return;
-    }
-    if (!companyUniqueId && !isSuperAdmin) {
-      setAllLogs([]);
-      return;
-    }
-    let mounted = true;
-    setIsLoading(true);
+  /* ── build server query params from the company/project/date/waste-type filters ──
+     waste_type_id is sent as one comma-separated string, which the backend's
+     `params.getlist("waste_type_id")` splits back apart on "," (see
+     daily_trip_log_viewset.py get_queryset). ── */
+  const buildParams = useCallback((): Record<string, string> => {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     if (dateFilter) params.date = dateFilter;
     if (wasteTypeFilter.length > 0) params.waste_type_id = wasteTypeFilter.join(",");
-    (dailyTripLogApi.readAll({ params }) as Promise<DailyTripLogRecord[]>)
-      .then((data) => {
-        if (mounted) setAllLogs(Array.isArray(data) ? data : []);
-      })
-      .catch((err) => {
+    return params;
+  }, [companyUniqueId, projectId, dateFilter, wasteTypeFilter]);
+
+  /* ── ordering param, from the sortField/sortOrder state, mapped through the
+     backend's own manual `?ordering=` allowlist ── */
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  /* ── load logs (re-runs whenever pagination/sort/search/company/project/date/waste-type filters change) ── */
+  useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) {
+      setRawRows([]);
+      setTotalRecords(0);
+      return;
+    }
+    if (!companyUniqueId && !isSuperAdmin) {
+      setRawRows([]);
+      setTotalRecords(0);
+      return;
+    }
+
+    let mounted = true;
+
+    const loadRows = async (page: number, limit: number) => {
+      setIsLoading(true);
+      if (mounted) setRawRows([]);
+      try {
+        const response = await dailyTripLogApi.readAllwithPaginated(page, limit, {
+          params: {
+            ...buildParams(),
+            ...(searchTerm ? { search: searchTerm } : {}),
+            ...(ordering ? { ordering } : {}),
+          },
+        });
+        if (mounted) {
+          const list = toRecordList(response);
+          setRawRows(list);
+          setTotalRecords(
+            typeof (response as { count?: number })?.count === "number"
+              ? (response as { count?: number }).count as number
+              : list.length,
+          );
+        }
+      } catch (err: any) {
         if (mounted)
           Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
-      })
-      .finally(() => {
+      } finally {
         if (mounted) setIsLoading(false);
-      });
+      }
+    };
+
+    void loadRows(first / rowsPerPage + 1, rowsPerPage);
+
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, dateFilter, wasteTypeFilter, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, dateFilter, wasteTypeFilter, first, rowsPerPage, searchTerm, ordering, t]);
 
-  /* ── enrich rows ── */
-  const rows = allLogs.map((rec) => {
+  /* ── reset to first page whenever a non-pagination filter changes ── */
+  useEffect(() => {
+    setFirst(0);
+  }, [companyUniqueId, projectId, dateFilter, wasteTypeFilter, collectionType]);
+
+  /* ── debounce the global search box into the server-side `?search=` param ── */
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  /* ── enrich rows (current page only) ── */
+  const rows = rawRows.map((rec) => {
     const zoneName = rec.trip_assignment?.zone?.zone_name ?? null;
     return {
       ...rec,
@@ -694,8 +759,10 @@ export default function DailyTripLogList() {
     };
   });
 
-  /* ── filter by collection type (company/project scoping is applied
-     server-side via params in the fetch effect above) ── */
+  /* ── filter by collection type — a client-side post-filter applied to the
+     CURRENT PAGE only (bin-vs-household split isn't a simple backend field);
+     totalRecords above still reflects the server-side total. Company/project
+     scoping is applied server-side via params in the fetch effect above. ── */
   const data = (() => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId && !isSuperAdmin) return [];
@@ -716,19 +783,8 @@ export default function DailyTripLogList() {
     });
   })();
 
-  // Keeps exported Excel rows in sync with the currently displayed
-  // (filtered/searched) rows rather than the full unfiltered set.
-  useEffect(() => {
-    setFilteredRows(data);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allLogs, companyUniqueId, isSuperAdmin, companies.length, collectionType]);
-
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
-
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
 
   /* ── verify confirm (from modal) ── */
@@ -740,7 +796,7 @@ export default function DailyTripLogList() {
         `/schedule-operations/daily-trip-logs/${modalState.row.unique_id}/verify/`,
         { remarks }
       );
-      setAllLogs((current) =>
+      setRawRows((current) =>
         current.map((item) =>
           item.unique_id === modalState.row.unique_id
             ? { ...item, log_status: "Verified" }
@@ -785,7 +841,7 @@ export default function DailyTripLogList() {
         { log_status: "Submitted", ...(remarks ? { remarks } : {}) }
       );
       const updated = (res as any)?.data ?? res;
-      setAllLogs((current) =>
+      setRawRows((current) =>
         current.map((item) =>
           item.unique_id === modalState.row.unique_id
             ? { ...item, log_status: updated.log_status ?? "Submitted", remarks: updated.remarks ?? item.remarks }
@@ -823,7 +879,7 @@ export default function DailyTripLogList() {
         { log_status: newStatus }
       );
       const updated = (res as any)?.data ?? res;
-      setAllLogs((current) =>
+      setRawRows((current) =>
         current.map((item) =>
           item.unique_id === row.unique_id
             ? {
@@ -995,10 +1051,40 @@ export default function DailyTripLogList() {
     return out;
   };
 
-  const handleDownload = (format: "excel" | "pdf") => {
+  /* ── download: fetch the FULL company/project/date/waste/search-filtered
+     dataset fresh from the server (independent of whatever page is currently
+     on screen), then apply the same enrichment + collectionType post-filter
+     used for the on-screen rows, and explode into per-point/customer rows. ── */
+  const handleDownload = async (format: "excel" | "pdf") => {
     setIsExporting(true);
     try {
-      const exportRows = buildExportRows(filteredRows.length > 0 ? filteredRows : data);
+      const exportRaw = toRecordList(
+        await dailyTripLogApi.readAllForExport({
+          params: { ...buildParams(), ...(searchTerm ? { search: searchTerm } : {}) },
+        }),
+      );
+      const exportSourceRows = exportRaw.filter((row) => {
+        const cps = row.collection_points ?? [];
+        const hasPointWeights = cps.some(
+          (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+        );
+        const computedWeight = computeCollectedWeight(cps);
+        if (collectionType === "bin") {
+          const hasBinWeight =
+            (hasPointWeights && computedWeight > 0) ||
+            (row.collected_weight_kg != null && Number(row.collected_weight_kg) > 0);
+          return hasBinWeight;
+        }
+        if (collectionType === "household") {
+          return (
+            row.household_collected_weight_kg != null &&
+            Number(row.household_collected_weight_kg) > 0
+          );
+        }
+        return true;
+      });
+
+      const exportRows = buildExportRows(exportSourceRows);
       if (exportRows.length === 0) {
         Swal.fire({ icon: "warning", title: "No records", text: "There are no trip logs to export." });
         return;
@@ -1014,7 +1100,7 @@ export default function DailyTripLogList() {
         });
       }
     } catch (err: any) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: err?.message ?? String(err) });
+      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? err?.message ?? String(err) });
     } finally {
       setIsExporting(false);
     }
@@ -1092,6 +1178,10 @@ export default function DailyTripLogList() {
     </div>
   );
 
+  /* ── KPI pills: computed from the CURRENT PAGE only (post-collectionType
+     filter) — the backend has no aggregate endpoint for this deep a
+     computation, so these are deliberately labeled "(page)" rather than
+     implying dataset-wide totals. ── */
   const kpiRecordCount = data.length;
   const kpiOverallWeight = data.reduce(
     (sum, row) => sum + (row._computed_weight ?? 0) + Number(row.household_collected_weight_kg ?? 0),
@@ -1109,54 +1199,35 @@ export default function DailyTripLogList() {
 
       <div className="mb-4 flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-white p-3">
         <div>
-          <p className="text-xs text-gray-400 uppercase tracking-wide">Records</p>
+          <p className="text-xs text-gray-400 uppercase tracking-wide">Records (page)</p>
           <p className="text-lg font-bold text-gray-900">{kpiRecordCount}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-400 uppercase tracking-wide">Overall Weight</p>
+          <p className="text-xs text-gray-400 uppercase tracking-wide">Overall Weight (page)</p>
           <p className="text-lg font-bold text-gray-900">{kpiOverallWeight.toFixed(2)} kg</p>
         </div>
       </div>
 
       <DataTable
         value={data}
-        exportRows={filteredRows}
-        onValueChange={(value) => setFilteredRows(value as typeof data)}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && data.length === 0}
-        filters={filters}
-        onFilter={onFilter}
+        loading={isLoading}
         header={renderHeader()}
         exportable={false}
         stripedRows
         showGridlines
         emptyMessage="No trip logs found. Select a company and project to load data."
-        globalFilterFields={[
-          "unique_id",
-          "_assignment",
-          "_location",
-          "_waste",
-          "_base_template",
-          "_alt_template",
-          "log_status",
-          "collection_status",
-          "trip_date",
-        ]}
         className="p-datatable-sm"
-        transformServerRows={(rows) =>
-          rows.map((row) => {
-            const zoneName = row.trip_assignment?.zone?.zone_name ?? null;
-            return {
-              ...row,
-              trip_assignment: row.trip_assignment
-                ? { ...row.trip_assignment, zone: zoneName }
-                : null,
-            };
-          })
-        }
       >
         <Column
           header={t("common.s_no")}
@@ -1167,23 +1238,16 @@ export default function DailyTripLogList() {
           field="unique_id"
           header="ID"
           sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 150 }}
         />
         <Column
           field="_assignment"
           header="Trip Assignment"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 170 }}
         />
         <Column
           field="_location"
           header="Location"
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 170 }}
           body={(row: DailyTripLogRecord) => {
             const ward = wardNameOf(row);
@@ -1214,8 +1278,6 @@ export default function DailyTripLogList() {
         <Column
           field="_base_template"
           header="Staff Template"
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 160 }}
           body={(row: DailyTripLogRecord) => (
             <span className="text-sm text-gray-800">
@@ -1226,8 +1288,6 @@ export default function DailyTripLogList() {
         <Column
           field="_alt_template"
           header="Alt Staff Template"
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 170 }}
           body={(row: DailyTripLogRecord) =>
             row.staff_template?.alt ? (
@@ -1247,8 +1307,6 @@ export default function DailyTripLogList() {
         <Column
           field="_waste"
           header="Waste Type"
-          filter
-          showFilterMatchModes={false}
           body={(row: DailyTripLogRecord & { _waste?: string }) =>
             row._waste ? (
               <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${wasteTypeColorClass(row._waste)}`}>
@@ -1280,7 +1338,6 @@ export default function DailyTripLogList() {
         <Column
           field="household_collected_weight_kg"
           header="HH Weight (kg)"
-          sortable
           style={{ minWidth: 130 }}
           body={(row: DailyTripLogRecord) =>
             row.household_collected_weight_kg != null ? (
@@ -1294,7 +1351,6 @@ export default function DailyTripLogList() {
         />
         <Column
           header="Total Weight (kg)"
-          sortable
           style={{ minWidth: 140 }}
           body={(row: DailyTripLogRecord) => (
             <span className="font-semibold text-gray-800">{computeTotalWeight(row).toFixed(2)}</span>
@@ -1321,25 +1377,18 @@ export default function DailyTripLogList() {
           header="Log Status"
           body={(row: DailyTripLogRecord) => <Badge value={row.log_status} />}
           sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 110 }}
         />
         <Column
           field="collection_status"
           header="Collection Status"
           body={(row: DailyTripLogRecord) => <CollectionStatusBadge value={row.collection_status} />}
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 145 }}
         />
         <Column
           field="trip_date"
           header="Trip Date"
           sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 110 }}
         />
         <Column

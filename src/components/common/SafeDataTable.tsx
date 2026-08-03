@@ -419,7 +419,13 @@ export const DataTable = <TValue extends SafeTableRows>(
   } = props;
   const safeRows = toSafeRows(tableProps.value);
   const resolvedImportApi = importApi ?? getCurrentAdminBulkImportApi();
-  const serverApi = getCurrentAdminServerListApi();
+  // Pages that already own server-side pagination (readAllwithPaginated +
+  // lazy/onPage/totalRecords wired at the page level) must not also be
+  // driven by this component's route-based auto-pagination — both would
+  // fetch independently and race, with whichever resolves last silently
+  // overwriting the other's rows (symptom: table shows "no records found"
+  // even though the page's own fetch returned data).
+  const serverApi = tableProps.lazy ? null : getCurrentAdminServerListApi();
   const initialPageSize =
     typeof tableProps.rows === "number" && tableProps.rows > 0
       ? tableProps.rows

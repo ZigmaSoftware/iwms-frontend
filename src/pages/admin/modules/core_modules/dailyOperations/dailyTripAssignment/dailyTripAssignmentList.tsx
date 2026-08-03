@@ -12,7 +12,7 @@ import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTableFilterMeta, DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -166,6 +166,17 @@ type SchedulerStatus = {
   last_error?: string | null;
 };
 
+/* ── backend's DRF `ordering_fields` allowlist (see daily_trip_assignment_viewset.py) ── */
+const SORTABLE_FIELDS = new Set(["trip_date", "scheduled_time", "status", "approval_status"]);
+
+const toRecordList = (value: unknown): DailyTripAssignmentRecord[] => {
+  if (Array.isArray(value)) return value as DailyTripAssignmentRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: DailyTripAssignmentRecord[] }).results;
+  }
+  return [];
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DailyTripAssignmentList() {
@@ -190,8 +201,13 @@ export default function DailyTripAssignmentList() {
     initialProjectId: restoredState?.projectId,
   });
 
-  const [allAssignments, setAllAssignments] = useState<DailyTripAssignmentRecord[]>([]);
+  const [rawAssignments, setRawAssignments] = useState<DailyTripAssignmentRecord[]>([]);
   const [filteredRows, setFilteredRows] = useState<DailyTripAssignmentRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
   const [isSchedulerRunning, setIsSchedulerRunning] = useState(false);
@@ -204,6 +220,7 @@ export default function DailyTripAssignmentList() {
   const [schedulerEnabled, setSchedulerEnabled] = useState(true);
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | CollectionTypeKey>("all");
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -221,23 +238,42 @@ export default function DailyTripAssignmentList() {
     scheduled_time: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  const loadAssignments = useCallback(() => {
-    if (!companyUniqueId && !isSuperAdmin) return;
-    let mounted = true;
-    setIsLoading(true);
-    const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-    if (projectId) params.project_id = projectId;
-    if (schedulerDate) params.date = schedulerDate;
-    dailyTripAssignmentApi.readAll({ params })
-      .then((assignmentData) => {
-        if (!mounted) return;
-        setAllAssignments(Array.isArray(assignmentData) ? assignmentData as DailyTripAssignmentRecord[] : []);
-      })
-      .catch((err) => { if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) }); })
-      .finally(() => { if (mounted) setIsLoading(false); });
-    return () => { mounted = false; };
-  }, [companyUniqueId, projectId, schedulerDate, isSuperAdmin, t]);
+  /* ── ordering param, from the sortField/sortOrder state, mapped through the
+     backend's `ordering_fields` allowlist ── */
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  /* ── load ONE page of assignments (server-side pagination + search + ordering)
+     instead of fetching the entire table client-side ── */
+  const loadRows = useCallback(
+    async (page: number, limit: number, search: string, orderingParam?: string) => {
+      if (!companyUniqueId && !isSuperAdmin) return;
+      setIsLoading(true);
+      setRawAssignments([]);
+      try {
+        const params: Record<string, string> = {};
+        if (companyUniqueId) params.company_id = companyUniqueId;
+        if (projectId) params.project_id = projectId;
+        if (schedulerDate) params.date = schedulerDate;
+        if (search) params.search = search;
+        if (orderingParam) params.ordering = orderingParam;
+        const response = await dailyTripAssignmentApi.readAllwithPaginated(page, limit, { params });
+        const list = toRecordList(response);
+        setRawAssignments(list);
+        setTotalRecords(
+          typeof (response as { count?: number })?.count === "number"
+            ? (response as { count?: number }).count as number
+            : list.length,
+        );
+      } catch (err) {
+        Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [companyUniqueId, projectId, schedulerDate, isSuperAdmin, t],
+  );
 
   const loadSchedulerStatus = useCallback(() => {
     dailyTripAssignmentApi
@@ -251,8 +287,39 @@ export default function DailyTripAssignmentList() {
       .catch(() => setSchedulerStatus(null));
   }, []);
 
-  useEffect(() => loadAssignments(), [loadAssignments]);
+  /* ── reset to first page whenever company/project/date filters change ── */
+  useEffect(() => {
+    setFirst(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyUniqueId, projectId, schedulerDate]);
+
+  /* ── debounce the global search box into the server-side `?search=` param ── */
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  /* ── load rows (re-runs whenever pagination/sort/search/company/project/date change) ── */
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, companyUniqueId, projectId, schedulerDate, isSuperAdmin]);
+
   useEffect(() => loadSchedulerStatus(), [loadSchedulerStatus]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const runSchedulerNow = async () => {
     setIsSchedulerRunning(true);
@@ -267,7 +334,7 @@ export default function DailyTripAssignmentList() {
         text: `Created: ${result.assignments_created ?? 0}, existing: ${result.assignments_existing ?? 0}, collection points: ${result.collection_points_created ?? 0}`,
       });
       loadSchedulerStatus();
-      loadAssignments();
+      void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     } catch (err) {
       Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Scheduler failed" });
     } finally {
@@ -291,7 +358,7 @@ export default function DailyTripAssignmentList() {
         title: "Generate Daily completed",
         text: String(result.message ?? `Created: ${result.created ?? 0}, skipped: ${result.skipped ?? 0}`),
       });
-      loadAssignments();
+      void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     } catch (err) {
       Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Generate Daily failed" });
     } finally {
@@ -326,11 +393,13 @@ export default function DailyTripAssignmentList() {
   };
 
   /* ── enrich + filter rows ── */
-  // Company/project scoping is now applied server-side via params in
-  // loadAssignments — no client-side narrowing needed here.
+  // Company/project/date scoping is applied server-side via params in
+  // loadRows — only the client-only `collectionTypeFilter` (derived from
+  // nested trip_plan flags, not a plain backend field) still narrows here,
+  // and it now only ever sees ONE PAGE of rows at a time.
   const rows = (() => {
     if (!companyUniqueId && !isSuperAdmin) return [];
-    return allAssignments
+    return rawAssignments
       .filter((row) => {
         if (schedulerDate && row.trip_date !== schedulerDate) return false;
         if (collectionTypeFilter !== "all" && getCollectionTypeKey(row) !== collectionTypeFilter) return false;
@@ -354,13 +423,13 @@ export default function DailyTripAssignmentList() {
   })();
 
   // Keeps the exported Excel rows in sync with whatever the table is
-  // currently displaying (global search + column filters), not the full
+  // currently displaying (current page + column filters), not the full
   // unfiltered `rows` array — SafeDataTable's own export otherwise exports
   // the raw `value` prop as-is.
   useEffect(() => {
     setFilteredRows(rows);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allAssignments, companyUniqueId, isSuperAdmin, schedulerDate, collectionTypeFilter]);
+  }, [rawAssignments, companyUniqueId, isSuperAdmin, schedulerDate, collectionTypeFilter]);
 
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
 
@@ -894,10 +963,17 @@ export default function DailyTripAssignmentList() {
         exportRows={filteredRows}
         onValueChange={(value) => setFilteredRows(value as DailyTripAssignmentRecord[])}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && rows.length === 0}
+        loading={isLoading}
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}
@@ -1020,18 +1096,30 @@ export default function DailyTripAssignmentList() {
             (Array.isArray(row.collection_points) ? row.collection_points.length : 0) +
             (Array.isArray(row.household_collection_points) ? row.household_collection_points.length : 0)
           }
-          sortable
           filter
           showFilterMatchModes={false}
           style={{ width: 150 }}
         />
-        <Column field="trip_date" header="Trip Date" filter showFilterMatchModes={false} style={{ minWidth: 110 }} />
-        <Column field="scheduled_time" header="Start Time" filter showFilterMatchModes={false} style={{ minWidth: 110 }} />
+        <Column
+          field="trip_date"
+          header="Trip Date"
+          filter showFilterMatchModes={false}
+          sortable={SORTABLE_FIELDS.has("trip_date")}
+          style={{ minWidth: 110 }}
+        />
+        <Column
+          field="scheduled_time"
+          header="Start Time"
+          filter showFilterMatchModes={false}
+          sortable={SORTABLE_FIELDS.has("scheduled_time")}
+          style={{ minWidth: 110 }}
+        />
         <Column
           field="status"
           header="Status"
           body={statusTemplate}
           filter showFilterMatchModes={false}
+          sortable={SORTABLE_FIELDS.has("status")}
           style={{ minWidth: 160 }}
         />
         <Column

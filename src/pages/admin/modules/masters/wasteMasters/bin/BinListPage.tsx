@@ -1,12 +1,12 @@
 import type { Bin, BinApiRow } from "./types";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useState } from "react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -53,6 +53,9 @@ const BIN_COLUMN_FIELDS: Record<string, string[]> = {
   is_active: ["is_active"],
 };
 
+// Matches bins_viewset.py's `ordering_fields`.
+const SORTABLE_FIELDS = new Set(["bin_name", "bin_capacity", "is_active"]);
+
 export default function BinList() {
   const { t } = useTranslation();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
@@ -97,6 +100,11 @@ export default function BinList() {
 
   const navigate = useNavigate();
   const [binRows, setBinRows] = useState<BinApiRow[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
@@ -104,6 +112,10 @@ export default function BinList() {
     "bins",
     BIN_COLUMN_FIELDS,
   );
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
 
   // Load zone/ward filter options (scoped by company/project, mirrors A1's bin filters)
   useEffect(() => {
@@ -143,23 +155,42 @@ export default function BinList() {
   }, [companyUniqueId, projectId]);
 
   useEffect(() => {
-    if (isSuperAdmin && companies.length === 0) return;
-    if (!companyUniqueId && !isSuperAdmin) return;
+    if (isSuperAdmin && companies.length === 0) {
+      setBinRows([]);
+      setTotalRecords(0);
+      return;
+    }
+    if (!companyUniqueId && !isSuperAdmin) {
+      setBinRows([]);
+      setTotalRecords(0);
+      return;
+    }
 
     let mounted = true;
 
-    const loadBins = async () => {
+    const loadBins = async (page: number, limit: number) => {
       setIsLoading(true);
+      if (mounted) setBinRows([]);
       try {
-        const data = await binApi.readAll({
+        const response = await binApi.readAllwithPaginated(page, limit, {
           params: {
             company_id: companyUniqueId,
             project_id: projectId || undefined,
             zone_id: zoneFilterId || undefined,
             ward_id: wardFilterId || undefined,
+            ...(globalFilterValue.trim() ? { search: globalFilterValue.trim() } : {}),
+            ...(ordering ? { ordering } : {}),
           },
         });
-        if (mounted) setBinRows(data as BinApiRow[]);
+        if (mounted) {
+          const list = toRecordList(response) as BinApiRow[];
+          setBinRows(list);
+          setTotalRecords(
+            typeof (response as { count?: number })?.count === "number"
+              ? (response as { count?: number }).count as number
+              : list.length,
+          );
+        }
       } catch (error) {
         if (mounted) {
           const data = (error as { response?: { data?: unknown } })?.response?.data;
@@ -170,22 +201,44 @@ export default function BinList() {
       }
     };
 
-    void loadBins();
+    void loadBins(first / rowsPerPage + 1, rowsPerPage);
 
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, zoneFilterId, wardFilterId, t]);
+  }, [
+    companyUniqueId,
+    projectId,
+    isSuperAdmin,
+    companies.length,
+    zoneFilterId,
+    wardFilterId,
+    first,
+    rowsPerPage,
+    globalFilterValue,
+    ordering,
+    t,
+  ]);
 
-  // Company/project scoping is now applied server-side (tenant users are
-  // scoped automatically by the backend; superadmin scoping is passed via
-  // company_id/project_id params above) — no client-side narrowing needed.
-  const bins = (() => {
-    if (isSuperAdmin && companies.length === 0) return [] as Bin[];
-    if (!companyUniqueId && !isSuperAdmin) return [] as Bin[];
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
 
-    const rows = Array.isArray(binRows) ? binRows : [];
-    const mapped: Bin[] = rows.map((row) => ({
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  // Reset to the first page whenever search/zone/ward filters change so the
+  // paginator doesn't stay stuck on a now out-of-range page.
+  useEffect(() => {
+    setFirst(0);
+  }, [globalFilterValue, zoneFilterId, wardFilterId]);
+
+  const mapBinRows = (rows: BinApiRow[]): Bin[] =>
+    rows.map((row) => ({
       unique_id: String(row.unique_id ?? ""),
       bin_name: String(row.bin_name ?? ""),
       bin_capacity: Number(row.bin_capacity ?? 0),
@@ -210,12 +263,32 @@ export default function BinList() {
       is_active: Boolean(row.is_active),
     }));
 
-    return mapped;
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
+  const bins = (() => {
+    if (isSuperAdmin && companies.length === 0) return [] as Bin[];
+    if (!companyUniqueId && !isSuperAdmin) return [] as Bin[];
+
+    const rows = Array.isArray(binRows) ? binRows : [];
+    return mapBinRows(rows);
   })();
 
-  const getFilteredExportRows = (): Bin[] => {
+  const fetchExportBins = async (): Promise<Bin[]> => {
+    const data = await binApi.readAllForExport({
+      params: {
+        company_id: companyUniqueId,
+        project_id: projectId || undefined,
+        zone_id: zoneFilterId || undefined,
+        ward_id: wardFilterId || undefined,
+      },
+    });
+    return mapBinRows(toRecordList(data) as BinApiRow[]);
+  };
+
+  const getFilteredExportRows = (rows: Bin[]): Bin[] => {
     const search = globalFilterValue.trim().toLowerCase();
-    return bins.filter((bin) => {
+    return rows.filter((bin) => {
       if (statusValue !== "all") {
         const wantActive = statusValue === "active";
         if (Boolean(bin.is_active) !== wantActive) return false;
@@ -238,15 +311,22 @@ export default function BinList() {
     });
   };
 
-  const handleDownloadExcel = () => {
+  const handleDownloadExcel = async () => {
     setIsExportingExcel(true);
     try {
-      const rows = getFilteredExportRows();
+      const allRows = await fetchExportBins();
+      const rows = getFilteredExportRows(allRows);
       if (rows.length === 0) {
         Swal.fire(t("common.warning") || "Warning", "No bins to export", "warning");
         return;
       }
       exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Bins");
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to export bins.",
+      });
     } finally {
       setIsExportingExcel(false);
     }
@@ -400,8 +480,15 @@ export default function BinList() {
       <DataTable
         value={bins}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         filters={filters}
         onFilter={onFilter}

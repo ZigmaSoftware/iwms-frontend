@@ -6,11 +6,9 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -22,26 +20,37 @@ import { Switch } from "@/components/ui/switch";
 import { vehicleTypeApi } from "@/helpers/admin";
 import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar";
 
+const SORTABLE_FIELDS = new Set(["vehicleType", "is_active"]);
+
 const cap = (str?: string | null) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
+
+const toRecordList = (value: unknown): VehicleTypeRecord[] => {
+  if (Array.isArray(value)) return value as VehicleTypeRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: VehicleTypeRecord[] }).results;
+  }
+  return [];
+};
 
 export default function VehicleTypeCreationList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const [allVehicleTypes, setAllVehicleTypes] = useState<VehicleTypeRecord[]>([]);
-  const [filteredRows, setFilteredRows] = useState<VehicleTypeRecord[]>([]);
+  const [rows, setRows] = useState<VehicleTypeRecord[]>([]);
+  const [exportRows, setExportRows] = useState<VehicleTypeRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [statusValue, setStatusValue] = useState<StatusFilterValue>("all");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    vehicleType: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    is_active: { value: null as boolean | null, matchMode: FilterMatchMode.EQUALS },
-  });
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const { encTransportMaster, encVehicleType } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -49,48 +58,80 @@ export default function VehicleTypeCreationList() {
     encVehicleType,
   );
 
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const loadRows = async (page: number, limit: number) => {
+    setIsLoading(true);
+    setRows([]);
+    try {
+      const params: Record<string, string> = {};
+      if (searchTerm) params.search = searchTerm;
+      if (statusValue !== "all") params.is_active = statusValue === "active" ? "true" : "false";
+      if (ordering) params.ordering = ordering;
+
+      const response = await vehicleTypeApi.readAllwithPaginated(page, limit, { params });
+      const list = toRecordList(response);
+      setRows(list);
+      setTotalRecords(
+        typeof (response as { count?: number })?.count === "number"
+          ? (response as { count?: number }).count as number
+          : list.length,
+      );
+    } catch (error: unknown) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, first, rowsPerPage, searchTerm, statusValue, ordering]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  // SafeDataTable's built-in "Download All Excel" button reads the `exportRows`
+  // prop synchronously, so keep it refreshed with the full (unpaginated),
+  // currently-filtered result set whenever filters change.
   useEffect(() => {
     let mounted = true;
-    setIsLoading(true);
-    vehicleTypeApi.readAll()
-      .then((data: unknown) => {
-        if (mounted) setAllVehicleTypes(Array.isArray(data) ? (data as VehicleTypeRecord[]) : []);
-      })
-      .catch((error: unknown) => {
-        if (mounted) {
-          Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
-        }
-      })
-      .finally(() => { if (mounted) setIsLoading(false); });
+    const params: Record<string, string> = {};
+    if (searchTerm) params.search = searchTerm;
+    if (statusValue !== "all") params.is_active = statusValue === "active" ? "true" : "false";
+
+    vehicleTypeApi.readAllForExport({ params })
+      .then((data: unknown) => { if (mounted) setExportRows(toRecordList(data)); })
+      .catch(() => { if (mounted) setExportRows([]); });
     return () => { mounted = false; };
-  }, [t]);
+  }, [searchTerm, statusValue]);
 
-  // Keeps exported Excel rows in sync with the currently displayed
-  // (filtered/searched) rows rather than the full unfiltered set.
-  useEffect(() => {
-    setFilteredRows(allVehicleTypes);
-  }, [allVehicleTypes]);
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
 
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters);
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
+    setGlobalFilterValue(e.target.value);
   };
 
   const onStatusFilterChange = (value: StatusFilterValue) => {
     setStatusValue(value);
-    setFilters((prev) => ({
-      ...prev,
-      is_active: {
-        value: value === "all" ? null : value === "active",
-        matchMode: FilterMatchMode.EQUALS,
-      },
-    }));
+    setFirst(0);
   };
 
   const statusTemplate = (row: VehicleTypeRecord) => {
@@ -103,7 +144,7 @@ export default function VehicleTypeCreationList() {
           description: row.description,
           is_active: value,
         });
-        setAllVehicleTypes((current) =>
+        setRows((current) =>
           current.map((item) =>
             item.unique_id === row.unique_id ? { ...item, is_active: value } : item
           )
@@ -177,21 +218,24 @@ export default function VehicleTypeCreationList() {
       </div>
 
       <DataTable
-        value={allVehicleTypes}
-        exportRows={filteredRows}
-        onValueChange={(value) => setFilteredRows(value as VehicleTypeRecord[])}
+        value={rows}
+        exportRows={exportRows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
+        loading={isLoading}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && allVehicleTypes.length === 0}
-        filters={filters}
-        onFilter={onFilter}
         header={renderHeader()}
         stripedRows
         showGridlines
         className="p-datatable-sm"
-        globalFilterFields={["vehicleType"]}
         emptyMessage={t("admin.vehicle_type.empty_message")}
       >
         <Column
@@ -203,15 +247,15 @@ export default function VehicleTypeCreationList() {
         <Column
           field="vehicleType"
           header={t("admin.vehicle_type.label")}
-          sortable
-          filter
-          showFilterMatchModes={false}
+          sortable={SORTABLE_FIELDS.has("vehicleType")}
           body={(row: VehicleTypeRecord) => cap(row.vehicleType)}
           style={{ minWidth: "200px" }}
         />
 
         <Column
+          field="is_active"
           header={t("common.status")}
+          sortable={SORTABLE_FIELDS.has("is_active")}
           body={statusTemplate}
           style={{ width: "140px" }}
         />
