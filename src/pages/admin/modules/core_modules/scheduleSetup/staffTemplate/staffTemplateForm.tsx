@@ -27,8 +27,6 @@ const initialFormData: StaffTemplateFormData = {
   operator_id: "",
   extra_operator_id: [],
   status: "ACTIVE",
-  approval_status: "PENDING",
-  approved_by: "",
 };
 
 const STAFF_TEMPLATE_FIELDS: Record<string, string[]> = {
@@ -38,8 +36,6 @@ const STAFF_TEMPLATE_FIELDS: Record<string, string[]> = {
   operator_id: ["operator_id", "primary_operator", "operator"],
   extra_operator_id: ["extra_operator_id", "extra_staff", "extra_operator"],
   status: ["status", "active_status"],
-  approval_status: ["approval_status"],
-  approved_by: ["approved_by", "approver"],
 };
 
 /* ================= COMPONENT ================= */
@@ -65,8 +61,6 @@ export default function StaffTemplateForm() {
 
   const [driverOptions, setDriverOptions] = useState<Option[]>([]);
   const [operatorOptions, setOperatorOptions] = useState<Option[]>([]);
-  const [adminOptions, setAdminOptions] = useState<Option[]>([]);
-  const [supervisorOptions, setSupervisorOptions] = useState<Option[]>([]);
   const [staffRecords, setStaffRecords] = useState<StaffRecord[]>([]);
   const [companyOptions, setCompanyOptions] = useState<Option[]>([]);
   const [projectOptions, setProjectOptions] = useState<Option[]>([]);
@@ -89,7 +83,6 @@ export default function StaffTemplateForm() {
   const [pendingDriverId, setPendingDriverId] = useState<string | null>(null);
   const [pendingOperatorId, setPendingOperatorId] = useState<string | null>(null);
   const [pendingExtraIds, setPendingExtraIds] = useState<string[] | null>(null);
-  const [pendingApprovedBy, setPendingApprovedBy] = useState<string | null>(null);
 
   const { encScheduleMasters, encStaffTemplate } = getEncryptedRoute();
   const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encStaffTemplate);
@@ -97,11 +90,6 @@ export default function StaffTemplateForm() {
   const statusOptions = [
     { value: "ACTIVE", label: t("common.active") },
     { value: "INACTIVE", label: t("common.inactive") },
-  ];
-  const approvalStatusOptions = [
-    { value: "PENDING", label: t("common.pending") },
-    { value: "APPROVED", label: t("common.approved") },
-    { value: "REJECTED", label: t("common.rejected") },
   ];
 
   const normalizeRole = (value: unknown) =>
@@ -316,17 +304,6 @@ export default function StaffTemplateForm() {
           }
           return initialProjects[0]?.value ?? "";
         });
-
-        // Pre-fill approved_by if current user is an admin
-        const currentUserId = localStorage.getItem("unique_id") || "";
-        const isAdmin = staffOnly
-          .filter((s: StaffRecord) => getStaffRole(s) === "admin")
-          .some((s: StaffRecord) => String(s.unique_id) === currentUserId);
-
-        setFormData((prev) => ({
-          ...prev,
-          approved_by: isAdmin ? currentUserId : prev.approved_by,
-        }));
       })
       .catch(() => {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
@@ -357,7 +334,7 @@ export default function StaffTemplateForm() {
     });
   }, [selectedCompanyId, allProjects, routeProjectId, globalProjectId]);
 
-  /* ================= SCOPE DRIVERS / OPERATORS / APPROVERS BY COMPANY + PROJECT ================= */
+  /* ================= SCOPE DRIVERS / OPERATORS BY COMPANY + PROJECT ================= */
 
   useEffect(() => {
     const scopedStaff = staffRecords.filter((staff) => {
@@ -375,31 +352,6 @@ export default function StaffTemplateForm() {
     setOperatorOptions(
       scopedStaff.filter(isOperatorRole).map((staff) => toStaffOption(staff))
     );
-
-    // Approvers scoped to selected company + project
-    const scopedAdmins = scopedStaff
-      .filter((s) => getStaffRole(s).includes("admin"))
-      .map((s) => toStaffOption(s));
-
-    const scopedSupervisors = scopedStaff
-      .filter((s) => getStaffRole(s).includes("supervisor"))
-      .map((s) => toStaffOption(s));
-
-    setAdminOptions(scopedAdmins);
-    setSupervisorOptions(scopedSupervisors);
-
-    // Reset approved_by if it no longer belongs to the scoped staff
-    const allApproverIds = new Set([
-      ...scopedAdmins.map((o) => o.value),
-      ...scopedSupervisors.map((o) => o.value),
-    ]);
-
-    setFormData((prev) => {
-      if (prev.approved_by && !allApproverIds.has(prev.approved_by)) {
-        return { ...prev, approved_by: "" };
-      }
-      return prev;
-    });
   }, [selectedCompanyId, selectedProjectId, staffRecords]);
 
   /* ================= LOAD TEMPLATE (EDIT) ================= */
@@ -425,17 +377,14 @@ export default function StaffTemplateForm() {
         setFormData((prev) => ({
           ...prev,
           status: tpl.status ?? "ACTIVE",
-          approval_status: tpl.approval_status ?? "PENDING",
         }));
 
         // Store FK fields as pending until their option lists are ready.
         const driverId = toEntityId(tpl.driver_id ?? tpl.driver);
         const operatorId = toEntityId(tpl.operator_id ?? tpl.operator);
-        const approvedBy = toEntityId(tpl.approved_by ?? tpl.approver);
         if (driverId) setPendingDriverId(driverId);
         if (operatorId) setPendingOperatorId(operatorId);
         if (extraIds.length > 0) setPendingExtraIds(extraIds);
-        if (approvedBy) setPendingApprovedBy(approvedBy);
 
         const templateCompanyId = toEntityId(tpl.company_unique_id ?? tpl.company_id ?? tpl.company);
         const templateProjectId = toEntityId(tpl.project_unique_id ?? tpl.project_id ?? tpl.project);
@@ -553,18 +502,6 @@ export default function StaffTemplateForm() {
   }, [pendingOperatorId, operatorOptions, staffRecords]);
 
   useEffect(() => {
-    if (!pendingApprovedBy) return;
-    const allApproverOptions = [...adminOptions, ...supervisorOptions];
-    if (allApproverOptions.length === 0 && staffRecords.length === 0) return;
-    const inOptions = allApproverOptions.some((o) => o.value === pendingApprovedBy);
-    const inRecords = staffRecords.some((s) => String(s.unique_id) === pendingApprovedBy);
-    if (inOptions || inRecords) {
-      setFormData((prev) => ({ ...prev, approved_by: pendingApprovedBy }));
-      setPendingApprovedBy(null);
-    }
-  }, [pendingApprovedBy, adminOptions, supervisorOptions, staffRecords]);
-
-  useEffect(() => {
     if (!pendingExtraIds || staffRecords.length === 0) return;
     // Apply extras whose staff records exist (even if outside current project scope)
     const validIds = pendingExtraIds.filter((id) =>
@@ -617,18 +554,6 @@ export default function StaffTemplateForm() {
     return staff ? [toStaffOption(staff), ...operatorOptions] : operatorOptions;
   })();
 
-  const approverOptionsWithCurrent = (() => {
-    const scopedOptions = [...adminOptions, ...supervisorOptions];
-    if (!formData.approved_by) return scopedOptions;
-    if (scopedOptions.some((option) => option.value === formData.approved_by)) {
-      return scopedOptions;
-    }
-    const staff = staffRecords.find(
-      (item) => String(item.unique_id) === formData.approved_by
-    );
-    return staff ? [toStaffOption(staff), ...scopedOptions] : scopedOptions;
-  })();
-
   /* ================= SUBMIT ================= */
 
   const handleSubmit = async (e: FormEvent) => {
@@ -657,8 +582,6 @@ export default function StaffTemplateForm() {
         operator_id: formData.operator_id,
         extra_operator_id: formData.extra_operator_id,
         status: formData.status,
-        approval_status: formData.approval_status,
-        approved_by: formData.approved_by || null,
         company_id: selectedCompanyId,
         project_id: selectedProjectId,
       };
@@ -848,39 +771,6 @@ export default function StaffTemplateForm() {
                   options={statusOptions}
                   placeholder={t("common.select_status")}
                   required
-                  disabled={fetching}
-                />
-              </div>
-            )}
-
-            {/* APPROVAL STATUS */}
-            {showField("approval_status") && (
-              <div>
-                <Label>{t("admin.staff_template.approval_status")}</Label>
-                <Select
-                  value={formData.approval_status}
-                  onChange={(v) =>
-                    setFormData((p) => ({ ...p, approval_status: v as any }))
-                  }
-                  options={approvalStatusOptions}
-                  placeholder={t("common.select_status")}
-                  required
-                  disabled={fetching}
-                />
-              </div>
-            )}
-
-            {/* APPROVER - scoped to selected company + project */}
-            {showField("approved_by") && (
-              <div>
-                <Label>{t("admin.staff_template.approved_by")}</Label>
-                <Select
-                  value={formData.approved_by}
-                  onChange={(v) =>
-                    setFormData((p) => ({ ...p, approved_by: v }))
-                  }
-                  options={approverOptionsWithCurrent}
-                  placeholder={t("common.select_option")}
                   disabled={fetching}
                 />
               </div>

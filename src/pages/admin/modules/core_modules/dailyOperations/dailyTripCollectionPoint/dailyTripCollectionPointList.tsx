@@ -18,10 +18,21 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 
+// A5: DailyTripCollectionPoint.STATUS_CHOICES (Pending/In Progress/Collected/Skipped/Missed).
+const STATUS_OPTIONS = [
+  { value: "Pending", label: "Pending" },
+  { value: "In Progress", label: "In Progress" },
+  { value: "Collected", label: "Collected" },
+  { value: "Skipped", label: "Skipped" },
+  { value: "Missed", label: "Missed" },
+];
+
 const STATUS_STYLES: Record<string, string> = {
   Pending: "bg-gray-100 text-gray-700",
+  "In Progress": "bg-blue-100 text-blue-800",
   Collected: "bg-green-100 text-green-800",
-  Skipped: "bg-red-100 text-red-800",
+  Skipped: "bg-amber-100 text-amber-800",
+  Missed: "bg-red-100 text-red-800",
 };
 
 const Badge = ({ value }: { value?: string }) => (
@@ -110,6 +121,9 @@ export default function DailyTripCollectionPointList() {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
+    // A5: backend viewset supports a status query-param filter.
+    const statusFilter = (filters.status as { value?: string | null } | undefined)?.value;
+    if (statusFilter) params.status = statusFilter;
     dailyTripCollectionPointApi
       .readAll({ params })
       .then((data) => setRecords(Array.isArray(data) ? data as DailyTripCollectionPointRecord[] : []))
@@ -118,7 +132,7 @@ export default function DailyTripCollectionPointList() {
         Swal.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error");
       })
       .finally(() => setLoading(false));
-  }, [companyUniqueId, projectId, isSuperAdmin, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, filters.status, t]);
 
   useEffect(() => {
     loadRecords();
@@ -219,6 +233,21 @@ export default function DailyTripCollectionPointList() {
               options={projects}
               disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             />
+            <select
+              value={(filters.status as { value?: string | null } | undefined)?.value ?? ""}
+              onChange={(e) =>
+                setFilters((f) => ({
+                  ...f,
+                  status: { value: e.target.value || null, matchMode: FilterMatchMode.CONTAINS },
+                }))
+              }
+              className="p-inputtext-sm rounded border px-3 py-2 text-sm"
+            >
+              <option value="">All Statuses</option>
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
           </FilterBar>
         }
         stripedRows
@@ -236,6 +265,7 @@ export default function DailyTripCollectionPointList() {
         <Column field="sequence" header="Seq" sortable style={{ width: 90 }} />
         <Column field="collected_weight_kg" header="Weight (kg)" sortable body={(row: DailyTripCollectionPointRecord) => text(row.collected_weight_kg)} />
         <Column field="status" header="Status" body={(row: DailyTripCollectionPointRecord) => <Badge value={row.status} />} sortable filter showFilterMatchModes={false} />
+        <Column field="status_reason" header="Status Reason" body={(row: DailyTripCollectionPointRecord) => text(row.status_reason)} style={{ minWidth: 160 }} />
         <Column
           header={t("common.actions")}
           body={(row: DailyTripCollectionPointRecord) => (

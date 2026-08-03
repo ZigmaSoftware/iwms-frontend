@@ -30,19 +30,39 @@ const approvalStatusOptions: SelectOption[] = [
   { value: "REJECTED", label: "Rejected" },
 ];
 
-const collectionTypeOptions: SelectOption[] = [
-  { value: "bin_collection", label: "Bin Collection" },
-  { value: "household_collection", label: "Household Collection" },
+const collectionModeOptions: SelectOption[] = [
+  { value: "bin_collection", label: "Secondary Stops (Manual)" },
+  { value: "household_collection", label: "Household (Auto)" },
+  { value: "bulk_waste_collection", label: "Bulk Waste (Auto)" },
 ];
 
-const emptyStop = (sequence: number): StopRow => ({
-  collection_type: "bin_collection",
+// Household collection only uses these 4 waste types — auto-selected when mode is Household
+const HOUSEHOLD_WASTE_TYPE_NAMES = ["Wet Waste", "Dry Waste", "Mixed Waste", "Sanitary Waste"];
+
+const WEEKDAYS: { value: number; label: string }[] = [
+  { value: 0, label: "Mon" },
+  { value: 1, label: "Tue" },
+  { value: 2, label: "Wed" },
+  { value: 3, label: "Thu" },
+  { value: 4, label: "Fri" },
+  { value: 5, label: "Sat" },
+  { value: 6, label: "Sun" },
+];
+
+const emptyStop = (sequence: number, collectionType: StopRow["collection_type"] = "bin_collection"): StopRow => ({
+  collection_type: collectionType,
   collection_point_id: "",
   bin_id: "",
   customer_id: "",
   sequence,
   is_active: true,
 });
+
+// Household/Bulk modes don't list customers manually — the backend expands
+// a single catch-all stop (no customer_id) to every matching customer in
+// the plan's ward/panchayat scope at daily-trip-generation time.
+const autoAssignStop = (collectionType: "household_collection" | "bulk_waste_collection"): StopRow =>
+  emptyStop(1, collectionType);
 
 const optionLabel = (item: any, keys: string[]) =>
   keys.map((key) => item?.[key]).find((value) => value !== undefined && value !== null && value !== "") ??
@@ -135,8 +155,11 @@ const emptyFormState = (): FormState => ({
   trip_trigger_weight_kg: "",
   max_vehicle_capacity_kg: "",
   scheduled_time: "",
+  is_auto_assign: false,
+  repeat_days: [],
   approval_status: "PENDING",
   status: "ACTIVE",
+  collection_type: "bin_collection",
 });
 
 const resetFormSelections = (
@@ -196,6 +219,9 @@ export default function TripPlanForm() {
   const [submitting, setSubmitting] = useState(false);
   const [lookups, setLookups] = useState<Record<string, any[]>>({});
   const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
+  // Track bin IDs already assigned in OTHER trip plans (same geo scope) —
+  // prevents double-booking a bin across plans. Populated in the lookups effect.
+  const [assignedBinIds, setAssignedBinIds] = useState<string[]>([]);
   // Holds raw edit record until lookups are ready — avoids Radix Select blank-value bug
   const [pendingRecord, setPendingRecord] = useState<any>(null);
   // Kept separately from pendingRecord (which is cleared once the form is hydrated)
@@ -245,51 +271,98 @@ export default function TripPlanForm() {
       trip_trigger_weight_kg: String(record.trip_trigger_weight_kg ?? ""),
       max_vehicle_capacity_kg: String(record.max_vehicle_capacity_kg ?? ""),
       scheduled_time: String(record.scheduled_time ?? "").slice(0, 5),
+      is_auto_assign: Boolean(record.is_auto_assign),
+      repeat_days: Array.isArray(record.repeat_days) ? record.repeat_days.map((d: any) => Number(d)) : [],
       approval_status: record.approval_status ?? "PENDING",
       status: record.status ?? "ACTIVE",
+      collection_type: (record.collection_type as StopRow["collection_type"]) ?? "bin_collection",
     });
-    const stopRows: StopRow[] = normalizeList(record.plan_collection_points).map((stop: any, index: number) => ({
-      collection_type: stop.collection_type === "household_collection" ? "household_collection" as const : "bin_collection" as const,
-      collection_point_id: stop.collection_point_id ?? stop.collection_point?.unique_id ?? "",
-      bin_id: stop.bin_id ?? stop.bin?.unique_id ?? "",
-      customer_id: stop.customer_id ?? stop.customer?.unique_id ?? "",
-      sequence: Number(stop.sequence ?? index + 1),
-      is_active: stop.is_active !== false,
-    }));
-    setStops(stopRows.length ? stopRows : [emptyStop(1)]);
+    const mode = record.collection_type ?? "bin_collection";
+    if (mode === "household_collection" || mode === "bulk_waste_collection") {
+      // Auto-assign modes carry a single catch-all stop (no customer_id) —
+      // represent it as one summary row regardless of how many rows the API
+      // returns, since the customer list itself isn't stored/edited here.
+      setStops([autoAssignStop(mode)]);
+    } else {
+      const stopRows: StopRow[] = normalizeList(record.plan_collection_points).map((stop: any, index: number) => ({
+        collection_type: "bin_collection" as const,
+        collection_point_id: stop.collection_point_id ?? stop.collection_point?.unique_id ?? "",
+        bin_id: stop.bin_id ?? stop.bin?.unique_id ?? "",
+        customer_id: "",
+        sequence: Number(stop.sequence ?? index + 1),
+        is_active: stop.is_active !== false,
+      }));
+      setStops(stopRows.length ? stopRows : [emptyStop(1)]);
+    }
     setPendingRecord(null);
   }, [pendingRecord, lookups]);
 
   useEffect(() => {
     if (!companyUniqueId || !projectId) {
       setLookups({});
+      setAssignedBinIds([]);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    const params = {
+    // Build geo params for collection points (filtered by local body)
+    const geoParams: Record<string, string> = {
       company_id: companyUniqueId,
       company_unique_id: companyUniqueId,
       project_id: projectId,
       project: projectId,
       project_unique_id: projectId,
     };
+    if (formData.district_id) geoParams.district_id = formData.district_id;
+    if (formData.zone_id) geoParams.zone_id = formData.zone_id;
+    if (formData.panchayat_id) geoParams.panchayat_id = formData.panchayat_id;
+    // Base params for bins (no geo filtering - backend may not support it)
+    const baseParams = {
+      company_id: companyUniqueId,
+      company_unique_id: companyUniqueId,
+      project_id: projectId,
+      project: projectId,
+      project_unique_id: projectId,
+    };
+
     Promise.all([
-      adminApi.districts.readAll({ params }),
-      adminApi.cities.readAll({ params }),
-      adminApi.zones.readAll({ params }),
-      adminApi.panchayats.readAll({ params }),
-      adminApi.wards.readAll({ params }),
-      adminApi.staffTemplateCreation.readAll({ params }),
-      adminApi.vehicleCreations.readAll({ params }),
-      adminApi.staffCreation.readAll({ params }),
-      adminApi.wasteTypes.readAll({ params }),
-      adminApi.collectionPoints.readAll({ params }),
-      adminApi.bins.readAll({ params }),
-      adminApi.customerCreations.readAll({ params }),
+      adminApi.districts.readAll({ params: geoParams }),
+      adminApi.cities.readAll({ params: geoParams }),
+      adminApi.zones.readAll({ params: geoParams }),
+      adminApi.panchayats.readAll({ params: geoParams }),
+      adminApi.wards.readAll({ params: geoParams }),
+      adminApi.staffTemplateCreation.readAll({ params: geoParams }),
+      adminApi.vehicleCreations.readAll({ params: geoParams }),
+      adminApi.staffCreation.readAll({ params: geoParams }),
+      adminApi.wasteTypes.readAll({ params: geoParams }),
+      adminApi.collectionPoints.readAll({ params: geoParams }),
+      adminApi.bins.readAll({ params: baseParams }),
+      adminApi.customerCreations.readAll({ params: geoParams }),
+      // Unscoped by geo: a collection point can serve multiple wards/zones, so a
+      // bin's reservation by a trip plan in another zone/panchayat must still count.
+      tripPlanApi.readAll({ params: baseParams }),
     ])
-      .then(([districts, cities, zones, panchayats, wards, staffTemplates, vehicles, staff, wasteTypes, collectionPoints, bins, customers]) => {
+      .then(([districts, cities, zones, panchayats, wards, staffTemplates, vehicles, staff, wasteTypes, collectionPoints, bins, customers, existingTripPlans]) => {
         if (cancelled) return;
+        // Compute bin IDs already used by OTHER active trip plans in the same geo scope
+        const reservedBins = new Set<string>();
+        const loadedTripPlans = normalizeList(existingTripPlans);
+        loadedTripPlans.forEach((plan: any) => {
+          if (String(plan?.unique_id ?? "") === String(id ?? "")) return;
+          normalizeList(plan?.plan_collection_points).forEach((stop: any) => {
+            const binId = String(stop?.bin_id ?? "");
+            if (binId) reservedBins.add(binId);
+          });
+        });
+        setAssignedBinIds(Array.from(reservedBins));
+
+        // Normalize bins: ensure collection_point_id is a string ID (from collection_point_id or collection_point.unique_id)
+        const normalizedBins = normalizeList(bins).map((bin: any) => ({
+          ...bin,
+          collection_point_id: String(bin?.collection_point_id ?? bin?.collection_point?.unique_id ?? bin?.collection_point ?? ""),
+          waste_type_id: String(bin?.wastetype_id ?? bin?.waste_type_id ?? bin?.waste_type ?? ""),
+        }));
+
         setLookups({
           districts: normalizeList(districts),
           cities: normalizeList(cities),
@@ -301,7 +374,7 @@ export default function TripPlanForm() {
           staff: normalizeList(staff),
           wasteTypes: normalizeList(wasteTypes),
           collectionPoints: normalizeList(collectionPoints),
-          bins: normalizeList(bins),
+          bins: normalizedBins,
           customers: normalizeList(customers),
         });
       })
@@ -310,7 +383,7 @@ export default function TripPlanForm() {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectId, formData.district_id, formData.zone_id, formData.panchayat_id, formData.collection_type, id, t]);
 
   const options = useMemo(() => {
     const districts = scopedItems(lookups.districts ?? [], companyUniqueId, projectId);
@@ -320,10 +393,77 @@ export default function TripPlanForm() {
     const wards = scopedItems(lookups.wards ?? [], companyUniqueId, projectId);
     const collectionPoints = scopedItems(lookups.collectionPoints ?? [], companyUniqueId, projectId);
     const customers = scopedItems(lookups.customers ?? [], companyUniqueId, projectId);
+    const bins = scopedItems(lookups.bins ?? [], companyUniqueId, projectId);
 
     const selectedDistrict = districts.find((item) => recordId(item) === formData.district_id);
     const selectedCity = cities.find((item) => recordId(item) === formData.city_id);
     const selectedZone = zones.find((item) => recordId(item) === formData.zone_id);
+
+    // Household waste types: filter to only the 4 standard types
+    const allWasteTypes = scopedItems(lookups.wasteTypes ?? [], companyUniqueId, projectId);
+    const householdWasteTypes = allWasteTypes.filter((wt) =>
+      HOUSEHOLD_WASTE_TYPE_NAMES.includes(String(wt?.waste_type_name ?? wt?.name ?? "").trim())
+    );
+    const wasteTypeOptions = formData.collection_type === "household_collection"
+      ? householdWasteTypes
+      : allWasteTypes;
+
+    // Collection points: filter by geo scope, then mark as "Assigned" when all bins are used
+    const filteredCollectionPoints = collectionPoints.filter((item) => {
+      if (formData.ward_ids.length > 0) {
+        const cpWards = Array.isArray(item?.wards) ? item.wards : [];
+        return formData.ward_ids.some((wid) =>
+          cpWards.some((w: any) => recordId(w) === wid) ||
+          recordId(item?.ward_id ?? item?.ward) === wid
+        );
+      }
+      if (formData.panchayat_id) {
+        const selectedPanchayat = panchayats.find((panchayat) => recordId(panchayat) === formData.panchayat_id);
+        return relationMatches(
+          item?.panchayat_id ?? item?.panchayat ?? { panchayat_name: item?.panchayat_name, name: item?.panchayat_name },
+          formData.panchayat_id,
+          selectedPanchayat,
+          ["panchayat_name", "name"]
+        );
+      }
+      if (formData.zone_id) {
+        return relationMatches(
+          item?.zone_id ?? item?.zone ?? { zone_name: item?.zone_name, name: item?.zone_name },
+          formData.zone_id,
+          selectedZone,
+          ["zone_name", "name"]
+        );
+      }
+      return true;
+    });
+
+    // For each collection point, check if all its bins (matching selected waste types) are assigned
+    const collectionPointsWithStatus = filteredCollectionPoints.map((cp) => {
+      const cpId = recordId(cp);
+      // Find bins for this collection point that match selected waste types
+      const eligibleBins = bins.filter((bin) => {
+        const binCpId = recordId(bin?.collection_point_id ?? bin?.collection_point);
+        if (binCpId !== cpId) return false;
+        if (formData.waste_type_ids.length > 0) {
+          const binWasteTypeId = recordId(bin?.wastetype_id ?? bin?.waste_type_id);
+          if (binWasteTypeId && !formData.waste_type_ids.includes(binWasteTypeId)) return false;
+        }
+        // Exclude bins assigned in other trip plans
+        if (assignedBinIds.includes(recordId(bin))) return false;
+        // Exclude bins already used in current form stops
+        const usedInCurrentStops = stops.some(
+          (stop) => stop.bin_id === recordId(bin) && stop.collection_point_id === cpId
+        );
+        if (usedInCurrentStops) return false;
+        return true;
+      });
+      const allBinsForCp = bins.filter((bin) => recordId(bin?.collection_point_id ?? bin?.collection_point) === cpId);
+      const allBinsAssigned = allBinsForCp.length > 0 && eligibleBins.length === 0;
+      return allBinsAssigned
+        ? { ...cp, label: String(cp?.cp_name ?? cp?.collection_point_name ?? cp?.name ?? "") + " (Assigned)", disabled: true }
+        : cp;
+    });
+
     return {
       districts: buildOptions(districts, ["name", "district_name"]),
       cities: buildOptions(
@@ -390,37 +530,8 @@ export default function TripPlanForm() {
         ),
         ["employee_name", "username"]
       ),
-      wasteTypes: buildOptions(scopedItems(lookups.wasteTypes ?? [], companyUniqueId, projectId), ["waste_type_name", "name"]),
-      collectionPoints: buildOptions(
-        collectionPoints.filter((item) => {
-          if (formData.ward_ids.length > 0) {
-            const cpWards = Array.isArray(item?.wards) ? item.wards : [];
-            return formData.ward_ids.some((wid) =>
-              cpWards.some((w: any) => recordId(w) === wid) ||
-              recordId(item?.ward_id ?? item?.ward) === wid
-            );
-          }
-          if (formData.panchayat_id) {
-            const selectedPanchayat = panchayats.find((panchayat) => recordId(panchayat) === formData.panchayat_id);
-            return relationMatches(
-              item?.panchayat_id ?? item?.panchayat ?? { panchayat_name: item?.panchayat_name, name: item?.panchayat_name },
-              formData.panchayat_id,
-              selectedPanchayat,
-              ["panchayat_name", "name"]
-            );
-          }
-          if (formData.zone_id) {
-            return relationMatches(
-              item?.zone_id ?? item?.zone ?? { zone_name: item?.zone_name, name: item?.zone_name },
-              formData.zone_id,
-              selectedZone,
-              ["zone_name", "name"]
-            );
-          }
-          return true;
-        }),
-        ["cp_name", "collection_point_name", "name"]
-      ),
+      wasteTypes: buildOptions(wasteTypeOptions, ["waste_type_name", "name"]),
+      collectionPoints: buildOptions(collectionPointsWithStatus, ["cp_name", "collection_point_name", "name"]),
       customers: buildOptions(
         customers.filter((item) => {
           if (formData.panchayat_id) {
@@ -445,9 +556,50 @@ export default function TripPlanForm() {
         ["customer_name", "name"]
       ),
     };
-  }, [companyUniqueId, projectId, formData.district_id, formData.city_id, formData.zone_id, formData.panchayat_id, formData.ward_ids, lookups]);
+  }, [companyUniqueId, projectId, formData.district_id, formData.city_id, formData.zone_id, formData.panchayat_id, formData.ward_ids, formData.collection_type, formData.waste_type_ids, stops, assignedBinIds, lookups]);
 
-  const binOptionsFor = (collectionPointId: string) => {
+  // Preview of who the backend will auto-assign for Household/Bulk mode —
+  // mirrors the same geo scope (panchayat/zone, narrowed by ward) the
+  // customer dropdown already uses, plus the household-vs-bulk split via
+  // is_bulkwaste_generator. Informational only; the actual expansion
+  // happens server-side at daily-trip-generation time.
+  const autoAssignCustomers = useMemo(() => {
+    if (formData.collection_type === "bin_collection") return [];
+    const wantBulk = formData.collection_type === "bulk_waste_collection";
+    const customers = scopedItems(lookups.customers ?? [], companyUniqueId, projectId);
+    const panchayats = scopedItems(lookups.panchayats ?? [], companyUniqueId, projectId);
+    const zones = scopedItems(lookups.zones ?? [], companyUniqueId, projectId);
+    const selectedPanchayat = panchayats.find((p) => recordId(p) === formData.panchayat_id);
+    const selectedZone = zones.find((z) => recordId(z) === formData.zone_id);
+
+    return customers.filter((item) => {
+      if (Boolean(item?.is_bulkwaste_generator) !== wantBulk) return false;
+      if (formData.panchayat_id) {
+        if (!relationMatches(
+          item?.panchayat_id ?? item?.panchayat ?? { panchayat_name: item?.panchayat_name, name: item?.panchayat_name },
+          formData.panchayat_id,
+          selectedPanchayat,
+          ["panchayat_name", "name"]
+        )) return false;
+      } else if (formData.zone_id) {
+        if (!relationMatches(
+          item?.zone ?? item?.zone_id ?? { zone_name: item?.zone_name, name: item?.zone_name },
+          formData.zone_id,
+          selectedZone,
+          ["zone_name", "name"]
+        )) return false;
+      } else {
+        return false;
+      }
+      if (formData.ward_ids.length > 0) {
+        const wardId = recordId(item?.ward_id ?? item?.ward);
+        if (!wardId || !formData.ward_ids.includes(wardId)) return false;
+      }
+      return true;
+    });
+  }, [companyUniqueId, projectId, formData.collection_type, formData.panchayat_id, formData.zone_id, formData.ward_ids, lookups]);
+
+  const binOptionsFor = (collectionPointId: string, currentBinId: string = "") => {
     const normalizedWasteTypeIds = formData.waste_type_ids.map((v: any) =>
       v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v)
     );
@@ -464,15 +616,30 @@ export default function TripPlanForm() {
         .filter(Boolean)
     );
 
+    // Bin IDs already used in current form stops (for this collection point),
+    // excluding the bin currently selected on this row so it stays visible.
+    const usedBinIdsInCurrentStops = new Set(
+      stops
+        .filter((stop) =>
+          stop.collection_type === "bin_collection" &&
+          stop.collection_point_id === collectionPointId &&
+          stop.bin_id !== currentBinId
+        )
+        .map((stop) => stop.bin_id)
+        .filter(Boolean)
+    );
+
     return buildOptions(
       scopedItems(lookups.bins ?? [], companyUniqueId, projectId).filter((bin) => {
-        const belongsToCollectionPoint = !collectionPointId || relationMatches(
-          bin?.collection_point_id ?? bin?.collection_point ?? { cp_name: bin?.collection_point_name, name: bin?.collection_point_name },
-          collectionPointId,
-          collectionPointDetails(collectionPointId),
-          ["cp_name", "collection_point_name", "name"]
-        );
+        const binId = recordId(bin);
+        // Direct ID match: bin.collection_point_id or bin.collection_point?.unique_id
+        const binCollectionPointId = recordId(bin?.collection_point_id ?? bin?.collection_point);
+        const belongsToCollectionPoint = !collectionPointId || binCollectionPointId === collectionPointId;
         if (!belongsToCollectionPoint) return false;
+        // Exclude bins assigned in other trip plans (unless it's this row's current bin)
+        if (assignedBinIds.includes(binId) && binId !== currentBinId) return false;
+        // Exclude bins already used in current form stops
+        if (usedBinIdsInCurrentStops.has(binId)) return false;
         if (normalizedWasteTypeIds.length === 0) return true;
         // Try ID match first (if the API ever returns wastetype_id)
         const binWasteTypeId = recordId(bin?.wastetype_id ?? bin?.waste_type_id);
@@ -481,7 +648,7 @@ export default function TripPlanForm() {
         const binWasteTypeName = normalizedText(bin?.waste_type_name ?? bin?.wastetype_name ?? bin?.waste_type);
         return binWasteTypeName ? selectedWasteTypeNames.has(binWasteTypeName) : false;
       }),
-      ["bin_name"]
+      ["bin_name", "name"]
     );
   };
 
@@ -516,8 +683,31 @@ export default function TripPlanForm() {
       ...(field === "zone_id" && value ? { panchayat_id: "", ward_ids: [] } : {}),
       ...(field === "panchayat_id" && value ? { zone_id: "", ward_ids: [] } : {}),
     }));
-    if (field === "panchayat_id" || field === "zone_id") {
+    // Household/Bulk mode has no manual stop rows to reset — the auto-assign
+    // scope just follows the new zone/panchayat/ward automatically via the
+    // autoAssignCustomers memo. Only Bin mode's manual rows need clearing.
+    if ((field === "panchayat_id" || field === "zone_id") && formData.collection_type === "bin_collection") {
       setStops([emptyStop(1)]);
+    }
+  };
+
+  const handleCollectionModeChange = (value: string) => {
+    const mode = value as StopRow["collection_type"];
+    setFormData((prev) => ({ ...prev, collection_type: mode }));
+    if (mode === "household_collection") {
+      // Auto-select the 4 standard household waste types
+      const householdTypes = (lookups.wasteTypes ?? [])
+        .filter((wt) => HOUSEHOLD_WASTE_TYPE_NAMES.includes(String(wt?.waste_type_name ?? wt?.name ?? "").trim()))
+        .map((wt) => recordId(wt))
+        .filter(Boolean);
+      setFormData((prev) => ({ ...prev, waste_type_ids: householdTypes }));
+      setStops([autoAssignStop(mode)]);
+    } else if (mode === "bulk_waste_collection") {
+      setStops([autoAssignStop(mode)]);
+    } else {
+      setStops((current) =>
+        current.some((s) => s.collection_type === "bin_collection") ? current : [emptyStop(1)]
+      );
     }
   };
 
@@ -525,11 +715,6 @@ export default function TripPlanForm() {
     setStops((current) => current.map((row, rowIndex) => {
       if (rowIndex !== index) return row;
       const next = { ...row, ...patch };
-      if (patch.collection_type === "bin_collection") next.customer_id = "";
-      if (patch.collection_type === "household_collection") {
-        next.collection_point_id = "";
-        next.bin_id = "";
-      }
       if (patch.collection_point_id !== undefined) next.bin_id = "";
       return next;
     }));
@@ -547,6 +732,15 @@ export default function TripPlanForm() {
     });
   };
 
+  const toggleRepeatDay = (day: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      repeat_days: prev.repeat_days.includes(day)
+        ? prev.repeat_days.filter((d) => d !== day)
+        : [...prev.repeat_days, day],
+    }));
+  };
+
   const moveStop = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return;
     setStops((current) => {
@@ -561,11 +755,10 @@ export default function TripPlanForm() {
     event.preventDefault();
     const triggerWeight = Number(formData.trip_trigger_weight_kg);
     const maxCapacity = Number(formData.max_vehicle_capacity_kg);
-    const validStops = stops.filter((stop) =>
-      stop.collection_type === "household_collection"
-        ? Boolean(stop.customer_id)
-        : Boolean(stop.collection_point_id && stop.bin_id)
-    );
+    const isAutoAssignMode = formData.collection_type !== "bin_collection";
+    const validStops = isAutoAssignMode
+      ? [autoAssignStop(formData.collection_type as "household_collection" | "bulk_waste_collection")]
+      : stops.filter((stop) => Boolean(stop.collection_point_id && stop.bin_id));
 
     const missingFields: string[] = [];
     if (!companyUniqueId) missingFields.push("Company");
@@ -593,11 +786,21 @@ export default function TripPlanForm() {
       Swal.fire(t("common.warning"), "Trigger weight must be less than vehicle capacity.", "warning");
       return;
     }
-    if (!validStops.length) {
-      Swal.fire(t("common.warning"), "Add at least one collection point or household stop.", "warning");
+    if (!isAutoAssignMode && !validStops.length) {
+      Swal.fire(t("common.warning"), "Add at least one collection point stop.", "warning");
+      return;
+    }
+    if (formData.is_auto_assign && formData.repeat_days.length === 0) {
+      Swal.fire(t("common.warning"), "Select at least one repeat day for auto-assign, or turn auto-assign off.", "warning");
       return;
     }
 
+    // Collection Mode (formData.collection_type) drives what the backend
+    // does with this plan's stops: bin_collection keeps the manual stop
+    // list below; household_collection/bulk_waste_collection send a single
+    // catch-all stop (no customer_id) that the backend expands to every
+    // matching customer in the plan's ward/panchayat scope at daily-trip-
+    // generation time (see run_for_date / sync_daily_assignment_stops_from_plan).
     const payload = {
       company_id_input: companyUniqueId,
       project_id_input: projectId,
@@ -609,14 +812,26 @@ export default function TripPlanForm() {
       waste_type_ids: formData.waste_type_ids,
       trip_trigger_weight_kg: triggerWeight,
       max_vehicle_capacity_kg: maxCapacity,
-      collection_points: validStops.map((stop, index) => ({
-        collection_type: stop.collection_type,
-        collection_point_id: stop.collection_type === "bin_collection" ? stop.collection_point_id : null,
-        bin_id: stop.collection_type === "bin_collection" ? stop.bin_id : null,
-        customer_id: stop.collection_type === "household_collection" ? stop.customer_id : null,
-        sequence: index + 1,
-        is_active: stop.is_active,
-      })),
+      is_auto_assign: formData.is_auto_assign,
+      repeat_days: formData.is_auto_assign ? formData.repeat_days : [],
+      collection_type: formData.collection_type,
+      collection_points: isAutoAssignMode
+        ? [{
+            collection_type: formData.collection_type,
+            collection_point_id: null,
+            bin_id: null,
+            customer_id: null,
+            sequence: 1,
+            is_active: true,
+          }]
+        : validStops.map((stop, index) => ({
+            collection_type: "bin_collection",
+            collection_point_id: stop.collection_point_id,
+            bin_id: stop.bin_id,
+            customer_id: null,
+            sequence: index + 1,
+            is_active: stop.is_active,
+          })),
     };
 
     setSubmitting(true);
@@ -738,72 +953,170 @@ export default function TripPlanForm() {
                 <h2 className="text-base font-semibold text-gray-800">Collection Points</h2>
                 <p className="text-sm text-gray-500">Add all stops for this trip plan before saving.</p>
               </div>
-              <button type="button" onClick={addStop} disabled={loading || !projectId} className="rounded-lg bg-green-custom px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-                Add Stop
-              </button>
+              <div className="flex items-end gap-3">
+                <div className="w-64">
+                  <Label>Collection Mode</Label>
+                  <Select
+                    value={formData.collection_type}
+                    onChange={handleCollectionModeChange}
+                    options={collectionModeOptions}
+                    disabled={loading || !projectId}
+                  />
+                </div>
+                {formData.collection_type === "bin_collection" && (
+                  <button type="button" onClick={addStop} disabled={loading || !projectId} className="rounded-lg bg-green-custom px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                    Add Stop
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-3">
-              {stops.map((stop, index) => (
-                <div
-                  key={index}
-                  draggable
-                  onDragStart={() => setDraggedStopIndex(index)}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={() => {
-                    if (draggedStopIndex !== null) moveStop(draggedStopIndex, index);
-                    setDraggedStopIndex(null);
-                  }}
-                  onDragEnd={() => setDraggedStopIndex(null)}
-                  className="grid cursor-move grid-cols-1 gap-3 rounded-md border border-gray-200 p-3 lg:grid-cols-[72px_minmax(160px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_120px_92px]"
-                >
-                  <div>
-                    <Label>Seq</Label>
-                    <Input type="number" min={1} value={index + 1} disabled className="bg-gray-50" />
-                  </div>
-                  <div>
-                    <Label>Type</Label>
-                    <Select value={stop.collection_type} onChange={(value) => setStop(index, { collection_type: value as StopRow["collection_type"] })} options={collectionTypeOptions} disabled={loading || !projectId} />
-                  </div>
-                  {stop.collection_type === "household_collection" ? (
+            {formData.collection_type === "bulk_waste_collection" ? (
+              <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                Bulk waste stops are generated automatically for bulk-waste-generator customers under
+                this Trip Plan's ward/panchayat scope — no manual stop list is needed here.
+                {(formData.panchayat_id || formData.zone_id) && (
+                  <span className="ml-1 font-semibold text-green-700">
+                    {autoAssignCustomers.length} matching customer{autoAssignCustomers.length === 1 ? "" : "s"} found.
+                  </span>
+                )}
+              </div>
+            ) : formData.collection_type === "household_collection" ? (
+              <div className="space-y-3">
+                <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-gray-700">
+                  {formData.panchayat_id || formData.zone_id ? (
                     <>
-                      <div className="lg:col-span-2">
-                        <Label>Customer</Label>
-                        <Select value={stop.customer_id} onChange={(value) => setStop(index, { customer_id: value })} options={options.customers.filter((opt) => !opt.value || opt.value === stop.customer_id || !stops.some((s, si) => si !== index && s.customer_id === opt.value))} disabled={loading || !projectId} />
-                      </div>
-                      <div />
+                      <span className="font-semibold text-green-700">
+                        All {autoAssignCustomers.length} household customer{autoAssignCustomers.length === 1 ? "" : "s"}
+                      </span>{" "}
+                      in this ward/local body will be auto-assigned as stops for this trip — no manual list needed.
                     </>
                   ) : (
-                    <>
-                      <div>
-                        <Label>Collection Point</Label>
-                        <Select value={stop.collection_point_id} onChange={(value) => setStop(index, { collection_point_id: value })} options={options.collectionPoints.filter((opt) => !opt.value || opt.value === stop.collection_point_id || !stops.some((s, si) => si !== index && s.collection_point_id === opt.value))} disabled={loading || !projectId || (!formData.panchayat_id && formData.ward_ids.length === 0)} />
-                        {stop.collection_point_id && (
-                          <p className="mt-1 min-h-5 text-xs text-gray-500">
-                            {coordinateText(stop.collection_point_id) || "Lat: - | Long: -"}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <Label>Bin</Label>
-                        <Select value={stop.bin_id} onChange={(value) => setStop(index, { bin_id: value })} options={binOptionsFor(stop.collection_point_id)} disabled={loading || !stop.collection_point_id} />
-                      </div>
-                    </>
+                    "Select a Zone or PLB (Panchayat) first — every household customer under it will be auto-assigned as a stop."
                   )}
-                  <div>
-                    <Label>Active</Label>
-                    <div className="flex h-10 items-center">
-                      <Switch checked={stop.is_active} onCheckedChange={(checked) => setStop(index, { is_active: checked })} />
+                </div>
+
+                {(formData.panchayat_id || formData.zone_id) && autoAssignCustomers.length > 0 && (
+                  <div className="overflow-hidden rounded-md border border-gray-200">
+                    <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700">
+                      <span>Customers in scope</span>
+                      <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+                        {autoAssignCustomers.length}
+                      </span>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto">
+                      <table className="w-full text-left text-sm">
+                        <thead className="sticky top-0 bg-white text-xs uppercase text-gray-500">
+                          <tr>
+                            <th className="px-4 py-2 font-medium">#</th>
+                            <th className="px-4 py-2 font-medium">Customer</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {autoAssignCustomers.map((customer, index) => (
+                            <tr key={recordId(customer) || index} className="border-t border-gray-100">
+                              <td className="px-4 py-2 text-gray-500">{index + 1}</td>
+                              <td className="px-4 py-2 text-gray-700">{customer?.customer_name ?? customer?.name ?? recordId(customer)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
-                  <div className="flex items-end">
-                    <button type="button" onClick={() => removeStop(index)} disabled={stops.length === 1} className="h-10 w-full rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-600 disabled:cursor-not-allowed disabled:opacity-40">
-                      Remove
-                    </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {stops.map((stop, index) => (
+                  <div
+                    key={index}
+                    draggable
+                    onDragStart={() => setDraggedStopIndex(index)}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={() => {
+                      if (draggedStopIndex !== null) moveStop(draggedStopIndex, index);
+                      setDraggedStopIndex(null);
+                    }}
+                    onDragEnd={() => setDraggedStopIndex(null)}
+                    className="grid cursor-move grid-cols-1 gap-3 rounded-md border border-gray-200 p-3 lg:grid-cols-[72px_minmax(180px,1fr)_minmax(180px,1fr)_120px_92px]"
+                  >
+                    <div>
+                      <Label>Seq</Label>
+                      <Input type="number" min={1} value={index + 1} disabled className="bg-gray-50" />
+                    </div>
+                    <div>
+                      <Label>Collection Point</Label>
+                      <Select value={stop.collection_point_id} onChange={(value) => setStop(index, { collection_point_id: value })} options={options.collectionPoints} disabled={loading || !projectId || (!formData.zone_id && !formData.panchayat_id && formData.ward_ids.length === 0)} />
+                      {stop.collection_point_id && (
+                        <p className="mt-1 min-h-5 text-xs text-gray-500">
+                          {coordinateText(stop.collection_point_id) || "Lat: - | Long: -"}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <Label>Bin</Label>
+                      <Select value={stop.bin_id} onChange={(value) => setStop(index, { bin_id: value })} options={binOptionsFor(stop.collection_point_id, stop.bin_id)} disabled={loading || !stop.collection_point_id} />
+                    </div>
+                    <div>
+                      <Label>Active</Label>
+                      <div className="flex h-10 items-center">
+                        <Switch checked={stop.is_active} onCheckedChange={(checked) => setStop(index, { is_active: checked })} />
+                      </div>
+                    </div>
+                    <div className="flex items-end">
+                      <button type="button" onClick={() => removeStop(index)} disabled={stops.length === 1} className="h-10 w-full rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-600 disabled:cursor-not-allowed disabled:opacity-40">
+                        Remove
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+            <div>
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={formData.is_auto_assign}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, is_auto_assign: e.target.checked }))}
+                  disabled={loading}
+                  className="h-4 w-4 rounded border-gray-300 text-green-600"
+                />
+                Enable Auto-Assignment
+              </label>
+              <p className="mt-1 text-xs text-gray-500">
+                When enabled, the daily trip scheduler auto-generates a Daily Trip Assignment for this
+                plan (and clones its stops) on each selected repeat day, once approved.
+              </p>
             </div>
+
+            {formData.is_auto_assign && (
+              <div>
+                <Label>Repeat Days</Label>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {WEEKDAYS.map((day) => (
+                    <label
+                      key={day.value}
+                      className={`flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1 text-sm transition-colors ${
+                        formData.repeat_days.includes(day.value)
+                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          : "border-gray-200 bg-white text-gray-600 hover:border-blue-300"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="hidden"
+                        checked={formData.repeat_days.includes(day.value)}
+                        onChange={() => toggleRepeatDay(day.value)}
+                      />
+                      {day.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3">
@@ -814,6 +1127,8 @@ export default function TripPlanForm() {
               {t("common.cancel")}
             </button>
           </div>
+
+          
         </form>
       </ComponentCard>
     </div>

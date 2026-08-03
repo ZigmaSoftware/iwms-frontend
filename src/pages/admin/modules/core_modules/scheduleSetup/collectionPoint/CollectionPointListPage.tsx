@@ -1,4 +1,4 @@
-import type { CollectionPointRecord } from "./types";
+import type { CollectionPointCollectionType, CollectionPointRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
@@ -27,6 +27,12 @@ const toDisplay = (value: unknown): string =>
 const toOptionalString = (value: unknown): string | null =>
   value === null || value === undefined ? null : String(value);
 
+const COLLECTION_TYPE_LABELS: Record<string, string> = {
+  bin_collection: "Secondary Collection Point",
+  bulk_waste_collection: "Bulk Waste Collection",
+  household_collection: "Household Collection",
+};
+
 const COLLECTION_POINT_COLUMN_FIELDS: Record<string, string[]> = {
   cp_name: ["cp_name", "collection_point_name", "name"],
   company_name: ["company_id", "company_name"],
@@ -48,7 +54,7 @@ export default function CollectionPointListPage() {
   const [records, setRecords] = useState<CollectionPointRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | "bin_collection" | "household_collection">("all");
+  const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | CollectionPointCollectionType>("all");
   const {
     filters,
     onFilter,
@@ -277,12 +283,12 @@ export default function CollectionPointListPage() {
         />
         <FilterBarSelect
           value={collectionTypeFilter}
-          onChange={(value) => setCollectionTypeFilter(value as "all" | "bin_collection" | "household_collection")}
+          onChange={(value) => setCollectionTypeFilter(value as "all" | CollectionPointCollectionType)}
           aria-label="Collection type filter"
         >
           <option value="all">All Types</option>
-          <option value="bin_collection">Bin Collection</option>
-          <option value="household_collection">Household Collection</option>
+          <option value="bin_collection">Secondary Collection Point</option>
+          <option value="bulk_waste_collection">Bulk Waste Collection</option>
         </FilterBarSelect>
       </FilterBar>
 
@@ -327,7 +333,7 @@ export default function CollectionPointListPage() {
             const isBin = !type || type === "bin_collection";
             return (
               <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${isBin ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"}`}>
-                {isBin ? "Bin Collection" : "Household Collection"}
+                {COLLECTION_TYPE_LABELS[type ?? "bin_collection"]}
               </span>
             );
           }}

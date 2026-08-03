@@ -18,6 +18,9 @@ export type Customer = {
   project_unique_id?: string | null;
 };
 
+// Same vocabulary as DailyTripHouseholdCollection.STATUS_CHOICES (A5).
+export type WasteCollectionStatus = "Pending" | "Collected" | "Not Available" | "Collect Later";
+
 export type WasteCollection = {
   unique_id: string;
   customer: string;
@@ -27,6 +30,7 @@ export type WasteCollection = {
   contact_no?: string;
   building_no?: string;
   zone_name?: string;
+  ward_id?: string | null;
   ward_name?: string;
   panchayat_name?: string;
   city_name?: string;
@@ -35,7 +39,11 @@ export type WasteCollection = {
   wet_waste: number;
   dry_waste: number;
   mixed_waste: number;
+  // A5: sanitary_waste added; total_quantity now includes it.
+  sanitary_waste?: number;
   total_quantity: number;
+  // A5: status vocabulary (default Pending); collection_date now user-editable.
+  status?: WasteCollectionStatus;
   collection_date?: string;
   collection_time?: string;
   is_active: boolean;

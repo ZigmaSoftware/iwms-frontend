@@ -17,10 +17,14 @@ import type { DataTableFilterMeta } from "primereact/datatable";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { dailyTripAssignmentApi } from "@/helpers/admin";
+import { dailyTripAssignmentApi, binApi, customerCreationApi } from "@/helpers/admin";
+import { jsPDF } from "jspdf";
 import { api } from "@/api";
 import { adminEndpoints } from "@/helpers/admin/endpoints";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import { downloadRecordsPdf, drawQrCode } from "@/utils/exportPdf";
+import { formatCollectionTime, formatTimeOnly } from "@/utils/formatTime";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -191,7 +195,10 @@ export default function DailyTripAssignmentList() {
   const [isLoading, setIsLoading] = useState(false);
   const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
   const [isSchedulerRunning, setIsSchedulerRunning] = useState(false);
+  const [isGeneratingDaily, setIsGeneratingDaily] = useState(false);
   const [isSavingSchedulerConfig, setIsSavingSchedulerConfig] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isExportingDetailed, setIsExportingDetailed] = useState(false);
   const [schedulerDate, setSchedulerDate] = useState(toDateInputValue());
   const [schedulerRunTime, setSchedulerRunTime] = useState("04:00");
   const [schedulerEnabled, setSchedulerEnabled] = useState(true);
@@ -268,6 +275,30 @@ export default function DailyTripAssignmentList() {
     }
   };
 
+  // Manual "Generate Daily" run — POST /daily-trip-assignments/generate-daily/
+  // (A4 contract). Unlike Run Scheduler (force=true, ignores approval/weekday
+  // gating), this respects approval_status + repeat_days like the nightly
+  // job and requires an approval role (403 otherwise).
+  const runGenerateDailyNow = async () => {
+    setIsGeneratingDaily(true);
+    try {
+      const result = await dailyTripAssignmentApi.action<Record<string, unknown>, { date?: string }>(
+        "generate-daily",
+        schedulerDate ? { date: schedulerDate } : {},
+      );
+      Swal.fire({
+        icon: "success",
+        title: "Generate Daily completed",
+        text: String(result.message ?? `Created: ${result.created ?? 0}, skipped: ${result.skipped ?? 0}`),
+      });
+      loadAssignments();
+    } catch (err) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Generate Daily failed" });
+    } finally {
+      setIsGeneratingDaily(false);
+    }
+  };
+
   const saveSchedulerConfig = async () => {
     if (!schedulerRunTime) {
       Swal.fire({ icon: "warning", title: "Select auto-generation time" });
@@ -315,7 +346,10 @@ export default function DailyTripAssignmentList() {
         _waste: wasteTypeText(rec),
         _collection_type: getCollectionTypeKey(rec),
         _collection_type_label: COLLECTION_TYPE_LABELS[getCollectionTypeKey(rec)],
-        _collection_point_count: String(Array.isArray(rec.collection_points) ? rec.collection_points.length : 0),
+        _collection_point_count: String(
+          (Array.isArray(rec.collection_points) ? rec.collection_points.length : 0) +
+          (Array.isArray(rec.household_collection_points) ? rec.household_collection_points.length : 0)
+        ),
       }));
   })();
 
@@ -364,39 +398,400 @@ export default function DailyTripAssignmentList() {
     );
   };
 
-  const renderHeader = () => (
-    <FilterBar
-      searchValue={globalFilterValue}
-      onSearchChange={(value) =>
-        onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+  /* ── build one detailed export row per collection point / household
+     collection point, falling back to a single plan-level row when a trip
+     plan has no line items ── */
+  const buildExportRows = (source: DailyTripAssignmentRecord[]): Record<string, unknown>[] => {
+    const out: Record<string, unknown>[] = [];
+    source.forEach((row) => {
+      const base = {
+        "Trip ID": row.unique_id,
+        "Trip Plan": row.trip_plan?.display_code ?? row.trip_plan_id ?? "-",
+        "Trip Date": row.trip_date ?? "-",
+        Location: locationText(row),
+        Zone: zoneText(row),
+        Ward: wardText(row),
+        Staff:
+          row.effective_staff?.display_code ??
+          row.staff_template?.display_code ??
+          row.staff_template_id ??
+          "-",
+        "Waste Type": wasteTypeText(row),
+        "Collection Type": COLLECTION_TYPE_LABELS[getCollectionTypeKey(row)],
+        "Start Time": formatTimeOnly(row.scheduled_time),
+        Status: row.status ?? "-",
+        "Approval Status": row.approval_status ?? "-",
+      };
+      const defaultCollectionTime = formatTimeOnly(row.scheduled_time);
+
+      const cps = row.collection_points ?? [];
+      const hhs = row.household_collection_points ?? [];
+
+      cps.forEach((cp) => {
+        out.push({
+          ...base,
+          "Point Type": "Collection Point",
+          "Collection Point / Customer": cp.collection_point?.cp_name ?? cp.collection_point_id ?? "-",
+          Bin: cp.bin?.bin_name ?? cp.bin_id ?? "-",
+          "Collected Weight (kg)": cp.collected_weight_kg ?? "-",
+          "Collection Time": cp.collected_at ? formatCollectionTime(cp.collected_at) : defaultCollectionTime,
+          "Is Collected": cp.is_collected ? "Yes" : "No",
+        });
+      });
+
+      hhs.forEach((hh) => {
+        out.push({
+          ...base,
+          "Point Type": "Household",
+          "Collection Point / Customer": hh.customer?.customer_name ?? hh.customer_id ?? "-",
+          Bin: "-",
+          "Collected Weight (kg)": hh.collected_weight_kg ?? "-",
+          "Collection Time": hh.collected_at ? formatCollectionTime(hh.collected_at) : defaultCollectionTime,
+          "Is Collected": hh.is_collected ? "Yes" : "No",
+        });
+      });
+
+      if (cps.length === 0 && hhs.length === 0) {
+        out.push({
+          ...base,
+          "Point Type": "-",
+          "Collection Point / Customer": "-",
+          Bin: "-",
+          "Collected Weight (kg)": "-",
+          "Collection Time": defaultCollectionTime,
+          "Is Collected": "-",
+        });
       }
-      searchPlaceholder="Search assignments..."
-    >
-      <FilterBarSelect
-        value={companyUniqueId || ""}
-        onChange={onCompanyChange}
-        placeholder="All Companies"
-        options={companies}
-        disabled={!isSuperAdmin || companies.length === 0}
+    });
+    return out;
+  };
+
+  const handleDownload = (format: "excel" | "pdf") => {
+    setIsExporting(true);
+    try {
+      const exportRows = buildExportRows(filteredRows.length > 0 ? filteredRows : rows);
+      if (exportRows.length === 0) {
+        Swal.fire({ icon: "warning", title: "No records", text: "There are no daily trip plans to export." });
+        return;
+      }
+      if (format === "excel") {
+        exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Daily Trip Plans");
+      } else {
+        downloadRecordsPdf({
+          title: "Daily Trip Plans",
+          filename: "daily_trip_plans.pdf",
+          rows: exportRows,
+          columns: Object.keys(exportRows[0]).map((key) => ({ key, label: key })),
+        });
+      }
+    } catch (err: any) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: err?.message ?? String(err) });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  /* ── detailed per-stop report with a QR code per collection point /
+     customer — one PDF page per stop, mirrors the reference tniwms report.
+     Re-fetches the full bin/customer record per stop for richer detail than
+     the inline assignment payload carries. ── */
+  const handleDetailedPdfDownload = async () => {
+    setIsExportingDetailed(true);
+    try {
+      const source = filteredRows.length > 0 ? filteredRows : rows;
+      if (source.length === 0) {
+        Swal.fire({ icon: "warning", title: "No records", text: "There are no daily trip plans to export." });
+        return;
+      }
+
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      let hasPage = false;
+      const addPage = () => {
+        if (hasPage) pdf.addPage();
+        hasPage = true;
+      };
+
+      // Company/project names for the current assignment — resolved from the
+      // already-loaded dropdown option lists (assignments only carry IDs).
+      const resolveCompanyProject = (row: DailyTripAssignmentRecord) => {
+        const rowCompanyId = row.company_unique_id ?? row.company_id ?? companyUniqueId;
+        const rowProjectId = row.project_unique_id ?? row.project_id ?? projectId;
+        const companyLabel = companies.find((c) => c.value === rowCompanyId)?.label ?? "-";
+        const projectLabel = projects.find((p) => p.value === rowProjectId)?.label ?? "-";
+        return { companyLabel, projectLabel };
+      };
+
+      const drawDetails = (
+        title: string,
+        subtitle: string,
+        details: Array<[string, unknown]>,
+        qrValue?: string,
+      ) => {
+        addPage();
+        const qrBottom = 18 + 34;
+        const qrLeft = 158;
+        const labelX = 18;
+        const valueX = 62;
+        const fullValueWidth = 125;
+        const narrowValueWidth = qrLeft - valueX - 4;
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(18);
+        pdf.text(title, 18, 20);
+        pdf.setFontSize(10);
+        pdf.text(subtitle || "-", 18, 29, { maxWidth: qrValue ? 130 : 175 });
+        if (qrValue) drawQrCode(pdf, qrValue, qrLeft, 18, 34);
+        let y = Math.max(52, qrValue ? qrBottom + 6 : 52);
+        pdf.setFontSize(9.5);
+        const lineHeight = 4.2;
+        const labelWidth = valueX - labelX - 4;
+        details.forEach(([label, rawValue]) => {
+          const value =
+            rawValue === null || rawValue === undefined || rawValue === ""
+              ? "-"
+              : String(rawValue);
+          const wrapWidth = qrValue && y < qrBottom ? narrowValueWidth : fullValueWidth;
+          pdf.setFont("helvetica", "bold");
+          const labelLines = pdf.splitTextToSize(`${label}:`, labelWidth) as string[];
+          pdf.setFont("helvetica", "normal");
+          const valueLines = pdf.splitTextToSize(value, wrapWidth) as string[];
+          const rowHeight = Math.max(8, Math.max(labelLines.length, valueLines.length) * lineHeight + 3);
+          if (y + rowHeight > 282) {
+            pdf.addPage();
+            y = 20;
+          }
+          pdf.setFont("helvetica", "bold");
+          pdf.text(labelLines, labelX, y);
+          pdf.setFont("helvetica", "normal");
+          pdf.text(valueLines, valueX, y);
+          y += rowHeight;
+        });
+      };
+
+      for (const row of source) {
+        const { companyLabel, projectLabel } = resolveCompanyProject(row);
+        drawDetails(
+          "Daily Trip Plan — Route Summary",
+          row.unique_id,
+          [
+            ["Trip Plan", row.trip_plan?.display_code ?? row.trip_plan_id ?? "-"],
+            ["Company", companyLabel],
+            ["Project", projectLabel],
+            ["Panchayat / Local Body", locationText(row)],
+            ["Zone", zoneText(row)],
+            ["Ward", wardText(row)],
+            ["Collection Type", COLLECTION_TYPE_LABELS[getCollectionTypeKey(row)]],
+            ["Waste Types", wasteTypeText(row)],
+            [
+              "Effective Staff",
+              row.effective_staff?.display_code ??
+                row.staff_template?.display_code ??
+                row.staff_template_id ??
+                "-",
+            ],
+            ["Total Route Stops", (row.collection_points?.length ?? 0) + (row.household_collection_points?.length ?? 0)],
+            ["Bin Stops", row.collection_points?.length ?? 0],
+            ["Household / Bulk Stops", row.household_collection_points?.length ?? 0],
+            ["Trip Date", row.trip_date ?? "-"],
+            ["Scheduled Time", formatTimeOnly(row.scheduled_time)],
+            ["Status", row.status ?? "-"],
+            ["Approval", (row as any).approval_status ?? "-"],
+            ["Remarks", row.remarks ?? "-"],
+          ],
+          JSON.stringify({ daily_trip_assignment_id: row.unique_id }),
+        );
+
+        for (const stop of row.household_collection_points ?? []) {
+          let customer: Record<string, any> = stop.customer ?? {};
+          const customerId = stop.customer_id ?? stop.customer?.unique_id;
+          if (customerId) {
+            try {
+              customer = (await customerCreationApi.read(customerId)) as Record<string, any>;
+            } catch {
+              // The inline assignment payload still provides the essential fallback details.
+            }
+          }
+          const address = [customer.building_no, customer.street, customer.area, customer.pincode]
+            .filter(Boolean)
+            .join(", ");
+          const localBody = customer.panchayat_name ?? locationText(row);
+          const familyMembers = Array.isArray(customer.family_members)
+            ? customer.family_members
+                .map((member: Record<string, unknown>) => member.member_name ?? member.name)
+                .filter(Boolean)
+                .join(", ")
+            : "-";
+          const customerWasteTypes = Array.isArray(customer.waste_types)
+            ? customer.waste_types
+                .map((wasteType: Record<string, unknown>) => wasteType.waste_type_name ?? wasteType.name)
+                .filter(Boolean)
+                .join(", ")
+            : "-";
+
+          drawDetails(
+            (stop as any).collection_type === "bulk_waste_collection"
+              ? "Bulk-Waste Customer Stop"
+              : "Household Customer Stop",
+            `${stop.sequence ?? "-"}. ${customer.customer_name ?? customerId ?? "Customer"}`,
+            [
+              ["Customer ID", customer.unique_id ?? customerId],
+              ["Customer Name", customer.customer_name],
+              ["Contact Number", customer.contact_no],
+              ["Company", customer.company_name ?? companyLabel],
+              ["Project", customer.project_name ?? projectLabel],
+              ["State", customer.state_name],
+              ["District", customer.district_name],
+              ["City", customer.city_name],
+              ["Zone", customer.zone_name ?? zoneText(row)],
+              ["Panchayat", customer.panchayat_name ?? locationText(row)],
+              ["Ward", customer.ward_name ?? wardText(row)],
+              ["Property", customer.property_name],
+              ["Sub Property", customer.sub_property_name],
+              ["Address", address],
+              [
+                "Apartment / Block / Flat",
+                [customer.apartment_name, customer.block_no, customer.flat_no].filter(Boolean).join(" / "),
+              ],
+              ["Local Body", localBody],
+              ["Latitude / Longitude", [customer.latitude, customer.longitude].filter(Boolean).join(", ")],
+              ["ID Proof Type", customer.id_proof_type],
+              ["ID Number", customer.id_no],
+              ["Property Area (sq. ft.)", customer.sqft],
+              ["Water Consumption (LPD)", customer.water_consumption_lpd],
+              ["Expected Waste (kg/day)", customer.waste_collection_kg_per_day],
+              ["Waste Types", customerWasteTypes],
+              ["Member Count", customer.member_count],
+              ["Family Members", familyMembers],
+              ["Bulk-Waste Generator", customer.is_bulkwaste_generator ? "Yes" : "No"],
+              ["Sequence", stop.sequence],
+              ["Collection Status", stop.status],
+              ["Collected", stop.is_collected ? "Yes" : "No"],
+              ["Collected Weight (kg)", stop.collected_weight_kg],
+            ],
+            JSON.stringify({ id: customer.unique_id ?? customerId }),
+          );
+        }
+
+        for (const stop of row.collection_points ?? []) {
+          let bin: Record<string, any> = stop.bin ?? {};
+          const binId = stop.bin_id ?? stop.bin?.unique_id;
+          if (binId) {
+            try {
+              bin = (await binApi.read(binId)) as Record<string, any>;
+            } catch {
+              // Fall back to the assignment's inline bin and collection-point details.
+            }
+          }
+          const collectionPoint: Record<string, any> = stop.collection_point ?? {};
+          drawDetails(
+            "Secondary Bin Collection Stop",
+            `${stop.sequence ?? "-"}. ${collectionPoint.cp_name ?? "Collection Point"}`,
+            [
+              ["Collection Point ID", collectionPoint.unique_id ?? stop.collection_point_id],
+              ["Collection Point", collectionPoint.cp_name],
+              ["Bin ID", bin.unique_id ?? binId],
+              ["Bin Name", bin.bin_name ?? stop.bin?.bin_name],
+              ["Bin Type", bin.bin_type],
+              ["Bin Capacity", bin.bin_capacity],
+              ["Waste Type", bin.wastetype_name ?? bin.waste_type_name],
+              ["Company", bin.company_name ?? companyLabel],
+              ["Project", bin.project_name ?? projectLabel],
+              ["District", bin.district_name],
+              ["City", bin.city_name],
+              ["Zone", bin.zone_name ?? zoneText(row)],
+              ["Panchayat", bin.panchayat_name ?? locationText(row)],
+              ["Ward", bin.ward_name ?? wardText(row)],
+              [
+                "Latitude / Longitude",
+                [bin.latitude, bin.longitude].filter(Boolean).join(", "),
+              ],
+              ["Sequence", stop.sequence],
+              ["Collection Status", stop.status],
+              ["Collected", stop.is_collected ? "Yes" : "No"],
+              ["Collected Weight (kg)", stop.collected_weight_kg],
+              ["Collected At", stop.collected_at ? formatCollectionTime(stop.collected_at) : "-"],
+              ["Status Reason", (stop as any).status_reason],
+            ],
+            String(bin.unique_id ?? binId ?? collectionPoint.unique_id ?? stop.collection_point_id ?? ""),
+          );
+        }
+      }
+
+      pdf.save("daily_trip_plans_detailed.pdf");
+    } catch (err: any) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: err?.message ?? "Failed to generate the detailed trip-plan PDF.",
+      });
+    } finally {
+      setIsExportingDetailed(false);
+    }
+  };
+
+  const renderHeader = () => (
+    <div className="flex flex-col gap-3">
+      <FilterBar hideSearch searchValue="" onSearchChange={() => {}}>
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={onCompanyChange}
+          placeholder="All Companies"
+          options={companies}
+          disabled={!isSuperAdmin || companies.length === 0}
+        />
+        <FilterBarSelect
+          value={projectId || ""}
+          onChange={setProjectId}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          options={projects}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+        />
+        <FilterBarSelect
+          value={collectionTypeFilter}
+          onChange={(value) => setCollectionTypeFilter(value as "all" | CollectionTypeKey)}
+          options={[
+            { value: "all", label: "All Types" },
+            { value: "bin", label: "Bin Collection" },
+            { value: "household", label: "Household" },
+            { value: "both", label: "Bin + Household" },
+          ]}
+        />
+      </FilterBar>
+
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={(value) =>
+          onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+        }
+        searchPlaceholder="Search assignments..."
+        trailing={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              label={isExporting ? "Exporting..." : "Download Excel"}
+              icon="pi pi-file-excel"
+              className="p-button-outlined p-button-sm"
+              disabled={isExporting}
+              onClick={() => handleDownload("excel")}
+            />
+            <Button
+              label={isExporting ? "Exporting..." : "Download PDF"}
+              icon="pi pi-file-pdf"
+              className="p-button-outlined p-button-sm"
+              disabled={isExporting}
+              onClick={() => handleDownload("pdf")}
+            />
+            <Button
+              label={isExportingDetailed ? "Generating..." : "Detailed Report (QR)"}
+              icon="pi pi-qrcode"
+              className="p-button-outlined p-button-sm"
+              disabled={isExportingDetailed}
+              onClick={handleDetailedPdfDownload}
+              title="One page per collection point / customer stop, with a QR code"
+            />
+          </div>
+        }
       />
-      <FilterBarSelect
-        value={projectId || ""}
-        onChange={setProjectId}
-        placeholder={showAllProjectsOption ? "All Projects" : undefined}
-        options={projects}
-        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-      />
-      <FilterBarSelect
-        value={collectionTypeFilter}
-        onChange={(value) => setCollectionTypeFilter(value as "all" | CollectionTypeKey)}
-        options={[
-          { value: "all", label: "All Types" },
-          { value: "bin", label: "Bin Collection" },
-          { value: "household", label: "Household" },
-          { value: "both", label: "Bin + Household" },
-        ]}
-      />
-    </FilterBar>
+    </div>
   );
 
   return (
@@ -463,6 +858,14 @@ export default function DailyTripAssignmentList() {
             disabled={isSavingSchedulerConfig}
             onClick={saveSchedulerConfig}
           />
+          <Button
+            label={isGeneratingDaily ? "Generating..." : "Generate Daily"}
+            icon="pi pi-calendar-plus"
+            className="p-button-sm p-button-success"
+            disabled={isGeneratingDaily}
+            onClick={runGenerateDailyNow}
+            title="Manually run the approved, repeat-day-matched auto-assign plans for the selected date (generate-daily action)"
+          />
           <span className="text-gray-400">|</span>
           <span>Job: {schedulerStatus?.enabled ? "Enabled" : "Disabled"} at {schedulerStatus?.run_time ?? schedulerRunTime}</span>
           {schedulerStatus?.next_run_at && (
@@ -498,6 +901,7 @@ export default function DailyTripAssignmentList() {
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}
+        exportable={false}
         stripedRows
         showGridlines
         className="p-datatable-sm"
@@ -517,6 +921,28 @@ export default function DailyTripAssignmentList() {
           "trip_date",
           "scheduled_time",
         ]}
+        transformServerRows={(serverRows) => {
+          const records = serverRows as DailyTripAssignmentRecord[];
+          return records.map((rec) => ({
+            ...rec,
+            _trip_plan: rec.trip_plan?.display_code ?? rec.trip_plan_id ?? "",
+            _staff:
+              rec.effective_staff?.display_code ??
+              rec.staff_template?.display_code ??
+              rec.staff_template_id ??
+              "",
+            _zone: zoneText(rec),
+            _ward: wardText(rec),
+            _location: locationText(rec),
+            _waste: wasteTypeText(rec),
+            _collection_type: getCollectionTypeKey(rec),
+            _collection_type_label: COLLECTION_TYPE_LABELS[getCollectionTypeKey(rec)],
+            _collection_point_count: String(
+              (Array.isArray(rec.collection_points) ? rec.collection_points.length : 0) +
+              (Array.isArray(rec.household_collection_points) ? rec.household_collection_points.length : 0),
+            ),
+          }));
+        }}
       >
         <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 60 }} />
         <Column field="unique_id" header="ID" filter showFilterMatchModes={false} style={{ minWidth: 160 }} />
@@ -590,7 +1016,10 @@ export default function DailyTripAssignmentList() {
         <Column
           field="_collection_point_count"
           header="Collection Points"
-          body={(row: DailyTripAssignmentRecord) => Array.isArray(row.collection_points) ? row.collection_points.length : 0}
+          body={(row: DailyTripAssignmentRecord) =>
+            (Array.isArray(row.collection_points) ? row.collection_points.length : 0) +
+            (Array.isArray(row.household_collection_points) ? row.household_collection_points.length : 0)
+          }
           sortable
           filter
           showFilterMatchModes={false}

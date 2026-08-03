@@ -1236,24 +1236,54 @@ export default function CustomerCreationForm() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <FormSection title={t("admin.customer_creation.company_project_info") || "Company & Project Information"}>
-          <ShadcnSelect
-            label={t("admin.nav.company") || "Company"}
-            value={companyUniqueId}
-            onChange={handleCompanyScopeChange}
-            options={companies}
-            placeholder={t("admin.nav.company_placeholder") || "Select company"}
-            isRequired={true}
-            disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId)}
-          />
-          <ShadcnSelect
-            label={t("admin.nav.project") || "Project"}
-            value={projectId}
-            onChange={handleProjectScopeChange}
-            options={projects}
-            placeholder={t("admin.nav.project_placeholder") || "Select project"}
-            isRequired={true}
-            disabled={!companyUniqueId || projects.length === 0}
-          />
+          {!isEdit ? (
+            <div className="md:col-span-3 bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm text-gray-600">
+                    {t("admin.customer_creation.selected_company") || "Selected Company"}:{" "}
+                    <span className="font-semibold text-gray-800">
+                      {companies.find((c) => c.value === companyUniqueId)?.label || "-"}
+                    </span>
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {t("admin.customer_creation.selected_project") || "Selected Project"}:{" "}
+                    <span className="font-semibold text-gray-800">
+                      {projects.find((p) => p.value === projectId)?.label || "-"}
+                    </span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStep(0)}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium transition"
+                >
+                  {t("common.change") || "Change"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <ShadcnSelect
+                label={t("admin.nav.company") || "Company"}
+                value={companyUniqueId}
+                onChange={handleCompanyScopeChange}
+                options={companies}
+                placeholder={t("admin.nav.company_placeholder") || "Select company"}
+                isRequired={true}
+                disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId)}
+              />
+              <ShadcnSelect
+                label={t("admin.nav.project") || "Project"}
+                value={projectId}
+                onChange={handleProjectScopeChange}
+                options={projects}
+                placeholder={t("admin.nav.project_placeholder") || "Select project"}
+                isRequired={true}
+                disabled={!companyUniqueId || projects.length === 0}
+              />
+            </>
+          )}
         </FormSection>
 
         <FormSection title={t("admin.customer_creation.personal_info") || "Personal Information"}>

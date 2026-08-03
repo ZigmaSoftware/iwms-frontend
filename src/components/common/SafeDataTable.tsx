@@ -49,6 +49,7 @@ type SafeDataTableProps<TValue extends SafeTableRows> =
     importTemplateFilename?: string;
     onImportComplete?: () => void | Promise<void>;
     onImportRows?: (rows: SafeTableRows) => Promise<void>;
+    transformServerRows?: (rows: SafeTableRows) => SafeTableRows;
   };
 
 const toSafeRows = <TValue extends SafeTableRows>(
@@ -413,6 +414,7 @@ export const DataTable = <TValue extends SafeTableRows>(
     importTemplateFilename,
     onImportComplete,
     onImportRows,
+    transformServerRows,
     ...tableProps
   } = props;
   const safeRows = toSafeRows(tableProps.value);
@@ -548,7 +550,9 @@ export const DataTable = <TValue extends SafeTableRows>(
           return;
         }
 
-        setServerRows(mapServerRows(nextRows as SafeTableRows));
+        const mappedRows = mapServerRows(nextRows as SafeTableRows);
+        const transformedRows = transformServerRows ? transformServerRows(mappedRows) : mappedRows;
+        setServerRows(transformedRows);
         setServerTotal(count);
       } finally {
         setServerLoading(false);

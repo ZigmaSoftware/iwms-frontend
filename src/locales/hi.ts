@@ -908,8 +908,6 @@ const hiResource = {
           "primary_operator": "ऑपरेटर",
           "extra_staff": "अतिरिक्त ऑपरेटर्स",
           "extra_staff_placeholder": "कॉमा से अलग किए गए ऑपरेटर आईडी",
-          "approval_status": "अनुमोदन स्थिति",
-          "approved_by": "अनुमोदित द्वारा",
           "created_by": "बनाया",
           "updated_by": "अपडेट किया",
           "columns": {
@@ -917,7 +915,6 @@ const hiResource = {
             "primary_driver": "ड्राइवर",
             "primary_operator": "ऑपरेटर",
             "extra_staff": "अतिरिक्त ऑपरेटर्स",
-            "approval_status": "अनुमोदन स्थिति",
             "created_at": "बनाया गया",
             "updated_at": "अपडेट किया गया"
           }

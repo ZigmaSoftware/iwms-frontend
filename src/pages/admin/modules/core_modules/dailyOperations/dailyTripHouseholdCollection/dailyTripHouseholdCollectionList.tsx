@@ -16,11 +16,30 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 
+// A5: DailyTripHouseholdCollection.STATUS_CHOICES — Pending/Collected/Collect
+// Later/Not Available (STATUS_MISSED renamed from "Missed"); "Not Collected"/
+// "Skipped" kept only for legacy rows written before this rename.
+const STATUS_OPTIONS = [
+  { value: "Pending", label: "Pending" },
+  { value: "Collected", label: "Collected" },
+  { value: "Collect Later", label: "Collect Later" },
+  { value: "Not Available", label: "Not Available" },
+];
+
 const STATUS_STYLES: Record<string, string> = {
   Pending: "bg-gray-100 text-gray-700",
   Collected: "bg-green-100 text-green-800",
-  Skipped: "bg-red-100 text-red-800",
-  Missed: "bg-orange-100 text-orange-800",
+  "Collect Later": "bg-amber-100 text-amber-800",
+  "Not Available": "bg-red-100 text-red-800",
+  // legacy values, kept for old rows
+  Skipped: "bg-amber-100 text-amber-800",
+  Missed: "bg-red-100 text-red-800",
+  "Not Collected": "bg-red-100 text-red-800",
+};
+
+const COLLECTION_TYPE_LABELS: Record<string, string> = {
+  household_collection: "Household",
+  bulk_waste_collection: "Bulk Waste",
 };
 
 const Badge = ({ value }: { value?: string }) => (
@@ -105,6 +124,8 @@ export default function DailyTripHouseholdCollectionList() {
     _customer: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _location: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    // A5: viewset supports a collection_type query-param filter.
+    collection_type: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
   });
 
   useEffect(() => {
@@ -121,6 +142,10 @@ export default function DailyTripHouseholdCollectionList() {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
+    const statusFilter = (filters.status as { value?: string | null } | undefined)?.value;
+    if (statusFilter) params.status = statusFilter;
+    const collectionTypeFilter = (filters.collection_type as { value?: string | null } | undefined)?.value;
+    if (collectionTypeFilter) params.collection_type = collectionTypeFilter;
     (
       dailyTripHouseholdCollectionApi.readAll({
         params,
@@ -143,7 +168,7 @@ export default function DailyTripHouseholdCollectionList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, filters.status, filters.collection_type, t]);
 
   const rows = allRecords.map((rec) => ({
     ...rec,
@@ -214,6 +239,36 @@ export default function DailyTripHouseholdCollectionList() {
         options={projects}
         disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
       />
+      <select
+        value={(filters.status as { value?: string | null } | undefined)?.value ?? ""}
+        onChange={(e) =>
+          setFilters((f) => ({
+            ...f,
+            status: { value: e.target.value || null, matchMode: FilterMatchMode.CONTAINS },
+          }))
+        }
+        className="p-inputtext-sm rounded border px-3 py-2 text-sm"
+      >
+        <option value="">All Statuses</option>
+        {STATUS_OPTIONS.map((s) => (
+          <option key={s.value} value={s.value}>{s.label}</option>
+        ))}
+      </select>
+      <select
+        value={(filters.collection_type as { value?: string | null } | undefined)?.value ?? ""}
+        onChange={(e) =>
+          setFilters((f) => ({
+            ...f,
+            collection_type: { value: e.target.value || null, matchMode: FilterMatchMode.CONTAINS },
+          }))
+        }
+        className="p-inputtext-sm rounded border px-3 py-2 text-sm"
+      >
+        <option value="">All Collection Types</option>
+        {Object.entries(COLLECTION_TYPE_LABELS).map(([value, label]) => (
+          <option key={value} value={value}>{label}</option>
+        ))}
+      </select>
     </FilterBar>
   );
 
@@ -253,6 +308,7 @@ export default function DailyTripHouseholdCollectionList() {
           "_customer",
           "_location",
           "status",
+          "collection_type",
         ]}
         className="p-datatable-sm"
       >
@@ -308,6 +364,17 @@ export default function DailyTripHouseholdCollectionList() {
           style={{ minWidth: 160 }}
           body={(row) =>
             nestedText(row.customer as NamedRef, ["customer_name"])
+          }
+        />
+        <Column
+          field="collection_type"
+          header="Collection Type"
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 140 }}
+          body={(row: DailyTripHouseholdCollectionRecord) =>
+            COLLECTION_TYPE_LABELS[String(row.collection_type ?? "")] ?? text(row.collection_type)
           }
         />
         <Column
@@ -372,6 +439,27 @@ export default function DailyTripHouseholdCollectionList() {
           body={(row: DailyTripHouseholdCollectionRecord) => (
             <Badge value={row.status} />
           )}
+        />
+        <Column
+          field="status_reason"
+          header="Status Reason"
+          style={{ minWidth: 160 }}
+          body={(row: DailyTripHouseholdCollectionRecord) => text(row.status_reason)}
+        />
+        <Column
+          header="Waste Breakdown (Wet/Dry/Mixed/Sanitary/Total)"
+          style={{ minWidth: 220 }}
+          body={(row: DailyTripHouseholdCollectionRecord) => {
+            const wb = row.waste_breakdown;
+            if (!wb) return <span className="text-gray-400">-</span>;
+            const fmt = (v: unknown) => (v === null || v === undefined ? "0" : Number(v).toFixed(2));
+            return (
+              <span className="text-xs text-gray-700">
+                W:{fmt(wb.wet_waste)} / D:{fmt(wb.dry_waste)} / M:{fmt(wb.mixed_waste)} / S:{fmt(wb.sanitary_waste)} / T:
+                <span className="font-semibold">{fmt(wb.total_quantity)}</span>
+              </span>
+            );
+          }}
         />
         <Column
           field="collected_at"
