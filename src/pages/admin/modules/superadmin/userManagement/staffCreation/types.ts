@@ -28,7 +28,8 @@ export type ErrorWithResponse = {
 };
 
 export type Staff = {
-  unique_id: number;
+  unique_id: string | number;
+  staff_id?: string;
   employee_name: string;
   staff_unique_id: string;
   qr_code?: string | null;
