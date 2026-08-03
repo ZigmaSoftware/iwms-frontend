@@ -6,8 +6,7 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -16,7 +15,6 @@ import { districtApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import type { DistrictListRecord } from "./types";
 
@@ -32,6 +30,14 @@ const DISTRICT_COLUMN_FIELDS: Record<string, string[]> = {
   is_active: ["is_active"],
 };
 
+// Backend (district_viewset.py) only supports ordering on "name" and
+// "is_active"; the DataTable's sortField values are the frontend column
+// names, so map them onto the backend's ordering field names below.
+const SORTABLE_FIELDS = new Set(["name", "is_active"]);
+const BACKEND_ORDER_FIELD: Record<string, string> = {
+  name: "name",
+  is_active: "is_active",
+};
 
 export default function DistrictListPage() {
   const { t } = useTranslation();
@@ -41,25 +47,18 @@ export default function DistrictListPage() {
     DISTRICT_COLUMN_FIELDS,
   );
 
-  const [allDistricts, setAllDistricts] = useState<DistrictApiRow[]>([]);
+  const [districts, setDistricts] = useState<DistrictListRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
-  const {
-    filters,
-    onFilter,
-    globalFilterValue,
-    onGlobalFilterChange,
-    statusValue,
-    onStatusFilterChange,
-  } = useFilterBarFilters({
-    initialFilters: {
-      countryName: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      stateName:   { value: null, matchMode: FilterMatchMode.CONTAINS },
-      name:        { value: null, matchMode: FilterMatchMode.CONTAINS },
-    },
-  });
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
@@ -83,120 +82,116 @@ export default function DistrictListPage() {
     encDistricts,
   );
 
+  const mapRow = (d: DistrictApiRow): DistrictListRecord => ({
+    unique_id: String(d.unique_id ?? ""),
+    countryName: String(d.country_name ?? ""),
+    stateName: String(d.state_name ?? ""),
+    name: String(d.name ?? ""),
+    is_active: Boolean(d.is_active),
+    company_id: d.company_id ? String(d.company_id) : undefined,
+    company_unique_id: d.company_unique_id ? String(d.company_unique_id) : undefined,
+    company_name: d.company_name ? String(d.company_name) : undefined,
+    project_id: d.project_id ? String(d.project_id) : undefined,
+    project_unique_id: d.project_unique_id ? String(d.project_unique_id) : undefined,
+    project_name: d.project_name ? String(d.project_name) : undefined,
+  });
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${BACKEND_ORDER_FIELD[sortField] ?? sortField}`
+    : undefined;
+
+  const loadRows = async (page: number, limit: number, search: string, order?: string) => {
+    if (isSuperAdmin && companies.length === 0) {
+      setDistricts([]);
+      setTotalRecords(0);
+      return;
+    }
+
+    if (!companyUniqueId && !isSuperAdmin) {
+      setDistricts([]);
+      setTotalRecords(0);
+      return;
+    }
+
+    setIsLoading(true);
+    setDistricts([]);
+    try {
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+      if (search) params.search = search;
+      if (order) params.ordering = order;
+
+      const response = await districtApi.readAllwithPaginated(page, limit, {
+        params,
+      });
+      const rows: DistrictApiRow[] = Array.isArray(response?.results)
+        ? (response.results as unknown as DistrictApiRow[])
+        : [];
+      setDistricts(rows.map(mapRow));
+      setTotalRecords(typeof response?.count === "number" ? response.count : rows.length);
+    } catch (error) {
+      const errorData = (error as { response?: { data?: unknown } })?.response?.data;
+      Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let mounted = true;
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, companies.length, companyUniqueId, isSuperAdmin, projectId]);
 
-    const loadDistricts = async () => {
-      if (isSuperAdmin && companies.length === 0) {
-        setAllDistricts([]);
-        return;
-      }
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
 
-      if (!companyUniqueId && !isSuperAdmin) {
-        setAllDistricts([]);
-        return;
-      }
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
 
-      setIsLoading(true);
-      try {
-        const params: Record<string, string> = {};
-        if (companyUniqueId) params.company_id = companyUniqueId;
-        if (projectId) params.project_id = projectId;
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
-        const data = await districtApi.readAll(
-          Object.keys(params).length ? { params } : undefined
-        );
-        if (mounted) setAllDistricts(data as DistrictApiRow[]);
-      } catch (error) {
-        if (mounted) {
-          const errorData = (error as { response?: { data?: unknown } })?.response?.data;
-          Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
-        }
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
-
-    void loadDistricts();
-
-    return () => {
-      mounted = false;
-    };
-  }, [companies.length, companyUniqueId, isSuperAdmin, projectId, t]);
-
-  // Company/project scoping is now applied server-side (tenant users are
-  // scoped automatically by the backend; superadmin scoping is passed via
-  // company_id/project_id params above) — no client-side narrowing needed.
-  const districts = ((): DistrictListRecord[] => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
-
-    const rows: DistrictApiRow[] = Array.isArray(allDistricts)
-      ? (allDistricts as unknown as DistrictApiRow[])
-      : [];
-    const mapped: DistrictListRecord[] = rows.map((d) => ({
-      unique_id: String(d.unique_id ?? ""),
-      countryName: String(d.country_name ?? ""),
-      stateName: String(d.state_name ?? ""),
-      name: String(d.name ?? ""),
-      is_active: Boolean(d.is_active),
-      company_id: d.company_id ? String(d.company_id) : undefined,
-      company_unique_id: d.company_unique_id ? String(d.company_unique_id) : undefined,
-      company_name: d.company_name ? String(d.company_name) : undefined,
-      project_id: d.project_id ? String(d.project_id) : undefined,
-      project_unique_id: d.project_unique_id ? String(d.project_unique_id) : undefined,
-      project_name: d.project_name ? String(d.project_name) : undefined,
-    }));
-
-    mapped.sort((a, b) => a.name.localeCompare(b.name));
-    return mapped;
-  })();
+  const onGlobalFilterChange = (value: string) => {
+    setGlobalFilterValue(value);
+  };
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
-  const getFilteredExportRows = (): DistrictListRecord[] => {
-    const search = globalFilterValue.trim().toLowerCase();
-    return districts.filter((row) => {
-      if (statusValue !== "all") {
-        const wantActive = statusValue === "active";
-        if (Boolean(row.is_active) !== wantActive) return false;
-      }
-      if (!search) return true;
-      return [row.name, row.countryName, row.stateName]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(search));
-    });
-  };
-
-  const handleDownloadExcel = () => {
+  const handleDownloadExcel = async () => {
     setIsExportingExcel(true);
     try {
-      const rows = getFilteredExportRows();
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+
+      const allRows = await districtApi.readAllForExport(
+        Object.keys(params).length ? { params } : undefined,
+      );
+      const rows = (Array.isArray(allRows) ? (allRows as unknown as DistrictApiRow[]) : []).map(mapRow);
       if (rows.length === 0) {
         Swal.fire(t("common.warning") || "Warning", "No districts to export", "warning");
         return;
       }
       exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Districts");
+    } catch (error) {
+      const errorData = (error as { response?: { data?: unknown } })?.response?.data;
+      Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
     } finally {
       setIsExportingExcel(false);
     }
   };
-
-  type TextFilterOptions = {
-    value?: string | null;
-    filterApplyCallback: (value: string | null) => void;
-  };
-
-  const textFilterElement = (options: TextFilterOptions) => (
-    <InputText
-      value={options.value ?? ""}
-      onChange={(e) => options.filterApplyCallback(e.target.value)}
-      placeholder="Search..."
-      className="p-inputtext-sm w-full"
-      autoFocus
-    />
-  );
 
   const updateStatus = async (row: DistrictListRecord, checked: boolean) => {
     const id = String(row.unique_id);
@@ -205,7 +200,7 @@ export default function DistrictListPage() {
 
     try {
       await districtApi.update(row.unique_id, { is_active: checked });
-      setAllDistricts((current) =>
+      setDistricts((current) =>
         current.map((item) =>
           item.unique_id === row.unique_id ? { ...item, is_active: checked } : item
         )
@@ -221,7 +216,7 @@ export default function DistrictListPage() {
   const statusTemplate = (row: DistrictListRecord) => (
     <Switch checked={row.is_active} disabled={isUpdating && pendingStatusId === String(row.unique_id)} onCheckedChange={(checked) => void updateStatus(row, checked)} />
   );
-  
+
 
   const actionTemplate = (row: DistrictListRecord) => (
     <div className="flex gap-3 justify-center">
@@ -278,8 +273,6 @@ export default function DistrictListPage() {
         searchValue={globalFilterValue}
         onSearchChange={onGlobalFilterChange}
         searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.district") })}
-        statusValue={statusValue}
-        onStatusChange={onStatusFilterChange}
         className="mb-4"
         trailing={
           <Button
@@ -287,7 +280,7 @@ export default function DistrictListPage() {
             icon="pi pi-file-excel"
             className="p-button-outlined"
             disabled={isExportingExcel}
-            onClick={handleDownloadExcel}
+            onClick={() => void handleDownloadExcel()}
           />
         }
       >
@@ -310,17 +303,20 @@ export default function DistrictListPage() {
       <DataTable
         value={districts}
         dataKey="unique_id"
-        loading={isLoading && districts.length === 0}
+        lazy
+        loading={isLoading}
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        filters={filters}
-        onFilter={onFilter}
-        filterDisplay="menu"
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.district") })}
-        globalFilterFields={["name", "countryName", "stateName", "company_name", "project_name"]}
         className="p-datatable-sm"
       >
         <Column
@@ -333,11 +329,6 @@ export default function DistrictListPage() {
             field="countryName"
             header={t("admin.nav.country")}
             body={(row) => cap(row.countryName)}
-            sortable
-            filter
-            filterField="countryName"
-            filterElement={textFilterElement}
-            filterPlaceholder="Search country"
           />
         )}
         {showCol("stateName") && (
@@ -345,11 +336,6 @@ export default function DistrictListPage() {
             field="stateName"
             header={t("admin.nav.state")}
             body={(row) => cap(row.stateName)}
-            sortable
-            filter
-            filterField="stateName"
-            filterElement={textFilterElement}
-            filterPlaceholder="Search state"
           />
         )}
         {showCol("name") && (
@@ -358,10 +344,6 @@ export default function DistrictListPage() {
             header={t("admin.nav.district")}
             body={(row) => cap(row.name)}
             sortable
-            filter
-            filterField="name"
-            filterElement={textFilterElement}
-            filterPlaceholder="Search district"
           />
         )}
         {showCol("is_active") && (
@@ -369,6 +351,7 @@ export default function DistrictListPage() {
             field="is_active"
             header={t("common.status")}
             body={statusTemplate}
+            sortable
           />
         )}
         <Column

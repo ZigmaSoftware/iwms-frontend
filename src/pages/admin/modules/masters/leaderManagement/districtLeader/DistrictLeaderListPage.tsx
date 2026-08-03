@@ -9,6 +9,7 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { districtLeaderApi } from "@/helpers/admin";
@@ -19,7 +20,7 @@ import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
-const extractRows = (value: unknown): DistrictLeader[] => {
+const toRecordList = (value: unknown): DistrictLeader[] => {
   if (Array.isArray(value)) return value as DistrictLeader[];
   if (!value || typeof value !== "object") return [];
 
@@ -39,6 +40,8 @@ const extractRows = (value: unknown): DistrictLeader[] => {
 
 const cap = (str?: string | null) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
+
+const SORTABLE_FIELDS = new Set(["username", "leader_name", "district_name"]);
 
 export default function DistrictLeaderListPage() {
   const { t } = useTranslation();
@@ -65,10 +68,15 @@ export default function DistrictLeaderListPage() {
     initialProjectId: restoredState?.projectId,
   });
 
-  const [allRecords, setAllRecords] = useState<DistrictLeader[]>([]);
+  const [rows, setRows] = useState<DistrictLeader[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const {
     filters,
     onFilter,
@@ -85,51 +93,64 @@ export default function DistrictLeaderListPage() {
   });
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  /* ── fetch, scoped server-side by company+project, search, sort, and pagination ── */
+  const loadRows = async (page: number, limit: number) => {
+    setIsLoading(true);
+    setRows([]);
+    try {
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+      if (globalFilterValue.trim()) params.search = globalFilterValue.trim();
+      if (ordering) params.ordering = ordering;
+
+      const response = await districtLeaderApi.readAllwithPaginated(page, limit, { params });
+      const list = toRecordList(response);
+      setRows(list);
+      setTotalRecords(
+        typeof (response as { count?: number })?.count === "number"
+          ? (response as { count?: number }).count as number
+          : list.length,
+      );
+    } catch {
+      Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      if (isSuperAdmin && companies.length === 0) {
-        setAllRecords([]);
-        return;
-      }
+    if (isSuperAdmin && companies.length === 0) {
+      setRows([]);
+      setTotalRecords(0);
+      return;
+    }
+    if (!companyUniqueId && !isSuperAdmin) {
+      setRows([]);
+      setTotalRecords(0);
+      return;
+    }
 
-      if (!companyUniqueId && !isSuperAdmin) {
-        setAllRecords([]);
-        return;
-      }
+    void loadRows(first / rowsPerPage + 1, rowsPerPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length, first, rowsPerPage, globalFilterValue, ordering]);
 
-      if (mounted) setIsLoading(true);
-      try {
-        const params: Record<string, string> = {};
-        if (companyUniqueId) params.company_id = companyUniqueId;
-        if (projectId) params.project_id = projectId;
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
 
-        const data: unknown = await districtLeaderApi.readAll(
-          Object.keys(params).length ? { params } : undefined
-        );
-        if (!mounted) return;
-        const rows = extractRows(data);
-        if (mounted) setAllRecords(rows);
-      } catch {
-        if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
-    void load();
-    return () => { mounted = false; };
-  }, [companies.length, companyUniqueId, isSuperAdmin, projectId, t]);
-
-  // Company/project scoping is now applied server-side (tenant users are
-  // scoped automatically by the backend; superadmin scoping is passed via
-  // company_id/project_id params above) — no client-side narrowing needed.
-  const data = (() => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
-
-    return allRecords;
-  })();
+  const data = rows;
 
   const getFilteredExportRows = (): DistrictLeader[] => {
     const search = globalFilterValue.trim().toLowerCase();
@@ -148,12 +169,12 @@ export default function DistrictLeaderListPage() {
   const handleDownloadExcel = () => {
     setIsExportingExcel(true);
     try {
-      const rows = getFilteredExportRows();
-      if (rows.length === 0) {
+      const exportRows = getFilteredExportRows();
+      if (exportRows.length === 0) {
         Swal.fire(t("common.warning") || "Warning", "No district leaders to export", "warning");
         return;
       }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "DistrictLeaders");
+      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "DistrictLeaders");
     } finally {
       setIsExportingExcel(false);
     }
@@ -165,7 +186,7 @@ export default function DistrictLeaderListPage() {
       setIsUpdating(true);
       try {
         await districtLeaderApi.update(row.unique_id, { is_active: checked });
-        setAllRecords((prev) =>
+        setRows((prev) =>
           prev.map((r) => r.unique_id === row.unique_id ? { ...r, is_active: checked } : r)
         );
       } catch {
@@ -258,22 +279,26 @@ export default function DistrictLeaderListPage() {
       <DataTable
         value={data}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && data.length === 0}
-        filters={filters}
-        onFilter={onFilter}
+        loading={isLoading}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.district_leader") })}
-        globalFilterFields={["username", "leader_name", "district_name", "email", "company_name"]}
         className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
-        <Column field="username" header={t("common.username")} sortable filter showFilterMatchModes={false} body={(r: DistrictLeader) => cap(r.username)} />
-        <Column field="leader_name" header={t("common.name")} sortable filter showFilterMatchModes={false} body={(r: DistrictLeader) => cap(r.leader_name)} />
-        <Column field="district_name" header={t("admin.nav.district")} sortable filter showFilterMatchModes={false} body={(r: DistrictLeader) => cap(r.district_name)} />
+        <Column field="username" header={t("common.username")} sortable={SORTABLE_FIELDS.has("username")} body={(r: DistrictLeader) => cap(r.username)} />
+        <Column field="leader_name" header={t("common.name")} sortable={SORTABLE_FIELDS.has("leader_name")} body={(r: DistrictLeader) => cap(r.leader_name)} />
+        <Column field="district_name" header={t("admin.nav.district")} sortable={SORTABLE_FIELDS.has("district_name")} body={(r: DistrictLeader) => cap(r.district_name)} />
         <Column field="email" header={t("common.email")} body={(r: DistrictLeader) => r.email || "-"} />
         <Column field="company_name" header={t("common.company")} body={(r: DistrictLeader) => r.company_name || "-"} />
         <Column field="project_name" header={t("common.project")} body={(r: DistrictLeader) => r.project_name || "-"} />

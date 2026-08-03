@@ -1,11 +1,12 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -19,21 +20,34 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { userScreenActionApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
-import { filterRowsForExport } from "@/utils/adminListExport";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 import type { UserScreenAction } from "../shared/admin.types";
 
-const USER_SCREEN_ACTION_SEARCH_FIELDS = ["action_name", "variable_name"];
+const SORTABLE_FIELDS = new Set(["action_name", "variable_name"]);
+
+const toRecordList = (value: unknown): UserScreenAction[] => {
+  if (Array.isArray(value)) return value as UserScreenAction[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: UserScreenAction[] }).results;
+  }
+  return [];
+};
 
 export default function UserScreenActionList() {
   const { t } = useTranslation();
   const [records, setRecords] = useState<UserScreenAction[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   const {
-    filters,
-    onFilter,
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
@@ -49,27 +63,88 @@ export default function UserScreenActionList() {
     encUserScreenAction,
   );
 
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const loadRows = async (
+    page: number,
+    limit: number,
+    search: string,
+    status: typeof statusValue,
+    order?: string,
+  ) => {
+    setIsLoading(true);
+    setRecords([]);
+    try {
+      const response = await userScreenActionApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(status !== "all" ? { is_active: status === "active" } : {}),
+          ...(order ? { ordering: order } : {}),
+        },
+      });
+      const rows = toRecordList(response);
+      setRecords(rows);
+      setTotalRecords(
+        typeof (response as { count?: number })?.count === "number"
+          ? (response as { count: number }).count
+          : rows.length,
+      );
+    } catch {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let mounted = true;
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, statusValue, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, statusValue, ordering, t]);
 
-    const loadActions = async () => {
-      setIsLoading(true);
-      try {
-        const data = await userScreenActionApi.readAll();
-        if (mounted) setRecords(data as UserScreenAction[]);
-      } catch {
-        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      } finally {
-        if (mounted) setIsLoading(false);
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  const handleDownloadExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const response = await userScreenActionApi.readAllForExport({
+        params: {
+          ...(searchTerm ? { search: searchTerm } : {}),
+          ...(statusValue !== "all" ? { is_active: statusValue === "active" } : {}),
+        },
+      });
+      const rows = toRecordList(response);
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", t("common.no_items_found", {
+          item: t("admin.user_screen_action.action_label"),
+        }), "warning");
+        return;
       }
-    };
-
-    void loadActions();
-
-    return () => {
-      mounted = false;
-    };
-  }, [t]);
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "UserScreenActions");
+    } catch {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   const indexTemplate = (
     _: UserScreenAction,
@@ -133,23 +208,21 @@ export default function UserScreenActionList() {
       })}
       statusValue={statusValue}
       onStatusChange={onStatusFilterChange}
+      trailing={
+        <Button
+          label={isExportingExcel ? "Downloading..." : "Download Excel"}
+          icon="pi pi-file-excel"
+          className="p-button-outlined"
+          disabled={isExportingExcel}
+          onClick={handleDownloadExcel}
+        />
+      }
     />
-  );
-
-  const exportRows = useMemo(
-    () =>
-      filterRowsForExport(
-        records,
-        USER_SCREEN_ACTION_SEARCH_FIELDS,
-        globalFilterValue,
-        statusValue,
-      ),
-    [records, globalFilterValue, statusValue],
   );
 
   return (
     <div className="px-3 py-3 w-full">
-      
+
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -176,14 +249,18 @@ export default function UserScreenActionList() {
         {/* Table */}
         <DataTable
           value={records}
-          exportRows={exportRows}
+          dataKey="unique_id"
+          lazy
           paginator
-          rows={10}
+          first={first}
+          rows={rowsPerPage}
+          totalRecords={totalRecords}
+          onPage={onPage}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={onSort}
           loading={isLoading}
-          filters={filters}
-          onFilter={onFilter}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          globalFilterFields={USER_SCREEN_ACTION_SEARCH_FIELDS}
           header={header}
           emptyMessage={t("common.no_items_found", {
             item: t("admin.user_screen_action.action_label"),
@@ -196,13 +273,13 @@ export default function UserScreenActionList() {
           <Column
             field="action_name"
             header={t("common.action_name")}
-            sortable
+            sortable={SORTABLE_FIELDS.has("action_name")}
             style={{ minWidth: "200px" }}
           />
           <Column
             field="variable_name"
             header={t("common.variable_name")}
-            sortable
+            sortable={SORTABLE_FIELDS.has("variable_name")}
             style={{ minWidth: "200px" }}
           />
           <Column

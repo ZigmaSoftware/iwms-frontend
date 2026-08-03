@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { panchayatLeaderApi } from "@/helpers/admin";
@@ -48,61 +48,97 @@ export default function PanchayatLeaderListPage() {
     initialProjectId: restoredState?.projectId,
   });
 
-  const [allRecords, setAllRecords] = useState<PanchayatLeader[]>([]);
+  const [rows, setRows] = useState<PanchayatLeader[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const [searchTerm, setSearchTerm] = useState("");
   const {
-    filters, onFilter, globalFilterValue, onGlobalFilterChange,
+    globalFilterValue, onGlobalFilterChange,
     statusValue, onStatusFilterChange,
-  } = useFilterBarFilters({
-    initialFilters: {
-      username: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-      leader_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-      panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    },
-  });
+  } = useFilterBarFilters();
 
-  /* ── fetch, scoped server-side by company+project ── */
+  const toRecordList = (value: unknown): PanchayatLeader[] => {
+    if (Array.isArray(value)) return value as PanchayatLeader[];
+    if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+      return (value as { results: PanchayatLeader[] }).results;
+    }
+    return [];
+  };
+
+  const SORTABLE_FIELDS = new Set(["username", "leader_name", "panchayat_name"]);
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  /* ── fetch, scoped server-side by company+project, search, sort, and pagination ── */
+  const loadRows = async (page: number, limit: number) => {
+    setIsLoading(true);
+    setRows([]);
+    try {
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+      if (searchTerm.trim()) params.search = searchTerm.trim();
+      if (ordering) params.ordering = ordering;
+
+      const response = await panchayatLeaderApi.readAllwithPaginated(page, limit, { params });
+      const list = toRecordList(response);
+      setRows(list);
+      setTotalRecords(
+        typeof (response as { count?: number })?.count === "number"
+          ? (response as { count?: number }).count as number
+          : list.length,
+      );
+    } catch {
+      Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (isSuperAdmin && companies.length === 0) return;
-    if (!companyUniqueId && !isSuperAdmin) return;
+    if (isSuperAdmin && companies.length === 0) {
+      setRows([]);
+      setTotalRecords(0);
+      return;
+    }
+    if (!companyUniqueId && !isSuperAdmin) {
+      setRows([]);
+      setTotalRecords(0);
+      return;
+    }
 
-    let mounted = true;
+    void loadRows(first / rowsPerPage + 1, rowsPerPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length, first, rowsPerPage, searchTerm, ordering]);
 
-    const load = async () => {
-      if (mounted) setIsLoading(true);
-      try {
-        const params: Record<string, string> = {};
-        if (companyUniqueId) params.company_id = companyUniqueId;
-        if (projectId) params.project_id = projectId;
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
 
-        const data: unknown = await panchayatLeaderApi.readAll({ params });
-        if (!mounted) return;
-        const rows: PanchayatLeader[] = Array.isArray(data)
-          ? data as PanchayatLeader[]
-          : ((data as { results?: PanchayatLeader[] } | null)?.results ?? []);
-        if (mounted) setAllRecords(rows);
-      } catch {
-        if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
 
-    void load();
-    return () => { mounted = false; };
-  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length]);
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
-  // Company/project scoping is now applied server-side (tenant users are
-  // scoped automatically by the backend; superadmin scoping is passed via
-  // company_id/project_id params above) — no client-side narrowing needed.
-  const data = (() => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
-
-    return allRecords;
-  })();
+  const data = rows;
 
   const exportRows = data.filter((row) => {
     if (statusValue !== "all" && row.is_active !== (statusValue === "active")) return false;
@@ -117,7 +153,7 @@ export default function PanchayatLeaderListPage() {
       setIsUpdating(true);
       try {
         await panchayatLeaderApi.update(row.unique_id, { is_active: checked });
-        setAllRecords((prev) =>
+        setRows((prev) =>
           prev.map((r) => r.unique_id === row.unique_id ? { ...r, is_active: checked } : r)
         );
       } catch {
@@ -193,16 +229,20 @@ export default function PanchayatLeaderListPage() {
         exportRows={exportRows}
         exportSheetName="PanchayatLeaders"
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading && data.length === 0}
-        filters={filters}
-        onFilter={onFilter}
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.panchayat_leader") })}
-        globalFilterFields={["username", "leader_name", "email", "panchayat_name", "company_name"]}
         className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
@@ -211,8 +251,6 @@ export default function PanchayatLeaderListPage() {
           field="username"
           header="Username"
           sortable
-          filter
-          showFilterMatchModes={false}
           body={(r: PanchayatLeader) => cap(r.username)}
         />
 
@@ -220,8 +258,6 @@ export default function PanchayatLeaderListPage() {
           field="leader_name"
           header="Leader Name"
           sortable
-          filter
-          showFilterMatchModes={false}
           body={(r: PanchayatLeader) => cap(r.leader_name) || "-"}
         />
 
@@ -229,8 +265,6 @@ export default function PanchayatLeaderListPage() {
           field="panchayat_name"
           header={t("admin.nav.panchayat")}
           sortable
-          filter
-          showFilterMatchModes={false}
           body={(r: PanchayatLeader) => cap(r.panchayat_name) || "-"}
         />
 

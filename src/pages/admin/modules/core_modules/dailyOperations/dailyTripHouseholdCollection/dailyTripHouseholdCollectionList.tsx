@@ -6,10 +6,8 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Column } from "primereact/column";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { dailyTripHouseholdCollectionApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
@@ -41,6 +39,11 @@ const COLLECTION_TYPE_LABELS: Record<string, string> = {
   household_collection: "Household",
   bulk_waste_collection: "Bulk Waste",
 };
+
+// The viewset's `ordering_fields` allowlist (see
+// daily_trip_household_collection_viewset.py) — only these fields may be
+// passed through the `?ordering=` param, so only these columns are sortable.
+const SORTABLE_FIELDS = new Set(["sequence", "status", "collected_at"]);
 
 const Badge = ({ value }: { value?: string }) => (
   <span
@@ -83,6 +86,14 @@ const extractError = (error: unknown): string | null => {
   return null;
 };
 
+const toRecordList = (value: unknown): DailyTripHouseholdCollectionRecord[] => {
+  if (Array.isArray(value)) return value as DailyTripHouseholdCollectionRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: DailyTripHouseholdCollectionRecord[] }).results;
+  }
+  return [];
+};
+
 export default function DailyTripHouseholdCollectionList() {
   const { t } = useTranslation();
   const location = useLocation();
@@ -107,70 +118,143 @@ export default function DailyTripHouseholdCollectionList() {
     initialProjectId: restoredState?.projectId,
   });
 
-  const [allRecords, setAllRecords] = useState<
-    DailyTripHouseholdCollectionRecord[]
-  >([]);
-  const [filteredRows, setFilteredRows] = useState<
-    DailyTripHouseholdCollectionRecord[]
-  >([]);
+  const [rawRows, setRawRows] = useState<DailyTripHouseholdCollectionRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    company_name: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    project_name: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _assignment: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _customer: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _location: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    // A5: viewset supports a collection_type query-param filter.
-    collection_type: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [collectionTypeFilter, setCollectionTypeFilter] = useState<string>("");
+  const [filteredRows, setFilteredRows] = useState<DailyTripHouseholdCollectionRecord[]>([]);
 
-  useEffect(() => {
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const loadRows = async (page: number, limit: number, search: string, order?: string) => {
     if (isSuperAdmin && companies.length === 0) {
-      setAllRecords([]);
+      setRawRows([]);
+      setTotalRecords(0);
       return;
     }
     if (!companyUniqueId && !isSuperAdmin) {
-      setAllRecords([]);
+      setRawRows([]);
+      setTotalRecords(0);
+      return;
+    }
+    setIsLoading(true);
+    setRawRows([]);
+    try {
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+      if (statusFilter) params.status = statusFilter;
+      if (collectionTypeFilter) params.collection_type = collectionTypeFilter;
+      if (search) params.search = search;
+      if (order) params.ordering = order;
+
+      const response = await dailyTripHouseholdCollectionApi.readAllwithPaginated(page, limit, {
+        params,
+      });
+      const rows = toRecordList(response);
+      setRawRows(rows);
+      setTotalRecords(
+        typeof (response as any)?.count === "number" ? (response as any).count : rows.length,
+      );
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: extractError(err) ?? String(err),
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Reset to first page whenever a non-pagination filter changes.
+  useEffect(() => {
+    setFirst(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyUniqueId, projectId, statusFilter, collectionTypeFilter]);
+
+  // Load rows — re-runs whenever pagination/sort/search/company/project/status
+  // /collection-type filters change.
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    first,
+    rowsPerPage,
+    searchTerm,
+    ordering,
+    companyUniqueId,
+    projectId,
+    isSuperAdmin,
+    companies.length,
+    statusFilter,
+    collectionTypeFilter,
+  ]);
+
+  // Debounce the global search box into the server-side `?search=` param.
+  // Note: the backend's search only matches customer name and trip
+  // assignment unique_id (see ModelFieldSearchFilter usage in the viewset),
+  // not every column shown below.
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  // Keeps exported Excel rows in sync with the currently applied
+  // (filtered/searched) query rather than only the rows on the visible
+  // page — fetches the full filtered dataset fresh from the server,
+  // independent of pagination, whenever the filters/search change.
+  useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) {
+      setFilteredRows([]);
+      return;
+    }
+    if (!companyUniqueId && !isSuperAdmin) {
+      setFilteredRows([]);
       return;
     }
     let mounted = true;
-    setIsLoading(true);
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
-    const statusFilter = (filters.status as { value?: string | null } | undefined)?.value;
     if (statusFilter) params.status = statusFilter;
-    const collectionTypeFilter = (filters.collection_type as { value?: string | null } | undefined)?.value;
     if (collectionTypeFilter) params.collection_type = collectionTypeFilter;
-    (
-      dailyTripHouseholdCollectionApi.readAll({
-        params,
-      }) as Promise<DailyTripHouseholdCollectionRecord[]>
-    )
+    if (searchTerm) params.search = searchTerm;
+
+    dailyTripHouseholdCollectionApi
+      .readAllForExport({ params })
       .then((data) => {
-        if (mounted) setAllRecords(Array.isArray(data) ? data : []);
+        if (mounted) setFilteredRows(toRecordList(data));
       })
-      .catch((err) => {
-        if (mounted)
-          Swal.fire({
-            icon: "error",
-            title: t("common.error"),
-            text: extractError(err) ?? String(err),
-          });
-      })
-      .finally(() => {
-        if (mounted) setIsLoading(false);
+      .catch(() => {
+        /* export sync failure is non-fatal; button will just show stale rows */
       });
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, filters.status, filters.collection_type, t]);
+  }, [
+    companyUniqueId,
+    projectId,
+    isSuperAdmin,
+    companies.length,
+    statusFilter,
+    collectionTypeFilter,
+    searchTerm,
+  ]);
 
-  const rows = allRecords.map((rec) => ({
+  const rows = rawRows.map((rec) => ({
     ...rec,
     _assignment:
       nestedText(rec.trip_assignment as NamedRef, [
@@ -194,27 +278,19 @@ export default function DailyTripHouseholdCollectionList() {
     ),
   }));
 
-  // Company/project scoping is now applied server-side via params in the
-  // fetch effect above — no client-side narrowing needed here.
-  const data =
-    (isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)
-      ? []
-      : rows;
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
 
-  // Keeps exported Excel rows in sync with the currently displayed
-  // (filtered/searched) rows rather than the full unfiltered set.
-  useEffect(() => {
-    setFilteredRows(data);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRecords, companyUniqueId, isSuperAdmin, companies.length, projectId]);
-
-  const onFilter = (e: DataTableFilterEvent) =>
-    setFilters(e.filters as DataTableFilterMeta);
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
 
   const renderHeader = () => (
@@ -240,13 +316,8 @@ export default function DailyTripHouseholdCollectionList() {
         disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
       />
       <select
-        value={(filters.status as { value?: string | null } | undefined)?.value ?? ""}
-        onChange={(e) =>
-          setFilters((f) => ({
-            ...f,
-            status: { value: e.target.value || null, matchMode: FilterMatchMode.CONTAINS },
-          }))
-        }
+        value={statusFilter}
+        onChange={(e) => setStatusFilter(e.target.value)}
         className="p-inputtext-sm rounded border px-3 py-2 text-sm"
       >
         <option value="">All Statuses</option>
@@ -255,13 +326,8 @@ export default function DailyTripHouseholdCollectionList() {
         ))}
       </select>
       <select
-        value={(filters.collection_type as { value?: string | null } | undefined)?.value ?? ""}
-        onChange={(e) =>
-          setFilters((f) => ({
-            ...f,
-            collection_type: { value: e.target.value || null, matchMode: FilterMatchMode.CONTAINS },
-          }))
-        }
+        value={collectionTypeFilter}
+        onChange={(e) => setCollectionTypeFilter(e.target.value)}
         className="p-inputtext-sm rounded border px-3 py-2 text-sm"
       >
         <option value="">All Collection Types</option>
@@ -286,30 +352,25 @@ export default function DailyTripHouseholdCollectionList() {
       </div>
 
       <DataTable
-        value={data}
+        value={rows}
         exportRows={filteredRows}
-        onValueChange={(value) => setFilteredRows(value as typeof data)}
+        onValueChange={(value) => setFilteredRows(value as typeof filteredRows)}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && data.length === 0}
-        filters={filters}
-        onFilter={onFilter}
+        loading={isLoading}
         header={renderHeader()}
         stripedRows
         showGridlines
         emptyMessage="No household collection records found."
-        globalFilterFields={[
-          "unique_id",
-          "company_name",
-          "project_name",
-          "_assignment",
-          "_customer",
-          "_location",
-          "status",
-          "collection_type",
-        ]}
         className="p-datatable-sm"
       >
         <Column
@@ -320,33 +381,21 @@ export default function DailyTripHouseholdCollectionList() {
         <Column
           field="unique_id"
           header="ID"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 150 }}
         />
         <Column
           field="company_name"
           header="Company"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 140 }}
         />
         <Column
           field="project_name"
           header="Project"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 140 }}
         />
         <Column
           field="_assignment"
           header="Trip Assignment"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 170 }}
           body={(row) =>
             nestedText(row.trip_assignment as NamedRef, [
@@ -358,9 +407,6 @@ export default function DailyTripHouseholdCollectionList() {
         <Column
           field="_customer"
           header="Customer"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 160 }}
           body={(row) =>
             nestedText(row.customer as NamedRef, ["customer_name"])
@@ -369,9 +415,6 @@ export default function DailyTripHouseholdCollectionList() {
         <Column
           field="collection_type"
           header="Collection Type"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 140 }}
           body={(row: DailyTripHouseholdCollectionRecord) =>
             COLLECTION_TYPE_LABELS[String(row.collection_type ?? "")] ?? text(row.collection_type)
@@ -380,8 +423,6 @@ export default function DailyTripHouseholdCollectionList() {
         <Column
           field="_location"
           header="Location (PLB / Ward)"
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 180 }}
           body={(row: DailyTripHouseholdCollectionRecord) => {
             if (row.panchayat && (row.panchayat as any).panchayat_name) {
@@ -410,14 +451,13 @@ export default function DailyTripHouseholdCollectionList() {
         <Column
           field="sequence"
           header="Seq"
-          sortable
+          sortable={SORTABLE_FIELDS.has("sequence")}
           style={{ width: 70 }}
           body={(row) => text(row.sequence)}
         />
         <Column
           field="collected_weight_kg"
           header="Weight (kg)"
-          sortable
           style={{ minWidth: 110 }}
           body={(row: DailyTripHouseholdCollectionRecord) =>
             row.collected_weight_kg != null ? (
@@ -432,9 +472,7 @@ export default function DailyTripHouseholdCollectionList() {
         <Column
           field="status"
           header="Status"
-          sortable
-          filter
-          showFilterMatchModes={false}
+          sortable={SORTABLE_FIELDS.has("status")}
           style={{ minWidth: 110 }}
           body={(row: DailyTripHouseholdCollectionRecord) => (
             <Badge value={row.status} />
@@ -464,7 +502,7 @@ export default function DailyTripHouseholdCollectionList() {
         <Column
           field="collected_at"
           header="Collected At"
-          sortable
+          sortable={SORTABLE_FIELDS.has("collected_at")}
           style={{ minWidth: 150 }}
           body={(row: DailyTripHouseholdCollectionRecord) =>
             text(row.collected_at)

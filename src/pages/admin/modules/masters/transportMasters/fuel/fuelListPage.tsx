@@ -4,11 +4,9 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -31,10 +29,20 @@ const FUEL_COLUMN_FIELDS: Record<string, string[]> = {
   is_active: ["is_active", "active_status", "status"],
 };
 
+const SORTABLE_FIELDS = new Set(["fuel_type", "is_active"]);
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const cap = (str?: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
+
+const toRecordList = (value: unknown): Fuel[] => {
+  if (Array.isArray(value)) return value as Fuel[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: Fuel[] }).results;
+  }
+  return [];
+};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -47,19 +55,20 @@ export default function FuelList() {
     FUEL_COLUMN_FIELDS
   );
 
-  const [allFuels, setAllFuels] = useState<Fuel[]>([]);
-  const [filteredRows, setFilteredRows] = useState<Fuel[]>([]);
+  const [rows, setRows] = useState<Fuel[]>([]);
+  const [exportRows, setExportRows] = useState<Fuel[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [statusValue, setStatusValue] = useState<StatusFilterValue>("all");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    fuel_type: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    is_active: { value: null as boolean | null, matchMode: FilterMatchMode.EQUALS },
-  });
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   // ── Company / project selection ───────────────────────────────────────────
   const location = useLocation();
@@ -84,71 +93,80 @@ export default function FuelList() {
     encFuel,
   );
 
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
   // ── Load data ─────────────────────────────────────────────────────────────
+  const loadRows = async (page: number, limit: number) => {
+    setIsLoading(true);
+    setRows([]);
+    try {
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+      if (searchTerm) params.search = searchTerm;
+      if (statusValue !== "all") params.is_active = statusValue === "active" ? "true" : "false";
+      if (ordering) params.ordering = ordering;
+
+      const response = await fuelApi.readAllwithPaginated(page, limit, { params });
+      const list = toRecordList(response);
+      setRows(list);
+      setTotalRecords(
+        typeof (response as { count?: number })?.count === "number"
+          ? (response as { count?: number }).count as number
+          : list.length,
+      );
+    } catch (error: unknown) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) {
-      setAllFuels([]);
+      setRows([]);
+      setTotalRecords(0);
       return;
     }
     if (!companyUniqueId && !isSuperAdmin) {
-      setAllFuels([]);
+      setRows([]);
+      setTotalRecords(0);
       return;
     }
-
-    let mounted = true;
-    setIsLoading(true);
-    const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-    if (projectId) params.project_id = projectId;
-
-    fuelApi.readAll({ params })
-      .then((data: unknown) => {
-        if (mounted) setAllFuels(Array.isArray(data) ? (data as Fuel[]) : []);
-      })
-      .catch((error: unknown) => {
-        if (mounted) {
-          Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
-        }
-      })
-      .finally(() => { if (mounted) setIsLoading(false); });
-    return () => { mounted = false; };
-  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length]);
-
-  // Company/project scoping is now applied server-side via params above —
-  // no client-side narrowing needed.
-  const rows: Fuel[] =
-    (isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)
-      ? []
-      : allFuels;
-
-  // Keeps exported Excel rows in sync with the currently displayed
-  // (filtered/searched) rows rather than the full unfiltered set.
-  useEffect(() => {
-    setFilteredRows(rows);
+    void loadRows(first / rowsPerPage + 1, rowsPerPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allFuels, companyUniqueId, isSuperAdmin, companies.length]);
+  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length, first, rowsPerPage, searchTerm, statusValue, ordering]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  // ── Pagination / sort handlers ────────────────────────────────────────────
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   // ── Filter handlers ───────────────────────────────────────────────────────
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters);
-
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
+    setGlobalFilterValue(e.target.value);
   };
 
   const onStatusFilterChange = (value: StatusFilterValue) => {
     setStatusValue(value);
-    setFilters((prev) => ({
-      ...prev,
-      is_active: {
-        value: value === "all" ? null : value === "active",
-        matchMode: FilterMatchMode.EQUALS,
-      },
-    }));
+    setFirst(0);
   };
 
   // ── Status toggle ─────────────────────────────────────────────────────────
@@ -165,7 +183,7 @@ export default function FuelList() {
             is_active: value,
           }) as Record<string, unknown>
         );
-        setAllFuels((current) =>
+        setRows((current) =>
           current.map((item) =>
             item.unique_id === row.unique_id ? { ...item, is_active: value } : item
           )
@@ -202,6 +220,28 @@ export default function FuelList() {
 
   const indexTemplate = (_: Fuel, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
+
+  // ── Export ────────────────────────────────────────────────────────────────
+  // SafeDataTable's built-in "Download All Excel" button reads the `exportRows`
+  // prop synchronously, so keep it refreshed with the full (unpaginated),
+  // currently-filtered result set whenever the filters/company/project change.
+  useEffect(() => {
+    if ((isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)) {
+      setExportRows([]);
+      return;
+    }
+    let mounted = true;
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
+    if (projectId) params.project_id = projectId;
+    if (searchTerm) params.search = searchTerm;
+    if (statusValue !== "all") params.is_active = statusValue === "active" ? "true" : "false";
+
+    fuelApi.readAllForExport({ params })
+      .then((data: unknown) => { if (mounted) setExportRows(toRecordList(data)); })
+      .catch(() => { if (mounted) setExportRows([]); });
+    return () => { mounted = false; };
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, searchTerm, statusValue]);
 
   // ── Table header ──────────────────────────────────────────────────────────
   const header = (
@@ -256,20 +296,19 @@ export default function FuelList() {
 
       <DataTable
         value={rows}
-        exportRows={filteredRows}
-        onValueChange={(value) => setFilteredRows(value as Fuel[])}
+        exportRows={exportRows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
-        loading={isLoading && rows.length === 0}
-        filters={filters}
-        onFilter={onFilter}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
+        loading={isLoading}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        globalFilterFields={[
-          ...(showCol("fuel_type") ? ["fuel_type"] : []),
-          "company_name",
-          "project_name",
-        ]}
         header={header}
         emptyMessage={t("admin.fuel.empty_message")}
         stripedRows
@@ -286,11 +325,9 @@ export default function FuelList() {
           <Column
             field="fuel_type"
             header={t("admin.fuel.fuel_type")}
-            sortable
+            sortable={SORTABLE_FIELDS.has("fuel_type")}
             body={(row: Fuel) => cap(row.fuel_type)}
             style={{ minWidth: "200px" }}
-            filter
-            showFilterMatchModes={false}
           />
         )}
 
@@ -298,6 +335,7 @@ export default function FuelList() {
           <Column
             field="is_active"
             header={t("common.status")}
+            sortable={SORTABLE_FIELDS.has("is_active")}
             body={statusTemplate}
             style={{ width: "150px" }}
           />

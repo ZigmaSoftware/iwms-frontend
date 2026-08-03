@@ -1,18 +1,16 @@
 import type { VehicleBreakdownRecord, BreakdownStatus, ApprovalStatus } from "./types";
 import { BREAKDOWN_REASON_LABELS } from "./types";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputTextarea } from "primereact/inputtextarea";
 import { Dialog } from "primereact/dialog";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -20,25 +18,22 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { api } from "@/api";
 import { vehicleBreakdownApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
-import { applyTableFilters } from "@/utils/tableFilterMatch";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
 
-const GLOBAL_FIELDS = [
-  "unique_id",
-  "trip_assignment_id",
-  "_trip_date",
-  "_panchayat",
-  "_breakdown_vehicle",
-  "_replacement_vehicle",
-  "_repl_driver",
-  "_repl_operator",
-  "_breakdown_reason",
-  "status",
-  "approval_status",
-];
+const toRecordList = (value: unknown): VehicleBreakdownRecord[] => {
+  if (Array.isArray(value)) return value as VehicleBreakdownRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: VehicleBreakdownRecord[] }).results;
+  }
+  return [];
+};
+
+// Only fields the backend's `ordering_fields` (see vehicle_breakdown_viewset.py)
+// actually accepts — sorting any other column would be silently ignored by DRF.
+const SORTABLE_FIELDS = new Set(["status", "approval_status"]);
 
 /* ── Badge helpers ─────────────────────────────────────────────── */
 
@@ -256,19 +251,15 @@ export default function VehicleBreakdownList() {
   const { newPath, editPath } = createCrudRoutePaths(encScheduleMasters, encVehicleBreakdown);
   const selectedContext = { companyUniqueId, projectId };
 
-  const [records, setRecords] = useState<VehicleBreakdownRecord[]>([]);
+  const [rawRows, setRawRows] = useState<VehicleBreakdownRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    unique_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    trip_assignment_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _breakdown_vehicle: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _replacement_vehicle: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _breakdown_reason: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    status: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    approval_status: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const [verifyTarget, setVerifyTarget] = useState<VehicleBreakdownRecord | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -276,29 +267,66 @@ export default function VehicleBreakdownList() {
   const [isRejecting, setIsRejecting] = useState(false);
 
   /* ── Fetch ─────────────────────────────────────────────────────── */
-  useEffect(() => {
-    if (isSuperAdmin && companies.length === 0) { setRecords([]); return; }
-    if (!companyUniqueId && !isSuperAdmin) { setRecords([]); return; }
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
 
-    let mounted = true;
+  const loadRows = async (page: number, limit: number) => {
     setLoading(true);
-    const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-    if (projectId) params.project_id = projectId;
+    setRawRows([]);
+    try {
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+      // Backend has NO DRF SearchFilter — it manually ORs across 6 fields
+      // via `?search=` (see get_queryset() in vehicle_breakdown_viewset.py).
+      if (searchTerm.trim()) params.search = searchTerm.trim();
+      if (ordering) params.ordering = ordering;
 
-    (vehicleBreakdownApi.readAll({ params }) as Promise<any>)
-      .then((data: any) => {
-        if (!mounted) return;
-        const rows = Array.isArray(data) ? data : data?.results ?? [];
-        setRecords(rows);
-      })
-      .catch(() => { if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error"); })
-      .finally(() => { if (mounted) setLoading(false); });
-    return () => { mounted = false; };
-  }, [companyUniqueId, projectId, companies.length, isSuperAdmin, t]);
+      const response = await vehicleBreakdownApi.readAllwithPaginated(page, limit, { params });
+      const list = toRecordList(response);
+      setRawRows(list);
+      setTotalRecords(
+        typeof (response as { count?: number })?.count === "number"
+          ? (response as { count?: number }).count as number
+          : list.length,
+      );
+    } catch {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  /* ── Enrich rows for global filter ──────────────────────────────── */
-  const rows = records.map((r) => ({
+  useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) { setRawRows([]); setTotalRecords(0); return; }
+    if (!companyUniqueId && !isSuperAdmin) { setRawRows([]); setTotalRecords(0); return; }
+
+    void loadRows(first / rowsPerPage + 1, rowsPerPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyUniqueId, projectId, companies.length, isSuperAdmin, first, rowsPerPage, searchTerm, ordering, t]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  /* ── Enrich rows for display ──────────────────────────────── */
+  const rows = rawRows.map((r) => ({
     ...r,
     _trip_date: r.trip_assignment_detail?.trip_date ?? "",
     _panchayat: r.trip_assignment_detail?.panchayat_name ?? "",
@@ -323,7 +351,7 @@ export default function VehicleBreakdownList() {
     if (!result.isConfirmed) return;
     try {
       await vehicleBreakdownApi.delete(row.unique_id);
-      setRecords((prev) => prev.filter((r) => r.unique_id !== row.unique_id));
+      setRawRows((prev) => prev.filter((r) => r.unique_id !== row.unique_id));
       Swal.fire(t("common.success"), t("common.deleted_success"), "success");
     } catch (err: any) {
       Swal.fire(t("common.error"), extractError(err), "error");
@@ -339,7 +367,7 @@ export default function VehicleBreakdownList() {
         `/schedule-operations/vehicle-breakdowns/${verifyTarget.unique_id}/verify/`,
         { remarks },
       );
-      setRecords((prev) =>
+      setRawRows((prev) =>
         prev.map((r) =>
           r.unique_id === verifyTarget.unique_id
             ? { ...r, status: "REPLACEMENT_ARRANGED", approval_status: "APPROVED" }
@@ -364,7 +392,7 @@ export default function VehicleBreakdownList() {
         `/schedule-operations/vehicle-breakdowns/${rejectTarget.unique_id}/reject/`,
         { rejection_remarks: remarks },
       );
-      setRecords((prev) =>
+      setRawRows((prev) =>
         prev.map((r) =>
           r.unique_id === rejectTarget.unique_id
             ? { ...r, status: "REJECTED", approval_status: "REJECTED" }
@@ -380,37 +408,59 @@ export default function VehicleBreakdownList() {
     }
   };
 
-  /* ── Filters ─────────────────────────────────────────────────────── */
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
-
+  /* ── Search ─────────────────────────────────────────────────────── */
   const onGlobalFilterChange = (value: string) => {
     setGlobalFilterValue(value);
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
   };
 
-  const filteredForExport = useMemo(
-    () => applyTableFilters(rows, filters, GLOBAL_FIELDS),
-    [rows, filters],
-  );
+  /* ── Export ─────────────────────────────────────────────────────── */
+  // Exports the full matching dataset (respecting company/project scope and
+  // the current search term) via the dedicated export endpoint, rather than
+  // just the current page of `rows` — pagination should not shrink exports.
+  const [isExporting, setIsExporting] = useState(false);
 
-  const handleExport = () => {
-    exportRecordsToExcel(
-      filteredForExport.map((r) => ({
-        "Breakdown ID": r.unique_id,
-        "Trip ID": r.trip_assignment_id,
-        "Trip Date": r._trip_date,
-        Panchayat: r._panchayat,
-        "Broken Vehicle": r._breakdown_vehicle,
-        "Replacement Vehicle": r._replacement_vehicle,
-        "Repl. Driver": r._repl_driver,
-        "Repl. Operator": r._repl_operator,
-        Reason: r._breakdown_reason,
-        Status: r.status,
-        Approval: r.approval_status,
-      })),
-      getAdminScreenExcelFilename("all"),
-      "Vehicle Breakdown",
-    );
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+      if (searchTerm.trim()) params.search = searchTerm.trim();
+
+      const response = await vehicleBreakdownApi.readAllForExport({ params });
+      const exportRows = toRecordList(response).map((r) => ({
+        ...r,
+        _trip_date: r.trip_assignment_detail?.trip_date ?? "",
+        _panchayat: r.trip_assignment_detail?.panchayat_name ?? "",
+        _breakdown_vehicle: r.breakdown_vehicle_detail?.vehicle_no ?? r.breakdown_vehicle_id,
+        _replacement_vehicle: r.replacement_vehicle_detail?.vehicle_no ?? r.replacement_vehicle_id,
+        _repl_driver: r.replacement_driver_detail?.name ?? "",
+        _repl_operator: r.replacement_operator_detail?.name ?? "",
+        _breakdown_reason: BREAKDOWN_REASON_LABELS[r.breakdown_reason] ?? r.breakdown_reason,
+      }));
+
+      exportRecordsToExcel(
+        exportRows.map((r) => ({
+          "Breakdown ID": r.unique_id,
+          "Trip ID": r.trip_assignment_id,
+          "Trip Date": r._trip_date,
+          Panchayat: r._panchayat,
+          "Broken Vehicle": r._breakdown_vehicle,
+          "Replacement Vehicle": r._replacement_vehicle,
+          "Repl. Driver": r._repl_driver,
+          "Repl. Operator": r._repl_operator,
+          Reason: r._breakdown_reason,
+          Status: r.status,
+          Approval: r.approval_status,
+        })),
+        getAdminScreenExcelFilename("all"),
+        "Vehicle Breakdown",
+      );
+    } catch {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   /* ── Action column ──────────────────────────────────────────────── */
@@ -472,10 +522,11 @@ export default function VehicleBreakdownList() {
         <button
           type="button"
           onClick={handleExport}
-          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+          disabled={isExporting}
+          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
         >
           <i className="pi pi-file-excel mr-1.5 text-green-600" />
-          Export to Excel
+          {isExporting ? "Exporting…" : "Export to Excel"}
         </button>
       }
     />
@@ -530,30 +581,22 @@ export default function VehicleBreakdownList() {
       <DataTable
         value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
-        filters={filters}
-        onFilter={onFilter}
         header={header}
         stripedRows
         showGridlines
         className="p-datatable-sm"
         emptyMessage="No breakdown records found."
-        globalFilterFields={[
-          "unique_id",
-          "trip_assignment_id",
-          "_trip_date",
-          "_panchayat",
-          "_breakdown_vehicle",
-          "_replacement_vehicle",
-          "_repl_driver",
-          "_repl_operator",
-          "_breakdown_reason",
-          "status",
-          "approval_status",
-        ]}
       >
         <Column
           header={t("common.s_no")}
@@ -563,23 +606,16 @@ export default function VehicleBreakdownList() {
         <Column
           field="unique_id"
           header="Breakdown ID"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 150 }}
         />
         <Column
           field="trip_assignment_id"
           header="Trip ID"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 150 }}
         />
         <Column
           field="_trip_date"
           header="Trip Date"
-          sortable
           style={{ minWidth: 110 }}
           body={(r: any) => r._trip_date || "-"}
         />
@@ -592,8 +628,6 @@ export default function VehicleBreakdownList() {
         <Column
           field="_breakdown_vehicle"
           header="Broken Vehicle"
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 140 }}
           body={(r: any) => (
             <span className="font-semibold text-red-700">{r._breakdown_vehicle}</span>
@@ -602,8 +636,6 @@ export default function VehicleBreakdownList() {
         <Column
           field="_replacement_vehicle"
           header="Replacement Vehicle"
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 160 }}
           body={(r: any) => (
             <span className="font-semibold text-green-700">{r._replacement_vehicle}</span>
@@ -624,16 +656,12 @@ export default function VehicleBreakdownList() {
         <Column
           field="_breakdown_reason"
           header="Reason"
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 140 }}
           body={(r: any) => r._breakdown_reason}
         />
         <Column
           field="status"
           header="Status"
-          filter
-          showFilterMatchModes={false}
           sortable
           style={{ minWidth: 170 }}
           body={(r: VehicleBreakdownRecord) => <StatusBadge value={r.status} />}
@@ -641,8 +669,6 @@ export default function VehicleBreakdownList() {
         <Column
           field="approval_status"
           header="Approval"
-          filter
-          showFilterMatchModes={false}
           sortable
           style={{ minWidth: 110 }}
           body={(r: VehicleBreakdownRecord) => <ApprovalBadge value={r.approval_status} />}
