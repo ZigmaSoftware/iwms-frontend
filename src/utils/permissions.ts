@@ -1,5 +1,6 @@
 import { decryptSegment } from "@/utils/routeCrypto";
 import { adminEndpoints } from "@/helpers/admin/endpoints";
+import { jwtDecode } from "jwt-decode";
 
 // ============================================================
 // Types
@@ -775,12 +776,34 @@ type PermissionsAPIResponse = {
   column_permissions?: unknown;
 };
 
+type PermissionTokenPayload = { exp?: number };
+
+const expirePermissionSession = (): void => {
+  localStorage.removeItem("access_token");
+  clearStoredPermissions();
+  window.dispatchEvent(new Event("iwms:auth-expired"));
+};
+
 export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
   try {
     const token = localStorage.getItem("access_token");
     if (!token) return {};
 
-    const apiBaseUrl = import.meta.env.VITE_API_LOCAL || import.meta.env.VITE_API_PROD;
+    try {
+      const { exp } = jwtDecode<PermissionTokenPayload>(token);
+      if (exp && exp <= Math.floor(Date.now() / 1000)) {
+        expirePermissionSession();
+        return {};
+      }
+    } catch {
+      expirePermissionSession();
+      return {};
+    }
+
+    const isProduction = import.meta.env.VITE_PROD === "true";
+    const apiBaseUrl = isProduction
+      ? import.meta.env.VITE_API_PROD
+      : import.meta.env.VITE_API_LOCAL;
     if (!apiBaseUrl) {
       console.error("[Permissions API] ❌ API base URL not configured");
       return {};
@@ -797,6 +820,7 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
     });
 
     if (!response.ok) {
+      if (response.status === 401) expirePermissionSession();
       console.error(`[Permissions API] ❌ HTTP ${response.status}: ${response.statusText}`);
       return {};
     }

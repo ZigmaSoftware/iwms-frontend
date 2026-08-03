@@ -171,8 +171,11 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encScheduleOperations}/${encDailyTripLog}`, nameKey: "admin.nav.daily_trip_log", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encScheduleOperations}/${encVehicleBreakdown}`, nameKey: "Vehicle Breakdown", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encScheduleOperations}/${encSchedulerConfig}`, nameKey: "admin.nav.scheduler_config", parentNameKey: "admin.nav.schedule_masters" },
-    // Schedule Masters (legacy name — kept only for the reporting sub-resource below)
-    { path: `/${encScheduleMasters}/${encDailyWasteComparison}`, nameKey: "Daily Waste Comparison", parentNameKey: "admin.nav.schedule_masters" },
+    // Waste reports still use the legacy encrypted schedule-masters route.
+    // Keep both entries in the breadcrumb map because these are the paths used
+    // by the sidebar (the reports-master aliases below remain valid too).
+    { path: `/${encScheduleMasters}/${encDailyWasteComparison}`, nameKey: "Daily Waste Comparison", parentNameKey: "admin.nav.waste_reports" },
+    { path: `/${encScheduleMasters}/${encMonthlyWasteComparison}`, nameKey: "admin.nav.monthly_waste_comparison", parentNameKey: "admin.nav.waste_reports" },
     // Audits
     { path: `/${encAudits}/${encCommonAudit}`, nameKey: "admin.nav.common_audit", parentNameKey: "admin.nav.audit_items" },
     { path: `/${encTransportMaster}/${encVehicleTripAudit}`, nameKey: "admin.nav.vehicle_trip_audit", parentNameKey: "admin.nav.audit_items" },

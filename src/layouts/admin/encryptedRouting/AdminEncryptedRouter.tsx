@@ -63,7 +63,6 @@ import TripSummary from "@/pages/admin/modules/reports/tripsummary/tripsummary";
 import MonthlyDistance from "@/pages/admin/modules/reports/monthlydistance/monthlydistance";
 import WasteSummary from "@/pages/admin/modules/reports/wasteCollectedSummary/wastesummary";
 import MonthlyWasteComparisonListPage from "@/pages/admin/modules/reports/wasteReports/monthlyWasteComparison/MonthlyWasteComparisonListPage";
-import MonthlyWasteComparisonForm from "@/pages/admin/modules/reports/wasteReports/monthlyWasteComparison/MonthlyWasteComparisonForm";
 import ComplaintsList from "@/pages/admin/modules/core_modules/complaintManagement/tickets/complaintsList";
 import ComplaintAddForm from "@/pages/admin/modules/core_modules/complaintManagement/tickets/complaintsForm";
 import ComplaintEditForm from "@/pages/admin/modules/core_modules/complaintManagement/tickets/complaintsEditForm";
@@ -131,7 +130,6 @@ import BinCollectionEventForm from "@/pages/admin/modules/core_modules/dailyOper
 import VehicleBreakdownList from "@/pages/admin/modules/core_modules/dailyOperations/vehicleBreakdown/vehicleBreakdownList";
 import VehicleBreakdownForm from "@/pages/admin/modules/core_modules/dailyOperations/vehicleBreakdown/vehicleBreakdownForm";
 import DailyWasteComparisonList from "@/pages/admin/modules/reports/wasteReports/dailyWasteComparison/dailyWasteComparisonList";
-import DailyWasteComparisonForm from "@/pages/admin/modules/reports/wasteReports/dailyWasteComparison/dailyWasteComparisonForm";
 import StaffTemplateAuditList from "@/pages/admin/modules/superadmin/audits/staffTemplateAudit/staffTemplateAuditList";
 import StaffTemplateAuditForm from "@/pages/admin/modules/superadmin/audits/staffTemplateAudit/staffTemplateAuditForm";
 import SupervisorZoneMapList from "@/pages/admin/modules/staffMasters/supervisorZoneMap/supervisorZoneMapList";
@@ -236,8 +234,8 @@ const ROUTES: RouteMap = {
   // the backend's equivalent split (see base_urls.py); setup/operations
   // resources above are no longer looked up under this key.
   "schedule-masters": {
-    "daily-waste-comparisons": { list: DailyWasteComparisonList, form: DailyWasteComparisonForm },
-    "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage, form: MonthlyWasteComparisonForm },
+    "daily-waste-comparisons": { list: DailyWasteComparisonList },
+    "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage },
   },
   "customer-master": {
     "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },
@@ -275,7 +273,7 @@ const ROUTES: RouteMap = {
     "trip-summary": { component: TripSummary },
     "monthly-distance": { component: MonthlyDistance },
     "waste-collected-summary": { component: WasteSummary },
-    "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage, form: MonthlyWasteComparisonForm },
+    "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage },
   },
 };
 
