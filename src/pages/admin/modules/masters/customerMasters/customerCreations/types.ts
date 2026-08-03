@@ -1,5 +1,6 @@
 export type CustomerCreationRecord = {
   unique_id: string | number;
+  customer_id?: string;
   is_active: boolean;
   [key: string]: unknown;
 };
@@ -85,6 +86,7 @@ export interface FormDataType {
 
 export type Customer = {
   unique_id: string;
+  customer_id?: string;
   customer_name: string;
   contact_no: string;
   building_no: string;

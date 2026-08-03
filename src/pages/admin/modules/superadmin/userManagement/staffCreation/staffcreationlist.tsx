@@ -25,7 +25,7 @@ import {
 } from "@/utils/exportExcel";
 
 const STAFF_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
-  unique_id: ["unique_id", "staff_unique_id", "zigma_id"],
+  unique_id: ["staff_id", "unique_id", "staff_unique_id", "zigma_id"],
   employee_name: ["employee_name", "name"],
   designation: ["designation"],
   doj: ["doj", "date_of_joining"],
@@ -110,6 +110,19 @@ export default function StaffCreationList() {
     encStaffMasters,
     encStaffCreation,
   );
+
+  const globalFilterFields = [
+    "unique_id",
+    "staff_unique_id",
+    "staff_id",
+    "employee_name",
+    "employee_id",
+    "designation",
+    "site_name",
+    "contact_mobile",
+    "company_name",
+    "project_name",
+  ];
 
   const [refetchTrigger, setRefetchTrigger] = useState(0);
   const requestIdRef = useRef(0);
@@ -522,14 +535,19 @@ export default function StaffCreationList() {
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 70 }} />
 
-          {showCol("unique_id") && (
-            <Column
-              field="unique_id"
-              header={t("admin.staff_creation.zigma_id")}
-              sortable={SORTABLE_FIELDS.has("staff_unique_id")}
-              body={(row: Staff) => cap(row.unique_id)}
-            />
-          )}
+          <Column
+            field="unique_id"
+            header="Unique ID"
+            sortable
+            body={(row: Staff) => row.unique_id || row.staff_unique_id || "-"}
+          />
+
+          <Column
+            field="staff_id"
+            header="Staff ID"
+            sortable
+            body={(row: Staff) => row.staff_id || "-"}
+          />
 
           {showCol("employee_name") && (
             <Column
@@ -597,12 +615,14 @@ export default function StaffCreationList() {
         onOpenChange={(open) => !open && setSelectedQrStaff(null)}
         title={t("admin.staff_creation.qr_title")}
         qrImageUrl={selectedQrStaff?.qr_code}
-        fileName={`${selectedQrStaff?.unique_id || selectedQrStaff?.employee_name || "staff"}_qr`}
+        fileName={`${selectedQrStaff?.staff_id || selectedQrStaff?.unique_id || selectedQrStaff?.employee_name || "staff"}_qr`}
         description={
           selectedQrStaff && (
             <>
               <p className="font-semibold text-gray-800">{selectedQrStaff.employee_name}</p>
-              <p className="text-sm text-gray-500">{selectedQrStaff.unique_id}</p>
+              <p className="text-sm text-gray-500">
+                {selectedQrStaff.staff_id || "-"}
+              </p>
             </>
           )
         }

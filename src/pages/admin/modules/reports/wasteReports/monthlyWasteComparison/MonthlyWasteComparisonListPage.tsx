@@ -1,18 +1,22 @@
-import type { ReportResponse, ReportRow } from "./types";
+import type { ReportResponse, ReportRow, LocationComparisonRow, WasteTypeBreakdownRow } from "./types";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import ReportMultiSelect from "../ReportMultiSelect";
 import { api } from "@/api";
 import { adminApi } from "@/helpers/admin/registry";
 import {
-  Activity,
+  panchayatApi,
+} from "@/helpers/admin";
+import {
   BarChart3,
   Calendar,
+  ChevronLeft,
+  ChevronRight,
   Download,
+  Leaf,
   MapPin,
-  Plus,
+  PieChart as PieChartIcon,
+  Recycle,
   Scale,
-  TrendingDown,
-  TrendingUp,
   Truck,
 } from "lucide-react";
 import Swal from "@/lib/notify";
@@ -24,34 +28,40 @@ import {
   CartesianGrid,
   Cell,
   Legend,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { getEncryptedRoute } from "@/utils/routeCache";
-import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-/* ── Types ──────────────────────────────────────────────────────── */
-
+/* ── Palette (fixed categorical order — never cycled/regenerated) ──── */
+const SERIES = [
+  "#10B981", // emerald
+  "#0EA5E9", // cyan
+  "#F59E0B", // amber
+  "#0F766E", // teal
+  "#8B5CF6", // violet
+  "#EF4444", // red
+  "#14B8A6", // aqua
+  "#F97316", // orange
+];
+const OTHER_SLICE_COLOR = "#94A3B8";
 
 const initialKpis: ReportResponse["kpis"] = {
-  total_agreed_weight: 0,
   total_actual_weight: 0,
-  variance_kg: 0,
-  collection_efficiency_percent: 0,
   average_weight_per_trip: 0,
-  coverage_efficiency_percent: 0,
   total_trips: 0,
   collection_points_covered: 0,
-  report_status: "On Target",
+  waste_type_count: 0,
+  local_body_count: 0,
 };
 
 const currentMonth = () => {
@@ -59,6 +69,29 @@ const currentMonth = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
 
+/* ── Private Company -> Project -> Panchayat scope ── */
+const resolveGeoId = (record: any): string => String(record?.unique_id ?? record?.id ?? "");
+const resolveGeoName = (record: any): string =>
+  String(
+    record?.name ??
+      record?.corporation_name ??
+      record?.municipality_name ??
+      record?.town_panchayat_name ??
+      record?.union_name ??
+      record?.panchayat_name ??
+      record?.ward_name ??
+      resolveGeoId(record),
+  );
+const toRecordList = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) return value.filter((x) => x && typeof x === "object");
+  if (value && typeof value === "object") {
+    const r = (value as { results?: unknown }).results;
+    if (Array.isArray(r)) return r.filter((x) => x && typeof x === "object");
+  }
+  return [];
+};
+const toGeoOptions = (records: any[]) =>
+  records.filter((r) => resolveGeoId(r)).map((r) => ({ value: resolveGeoId(r), label: resolveGeoName(r) }));
 /* ── Helpers ─────────────────────────────────────────────────────── */
 const fmtKg = (v?: number | string | null, dec = 2) => {
   const n = Number(v);
@@ -69,80 +102,36 @@ const fmtKg = (v?: number | string | null, dec = 2) => {
 const fmtAxis = (v: number) =>
   Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
 
-const effColor = (e: number) =>
-  e >= 90
-    ? {
-        text: "text-green-600",
-        bg: "bg-green-500",
-        ring: "border-green-200 bg-green-50",
-      }
-    : e >= 70
-      ? {
-          text: "text-amber-600",
-          bg: "bg-amber-400",
-          ring: "border-amber-200 bg-amber-50",
-        }
-      : {
-          text: "text-red-600",
-          bg: "bg-red-500",
-          ring: "border-red-200 bg-red-50",
-        };
-
-const statusBadgeCls = (s: string) =>
-  s === "Surplus"
-    ? "bg-green-100 text-green-800 border-green-200"
-    : s === "Deficit"
-      ? "bg-red-100 text-red-800 border-red-200"
-      : "bg-blue-100 text-blue-800 border-blue-200";
-
-/* ── Mini Stat Cell ─────────────────────────────────────────────── */
-const StatCell = ({
-  label,
-  value,
-  color,
+/* ── Local-body weight row (simple bar, no target) ──────────────── */
+const LocalBodyWeightRow = ({
+  plb,
+  maxWeight,
 }: {
-  label: string;
-  value: string;
-  color: string;
-}) => (
-  <div className={`rounded-xl border p-4 flex flex-col gap-1 ${color}`}>
-    <span className="text-xs font-medium text-gray-500">{label}</span>
-    <span className="text-2xl font-bold text-gray-800 leading-none">
-      {value}
-    </span>
-  </div>
-);
-
-/* ── PLB Efficiency Row ─────────────────────────────────────────── */
-const PlbEffRow = ({ plb }: { plb: any }) => {
-  const eff = Math.min(Number(plb.collection_efficiency_percent ?? 0), 100);
-  const c = effColor(eff);
+  plb: LocationComparisonRow;
+  maxWeight: number;
+}) => {
+  const pct = maxWeight > 0 ? Math.min((plb.total_actual_weight / maxWeight) * 100, 100) : 0;
   return (
     <div className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
-      <div className="w-24 shrink-0">
-        <p className="text-xs font-semibold text-gray-800 truncate">
-          {plb.panchayat_name ?? plb.panchayat_id}
+      <div className="w-28 shrink-0">
+        <p className="text-xs font-semibold text-gray-800 truncate" title={plb.local_body_name}>
+          {plb.local_body_name}
         </p>
         <p className="text-[10px] text-gray-400 mt-0.5">
-          {fmtKg(plb.total_actual_weight)} / {fmtKg(plb.total_agreed_weight)} kg
+          {plb.local_body_type} · {plb.total_trips} trip{plb.total_trips !== 1 ? "s" : ""}
         </p>
       </div>
       <div className="flex-1">
         <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all duration-700 ${c.bg}`}
-            style={{ width: `${eff}%` }}
+            className="h-full rounded-full bg-gradient-to-r from-teal-600 to-emerald-400 transition-all duration-700"
+            style={{ width: `${pct}%` }}
           />
         </div>
       </div>
-      <div className="w-14 text-right shrink-0">
-        <span className={`text-xs font-bold ${c.text}`}>{eff.toFixed(1)}%</span>
+      <div className="w-20 text-right shrink-0">
+        <span className="text-xs font-bold text-gray-700">{fmtKg(plb.total_actual_weight)} kg</span>
       </div>
-      <span
-        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${statusBadgeCls(plb.report_status)}`}
-      >
-        {plb.report_status}
-      </span>
     </div>
   );
 };
@@ -180,84 +169,157 @@ const PLBTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+const WasteTypeTooltip = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null;
+  const p = payload[0];
+  const row = p.payload as WasteTypeBreakdownRow & { color: string };
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-xl p-3 text-xs min-w-[170px]">
+      <p className="font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: row.color }}
+        />
+        {row.waste_type}
+      </p>
+      <div className="flex justify-between gap-4">
+        <span className="text-gray-500">Weight</span>
+        <span className="font-bold">{fmtKg(row.total_actual_weight)} kg</span>
+      </div>
+      <div className="flex justify-between gap-4 mt-1">
+        <span className="text-gray-500">Share</span>
+        <span className="font-bold">{fmtKg(row.share_percent, 1)}%</span>
+      </div>
+      <div className="flex justify-between gap-4 mt-1">
+        <span className="text-gray-500">Trips</span>
+        <span className="font-bold">{row.total_trips}</span>
+      </div>
+    </div>
+  );
+};
+
+const WasteTypeLegend = ({ payload }: any) => (
+  <ul className="flex flex-wrap justify-center gap-3 mt-3">
+    {(payload ?? []).map((entry: any) => (
+      <li key={entry.value} className="flex items-center gap-1.5 text-xs text-gray-600">
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: entry.color }}
+        />
+        {entry.value}
+      </li>
+    ))}
+  </ul>
+);
+
 /* ══════════════════════════════════════════════════════════════════
     MAIN PAGE
 ══════════════════════════════════════════════════════════════════ */
-export default function MonthlyWasteComparisonListPage() {
+export default function MonthlyWasteComparisonListPage({
+  embedded = false,
+}: {
+  embedded?: boolean;
+} = {}) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
 
   const [monthValue, setMonthValue] = useState(currentMonth());
   const [appliedMonth, setAppliedMonth] = useState(currentMonth());
-  const [sortMode, setSortMode] = useState("absolute");
+  const [sortMode, setSortMode] = useState("weight");
   const [source, setSource] = useState("bin");
+
+  const {
+    companyUniqueId,
+    projectId,
+    companies,
+    projects,
+    companiesLoaded,
+    projectsLoaded,
+    isSuperAdmin,
+    showAllProjectsOption,
+    onCompanyChange,
+    setProjectId,
+  } = useCompanyProjectSelection({ isEdit: false, defaultToAll: true });
+  const [panchayatIds, setPanchayatIds] = useState<string[]>([]);
+  const [panchayatRecords, setPanchayatRecords] = useState<Record<string, unknown>[]>([]);
+
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [monthlyTrends, setMonthlyTrends] = useState<
     ReportResponse["monthly_trends"]
   >([]);
-  const [plbComparison, setPlbComparison] = useState<
-    ReportResponse["panchayat_comparison"]
-  >([]);
+  const [plbComparison, setPlbComparison] = useState<LocationComparisonRow[]>([]);
+  const [wasteTypeBreakdown, setWasteTypeBreakdown] = useState<WasteTypeBreakdownRow[]>([]);
   const [kpis, setKpis] = useState<ReportResponse["kpis"]>(initialKpis);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
-  const [searchValue, setSearchValue] = useState("");
+  const [detailPage, setDetailPage] = useState(1);
+  const [detailPageSize, setDetailPageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
 
-  const { encScheduleMasters, encMonthlyWasteComparison } = getEncryptedRoute();
-  const { newPath: monthlyComparisonNewPath } = createCrudRoutePaths(
-    encScheduleMasters,
-    encMonthlyWasteComparison,
-  );
+  useEffect(() => {
+    let active = true;
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
+    if (projectId) params.project_id = projectId;
+    panchayatApi.readAll({ params }).then((value) => {
+      if (active) setPanchayatRecords(toRecordList(value));
+    }).catch(() => {
+      if (active) setPanchayatRecords([]);
+    });
+    setPanchayatIds([]);
+    return () => { active = false; };
+  }, [companyUniqueId, projectId]);
 
-  /* ── fetch ── */
+  const panchayatOptions = toGeoOptions(panchayatRecords);
+
+  /* ── fetch report ── */
   const fetchReport = async () => {
-    if (isSuperAdmin && companies.length === 0) return;
-    if (!companyUniqueId && !isSuperAdmin) {
-      setRows([]);
-      setMonthlyTrends([]);
-      setPlbComparison([]);
-      setKpis(initialKpis);
-      return;
-    }
     setLoading(true);
     setError("");
     try {
-      const params: Record<string, string> = { sort: sortMode, source };
+      const params: Record<string, string> = {
+        sort: sortMode,
+        source,
+        page: String(detailPage),
+        limit: String(detailPageSize),
+      };
       if (appliedMonth) params.month = appliedMonth;
       if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
+      if (panchayatIds.length) params.panchayat_id = panchayatIds.join(",");
 
       const { data } = await api.get<ReportResponse>(
         "/reports/monthly-waste-comparison/",
         { params },
       );
       setRows(Array.isArray(data?.results) ? data.results : []);
+      setTotalCount(
+        typeof data?.count === "number"
+          ? data.count
+          : Array.isArray(data?.results)
+            ? data.results.length
+            : 0,
+      );
       setMonthlyTrends(
         Array.isArray(data?.monthly_trends) ? data.monthly_trends : [],
       );
       setPlbComparison(
-        Array.isArray(data?.panchayat_comparison)
-          ? data.panchayat_comparison
+        Array.isArray(data?.location_comparison)
+          ? data.location_comparison
           : [],
+      );
+      setWasteTypeBreakdown(
+        Array.isArray(data?.waste_type_breakdown) ? data.waste_type_breakdown : [],
       );
       setKpis(data?.kpis ?? initialKpis);
     } catch {
       setRows([]);
+      setTotalCount(0);
       setMonthlyTrends([]);
       setPlbComparison([]);
+      setWasteTypeBreakdown([]);
       setKpis(initialKpis);
-      setError("Unable to load monthly waste comparison report.");
+      setError("Unable to load monthly waste collection report.");
     } finally {
       setLoading(false);
     }
@@ -265,55 +327,83 @@ export default function MonthlyWasteComparisonListPage() {
 
   useEffect(() => {
     void fetchReport();
-  }, [appliedMonth, sortMode, source, companyUniqueId, projectId, companies.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    appliedMonth,
+    sortMode,
+    source,
+    companyUniqueId,
+    projectId,
+    panchayatIds,
+    detailPage,
+    detailPageSize,
+  ]);
 
-  /* ── delete ── */
-  const handleDelete = async (uniqueId: string, label: string) => {
-    const res = await Swal.fire({
-      title: t("common.are_you_sure"),
-      text: `Delete record for ${label}?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#ef4444",
-      cancelButtonColor: "#6b7280",
-      confirmButtonText: t("common.delete"),
-      cancelButtonText: t("common.cancel"),
-    });
-    if (!res.isConfirmed) return;
-    try {
-      await adminApi.monthlyWasteComparison.delete(uniqueId);
-      await fetchReport();
-      Swal.fire(t("common.success"), t("common.deleted_success"), "success");
-    } catch {
-      Swal.fire(t("common.error"), "Failed to delete record.", "error");
-    }
-  };
+  /* Reset to page 1 whenever a filter OTHER than pagination changes — the
+     server refetch above also fires when detailPage/detailPageSize change
+     (i.e. on a "next page" click), so an unconditional reset there would
+     immediately snap the user back to page 1. */
+  useEffect(() => {
+    setDetailPage(1);
+  }, [appliedMonth, sortMode, source, companyUniqueId, projectId, panchayatIds]);
 
   /* ── derived ── */
-  const eff = Number(kpis.collection_efficiency_percent ?? 0);
-  const effC = effColor(eff);
-  const filteredRows = useMemo(() => {
-    const search = searchValue.trim().toLowerCase();
-    if (!search) return rows;
-    return rows.filter((r) =>
-      [r.month, r.panchayat_name ?? r.panchayat_id, r.waste_type, r.report_status]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(search)),
-    );
-  }, [rows, searchValue]);
   const plbChartData = useMemo(
     () =>
-      (plbComparison as any[]).slice(0, 8).map((p) => ({
-        name: String(p.panchayat_name ?? p.panchayat_id).replace(
-          "Panchayat ",
-          "PLB ",
-        ),
-        Agreed: Number(p.total_agreed_weight ?? 0),
-        Actual: Number(p.total_actual_weight ?? 0),
-        eff: Number(p.collection_efficiency_percent ?? 0),
+      plbComparison.slice(0, 8).map((p) => ({
+        name: p.local_body_name,
+        Weight: Number(p.total_actual_weight ?? 0),
       })),
     [plbComparison],
   );
+
+  const maxPlbWeight = useMemo(
+    () => plbComparison.reduce((max, p) => Math.max(max, p.total_actual_weight), 0),
+    [plbComparison],
+  );
+
+  const MAX_PIE_SLICES = 7;
+  const wasteTypePieData = useMemo(() => {
+    const sorted = [...wasteTypeBreakdown].sort(
+      (a, b) => b.total_actual_weight - a.total_actual_weight,
+    );
+    const head = sorted.slice(0, MAX_PIE_SLICES).map((row, i) => ({
+      ...row,
+      color: SERIES[i % SERIES.length],
+    }));
+    const tail = sorted.slice(MAX_PIE_SLICES);
+    if (tail.length > 0) {
+      const tailWeight = tail.reduce((s, r) => s + r.total_actual_weight, 0);
+      const tailTrips = tail.reduce((s, r) => s + r.total_trips, 0);
+      const tailPoints = tail.reduce((s, r) => s + r.collection_points_covered, 0);
+      const tailShare = tail.reduce((s, r) => s + r.share_percent, 0);
+      head.push({
+        waste_type_id: "__other__",
+        waste_type: `Other (${tail.length})`,
+        total_actual_weight: tailWeight,
+        total_trips: tailTrips,
+        collection_points_covered: tailPoints,
+        share_percent: tailShare,
+        color: OTHER_SLICE_COLOR,
+      });
+    }
+    return head;
+  }, [wasteTypeBreakdown]);
+
+  const selectedLocalBodyLabel = panchayatOptions
+    .filter((option) => panchayatIds.includes(option.value))
+    .map((option) => option.label)
+    .join(", ");
+  const detailPageCount = Math.max(1, Math.ceil(totalCount / detailPageSize));
+  const safeDetailPage = Math.min(detailPage, detailPageCount);
+  const visibleDetailPages = useMemo(() => {
+    const visibleCount = Math.min(5, detailPageCount);
+    const start = Math.max(
+      1,
+      Math.min(safeDetailPage - 2, detailPageCount - visibleCount + 1),
+    );
+    return Array.from({ length: visibleCount }, (_, index) => start + index);
+  }, [detailPageCount, safeDetailPage]);
 
   const handleDownload = async () => {
     setExporting(true);
@@ -322,32 +412,20 @@ export default function MonthlyWasteComparisonListPage() {
       if (appliedMonth) params.month = appliedMonth;
       if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
+      if (panchayatIds.length) params.panchayat_id = panchayatIds.join(",");
 
-      const allExportRows = await adminApi.monthlyWasteComparison.readAllForExport(
+      const exportRows = await adminApi.monthlyWasteComparison.readAllForExport(
         { params },
       );
-      const search = searchValue.trim().toLowerCase();
-      const exportRows = search
-        ? allExportRows.filter((r) =>
-            [r.month, r.panchayat_name ?? r.panchayat_id, r.waste_type, r.report_status]
-              .filter(Boolean)
-              .some((value) => String(value).toLowerCase().includes(search)),
-          )
-        : allExportRows;
       exportRecordsToExcel(
         exportRows.map((r) => ({
           Month: r.month,
-          PLB: r.panchayat_name ?? r.panchayat_id,
+          "Panchayat Type": r.local_body_type,
+          Panchayat: r.local_body_name,
           "Waste Type": r.waste_type,
-          "Agreed (kg)": r.total_agreed_weight,
-          "Actual (kg)": r.total_actual_weight,
-          "Variance (kg)": r.variance_kg,
-          "Variance %": r.variance_percent,
-          Status: r.report_status,
+          "Weight Collected (kg)": r.total_actual_weight,
           Trips: r.total_trips,
           Points: r.collection_points_covered,
-          "Coll. Eff. %": r.collection_efficiency_percent,
-          "Coverage %": r.coverage_efficiency_percent,
           "Avg/Trip (kg)": r.average_weight_per_trip,
         })),
         getAdminScreenExcelFilename("all"),
@@ -356,7 +434,7 @@ export default function MonthlyWasteComparisonListPage() {
     } catch {
       Swal.fire(
         t("common.error"),
-        "Failed to download monthly waste comparison data.",
+        "Failed to download monthly waste collection data.",
         "error",
       );
     } finally {
@@ -364,95 +442,181 @@ export default function MonthlyWasteComparisonListPage() {
     }
   };
 
+  const clearLocalBodyFilter = () => setPanchayatIds([]);
+
   /* ══════════════════════════════════════════════════════════════
       RENDER
   ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="p-5 space-y-5 bg-gray-50 min-h-screen font-sans">
+    <div
+      className={
+        embedded
+          ? "space-y-5 overflow-hidden rounded-2xl bg-[#F5F7FB] font-sans text-slate-900"
+          : "min-h-screen space-y-5 bg-[#F5F7FB] p-5 font-sans text-slate-900"
+      }
+    >
       {/* ── Header ── */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-gray-800">
-            Monthly Waste Collection Comparison
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Monthly aggregate — agreed vs actual by PLB and waste type
-          </p>
+      <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br from-[#0F2744] via-[#115E6D] to-[#0F766E] shadow-[0_20px_60px_-28px_rgba(15,39,68,0.65)]">
+        <div
+          className="absolute inset-0 opacity-[0.09]"
+          style={{ backgroundImage: "radial-gradient(circle at 20% 20%, white 1px, transparent 1px)", backgroundSize: "24px 24px" }}
+        />
+        <div className="absolute -right-20 -top-32 h-80 w-80 rounded-full bg-cyan-300/10 blur-3xl" />
+        <div className="relative grid gap-7 px-7 py-8 md:px-10 lg:grid-cols-[1.65fr_0.8fr] lg:items-stretch">
+          <div className="flex flex-col justify-between gap-6">
+            <div>
+              <div className="mb-3 flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-400/15 ring-1 ring-inset ring-emerald-300/20">
+                  <Leaf className="h-4 w-4 text-emerald-300" />
+                </div>
+                <span className="font-mono text-[10px] tracking-[0.22em] text-cyan-100/70">
+                  CIVIC SANITATION · MONTHLY ANALYTICS
+                </span>
+              </div>
+              <h1 className="text-3xl font-bold leading-tight tracking-tight text-white md:text-[2.6rem]">
+                Monthly Waste Collection
+              </h1>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-cyan-50/65">
+                Compare collected weight, trips, coverage, and waste composition across months and panchayats.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <input
+                type="month"
+                value={monthValue}
+                max={currentMonth()}
+                onChange={(e) => setMonthValue(e.target.value)}
+                className="h-10 rounded-xl border border-white/20 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-emerald-300"
+              />
+              <select
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value)}
+                className="h-10 rounded-xl border border-white/20 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-emerald-300"
+              >
+                <option value="weight">Highest weight</option>
+                <option value="trips">Most trips</option>
+              </select>
+              <select
+                value={source}
+                onChange={(e) => setSource(e.target.value)}
+                className="h-10 rounded-xl border border-white/20 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-emerald-300"
+              >
+                <option value="bin">Bin Collection</option>
+                <option value="household">Household Collection</option>
+                <option value="all">All Sources</option>
+              </select>
+              <button
+                onClick={() => setAppliedMonth(monthValue)}
+                className="h-10 rounded-xl bg-emerald-400 px-5 text-sm font-semibold text-emerald-950 shadow-sm transition-colors hover:bg-emerald-300"
+              >
+                Go
+              </button>
+              <button
+                onClick={() => {
+                  setMonthValue("");
+                  setAppliedMonth("");
+                }}
+                className="h-10 rounded-xl border border-white/20 bg-white/5 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+              >
+                All Months
+              </button>
+              <button
+                onClick={handleDownload}
+                disabled={!totalCount || exporting}
+                className="flex h-10 items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-white/15 disabled:opacity-50 lg:ml-auto"
+              >
+                <Download className="h-4 w-4" />
+                {exporting ? "Downloading..." : "Download all"}
+              </button>
+            </div>
+          </div>
+          <div className="flex min-h-56 flex-col justify-center rounded-2xl border border-white/10 bg-white/[0.07] p-6 shadow-inner backdrop-blur-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-100/70">
+                  Total collected
+                </p>
+                <p className="mt-2 font-mono text-3xl font-semibold tracking-tight text-white md:text-4xl">
+                  {fmtKg(kpis.total_actual_weight)}
+                  <span className="ml-2 text-sm font-medium text-cyan-100/70">kg</span>
+                </p>
+              </div>
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-400/15 ring-1 ring-inset ring-emerald-300/20">
+                <Scale className="h-5 w-5 text-emerald-300" />
+              </div>
+            </div>
+            <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 border-t border-white/10 pt-5">
+              {[
+                ["Trips", fmtKg(kpis.total_trips, 0)],
+                ["Points covered", fmtKg(kpis.collection_points_covered, 0)],
+                ["Waste types", fmtKg(kpis.waste_type_count, 0)],
+                ["Panchayats", fmtKg(kpis.local_body_count, 0)],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <p className="text-[10px] uppercase tracking-wider text-cyan-100/50">{label}</p>
+                  <p className="mt-1 font-mono text-lg font-semibold text-white">{value}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 border-t border-white/10 pt-3 font-mono text-[10px] tracking-wide text-cyan-100/50">
+              {appliedMonth || "All months"} · aggregated collection
+            </p>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {isSuperAdmin && (
-            <FilterBarSelect
-              value={companyUniqueId || ""}
-              onChange={onCompanyChange}
-              options={companies}
-              placeholder="All Companies"
-              disabled={companies.length === 0}
-            />
+      </div>
+
+      {/* ── Company / Project / Panchayat filters ── */}
+      <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+            <MapPin className="h-4 w-4 text-teal-600" /> Filter by Company, Project and Panchayat
+          </h2>
+          {panchayatIds.length > 0 && (
+            <button
+              onClick={clearLocalBodyFilter}
+              className="text-xs font-semibold text-teal-700 hover:text-teal-900"
+            >
+              Clear filter
+            </button>
           )}
-          <FilterBarSelect
-            value={projectId || ""}
-            onChange={setProjectId}
-            options={projects}
-            placeholder={showAllProjectsOption ? "All Projects" : undefined}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-          />
-          <input
-            type="month"
-            value={monthValue}
-            max={currentMonth()}
-            onChange={(e) => setMonthValue(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
-          <select
-            value={sortMode}
-            onChange={(e) => setSortMode(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          >
-            <option value="absolute">Highest variance</option>
-            <option value="deficit">Highest deficit</option>
-            <option value="surplus">Highest surplus</option>
-          </select>
-          <select
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          >
-            <option value="bin">Bin Collection</option>
-            <option value="household">Household Collection</option>
-            <option value="all">All Sources</option>
-          </select>
-          <button
-            onClick={() => setAppliedMonth(monthValue)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-          >
-            Go
-          </button>
-          <button
-            onClick={() => {
-              setMonthValue("");
-              setAppliedMonth("");
-            }}
-            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-          >
-            All Months
-          </button>
-          <button
-            onClick={handleDownload}
-            disabled={!rows.length || exporting}
-            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-          >
-            <Download className="h-4 w-4" />{" "}
-            {exporting ? "Downloading..." : "Download All"}
-          </button>
-          <button
-            onClick={() =>
-              navigate(monthlyComparisonNewPath)
-            }
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-          >
-            <Plus className="h-4 w-4" /> Add Record
-          </button>
         </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          {isSuperAdmin && (
+            <select
+              value={companyUniqueId}
+              onChange={(e) => onCompanyChange(e.target.value)}
+              disabled={!companiesLoaded}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-300 disabled:opacity-50"
+            >
+              <option value="">All Companies</option>
+              {companies.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          )}
+          <select
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            disabled={!projectsLoaded}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-300 disabled:opacity-50"
+          >
+            {showAllProjectsOption && <option value="">All Projects</option>}
+            {projects.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+          <ReportMultiSelect
+            value={panchayatIds}
+            onChange={setPanchayatIds}
+            options={panchayatOptions}
+            placeholder="All Panchayats"
+            ariaLabel="Panchayats"
+          />
+        </div>
+        {panchayatIds.length > 0 && (
+          <p className="mt-3 text-xs text-gray-500">
+            Showing data for{" "}
+            <span className="font-semibold text-teal-800">
+              {selectedLocalBodyLabel}
+            </span>
+          </p>
+        )}
       </div>
 
       {error && (
@@ -461,64 +625,38 @@ export default function MonthlyWasteComparisonListPage() {
         </div>
       )}
 
-      {/* ── 8 KPI cards ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+      {/* ── 5 KPI cards ── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
         {[
           {
-            label: "Collection Efficiency",
-            value: `${fmtKg(kpis.collection_efficiency_percent)}%`,
-            accent: "border-t-blue-500",
-            icon: <Activity className="h-4 w-4" />,
-          },
-          {
-            label: "Avg Weight / Trip",
-            value: `${fmtKg(kpis.average_weight_per_trip)} kg`,
-            accent: "border-t-green-500",
+            label: "Total Weight Collected",
+            value: `${fmtKg(kpis.total_actual_weight)} kg`,
+            accent: "border-t-emerald-500",
             icon: <Scale className="h-4 w-4" />,
-          },
-          {
-            label: "Coverage Efficiency",
-            value: `${fmtKg(kpis.coverage_efficiency_percent)}%`,
-            accent: "border-t-purple-500",
-            icon: <BarChart3 className="h-4 w-4" />,
-          },
-          {
-            label: "Total Variance",
-            value: `${fmtKg(kpis.variance_kg)} kg`,
-            accent:
-              Number(kpis.variance_kg) >= 0
-                ? "border-t-emerald-500"
-                : "border-t-red-500",
-            icon:
-              Number(kpis.variance_kg) >= 0 ? (
-                <TrendingUp className="h-4 w-4" />
-              ) : (
-                <TrendingDown className="h-4 w-4" />
-              ),
           },
           {
             label: "Total Trips",
             value: fmtKg(kpis.total_trips, 0),
-            accent: "border-t-teal-500",
+            accent: "border-t-cyan-500",
             icon: <Truck className="h-4 w-4" />,
           },
           {
             label: "Points Covered",
             value: fmtKg(kpis.collection_points_covered, 0),
-            accent: "border-t-pink-500",
+            accent: "border-t-amber-500",
             icon: <MapPin className="h-4 w-4" />,
           },
           {
-            label: "Agreed Weight",
-            value: `${fmtKg(kpis.total_agreed_weight)} kg`,
-            accent: "border-t-indigo-500",
-            icon: <BarChart3 className="h-4 w-4" />,
+            label: "Waste Types",
+            value: fmtKg(kpis.waste_type_count, 0),
+            accent: "border-t-violet-500",
+            icon: <Recycle className="h-4 w-4" />,
           },
           {
-            label: "Actual Weight",
-            value: `${fmtKg(kpis.total_actual_weight)} kg`,
-            accent: "border-t-cyan-500",
-            icon: <TrendingUp className="h-4 w-4" />,
+            label: "Panchayats",
+            value: fmtKg(kpis.local_body_count, 0),
+            accent: "border-t-teal-700",
+            icon: <BarChart3 className="h-4 w-4" />,
           },
         ].map((k) => (
           <div
@@ -544,7 +682,7 @@ export default function MonthlyWasteComparisonListPage() {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
           <h2 className="text-sm font-semibold text-gray-800">Monthly Trend</h2>
           <p className="text-xs text-gray-400 mt-0.5 mb-4">
-            Agreed vs Actual collection weight per month
+            Total weight collected per month
           </p>
           {monthlyTrends.length === 0 ? (
             <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
@@ -557,13 +695,9 @@ export default function MonthlyWasteComparisonListPage() {
                 margin={{ top: 6, right: 20, left: 0, bottom: 4 }}
               >
                 <defs>
-                  <linearGradient id="gradAgreed" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.18} />
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
-                  </linearGradient>
                   <linearGradient id="gradActual" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#16a34a" stopOpacity={0.22} />
-                    <stop offset="95%" stopColor="#16a34a" stopOpacity={0.02} />
+                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.26} />
+                    <stop offset="95%" stopColor="#10B981" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid
@@ -591,30 +725,14 @@ export default function MonthlyWasteComparisonListPage() {
                 />
                 <Area
                   type="monotone"
-                  dataKey="total_agreed_weight"
-                  name="Agreed"
-                  stroke="#2563eb"
-                  strokeWidth={2}
-                  strokeDasharray="5 3"
-                  fill="url(#gradAgreed)"
-                  dot={{
-                    r: 4,
-                    fill: "#2563eb",
-                    stroke: "#fff",
-                    strokeWidth: 2,
-                  }}
-                  activeDot={{ r: 6 }}
-                />
-                <Area
-                  type="monotone"
                   dataKey="total_actual_weight"
-                  name="Actual"
-                  stroke="#16a34a"
+                  name="Weight Collected"
+                  stroke="#0F766E"
                   strokeWidth={2.5}
                   fill="url(#gradActual)"
                   dot={{
                     r: 4,
-                    fill: "#16a34a",
+                    fill: "#10B981",
                     stroke: "#fff",
                     strokeWidth: 2,
                   }}
@@ -625,38 +743,74 @@ export default function MonthlyWasteComparisonListPage() {
           )}
         </div>
 
-        {/* PLB Efficiency — progress bars (no up/down bars) */}
+        {/* Waste composition — Pie chart */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+            <PieChartIcon className="h-4 w-4 text-gray-400" /> Waste Composition
+          </h2>
+          <p className="text-xs text-gray-400 mt-0.5 mb-2">
+            Share of total collected weight by waste type
+          </p>
+          {wasteTypePieData.length === 0 ? (
+            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
+              No waste-type data yet.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Tooltip content={<WasteTypeTooltip />} />
+                <Pie
+                  data={wasteTypePieData}
+                  dataKey="total_actual_weight"
+                  nameKey="waste_type"
+                  innerRadius={52}
+                  outerRadius={82}
+                  paddingAngle={2}
+                  stroke="#fcfcfb"
+                  strokeWidth={2}
+                  label={({ share_percent }: any) =>
+                    share_percent >= 5 ? `${share_percent.toFixed(0)}%` : ""
+                  }
+                  labelLine={false}
+                >
+                  {wasteTypePieData.map((entry) => (
+                    <Cell key={entry.waste_type_id} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Legend content={<WasteTypeLegend />} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Panchayat weight — progress bars */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
           <h2 className="text-sm font-semibold text-gray-800">
-            PLB Collection Efficiency
+            Weight Collected by Panchayat
           </h2>
           <p className="text-xs text-gray-400 mt-0.5 mb-4">
-            Actual ÷ Agreed — per PLB (Participating Local Body)
+            Corporation / municipality / town panchayat / panchayat union / panchayat
           </p>
           {plbComparison.length === 0 ? (
             <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
-              No PLB data yet.
+              No panchayat data yet.
             </div>
           ) : (
             <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
-              {(plbComparison as any[]).slice(0, 10).map((p, i) => (
-                <PlbEffRow key={i} plb={p} />
+              {plbComparison.slice(0, 10).map((p, i) => (
+                <LocalBodyWeightRow key={i} plb={p} maxWeight={maxPlbWeight} />
               ))}
             </div>
           )}
         </div>
 
-        {/* PLB Agreed vs Actual — grouped bar (full width) */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 lg:col-span-2">
+        {/* Panchayat weight — grouped bar */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
           <h2 className="text-sm font-semibold text-gray-800">
-            PLB Collection — Agreed vs Actual
+            Panchayat Comparison
           </h2>
           <p className="text-xs text-gray-400 mt-0.5 mb-4">
-            Side-by-side monthly totals per PLB&nbsp;·&nbsp;
-            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-300 mr-1 align-middle" />
-            Agreed&nbsp;&nbsp;
-            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-600 mr-1 align-middle" />
-            Actual
+            Total weight collected per panchayat
           </p>
           {plbChartData.length === 0 ? (
             <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
@@ -668,7 +822,6 @@ export default function MonthlyWasteComparisonListPage() {
                 data={plbChartData}
                 margin={{ top: 6, right: 16, left: 0, bottom: 56 }}
                 barCategoryGap="30%"
-                barGap={4}
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
@@ -691,32 +844,14 @@ export default function MonthlyWasteComparisonListPage() {
                   tickFormatter={fmtAxis}
                 />
                 <Tooltip content={<PLBTooltip />} />
-                <Legend
-                  iconType="square"
-                  iconSize={10}
-                  wrapperStyle={{ fontSize: 11, paddingTop: 14 }}
-                />
                 <Bar
-                  dataKey="Agreed"
-                  fill="#93c5fd"
-                  maxBarSize={36}
+                  dataKey="Weight"
+                  fill="#0F766E"
+                  maxBarSize={40}
                   radius={[3, 3, 0, 0]}
                 >
                   {plbChartData.map((_, i) => (
-                    <Cell key={i} fill="#93c5fd" />
-                  ))}
-                </Bar>
-                <Bar
-                  dataKey="Actual"
-                  fill="#16a34a"
-                  maxBarSize={36}
-                  radius={[3, 3, 0, 0]}
-                >
-                  {plbChartData.map((e, i) => (
-                    <Cell
-                      key={i}
-                      fill={e.Actual >= e.Agreed ? "#16a34a" : "#f97316"}
-                    />
+                    <Cell key={i} fill={SERIES[i % SERIES.length]} />
                   ))}
                 </Bar>
               </BarChart>
@@ -726,7 +861,61 @@ export default function MonthlyWasteComparisonListPage() {
       </div>
 
       {/* ══════════════════════════════════════════════════════
-          SINGLE MONTHLY SUMMARY RECORD
+          WASTE TYPE BREAKDOWN TABLE
+      ══════════════════════════════════════════════════════ */}
+      {wasteTypeBreakdown.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+            <Recycle className="h-4 w-4 text-gray-400" />
+            <h2 className="text-sm font-semibold text-gray-800">
+              Waste Type Breakdown
+            </h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-xs">
+              <thead>
+                <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide text-[10px]">
+                  <th className="px-4 py-3 text-left font-semibold">Waste Type</th>
+                  <th className="px-4 py-3 text-right font-semibold">Weight Collected (kg)</th>
+                  <th className="px-4 py-3 text-right font-semibold">Share</th>
+                  <th className="px-4 py-3 text-right font-semibold">Trips</th>
+                  <th className="px-4 py-3 text-right font-semibold">Points Covered</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {[...wasteTypeBreakdown]
+                  .sort((a, b) => b.total_actual_weight - a.total_actual_weight)
+                  .map((w, i) => (
+                    <tr key={w.waste_type_id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full mr-2 align-middle"
+                          style={{ backgroundColor: SERIES[i % SERIES.length] }}
+                        />
+                        {w.waste_type}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-teal-700 whitespace-nowrap">
+                        {fmtKg(w.total_actual_weight)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600 whitespace-nowrap">
+                        {fmtKg(w.share_percent, 1)}%
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600">
+                        {w.total_trips}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600">
+                        {w.collection_points_covered}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════
+          SUMMARY + DETAIL
       ══════════════════════════════════════════════════════ */}
       {!loading && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -734,11 +923,11 @@ export default function MonthlyWasteComparisonListPage() {
           <div
             className="flex flex-wrap items-center justify-between gap-3 px-6 py-5 border-b border-gray-100"
             style={{
-              background: "linear-gradient(135deg,#eff6ff 0%,#e0f2fe 100%)",
+              background: "linear-gradient(135deg,#ECFDF5 0%,#ECFEFF 100%)",
             }}
           >
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-sm">
+              <div className="h-10 w-10 rounded-xl bg-teal-700 flex items-center justify-center shadow-sm">
                 <BarChart3 className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -747,199 +936,100 @@ export default function MonthlyWasteComparisonListPage() {
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Overall aggregate for&nbsp;
-                  <span className="font-semibold text-blue-700">
+                  <span className="font-semibold text-teal-700">
                     {appliedMonth || "All Months"}
                   </span>
-                  &nbsp;·&nbsp;{rows.length} record
-                  {rows.length !== 1 ? "s" : ""} combined
+                  &nbsp;·&nbsp;{totalCount} record
+                  {totalCount !== 1 ? "s" : ""} combined
                 </p>
               </div>
             </div>
-            <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${statusBadgeCls(kpis.report_status)}`}
-            >
-              {kpis.report_status === "Deficit" && (
-                <TrendingDown className="h-3 w-3" />
-              )}
-              {kpis.report_status === "Surplus" && (
-                <TrendingUp className="h-3 w-3" />
-              )}
-              {kpis.report_status}
-            </span>
           </div>
 
           {/* Main stats grid */}
           <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCell
-              label="Total Agreed Weight"
-              value={`${fmtKg(kpis.total_agreed_weight)} kg`}
-              color="border-blue-100 bg-blue-50"
-            />
-            <StatCell
-              label="Total Actual Weight"
-              value={`${fmtKg(kpis.total_actual_weight)} kg`}
-              color="border-green-100 bg-green-50"
-            />
-            <StatCell
-              label="Total Variance"
-              value={`${fmtKg(kpis.variance_kg)} kg`}
-              color={
-                Number(kpis.variance_kg) >= 0
-                  ? "border-emerald-100 bg-emerald-50"
-                  : "border-red-100 bg-red-50"
-              }
-            />
-            <StatCell
-              label="Collection Efficiency"
-              value={`${fmtKg(kpis.collection_efficiency_percent)}%`}
-              color={`${effC.ring} border`}
-            />
-          </div>
-
-          {/* Efficiency progress bar */}
-          <div className="px-6 pb-5">
-            <div className="flex justify-between text-xs text-gray-500 mb-1.5">
-              <span className="font-medium">Actual vs Agreed Target</span>
-              <span className={`font-bold ${effC.text}`}>{fmtKg(eff)}%</span>
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 flex flex-col gap-1">
+              <span className="text-xs font-medium text-gray-500">Total Weight Collected</span>
+              <span className="text-2xl font-bold text-gray-800 leading-none">
+                {fmtKg(kpis.total_actual_weight)} kg
+              </span>
             </div>
-            <div className="h-4 rounded-full bg-gray-100 overflow-hidden relative">
-              <div
-                className={`h-full rounded-full transition-all duration-1000 ${effC.bg}`}
-                style={{ width: `${Math.min(eff, 100)}%` }}
-              />
-              {eff >= 10 && (
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
-                  {fmtKg(kpis.total_actual_weight)} /{" "}
-                  {fmtKg(kpis.total_agreed_weight)} kg
-                </span>
-              )}
+            <div className="rounded-xl border border-teal-100 bg-teal-50 p-4 flex flex-col gap-1">
+              <span className="text-xs font-medium text-gray-500">Total Trips</span>
+              <span className="text-2xl font-bold text-gray-800 leading-none">
+                {fmtKg(kpis.total_trips, 0)}
+              </span>
+            </div>
+            <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 flex flex-col gap-1">
+              <span className="text-xs font-medium text-gray-500">Points Covered</span>
+              <span className="text-2xl font-bold text-gray-800 leading-none">
+                {fmtKg(kpis.collection_points_covered, 0)}
+              </span>
+            </div>
+            <div className="rounded-xl border border-violet-100 bg-violet-50 p-4 flex flex-col gap-1">
+              <span className="text-xs font-medium text-gray-500">Avg Weight / Trip</span>
+              <span className="text-2xl font-bold text-gray-800 leading-none">
+                {fmtKg(kpis.average_weight_per_trip)} kg
+              </span>
             </div>
           </div>
 
-          {/* Secondary stats footer */}
-          <div className="border-t border-gray-100 px-6 py-4 grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50/60">
-            {[
-              {
-                label: "Total Trips",
-                value: fmtKg(kpis.total_trips, 0),
-                icon: <Truck className="h-4 w-4 text-teal-500" />,
-              },
-              {
-                label: "Points Covered",
-                value: fmtKg(kpis.collection_points_covered, 0),
-                icon: <MapPin className="h-4 w-4 text-pink-500" />,
-              },
-              {
-                label: "Coverage Efficiency",
-                value: `${fmtKg(kpis.coverage_efficiency_percent)}%`,
-                icon: <Activity className="h-4 w-4 text-purple-500" />,
-              },
-              {
-                label: "Avg Weight / Trip",
-                value: `${fmtKg(kpis.average_weight_per_trip)} kg`,
-                icon: <Scale className="h-4 w-4 text-indigo-500" />,
-              },
-            ].map((s) => (
-              <div key={s.label} className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center shrink-0 shadow-sm">
-                  {s.icon}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] text-gray-400 font-medium">
-                    {s.label}
-                  </p>
-                  <p className="text-sm font-bold text-gray-800 leading-tight">
-                    {s.value}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* PLB breakdown cards */}
+          {/* Panchayat breakdown cards */}
           {plbComparison.length > 0 && (
             <div className="border-t border-gray-100 px-6 py-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                PLB Breakdown — {plbComparison.length} Participating Local
-                Bodies
+                Panchayat Breakdown — {plbComparison.length} Location
+                {plbComparison.length !== 1 ? "s" : ""}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {(plbComparison as any[]).slice(0, 8).map((p, i) => {
-                  const pEff = Number(p.collection_efficiency_percent ?? 0);
-                  const pc = effColor(Math.min(pEff, 100));
-                  return (
-                    <div
-                      key={i}
-                      className="bg-white rounded-xl border border-gray-200 p-3.5 hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <p className="text-xs font-bold text-gray-800">
-                            {p.panchayat_name ?? p.panchayat_id}
-                          </p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">
-                            {p.waste_type ?? "All types"}
-                          </p>
-                        </div>
-                        <span
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${statusBadgeCls(p.report_status)}`}
-                        >
-                          {p.report_status}
-                        </span>
-                      </div>
-                      <div className="mb-2">
-                        <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-                          <span>Efficiency</span>
-                          <span className={`font-bold ${pc.text}`}>
-                            {pEff.toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${pc.bg}`}
-                            style={{ width: `${Math.min(pEff, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <div className="text-center bg-blue-50 rounded-lg py-1.5">
-                          <p className="text-[10px] text-blue-500 font-medium">
-                            Agreed
-                          </p>
-                          <p className="text-xs font-bold text-blue-700">
-                            {fmtKg(p.total_agreed_weight)} kg
-                          </p>
-                        </div>
-                        <div className="text-center bg-green-50 rounded-lg py-1.5">
-                          <p className="text-[10px] text-green-500 font-medium">
-                            Actual
-                          </p>
-                          <p className="text-xs font-bold text-green-700">
-                            {fmtKg(p.total_actual_weight)} kg
-                          </p>
-                        </div>
-                      </div>
+                {plbComparison.slice(0, 8).map((p, i) => (
+                  <div
+                    key={i}
+                    className="bg-white rounded-xl border border-gray-200 p-3.5 hover:shadow-md transition-shadow"
+                  >
+                    <div className="mb-2">
+                      <p className="text-xs font-bold text-gray-800">
+                        {p.local_body_name}
+                      </p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {p.local_body_type}
+                      </p>
                     </div>
-                  );
-                })}
+                    <div className="mb-2 rounded-lg bg-emerald-50 py-2 text-center">
+                      <p className="text-[10px] font-medium text-emerald-600">
+                        Weight Collected
+                      </p>
+                      <p className="text-sm font-bold text-teal-700">
+                        {fmtKg(p.total_actual_weight)} kg
+                      </p>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-gray-400">
+                        Trips:{" "}
+                        <strong className="text-gray-600">
+                          {p.total_trips}
+                        </strong>
+                      </span>
+                      <span className="text-[10px] text-gray-400">
+                        Points:{" "}
+                        <strong className="text-gray-600">
+                          {p.collection_points_covered}
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Waste-type breakdown table */}
+          {/* Waste-type breakdown table (per row) */}
           {rows.length > 0 && (
             <div className="border-t border-gray-100 px-6 py-5">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
-                  Breakdown by PLB &amp; Waste Type — {filteredRows.length} of {rows.length} row
-                  {rows.length !== 1 ? "s" : ""}
-                </p>
-                <FilterBar
-                  searchValue={searchValue}
-                  onSearchChange={setSearchValue}
-                  searchPlaceholder="Search PLB, waste type, status..."
-                />
-              </div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
+                Breakdown by Panchayat &amp; Waste Type — {totalCount} row
+                {totalCount !== 1 ? "s" : ""}
+              </p>
               <div className="overflow-x-auto rounded-xl border border-gray-200">
                 <table className="min-w-full text-xs">
                   <thead>
@@ -948,25 +1038,16 @@ export default function MonthlyWasteComparisonListPage() {
                         Month
                       </th>
                       <th className="px-4 py-3 text-left font-semibold">
-                        PLB (Panchayat)
+                        Panchayat Type
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold">
+                        Panchayat
                       </th>
                       <th className="px-4 py-3 text-left font-semibold">
                         Waste Type
                       </th>
                       <th className="px-4 py-3 text-right font-semibold">
-                        Agreed (kg)
-                      </th>
-                      <th className="px-4 py-3 text-right font-semibold">
-                        Actual (kg)
-                      </th>
-                      <th className="px-4 py-3 text-right font-semibold">
-                        Variance (kg)
-                      </th>
-                      <th className="px-4 py-3 text-right font-semibold">
-                        Efficiency
-                      </th>
-                      <th className="px-4 py-3 text-center font-semibold">
-                        Status
+                        Weight Collected (kg)
                       </th>
                       <th className="px-4 py-3 text-right font-semibold">
                         Trips
@@ -977,60 +1058,92 @@ export default function MonthlyWasteComparisonListPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
-                    {filteredRows.map((r) => {
-                      const rowEff = Number(
-                        r.collection_efficiency_percent ?? 0,
-                      );
-                      const ec = effColor(Math.min(rowEff, 100));
-                      return (
-                        <tr
-                          key={r.unique_id}
-                          className="hover:bg-gray-50 transition-colors"
-                        >
-                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                            {r.month}
-                          </td>
-                          <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
-                            {r.panchayat_name ?? r.panchayat_id}
-                          </td>
-                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                            {r.waste_type}
-                          </td>
-                          <td className="px-4 py-3 text-right font-medium text-blue-700 whitespace-nowrap">
-                            {fmtKg(r.total_agreed_weight)}
-                          </td>
-                          <td className="px-4 py-3 text-right font-medium text-green-700 whitespace-nowrap">
-                            {fmtKg(r.total_actual_weight)}
-                          </td>
-                          <td
-                            className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${r.variance_kg >= 0 ? "text-emerald-600" : "text-red-600"}`}
-                          >
-                            {r.variance_kg >= 0 ? "+" : ""}
-                            {fmtKg(r.variance_kg)}
-                          </td>
-                          <td className="px-4 py-3 text-right whitespace-nowrap">
-                            <span className={`font-bold ${ec.text}`}>
-                              {rowEff.toFixed(1)}%
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center whitespace-nowrap">
-                            <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusBadgeCls(r.report_status)}`}
-                            >
-                              {r.report_status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right text-gray-600">
-                            {r.total_trips}
-                          </td>
-                          <td className="px-4 py-3 text-right text-gray-600">
-                            {r.collection_points_covered}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {rows.map((r) => (
+                      <tr
+                        key={r.unique_id}
+                        className="hover:bg-gray-50 transition-colors"
+                      >
+                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                          {r.month}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                          {r.local_body_type}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
+                          {r.local_body_name}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                          {r.waste_type}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-teal-700 whitespace-nowrap">
+                          {fmtKg(r.total_actual_weight)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-600">
+                          {r.total_trips}
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-600">
+                          {r.collection_points_covered}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span>Rows per page</span>
+                  <select
+                    value={detailPageSize}
+                    onChange={(event) => {
+                      setDetailPageSize(Number(event.target.value));
+                      setDetailPage(1);
+                    }}
+                    className="h-8 rounded-lg border border-emerald-100 bg-emerald-50 px-2 font-mono text-teal-900 outline-none focus:ring-2 focus:ring-emerald-300"
+                    aria-label="Rows per page"
+                  >
+                    {[10, 25, 50].map((size) => (
+                      <option key={size} value={size}>{size}</option>
+                    ))}
+                  </select>
+                  <span className="font-mono text-gray-600">
+                    {(safeDetailPage - 1) * detailPageSize + 1}–
+                    {Math.min(safeDetailPage * detailPageSize, totalCount)} of {totalCount}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setDetailPage((page) => Math.max(1, page - 1))}
+                    disabled={safeDetailPage === 1}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-100 bg-white text-teal-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  {visibleDetailPages.map((page) => (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setDetailPage(page)}
+                      className={`h-8 min-w-8 rounded-lg border px-2 font-mono text-xs transition-colors ${
+                        page === safeDetailPage
+                          ? "border-teal-700 bg-teal-700 text-white"
+                          : "border-emerald-100 bg-white text-teal-700 hover:bg-emerald-50"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setDetailPage((page) => Math.min(detailPageCount, page + 1))}
+                    disabled={safeDetailPage === detailPageCount}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-100 bg-white text-teal-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -1039,7 +1152,7 @@ export default function MonthlyWasteComparisonListPage() {
 
       {loading && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-12 flex items-center justify-center gap-3 text-gray-400">
-          <span className="animate-spin h-5 w-5 border-2 border-gray-200 border-t-blue-500 rounded-full" />
+          <span className="animate-spin h-5 w-5 border-2 border-gray-200 border-t-emerald-500 rounded-full" />
           Loading monthly data…
         </div>
       )}
