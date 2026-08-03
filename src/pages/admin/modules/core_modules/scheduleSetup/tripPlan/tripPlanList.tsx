@@ -1,6 +1,6 @@
 import type { TripPlanRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -190,6 +190,7 @@ export default function TripPlanList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const requestIdRef = useRef(0);
 
   // Debounce the search box so we don't fire a request per keystroke.
   useEffect(() => {
@@ -204,10 +205,12 @@ export default function TripPlanList() {
 
   const loadRows = (page: number, limit: number, search: string, orderingParam?: string) => {
     if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
       setRawRows([]);
       setTotalRecords(0);
       return () => {};
     }
+    const requestId = ++requestIdRef.current;
     let mounted = true;
     setLoading(true);
     setRawRows([]);
@@ -218,13 +221,16 @@ export default function TripPlanList() {
     if (orderingParam) params.ordering = orderingParam;
     tripPlanApi.readAllwithPaginated(page, limit, { params })
       .then((response) => {
-        if (!mounted) return;
+        if (!mounted || requestId !== requestIdRef.current) return;
         setRawRows(normalizeList(response) as TripPlanRecord[]);
         setTotalRecords(typeof response?.count === "number" ? response.count : normalizeList(response).length);
       })
-      .catch((error) => Swal.fire(t("common.error"), extractErrorMessage(error) ?? t("common.fetch_failed"), "error"))
+      .catch((error) => {
+        if (requestId !== requestIdRef.current) return;
+        Swal.fire(t("common.error"), extractErrorMessage(error) ?? t("common.fetch_failed"), "error");
+      })
       .finally(() => {
-        if (mounted) setLoading(false);
+        if (mounted && requestId === requestIdRef.current) setLoading(false);
       });
     return () => { mounted = false; };
   };

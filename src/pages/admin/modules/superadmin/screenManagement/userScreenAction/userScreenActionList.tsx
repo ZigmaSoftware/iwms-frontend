@@ -1,5 +1,5 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -41,6 +41,7 @@ export default function UserScreenActionList() {
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
+  const requestIdRef = useRef(0);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
@@ -74,6 +75,7 @@ export default function UserScreenActionList() {
     status: typeof statusValue,
     order?: string,
   ) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setRecords([]);
     try {
@@ -84,6 +86,8 @@ export default function UserScreenActionList() {
           ...(order ? { ordering: order } : {}),
         },
       });
+      if (requestId !== requestIdRef.current) return;
+
       const rows = toRecordList(response);
       setRecords(rows);
       setTotalRecords(
@@ -92,9 +96,10 @@ export default function UserScreenActionList() {
           : rows.length,
       );
     } catch {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 

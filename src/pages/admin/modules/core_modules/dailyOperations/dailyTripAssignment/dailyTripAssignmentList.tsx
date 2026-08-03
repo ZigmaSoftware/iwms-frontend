@@ -2,7 +2,7 @@ import type { DailyTripAssignmentRecord } from "./types";
 import type { CollectionTypeKey } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -215,6 +215,7 @@ export default function DailyTripAssignmentList() {
   const [isSavingSchedulerConfig, setIsSavingSchedulerConfig] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingDetailed, setIsExportingDetailed] = useState(false);
+  const requestIdRef = useRef(0);
   const [schedulerDate, setSchedulerDate] = useState(toDateInputValue());
   const [schedulerRunTime, setSchedulerRunTime] = useState("04:00");
   const [schedulerEnabled, setSchedulerEnabled] = useState(true);
@@ -249,6 +250,7 @@ export default function DailyTripAssignmentList() {
   const loadRows = useCallback(
     async (page: number, limit: number, search: string, orderingParam?: string) => {
       if (!companyUniqueId && !isSuperAdmin) return;
+      const requestId = ++requestIdRef.current;
       setIsLoading(true);
       setRawAssignments([]);
       try {
@@ -259,6 +261,7 @@ export default function DailyTripAssignmentList() {
         if (search) params.search = search;
         if (orderingParam) params.ordering = orderingParam;
         const response = await dailyTripAssignmentApi.readAllwithPaginated(page, limit, { params });
+        if (requestId !== requestIdRef.current) return;
         const list = toRecordList(response);
         setRawAssignments(list);
         setTotalRecords(
@@ -267,9 +270,10 @@ export default function DailyTripAssignmentList() {
             : list.length,
         );
       } catch (err) {
+        if (requestId !== requestIdRef.current) return;
         Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
       } finally {
-        setIsLoading(false);
+        if (requestId === requestIdRef.current) setIsLoading(false);
       }
     },
     [companyUniqueId, projectId, schedulerDate, isSuperAdmin, t],

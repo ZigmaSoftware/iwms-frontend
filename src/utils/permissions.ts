@@ -1,5 +1,4 @@
 import { decryptSegment } from "@/utils/routeCrypto";
-import { adminEndpoints } from "@/helpers/admin/endpoints";
 
 // ============================================================
 // Types
@@ -763,60 +762,4 @@ export const hasRoutePermission = (
   return moduleCandidates.some((candidateModule) =>
     hasPermission(candidateModule, moduleName, action, permissions),
   );
-};
-
-// ============================================================
-// API Integration
-// ============================================================
-
-type PermissionsAPIResponse = {
-  permissions?: PermissionsMap;
-  permission_details?: PermissionDetailsMap;
-  column_permissions?: unknown;
-};
-
-export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
-  try {
-    const token = localStorage.getItem("access_token");
-    if (!token) return {};
-
-    const apiBaseUrl = import.meta.env.VITE_API_LOCAL || import.meta.env.VITE_API_PROD;
-    if (!apiBaseUrl) {
-      console.error("[Permissions API] ❌ API base URL not configured");
-      return {};
-    }
-
-    const url = `${apiBaseUrl}/${adminEndpoints.userpermission}/`;
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      console.error(`[Permissions API] ❌ HTTP ${response.status}: ${response.statusText}`);
-      return {};
-    }
-
-    const data = (await response.json()) as PermissionsAPIResponse;
-    const permissions = sanitizePermissions(data);
-
-    setStoredPermissions(permissions);
-
-    if ("permission_details" in data) {
-      setStoredPermissionDetails(data.permission_details ?? {});
-    }
-
-    if ("column_permissions" in data) {
-      setStoredColumnPermissions(data.column_permissions ?? {});
-    }
-
-    return permissions;
-  } catch (error) {
-    console.error("[Permissions API] ❌ Error fetching permissions:", error);
-    return {};
-  }
 };

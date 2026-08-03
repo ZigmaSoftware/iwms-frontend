@@ -1,6 +1,6 @@
 import type { DistrictLeader } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -92,6 +92,7 @@ export default function DistrictLeaderListPage() {
     },
   });
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const requestIdRef = useRef(0);
 
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
     ? `${sortOrder === -1 ? "-" : ""}${sortField}`
@@ -99,6 +100,7 @@ export default function DistrictLeaderListPage() {
 
   /* ── fetch, scoped server-side by company+project, search, sort, and pagination ── */
   const loadRows = async (page: number, limit: number) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setRows([]);
     try {
@@ -109,6 +111,7 @@ export default function DistrictLeaderListPage() {
       if (ordering) params.ordering = ordering;
 
       const response = await districtLeaderApi.readAllwithPaginated(page, limit, { params });
+      if (requestId !== requestIdRef.current) return;
       const list = toRecordList(response);
       setRows(list);
       setTotalRecords(
@@ -117,19 +120,22 @@ export default function DistrictLeaderListPage() {
           : list.length,
       );
     } catch {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) {
+      requestIdRef.current += 1;
       setRows([]);
       setTotalRecords(0);
       return;
     }
     if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
       setRows([]);
       setTotalRecords(0);
       return;

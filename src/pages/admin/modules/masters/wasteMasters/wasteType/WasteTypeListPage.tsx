@@ -1,5 +1,5 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -32,6 +32,7 @@ export default function WasteTypeListPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const requestIdRef = useRef(0);
   const {
     filters, onFilter, globalFilterValue, onGlobalFilterChange,
     statusValue, onStatusFilterChange,
@@ -76,14 +77,16 @@ export default function WasteTypeListPage() {
     let mounted = true;
 
     const loadWasteTypes = async () => {
+      const requestId = ++requestIdRef.current;
       setIsLoading(true);
       try {
         const data = await wasteTypeApi.readAll({
           params: { company_id: companyUniqueId, project_id: projectId || undefined },
         });
-        if (mounted) setAllWasteTypes(data as WasteTypeListRecord[]);
+        if (!mounted || requestId !== requestIdRef.current) return;
+        setAllWasteTypes(data as WasteTypeListRecord[]);
       } finally {
-        if (mounted) setIsLoading(false);
+        if (mounted && requestId === requestIdRef.current) setIsLoading(false);
       }
     };
 

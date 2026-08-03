@@ -1,5 +1,5 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -44,6 +44,7 @@ export default function MainScreenList() {
   const [records, setRecords] = useState<MainScreen[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const {
     filters,
@@ -63,14 +64,17 @@ export default function MainScreenList() {
   );
 
   const loadRecords = async () => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     try {
       const response = await mainScreenApi.readAll();
+      if (requestId !== requestIdRef.current) return;
       setRecords(toRecordList(response));
     } catch {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 

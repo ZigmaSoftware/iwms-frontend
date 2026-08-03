@@ -1,5 +1,5 @@
 import type { CommonAuditJsonValue, CommonAuditRecord, DiffLine, ModuleFilterOption } from "./types";
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -185,6 +185,7 @@ export default function CommonAuditList() {
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
+  const requestIdRef = useRef(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
@@ -240,6 +241,7 @@ export default function CommonAuditList() {
 
   const loadRows = useCallback(
     async (page: number, limit: number, search: string, orderingParam?: string, moduleFilterValue?: string) => {
+      const requestId = ++requestIdRef.current;
       setIsLoading(true);
       setRecords([]);
       try {
@@ -252,15 +254,18 @@ export default function CommonAuditList() {
               : {}),
           },
         });
+        if (requestId !== requestIdRef.current) return;
+
         const rows = toRecordList(response);
         setRecords(rows);
         setTotalRecords(
           typeof response?.count === "number" ? response.count : rows.length,
         );
       } catch {
+        if (requestId !== requestIdRef.current) return;
         Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
       } finally {
-        setIsLoading(false);
+        if (requestId === requestIdRef.current) setIsLoading(false);
       }
     },
     [t]

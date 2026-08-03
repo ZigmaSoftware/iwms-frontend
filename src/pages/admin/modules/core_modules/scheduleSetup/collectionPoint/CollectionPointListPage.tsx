@@ -1,6 +1,6 @@
 import type { CollectionPointCollectionType, CollectionPointRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Swal from "@/lib/notify";
@@ -73,6 +73,7 @@ export default function CollectionPointListPage() {
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const requestIdRef = useRef(0);
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
@@ -105,6 +106,7 @@ export default function CollectionPointListPage() {
     : undefined;
 
   const loadRows = async (page: number, limit: number, search: string, order?: string) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setRecords([]);
     try {
@@ -117,14 +119,16 @@ export default function CollectionPointListPage() {
           ...(order ? { ordering: order } : {}),
         },
       });
+      if (requestId !== requestIdRef.current) return;
       setRecords(toRecordList(response));
       setTotalRecords(
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
       console.error("Failed to fetch collection points", error);
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 

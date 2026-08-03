@@ -1,5 +1,5 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -55,6 +55,7 @@ export default function PropertyList() {
   const [properties, setProperties] = useState<PropertyRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
   const {
     filters, onFilter, globalFilterValue, onGlobalFilterChange,
     statusValue, onStatusFilterChange,
@@ -94,6 +95,7 @@ export default function PropertyList() {
   );
 
   const loadProperties = async () => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     try {
       const params: Record<string, string> = {};
@@ -101,18 +103,20 @@ export default function PropertyList() {
       if (projectId) params.project_id = projectId;
 
       const response = await adminApi.properties.readAll({ params });
+      if (requestId !== requestIdRef.current) return;
       const list = Array.isArray(response)
         ? response
         : ((response as { results?: PropertyRecord[] })?.results ?? []);
       setProperties(list as PropertyRecord[]);
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.fetch_failed")),
         "error"
       );
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 

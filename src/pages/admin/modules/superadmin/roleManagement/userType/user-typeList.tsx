@@ -1,5 +1,5 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -48,6 +48,7 @@ export default function UserTypePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const requestIdRef = useRef(0);
 
   const {
     globalFilterValue,
@@ -75,6 +76,7 @@ export default function UserTypePage() {
     status: typeof statusValue,
     order?: string,
   ) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setUserTypes([]);
     try {
@@ -85,6 +87,8 @@ export default function UserTypePage() {
           ...(order ? { ordering: order } : {}),
         },
       });
+      if (requestId !== requestIdRef.current) return;
+
       const rows = toRecordList(response);
       setUserTypes(rows);
       setTotalRecords(
@@ -93,9 +97,10 @@ export default function UserTypePage() {
           : rows.length,
       );
     } catch {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 

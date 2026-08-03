@@ -1,5 +1,5 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -39,6 +39,7 @@ export default function MainScreenTypeList() {
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
+  const requestIdRef = useRef(0);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -71,6 +72,7 @@ export default function MainScreenTypeList() {
     status: typeof statusValue,
     order?: string,
   ) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setMainScreenTypes([]);
     try {
@@ -81,6 +83,8 @@ export default function MainScreenTypeList() {
           ...(order ? { ordering: order } : {}),
         },
       });
+      if (requestId !== requestIdRef.current) return;
+
       const rows = unwrapRows(response);
       setMainScreenTypes(rows);
       setTotalRecords(
@@ -89,9 +93,10 @@ export default function MainScreenTypeList() {
           : rows.length,
       );
     } catch {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 

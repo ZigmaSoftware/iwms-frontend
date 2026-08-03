@@ -1,6 +1,6 @@
 import type { VehicleBreakdownRecord, BreakdownStatus, ApprovalStatus } from "./types";
 import { BREAKDOWN_REASON_LABELS } from "./types";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -260,6 +260,7 @@ export default function VehicleBreakdownList() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const requestIdRef = useRef(0);
 
   const [verifyTarget, setVerifyTarget] = useState<VehicleBreakdownRecord | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -272,6 +273,7 @@ export default function VehicleBreakdownList() {
     : undefined;
 
   const loadRows = async (page: number, limit: number) => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setRawRows([]);
     try {
@@ -284,6 +286,7 @@ export default function VehicleBreakdownList() {
       if (ordering) params.ordering = ordering;
 
       const response = await vehicleBreakdownApi.readAllwithPaginated(page, limit, { params });
+      if (requestId !== requestIdRef.current) return;
       const list = toRecordList(response);
       setRawRows(list);
       setTotalRecords(
@@ -292,15 +295,16 @@ export default function VehicleBreakdownList() {
           : list.length,
       );
     } catch {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (isSuperAdmin && companies.length === 0) { setRawRows([]); setTotalRecords(0); return; }
-    if (!companyUniqueId && !isSuperAdmin) { setRawRows([]); setTotalRecords(0); return; }
+    if (isSuperAdmin && companies.length === 0) { requestIdRef.current += 1; setRawRows([]); setTotalRecords(0); return; }
+    if (!companyUniqueId && !isSuperAdmin) { requestIdRef.current += 1; setRawRows([]); setTotalRecords(0); return; }
 
     void loadRows(first / rowsPerPage + 1, rowsPerPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps

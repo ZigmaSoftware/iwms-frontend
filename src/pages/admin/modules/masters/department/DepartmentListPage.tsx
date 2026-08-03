@@ -1,5 +1,5 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -53,6 +53,7 @@ export default function DepartmentListPage() {
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const requestIdRef = useRef(0);
   const {
     globalFilterValue,
     onGlobalFilterChange,
@@ -65,6 +66,7 @@ export default function DepartmentListPage() {
     : undefined;
 
   const loadRows = async (page: number, limit: number, search: string, status: string, orderingParam?: string) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setRecords([]);
     try {
@@ -75,6 +77,8 @@ export default function DepartmentListPage() {
           ...(orderingParam ? { ordering: orderingParam } : {}),
         },
       });
+      if (requestId !== requestIdRef.current) return;
+
       const rows = toRecordList(response);
       setRecords(rows);
       setTotalRecords(
@@ -83,9 +87,10 @@ export default function DepartmentListPage() {
           : rows.length,
       );
     } catch (error: any) {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to load departments"), "error");
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 

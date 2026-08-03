@@ -1,5 +1,5 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -47,6 +47,7 @@ export default function DesignationListPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const requestIdRef = useRef(0);
 
   const {
     globalFilterValue,
@@ -60,6 +61,7 @@ export default function DesignationListPage() {
     : undefined;
 
   const loadRows = async (page: number, limit: number, search: string, status: typeof statusValue, order?: string) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setRecords([]);
     try {
@@ -70,6 +72,7 @@ export default function DesignationListPage() {
           ...(order ? { ordering: order } : {}),
         },
       });
+      if (requestId !== requestIdRef.current) return;
       const rows = unwrapRows(response);
       setRecords(rows);
       setTotalRecords(
@@ -78,9 +81,10 @@ export default function DesignationListPage() {
           : rows.length,
       );
     } catch {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire("Error", "Failed to load designations", "error");
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 
