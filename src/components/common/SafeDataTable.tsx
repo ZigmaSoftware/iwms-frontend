@@ -49,6 +49,7 @@ type SafeDataTableProps<TValue extends SafeTableRows> =
     importTemplateFilename?: string;
     onImportComplete?: () => void | Promise<void>;
     onImportRows?: (rows: SafeTableRows) => Promise<void>;
+    transformServerRows?: (rows: SafeTableRows) => SafeTableRows;
   };
 
 const toSafeRows = <TValue extends SafeTableRows>(
@@ -413,11 +414,18 @@ export const DataTable = <TValue extends SafeTableRows>(
     importTemplateFilename,
     onImportComplete,
     onImportRows,
+    transformServerRows,
     ...tableProps
   } = props;
   const safeRows = toSafeRows(tableProps.value);
   const resolvedImportApi = importApi ?? getCurrentAdminBulkImportApi();
-  const serverApi = getCurrentAdminServerListApi();
+  // Pages that already own server-side pagination (readAllwithPaginated +
+  // lazy/onPage/totalRecords wired at the page level) must not also be
+  // driven by this component's route-based auto-pagination — both would
+  // fetch independently and race, with whichever resolves last silently
+  // overwriting the other's rows (symptom: table shows "no records found"
+  // even though the page's own fetch returned data).
+  const serverApi = tableProps.lazy ? null : getCurrentAdminServerListApi();
   const initialPageSize =
     typeof tableProps.rows === "number" && tableProps.rows > 0
       ? tableProps.rows
@@ -548,7 +556,9 @@ export const DataTable = <TValue extends SafeTableRows>(
           return;
         }
 
-        setServerRows(mapServerRows(nextRows as SafeTableRows));
+        const mappedRows = mapServerRows(nextRows as SafeTableRows);
+        const transformedRows = transformServerRows ? transformServerRows(mappedRows) : mappedRows;
+        setServerRows(transformedRows);
         setServerTotal(count);
       } finally {
         setServerLoading(false);

@@ -17,11 +17,11 @@ import {
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
 
-import { wasteTypeApi, districtApi, cityApi, panchayatApi, zoneApi, collectionPointApi, binApi } from "@/helpers/admin";
+import { wasteTypeApi, districtApi, cityApi, panchayatApi, zoneApi, wardApi, collectionPointApi, binApi } from "@/helpers/admin";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import type { BinRecord, CityOption, CollectionPointOption, LocationOption } from "./types";
+import type { BinRecord, CityOption, CollectionPointOption, LocationOption, WardOption } from "./types";
 
 const { encMasters, encBins } = getEncryptedRoute();
 const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encBins);
@@ -148,6 +148,7 @@ export default function BinForm() {
   const [districts, setDistricts] = useState<SelectOption[]>([]);
   const [cities, setCities] = useState<CityOption[]>([]);
   const [panchayats, setPanchayats] = useState<LocationOption[]>([]);
+  const [wards, setWards] = useState<WardOption[]>([]);
   const [collectionPoints, setCollectionPoints] = useState<CollectionPointOption[]>([]);
   const [wasteTypes, setWasteTypes] = useState<SelectOption[]>([]);
   // Raw CP list for computing usedWardIds reactively (needed in edit mode where collectionPointId arrives late)
@@ -157,6 +158,7 @@ export default function BinForm() {
   const [pendingDistrictId, setPendingDistrictId] = useState("");
   const [pendingCityId, setPendingCityId] = useState("");
   const [pendingZoneId, setPendingZoneId] = useState("");
+  const [pendingWardId, setPendingWardId] = useState("");
   const [pendingCollectionPointId, setPendingCollectionPointId] = useState("");
   const [pendingPanchayat, setPendingPanchayat] = useState("");
   const [pendingWasteType, setPendingWasteType] = useState("");
@@ -176,7 +178,7 @@ export default function BinForm() {
     setZoneId("");
     setWardId("");
     setCollectionPointId("");
-  }, []); // wardId cleared so auto-fill re-triggers on new CP selection
+  }, []);
 
   /* ==========================================================
       LOAD WASTE TYPES (direct API call, kept as-is)
@@ -216,9 +218,10 @@ export default function BinForm() {
       cityApi.readAll({ params }),
       panchayatApi.readAll({ params }),
       zoneApi.readAll({ params }),
+      wardApi.readAll({ params }),
       collectionPointApi.readAll({ params }),
     ])
-      .then(([distData, cityData, panData, zoneData, cpData]) => {
+      .then(([distData, cityData, panData, zoneData, wardData, cpData]) => {
         if (cancelled) return;
 
         setAllCollectionPoints(toRecordList(cpData));
@@ -266,6 +269,20 @@ export default function BinForm() {
               cityId: normalizeIdValue(z.city_id),
             }))
             .filter((z) => z.value && z.label)
+        );
+
+        setWards(
+          toRecordList(wardData)
+            .filter((w) => w.is_active !== false)
+            .map((w) => ({
+              value: normalizeIdValue(w.unique_id),
+              label: String(w.ward_name ?? w.name ?? w.unique_id ?? ""),
+              districtId: normalizeIdValue(w.district_id),
+              cityId: normalizeIdValue(w.city_id),
+              panchayatId: normalizeIdValue(w.panchayat_id),
+              zoneId: normalizeIdValue(w.zone_id),
+            }))
+            .filter((w) => w.value && w.label)
         );
 
       })
@@ -331,6 +348,9 @@ export default function BinForm() {
         const zoneCandidate = normalizeIdValue(record.zone_id ?? record.zone);
         if (zoneCandidate) { setZoneId(zoneCandidate); setPendingZoneId(zoneCandidate); }
 
+        const wardCandidate = normalizeIdValue(record.ward_id ?? (record as Record<string, unknown>).ward);
+        if (wardCandidate) { setWardId(wardCandidate); setPendingWardId(wardCandidate); }
+
         const cpCandidate = normalizeIdValue(record.collection_point_id ?? record.collection_point);
         if (cpCandidate) { setCollectionPointId(cpCandidate); setPendingCollectionPointId(cpCandidate); }
 
@@ -375,6 +395,15 @@ export default function BinForm() {
       setPendingZoneId("");
     }
   }, [pendingZoneId, zones]);
+
+  // Flush ward once the wards list is loaded
+  useEffect(() => {
+    if (!pendingWardId || wards.length === 0) return;
+    if (wards.some((w) => w.value === pendingWardId)) {
+      setWardId(pendingWardId);
+      setPendingWardId("");
+    }
+  }, [pendingWardId, wards]);
 
   // Flush collection point once the collection points list is loaded
   useEffect(() => {
@@ -447,11 +476,32 @@ export default function BinForm() {
     return [...filtered, { value: zoneId, label: current?.label || zoneId }];
   }, [cityId, districtId, zoneId, zones]);
 
+  // Ward options filtered by the selected zone or panchayat (Ward enforces XOR of zone/panchayat)
+  const wardOptions = useMemo(() => {
+    const filtered = wards
+      .filter((w) => {
+        if (zoneId) return w.zoneId === zoneId;
+        if (panchayatId) return w.panchayatId === panchayatId;
+        return false;
+      })
+      .map((w) => ({ value: w.value, label: w.label }));
+
+    if (!wardId) return filtered;
+    if (filtered.some((w) => w.value === wardId)) return filtered;
+    const current = wards.find((w) => w.value === wardId);
+    return [...filtered, { value: wardId, label: current?.label || wardId }];
+  }, [zoneId, panchayatId, wardId, wards]);
+
+  // Collection points filtered by the selected ward (CP.wards[] must contain wardId)
   const collectionPointOptions = useMemo(() => {
     const filtered = collectionPoints
       .filter((cp) => {
         if (cityId && cp.cityId && cp.cityId !== cityId) return false;
         if (districtId && cp.districtId && cp.districtId !== districtId) return false;
+        if (wardId) {
+          const cpWards = cp.wards ?? [];
+          return cpWards.some((w) => normalizeIdValue(w.unique_id) === wardId);
+        }
         return true;
       })
       .map((cp) => ({ value: cp.value, label: cp.label }));
@@ -461,38 +511,32 @@ export default function BinForm() {
 
     const current = collectionPoints.find((cp) => cp.value === collectionPointId);
     return [...filtered, { value: collectionPointId, label: current?.label || collectionPointId }];
-  }, [cityId, collectionPointId, collectionPoints, districtId]);
+  }, [cityId, collectionPointId, collectionPoints, districtId, wardId]);
 
-  // When CP is selected: auto-fill district, city, ward, panchayat, zone from the CP's data
+  // When Ward is selected: auto-fill panchayat/zone from the ward, clear/reload collection point
   useEffect(() => {
-    if (!collectionPointId) return;
+    if (!wardId) return;
 
-    const selectedCp: CollectionPointOption | undefined = collectionPoints.find((cp) => cp.value === collectionPointId);
-    if (!selectedCp) return;
+    const selectedWard = wards.find((w) => w.value === wardId);
+    if (!selectedWard) return;
 
-    // Auto-fill location context from CP
-    if (selectedCp.districtId) setDistrictId(selectedCp.districtId);
-    if (selectedCp.cityId) setCityId(selectedCp.cityId);
-
-    // Auto-fill ward/panchayat/zone from the CP's wards
-    const cpWards = selectedCp.wards ?? [];
-    if (cpWards.length > 0) {
-      const firstWard = cpWards[0];
-      setWardId(firstWard.unique_id);
-      if (firstWard.panchayat_id) {
-        setPanchayatId(normalizeIdValue(firstWard.panchayat_id));
-        setZoneId("");
-      } else if (firstWard.zone_id) {
-        setZoneId(normalizeIdValue(firstWard.zone_id));
-        setPanchayatId("");
-      }
-    } else if (selectedCp.panchayatId) {
-      // CP has panchayat but no wards yet
-      setPanchayatId(selectedCp.panchayatId);
-      setWardId("");
+    if (selectedWard.panchayatId) {
+      setPanchayatId(selectedWard.panchayatId);
       setZoneId("");
+    } else if (selectedWard.zoneId) {
+      setZoneId(selectedWard.zoneId);
+      setPanchayatId("");
     }
-  }, [collectionPointId, collectionPoints]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Clear the collection point selection if it no longer belongs to the new ward
+    setCollectionPointId((current) => {
+      if (!current) return current;
+      const currentCp = collectionPoints.find((cp) => cp.value === current);
+      const cpWards = currentCp?.wards ?? [];
+      const stillValid = cpWards.some((w) => normalizeIdValue(w.unique_id) === wardId);
+      return stillValid ? current : "";
+    });
+  }, [wardId, wards, collectionPoints]);
 
   const cityOptions = useMemo(() => {
     const filtered = cities
@@ -561,6 +605,7 @@ export default function BinForm() {
       city_id: cityId,
       panchayat_id: panchayatId || null,
       zone_id: zoneId || null,
+      ward_id: wardId || null,
       collection_point_id: collectionPointId,
       bin_capacity: Number(binCapacity),
       bin_name: binName.trim(),
@@ -661,6 +706,7 @@ export default function BinForm() {
                 setCityId("");
                 setPanchayatId("");
                 setZoneId("");
+                setWardId("");
                 setCollectionPointId("");
               }}
             >
@@ -687,6 +733,7 @@ export default function BinForm() {
                 setCityId(value);
                 setPanchayatId("");
                 setZoneId("");
+                setWardId("");
                 setCollectionPointId("");
               }}
               disabled={!districtId}
@@ -715,6 +762,7 @@ export default function BinForm() {
                 const next = value === "__none__" ? "" : value;
                 setPanchayatId(next);
                 setZoneId("");
+                setWardId("");
                 setCollectionPointId("");
               }}
               disabled={!cityId}
@@ -746,6 +794,7 @@ export default function BinForm() {
                 const next = value === "__none__" ? "" : value;
                 setZoneId(next);
                 setPanchayatId("");
+                setWardId("");
                 setCollectionPointId("");
               }}
               disabled={!cityId}
@@ -765,40 +814,31 @@ export default function BinForm() {
           </div>
         )}
 
-        {/* Ward — read-only display auto-filled from the selected Collection Point */}
-        {showField("collection_point_id") && (
+        {/* Ward — editable dropdown, filtered by the selected zone or panchayat */}
+        {showField("ward_id") && (
           <div>
             <Label>{t("common.ward")}</Label>
-            {(() => {
-              const selectedCp = collectionPoints.find((cp) => cp.value === collectionPointId);
-              const cpWards = selectedCp?.wards ?? [];
-              if (!collectionPointId) {
-                return (
-                  <div className="flex items-center h-10 px-3 rounded-md border border-input bg-muted text-sm text-muted-foreground">
-                    {t("common.select_item_placeholder", { item: t("admin.nav.collection_point") })}
-                  </div>
-                );
-              }
-              if (cpWards.length === 0) {
-                return (
-                  <div className="flex items-center h-10 px-3 rounded-md border border-input bg-muted text-sm text-muted-foreground">
-                    {t("common.not_available")}
-                  </div>
-                );
-              }
-              return (
-                <div className="flex flex-wrap gap-1.5 min-h-10 px-3 py-2 rounded-md border border-input bg-muted">
-                  {cpWards.map((w) => (
-                    <span
-                      key={w.unique_id}
-                      className="inline-flex items-center bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded-full"
-                    >
-                      {w.ward_name}
-                    </span>
-                  ))}
-                </div>
-              );
-            })()}
+            <Select
+              value={wardId || "__none__"}
+              onValueChange={(value) => {
+                const next = value === "__none__" ? "" : value;
+                setWardId(next);
+                setCollectionPointId("");
+              }}
+              disabled={!zoneId && !panchayatId}
+            >
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.ward") })} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
+                {wardOptions.map((w) => (
+                  <SelectItem key={w.value} value={w.value}>
+                    {w.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
 

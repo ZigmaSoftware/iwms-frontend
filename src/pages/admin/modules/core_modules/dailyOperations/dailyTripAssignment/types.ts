@@ -1,4 +1,4 @@
-export type SelectOption = { value: string; label: string };
+export type SelectOption = { value: string; label: string; disabled?: boolean };
 
 export type WardRef = { unique_id?: string; ward_name?: string; zone_id?: string; zone_name?: string };
 
@@ -64,6 +64,9 @@ export type DailyTripAssignmentRecord = {
   wards?: WardRef[];
   zone?: NamedRef & { zone_name?: string };
   waste_types?: { unique_id?: string; waste_type_name?: string }[];
+  // A5: new M2M mirroring TripPlan.waste_types (read-only detail; write via
+  // waste_types_ids). Coexists with the legacy JSON-derived `waste_types` above.
+  waste_types_detail?: { unique_id?: string; waste_type_name?: string }[];
   trip_date?: string;
   scheduled_time?: string;
   status?: string;
@@ -91,6 +94,10 @@ export type DailyTripHouseholdCollectionInline = {
   is_collected?: boolean;
   collected_at?: string | null;
   collected_weight_kg?: string | number | null;
+  wet_waste?: string | number | null;
+  dry_waste?: string | number | null;
+  mixed_waste?: string | number | null;
+  sanitary_waste?: string | number | null;
   status?: string;
 };
 

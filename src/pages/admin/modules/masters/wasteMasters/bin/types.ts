@@ -14,7 +14,11 @@ export type LocationOption = SelectOption & { districtId: string; cityId: string
 
 export type WardOption = LocationOption & { panchayatId: string; zoneId: string };
 
-export type BinRecord = Record<string, unknown>;
+export type BinRecord = Record<string, unknown> & {
+  zone_id?: string | null;
+  ward_id?: string | null;
+  panchayat_id?: string | null;
+};
 
 import type { FilterMatchMode } from "primereact/api";
 
@@ -59,4 +63,9 @@ export type TableFilters = {
   waste_type_name: { value: string | null; matchMode: FilterMatchMode };
   company_name?: { value: string | null; matchMode: FilterMatchMode };
   project_name?: { value: string | null; matchMode: FilterMatchMode };
+};
+
+export type ZoneOrWardFilterParams = {
+  zone_id?: string;
+  ward_id?: string;
 };

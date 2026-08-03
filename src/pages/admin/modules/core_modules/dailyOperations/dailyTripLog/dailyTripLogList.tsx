@@ -1,23 +1,27 @@
 import type { DailyTripLogRecord } from "./types";
-import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { formatCollectionTime } from "./collectionTime";
+import { useCallback, useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputTextarea } from "primereact/inputtextarea";
 import { Dialog } from "primereact/dialog";
 import { Divider } from "primereact/divider";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
+import { MultiSelect } from "primereact/multiselect";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { dailyTripLogApi } from "@/helpers/admin";
+import { dailyTripLogApi, wasteTypeApi } from "@/helpers/admin";
 import { api } from "@/api";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import { downloadRecordsPdf } from "@/utils/exportPdf";
+import { formatTimeOnly } from "@/utils/formatTime";
+import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
 
 
 const STATUS_STYLES: Record<string, string> = {
@@ -88,12 +92,46 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
   <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">{children}</p>
 );
 
+const WasteChips = ({
+  items,
+}: {
+  items?: { waste_type_name?: string | null; collected_weight_kg?: string | number | null }[];
+}) => {
+  if (!items || items.length === 0) return <span className="text-xs text-gray-400">—</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {items.map((item, index) => (
+        <span
+          key={`${item.waste_type_name}-${index}`}
+          className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700"
+        >
+          {item.waste_type_name ?? "—"}
+          <span className="font-semibold">
+            {item.collected_weight_kg != null ? `${Number(item.collected_weight_kg).toFixed(2)} kg` : "—"}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+};
+
 const InfoRow = ({ label, value }: { label: string; value?: string | number | null }) => (
   <div className="flex gap-2 text-sm">
     <span className="text-gray-500 w-36 shrink-0">{label}</span>
     <span className="font-medium text-gray-800">{value ?? "-"}</span>
   </div>
 );
+
+/* ── backend's manual `?ordering=` allowlist (see daily_trip_log_viewset.py) ── */
+const SORTABLE_FIELDS = new Set(["unique_id", "trip_date", "collected_weight_kg", "log_status"]);
+
+const toRecordList = (value: unknown): DailyTripLogRecord[] => {
+  if (Array.isArray(value)) return value as DailyTripLogRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: DailyTripLogRecord[] }).results;
+  }
+  return [];
+};
 
 const extractError = (error: any): string | null => {
   const data = error?.response?.data;
@@ -108,6 +146,27 @@ const extractError = (error: any): string | null => {
   return null;
 };
 
+const wardNameOf = (row: DailyTripLogRecord): string | null => {
+  const ward = row.ward;
+  if (Array.isArray(ward)) return ward[0]?.ward_name ?? null;
+  if (ward?.ward_name) return ward.ward_name;
+  return row.wards_detail?.[0]?.ward_name ?? null;
+};
+
+/** Ward name plus which zone/panchayat it belongs to, e.g. "Ward 4 (Zone: North Zone)". */
+const locationText = (row: DailyTripLogRecord): string => {
+  const ward = wardNameOf(row);
+  const panchayat = row.panchayat?.panchayat_name ?? null;
+  const zone = row.zone?.zone_name ?? row.trip_assignment?.zone?.zone_name ?? null;
+  const parent = panchayat ? `Panchayat: ${panchayat}` : zone ? `Zone: ${zone}` : null;
+
+  if (ward && parent) return `${ward} (${parent})`;
+  if (ward) return ward;
+  if (panchayat) return panchayat;
+  if (zone) return zone;
+  return "-";
+};
+
 const computeCollectedWeight = (collectionPoints?: DailyTripLogRecord["collection_points"]): number => {
   return (collectionPoints ?? []).reduce((sum, cp) => {
     if (cp?.collected_weight_kg === null || cp?.collected_weight_kg === undefined) {
@@ -116,6 +175,28 @@ const computeCollectedWeight = (collectionPoints?: DailyTripLogRecord["collectio
     const weight = Number(cp.collected_weight_kg);
     return sum + (Number.isFinite(weight) ? weight : 0);
   }, 0);
+};
+
+/**
+ * Total weight = bin-sourced weight (collected_weight_kg, auto-synced from
+ * BinCollectionEvent when such records exist, otherwise the last manually
+ * entered value per A6) + household-sourced weight
+ * (household_collected_weight_kg, synced from WasteCollection similarly).
+ * Read-only display — mirrors the linked assignment's aggregate.
+ */
+const computeTotalWeight = (row: DailyTripLogRecord): number => {
+  const cps = row.collection_points ?? [];
+  const hasPointWeights = cps.some(
+    (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+  );
+  const binWeight = hasPointWeights
+    ? computeCollectedWeight(cps)
+    : row.collected_weight_kg != null
+    ? Number(row.collected_weight_kg)
+    : 0;
+  const householdWeight =
+    row.household_collected_weight_kg != null ? Number(row.household_collected_weight_kg) : 0;
+  return (Number.isFinite(binWeight) ? binWeight : 0) + (Number.isFinite(householdWeight) ? householdWeight : 0);
 };
 
 /* ─────────────────────────────────────────────────────
@@ -129,7 +210,7 @@ function TripLogModal({
   isLoading,
 }: {
   row: DailyTripLogRecord;
-  mode: "view" | "verify";
+  mode: "view" | "verify" | "submit";
   onClose: () => void;
   onConfirm: (remarks: string) => void;
   isLoading: boolean;
@@ -150,11 +231,13 @@ function TripLogModal({
     : row.collected_weight_kg != null
     ? `${Number(row.collected_weight_kg).toFixed(2)} kg`
     : "-";
+  const totalWeight = computeTotalWeight(row);
+  const canSubmit = totalWeight > 0;
 
   const footer = (
     <div className="flex justify-end gap-2 pt-2">
       <Button
-        label={mode === "verify" ? "Cancel" : "Close"}
+        label={mode === "view" ? "Close" : "Cancel"}
         className="p-button-text p-button-secondary"
         onClick={onClose}
         disabled={isLoading}
@@ -168,10 +251,21 @@ function TripLogModal({
           onClick={() => onConfirm(remarks)}
         />
       )}
+      {mode === "submit" && (
+        <Button
+          label="Submit"
+          icon="pi pi-send"
+          className="p-button-info"
+          loading={isLoading}
+          disabled={!canSubmit}
+          onClick={() => onConfirm(remarks)}
+        />
+      )}
     </div>
   );
 
-  const title = mode === "verify" ? "Verify Trip Log" : "Trip Log Details";
+  const title =
+    mode === "verify" ? "Verify Trip Log" : mode === "submit" ? "Submit Trip Log" : "Trip Log Details";
   const statusColor: Record<string, string> = {
     Draft: "text-gray-600",
     Submitted: "text-blue-600",
@@ -225,35 +319,55 @@ function TripLogModal({
                 value={`${Number(row.household_collected_weight_kg).toFixed(2)} kg`}
               />
             )}
-            {row.actual_start_time && <InfoRow label="Start Time" value={row.actual_start_time} />}
-            {row.actual_end_time && <InfoRow label="End Time" value={row.actual_end_time} />}
+            <InfoRow label="Total Weight" value={`${totalWeight.toFixed(2)} kg`} />
+            {Array.isArray(row.waste_type_breakdown) && row.waste_type_breakdown.length > 0 && (
+              <div className="flex gap-2 text-sm">
+                <span className="text-gray-500 w-36 shrink-0">Waste Breakdown</span>
+                <WasteChips items={row.waste_type_breakdown} />
+              </div>
+            )}
+            {row.actual_start_time && (
+              <InfoRow label="Start Time" value={formatCollectionTime(row.actual_start_time)} />
+            )}
+            {row.actual_end_time && (
+              <InfoRow label="End Time" value={formatCollectionTime(row.actual_end_time)} />
+            )}
+            {mode === "submit" && !canSubmit && (
+              <p className="text-xs text-red-500 font-medium mt-1">
+                Total weight must be greater than 0 kg before this log can be submitted.
+              </p>
+            )}
             {(row.vehicle as any)?.vehicle_no && (
               <InfoRow label="Vehicle" value={(row.vehicle as any).vehicle_no} />
             )}
 
             {/* Location — panchayat or ward */}
-            {row.panchayat?.panchayat_name ? (
-              <div className="flex gap-2 text-sm">
-                <span className="text-gray-500 w-36 shrink-0">Location</span>
-                <span className="font-medium text-gray-800">
-                  {row.panchayat.panchayat_name}
-                  <span className="ml-1.5 text-xs text-indigo-500 font-semibold">(PLB)</span>
-                </span>
-              </div>
-            ) : row.ward?.ward_name ? (
-              <div className="flex gap-2 text-sm">
-                <span className="text-gray-500 w-36 shrink-0">Location</span>
-                <span className="font-medium text-gray-800">
-                  {row.ward.ward_name}
-                  <span className="ml-1.5 text-xs text-teal-500 font-semibold">(Ward)</span>
-                </span>
-              </div>
-            ) : null}
+            {(() => {
+              const ward = wardNameOf(row);
+              const panchayat = row.panchayat?.panchayat_name ?? null;
+              const zone = row.zone?.zone_name ?? row.trip_assignment?.zone?.zone_name ?? null;
+              const parentLabel = panchayat ? "Panchayat" : zone ? "Zone" : null;
+              const parentName = panchayat ?? zone ?? null;
 
-            {/* Zone */}
-            {row.trip_assignment?.zone?.zone_name && (
-              <InfoRow label="Zone" value={row.trip_assignment.zone.zone_name} />
-            )}
+              if (!ward && !parentName) return null;
+              return (
+                <div className="flex gap-2 text-sm">
+                  <span className="text-gray-500 w-36 shrink-0">Location</span>
+                  <span className="font-medium text-gray-800">
+                    {ward ?? parentName}
+                    {ward && parentName && (
+                      <span
+                        className={`ml-1.5 text-xs font-semibold ${
+                          parentLabel === "Panchayat" ? "text-indigo-500" : "text-teal-500"
+                        }`}
+                      >
+                        ({parentLabel}: {parentName})
+                      </span>
+                    )}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -349,6 +463,9 @@ function TripLogModal({
                     {!cp.is_collected && (
                       <span className="text-xs text-red-400">(Not collected)</span>
                     )}
+                    {Array.isArray(cp.waste_type_breakdown) && cp.waste_type_breakdown.length > 0 && (
+                      <WasteChips items={cp.waste_type_breakdown} />
+                    )}
                   </div>
                   {cp.collected_weight_kg != null ? (
                     <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full shrink-0">
@@ -393,6 +510,9 @@ function TripLogModal({
                       {!hh.is_collected && (
                         <span className="text-xs text-red-400">(Not collected)</span>
                       )}
+                      {Array.isArray(hh.waste_type_breakdown) && hh.waste_type_breakdown.length > 0 && (
+                        <WasteChips items={hh.waste_type_breakdown} />
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {hh.collected_weight_kg != null ? (
@@ -419,20 +539,20 @@ function TripLogModal({
         )}
 
         {/* Remarks */}
-        {(mode === "verify" || row.remarks) && (
+        {(mode === "verify" || mode === "submit" || row.remarks) && (
           <>
             <Divider className="!my-0" />
             <div>
               <SectionLabel>
-                {mode === "verify" ? "Remarks (optional)" : "Remarks"}
+                {mode === "verify" || mode === "submit" ? "Remarks (optional)" : "Remarks"}
               </SectionLabel>
-              {mode === "verify" ? (
+              {mode === "verify" || mode === "submit" ? (
                 <InputTextarea
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   rows={2}
                   className="w-full text-sm"
-                  placeholder="Add verification remarks..."
+                  placeholder={mode === "submit" ? "Add submission remarks..." : "Add verification remarks..."}
                   autoResize
                 />
               ) : (
@@ -466,6 +586,7 @@ function TripLogModal({
 export default function DailyTripLogList() {
   const { t } = useTranslation();
   const location = useLocation();
+  const navigate = useNavigate();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
   const {
@@ -484,79 +605,164 @@ export default function DailyTripLogList() {
     initialProjectId: restoredState?.projectId,
   });
 
-  const [allLogs, setAllLogs] = useState<DailyTripLogRecord[]>([]);
-  const [filteredRows, setFilteredRows] = useState<DailyTripLogRecord[]>([]);
+  const [rawRows, setRawRows] = useState<DailyTripLogRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [collectionType, setCollectionType] = useState<"all" | "bin" | "household">("all");
+  const [dateFilter, setDateFilter] = useState("");
+  const [wasteTypeFilter, setWasteTypeFilter] = useState<string[]>([]);
+  const [wasteTypeOptions, setWasteTypeOptions] = useState<{ label: string; value: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [modalState, setModalState] = useState<{
     row: DailyTripLogRecord;
-    mode: "view" | "verify";
+    mode: "view" | "verify" | "submit";
   } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _assignment: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _waste: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _base_template: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _alt_template: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _location: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    log_status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    trip_date: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
 
-  /* ── load logs ── */
+  /* ── waste type options for the filter multiselect ── */
   useEffect(() => {
-    if (isSuperAdmin && companies.length === 0) {
-      setAllLogs([]);
-      return;
-    }
-    if (!companyUniqueId && !isSuperAdmin) {
-      setAllLogs([]);
-      return;
-    }
-    let mounted = true;
-    setIsLoading(true);
+    (wasteTypeApi.readAll() as Promise<any[]>)
+      .then((data) => {
+        setWasteTypeOptions(
+          (Array.isArray(data) ? data : []).map((wt) => ({
+            label: wt.waste_type_name ?? wt.name ?? wt.unique_id,
+            value: wt.unique_id,
+          }))
+        );
+      })
+      .catch(() => setWasteTypeOptions([]));
+  }, []);
+
+  /* ── build server query params from the company/project/date/waste-type filters ──
+     waste_type_id is sent as one comma-separated string, which the backend's
+     `params.getlist("waste_type_id")` splits back apart on "," (see
+     daily_trip_log_viewset.py get_queryset). ── */
+  const buildParams = useCallback((): Record<string, string> => {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
-    (dailyTripLogApi.readAll({ params }) as Promise<DailyTripLogRecord[]>)
-      .then((data) => {
-        if (mounted) setAllLogs(Array.isArray(data) ? data : []);
-      })
-      .catch((err) => {
+    if (dateFilter) params.date = dateFilter;
+    if (wasteTypeFilter.length > 0) params.waste_type_id = wasteTypeFilter.join(",");
+    return params;
+  }, [companyUniqueId, projectId, dateFilter, wasteTypeFilter]);
+
+  /* ── ordering param, from the sortField/sortOrder state, mapped through the
+     backend's own manual `?ordering=` allowlist ── */
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  /* ── load logs (re-runs whenever pagination/sort/search/company/project/date/waste-type filters change) ── */
+  useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) {
+      setRawRows([]);
+      setTotalRecords(0);
+      return;
+    }
+    if (!companyUniqueId && !isSuperAdmin) {
+      setRawRows([]);
+      setTotalRecords(0);
+      return;
+    }
+
+    let mounted = true;
+
+    const loadRows = async (page: number, limit: number) => {
+      setIsLoading(true);
+      if (mounted) setRawRows([]);
+      try {
+        const response = await dailyTripLogApi.readAllwithPaginated(page, limit, {
+          params: {
+            ...buildParams(),
+            ...(searchTerm ? { search: searchTerm } : {}),
+            ...(ordering ? { ordering } : {}),
+          },
+        });
+        if (mounted) {
+          const list = toRecordList(response);
+          setRawRows(list);
+          setTotalRecords(
+            typeof (response as { count?: number })?.count === "number"
+              ? (response as { count?: number }).count as number
+              : list.length,
+          );
+        }
+      } catch (err: any) {
         if (mounted)
           Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
-      })
-      .finally(() => {
+      } finally {
         if (mounted) setIsLoading(false);
-      });
+      }
+    };
+
+    void loadRows(first / rowsPerPage + 1, rowsPerPage);
+
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, dateFilter, wasteTypeFilter, first, rowsPerPage, searchTerm, ordering, t]);
 
-  /* ── enrich rows ── */
-  const rows = allLogs.map((rec) => ({
-    ...rec,
-    _assignment:
-      rec.trip_assignment?.display_code ??
-      rec.trip_assignment?.unique_id ??
-      rec.trip_assignment_id ??
-      "",
-    _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
-    _base_template: rec.staff_template?.base?.display_code ?? "",
-    _alt_template: rec.staff_template?.alt?.display_code ?? "",
-    _location: rec.panchayat?.panchayat_name ?? rec.ward?.ward_name ?? "",
-    _computed_weight: computeCollectedWeight(rec.collection_points),
-    _has_point_weights: (rec.collection_points ?? []).some(
-      (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
-    ),
-  }));
+  /* ── reset to first page whenever a non-pagination filter changes ── */
+  useEffect(() => {
+    setFirst(0);
+  }, [companyUniqueId, projectId, dateFilter, wasteTypeFilter, collectionType]);
 
-  /* ── filter by collection type (company/project scoping is applied
-     server-side via params in the fetch effect above) ── */
+  /* ── debounce the global search box into the server-side `?search=` param ── */
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  /* ── enrich rows (current page only) ── */
+  const rows = rawRows.map((rec) => {
+    const zoneName = rec.trip_assignment?.zone?.zone_name ?? null;
+    return {
+      ...rec,
+      trip_assignment: rec.trip_assignment
+        ? { ...rec.trip_assignment, zone: zoneName }
+        : null,
+      _assignment:
+        rec.trip_assignment?.display_code ??
+        rec.trip_assignment?.unique_id ??
+        rec.trip_assignment_id ??
+        "",
+      _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
+      _base_template: rec.staff_template?.base?.display_code ?? "",
+      _alt_template: rec.staff_template?.alt?.display_code ?? "",
+      _location: locationText(rec),
+      _computed_weight: computeCollectedWeight(rec.collection_points),
+      _has_point_weights: (rec.collection_points ?? []).some(
+        (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+      ),
+    };
+  });
+
+  /* ── filter by collection type — a client-side post-filter applied to the
+     CURRENT PAGE only (bin-vs-household split isn't a simple backend field);
+     totalRecords above still reflects the server-side total. Company/project
+     scoping is applied server-side via params in the fetch effect above. ── */
   const data = (() => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId && !isSuperAdmin) return [];
@@ -577,19 +783,8 @@ export default function DailyTripLogList() {
     });
   })();
 
-  // Keeps exported Excel rows in sync with the currently displayed
-  // (filtered/searched) rows rather than the full unfiltered set.
-  useEffect(() => {
-    setFilteredRows(data);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allLogs, companyUniqueId, isSuperAdmin, companies.length, collectionType]);
-
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
-
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
 
   /* ── verify confirm (from modal) ── */
@@ -601,7 +796,7 @@ export default function DailyTripLogList() {
         `/schedule-operations/daily-trip-logs/${modalState.row.unique_id}/verify/`,
         { remarks }
       );
-      setAllLogs((current) =>
+      setRawRows((current) =>
         current.map((item) =>
           item.unique_id === modalState.row.unique_id
             ? { ...item, log_status: "Verified" }
@@ -623,6 +818,51 @@ export default function DailyTripLogList() {
     }
   };
 
+  /* ── submit confirm (from modal): Draft → Submitted via change-status,
+     with a client-side weight>0 pre-check per the A6 contract. The server
+     also enforces this gate in DailyTripLog.clean(); a 400 is still
+     handled gracefully below in case source records change between the
+     pre-check and the actual request. ── */
+  const handleSubmitConfirm = async (remarks: string) => {
+    if (!modalState) return;
+    const totalWeight = computeTotalWeight(modalState.row);
+    if (totalWeight <= 0) {
+      Swal.fire({
+        icon: "warning",
+        title: "Weight required",
+        text: "Total collected weight must be greater than 0 kg before submitting this log.",
+      });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await api.patch(
+        `/schedule-operations/daily-trip-logs/${modalState.row.unique_id}/change-status/`,
+        { log_status: "Submitted", ...(remarks ? { remarks } : {}) }
+      );
+      const updated = (res as any)?.data ?? res;
+      setRawRows((current) =>
+        current.map((item) =>
+          item.unique_id === modalState.row.unique_id
+            ? { ...item, log_status: updated.log_status ?? "Submitted", remarks: updated.remarks ?? item.remarks }
+            : item
+        )
+      );
+      setModalState(null);
+      Swal.fire({
+        icon: "success",
+        title: "Submitted",
+        text: "Trip log has been submitted.",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (err: any) {
+      Swal.fire(t("common.error"), extractError(err) ?? "Failed to submit trip log", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   /* ── inline status change (Draft ↔ Verify) ── */
   const handleStatusChange = async (row: DailyTripLogRecord, newStatus: string) => {
     const result = await Swal.fire({
@@ -639,7 +879,7 @@ export default function DailyTripLogList() {
         { log_status: newStatus }
       );
       const updated = (res as any)?.data ?? res;
-      setAllLogs((current) =>
+      setRawRows((current) =>
         current.map((item) =>
           item.unique_id === row.unique_id
             ? {
@@ -667,20 +907,40 @@ export default function DailyTripLogList() {
   const actionTemplate = (row: DailyTripLogRecord) => {
     const isVerified = row.log_status === "Verified";
     const isDraft = row.log_status === "Draft";
+    const isSubmitted = row.log_status === "Submitted";
+    const totalWeight = computeTotalWeight(row);
+    const canSubmit = isDraft && totalWeight > 0;
 
     return (
       <div className="flex items-center gap-1.5">
-        {/* View */}
+        {/* View — full trip detail report page */}
         <button
           title="View details"
-          onClick={() => setModalState({ row, mode: "view" })}
+          onClick={() => navigate(`${location.pathname.replace(/\/$/, "")}/${row.unique_id}/report`)}
           className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
         >
           <i className="pi pi-eye text-xs" />
           View
         </button>
 
-        {/* Verify — disabled when already Verified */}
+        {/* Submit — Draft only, requires total weight > 0 (A6 contract) */}
+        {isDraft && (
+          <button
+            title={canSubmit ? "Submit this log" : "Total weight must be greater than 0 kg to submit"}
+            disabled={!canSubmit}
+            onClick={() => setModalState({ row, mode: "submit" })}
+            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+              canSubmit
+                ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                : "bg-blue-50 text-blue-300 cursor-not-allowed opacity-60"
+            }`}
+          >
+            <i className="pi pi-send text-xs" />
+            Submit
+          </button>
+        )}
+
+        {/* Verify — Submitted/Draft only, disabled once already Verified (read-only) */}
         <button
           title={isVerified ? "Already verified" : "Verify this log"}
           disabled={isVerified}
@@ -695,13 +955,15 @@ export default function DailyTripLogList() {
           Verify
         </button>
 
-        {/* Draft — disabled when already Draft */}
+        {/* Draft — revert to Draft; disabled when already Draft, and
+           disabled once Verified since the backend rejects any further
+           change to a Verified log (read-only-once-Verified guard). */}
         <button
-          title={isDraft ? "Already in draft" : "Revert to draft"}
-          disabled={isDraft}
+          title={isVerified ? "Verified logs are read-only" : isDraft ? "Already in draft" : "Revert to draft"}
+          disabled={isDraft || isVerified}
           onClick={() => handleStatusChange(row, "Draft")}
           className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-            isDraft
+            isDraft || isVerified
               ? "bg-gray-50 text-gray-300 cursor-not-allowed opacity-60"
               : "bg-gray-100 text-gray-700 hover:bg-gray-200"
           }`}
@@ -709,42 +971,221 @@ export default function DailyTripLogList() {
           <i className="pi pi-undo text-xs" />
           Draft
         </button>
+
+        {isSubmitted && (
+          <span className="text-[10px] text-gray-400 italic">awaiting verify</span>
+        )}
       </div>
     );
   };
 
-  const renderHeader = () => (
-    <FilterBar
-      searchValue={globalFilterValue}
-      onSearchChange={(value) =>
-        onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+  /* ── build one detailed export row per collection point / household
+     collection (row explosion) — mirrors the reference tniwms report shape,
+     falling back to a single trip-level row when a log has no line items ── */
+  const buildExportRows = (source: DailyTripLogRecord[]): Record<string, unknown>[] => {
+    const out: Record<string, unknown>[] = [];
+    source.forEach((row) => {
+      const base = {
+        "Trip ID": row.unique_id,
+        "Trip Assignment": row.trip_assignment?.display_code ?? row.trip_assignment_id ?? "-",
+        "Trip Date": row.trip_date ?? "-",
+        Location:
+          row.panchayat?.panchayat_name ??
+          (Array.isArray(row.ward) ? row.ward[0]?.ward_name : row.ward?.ward_name) ??
+          "-",
+        Zone: row.trip_assignment?.zone?.zone_name ?? "-",
+        Driver:
+          row.staff_template?.base?.driver?.employee_name ?? row.driver?.employee_name ?? "-",
+        Operator:
+          row.staff_template?.base?.operator?.employee_name ?? row.operator?.employee_name ?? "-",
+        Vehicle: row.vehicle?.vehicle_no ?? "-",
+        "Log Status": row.log_status ?? "-",
+        "Collection Status": row.collection_status ?? "-",
+        "Collection Time": [
+          row.actual_start_time ? formatTimeOnly(row.actual_start_time) : null,
+          row.actual_end_time ? formatTimeOnly(row.actual_end_time) : null,
+        ]
+          .filter(Boolean)
+          .join(" - ") || "-",
+      };
+
+      const cps = row.collection_points ?? [];
+      const hhs = row.household_collections ?? [];
+
+      cps.forEach((cp) => {
+        out.push({
+          ...base,
+          "Point Type": "Collection Point",
+          "Collection Point / Customer": cp.cp_name ?? cp.unique_id ?? "-",
+          "Waste Type": (row.waste_type as any)?.waste_type_name ?? row.waste_type_id ?? "-",
+          "Collected Weight (kg)": cp.collected_weight_kg ?? "-",
+          "Is Collected": cp.is_collected ? "Yes" : "No",
+        });
+      });
+
+      hhs.forEach((hh) => {
+        out.push({
+          ...base,
+          "Point Type": "Household",
+          "Collection Point / Customer": hh.customer_name ?? hh.customer_unique_id ?? "-",
+          "Waste Type": (row.waste_type as any)?.waste_type_name ?? row.waste_type_id ?? "-",
+          "Collected Weight (kg)": hh.collected_weight_kg ?? "-",
+          "Is Collected": hh.is_collected ? "Yes" : "No",
+          "Collection Time": hh.collected_at
+            ? formatCollectionTime(hh.collected_at)
+            : base["Collection Time"],
+        });
+      });
+
+      if (cps.length === 0 && hhs.length === 0) {
+        out.push({
+          ...base,
+          "Point Type": "-",
+          "Collection Point / Customer": "-",
+          "Waste Type": (row.waste_type as any)?.waste_type_name ?? row.waste_type_id ?? "-",
+          "Collected Weight (kg)": computeTotalWeight(row).toFixed(2),
+          "Is Collected": "-",
+        });
       }
-      searchPlaceholder="Search trip logs..."
-    >
-      <FilterBarSelect
-        value={companyUniqueId || ""}
-        onChange={onCompanyChange}
-        placeholder="All Companies"
-        options={companies}
-        disabled={!isSuperAdmin || companies.length === 0}
+    });
+    return out;
+  };
+
+  /* ── download: fetch the FULL company/project/date/waste/search-filtered
+     dataset fresh from the server (independent of whatever page is currently
+     on screen), then apply the same enrichment + collectionType post-filter
+     used for the on-screen rows, and explode into per-point/customer rows. ── */
+  const handleDownload = async (format: "excel" | "pdf") => {
+    setIsExporting(true);
+    try {
+      const exportRaw = toRecordList(
+        await dailyTripLogApi.readAllForExport({
+          params: { ...buildParams(), ...(searchTerm ? { search: searchTerm } : {}) },
+        }),
+      );
+      const exportSourceRows = exportRaw.filter((row) => {
+        const cps = row.collection_points ?? [];
+        const hasPointWeights = cps.some(
+          (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+        );
+        const computedWeight = computeCollectedWeight(cps);
+        if (collectionType === "bin") {
+          const hasBinWeight =
+            (hasPointWeights && computedWeight > 0) ||
+            (row.collected_weight_kg != null && Number(row.collected_weight_kg) > 0);
+          return hasBinWeight;
+        }
+        if (collectionType === "household") {
+          return (
+            row.household_collected_weight_kg != null &&
+            Number(row.household_collected_weight_kg) > 0
+          );
+        }
+        return true;
+      });
+
+      const exportRows = buildExportRows(exportSourceRows);
+      if (exportRows.length === 0) {
+        Swal.fire({ icon: "warning", title: "No records", text: "There are no trip logs to export." });
+        return;
+      }
+      if (format === "excel") {
+        exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Daily Trip Logs");
+      } else {
+        downloadRecordsPdf({
+          title: "Daily Trip Logs",
+          filename: "daily_trip_logs.pdf",
+          rows: exportRows,
+          columns: Object.keys(exportRows[0]).map((key) => ({ key, label: key })),
+        });
+      }
+    } catch (err: any) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? err?.message ?? String(err) });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const renderHeader = () => (
+    <div className="flex flex-col gap-3">
+      <FilterBar hideSearch searchValue="" onSearchChange={() => {}}>
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={onCompanyChange}
+          placeholder="All Companies"
+          options={companies}
+          disabled={!isSuperAdmin || companies.length === 0}
+        />
+        <FilterBarSelect
+          value={projectId || ""}
+          onChange={setProjectId}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          options={projects}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+        />
+        <FilterBarSelect
+          value={collectionType}
+          onChange={(value) => setCollectionType(value as "all" | "bin" | "household")}
+          options={[
+            { value: "all", label: "All Collections" },
+            { value: "bin", label: "Bin Collection" },
+            { value: "household", label: "Household Collection" },
+          ]}
+        />
+        <input
+          type="date"
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
+          className="h-9 rounded-md border border-gray-300 px-2 text-sm text-gray-700"
+          title="Filter by trip date"
+        />
+        <MultiSelect
+          value={wasteTypeFilter}
+          onChange={(e) => setWasteTypeFilter(e.value)}
+          options={wasteTypeOptions}
+          placeholder="Waste Type"
+          display="chip"
+          className="h-9 text-sm"
+          style={{ minWidth: 180 }}
+        />
+      </FilterBar>
+
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={(value) =>
+          onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+        }
+        searchPlaceholder="Search trip logs..."
+        trailing={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              label={isExporting ? "Exporting..." : "Download Excel"}
+              icon="pi pi-file-excel"
+              className="p-button-outlined p-button-sm"
+              disabled={isExporting}
+              onClick={() => handleDownload("excel")}
+            />
+            <Button
+              label={isExporting ? "Exporting..." : "Download PDF"}
+              icon="pi pi-file-pdf"
+              className="p-button-outlined p-button-sm"
+              disabled={isExporting}
+              onClick={() => handleDownload("pdf")}
+            />
+          </div>
+        }
       />
-      <FilterBarSelect
-        value={projectId || ""}
-        onChange={setProjectId}
-        placeholder={showAllProjectsOption ? "All Projects" : undefined}
-        options={projects}
-        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-      />
-      <FilterBarSelect
-        value={collectionType}
-        onChange={(value) => setCollectionType(value as "all" | "bin" | "household")}
-        options={[
-          { value: "all", label: "All Collections" },
-          { value: "bin", label: "Bin Collection" },
-          { value: "household", label: "Household Collection" },
-        ]}
-      />
-    </FilterBar>
+    </div>
+  );
+
+  /* ── KPI pills: computed from the CURRENT PAGE only (post-collectionType
+     filter) — the backend has no aggregate endpoint for this deep a
+     computation, so these are deliberately labeled "(page)" rather than
+     implying dataset-wide totals. ── */
+  const kpiRecordCount = data.length;
+  const kpiOverallWeight = data.reduce(
+    (sum, row) => sum + (row._computed_weight ?? 0) + Number(row.household_collected_weight_kg ?? 0),
+    0
   );
 
   return (
@@ -756,32 +1197,36 @@ export default function DailyTripLogList() {
         </div>
       </div>
 
+      <div className="mb-4 flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-white p-3">
+        <div>
+          <p className="text-xs text-gray-400 uppercase tracking-wide">Records (page)</p>
+          <p className="text-lg font-bold text-gray-900">{kpiRecordCount}</p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-400 uppercase tracking-wide">Overall Weight (page)</p>
+          <p className="text-lg font-bold text-gray-900">{kpiOverallWeight.toFixed(2)} kg</p>
+        </div>
+      </div>
+
       <DataTable
         value={data}
-        exportRows={filteredRows}
-        onValueChange={(value) => setFilteredRows(value as typeof data)}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && data.length === 0}
-        filters={filters}
-        onFilter={onFilter}
+        loading={isLoading}
         header={renderHeader()}
+        exportable={false}
         stripedRows
         showGridlines
         emptyMessage="No trip logs found. Select a company and project to load data."
-        globalFilterFields={[
-          "unique_id",
-          "_assignment",
-          "_location",
-          "_waste",
-          "_base_template",
-          "_alt_template",
-          "log_status",
-          "collection_status",
-          "trip_date",
-        ]}
         className="p-datatable-sm"
       >
         <Column
@@ -793,49 +1238,46 @@ export default function DailyTripLogList() {
           field="unique_id"
           header="ID"
           sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 150 }}
         />
         <Column
           field="_assignment"
           header="Trip Assignment"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 170 }}
         />
         <Column
           field="_location"
           header="Location"
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 170 }}
           body={(row: DailyTripLogRecord) => {
-            if (row.panchayat?.panchayat_name) {
-              return (
-                <span className="text-sm text-gray-800">
-                  {row.panchayat.panchayat_name}
-                  <span className="ml-1 text-xs text-indigo-500 font-medium">(PLB)</span>
-                </span>
-              );
+            const ward = wardNameOf(row);
+            const panchayat = row.panchayat?.panchayat_name ?? null;
+            const zone = row.zone?.zone_name ?? row.trip_assignment?.zone?.zone_name ?? null;
+            const parentLabel = panchayat ? "Panchayat" : zone ? "Zone" : null;
+            const parentName = panchayat ?? zone ?? null;
+
+            if (!ward && !parentName) {
+              return <span className="text-sm text-gray-400">-</span>;
             }
-            if (row.ward?.ward_name) {
-              return (
-                <span className="text-sm text-gray-800">
-                  {row.ward.ward_name}
-                  <span className="ml-1 text-xs text-teal-500 font-medium">(Ward)</span>
-                </span>
-              );
-            }
-            return <span className="text-sm text-gray-400">-</span>;
+            return (
+              <span className="text-sm text-gray-800">
+                {ward ?? parentName}
+                {ward && parentName && (
+                  <span
+                    className={`ml-1 text-xs font-medium ${
+                      parentLabel === "Panchayat" ? "text-indigo-500" : "text-teal-500"
+                    }`}
+                  >
+                    ({parentLabel}: {parentName})
+                  </span>
+                )}
+              </span>
+            );
           }}
         />
         <Column
           field="_base_template"
           header="Staff Template"
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 160 }}
           body={(row: DailyTripLogRecord) => (
             <span className="text-sm text-gray-800">
@@ -846,8 +1288,6 @@ export default function DailyTripLogList() {
         <Column
           field="_alt_template"
           header="Alt Staff Template"
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 170 }}
           body={(row: DailyTripLogRecord) =>
             row.staff_template?.alt ? (
@@ -867,8 +1307,15 @@ export default function DailyTripLogList() {
         <Column
           field="_waste"
           header="Waste Type"
-          filter
-          showFilterMatchModes={false}
+          body={(row: DailyTripLogRecord & { _waste?: string }) =>
+            row._waste ? (
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${wasteTypeColorClass(row._waste)}`}>
+                {row._waste}
+              </span>
+            ) : (
+              <span className="text-sm text-gray-400">-</span>
+            )
+          }
         />
         <Column
           field="collected_weight_kg"
@@ -891,7 +1338,6 @@ export default function DailyTripLogList() {
         <Column
           field="household_collected_weight_kg"
           header="HH Weight (kg)"
-          sortable
           style={{ minWidth: 130 }}
           body={(row: DailyTripLogRecord) =>
             row.household_collected_weight_kg != null ? (
@@ -904,35 +1350,51 @@ export default function DailyTripLogList() {
           }
         />
         <Column
+          header="Total Weight (kg)"
+          style={{ minWidth: 140 }}
+          body={(row: DailyTripLogRecord) => (
+            <span className="font-semibold text-gray-800">{computeTotalWeight(row).toFixed(2)}</span>
+          )}
+        />
+        <Column
+          field="actual_start_time"
+          header="Start Time"
+          style={{ minWidth: 110 }}
+          body={(row: DailyTripLogRecord) => (
+            <span className="text-sm text-gray-700">{formatCollectionTime(row.actual_start_time)}</span>
+          )}
+        />
+        <Column
+          field="actual_end_time"
+          header="End Time"
+          style={{ minWidth: 110 }}
+          body={(row: DailyTripLogRecord) => (
+            <span className="text-sm text-gray-700">{formatCollectionTime(row.actual_end_time)}</span>
+          )}
+        />
+        <Column
           field="log_status"
           header="Log Status"
           body={(row: DailyTripLogRecord) => <Badge value={row.log_status} />}
           sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 110 }}
         />
         <Column
           field="collection_status"
           header="Collection Status"
           body={(row: DailyTripLogRecord) => <CollectionStatusBadge value={row.collection_status} />}
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 145 }}
         />
         <Column
           field="trip_date"
           header="Trip Date"
           sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 110 }}
         />
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ minWidth: 210 }}
+          style={{ minWidth: 260 }}
         />
       </DataTable>
 
@@ -941,8 +1403,8 @@ export default function DailyTripLogList() {
           row={modalState.row}
           mode={modalState.mode}
           onClose={() => setModalState(null)}
-          onConfirm={handleVerifyConfirm}
-          isLoading={isVerifying}
+          onConfirm={modalState.mode === "submit" ? handleSubmitConfirm : handleVerifyConfirm}
+          isLoading={modalState.mode === "submit" ? isSubmitting : isVerifying}
         />
       )}
     </div>

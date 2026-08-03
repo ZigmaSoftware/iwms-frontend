@@ -16,6 +16,8 @@ export type WardOption = WithCityIdOption & { panchayatId: string; zoneId: strin
 
 export type UnknownRecord = Record<string, unknown>;
 
+export type CollectionPointCollectionType = "bin_collection" | "bulk_waste_collection";
+
 import type { FilterMatchMode } from "primereact/api";
 
 export type TableFilters = {
@@ -33,6 +35,6 @@ export type TableFilters = {
 export type CollectionPointRecord = {
   unique_id: string | number;
   is_active: boolean;
-  collection_type?: string;
+  collection_type?: CollectionPointCollectionType;
   [key: string]: unknown;
 };

@@ -98,6 +98,13 @@ const STAFF_EXCLUDED_SLUGS = new Set([
   "supervisor-zone-access-audit",
   "unassigned-staff-pool",
   "trip-attendance",
+  // Bin Collection Event owns its own client-side fetch/filter/pagination
+  // (binCollectionEventList.tsx). Letting SafeDataTable also drive it in
+  // server/lazy mode races two independent fetches against the same
+  // endpoint whenever a column filter (e.g. collection_date) changes,
+  // which crashes the render (blank page) with no error boundary to catch it.
+  "bin-collection-event",
+  "collection-monitoring",
 ]);
 
 export const getCurrentAdminServerListApi = (): CrudHelpers | null => {

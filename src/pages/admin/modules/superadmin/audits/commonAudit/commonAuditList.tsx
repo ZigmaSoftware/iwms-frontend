@@ -1,4 +1,4 @@
-import type { CommonAuditJsonValue, CommonAuditRecord, DiffLine, ModuleFilterOption, TableFilters } from "./types";
+import type { CommonAuditJsonValue, CommonAuditRecord, DiffLine, ModuleFilterOption } from "./types";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -7,23 +7,22 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Column } from "primereact/column";
 import { Dropdown } from "primereact/dropdown";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { commonAuditApi } from "@/helpers/admin";
-import { normalizeList } from "@/utils/forms";
-import { filterRowsForExport } from "@/utils/adminListExport";
 import { FilterBar } from "@/components/common/FilterBar";
 
-const COMMON_AUDIT_SEARCH_FIELDS = [
-  "module_name",
-  "endpoint_name",
-  "method",
-  "object_id",
-  "createdBy",
-];
-
-
 const ALL_MODULES = "__all__";
+
+const SORTABLE_FIELDS = new Set(["module_name", "createdAt"]);
+
+const toRecordList = (value: unknown): CommonAuditRecord[] => {
+  if (Array.isArray(value)) return value as CommonAuditRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: CommonAuditRecord[] }).results;
+  }
+  return [];
+};
 
 const formatDateTime = (value?: string | null) =>
   value ? new Date(value).toLocaleString() : "-";
@@ -181,56 +180,30 @@ export default function CommonAuditList() {
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [moduleFilter, setModuleFilter] = useState(ALL_MODULES);
   const [selectedRecord, setSelectedRecord] = useState<CommonAuditRecord | null>(null);
-  const [auditRows, setAuditRows] = useState<CommonAuditRecord[]>([]);
+  const [records, setRecords] = useState<CommonAuditRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
-
-  const records = useMemo(
-    () => normalizeList<CommonAuditRecord>(auditRows),
-    [auditRows]
-  );
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const [moduleNameOptions, setModuleNameOptions] = useState<string[]>([]);
 
   const moduleOptions = useMemo<ModuleFilterOption[]>(() => {
-    const modules = Array.from(
-      new Set(
-        records
-          .map((record) => record.module_name)
-          .filter((moduleName): moduleName is string => Boolean(moduleName))
-      )
-    ).sort((a, b) => a.localeCompare(b));
-
     return [
       { label: t("common.all"), value: ALL_MODULES },
-      ...modules.map((moduleName) => ({
+      ...moduleNameOptions.map((moduleName) => ({
         label: moduleName,
         value: moduleName,
       })),
     ];
-  }, [records, t]);
-
-  const filteredRecords = useMemo(() => {
-    if (moduleFilter === ALL_MODULES) {
-      return records;
-    }
-
-    return records.filter((record) => record.module_name === moduleFilter);
-  }, [moduleFilter, records]);
+  }, [moduleNameOptions, t]);
 
   const loading = isLoading && records.length === 0;
 
-  const exportRows = useMemo(
-    () => filterRowsForExport(filteredRecords, COMMON_AUDIT_SEARCH_FIELDS, globalFilterValue),
-    [filteredRecords, globalFilterValue],
-  );
-
   const onGlobalFilterChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters({
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    });
+    setGlobalFilterValue(e.target.value);
   }, []);
 
   const openDetails = useCallback((record: CommonAuditRecord) => {
@@ -261,27 +234,91 @@ export default function CommonAuditList() {
     []
   );
 
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const loadRows = useCallback(
+    async (page: number, limit: number, search: string, orderingParam?: string, moduleFilterValue?: string) => {
+      setIsLoading(true);
+      setRecords([]);
+      try {
+        const response = await commonAuditApi.readAllwithPaginated(page, limit, {
+          params: {
+            ...(search ? { search } : {}),
+            ...(orderingParam ? { ordering: orderingParam } : {}),
+            ...(moduleFilterValue && moduleFilterValue !== ALL_MODULES
+              ? { module_name: moduleFilterValue }
+              : {}),
+          },
+        });
+        const rows = toRecordList(response);
+        setRecords(rows);
+        setTotalRecords(
+          typeof response?.count === "number" ? response.count : rows.length,
+        );
+      } catch {
+        Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [t]
+  );
+
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering, moduleFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, moduleFilter]);
+
+  // Fetch the full set of module names once on mount purely to populate the
+  // dropdown options, independent of the paginated `records` used for the table.
+  // This avoids the dropdown only showing modules present on the current page.
   useEffect(() => {
     let mounted = true;
 
-    const loadAudits = async () => {
-      setIsLoading(true);
+    const loadModuleNames = async () => {
       try {
-        const data = await commonAuditApi.readAll();
-        if (mounted) setAuditRows(data as CommonAuditRecord[]);
+        const data = await commonAuditApi.readAllForExport();
+        if (!mounted) return;
+        const modules = Array.from(
+          new Set(
+            toRecordList(data)
+              .map((record) => record.module_name)
+              .filter((moduleName): moduleName is string => Boolean(moduleName))
+          )
+        ).sort((a, b) => a.localeCompare(b));
+        setModuleNameOptions(modules);
       } catch {
-        if (mounted) Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-      } finally {
-        if (mounted) setIsLoading(false);
+        // Non-fatal: dropdown simply won't have options if this fails.
       }
     };
 
-    void loadAudits();
+    void loadModuleNames();
 
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, []);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   return (
     <div className="p-3">
@@ -304,7 +341,10 @@ export default function CommonAuditList() {
         >
           <Dropdown
             value={moduleFilter}
-            onChange={(e) => setModuleFilter(e.value)}
+            onChange={(e) => {
+              setFirst(0);
+              setModuleFilter(e.value);
+            }}
             options={moduleOptions}
             optionLabel="label"
             optionValue="value"
@@ -315,20 +355,18 @@ export default function CommonAuditList() {
       </div>
 
       <DataTable
-        value={filteredRecords}
-        exportRows={exportRows}
+        value={records}
         dataKey="uuid"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         loading={loading}
-        filters={filters}
-        globalFilterFields={[
-          "module_name",
-          "endpoint_name",
-          "method",
-          "object_id",
-          "createdBy",
-        ]}
         stripedRows
         showGridlines
         className="p-datatable-sm"
@@ -342,36 +380,32 @@ export default function CommonAuditList() {
         <Column
           field="module_name"
           header={t("admin.common_audit.module_name")}
-          sortable
+          sortable={SORTABLE_FIELDS.has("module_name")}
         />
         <Column
           field="endpoint_name"
           header={t("admin.common_audit.endpoint_name")}
-          sortable
         />
         <Column
           field="method"
           header={t("admin.common_audit.method")}
           body={methodTemplate}
-          sortable
         />
         <Column
           field="object_id"
           header={t("admin.common_audit.object_id")}
           body={(r: CommonAuditRecord) => r.object_id ?? "-"}
-          sortable
         />
         <Column
           field="createdBy"
           header={t("admin.common_audit.created_by")}
           body={(r: CommonAuditRecord) => r.createdBy ?? "-"}
-          sortable
         />
         <Column
           field="createdAt"
           header={t("admin.common_audit.created_at")}
           body={(r: CommonAuditRecord) => formatDateTime(r.createdAt)}
-          sortable
+          sortable={SORTABLE_FIELDS.has("createdAt")}
         />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
       </DataTable>

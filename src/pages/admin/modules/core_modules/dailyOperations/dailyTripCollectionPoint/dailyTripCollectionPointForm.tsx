@@ -132,6 +132,11 @@ export default function DailyTripCollectionPointForm() {
   const [collectedBy, setCollectedBy] = useState("");
   const [collectedWeight, setCollectedWeight] = useState("");
   const [status, setStatus] = useState("Pending");
+  // A5: status_reason/status_latitude/status_longitude — context captured
+  // when a stop is marked Skipped/Missed (mirrors mark_status on the model).
+  const [statusReason, setStatusReason] = useState("");
+  const [statusLatitude, setStatusLatitude] = useState("");
+  const [statusLongitude, setStatusLongitude] = useState("");
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [record, setRecord] = useState<DailyTripCollectionPointRecord | null>(null);
@@ -168,6 +173,9 @@ export default function DailyTripCollectionPointForm() {
         setCollectedAt(data.collected_at ? String(data.collected_at).slice(0, 16) : "");
         setCollectedWeight(data.collected_weight_kg === null || data.collected_weight_kg === undefined ? "" : String(data.collected_weight_kg));
         setStatus(data.status ?? "Pending");
+        setStatusReason(String(recordData.status_reason ?? ""));
+        setStatusLatitude(recordData.status_latitude == null ? "" : String(recordData.status_latitude));
+        setStatusLongitude(recordData.status_longitude == null ? "" : String(recordData.status_longitude));
         // Store select IDs as pending — applied after option lists load
         const aId = preferredId((recordData.trip_assignment as ApiObject)?.unique_id, recordData.trip_assignment_id);
         const cpId = preferredId((recordData.collection_point as ApiObject)?.unique_id, recordData.collection_point_id);
@@ -322,8 +330,15 @@ export default function DailyTripCollectionPointForm() {
       is_collected: isCollected,
       collected_at: collectedAt || null,
       collected_by: collectedBy || null,
-      collected_weight_kg: collectedWeight || null,
+      // A5: backend validate() clears weight/is_collected for Skipped/Missed
+      // (unless collected_at is already set); send null explicitly here too
+      // so the form doesn't submit a stale weight value for those statuses.
+      collected_weight_kg:
+        status === "Skipped" || status === "Missed" ? null : collectedWeight || null,
       status,
+      status_reason: status === "Skipped" || status === "Missed" ? statusReason || null : null,
+      status_latitude: statusLatitude || null,
+      status_longitude: statusLongitude || null,
     };
 
     setLoading(true);
@@ -449,7 +464,15 @@ export default function DailyTripCollectionPointForm() {
 
             <div>
               <Label>Status</Label>
-              <Select value={status} onChange={setStatus} options={STATUS_OPTIONS} placeholder="Select status" />
+              <Select
+                value={status}
+                onChange={(value) => {
+                  setStatus(value);
+                  if (value !== "Skipped" && value !== "Missed") setStatusReason("");
+                }}
+                options={STATUS_OPTIONS}
+                placeholder="Select status"
+              />
             </div>
 
             <div>
@@ -476,8 +499,42 @@ export default function DailyTripCollectionPointForm() {
                 step="0.01"
                 value={collectedWeight}
                 onChange={(event) => setCollectedWeight(event.target.value)}
+                disabled={status === "Skipped" || status === "Missed"}
               />
             </div>
+
+            {/* Status Reason + coordinates — A5: required context for Skipped/Missed,
+                mirrors DailyTripCollectionPoint.mark_status(status, reason, lat, lon). */}
+            {(status === "Skipped" || status === "Missed") && (
+              <>
+                <div>
+                  <Label>Status Reason</Label>
+                  <Input
+                    value={statusReason}
+                    onChange={(event) => setStatusReason(event.target.value)}
+                    placeholder="e.g. Bin inaccessible, gate locked..."
+                  />
+                </div>
+                <div>
+                  <Label>Status Latitude</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={statusLatitude}
+                    onChange={(event) => setStatusLatitude(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Status Longitude</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={statusLongitude}
+                    onChange={(event) => setStatusLongitude(event.target.value)}
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-4">

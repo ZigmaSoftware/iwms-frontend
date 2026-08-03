@@ -17,7 +17,12 @@ export type DailyTripCollectionPointRecord = {
   is_collected?: boolean;
   collected_at?: string | null;
   collected_weight_kg?: string | number | null;
-  status?: string;
+  // A5: status vocabulary Pending/In Progress/Collected/Skipped/Missed;
+  // status_reason/status_latitude/status_longitude captured via mark_status.
+  status?: "Pending" | "In Progress" | "Collected" | "Skipped" | "Missed" | string;
+  status_reason?: string | null;
+  status_latitude?: string | number | null;
+  status_longitude?: string | number | null;
   company_id?: string | null;
   company_unique_id?: string | null;
   project_id?: string | null;

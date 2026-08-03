@@ -1,4 +1,4 @@
-import type { CollectionPointRecord } from "./types";
+import type { CollectionPointCollectionType, CollectionPointRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
@@ -8,7 +8,7 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -17,7 +17,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { collectionPointApi } from "@/helpers/admin";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 
@@ -26,6 +25,22 @@ const toDisplay = (value: unknown): string =>
 
 const toOptionalString = (value: unknown): string | null =>
   value === null || value === undefined ? null : String(value);
+
+const toRecordList = (value: unknown): CollectionPointRecord[] => {
+  if (Array.isArray(value)) return value as CollectionPointRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: CollectionPointRecord[] }).results;
+  }
+  return [];
+};
+
+const COLLECTION_TYPE_LABELS: Record<string, string> = {
+  bin_collection: "Secondary Collection Point",
+  bulk_waste_collection: "Bulk Waste Collection",
+  household_collection: "Household Collection",
+};
+
+const SORTABLE_FIELDS = new Set(["cp_name", "collection_type", "is_active"]);
 
 const COLLECTION_POINT_COLUMN_FIELDS: Record<string, string[]> = {
   cp_name: ["cp_name", "collection_point_name", "name"],
@@ -46,28 +61,17 @@ export default function CollectionPointListPage() {
   const navigate = useNavigate();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [records, setRecords] = useState<CollectionPointRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | "bin_collection" | "household_collection">("all");
-  const {
-    filters,
-    onFilter,
-    globalFilterValue,
-    onGlobalFilterChange,
-    statusValue,
-    onStatusFilterChange,
-  } = useFilterBarFilters({
-    initialFilters: {
-      cp_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-      company_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-      project_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-      state_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-      district_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-      city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-      panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-      ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    },
-  });
+  const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | CollectionPointCollectionType>("all");
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusValue, setStatusValue] = useState<"all" | "active" | "inactive">("all");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
@@ -96,77 +100,126 @@ export default function CollectionPointListPage() {
     COLLECTION_POINT_COLUMN_FIELDS,
   );
 
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const loadRows = async (page: number, limit: number, search: string, order?: string) => {
+    setIsLoading(true);
+    setRecords([]);
+    try {
+      const response = await collectionPointApi.readAllwithPaginated(page, limit, {
+        params: {
+          company_id: companyUniqueId,
+          project_id: projectId || undefined,
+          ...(collectionTypeFilter !== "all" ? { collection_type: collectionTypeFilter } : {}),
+          ...(search ? { search } : {}),
+          ...(order ? { ordering: order } : {}),
+        },
+      });
+      setRecords(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch (error) {
+      console.error("Failed to fetch collection points", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) return;
     if (!companyUniqueId && !isSuperAdmin) return;
 
-    let mounted = true;
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    companyUniqueId,
+    projectId,
+    isSuperAdmin,
+    companies.length,
+    collectionTypeFilter,
+    first,
+    rowsPerPage,
+    searchTerm,
+    ordering,
+  ]);
 
-    const loadCollectionPoints = async () => {
-      setIsLoading(true);
-      try {
-        const data = await collectionPointApi.readAll({
-          params: { company_id: companyUniqueId, project_id: projectId || undefined },
-        });
-        if (mounted) setRecords(data as CollectionPointRecord[]);
-      } catch (error) {
-        console.error("Failed to fetch collection points", error);
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
-
-    void loadCollectionPoints();
-
-    return () => {
-      mounted = false;
-    };
-  }, [companyUniqueId, projectId, isSuperAdmin, companies.length]);
-
-  // Company/project scoping is now applied server-side (tenant users are
-  // scoped automatically by the backend; superadmin scoping is passed via
-  // company_id/project_id params above) — only the local collection-type
-  // filter still needs to be applied client-side.
+  // Company/project and collection-type scoping are applied server-side
+  // (tenant users are scoped automatically by the backend; superadmin
+  // scoping and the collection-type filter are passed via query params
+  // above) — only the local status filter still needs to be applied
+  // client-side, since the backend has no is_active filter param.
   const rows = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as CollectionPointRecord[];
     if (!companyUniqueId && !isSuperAdmin) return [] as CollectionPointRecord[];
 
-    if (collectionTypeFilter === "all") return records;
+    if (statusValue === "all") return records;
 
-    return records.filter((row) => row.collection_type === collectionTypeFilter);
+    const wantActive = statusValue === "active";
+    return records.filter((row) => Boolean(row.is_active) === wantActive);
   })();
 
-  const getFilteredExportRows = (): CollectionPointRecord[] => {
-    const search = globalFilterValue.trim().toLowerCase();
-    return rows.filter((row) => {
-      if (statusValue !== "all") {
-        const wantActive = statusValue === "active";
-        if (Boolean(row.is_active) !== wantActive) return false;
-      }
-      if (!search) return true;
-      return [
-        row.cp_name,
-        row.collection_point_name,
-        row.state_name,
-        row.district_name,
-        row.city_name,
-        row.panchayat_name,
-        row.ward_name,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(search));
-    });
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
   };
 
-  const handleDownloadExcel = () => {
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  const onGlobalFilterChange = (value: string) => {
+    setGlobalFilterValue(value);
+  };
+
+  const onStatusFilterChange = (value: "all" | "active" | "inactive") => {
+    setStatusValue(value);
+  };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  // Excel export needs the full filtered dataset, not just the current page,
+  // so it re-fetches every page (readAllForExport) with the same server-side
+  // filters used by the table, then applies the client-only status filter.
+  const getFilteredExportRows = async (): Promise<CollectionPointRecord[]> => {
+    const data = await collectionPointApi.readAllForExport({
+      params: {
+        company_id: companyUniqueId,
+        project_id: projectId || undefined,
+        ...(collectionTypeFilter !== "all" ? { collection_type: collectionTypeFilter } : {}),
+        ...(searchTerm ? { search: searchTerm } : {}),
+        ...(ordering ? { ordering } : {}),
+      },
+    });
+    const exportRows = data as CollectionPointRecord[];
+    if (statusValue === "all") return exportRows;
+
+    const wantActive = statusValue === "active";
+    return exportRows.filter((row) => Boolean(row.is_active) === wantActive);
+  };
+
+  const handleDownloadExcel = async () => {
     setIsExportingExcel(true);
     try {
-      const exportRows = getFilteredExportRows();
+      const exportRows = await getFilteredExportRows();
       if (exportRows.length === 0) {
         Swal.fire(t("common.warning") || "Warning", "No collection points to export", "warning");
         return;
       }
       exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "CollectionPoints");
+    } catch (error) {
+      console.error("Failed to export collection points", error);
+      Swal.fire(t("common.error") || "Error", "Failed to export collection points", "error");
     } finally {
       setIsExportingExcel(false);
     }
@@ -257,7 +310,7 @@ export default function CollectionPointListPage() {
             icon="pi pi-file-excel"
             className="p-button-outlined"
             disabled={isExportingExcel}
-            onClick={handleDownloadExcel}
+            onClick={() => void handleDownloadExcel()}
           />
         }
       >
@@ -277,57 +330,49 @@ export default function CollectionPointListPage() {
         />
         <FilterBarSelect
           value={collectionTypeFilter}
-          onChange={(value) => setCollectionTypeFilter(value as "all" | "bin_collection" | "household_collection")}
+          onChange={(value) => {
+            setFirst(0);
+            setCollectionTypeFilter(value as "all" | CollectionPointCollectionType);
+          }}
           aria-label="Collection type filter"
         >
           <option value="all">All Types</option>
-          <option value="bin_collection">Bin Collection</option>
-          <option value="household_collection">Household Collection</option>
+          <option value="bin_collection">Secondary Collection Point</option>
+          <option value="bulk_waste_collection">Bulk Waste Collection</option>
         </FilterBarSelect>
       </FilterBar>
 
       <DataTable
         value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
-        filters={filters}
-        onFilter={onFilter}
         stripedRows
         showGridlines
         className="p-datatable-sm"
-        globalFilterFields={[
-          "unique_id",
-          "cp_name",
-          "company_id",
-          "company_name",
-          "project_id",
-          "project_name",
-          "state_id",
-          "state_name",
-          "district_id",
-          "district_name",
-          "city_id",
-          "city_name",
-          "panchayat_id",
-          "panchayat_name",
-          "ward_id",
-          "ward_name",
-        ]}
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.collection_point") })}
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
         <Column
           header="Collection Type"
           style={{ minWidth: 160 }}
+          sortable={SORTABLE_FIELDS.has("collection_type")}
+          field="collection_type"
           body={(row: CollectionPointRecord) => {
             const type = row.collection_type;
             const isBin = !type || type === "bin_collection";
             return (
               <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${isBin ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"}`}>
-                {isBin ? "Bin Collection" : "Household Collection"}
+                {COLLECTION_TYPE_LABELS[type ?? "bin_collection"]}
               </span>
             );
           }}
@@ -336,9 +381,7 @@ export default function CollectionPointListPage() {
           <Column
             field="cp_name"
             header={t("admin.nav.collection_point")}
-            sortable
-            filter
-            showFilterMatchModes={false}
+            sortable={SORTABLE_FIELDS.has("cp_name")}
             body={(row: CollectionPointRecord) => cap(toOptionalString(row.cp_name ?? row.collection_point_name))}
           />
         )}
@@ -346,9 +389,6 @@ export default function CollectionPointListPage() {
           <Column
             field="state_name"
             header={t("common.state")}
-            sortable
-            filter
-            showFilterMatchModes={false}
             body={(row: CollectionPointRecord) => cap(toOptionalString(row.state_name))}
           />
         )}
@@ -356,9 +396,6 @@ export default function CollectionPointListPage() {
           <Column
             field="district_name"
             header={t("common.district")}
-            sortable
-            filter
-            showFilterMatchModes={false}
             body={(row: CollectionPointRecord) => cap(toOptionalString(row.district_name))}
           />
         )}
@@ -366,9 +403,6 @@ export default function CollectionPointListPage() {
           <Column
             field="city_name"
             header={t("common.city")}
-            sortable
-            filter
-            showFilterMatchModes={false}
             body={(row: CollectionPointRecord) => cap(toOptionalString(row.city_name))}
           />
         )}
@@ -376,9 +410,6 @@ export default function CollectionPointListPage() {
           <Column
             field="panchayat_name"
             header={t("admin.nav.panchayat")}
-            sortable
-            filter
-            showFilterMatchModes={false}
             body={(row: CollectionPointRecord) => toDisplay(row.panchayat_name)}
           />
         )}
@@ -386,8 +417,6 @@ export default function CollectionPointListPage() {
           <Column
             field="ward_name"
             header={t("admin.nav.ward")}
-            filter
-            showFilterMatchModes={false}
             body={(row: CollectionPointRecord) => {
               const wards = row.wards as { unique_id: string; ward_name: string }[] | undefined;
               if (wards && wards.length > 0) {

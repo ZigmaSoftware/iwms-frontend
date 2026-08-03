@@ -8,6 +8,7 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -62,10 +63,15 @@ export default function WardList() {
     WARD_COLUMN_FIELDS,
   );
 
-  const [allWards, setAllWards] = useState<WardListRecord[]>([]);
+  const [rows, setRows] = useState<WardListRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const {
     filters, onFilter, globalFilterValue, onGlobalFilterChange,
@@ -129,53 +135,78 @@ export default function WardList() {
     setProjectId(value);
   };
 
+  const toRecordList = (value: unknown): WardListRecord[] => {
+    if (Array.isArray(value)) return value as WardListRecord[];
+    if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+      return (value as { results: WardListRecord[] }).results;
+    }
+    return [];
+  };
+
+  const SORTABLE_FIELDS = new Set(["zone_name", "city_name", "ward_name"]);
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  // Company/project scoping, search, sort, and pagination are all applied
+  // server-side (tenant users are scoped automatically by the backend;
+  // superadmin scoping is passed via company_id/project_id params below).
+  const loadRows = async (page: number, limit: number) => {
+    setIsLoading(true);
+    setRows([]);
+    try {
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+      if (globalFilterValue.trim()) params.search = globalFilterValue.trim();
+      if (ordering) params.ordering = ordering;
+
+      const response = await wardApi.readAllwithPaginated(page, limit, { params });
+      const list = toRecordList(response);
+      setRows(list);
+      setTotalRecords(
+        typeof (response as { count?: number })?.count === "number"
+          ? (response as { count?: number }).count as number
+          : list.length,
+      );
+    } catch (error) {
+      const errorData = (error as ErrorWithResponse)?.response?.data;
+      Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (isSuperAdmin && companies.length === 0) return;
-    if (!companyUniqueId && !isSuperAdmin) return;
+    if (isSuperAdmin && companies.length === 0) {
+      setRows([]);
+      setTotalRecords(0);
+      return;
+    }
+    if (!companyUniqueId && !isSuperAdmin) {
+      setRows([]);
+      setTotalRecords(0);
+      return;
+    }
 
-    let mounted = true;
+    void loadRows(first / rowsPerPage + 1, rowsPerPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length, first, rowsPerPage, globalFilterValue, ordering]);
 
-    const loadWards = async () => {
-      setIsLoading(true);
-      try {
-        const params: Record<string, string> = {};
-        if (companyUniqueId) params.company_id = companyUniqueId;
-        if (projectId) params.project_id = projectId;
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
 
-        const data = await wardApi.readAll({ params });
-        if (mounted) setAllWards(data as WardListRecord[]);
-      } catch (error) {
-        if (mounted) {
-          const errorData = (error as ErrorWithResponse)?.response?.data;
-          Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
-        }
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
-    void loadWards();
+  const wards = rows;
 
-    return () => {
-      mounted = false;
-    };
-  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length]);
-
-  // Company/project scoping is now applied server-side (tenant users are
-  // scoped automatically by the backend; superadmin scoping is passed via
-  // company_id/project_id params above) — no client-side narrowing needed.
-  const wards = ((): WardListRecord[] => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
-
-    return Array.isArray(allWards)
-      ? (allWards as unknown as WardListRecord[])
-      : [];
-  })();
-
-  // ===========================
-  //   Delete
-  // ===========================
   // ===========================
   //   Search
   // ===========================
@@ -200,7 +231,7 @@ export default function WardList() {
 
     try {
       await wardApi.update(row.unique_id, { is_active: checked });
-      setAllWards((current) =>
+      setRows((current) =>
         current.map((item) =>
           item.unique_id === row.unique_id ? { ...item, is_active: checked } : item
         )
@@ -300,27 +331,22 @@ export default function WardList() {
           exportRows={exportRows}
           exportSheetName="Wards"
           dataKey="unique_id"
+          lazy
           paginator
-          rows={10}
+          first={first}
+          rows={rowsPerPage}
+          totalRecords={totalRecords}
+          onPage={onPage}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={isLoading && wards.length === 0}
-          filters={filters}
-          onFilter={onFilter}
+          loading={isLoading}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={onSort}
           stripedRows
           showGridlines
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.ward"),
           })}
-          globalFilterFields={[
-            "ward_name",
-            "zone_name",
-            "city_name",
-            "district_name",
-            "state_name",
-            "country_name",
-            "company_name",
-            "project_name",
-          ]}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
@@ -329,9 +355,7 @@ export default function WardList() {
             <Column
               field="zone_name"
               header={t("admin.nav.zone")}
-              sortable
-              filter
-              showFilterMatchModes={false}
+              sortable={SORTABLE_FIELDS.has("zone_name")}
               body={(row) => cap(row.zone_name)}
             />
           )}
@@ -340,9 +364,7 @@ export default function WardList() {
             <Column
               field="city_name"
               header={t("admin.nav.city")}
-              sortable
-              filter
-              showFilterMatchModes={false}
+              sortable={SORTABLE_FIELDS.has("city_name")}
               body={(row) => cap(row.city_name)}
             />
           )}
@@ -351,9 +373,7 @@ export default function WardList() {
             <Column
               field="ward_name"
               header={t("admin.nav.ward")}
-              sortable
-              filter
-              showFilterMatchModes={false}
+              sortable={SORTABLE_FIELDS.has("ward_name")}
               body={(row) => cap(row.ward_name)}
             />
           )}
