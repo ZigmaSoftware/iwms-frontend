@@ -17,6 +17,9 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import { downloadRecordsPdf } from "@/utils/exportPdf";
+import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
 
 
 // Server-paginated pages (SafeDataTable's own page-2+ fetches) return raw
@@ -37,12 +40,18 @@ const wardNamesText = (row: TripPlanRecord): string =>
     ? row.wards.map((ward) => ward?.ward_name).filter(Boolean).join(", ")
     : singleWardName(row);
 
+/** Ward name(s) plus which zone/panchayat they belong to, e.g. "Ward 4 (Panchayat: North PLB)". */
 const locationText = (row: TripPlanRecord): string => {
-  const existing = asDisplayText(row._location);
-  if (existing) return existing;
-  const zoneOrPanchayat = row.panchayat?.panchayat_name || row.zone?.name || "";
   const wardNames = wardNamesText(row);
-  return [zoneOrPanchayat, wardNames].filter(Boolean).join(" - ");
+  const panchayat = row.panchayat?.panchayat_name || "";
+  const zone = row.zone?.name || "";
+  const parent = panchayat ? `Panchayat: ${panchayat}` : zone ? `Zone: ${zone}` : "";
+
+  if (wardNames && parent) return `${wardNames} (${parent})`;
+  if (wardNames) return wardNames;
+  if (panchayat) return panchayat;
+  if (zone) return zone;
+  return asDisplayText(row._location) || "";
 };
 
 // e.g. "13:00:00" -> "1:00 PM"
@@ -62,6 +71,24 @@ const staffText = (row: TripPlanRecord): string =>
 
 const vehicleText = (row: TripPlanRecord): string =>
   asDisplayText(row._vehicle) || row.vehicle?.vehicle_no || "";
+
+const WasteTypeChips = (row: TripPlanRecord) => {
+  const text = wasteTypeText(row);
+  if (!text) return <span className="text-sm text-gray-400">-</span>;
+  const names = text.split(",").map((n) => n.trim()).filter(Boolean);
+  return (
+    <div className="flex flex-wrap gap-1">
+      {names.map((name, index) => (
+        <span
+          key={`${name}-${index}`}
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${wasteTypeColorClass(name)}`}
+        >
+          {name}
+        </span>
+      ))}
+    </div>
+  );
+};
 
 const wasteTypeText = (row: TripPlanRecord): string => {
   const existing = asDisplayText(row._waste_type);
@@ -92,8 +119,26 @@ const COLLECTION_TYPE_LABELS: Record<string, string> = {
   bulk_waste_collection: "Bulk Waste Collection",
 };
 
+// Same color language as Daily Trip Plan's CollectionTypeBadge, keyed to
+// Trip Plan's own collection_type literals.
+const COLLECTION_TYPE_STYLES: Record<string, string> = {
+  bin_collection: "bg-blue-100 text-blue-800",
+  household_collection: "bg-green-100 text-green-800",
+  bulk_waste_collection: "bg-purple-100 text-purple-800",
+};
+
 const collectionTypeDisplay = (row: TripPlanRecord): string =>
   asDisplayText(row._collection_type) || COLLECTION_TYPE_LABELS[row.collection_type ?? ""] || row.collection_type || "";
+
+const CollectionTypeBadge = (row: TripPlanRecord) => {
+  const label = collectionTypeDisplay(row) || "Unknown";
+  const colorClass = COLLECTION_TYPE_STYLES[row.collection_type ?? ""] ?? "bg-gray-100 text-gray-500";
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${colorClass}`}>
+      {label}
+    </span>
+  );
+};
 
 const extractErrorMessage = (error: unknown): string | null => {
   const data = (error as { response?: { data?: unknown } })?.response?.data;
@@ -138,6 +183,7 @@ export default function TripPlanList() {
   const [filteredRows, setFilteredRows] = useState<TripPlanRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | "bin_collection" | "household_collection">("all");
   const [autoAssignFilter, setAutoAssignFilter] = useState<"all" | "auto" | "manual">("all");
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -188,9 +234,7 @@ export default function TripPlanList() {
     })
     .map((record) => ({
       ...record,
-      _location: [record.panchayat?.panchayat_name || record.zone?.name || "", wardNamesText(record)]
-        .filter(Boolean)
-        .join(" - "),
+      _location: locationText(record),
       _staff: record.staff_template?.display_code ?? "",
       _vehicle: record.vehicle?.vehicle_no ?? "",
       _waste_type: Array.isArray(record.waste_types) && record.waste_types.length
@@ -240,6 +284,76 @@ export default function TripPlanList() {
     );
   };
 
+  /* ── build one detailed export row per stop (collection point/bin/customer),
+     falling back to a single plan-level row when a plan has no stops ── */
+  const buildExportRows = (source: TripPlanRecord[]): Record<string, unknown>[] => {
+    const out: Record<string, unknown>[] = [];
+    source.forEach((record) => {
+      const base = {
+        "Plan Code": record.display_code ?? record.unique_id,
+        Location: locationText(record),
+        "Staff Template": staffText(record),
+        Driver: driverText(record),
+        Operator: operatorText(record),
+        Vehicle: vehicleText(record),
+        "Waste Type": wasteTypeText(record),
+        "Start Time": time12h(record.scheduled_time),
+        "Auto Assign": record.is_auto_assign ? "Auto" : "Manual",
+        "Collection Type": collectionTypeDisplay(record),
+        Approval: record.approval_status ?? "-",
+        Status: record.status ?? "-",
+      };
+
+      const stops = Array.isArray(record.plan_collection_points) ? record.plan_collection_points : [];
+
+      stops.forEach((stop: any, index: number) => {
+        out.push({
+          ...base,
+          Sequence: stop?.sequence ?? index + 1,
+          "Collection Point": stop?.collection_point?.cp_name ?? stop?.collection_point_name ?? stop?.collection_point_id ?? "-",
+          Bin: stop?.bin?.bin_name ?? stop?.bin_name ?? stop?.bin_id ?? "-",
+          Customer: stop?.customer?.customer_name ?? stop?.customer_name ?? stop?.customer_id ?? "-",
+        });
+      });
+
+      if (stops.length === 0) {
+        out.push({
+          ...base,
+          Sequence: "-",
+          "Collection Point": "-",
+          Bin: "-",
+          Customer: "-",
+        });
+      }
+    });
+    return out;
+  };
+
+  const handleDownload = (format: "excel" | "pdf") => {
+    setIsExporting(true);
+    try {
+      const exportRows = buildExportRows(filteredRows.length > 0 ? filteredRows : rows);
+      if (exportRows.length === 0) {
+        Swal.fire({ icon: "warning", title: "No records", text: "There are no trip plans to export." });
+        return;
+      }
+      if (format === "excel") {
+        exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Trip Plans");
+      } else {
+        downloadRecordsPdf({
+          title: "Trip Plans",
+          filename: "trip_plans.pdf",
+          rows: exportRows,
+          columns: Object.keys(exportRows[0]).map((key) => ({ key, label: key })),
+        });
+      }
+    } catch (err: any) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: err?.message ?? String(err) });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const header = (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -258,6 +372,24 @@ export default function TripPlanList() {
           setFilters((current) => ({ ...current, global: { value, matchMode: FilterMatchMode.CONTAINS } }));
         }}
         searchPlaceholder={t("common.search_placeholder")}
+        trailing={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              label={isExporting ? "Exporting..." : "Download Excel"}
+              icon="pi pi-file-excel"
+              className="p-button-outlined p-button-sm"
+              disabled={isExporting}
+              onClick={() => handleDownload("excel")}
+            />
+            <Button
+              label={isExporting ? "Exporting..." : "Download PDF"}
+              icon="pi pi-file-pdf"
+              className="p-button-outlined p-button-sm"
+              disabled={isExporting}
+              onClick={() => handleDownload("pdf")}
+            />
+          </div>
+        }
       >
         <FilterBarSelect
           value={companyUniqueId || ""}
@@ -322,7 +454,7 @@ export default function TripPlanList() {
         <Column field="_staff" header="Staff Template" filter showFilterMatchModes={false} body={staffText} />
         <Column field="_vehicle" header="Vehicle" filter showFilterMatchModes={false} body={vehicleText} />
         <Column header="Vehicle Breakdown" body={breakdownBody} style={{ minWidth: 140 }} />
-        <Column field="_waste_type" header="Waste Type" filter showFilterMatchModes={false} body={wasteTypeText} />
+        <Column field="_waste_type" header="Waste Type" filter showFilterMatchModes={false} body={WasteTypeChips} />
         <Column field="_stop_count" header="Stops" filter showFilterMatchModes={false} style={{ width: 100 }} body={stopCountText} />
         <Column field="scheduled_time" header="Start Time" body={(row: TripPlanRecord) => time12h(row.scheduled_time)} />
         <Column
@@ -337,7 +469,7 @@ export default function TripPlanList() {
         <Column
           field="_collection_type"
           header="Collection Type"
-          body={collectionTypeDisplay}
+          body={CollectionTypeBadge}
           filter showFilterMatchModes={false}
           style={{ minWidth: 170 }}
         />

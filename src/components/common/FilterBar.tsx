@@ -132,41 +132,47 @@ export function FilterBar({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-3 md:justify-end",
+        "flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between",
         className,
       )}
     >
-      {!hideSearch && (
-        <div className="flex items-center gap-3 rounded-md border border-gray-300 bg-white px-3 py-1 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={searchValue}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              onSearchChange(e.target.value)
-            }
-            placeholder={searchPlaceholder}
-            aria-label={searchAriaLabel ?? searchPlaceholder}
-            className="p-inputtext-sm !border-0 !shadow-none !outline-none"
-          />
+      <div className="flex flex-1 flex-wrap items-center gap-3">
+        {!hideSearch && (
+          <div className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <i className="pi pi-search text-gray-500" />
+            <InputText
+              value={searchValue}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                onSearchChange(e.target.value)
+              }
+              placeholder={searchPlaceholder}
+              aria-label={searchAriaLabel ?? searchPlaceholder}
+              className="p-inputtext-sm !border-0 !shadow-none !outline-none"
+            />
+          </div>
+        )}
+
+        {showStatusFilter && (
+          <select
+            value={statusValue}
+            onChange={(e) => onStatusChange?.(e.target.value as StatusFilterValue)}
+            className={selectClassName}
+            aria-label={statusAriaLabel ?? "Status filter"}
+          >
+            <option value="all">{labels.all}</option>
+            <option value="active">{labels.active}</option>
+            <option value="inactive">{labels.inactive}</option>
+          </select>
+        )}
+
+        {children}
+      </div>
+
+      {trailing && (
+        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          {trailing}
         </div>
       )}
-
-      {showStatusFilter && (
-        <select
-          value={statusValue}
-          onChange={(e) => onStatusChange?.(e.target.value as StatusFilterValue)}
-          className={selectClassName}
-          aria-label={statusAriaLabel ?? "Status filter"}
-        >
-          <option value="all">{labels.all}</option>
-          <option value="active">{labels.active}</option>
-          <option value="inactive">{labels.inactive}</option>
-        </select>
-      )}
-
-      {children}
-
-      {trailing}
     </div>
   );
 }
