@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
+import { userTypeSchema } from "@/schemas/superadmin/roleManagement/userType.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const { encAdmins, encUserType } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encAdmins, encUserType);
@@ -16,6 +19,7 @@ export default function UserTypeForm() {
   const { t } = useTranslation();
   const [name, setName] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const navigate = useNavigate();
   const { id } = useParams();
@@ -70,6 +74,14 @@ export default function UserTypeForm() {
   ----------------------------------------------------------- */
   const handleSubmit = async (e: any) => {
     e.preventDefault();
+
+    const fieldValues = { name, is_active: isActive };
+    const validation = parseWithSchema(userTypeSchema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      return;
+    }
+    setFieldErrors({});
 
     if (!companyUniqueId) {
       Swal.fire(
@@ -157,8 +169,12 @@ export default function UserTypeForm() {
                 })}
                 value={name}
                 required
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, name: "" }));
+                }}
               />
+              <FieldError message={fieldErrors.name} />
             </div>
 
             {/* Active Status */}

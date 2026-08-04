@@ -14,6 +14,9 @@ import { Input } from "@/components/ui/input";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { zonePropertyLoadTrackerSchema } from "@/schemas/transportMasters/zonePropertyLoadTracker/zonePropertyLoadTracker.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const toOptions = (items: any[], valueKey: string, labelKey: string): SelectOption[] =>
@@ -33,6 +36,7 @@ export default function ZonePropertyLoadTrackerForm() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [zones, setZones] = useState<SelectOption[]>([]);
   const [vehicles, setVehicles] = useState<SelectOption[]>([]);
@@ -130,16 +134,13 @@ export default function ZonePropertyLoadTrackerForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (
-      !formData.zone_id ||
-      !formData.vehicle_id ||
-      !formData.property_id ||
-      !formData.sub_property_id ||
-      formData.current_weight_kg === ""
-    ) {
+    const validation = parseWithSchema(zonePropertyLoadTrackerSchema, formData);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
+    setFieldErrors({});
 
     setIsSubmitting(true);
     try {
@@ -186,48 +187,64 @@ export default function ZonePropertyLoadTrackerForm() {
               <Label>{t("admin.zone_property_load_tracker.zone")}</Label>
               <Select
                 value={formData.zone_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, zone_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, zone_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, zone_id: "" }));
+                }}
                 options={zones}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.zone_id} />
             </div>
 
             <div>
               <Label>{t("admin.zone_property_load_tracker.vehicle")}</Label>
               <Select
                 value={formData.vehicle_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, vehicle_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, vehicle_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, vehicle_id: "" }));
+                }}
                 options={vehicles}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.vehicle_id} />
             </div>
 
             <div>
               <Label>{t("admin.zone_property_load_tracker.property")}</Label>
               <Select
                 value={formData.property_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, property_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, property_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, property_id: "" }));
+                }}
                 options={properties}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.property_id} />
             </div>
 
             <div>
               <Label>{t("admin.zone_property_load_tracker.sub_property")}</Label>
               <Select
                 value={formData.sub_property_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, sub_property_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, sub_property_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, sub_property_id: "" }));
+                }}
                 options={subProperties}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.sub_property_id} />
             </div>
 
             <div>
@@ -236,9 +253,13 @@ export default function ZonePropertyLoadTrackerForm() {
                 type="number"
                 min={0}
                 value={formData.current_weight_kg}
-                onChange={(e) => setFormData((prev) => ({ ...prev, current_weight_kg: e.target.value }))}
+                onChange={(e) => {
+                  setFormData((prev) => ({ ...prev, current_weight_kg: e.target.value }));
+                  setFieldErrors((prev) => ({ ...prev, current_weight_kg: "" }));
+                }}
                 placeholder={t("admin.zone_property_load_tracker.current_weight")}
               />
+              <FieldError message={fieldErrors.current_weight_kg} />
             </div>
           </div>
 

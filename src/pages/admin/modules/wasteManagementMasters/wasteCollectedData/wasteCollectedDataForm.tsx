@@ -16,6 +16,9 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import type { WasteCollectionStatus } from "./types";
 import { normalizeList } from "@/utils/forms";
+import { wasteCollectedDataSchema } from "@/schemas/wasteManagementMasters/wasteCollectedData/wasteCollectedData.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 type WasteTypeOption = { unique_id: string; waste_type_name: string };
@@ -130,6 +133,7 @@ export default function WasteCollectedForm() {
   const [loadingAssignmentData, setLoadingAssignmentData] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   // Pending values for async hydration in edit mode
   const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
@@ -450,12 +454,28 @@ export default function WasteCollectedForm() {
   /* ── submit ── */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyUniqueId || !projectId) {
-      Swal.fire(t("common.warning"), "Company and project are required", "warning");
+
+    const fieldValues = {
+      customer_id: customerId,
+      wet_waste: wasteAmounts.wet_waste,
+      dry_waste: wasteAmounts.dry_waste,
+      mixed_waste: wasteAmounts.mixed_waste,
+      sanitary_waste: wasteAmounts.sanitary_waste,
+    };
+    const validation = parseWithSchema(wasteCollectedDataSchema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire(
+        t("common.warning"),
+        validation.errors.customer_id ?? t("admin.waste_collected_data.customer_required"),
+        "warning",
+      );
       return;
     }
-    if (!customerId) {
-      Swal.fire(t("common.warning"), t("admin.waste_collected_data.customer_required"), "warning");
+    setFieldErrors({});
+
+    if (!companyUniqueId || !projectId) {
+      Swal.fire(t("common.warning"), "Company and project are required", "warning");
       return;
     }
 
@@ -577,7 +597,10 @@ export default function WasteCollectedForm() {
               </Label>
               <Select
                 value={customerId}
-                onChange={setCustomerId}
+                onChange={(value) => {
+                  setCustomerId(value);
+                  setFieldErrors((prev) => ({ ...prev, customer_id: "" }));
+                }}
                 options={customerOptionsWithCurrent}
                 placeholder={
                   fetchingCustomers || loadingAssignmentData
@@ -588,6 +611,7 @@ export default function WasteCollectedForm() {
                 }
                 disabled={fetchingCustomers || loadingAssignmentData || !projectId}
               />
+              <FieldError message={fieldErrors.customer_id} />
             </div>
 
             {/* Status — A5 */}
@@ -676,13 +700,15 @@ export default function WasteCollectedForm() {
                       min={0}
                       step="0.01"
                       value={wasteAmounts[field] ?? ""}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setWasteAmounts((prev) => ({
                           ...prev,
                           [field]: e.target.value,
-                        }))
-                      }
+                        }));
+                        setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+                      }}
                     />
+                    <FieldError message={fieldErrors[field]} />
                   </div>
                 );
               })}

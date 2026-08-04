@@ -25,6 +25,10 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
+import { householdPickupEventSchema } from "@/schemas/masters/customerMasters/householdPickupEvent.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const householdPickupEventApi = createCrudHelpers<HouseholdPickupEventRecord>(
@@ -62,7 +66,7 @@ const toDateTimeLocal = (value?: string | null) =>
 
 export default function HouseholdPickupEventForm() {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("customer-master", "household-pickup-event", HOUSEHOLD_PICKUP_FIELDS);
   const { showZone } = useZonePanchayatVisibility();
   const navigate = useNavigate();
@@ -72,6 +76,7 @@ export default function HouseholdPickupEventForm() {
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [customers, setCustomers] = useState<SelectOption[]>([]);
   const [zones, setZones] = useState<SelectOption[]>([]);
@@ -175,28 +180,23 @@ export default function HouseholdPickupEventForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
+    // Required-field checks only apply on create; edit is a partial update
+    // (see the original getMissingRequiredFields call this replaces).
+    const baseSchema = requireWhenVisible(householdPickupEventSchema, showField);
+    const schema = isEdit ? baseSchema.partial() : baseSchema;
+    const validation = parseWithSchema(schema, formData);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      if (!isEdit) {
+        Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+      }
+      return;
+    }
+    setFieldErrors({});
+
     setLoading(true);
     try {
       if (!isEdit) {
-        const missingFields = getMissingRequiredFields(
-          [
-            "customer_id",
-            "zone_id",
-            "property_id",
-            "sub_property_id",
-            "pickup_time",
-            "collector_staff_id",
-            "vehicle_id",
-            "source",
-          ],
-          (fieldKey) => formData[fieldKey as keyof HouseholdPickupFormState],
-        );
-
-        if (missingFields.length > 0) {
-          Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
-          return;
-        }
-
         const rawPayload = {
           customer_id: formData.customer_id,
           zone_id: formData.zone_id,
@@ -267,12 +267,16 @@ export default function HouseholdPickupEventForm() {
                 <Label>{t("admin.household_pickup_event.customer")}</Label>
                 <Select
                   value={formData.customer_id}
-                  onChange={(value) => setFormData((prev) => ({ ...prev, customer_id: value }))}
+                  onChange={(value) => {
+                    setFormData((prev) => ({ ...prev, customer_id: value }));
+                    setFieldErrors((prev) => ({ ...prev, customer_id: "" }));
+                  }}
                   options={customers}
                   placeholder={t("common.select_option")}
                   disabled={fetching}
                   required
                 />
+                <FieldError message={fieldErrors.customer_id} />
               </div>
             )}
 
@@ -281,12 +285,16 @@ export default function HouseholdPickupEventForm() {
                 <Label>{t("admin.household_pickup_event.zone")}</Label>
                 <Select
                   value={formData.zone_id}
-                  onChange={(value) => setFormData((prev) => ({ ...prev, zone_id: value }))}
+                  onChange={(value) => {
+                    setFormData((prev) => ({ ...prev, zone_id: value }));
+                    setFieldErrors((prev) => ({ ...prev, zone_id: "" }));
+                  }}
                   options={zones}
                   placeholder={t("common.select_option")}
                   disabled={fetching}
                   required
                 />
+                <FieldError message={fieldErrors.zone_id} />
               </div>
             )}
 
@@ -295,12 +303,16 @@ export default function HouseholdPickupEventForm() {
                 <Label>{t("admin.household_pickup_event.property")}</Label>
                 <Select
                   value={formData.property_id}
-                  onChange={(value) => setFormData((prev) => ({ ...prev, property_id: value }))}
+                  onChange={(value) => {
+                    setFormData((prev) => ({ ...prev, property_id: value }));
+                    setFieldErrors((prev) => ({ ...prev, property_id: "" }));
+                  }}
                   options={properties}
                   placeholder={t("common.select_option")}
                   disabled={fetching}
                   required
                 />
+                <FieldError message={fieldErrors.property_id} />
               </div>
             )}
 
@@ -309,12 +321,16 @@ export default function HouseholdPickupEventForm() {
                 <Label>{t("admin.household_pickup_event.sub_property")}</Label>
                 <Select
                   value={formData.sub_property_id}
-                  onChange={(value) => setFormData((prev) => ({ ...prev, sub_property_id: value }))}
+                  onChange={(value) => {
+                    setFormData((prev) => ({ ...prev, sub_property_id: value }));
+                    setFieldErrors((prev) => ({ ...prev, sub_property_id: "" }));
+                  }}
                   options={subProperties}
                   placeholder={t("common.select_option")}
                   disabled={fetching}
                   required
                 />
+                <FieldError message={fieldErrors.sub_property_id} />
               </div>
             )}
 
@@ -323,12 +339,16 @@ export default function HouseholdPickupEventForm() {
                 <Label>{t("admin.household_pickup_event.collector")}</Label>
                 <Select
                   value={formData.collector_staff_id}
-                  onChange={(value) => setFormData((prev) => ({ ...prev, collector_staff_id: value }))}
+                  onChange={(value) => {
+                    setFormData((prev) => ({ ...prev, collector_staff_id: value }));
+                    setFieldErrors((prev) => ({ ...prev, collector_staff_id: "" }));
+                  }}
                   options={collectors}
                   placeholder={t("common.select_option")}
                   disabled={fetching}
                   required
                 />
+                <FieldError message={fieldErrors.collector_staff_id} />
               </div>
             )}
 
@@ -337,12 +357,16 @@ export default function HouseholdPickupEventForm() {
                 <Label>{t("admin.household_pickup_event.vehicle")}</Label>
                 <Select
                   value={formData.vehicle_id}
-                  onChange={(value) => setFormData((prev) => ({ ...prev, vehicle_id: value }))}
+                  onChange={(value) => {
+                    setFormData((prev) => ({ ...prev, vehicle_id: value }));
+                    setFieldErrors((prev) => ({ ...prev, vehicle_id: "" }));
+                  }}
                   options={vehicles}
                   placeholder={t("common.select_option")}
                   disabled={fetching}
                   required
                 />
+                <FieldError message={fieldErrors.vehicle_id} />
               </div>
             )}
 
@@ -352,8 +376,12 @@ export default function HouseholdPickupEventForm() {
                 <Input
                   type="datetime-local"
                   value={formData.pickup_time}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, pickup_time: e.target.value }))}
+                  onChange={(e) => {
+                    setFormData((prev) => ({ ...prev, pickup_time: e.target.value }));
+                    setFieldErrors((prev) => ({ ...prev, pickup_time: "" }));
+                  }}
                 />
+                <FieldError message={fieldErrors.pickup_time} />
               </div>
             )}
 
@@ -364,8 +392,12 @@ export default function HouseholdPickupEventForm() {
                   type="number"
                   min={0}
                   value={formData.weight_kg}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, weight_kg: e.target.value }))}
+                  onChange={(e) => {
+                    setFormData((prev) => ({ ...prev, weight_kg: e.target.value }));
+                    setFieldErrors((prev) => ({ ...prev, weight_kg: "" }));
+                  }}
                 />
+                <FieldError message={fieldErrors.weight_kg} />
               </div>
             )}
 
@@ -374,12 +406,16 @@ export default function HouseholdPickupEventForm() {
                 <Label>{t("admin.household_pickup_event.source")}</Label>
                 <Select
                   value={formData.source}
-                  onChange={(value) => setFormData((prev) => ({ ...prev, source: value }))}
+                  onChange={(value) => {
+                    setFormData((prev) => ({ ...prev, source: value }));
+                    setFieldErrors((prev) => ({ ...prev, source: "" }));
+                  }}
                   options={sourceOptions}
                   placeholder={t("common.select_option")}
                   disabled={fetching}
                   required
                 />
+                <FieldError message={fieldErrors.source} />
               </div>
             )}
           </div>

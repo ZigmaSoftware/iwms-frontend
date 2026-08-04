@@ -1,6 +1,7 @@
 import type { FilterMatchMode } from "primereact/api";
 
 import type { FormEvent } from "react";
+import type { FieldErrors } from "@/schemas/shared/parseFormErrors";
 
 export type SelectOption = { value: string; label: string };
 
@@ -26,6 +27,7 @@ export type VehicleTripAuditFormState = {
 
 export type VehicleTripAuditEditorProps = {
   formData: VehicleTripAuditFormState;
+  fieldErrors: FieldErrors;
   tripOptions: SelectOption[];
   vehicles: SelectOption[];
   fetching: boolean;

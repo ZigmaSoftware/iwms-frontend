@@ -13,6 +13,9 @@ import PasswordInput from "@/components/form/input/PasswordInput";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { panchayatLeaderApi, panchayatApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { buildPanchayatLeaderSchema } from "@/schemas/masters/leaderManagement/panchayatLeader.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const initialForm = {
@@ -67,6 +70,7 @@ export default function PanchayatLeaderForm() {
   // Tracks whether the selected panchayat already has a leader
   const [panchayatTakenBy, setPanchayatTakenBy] = useState<string | null>(null);
   const [checkingPanchayat, setCheckingPanchayat] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   /* ── panchayat list: filter by company + project when available ── */
   useEffect(() => {
@@ -169,10 +173,12 @@ export default function PanchayatLeaderForm() {
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { id: fieldId, value } = e.target;
     setFormData((prev) => ({ ...prev, [fieldId]: value }));
+    setFieldErrors((prev) => (prev[fieldId] ? { ...prev, [fieldId]: "" } : prev));
   };
 
   const handleSelectChange = (field: keyof typeof initialForm, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    setFieldErrors((prev) => (prev[field] ? { ...prev, [field]: "" } : prev));
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -194,24 +200,22 @@ export default function PanchayatLeaderForm() {
       return;
     }
 
-    if (!formData.panchayat_id) {
-      Swal.fire("Validation", "Please select a panchayat.", "warning");
+    const schema = buildPanchayatLeaderSchema(isEdit);
+    const validation = parseWithSchema(schema, formData);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      const firstError = Object.values(validation.errors)[0];
+      Swal.fire("Validation", firstError ?? "Please fill in all required fields.", "warning");
       return;
     }
+    setFieldErrors({});
+
     if (panchayatTakenBy) {
       Swal.fire(
         "Panchayat Already Assigned",
         `This panchayat already has a leader (${panchayatTakenBy}). Each panchayat can have only one leader.`,
         "warning"
       );
-      return;
-    }
-    if (!formData.username.trim()) {
-      Swal.fire("Validation", "Username is required.", "warning");
-      return;
-    }
-    if (!isEdit && !formData.password.trim()) {
-      Swal.fire("Validation", "Password is required when creating a new leader.", "warning");
       return;
     }
 
@@ -365,6 +369,7 @@ export default function PanchayatLeaderForm() {
                   <span>✓</span> PLB is available
                 </p>
               )}
+              <FieldError message={fieldErrors.panchayat_id} />
             </div>
 
             {/* ── Leader Name ── */}
@@ -392,6 +397,7 @@ export default function PanchayatLeaderForm() {
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.username} />
             </div>
 
             {/* ── Email ── */}
@@ -405,6 +411,7 @@ export default function PanchayatLeaderForm() {
                 placeholder="Contact email (optional)"
                 disabled={fetching}
               />
+              <FieldError message={fieldErrors.email} />
             </div>
 
             {/* ── Password ── */}
@@ -424,6 +431,7 @@ export default function PanchayatLeaderForm() {
                 onChange={handleInputChange}
                 placeholder={isEdit ? "Enter new password to change" : "Set login password"}
               />
+              <FieldError message={fieldErrors.password} />
             </div>
 
             {/* ── Status ── */}

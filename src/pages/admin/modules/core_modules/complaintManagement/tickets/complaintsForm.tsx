@@ -26,6 +26,9 @@ import {
 import { adminApi } from "@/helpers/admin/registry";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { complaintSchema } from "@/schemas/core_modules/complaintManagement/complaint.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 /* ================= CONSTANTS ================= */
 
@@ -99,6 +102,7 @@ export default function ComplaintAddForm() {
   const [isPreviewImage, setIsPreviewImage] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   /* ---------------- INIT LOAD ---------------- */
   useEffect(() => {
@@ -154,6 +158,7 @@ export default function ComplaintAddForm() {
   const onCustomerChange = (id: string) => {
     const c = customers.find((x) => resolveCustomerId(x) === id);
     setCustomer(c);
+    setFieldErrors((prev) => ({ ...prev, customerId: "" }));
 
     // Try different field names for contact
     const contactNo = c?.contact_no || c?.contact || c?.phone || c?.mobile || c?.phone_number || "";
@@ -260,6 +265,30 @@ export default function ComplaintAddForm() {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const customerId = resolveCustomerId(customer);
+
+    const values = {
+      customerId,
+      zone,
+      ward,
+      mainCategoryId,
+      subCategoryId,
+      details,
+      priority,
+    };
+
+    const validation = parseWithSchema(complaintSchema, values);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire(
+        t("admin.citizen_grievance.complaints_form.missing_title"),
+        t("admin.citizen_grievance.complaints_form.missing_message"),
+        "warning"
+      );
+      return;
+    }
+    setFieldErrors({});
+
     if (!companyUniqueId) {
       Swal.fire(
         "Error",
@@ -267,25 +296,6 @@ export default function ComplaintAddForm() {
           ? "Company is not mapped to this login. Only super admin can choose a company."
           : "Company is required",
         "error"
-      );
-      return;
-    }
-
-    const customerId = resolveCustomerId(customer);
-
-    if (
-      !customer ||
-      !customerId ||
-      !zone ||
-      !ward ||
-      !mainCategoryId ||
-      !subCategoryId ||
-      !details
-    ) {
-      Swal.fire(
-        t("admin.citizen_grievance.complaints_form.missing_title"),
-        t("admin.citizen_grievance.complaints_form.missing_message"),
-        "warning"
       );
       return;
     }
@@ -359,6 +369,7 @@ export default function ComplaintAddForm() {
                   ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.customerId} />
           </div>
 
           <div>
@@ -382,6 +393,7 @@ export default function ComplaintAddForm() {
                 setWard("");
                 setSelectedWard(null);
                 loadWards(v);
+                setFieldErrors((prev) => ({ ...prev, zone: "" }));
               }}
             >
               <SelectTrigger>
@@ -399,6 +411,7 @@ export default function ComplaintAddForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.zone} />
           </div>
 
           <div>
@@ -407,6 +420,7 @@ export default function ComplaintAddForm() {
               const selected = wards.find((w) => resolveValue(w) === v);
               setWard(v);
               setSelectedWard(selected);
+              setFieldErrors((prev) => ({ ...prev, ward: "" }));
             }}>
               <SelectTrigger>
                 <SelectValue placeholder={t("admin.citizen_grievance.complaints_form.ward_placeholder")} />
@@ -419,12 +433,16 @@ export default function ComplaintAddForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.ward} />
           </div>
 
           <div>
             <Label>{t("admin.citizen_grievance.complaints_form.main_category")} *</Label>
             <Select value={mainCategoryId || undefined}
-              onValueChange={setMainCategoryId}>
+              onValueChange={(v) => {
+                setMainCategoryId(v);
+                setFieldErrors((prev) => ({ ...prev, mainCategoryId: "" }));
+              }}>
               <SelectTrigger>
                 <SelectValue placeholder={t("admin.citizen_grievance.complaints_form.main_category_placeholder")} />
               </SelectTrigger>
@@ -436,12 +454,16 @@ export default function ComplaintAddForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.mainCategoryId} />
           </div>
 
           <div>
             <Label>{t("admin.citizen_grievance.complaints_form.sub_category")} *</Label>
             <Select value={subCategoryId || undefined}
-              onValueChange={setSubCategoryId}>
+              onValueChange={(v) => {
+                setSubCategoryId(v);
+                setFieldErrors((prev) => ({ ...prev, subCategoryId: "" }));
+              }}>
               <SelectTrigger>
                 <SelectValue placeholder={t("admin.citizen_grievance.complaints_form.sub_category_placeholder")} />
               </SelectTrigger>
@@ -453,11 +475,16 @@ export default function ComplaintAddForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.subCategoryId} />
           </div>
 
           <div className="md:col-span-2">
             <Label>{t("admin.citizen_grievance.complaints_form.details")} *</Label>
-            <Input value={details} onChange={(e) => setDetails(e.target.value)} />
+            <Input value={details} onChange={(e) => {
+              setDetails(e.target.value);
+              setFieldErrors((prev) => ({ ...prev, details: "" }));
+            }} />
+            <FieldError message={fieldErrors.details} />
           </div>
 
           <div>

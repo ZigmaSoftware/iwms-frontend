@@ -16,6 +16,9 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
 import { api } from "@/api";
 import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
+import { vehicleBreakdownSchema } from "@/schemas/core_modules/dailyOperations/vehicleBreakdown.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 type SelectOption = { value: string; label: string };
 
@@ -112,6 +115,7 @@ export default function VehicleBreakdownForm() {
   /* ── form ── */
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   /* ── dropdown data ── */
   const [assignmentOptions, setAssignmentOptions] = useState<SelectOption[]>([]);
@@ -377,8 +381,10 @@ export default function VehicleBreakdownForm() {
   /* ────────────────────────────────────────────────────────────
      Helpers
   ──────────────────────────────────────────────────────────── */
-  const setField = (key: keyof FormState, val: string) =>
+  const setField = (key: keyof FormState, val: string) => {
     setForm((prev) => ({ ...prev, [key]: val }));
+    setFieldErrors((prev) => ({ ...prev, [key]: "" }));
+  };
 
   /* ────────────────────────────────────────────────────────────
      Submit
@@ -386,43 +392,32 @@ export default function VehicleBreakdownForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
+    const validation = parseWithSchema(vehicleBreakdownSchema, {
+      trip_assignment_id: form.trip_assignment_id,
+      breakdown_vehicle_id: form.breakdown_vehicle_id,
+      replacement_vehicle_id: form.replacement_vehicle_id,
+      replacement_driver_id: form.replacement_driver_id,
+      replacement_operator_id: form.replacement_operator_id,
+      breakdown_reason: form.breakdown_reason,
+      breakdown_lat: form.breakdown_lat,
+      breakdown_lng: form.breakdown_lng,
+    });
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire(
+        t("common.error"),
+        Object.values(validation.errors)[0] ?? "Please complete all required fields.",
+        "error",
+      );
+      return;
+    }
+    setFieldErrors({});
+
     if (!companyUniqueId) {
       Swal.fire(t("common.error"), "Please select a company.", "error"); return;
     }
     if (!projectId) {
       Swal.fire(t("common.error"), "Please select a project.", "error"); return;
-    }
-    if (!form.trip_assignment_id) {
-      Swal.fire(t("common.error"), "Please select a trip assignment.", "error"); return;
-    }
-    if (!form.breakdown_vehicle_id) {
-      Swal.fire(t("common.error"), "Broken vehicle could not be determined. Select a valid trip.", "error"); return;
-    }
-    if (!form.breakdown_reason) {
-      Swal.fire(t("common.error"), "Please select a breakdown reason.", "error"); return;
-    }
-    if (!form.replacement_vehicle_id) {
-      Swal.fire(t("common.error"), "Please select a replacement vehicle.", "error"); return;
-    }
-    if (!form.replacement_driver_id) {
-      Swal.fire(t("common.error"), "Please select a replacement driver.", "error"); return;
-    }
-    if (!form.replacement_operator_id) {
-      Swal.fire(t("common.error"), "Please select a replacement operator.", "error"); return;
-    }
-    if (!form.breakdown_lat.trim()) {
-      Swal.fire(t("common.error"), "Please enter the breakdown latitude.", "error"); return;
-    }
-    if (!form.breakdown_lng.trim()) {
-      Swal.fire(t("common.error"), "Please enter the breakdown longitude.", "error"); return;
-    }
-    const lat = parseFloat(form.breakdown_lat);
-    const lng = parseFloat(form.breakdown_lng);
-    if (isNaN(lat) || lat < -90 || lat > 90) {
-      Swal.fire(t("common.error"), "Latitude must be a number between -90 and 90.", "error"); return;
-    }
-    if (isNaN(lng) || lng < -180 || lng > 180) {
-      Swal.fire(t("common.error"), "Longitude must be a number between -180 and 180.", "error"); return;
     }
 
     setSaving(true);
@@ -542,16 +537,20 @@ export default function VehicleBreakdownForm() {
               placeholder={fetchingDropdowns ? "Loading trips…" : "Select trip assignment"}
               disabled={fetchingDropdowns || isEdit || !companyUniqueId || !projectId}
             />
+            <FieldError message={fieldErrors.trip_assignment_id} />
             {selectedTripDate && (
               <p className="text-xs text-gray-400 mt-1">Trip date: <strong>{selectedTripDate}</strong></p>
             )}
           </div>
 
           {/* Auto-filled: Broken Vehicle */}
-          <InfoRow
-            label="Broken Vehicle (auto-filled)"
-            value={autoVehicleNo || (form.breakdown_vehicle_id ? `ID: ${form.breakdown_vehicle_id}` : "")}
-          />
+          <div>
+            <InfoRow
+              label="Broken Vehicle (auto-filled)"
+              value={autoVehicleNo || (form.breakdown_vehicle_id ? `ID: ${form.breakdown_vehicle_id}` : "")}
+            />
+            <FieldError message={fieldErrors.breakdown_vehicle_id} />
+          </div>
 
           {/* Auto-filled: Original Driver */}
           <InfoRow label="Original Driver (auto-filled)" value={autoDriver} />
@@ -568,6 +567,7 @@ export default function VehicleBreakdownForm() {
               onChange={(val) => setField("breakdown_reason", val)}
               placeholder="Select reason"
             />
+            <FieldError message={fieldErrors.breakdown_reason} />
           </div>
 
           {/* Breakdown Time */}
@@ -601,6 +601,7 @@ export default function VehicleBreakdownForm() {
                 title="Auto-detect current GPS coordinates"
               />
             </div>
+            <FieldError message={fieldErrors.breakdown_lat} />
           </div>
 
           {/* Breakdown Longitude */}
@@ -613,6 +614,7 @@ export default function VehicleBreakdownForm() {
               onChange={(e) => setField("breakdown_lng", e.target.value)}
               placeholder="e.g. 77.2090"
             />
+            <FieldError message={fieldErrors.breakdown_lng} />
           </div>
 
           {/* Collected Weight Before Breakdown */}
@@ -673,6 +675,7 @@ export default function VehicleBreakdownForm() {
                 placeholder={fetchingVehicles ? "Loading available vehicles…" : availableVehicleOptions.length === 0 ? "No vehicles available for this date" : "Select replacement vehicle"}
                 disabled={fetchingVehicles || availableVehicleOptions.length === 0}
               />
+              <FieldError message={fieldErrors.replacement_vehicle_id} />
               {availableVehicleOptions.length === 0 && !fetchingVehicles && (
                 <p className="text-xs text-amber-600 mt-1">
                   All vehicles are assigned on {selectedTripDate}. Please check vehicle availability.
@@ -690,6 +693,7 @@ export default function VehicleBreakdownForm() {
                 placeholder={fetchingStaff ? "Loading available drivers…" : driverOptions.length === 0 ? "No available drivers for this date" : "Select replacement driver"}
                 disabled={fetchingStaff}
               />
+              <FieldError message={fieldErrors.replacement_driver_id} />
               {!fetchingStaff && driverOptions.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">All drivers are already assigned on {selectedTripDate}.</p>
               )}
@@ -705,6 +709,7 @@ export default function VehicleBreakdownForm() {
                 placeholder={fetchingStaff ? "Loading available operators…" : operatorOptions.length === 0 ? "No available operators for this date" : "Select replacement operator"}
                 disabled={fetchingStaff}
               />
+              <FieldError message={fieldErrors.replacement_operator_id} />
               {!fetchingStaff && operatorOptions.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">All operators are already assigned on {selectedTripDate}.</p>
               )}

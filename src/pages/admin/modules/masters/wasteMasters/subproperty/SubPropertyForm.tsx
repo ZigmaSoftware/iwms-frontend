@@ -23,6 +23,10 @@ import { adminApi } from "@/helpers/admin/registry";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { SubPropertyEditorProps, SubPropertyPayload, SubPropertyOptionRecord } from "./types";
+import { subPropertySchema } from "@/schemas/masters/wasteMasters/subProperty.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const { encMasters, encSubProperties } = getEncryptedRoute();
 
@@ -82,7 +86,7 @@ function SubPropertyEditor({
   setProjectId: (val: string) => void;
 }) {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "sub-properties", SUB_PROPERTY_FIELDS);
   const [subPropertyName, setSubPropertyName] = useState(initialPayload.sub_property_name ?? "");
   const [propertyId, setPropertyId] = useState<string>(String(initialPayload.property_id ?? ""));
@@ -90,6 +94,7 @@ function SubPropertyEditor({
     initialPayload.property_id ? String(initialPayload.property_id) : ""
   );
   const [isActive, setIsActive] = useState(initialPayload.is_active);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   // Apply pending property id once the list has loaded and the option exists
   useEffect(() => {
@@ -108,6 +113,25 @@ function SubPropertyEditor({
     e.preventDefault();
     const trimmedName = subPropertyName.trim();
 
+    const fieldValues: Record<string, unknown> = {
+      sub_property_name: trimmedName,
+      property_id: propertyId,
+      is_active: isActive,
+    };
+
+    const schema = requireWhenVisible(subPropertySchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire({
+        icon: "warning",
+        title: t("common.warning"),
+        text: t("common.all_fields_required"),
+      });
+      return;
+    }
+    setFieldErrors({});
+
     if (!companyUniqueId) {
       Swal.fire(
         "Error",
@@ -121,25 +145,6 @@ function SubPropertyEditor({
 
     if (!projectId) {
       Swal.fire("Error", "Project is required", "error");
-      return;
-    }
-
-    const fieldValues: Record<string, unknown> = {
-      sub_property_name: trimmedName,
-      property_id: propertyId,
-    };
-
-    if (
-      getMissingRequiredFields(
-        ["sub_property_name", "property_id"],
-        (fieldKey) => fieldValues[fieldKey],
-      ).length > 0
-    ) {
-      Swal.fire({
-        icon: "warning",
-        title: t("common.warning"),
-        text: t("common.all_fields_required"),
-      });
       return;
     }
 
@@ -230,7 +235,10 @@ function SubPropertyEditor({
 
             <Select
               value={propertyId || ""}
-              onValueChange={(val) => setPropertyId(val)}
+              onValueChange={(val) => {
+                setPropertyId(val);
+                setFieldErrors((prev) => ({ ...prev, property_id: "" }));
+              }}
               disabled={isSubmitting}
             >
               <SelectTrigger id="property" className="input-validate w-full">
@@ -251,6 +259,7 @@ function SubPropertyEditor({
                   ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.property_id} />
           </div>
         )}
 
@@ -267,9 +276,13 @@ function SubPropertyEditor({
                 item: t("admin.nav.sub_property"),
               })}
               value={subPropertyName}
-              onChange={(e) => setSubPropertyName(e.target.value)}
+              onChange={(e) => {
+                setSubPropertyName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, sub_property_name: "" }));
+              }}
               disabled={isSubmitting}
             />
+            <FieldError message={fieldErrors.sub_property_name} />
           </div>
         )}
 

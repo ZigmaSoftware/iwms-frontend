@@ -21,6 +21,9 @@ import {
 
 import { projectApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { projectSchema } from "@/schemas/superadminMasters/project.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const normalizeIsActive = (value: unknown): boolean => {
@@ -103,6 +106,7 @@ export default function ProjectForm() {
   const [adminEmployeeName, setAdminEmployeeName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   // Convenience default preserved from the pre-shared-hook behavior: if there's
   // only one company to choose from, select it automatically (create mode only).
@@ -165,7 +169,29 @@ export default function ProjectForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!name.trim()) {
+    const fieldValues = {
+      name: name.trim(),
+      description: description.trim(),
+      is_active: isActive,
+      gps_api_url: gpsApiUrl.trim(),
+      gps_user_id: gpsUserId.trim(),
+      gps_group_name: gpsGroupName.trim(),
+      gps_provider_name: gpsProviderName.trim(),
+      gps_fcode: gpsFcode.trim(),
+      gps_trip_user_id: gpsTripUserId.trim(),
+      weighment_api_url: weighmentApiUrl.trim(),
+      day_wise_weighment_api_url: dayWiseWeighmentApiUrl.trim(),
+      attendance_api_url: attendanceApiUrl.trim(),
+      attendance_api_key: attendanceApiKey.trim(),
+      admin_username: adminUsername.trim(),
+      admin_password: adminPassword.trim(),
+      admin_employee_name: adminEmployeeName.trim(),
+      admin_email: adminEmail.trim(),
+    };
+
+    const validation = parseWithSchema(projectSchema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -173,6 +199,7 @@ export default function ProjectForm() {
       });
       return;
     }
+    setFieldErrors({});
 
     const hasAnyAdmin =
       !!adminUsername.trim() ||
@@ -320,10 +347,14 @@ export default function ProjectForm() {
               id="projectName"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, name: "" }));
+              }}
               placeholder={t("common.enter_item_name", { item: t("admin.nav.project") })}
               required
             />
+            <FieldError message={fieldErrors.name} />
           </div>
 
           <div>
@@ -568,9 +599,13 @@ export default function ProjectForm() {
                   id="adminEmail"
                   type="email"
                   value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
+                  onChange={(e) => {
+                    setAdminEmail(e.target.value);
+                    setFieldErrors((prev) => ({ ...prev, admin_email: "" }));
+                  }}
                   placeholder={t("admin.project.admin_email")}
                 />
+                <FieldError message={fieldErrors.admin_email} />
               </div>
             </>
           ) : null}

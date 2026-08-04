@@ -20,6 +20,9 @@ import { useTranslation } from "react-i18next";
 
 
 import { companyApi } from "@/helpers/admin";
+import { companySchema } from "@/schemas/superadminMasters/company.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const { encSuperAdminMaster: encSuperAdminMasters, encCompanyCreation } = getEncryptedRoute();
@@ -48,6 +51,7 @@ function CompanyListForm() {
   const [logoPreview, setLogoPreview] = useState("");
   const [isActive, setIsActive] = useState(true); // default active on create
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const { id } = useParams();
@@ -85,7 +89,10 @@ function CompanyListForm() {
     e.preventDefault();
 
     // 🔹 Basic validation BEFORE enabling loading or API call
-    if (!name) {
+    const fieldValues = { name, is_active: isActive };
+    const validation = parseWithSchema(companySchema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -94,6 +101,7 @@ function CompanyListForm() {
       });
       return; // Stop here if validation fails
     }
+    setFieldErrors({});
     setLoading(true);
 
     try {
@@ -181,13 +189,17 @@ function CompanyListForm() {
               id="companyName"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, name: "" }));
+              }}
               placeholder={t("common.enter_item_name", {
                 item: t("admin.nav.company"),
               })}
               className="input-validate w-full"
               required
             />
+            <FieldError message={fieldErrors.name} />
           </div>
 
           {/* Active Status */}

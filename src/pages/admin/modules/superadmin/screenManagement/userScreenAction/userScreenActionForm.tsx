@@ -18,6 +18,9 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { adminApi } from "@/helpers/admin/registry";
+import { userScreenActionSchema } from "@/schemas/superadmin/screenManagement/userScreenAction.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 /* ------------------------------
     ROUTES
@@ -47,6 +50,7 @@ export default function UserScreenActionForm() {
   const [recordData, setRecordData] = useState<any>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   /* ==========================================================
       FETCH EDIT DATA
@@ -83,10 +87,17 @@ export default function UserScreenActionForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!actionName.trim() || !variableName.trim()) {
+    const validation = parseWithSchema(userScreenActionSchema, {
+      action_name: actionName.trim(),
+      variable_name: variableName.trim(),
+      is_active: isActive,
+    });
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
+    setFieldErrors({});
 
     const payload = {
       action_name: actionName.trim(),
@@ -140,11 +151,15 @@ export default function UserScreenActionForm() {
             <Label>{t("common.action_name")} *</Label>
             <Input
               value={actionName}
-              onChange={(e) => setActionName(e.target.value)}
+              onChange={(e) => {
+                setActionName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, action_name: "" }));
+              }}
               placeholder={t("admin.user_screen_action.action_placeholder")}
               required
               className="input-validate w-full"
             />
+            <FieldError message={fieldErrors.action_name} />
           </div>
 
           {/* Variable Name */}
@@ -152,11 +167,15 @@ export default function UserScreenActionForm() {
             <Label>{t("common.variable_name")} *</Label>
             <Input
               value={variableName}
-              onChange={(e) => setVariableName(e.target.value)}
+              onChange={(e) => {
+                setVariableName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, variable_name: "" }));
+              }}
               placeholder={t("admin.user_screen_action.variable_placeholder")}
               required
               className="input-validate w-full"
             />
+            <FieldError message={fieldErrors.variable_name} />
           </div>
 
           {/* Status */}

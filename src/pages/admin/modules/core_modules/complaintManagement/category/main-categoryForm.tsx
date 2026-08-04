@@ -20,6 +20,9 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
+import { categorySchema } from "@/schemas/core_modules/complaintManagement/category.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const { encCitizenGrivence, encMainComplaintCategory } = getEncryptedRoute();
@@ -64,12 +67,19 @@ function MainCategoryEditor({
     initialPayload.main_categoryName ?? ""
   );
   const [isActive, setIsActive] = useState(initialPayload.is_active);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const name = mainCategoryName.trim();
-    if (!name) {
+    const values = {
+      main_categoryName: mainCategoryName.trim(),
+      is_active: isActive,
+    };
+
+    const validation = parseWithSchema(categorySchema, values);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire({
         icon: "warning",
         title: t("admin.citizen_grievance.main_category_form.missing_title"),
@@ -77,9 +87,10 @@ function MainCategoryEditor({
       });
       return;
     }
+    setFieldErrors({});
 
     await onSubmit({
-      main_categoryName: name,
+      main_categoryName: values.main_categoryName,
       is_active: isActive,
       company_id: initialPayload.company_id,
     });
@@ -98,11 +109,15 @@ function MainCategoryEditor({
             type="text"
             required
             value={mainCategoryName}
-            onChange={(e) => setMainCategoryName(e.target.value)}
+            onChange={(e) => {
+              setMainCategoryName(e.target.value);
+              setFieldErrors((prev) => ({ ...prev, main_categoryName: "" }));
+            }}
             placeholder={t("admin.citizen_grievance.main_category_form.category_placeholder")}
             className="input-validate w-full"
             disabled={isSubmitting}
           />
+          <FieldError message={fieldErrors.main_categoryName} />
         </div>
 
         <div>

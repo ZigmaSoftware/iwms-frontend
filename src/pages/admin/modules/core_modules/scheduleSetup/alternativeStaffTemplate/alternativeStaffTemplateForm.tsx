@@ -16,6 +16,10 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { companyApi, projectApi, staffCreationApi, staffTemplateApi, alternativeStaffTemplateApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { alternativeStaffTemplateSchema } from "@/schemas/core_modules/scheduleSetup/alternativeStaffTemplate.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 /* ================= TYPES ================= */
 
@@ -68,6 +72,7 @@ export default function AlternativeStaffTemplateForm() {
 
   const [formData, setFormData] = useState<FormState>(initialFormState);
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   // All raw staff templates (unfiltered) — used for scoping by company/project
   const [allStaffTemplates, setAllStaffTemplates] = useState<StaffTemplateRaw[]>([]);
@@ -558,6 +563,25 @@ export default function AlternativeStaffTemplateForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
+    const fieldValues = {
+      staff_template: formData.staff_template,
+      effective_date: formData.effective_date,
+      from_date: formData.from_date,
+      to_date: formData.to_date,
+      driver: formData.driver,
+      operator: formData.operator,
+      extra_operator: formData.extra_operator,
+      change_reason: formData.change_reason,
+      change_remarks: formData.change_remarks,
+    };
+    const schema = requireWhenVisible(alternativeStaffTemplateSchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      return;
+    }
+    setFieldErrors({});
+
     if (
       showField("approval_status") &&
       isEdit &&
@@ -808,11 +832,13 @@ export default function AlternativeStaffTemplateForm() {
                 <InputField
                   type="date"
                   value={formData.from_date}
-                  onChange={(e) =>
-                    setFormData((p) => ({ ...p, from_date: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    setFormData((p) => ({ ...p, from_date: e.target.value }));
+                    setFieldErrors((prev) => ({ ...prev, from_date: "" }));
+                  }}
                   required
                 />
+                <FieldError message={fieldErrors.from_date} />
               </div>
             )}
 
@@ -827,11 +853,13 @@ export default function AlternativeStaffTemplateForm() {
                   type="date"
                   value={formData.to_date}
                   min={formData.from_date || undefined}
-                  onChange={(e) =>
-                    setFormData((p) => ({ ...p, to_date: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    setFormData((p) => ({ ...p, to_date: e.target.value }));
+                    setFieldErrors((prev) => ({ ...prev, to_date: "" }));
+                  }}
                   required
                 />
+                <FieldError message={fieldErrors.to_date} />
               </div>
             )}
 
@@ -866,11 +894,13 @@ export default function AlternativeStaffTemplateForm() {
                   value={formData.driver}
                   options={driverOptionsWithCurrent}
                   placeholder={t("common.select_option")}
-                  onChange={(v) =>
-                    setFormData((p) => ({ ...p, driver: v }))
-                  }
+                  onChange={(v) => {
+                    setFormData((p) => ({ ...p, driver: v }));
+                    setFieldErrors((prev) => ({ ...prev, driver: "" }));
+                  }}
                   required
                 />
+                <FieldError message={fieldErrors.driver} />
               </div>
             )}
 
@@ -885,11 +915,13 @@ export default function AlternativeStaffTemplateForm() {
                   value={formData.operator}
                   options={operatorOptionsWithCurrent}
                   placeholder={t("common.select_option")}
-                  onChange={(v) =>
-                    setFormData((p) => ({ ...p, operator: v }))
-                  }
+                  onChange={(v) => {
+                    setFormData((p) => ({ ...p, operator: v }));
+                    setFieldErrors((prev) => ({ ...prev, operator: "" }));
+                  }}
                   required
                 />
+                <FieldError message={fieldErrors.operator} />
               </div>
             )}
 
@@ -949,14 +981,16 @@ export default function AlternativeStaffTemplateForm() {
                 </Label>
                 <InputField
                   value={formData.change_reason}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setFormData((p) => ({
                       ...p,
                       change_reason: e.target.value,
-                    }))
-                  }
+                    }));
+                    setFieldErrors((prev) => ({ ...prev, change_reason: "" }));
+                  }}
                   required
                 />
+                <FieldError message={fieldErrors.change_reason} />
               </div>
             )}
 

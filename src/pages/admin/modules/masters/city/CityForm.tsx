@@ -24,6 +24,10 @@ import type { SelectOption } from "@/types";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
+import { citySchema } from "@/schemas/masters/city.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 import type { CountryMeta, DistrictMeta, StateMeta } from "./types";
 
@@ -100,7 +104,7 @@ const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encCities);
 ========================================================== */
 export default function CityForm() {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } = useFieldVisibility(
+  const { showField, filterPayload } = useFieldVisibility(
     "masters",
     "cities",
     CITY_FORM_FIELDS,
@@ -129,6 +133,7 @@ export default function CityForm() {
   const [filteredDistricts, setFilteredDistricts] = useState<SelectOption[]>([]);
 
   const [isActive, setIsActive] = useState(true);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -662,22 +667,21 @@ export default function CityForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    const fieldValues: Record<string, unknown> = {
+    const fieldValues = {
       continent_id: continentId,
       country_id: countryId,
       state_id: stateId,
       district_id: districtId,
       name: cityName.trim(),
     };
-    const missingFields = getMissingRequiredFields(
-      ["continent_id", "country_id", "state_id", "district_id", "name"],
-      (fieldKey) => fieldValues[fieldKey],
-    );
-
-    if (missingFields.length > 0) {
+    const schema = requireWhenVisible(citySchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.warning"), t("common.all_fields_required"), "warning");
       return;
     }
+    setFieldErrors({});
 
     if (!companyUniqueId) {
       Swal.fire(
@@ -817,6 +821,7 @@ export default function CityForm() {
                 setPendingCountryId("");
                 setPendingStateId("");
                 setPendingDistrictId("");
+                setFieldErrors((prev) => ({ ...prev, continent_id: "" }));
               }}
             >
               <SelectTrigger className="input-validate w-full">
@@ -834,6 +839,7 @@ export default function CityForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.continent_id} />
           </div>
           )}
 
@@ -841,7 +847,7 @@ export default function CityForm() {
           {showField("country_id") && (
           <div>
             <Label>{t("admin.nav.country")} *</Label>
-            <Select value={countryId} onValueChange={(val) => { setCountryId(val); setStateId(""); setDistrictId(""); setPendingStateId(""); setPendingDistrictId(""); }} disabled={!continentId}>
+            <Select value={countryId} onValueChange={(val) => { setCountryId(val); setStateId(""); setDistrictId(""); setPendingStateId(""); setPendingDistrictId(""); setFieldErrors((prev) => ({ ...prev, country_id: "" })); }} disabled={!continentId}>
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.country") })} />
               </SelectTrigger>
@@ -853,6 +859,7 @@ export default function CityForm() {
                 ) : filteredCountries.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.country_id} />
           </div>
           )}
 
@@ -860,7 +867,7 @@ export default function CityForm() {
           {showField("state_id") && (
           <div>
             <Label>{t("admin.nav.state")} *</Label>
-            <Select value={stateId} onValueChange={(val) => { setStateId(val); setDistrictId(""); setPendingDistrictId(""); }} disabled={!countryId}>
+            <Select value={stateId} onValueChange={(val) => { setStateId(val); setDistrictId(""); setPendingDistrictId(""); setFieldErrors((prev) => ({ ...prev, state_id: "" })); }} disabled={!countryId}>
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.state") })} />
               </SelectTrigger>
@@ -872,6 +879,7 @@ export default function CityForm() {
                 ) : filteredStates.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.state_id} />
           </div>
           )}
 
@@ -879,7 +887,7 @@ export default function CityForm() {
           {showField("district_id") && (
           <div>
             <Label>{t("admin.nav.district")} *</Label>
-            <Select value={districtId} onValueChange={setDistrictId} disabled={!stateId}>
+            <Select value={districtId} onValueChange={(val) => { setDistrictId(val); setFieldErrors((prev) => ({ ...prev, district_id: "" })); }} disabled={!stateId}>
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.district") })} />
               </SelectTrigger>
@@ -891,6 +899,7 @@ export default function CityForm() {
                 ) : filteredDistricts.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.district_id} />
           </div>
           )}
 
@@ -898,7 +907,8 @@ export default function CityForm() {
           {showField("name") && (
           <div>
             <Label>{t("common.item_name", { item: t("admin.nav.city") })} *</Label>
-            <Input value={cityName} onChange={(e) => setCityName(e.target.value)} placeholder={t("common.enter_item_name", { item: t("admin.nav.city") })} className="input-validate w-full" required />
+            <Input value={cityName} onChange={(e) => { setCityName(e.target.value); setFieldErrors((prev) => ({ ...prev, name: "" })); }} placeholder={t("common.enter_item_name", { item: t("admin.nav.city") })} className="input-validate w-full" required />
+            <FieldError message={fieldErrors.name} />
           </div>
           )}
 

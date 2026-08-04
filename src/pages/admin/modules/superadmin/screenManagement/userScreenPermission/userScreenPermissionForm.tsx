@@ -31,6 +31,9 @@ import {
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
 import PermissionSection, { type PermissionSectionData } from "./PermissionSection";
+import { userScreenPermissionSchema } from "@/schemas/superadmin/screenManagement/userScreenPermission.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const { encAdmins, encUserScreenPermission } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
@@ -129,6 +132,7 @@ export default function UserScreenPermissionForm() {
 
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const sectionDataRef = useRef<Record<string, PermissionSectionData>>({});
 
@@ -274,6 +278,7 @@ export default function UserScreenPermissionForm() {
     if (!nextMainScreenId || mainScreenIds.includes(nextMainScreenId)) return;
     setMainScreenIds((prev) => [...prev, nextMainScreenId]);
     setAddSectionValue("");
+    setFieldErrors((prev) => ({ ...prev, mainScreenIds: "" }));
   };
 
   const handleRemoveSection = (targetMainScreenId: string) => {
@@ -300,7 +305,18 @@ export default function UserScreenPermissionForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!effectiveCompanyId || !effectiveProjectId || mainScreenIds.length === 0) {
+    const validation = parseWithSchema(userScreenPermissionSchema, {
+      permissionType,
+      mainScreenIds,
+    });
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+      return;
+    }
+    setFieldErrors({});
+
+    if (!effectiveCompanyId || !effectiveProjectId) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
@@ -530,6 +546,7 @@ export default function UserScreenPermissionForm() {
               value={permissionType}
               onValueChange={(value) => {
                 setPermissionType(value as PermissionType);
+                setFieldErrors((prev) => ({ ...prev, permissionType: "" }));
                 if (!isEdit) resetSections();
               }}
             >
@@ -544,6 +561,7 @@ export default function UserScreenPermissionForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.permissionType} />
           </div>
         </div>
 
@@ -577,6 +595,7 @@ export default function UserScreenPermissionForm() {
                   ))}
                 </SelectContent>
               </Select>
+              <FieldError message={fieldErrors.mainScreenIds} />
             </div>
           </div>
         )}

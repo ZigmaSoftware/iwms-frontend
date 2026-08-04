@@ -13,6 +13,9 @@ import PasswordInput from "@/components/form/input/PasswordInput";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { districtLeaderApi, districtApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { buildDistrictLeaderSchema } from "@/schemas/masters/leaderManagement/districtLeader.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const initialForm = {
   username: "",
@@ -59,6 +62,7 @@ export default function DistrictLeaderForm() {
   const [submitting, setSubmitting] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [pendingDistrictId, setPendingDistrictId] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   useEffect(() => {
     const params: Record<string, string> = {};
@@ -114,10 +118,12 @@ export default function DistrictLeaderForm() {
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { id: fieldId, value } = e.target;
     setFormData((prev) => ({ ...prev, [fieldId]: value }));
+    setFieldErrors((prev) => (prev[fieldId] ? { ...prev, [fieldId]: "" } : prev));
   };
 
   const handleSelectChange = (field: keyof typeof initialForm, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    setFieldErrors((prev) => (prev[field] ? { ...prev, [field]: "" } : prev));
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -139,20 +145,15 @@ export default function DistrictLeaderForm() {
       return;
     }
 
-    if (!formData.district_id) {
-      Swal.fire("Validation", "Please select a district.", "warning");
+    const schema = buildDistrictLeaderSchema(isEdit);
+    const validation = parseWithSchema(schema, formData);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      const firstError = Object.values(validation.errors)[0];
+      Swal.fire("Validation", firstError ?? "Please fill in all required fields.", "warning");
       return;
     }
-
-    if (!formData.username.trim()) {
-      Swal.fire("Validation", "Username is required.", "warning");
-      return;
-    }
-
-    if (!isEdit && !formData.password.trim()) {
-      Swal.fire("Validation", "Password is required when creating a new district leader.", "warning");
-      return;
-    }
+    setFieldErrors({});
 
     setSubmitting(true);
 
@@ -269,6 +270,7 @@ export default function DistrictLeaderForm() {
                 placeholder="Select District"
                 disabled={!companyUniqueId || !projectId || districtOptions.length === 0 || fetching}
               />
+              <FieldError message={fieldErrors.district_id} />
             </div>
 
             <div>
@@ -276,6 +278,7 @@ export default function DistrictLeaderForm() {
                 Username <span className="text-red-500 ml-1">*</span>
               </Label>
               <Input id="username" value={formData.username} onChange={handleInputChange} placeholder="Enter username" />
+              <FieldError message={fieldErrors.username} />
             </div>
 
             <div>
@@ -288,6 +291,7 @@ export default function DistrictLeaderForm() {
             <div>
               <Label htmlFor="email">Email</Label>
               <Input id="email" value={formData.email} onChange={handleInputChange} placeholder="Enter email" />
+              <FieldError message={fieldErrors.email} />
             </div>
 
             <div>
@@ -295,6 +299,7 @@ export default function DistrictLeaderForm() {
                 Password {isEdit ? "(leave blank to keep current)" : <span className="text-red-500 ml-1">*</span>}
               </Label>
               <PasswordInput id="password" value={formData.password} onChange={handleInputChange} placeholder="Enter password" />
+              <FieldError message={fieldErrors.password} />
             </div>
 
             <div>
