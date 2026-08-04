@@ -11,6 +11,9 @@ export type ProjectRecord = {
   name: string;
   description: string | null;
   gps_api_url: string | null;
+  gps_vehicle_history_api: string | null;
+  gps_vehicle_tracking_api: string | null;
+  gps_trip_summary_api: string | null;
   gps_user_id: string | null;
   gps_group_name: string | null;
   gps_provider_name: string | null;

@@ -86,6 +86,9 @@ export default function ProjectForm() {
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [gpsApiUrl, setGpsApiUrl] = useState("");
+  const [gpsVehicleHistoryApi, setGpsVehicleHistoryApi] = useState("");
+  const [gpsVehicleTrackingApi, setGpsVehicleTrackingApi] = useState("");
+  const [gpsTripSummaryApi, setGpsTripSummaryApi] = useState("");
   const [gpsUserId, setGpsUserId] = useState("BLUEPLANET");
   const [gpsGroupName, setGpsGroupName] = useState("BLUEPLANET:VAM");
   const [gpsProviderName, setGpsProviderName] = useState("BLUEPLANET");
@@ -132,6 +135,9 @@ export default function ProjectForm() {
         setName(record.name ?? "");
         setDescription(record.description ?? "");
         setGpsApiUrl(record.gps_api_url ?? "");
+        setGpsVehicleHistoryApi(record.gps_vehicle_history_api ?? "");
+        setGpsVehicleTrackingApi(record.gps_vehicle_tracking_api ?? "");
+        setGpsTripSummaryApi(record.gps_trip_summary_api ?? "");
         setGpsUserId(record.gps_user_id ?? "BLUEPLANET");
         setGpsGroupName(record.gps_group_name ?? "BLUEPLANET:VAM");
         setGpsProviderName(record.gps_provider_name ?? "BLUEPLANET");
@@ -219,6 +225,9 @@ export default function ProjectForm() {
           name: name.trim(),
           description: description.trim() || null,
           gps_api_url: gpsApiUrl.trim() || null,
+          gps_vehicle_history_api: gpsVehicleHistoryApi.trim() || null,
+          gps_vehicle_tracking_api: gpsVehicleTrackingApi.trim() || null,
+          gps_trip_summary_api: gpsTripSummaryApi.trim() || null,
           gps_user_id: gpsUserId.trim() || "BLUEPLANET",
           gps_group_name: gpsGroupName.trim() || "BLUEPLANET:VAM",
           gps_provider_name: gpsProviderName.trim() || "BLUEPLANET",
@@ -235,6 +244,9 @@ export default function ProjectForm() {
           name: name.trim(),
           description: description.trim() || null,
           gps_api_url: gpsApiUrl.trim() || null,
+          gps_vehicle_history_api: gpsVehicleHistoryApi.trim() || null,
+          gps_vehicle_tracking_api: gpsVehicleTrackingApi.trim() || null,
+          gps_trip_summary_api: gpsTripSummaryApi.trim() || null,
           gps_user_id: gpsUserId.trim() || "BLUEPLANET",
           gps_group_name: gpsGroupName.trim() || "BLUEPLANET:VAM",
           gps_provider_name: gpsProviderName.trim() || "BLUEPLANET",
@@ -382,6 +394,42 @@ export default function ProjectForm() {
               value={gpsApiUrl}
               onChange={(e) => setGpsApiUrl(e.target.value)}
               placeholder="https://api.example.com/getVehicleHistory"
+            />
+          </div>
+
+          {/* GPS Vehicle History API */}
+          <div>
+            <Label htmlFor="gpsVehicleHistoryApi">GPS Vehicle History API</Label>
+            <Input
+              id="gpsVehicleHistoryApi"
+              type="url"
+              value={gpsVehicleHistoryApi}
+              onChange={(e) => setGpsVehicleHistoryApi(e.target.value)}
+              placeholder="https://api.vamosys.com/mobile/getGrpDataForTrustedClients"
+            />
+          </div>
+
+          {/* GPS Vehicle Tracking API */}
+          <div>
+            <Label htmlFor="gpsVehicleTrackingApi">GPS Vehicle Tracking API</Label>
+            <Input
+              id="gpsVehicleTrackingApi"
+              type="url"
+              value={gpsVehicleTrackingApi}
+              onChange={(e) => setGpsVehicleTrackingApi(e.target.value)}
+              placeholder="https://api.vamosys.com/mobile/getGrpDataForTrustedClients"
+            />
+          </div>
+
+          {/* GPS Trip Summary API */}
+          <div>
+            <Label htmlFor="gpsTripSummaryApi">GPS Trip Summary API</Label>
+            <Input
+              id="gpsTripSummaryApi"
+              type="url"
+              value={gpsTripSummaryApi}
+              onChange={(e) => setGpsTripSummaryApi(e.target.value)}
+              placeholder="https://gpsvtsprobend.vamosys.com/v2/getTripSummary"
             />
           </div>
 

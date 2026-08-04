@@ -20,7 +20,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { LeafletMapContainer } from "@/components/map/LeafletMapContainer";
+import { LeafletMapContainer, type VehicleData as LiveVehicle } from "@/components/map/LeafletMapContainer";
 import { BinMapPanel } from "./map/BinMapPanel";
 import { HouseholdMapPanel } from "./map/HouseholdMapPanel";
 import { WardMapPanel } from "./map/WardMapPanel";
@@ -1010,7 +1010,7 @@ function VehicleStatusRing({
   total,
   active,
   idle,
-  breakdown,
+  parked,
   offlineGps,
   wasteSegments,
   totalWasteTons,
@@ -1019,7 +1019,7 @@ function VehicleStatusRing({
   total: number;
   active: number;
   idle: number;
-  breakdown: number;
+  parked: number;
   offlineGps: number;
   wasteSegments: Array<{
     label: string;
@@ -1033,7 +1033,7 @@ function VehicleStatusRing({
 }) {
   const activePct = total > 0 ? (active / total) * 100 : 0;
   const idlePct = total > 0 ? (idle / total) * 100 : 0;
-  const breakdownPct = total > 0 ? (breakdown / total) * 100 : 0;
+  const parkedPct = total > 0 ? (parked / total) * 100 : 0;
   let wasteOffset = 0;
   const wasteGradientStops = wasteSegments.map((segment) => {
     const start = wasteOffset;
@@ -1054,7 +1054,7 @@ function VehicleStatusRing({
             ["Total Fleet", total, "bg-slate-400", "border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-800/50"],
             ["Active", active, "bg-emerald-500", "border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10"],
             ["Idle", idle, "bg-amber-500", "border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10"],
-            ["Breakdown", breakdown, "bg-rose-500", "border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10"],
+            ["Parked", parked, "bg-rose-500", "border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10"],
             ["Offline GPS", offlineGps, "bg-slate-500", "border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-800/50"],
           ].map(([label, value, color, rowClass]) => (
             <div key={String(label)} className={`flex items-center justify-between gap-3 rounded-md border px-2 py-1.5 text-slate-600 dark:text-slate-300 ${rowClass}`}>
@@ -1072,8 +1072,8 @@ function VehicleStatusRing({
             background: `conic-gradient(#22c55e ${activePct * 3.6}deg, #f59e0b ${activePct * 3.6}deg ${
               (activePct + idlePct) * 3.6
             }deg, #ef4444 ${(activePct + idlePct) * 3.6}deg ${
-              (activePct + idlePct + breakdownPct) * 3.6
-            }deg, #64748b ${(activePct + idlePct + breakdownPct) * 3.6}deg 360deg)`,
+              (activePct + idlePct + parkedPct) * 3.6
+            }deg, #64748b ${(activePct + idlePct + parkedPct) * 3.6}deg 360deg)`,
           }}
         >
           <div className="grid h-[72px] w-[72px] place-items-center rounded-full bg-white text-center dark:bg-[#101d2c]">
@@ -1272,6 +1272,10 @@ export function HomeDashboard() {
   const [selectedAlert, setSelectedAlert] = useState<CriticalAlert | null>(null);
   const [showWardGeofences, setShowWardGeofences] = useState(false);
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
+  // Populated by LeafletMapContainer's own live-GPS polling (independent of
+  // loadDashboard below) so the Vehicle Status counts reflect the same feed
+  // as the map instead of the backend's DB-derived approximation.
+  const [liveVehicles, setLiveVehicles] = useState<LiveVehicle[]>([]);
 
   const params = useMemo(() => {
     const next: Record<string, string> = {};
@@ -1455,7 +1459,7 @@ export function HomeDashboard() {
       <div className="flex-1 min-h-0 relative">
         {activeMapTab === "vehicle" && (
           <div className="h-full w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-            <LeafletMapContainer height="100%" />
+            <LeafletMapContainer height="100%" onVehiclesChange={setLiveVehicles} />
           </div>
         )}
         {activeMapTab === "bins" && (
@@ -1596,6 +1600,20 @@ export function HomeDashboard() {
   }));
   const totalWasteForBreakdown = summary.waste.total_tons > 0 ? summary.waste.total_tons : 1;
 
+  const liveVehicleStatus = useMemo(() => {
+    let active = 0;
+    let idle = 0;
+    let parked = 0;
+    let offlineGps = 0;
+    for (const v of liveVehicles) {
+      if (v.status === "Running") active += 1;
+      else if (v.status === "Idle") idle += 1;
+      else if (v.status === "Parked") parked += 1;
+      else offlineGps += 1;
+    }
+    return { total: liveVehicles.length, active, idle, parked, offlineGps };
+  }, [liveVehicles]);
+
   return (
     <div className="min-w-0 bg-slate-50 p-3 text-slate-900 dark:bg-[#020912] dark:text-slate-100 lg:min-h-[calc(100vh-7.5rem)]">
       <div className="min-h-[calc(100vh-8.5rem)] w-full overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl dark:border-[#172a44] dark:bg-[#081421]">
@@ -1733,11 +1751,11 @@ export function HomeDashboard() {
           <div className="mt-3 grid gap-3 xl:grid-cols-12">
             <div className="xl:col-span-3">
               <VehicleStatusRing
-                total={summary.vehicles.total}
-                active={summary.vehicles.active}
-                idle={dashboard.vehicle_status_detail.idle}
-                breakdown={dashboard.vehicle_status_detail.breakdown}
-                offlineGps={dashboard.vehicle_status_detail.offline_gps}
+                total={liveVehicleStatus.total}
+                active={liveVehicleStatus.active}
+                idle={liveVehicleStatus.idle}
+                parked={liveVehicleStatus.parked}
+                offlineGps={liveVehicleStatus.offlineGps}
                 wasteSegments={wasteSegments}
                 totalWasteTons={summary.waste.total_tons}
                 totalWasteForBreakdown={totalWasteForBreakdown}

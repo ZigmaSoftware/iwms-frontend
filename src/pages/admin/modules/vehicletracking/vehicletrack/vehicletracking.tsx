@@ -229,7 +229,7 @@ export default function VehicleTracking() {
     gpsProviderName,
     gpsFcode,
     gpsTripUserId,
-    weighmentApiUrl,
+    dayWiseWeighmentApiUrl,
   } = useProjectSelector();
   const API_URL = buildVehicleTrackingUrl(
     { providerName: gpsProviderName, fcode: gpsFcode },
@@ -420,7 +420,7 @@ export default function VehicleTracking() {
 
     map.addControl(new StatusControl({ position: "topleft" }));
 
-    const timer = setInterval(fetchData, 15000);
+    const timer = setInterval(fetchData, 2000);
     return () => {
       clearInterval(timer);
       map.remove();
@@ -498,7 +498,7 @@ export default function VehicleTracking() {
 
         const [tripRes, weightResult] = await Promise.all([
           fetch(tripUrl).then((res) => res.json()),
-          fetchWasteReport(weighmentApiUrl, "day_wise_data", reportStartKey, todayKey).catch(
+          fetchWasteReport(dayWiseWeighmentApiUrl, "day_wise_data", reportStartKey, todayKey).catch(
             () => ({ rows: [] }),
           ),
         ]);
@@ -594,7 +594,7 @@ export default function VehicleTracking() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [panelVehicle?.id, weighmentApiUrl, gpsTripSummaryApi]);
+  }, [panelVehicle?.id, dayWiseWeighmentApiUrl, gpsTripSummaryApi]);
 
   /* ================= MARKERS + POPUP ================= */
   useEffect(() => {
