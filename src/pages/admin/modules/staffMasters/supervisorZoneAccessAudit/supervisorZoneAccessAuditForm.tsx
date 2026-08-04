@@ -11,6 +11,7 @@ import Label from "@/components/form/Label";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 
 
 const buildLookup = (items: any[], key: string, label: string) =>
@@ -30,6 +31,7 @@ export default function SupervisorZoneAccessAuditForm() {
   const auditApi = adminApi.supervisorZoneAccessAudits;
   const zoneApi = adminApi.zones;
   const userCreationApi = adminApi.usersCreation;
+  const { showZone } = useZonePanchayatVisibility();
 
   const [record, setRecord] = useState<SupervisorZoneAccessAuditRecord | null>(null);
   const [loading, setLoading] = useState(false);
@@ -43,21 +45,34 @@ export default function SupervisorZoneAccessAuditForm() {
     if (!id) return;
     setLoading(true);
 
-    Promise.all([auditApi.read(id), zoneApi.readAll(), userCreationApi.readAll()])
-      .then(([auditRes, zoneRes, userRes]) => {
-        setRecord(auditRes ?? null);
-        setZoneLookup(buildLookup(normalizeList(zoneRes), "unique_id", "name"));
+    // Promise.allSettled — not all() — because a staff without Zone access
+    // (e.g. a panchayat-only project) 403s that one call at the module-
+    // permission middleware; that must not prevent the audit record and
+    // user lookup from loading. The zone fetch is skipped entirely up
+    // front when the login-scoped data shows the staff has no access to it.
+    Promise.allSettled([
+      auditApi.read(id),
+      showZone ? zoneApi.readAll() : Promise.resolve([]),
+      userCreationApi.readAll(),
+    ])
+      .then(([auditR, zoneR, userR]) => {
+        const settled = (result: PromiseSettledResult<unknown>): unknown =>
+          result.status === "fulfilled" ? result.value : [];
 
-        const users = normalizeList(userRes).filter(
+        setRecord((auditR.status === "fulfilled" ? auditR.value : null) as SupervisorZoneAccessAuditRecord | null);
+        setZoneLookup(buildLookup(normalizeList(settled(zoneR)), "unique_id", "name"));
+
+        const users = normalizeList(settled(userR)).filter(
           (u: any) => u?.user_type_name?.toLowerCase() === "staff"
         );
         setUserLookup(buildLookup(users, "unique_id", "staff_name"));
-      })
-      .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+
+        if (auditR.status !== "fulfilled") {
+          Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        }
       })
       .finally(() => setLoading(false));
-  }, [auditApi, id, t, userCreationApi, zoneApi]);
+  }, [auditApi, id, t, userCreationApi, zoneApi, showZone]);
 
   const resolveUser = (userId?: string | null) =>
     userId ? userLookup[userId] ?? userId : "-";

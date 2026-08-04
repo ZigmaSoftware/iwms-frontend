@@ -19,6 +19,7 @@ import { adminApi } from "@/helpers/admin/registry";
 import { dailyTripAssignmentApi, dailyTripHouseholdCollectionApi, binApi, customerCreationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 import { normalizeList } from "@/utils/forms";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -186,6 +187,8 @@ export default function DailyTripAssignmentForm() {
     initialProjectId: routeState?.projectId,
   });
 
+  const { showZone, showPanchayat } = useZonePanchayatVisibility();
+
   const { encScheduleMasters, encDailyTripAssignment } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encDailyTripAssignment);
 
@@ -273,17 +276,34 @@ export default function DailyTripAssignmentForm() {
     let cancelled = false;
     setFetching(true);
     const params = { company_id: companyUniqueId, project_id: projectId };
-    Promise.all([
+    // Promise.allSettled — not all() — because a staff without Zone (or
+    // Panchayat) access 403s that one call at the module-permission
+    // middleware; that must not blank out every other dropdown. Zone/
+    // Panchayat are additionally skipped entirely up front when the
+    // login-scoped data shows the staff has no access to that resource.
+    Promise.allSettled([
       adminApi.tripPlans.readAll({ params }),
       adminApi.staffTemplateCreation.readAll({ params }),
-      adminApi.zones.readAll({ params }),
-      adminApi.panchayats.readAll({ params }),
+      showZone ? adminApi.zones.readAll({ params }) : Promise.resolve([]),
+      showPanchayat ? adminApi.panchayats.readAll({ params }) : Promise.resolve([]),
       adminApi.wards.readAll({ params }),
       adminApi.wasteTypes.readAll({ params }),
       adminApi.alternativeStaffTemplate.readAll({ params }),
     ])
-      .then(([tripRes, staffRes, zoneRes, panchRes, wardRes, wtRes, altRes]) => {
+      .then(([tripR, staffR, zoneR, panchR, wardR, wtR, altR]) => {
         if (cancelled) return;
+
+        const settled = (result: PromiseSettledResult<unknown>): unknown =>
+          result.status === "fulfilled" ? result.value : [];
+
+        const tripRes = settled(tripR);
+        const staffRes = settled(staffR);
+        const zoneRes = settled(zoneR);
+        const panchRes = settled(panchR);
+        const wardRes = settled(wardR);
+        const wtRes = settled(wtR);
+        const altRes = settled(altR);
+
         const tripRows = filterByCompanyProject(normalizeList(tripRes), companyUniqueId, projectId);
         const wardRows = filterByCompanyProject(normalizeList(wardRes), companyUniqueId, projectId);
         setTripPlanRecords(tripRows);
@@ -295,10 +315,9 @@ export default function DailyTripAssignmentForm() {
         setWasteTypes(buildOptions(normalizeList(wtRes), ["waste_type_name", "name"]));
         setAltStaffCache(normalizeList(altRes));
       })
-      .catch((err: any) => Swal.fire(t("common.error"), extractError(err) ?? t("common.load_failed"), "error"))
       .finally(() => { if (!cancelled) setFetching(false); });
     return () => { cancelled = true; };
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectId, t, showZone, showPanchayat]);
 
   // ── Fetch trip plans already assigned (non-cancelled) on the selected date,
   // so the Trip Plan dropdown can mark them "(Assigned)" / disabled and block

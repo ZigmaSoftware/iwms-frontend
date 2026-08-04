@@ -18,6 +18,7 @@ import {
   wardApi,
   panchayatApi,
 } from "@/helpers/admin";
+import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 
 import type { LocationScope } from "./types";
 
@@ -73,6 +74,7 @@ type Props = {
  */
 export default function LocationScopeSelector({ value, onChange, disabled }: Props) {
   const { t } = useTranslation();
+  const { showZone, showPanchayat } = useZonePanchayatVisibility();
 
   const [rawStates, setRawStates] = useState<Record<string, unknown>[]>([]);
   const [rawDistricts, setRawDistricts] = useState<Record<string, unknown>[]>([]);
@@ -84,27 +86,37 @@ export default function LocationScopeSelector({ value, onChange, disabled }: Pro
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([
+    // Promise.allSettled — not all() — because an operator whose own Staff
+    // Access Configuration has no Zone (or Panchayat) access 403s that one
+    // call at the module-permission middleware; that must not block every
+    // other level from loading. Zone/Panchayat are additionally skipped
+    // entirely up front when the login-scoped data shows the operator has
+    // no access to that resource.
+    Promise.allSettled([
       stateApi.readAll(),
       districtApi.readAll(),
       cityApi.readAll(),
-      zoneApi.readAll(),
-      panchayatApi.readAll(),
+      showZone ? zoneApi.readAll() : Promise.resolve([]),
+      showPanchayat ? panchayatApi.readAll() : Promise.resolve([]),
       wardApi.readAll(),
-    ]).then(([states, districts, cities, zones, panchayats, wards]) => {
+    ]).then(([statesR, districtsR, citiesR, zonesR, panchayatsR, wardsR]) => {
       if (cancelled) return;
-      setRawStates(toList(states));
-      setRawDistricts(toList(districts));
-      setRawCities(toList(cities));
-      setRawZones(toList(zones));
-      setRawPanchayats(toList(panchayats));
-      setRawWards(toList(wards));
+
+      const settled = (result: PromiseSettledResult<unknown>): unknown =>
+        result.status === "fulfilled" ? result.value : [];
+
+      setRawStates(toList(settled(statesR)));
+      setRawDistricts(toList(settled(districtsR)));
+      setRawCities(toList(settled(citiesR)));
+      setRawZones(toList(settled(zonesR)));
+      setRawPanchayats(toList(settled(panchayatsR)));
+      setRawWards(toList(settled(wardsR)));
     });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [showZone, showPanchayat]);
 
   const filteredDistricts = useMemo(
     () =>
@@ -294,7 +306,7 @@ export default function LocationScopeSelector({ value, onChange, disabled }: Pro
         </Select>
       </div>
 
-      {!isPanchayatSelected && (
+      {showZone && !isPanchayatSelected && (
         <div>
           <Label>{t("common.zone")}</Label>
           <Select
@@ -317,7 +329,7 @@ export default function LocationScopeSelector({ value, onChange, disabled }: Pro
         </div>
       )}
 
-      {!isZoneSelected && (
+      {showPanchayat && !isZoneSelected && (
         <div>
           <Label>{t("admin.nav.panchayat")}</Label>
           <Select

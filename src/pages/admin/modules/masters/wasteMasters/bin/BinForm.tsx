@@ -21,6 +21,7 @@ import { wasteTypeApi, districtApi, cityApi, panchayatApi, zoneApi, wardApi, col
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 import type { BinRecord, CityOption, CollectionPointOption, LocationOption, WardOption } from "./types";
 
 const { encMasters, encBins } = getEncryptedRoute();
@@ -92,6 +93,7 @@ export default function BinForm() {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
     useFieldVisibility("assets", "bins", BIN_FIELDS);
+  const { showZone, showPanchayat } = useZonePanchayatVisibility();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
@@ -213,16 +215,31 @@ export default function BinForm() {
     if (!companyUniqueId || !projectId) return;
     let cancelled = false;
     const params = { company_id: companyUniqueId, project_id: projectId };
-    Promise.all([
+    // Promise.allSettled — not all() — because a staff without Zone (or
+    // Panchayat) access 403s that one call at the module-permission
+    // middleware; that must not blank out every other dropdown. Zone/
+    // Panchayat are additionally skipped entirely up front when the
+    // login-scoped data shows the staff has no access to that resource.
+    Promise.allSettled([
       districtApi.readAll({ params }),
       cityApi.readAll({ params }),
-      panchayatApi.readAll({ params }),
-      zoneApi.readAll({ params }),
+      showPanchayat ? panchayatApi.readAll({ params }) : Promise.resolve([]),
+      showZone ? zoneApi.readAll({ params }) : Promise.resolve([]),
       wardApi.readAll({ params }),
       collectionPointApi.readAll({ params }),
     ])
-      .then(([distData, cityData, panData, zoneData, wardData, cpData]) => {
+      .then(([distR, cityR, panR, zoneR, wardR, cpR]) => {
         if (cancelled) return;
+
+        const settled = (result: PromiseSettledResult<unknown>): unknown =>
+          result.status === "fulfilled" ? result.value : [];
+
+        const distData = settled(distR);
+        const cityData = settled(cityR);
+        const panData = settled(panR);
+        const zoneData = settled(zoneR);
+        const wardData = settled(wardR);
+        const cpData = settled(cpR);
 
         setAllCollectionPoints(toRecordList(cpData));
 
@@ -285,13 +302,9 @@ export default function BinForm() {
             .filter((w) => w.value && w.label)
         );
 
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        Swal.fire(t("common.error"), extractErr(err), "error");
       });
     return () => { cancelled = true; };
-  }, [companyUniqueId, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [companyUniqueId, projectId, showZone, showPanchayat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ==========================================================
       DERIVE COLLECTION POINTS from allCollectionPoints (already fetched)
@@ -752,8 +765,8 @@ export default function BinForm() {
           </div>
         )}
 
-        {/* Panchayat — hidden when Zone is selected */}
-        {!isZoneSelected && (
+        {/* Panchayat — hidden when the staff has no Panchayat access, or when Zone is selected */}
+        {showPanchayat && !isZoneSelected && (
           <div>
             <Label>{t("admin.nav.panchayat")}</Label>
             <Select
@@ -784,8 +797,8 @@ export default function BinForm() {
           </div>
         )}
 
-        {/* Zone — hidden when Panchayat is selected */}
-        {!isPanchayatSelected && (
+        {/* Zone — hidden when the staff has no Zone access, or when Panchayat is selected */}
+        {showZone && !isPanchayatSelected && (
           <div>
             <Label>{t("admin.nav.zone")}</Label>
             <Select

@@ -15,6 +15,7 @@ import { MultiSelect } from "primereact/multiselect";
 import { adminApi } from "@/helpers/admin/registry";
 import { tripPlanApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 
@@ -208,6 +209,8 @@ export default function TripPlanForm() {
     initialProjectId: routeState?.projectId,
   });
 
+  const { showZone, showPanchayat } = useZonePanchayatVisibility();
+
   const { encScheduleMasters, encTripPlans } = getEncryptedRoute();
   const { listPath: listPath } = createCrudRoutePaths(encScheduleMasters, encTripPlans);
 
@@ -325,11 +328,16 @@ export default function TripPlanForm() {
       project_unique_id: projectId,
     };
 
-    Promise.all([
+    // Promise.allSettled — not all() — because a staff without Zone (or
+    // Panchayat) access 403s that one call at the module-permission
+    // middleware; that must not blank out every other dropdown/lookup.
+    // Zone/Panchayat are additionally skipped entirely up front when the
+    // login-scoped data shows the staff has no access to that resource.
+    Promise.allSettled([
       adminApi.districts.readAll({ params: geoParams }),
       adminApi.cities.readAll({ params: geoParams }),
-      adminApi.zones.readAll({ params: geoParams }),
-      adminApi.panchayats.readAll({ params: geoParams }),
+      showZone ? adminApi.zones.readAll({ params: geoParams }) : Promise.resolve([]),
+      showPanchayat ? adminApi.panchayats.readAll({ params: geoParams }) : Promise.resolve([]),
       adminApi.wards.readAll({ params: geoParams }),
       adminApi.staffTemplateCreation.readAll({ params: geoParams }),
       adminApi.vehicleCreations.readAll({ params: geoParams }),
@@ -342,8 +350,25 @@ export default function TripPlanForm() {
       // bin's reservation by a trip plan in another zone/panchayat must still count.
       tripPlanApi.readAll({ params: baseParams }),
     ])
-      .then(([districts, cities, zones, panchayats, wards, staffTemplates, vehicles, staff, wasteTypes, collectionPoints, bins, customers, existingTripPlans]) => {
+      .then(([districtsR, citiesR, zonesR, panchayatsR, wardsR, staffTemplatesR, vehiclesR, staffR, wasteTypesR, collectionPointsR, binsR, customersR, existingTripPlansR]) => {
         if (cancelled) return;
+
+        const settled = (result: PromiseSettledResult<unknown>): unknown =>
+          result.status === "fulfilled" ? result.value : [];
+
+        const districts = settled(districtsR);
+        const cities = settled(citiesR);
+        const zones = settled(zonesR);
+        const panchayats = settled(panchayatsR);
+        const wards = settled(wardsR);
+        const staffTemplates = settled(staffTemplatesR);
+        const vehicles = settled(vehiclesR);
+        const staff = settled(staffR);
+        const wasteTypes = settled(wasteTypesR);
+        const collectionPoints = settled(collectionPointsR);
+        const bins = settled(binsR);
+        const customers = settled(customersR);
+        const existingTripPlans = settled(existingTripPlansR);
         // Compute bin IDs already used by OTHER active trip plans in the same geo scope
         const reservedBins = new Set<string>();
         const loadedTripPlans = normalizeList(existingTripPlans);
@@ -378,12 +403,11 @@ export default function TripPlanForm() {
           customers: normalizeList(customers),
         });
       })
-      .catch((error) => Swal.fire(t("common.error"), extractErrorMessage(error) ?? t("common.load_failed"), "error"))
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [companyUniqueId, projectId, formData.district_id, formData.zone_id, formData.panchayat_id, formData.collection_type, id, t]);
+  }, [companyUniqueId, projectId, formData.district_id, formData.zone_id, formData.panchayat_id, formData.collection_type, id, t, showZone, showPanchayat]);
 
   const options = useMemo(() => {
     const districts = scopedItems(lookups.districts ?? [], companyUniqueId, projectId);
@@ -890,8 +914,8 @@ export default function TripPlanForm() {
             </div>
             <div><Label>District</Label><Select value={formData.district_id} onChange={setField("district_id")} options={options.districts} disabled={loading || !projectId} /></div>
             <div><Label>City</Label><Select value={formData.city_id} onChange={setField("city_id")} options={options.cities} disabled={loading || !formData.district_id} /></div>
-            {!formData.panchayat_id && <div><Label>Zone</Label><Select value={formData.zone_id} onChange={setField("zone_id")} options={options.zones} disabled={loading || !formData.city_id} /></div>}
-            {!formData.zone_id && <div><Label>PLB (Participating Local Bodies)</Label><Select value={formData.panchayat_id} onChange={setField("panchayat_id")} options={options.panchayats} disabled={loading || !formData.city_id} /></div>}
+            {showZone && !formData.panchayat_id && <div><Label>Zone</Label><Select value={formData.zone_id} onChange={setField("zone_id")} options={options.zones} disabled={loading || !formData.city_id} /></div>}
+            {showPanchayat && !formData.zone_id && <div><Label>PLB (Participating Local Bodies)</Label><Select value={formData.panchayat_id} onChange={setField("panchayat_id")} options={options.panchayats} disabled={loading || !formData.city_id} /></div>}
             {(formData.zone_id || formData.panchayat_id) && (
               <div>
                 <Label>Ward</Label>

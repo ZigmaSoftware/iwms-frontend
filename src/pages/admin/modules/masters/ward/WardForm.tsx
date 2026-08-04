@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 import { continentApi, countryApi, stateApi, districtApi, cityApi, zoneApi, panchayatApi, wardApi } from "@/helpers/admin";
 
 const WARD_FORM_FIELDS: Record<string, string[]> = {
@@ -166,6 +167,7 @@ export default function WardForm() {
     onCompanyChange,
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit });
+  const { showZone, showPanchayat } = useZonePanchayatVisibility();
 
   const extractErr = (e: any): string => {
     if (e?.response?.data) return String(e.response.data);
@@ -193,20 +195,37 @@ export default function WardForm() {
   }, [id, isEdit, t]);
 
   /* ==========================================================
-      LOAD MASTER DATA (all in one Promise.all to avoid race conditions)
+      LOAD MASTER DATA
+      Promise.allSettled — not all() — because a staff without Zone (or
+      Panchayat) access 403s that one call at the module-permission
+      middleware; that must not blank out every other dropdown. Zone/
+      Panchayat are additionally skipped entirely up front when the
+      login-scoped data shows the staff has no access to that resource,
+      avoiding the doomed request altogether.
   ========================================================== */
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
+    Promise.allSettled([
       continentApi.readAll(),
       countryApi.readAll(),
       stateApi.readAll(),
       districtApi.readAll(),
       cityApi.readAll(),
-      zoneApi.readAll(),
-      panchayatApi.readAll(),
-    ]).then(([continentRes, countryRes, stateRes, districtRes, cityRes, zoneRes, panchayatRes]) => {
+      showZone ? zoneApi.readAll() : Promise.resolve([]),
+      showPanchayat ? panchayatApi.readAll() : Promise.resolve([]),
+    ]).then(([continentR, countryR, stateR, districtR, cityR, zoneR, panchayatR]) => {
       if (cancelled) return;
+
+      const settled = <T,>(result: PromiseSettledResult<T>): T[] =>
+        result.status === "fulfilled" && Array.isArray(result.value) ? result.value : [];
+
+      const continentRes = settled(continentR);
+      const countryRes = settled(countryR);
+      const stateRes = settled(stateR);
+      const districtRes = settled(districtR);
+      const cityRes = settled(cityR);
+      const zoneRes = settled(zoneR);
+      const panchayatRes = settled(panchayatR);
 
       const contData = (continentRes as any[]) ?? [];
       setContinents(
@@ -288,9 +307,9 @@ export default function WardForm() {
         stateName: p.state_name ?? null,
         isActive: Boolean(p.is_active),
       })));
-    }).catch(() => {});
+    });
     return () => { cancelled = true; };
-  }, []);
+  }, [showZone, showPanchayat]);
 
   useEffect(() => {
     if (isEdit) return;
@@ -1022,8 +1041,8 @@ export default function WardForm() {
           </div>
           )}
 
-          {/* Zone — hidden when Panchayat is selected */}
-          {showField("zone_id") && !effectivePanchayatId && (
+          {/* Zone — hidden when the staff has no Zone access, or when Panchayat is selected */}
+          {showField("zone_id") && showZone && !effectivePanchayatId && (
           <div>
             <Label>{t("admin.nav.zone")}</Label>
             <Select
@@ -1044,8 +1063,8 @@ export default function WardForm() {
           </div>
           )}
 
-          {/* Panchayat — hidden when Zone is selected */}
-          {showField("panchayat_id") && !effectiveZoneId && (
+          {/* Panchayat — hidden when the staff has no Panchayat access, or when Zone is selected */}
+          {showField("panchayat_id") && showPanchayat && !effectiveZoneId && (
           <div>
             <Label>{t("admin.nav.panchayat")}</Label>
             <Select

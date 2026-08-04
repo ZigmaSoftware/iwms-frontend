@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
 import { stateApi, districtApi, cityApi, panchayatApi, zoneApi, wardApi, collectionPointApi } from "@/helpers/admin";
@@ -119,6 +120,7 @@ export default function CollectionPointForm() {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
     useFieldVisibility("schedule-masters", "collection-points", COLLECTION_POINT_FIELDS);
+  const { showZone, showPanchayat } = useZonePanchayatVisibility();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
@@ -274,16 +276,31 @@ export default function CollectionPointForm() {
     if (!companyUniqueId || !projectId) return;
     let cancelled = false;
     const params = { company_id: companyUniqueId, project_id: projectId };
-    Promise.all([
+    // Promise.allSettled — not all() — because a staff without Zone (or
+    // Panchayat) access 403s that one call at the module-permission
+    // middleware; that must not blank out every other dropdown. Zone/
+    // Panchayat are additionally skipped entirely up front when the
+    // login-scoped data shows the staff has no access to that resource.
+    Promise.allSettled([
       districtApi.readAll({ params }),
       cityApi.readAll({ params }),
-      panchayatApi.readAll({ params }),
-      zoneApi.readAll({ params }),
+      showPanchayat ? panchayatApi.readAll({ params }) : Promise.resolve([]),
+      showZone ? zoneApi.readAll({ params }) : Promise.resolve([]),
       wardApi.readAll({ params }),
       collectionPointApi.readAll({ params }),
     ])
-      .then(([distData, cityData, panData, zoneData, wardData, cpData]) => {
+      .then(([distR, cityR, panR, zoneR, wardR, cpR]) => {
         if (cancelled) return;
+
+        const settled = (result: PromiseSettledResult<unknown>): unknown =>
+          result.status === "fulfilled" ? result.value : [];
+
+        const distData = settled(distR);
+        const cityData = settled(cityR);
+        const panData = settled(panR);
+        const zoneData = settled(zoneR);
+        const wardData = settled(wardR);
+        const cpData = settled(cpR);
 
         setAllProjectCPs(toRecordList(cpData));
 
@@ -350,13 +367,9 @@ export default function CollectionPointForm() {
             }))
             .filter((item) => item.value && item.label)
         );
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        Swal.fire(t("common.error"), extractErr(err), "error");
       });
     return () => { cancelled = true; };
-  }, [companyUniqueId, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [companyUniqueId, projectId, showZone, showPanchayat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ==========================================================
       LOAD COLLECTION POINT DATA (edit mode)
@@ -838,8 +851,8 @@ export default function CollectionPointForm() {
           </div>
         )}
 
-        {/* Panchayat — hidden when Zone is selected */}
-        {showField("panchayat_id") && !isZoneSelected && (
+        {/* Panchayat — hidden when the staff has no Panchayat access, or when Zone is selected */}
+        {showField("panchayat_id") && showPanchayat && !isZoneSelected && (
           <div>
             <Label>{t("admin.nav.panchayat")}</Label>
             <Select
@@ -867,8 +880,8 @@ export default function CollectionPointForm() {
           </div>
         )}
 
-        {/* Zone — hidden when Panchayat is selected */}
-        {showField("zone_id") && !isPanchayatSelected && (
+        {/* Zone — hidden when the staff has no Zone access, or when Panchayat is selected */}
+        {showField("zone_id") && showZone && !isPanchayatSelected && (
           <div>
             <Label>{t("admin.nav.zone")}</Label>
             <Select
