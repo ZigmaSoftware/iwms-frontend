@@ -2,7 +2,6 @@ import type { DailyTripAssignmentRecord } from "./types";
 import type { DailyTripCollectionPointInline, DailyTripHouseholdCollectionInline } from "./types";
 import type { FormState, SelectOption } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -21,6 +20,9 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 import { normalizeList } from "@/utils/forms";
+import { dailyTripAssignmentSchema } from "@/schemas/core_modules/dailyOperations/dailyTripAssignment.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -212,6 +214,7 @@ export default function DailyTripAssignmentForm() {
   const [hasBinStops, setHasBinStops] = useState(true);
   const [hasHouseholdStops, setHasHouseholdStops] = useState(false);
 
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [recordData, setRecordData] = useState<DailyTripAssignmentRecord | null>(null);
   const [collectionPoints, setCollectionPoints] = useState<DailyTripCollectionPointInline[]>([]);
   const [householdCollectionPoints, setHouseholdCollectionPoints] = useState<DailyTripHouseholdCollectionInline[]>([]);
@@ -528,6 +531,7 @@ export default function DailyTripAssignmentForm() {
   }, [pendingRecord, tripPlan, tripPlanRecords, staffTemplates, zones, panchayats, wardRecords, wasteTypes]);
 
   const handleTripPlanChange = (value: string) => {
+    setFieldErrors((prev) => ({ ...prev, trip_plan_id: "" }));
     const plan = tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === value);
 
     // Derive collection types from the plan's collection points
@@ -743,13 +747,22 @@ export default function DailyTripAssignmentForm() {
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    const validation = parseWithSchema(dailyTripAssignmentSchema, {
+      trip_plan_id: formData.trip_plan_id,
+      staff_template_id: formData.staff_template_id,
+      ward_ids: formData.ward_ids,
+      trip_date: formData.trip_date,
+      scheduled_time: formData.scheduled_time,
+    });
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+      return;
+    }
+    setFieldErrors({});
+
     const wasteMissing = (hasBinStops || hasHouseholdStops) && formData.waste_type_ids.length === 0;
-    const wardMissing = formData.ward_ids.length === 0;
-    if (!companyUniqueId || !projectId ||
-      !formData.trip_plan_id || !formData.staff_template_id ||
-      wardMissing ||
-      wasteMissing ||
-      !formData.trip_date || !formData.scheduled_time) {
+    if (!companyUniqueId || !projectId || wasteMissing) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
@@ -821,12 +834,14 @@ export default function DailyTripAssignmentForm() {
     }
   };
 
-  const set = (field: keyof FormState) => (value: string) =>
+  const set = (field: keyof FormState) => (value: string) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
       ...(field === "staff_template_id" ? { alt_staff_template_id: "" } : {}),
     }));
+    setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+  };
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -888,6 +903,7 @@ export default function DailyTripAssignmentForm() {
                 disabled={!projectId}
                 required
               />
+              <FieldError message={fieldErrors.trip_date} />
             </div>
 
             {/* Start Time */}
@@ -900,6 +916,7 @@ export default function DailyTripAssignmentForm() {
                 disabled={!projectId}
                 required
               />
+              <FieldError message={fieldErrors.scheduled_time} />
             </div>
 
             {/* Trip Plan */}
@@ -912,6 +929,7 @@ export default function DailyTripAssignmentForm() {
                 placeholder="Select trip plan"
                 disabled={fetching || !projectId}
               />
+              <FieldError message={fieldErrors.trip_plan_id} />
             </div>
 
             {/* Staff Template */}
@@ -924,6 +942,7 @@ export default function DailyTripAssignmentForm() {
                 placeholder="Select staff template"
                 disabled={fetching || !projectId}
               />
+              <FieldError message={fieldErrors.staff_template_id} />
             </div>
 
             {/* Alternative Staff Template — only shown when alternatives exist for the selected staff template */}
@@ -1000,6 +1019,7 @@ export default function DailyTripAssignmentForm() {
                   onChange={(e) => {
                     const values = Array.isArray(e.value) ? e.value.map(String) : [];
                     setFormData((prev) => ({ ...prev, ward_ids: values }));
+                    setFieldErrors((prev) => ({ ...prev, ward_ids: "" }));
                   }}
                   options={resolvedWards}
                   optionLabel="label"
@@ -1009,6 +1029,7 @@ export default function DailyTripAssignmentForm() {
                   className="w-full"
                   disabled={fetching || !projectId}
                 />
+                <FieldError message={fieldErrors.ward_ids} />
               </div>
             )}
 

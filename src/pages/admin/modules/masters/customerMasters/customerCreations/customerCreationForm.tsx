@@ -37,6 +37,10 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
 import type { DetectedCoordinates } from "@/utils/geolocation";
+import { customerCreationSchema } from "@/schemas/masters/customerMasters/customerCreation.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 /* ===============================
    TYPES
@@ -113,6 +117,7 @@ const ShadcnSelect = ({
   placeholder,
   isRequired = true,
   disabled = false,
+  error,
 }: {
   label: string;
   value: string;
@@ -121,6 +126,7 @@ const ShadcnSelect = ({
   placeholder: string;
   isRequired?: boolean;
   disabled?: boolean;
+  error?: string;
 }) => (
   <div className="space-y-2">
     <Label className="text-sm font-medium text-gray-700">
@@ -143,6 +149,7 @@ const ShadcnSelect = ({
         )}
       </SelectContent>
     </Select>
+    <FieldError message={error} />
   </div>
 );
 
@@ -171,6 +178,7 @@ const FormInput = ({
   inputMode,
   step,
   isRequired = true,
+  error,
 }: {
   label: string;
   value: string;
@@ -181,6 +189,7 @@ const FormInput = ({
   inputMode?: "text" | "numeric" | "decimal";
   step?: string;
   isRequired?: boolean;
+  error?: string;
 }) => (
   <div className="space-y-2">
     <Label className="text-sm font-medium text-gray-700">
@@ -198,6 +207,7 @@ const FormInput = ({
       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
       autoComplete="off"
     />
+    <FieldError message={error} />
   </div>
 );
 
@@ -518,7 +528,7 @@ function CustomerChangePasswordModal({
 ================================ */
 export default function CustomerCreationForm() {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } = useFieldVisibility(
+  const { showField, filterPayload } = useFieldVisibility(
     "customer-master",
     "customer-creation",
     CUSTOMER_CREATION_FIELDS,
@@ -594,6 +604,7 @@ export default function CustomerCreationForm() {
 
   const { showZone, showPanchayat } = useZonePanchayatVisibility();
 
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dropdownsLoaded, setDropdownsLoaded] = useState(false);
   const [pendingEditData, setPendingEditData] = useState<any>(null);
@@ -614,6 +625,7 @@ export default function CustomerCreationForm() {
 
   const update = (key: keyof FormDataType, value: any) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
+    setFieldErrors((prev) => (prev[key as string] ? { ...prev, [key as string]: "" } : prev));
   };
 
   const handleLocationDetected = ({ latitude, longitude }: DetectedCoordinates) => {
@@ -1046,95 +1058,31 @@ export default function CustomerCreationForm() {
      VALIDATION
   ================================ */
   const validateForm = (): boolean => {
-    // Check required fields (company_id and project_id are mandatory)
-    const requiredFields = [
-      "customer_name", "contact_no", "email", "username",
-       "pincode", "latitude", "longitude", "sqft", "id_proof_type", "id_no",
-      "country_id", "state_id", "district_id", "city_id",
-      "property_id", "sub_property_id",
-      ...(!isEdit ? ["password"] : []),
-    ].flat();
-
-    const missingFields = getMissingRequiredFields(
-      requiredFields,
-      (fieldKey) => formData[fieldKey as keyof FormDataType],
-    );
-
-    if (missingFields.length > 0) {
-      for (const field of missingFields) {
-        const fieldLabel = String(field).replace(/_/g, " ");
-        Swal.fire(t("common.warning") || "Warning", `${fieldLabel} is required`, "warning");
-        return false;
-      }
+    // Per-field required/format checks (customer_name, contact_no, email,
+    // username, pincode, latitude, longitude, sqft, id_proof_type, id_no,
+    // country/state/district/city, property/sub-property, and the
+    // water/waste non-negative checks) now run through the shared Zod
+    // schema, relaxed for fields hidden by column permissions.
+    const schema = requireWhenVisible(customerCreationSchema, showField);
+    const validation = parseWithSchema(schema, formData);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      const firstError = Object.values(validation.errors)[0];
+      Swal.fire(t("common.warning") || "Warning", firstError ?? "Please fill in all required fields", "warning");
+      return false;
     }
+    setFieldErrors({});
 
     if (!companyUniqueId || !projectId) {
       Swal.fire(t("common.warning") || "Warning", "Company and project are required", "warning");
       return false;
     }
 
-    // Contact validation (10 digits)
-    if (showField("contact_no") && !/^\d{10}$/.test(formData.contact_no)) {
-      Swal.fire(
-        t("admin.customer_creation.invalid_contact_title") || "Invalid Contact",
-        t("admin.customer_creation.invalid_contact_desc") || "Please enter a valid 10-digit contact number",
-        "warning"
-      );
-      return false;
-    }
-
-    // Email validation
-    if (showField("email") && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      Swal.fire("Invalid Email", "Please enter a valid email address", "warning");
-      return false;
-    }
-
-    // the password validation block:
+    // Password is required only when creating (edit leaves it blank to keep
+    // the current password), so it stays outside the schema above.
     if (showField("password") && !isEdit && formData.password.length < 8) {
       Swal.fire("Weak Password", "Password must be at least 8 characters", "warning");
       return false;
-    }
-
-    // Pincode validation (6 digits)
-    if (showField("pincode") && !/^\d{6}$/.test(formData.pincode)) {
-      Swal.fire(
-        t("admin.customer_creation.invalid_pincode_title") || "Invalid Pincode",
-        t("admin.customer_creation.invalid_pincode_desc") || "Please enter a valid 6-digit pincode",
-        "warning"
-      );
-      return false;
-    }
-
-    // Latitude & Longitude validation
-    const lat = parseFloat(formData.latitude);
-    const lon = parseFloat(formData.longitude);
-    if (
-      (showField("latitude") || showField("longitude")) &&
-      (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180)
-    ) {
-      Swal.fire(
-        t("admin.customer_creation.invalid_coordinates_title") || "Invalid Coordinates",
-        t("admin.customer_creation.invalid_coordinates_desc") || "Please enter valid latitude and longitude",
-        "warning"
-      );
-      return false;
-    }
-
-    // Square feet validation
-    const sqftValue = parseFloat(formData.sqft);
-    if (showField("sqft") && (isNaN(sqftValue) || sqftValue <= 0)) {
-      Swal.fire("Invalid Square Feet", "Please enter a valid square feet value", "warning");
-      return false;
-    }
-
-    for (const [label, rawValue] of [
-      ["Water Consumption", formData.water_consumption_lpd],
-      ["Waste Collection", formData.waste_collection_kg_per_day],
-    ] as const) {
-      if (rawValue && Number.parseFloat(rawValue) < 0) {
-        Swal.fire(`Invalid ${label}`, "Please enter a positive value", "warning");
-        return false;
-      }
     }
 
     return true;
@@ -1303,6 +1251,7 @@ export default function CustomerCreationForm() {
               value={formData.customer_name}
               onChange={(e) => update("customer_name", e.target.value)}
               placeholder="Enter full name"
+              error={fieldErrors.customer_name}
             />
           )}
           {showField("contact_no") && (
@@ -1316,6 +1265,7 @@ export default function CustomerCreationForm() {
               placeholder="10 digit mobile number"
               maxLength={10}
               inputMode="numeric"
+              error={fieldErrors.contact_no}
             />
           )}
           {showField("username") && (
@@ -1324,6 +1274,7 @@ export default function CustomerCreationForm() {
               value={formData.username}
               onChange={(e) => update("username", e.target.value)}
               placeholder="Enter username"
+              error={fieldErrors.username}
             />
           )}
           {showField("email") && (
@@ -1333,6 +1284,7 @@ export default function CustomerCreationForm() {
               onChange={(e) => update("email", e.target.value)}
               placeholder="Enter email address"
               type="email"
+              error={fieldErrors.email}
             />
           )}
 
@@ -1528,6 +1480,7 @@ export default function CustomerCreationForm() {
               placeholder="6 digit pincode"
               maxLength={6}
               inputMode="numeric"
+              error={fieldErrors.pincode}
             />
           )}
           {showField("latitude") && (
@@ -1538,6 +1491,7 @@ export default function CustomerCreationForm() {
               placeholder="e.g., 13.0827"
               type="number"
               step="0.0001"
+              error={fieldErrors.latitude}
             />
           )}
           {showField("longitude") && (
@@ -1548,6 +1502,7 @@ export default function CustomerCreationForm() {
               placeholder="e.g., 80.2707"
               type="number"
               step="0.0001"
+              error={fieldErrors.longitude}
             />
           )}
           {(showField("latitude") || showField("longitude")) && (
@@ -1576,6 +1531,7 @@ export default function CustomerCreationForm() {
                 label: c.name,
               }))}
               placeholder={t("common.select_item_placeholder", { item: t("common.country") }) || "Select country"}
+              error={fieldErrors.country_id}
             />
           )}
           {showField("state_id") && (
@@ -1595,6 +1551,7 @@ export default function CustomerCreationForm() {
                 label: s.name,
               }))}
               placeholder={t("common.select_item_placeholder", { item: t("common.state") }) || "Select state"}
+              error={fieldErrors.state_id}
             />
           )}
           {showField("district_id") && (
@@ -1613,6 +1570,7 @@ export default function CustomerCreationForm() {
                 label: d.name,
               }))}
               placeholder={t("common.select_item_placeholder", { item: t("common.district") }) || "Select district"}
+              error={fieldErrors.district_id}
             />
           )}
           {showField("city_id") && (
@@ -1630,6 +1588,7 @@ export default function CustomerCreationForm() {
                 label: c.name,
               }))}
               placeholder={t("common.select_item_placeholder", { item: t("common.city") }) || "Select city"}
+              error={fieldErrors.city_id}
             />
           )}
           {showField("zone_id") && showZone && !isPanchayatSelected && (
@@ -1744,6 +1703,7 @@ export default function CustomerCreationForm() {
                 label: p.property_name,
               }))}
               placeholder={t("common.select_item_placeholder", { item: t("admin.customer_creation.property") }) || "Select property"}
+              error={fieldErrors.property_id}
             />
           )}
           {isEdit && showField("sub_property_id") && (
@@ -1763,6 +1723,7 @@ export default function CustomerCreationForm() {
                   label: sp.sub_property_name,
                 }))}
               placeholder={t("common.select_item_placeholder", { item: t("admin.customer_creation.sub_property") }) || "Select sub property"}
+              error={fieldErrors.sub_property_id}
             />
           )}
 
@@ -1774,6 +1735,7 @@ export default function CustomerCreationForm() {
               placeholder="e.g., 1200.50"
               type="number"
               step="0.01"
+              error={fieldErrors.sqft}
             />
           )}
           {showField("water_consumption_lpd") && (
@@ -1785,6 +1747,7 @@ export default function CustomerCreationForm() {
               type="number"
               step="0.01"
               isRequired={false}
+              error={fieldErrors.water_consumption_lpd}
             />
           )}
           {showField("waste_collection_kg_per_day") && (
@@ -1795,6 +1758,7 @@ export default function CustomerCreationForm() {
               placeholder="e.g., 100"
               type="number"
               step="0.01"
+              error={fieldErrors.waste_collection_kg_per_day}
               isRequired={false}
             />
           )}
@@ -1872,6 +1836,7 @@ export default function CustomerCreationForm() {
                 { value: "PASSPORT", label: t("admin.customer_creation.id_proof_passport") || "Passport" },
               ]}
               placeholder={t("admin.customer_creation.id_proof_placeholder") || "Select ID proof type"}
+              error={fieldErrors.id_proof_type}
             />
           )}
           {showField("id_no") && (
@@ -1881,6 +1846,7 @@ export default function CustomerCreationForm() {
                 value={formData.id_no}
                 onChange={(e) => update("id_no", e.target.value)}
                 placeholder="Enter identification number"
+                error={fieldErrors.id_no}
               />
             </div>
           )}

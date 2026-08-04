@@ -19,6 +19,9 @@ import {
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
+import { vehicleTypeCreationSchema } from "@/schemas/masters/transportMasters/vehicleTypeCreation.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const { encTransportMaster, encVehicleType } = getEncryptedRoute();
@@ -37,6 +40,7 @@ export default function VehicleTypeCreationForm() {
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const extractErr = useCallback(
     (error: unknown): string => {
@@ -84,7 +88,14 @@ export default function VehicleTypeCreationForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!vehicleTypeName.trim()) {
+    const fieldValues = {
+      vehicleType: vehicleTypeName.trim(),
+      description: description.trim(),
+      is_active: isActive,
+    };
+    const validation = parseWithSchema(vehicleTypeCreationSchema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(
         t("common.warning"),
         `${t("common.please_fill")}: ${t("admin.vehicle_type.label")}`,
@@ -92,6 +103,7 @@ export default function VehicleTypeCreationForm() {
       );
       return;
     }
+    setFieldErrors({});
 
     const payload: VehicleTypePayload = {
       vehicleType: vehicleTypeName.trim(),
@@ -147,10 +159,14 @@ export default function VehicleTypeCreationForm() {
           </Label>
           <Input
             value={vehicleTypeName}
-            onChange={(e) => setVehicleTypeName(e.target.value)}
+            onChange={(e) => {
+              setVehicleTypeName(e.target.value);
+              setFieldErrors((prev) => ({ ...prev, vehicleType: "" }));
+            }}
             placeholder={t("admin.vehicle_type.placeholder")}
             required
           />
+          <FieldError message={fieldErrors.vehicleType} />
         </div>
 
         {/* Status */}

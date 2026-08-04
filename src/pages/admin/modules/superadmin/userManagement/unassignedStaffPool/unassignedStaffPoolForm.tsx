@@ -14,6 +14,10 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { unassignedStaffPoolSchema } from "@/schemas/superadmin/userManagement/unassignedStaffPool.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const UNASSIGNED_STAFF_POOL_FIELDS: Record<string, string[]> = {
@@ -58,6 +62,7 @@ export default function UnassignedStaffPoolForm() {
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [operators, setOperators] = useState<SelectOption[]>([]);
   const [drivers, setDrivers] = useState<SelectOption[]>([]);
@@ -196,6 +201,7 @@ export default function UnassignedStaffPoolForm() {
 
   const handleRoleChange = (value: string) => {
     setRole(value);
+    setFieldErrors((prev) => ({ ...prev, role: "" }));
     if (value === "operator") {
       setFormData((prev) => ({ ...prev, driver_id: "" }));
     } else if (value === "driver") {
@@ -225,13 +231,18 @@ export default function UnassignedStaffPoolForm() {
 
     const selectedId = role === "operator" ? formData.operator_id : formData.driver_id;
 
+    const schema = requireWhenVisible(unassignedStaffPoolSchema, showField);
+    const validation = parseWithSchema(schema, { role, ...formData });
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+      return;
+    }
+    setFieldErrors({});
+
     if (
-      (showField("role") && !role) ||
       ((role === "operator" || showField("operator_id")) && role === "operator" && !selectedId) ||
-      ((role === "driver" || showField("driver_id")) && role === "driver" && !selectedId) ||
-      (showField("zone_id") && !formData.zone_id) ||
-      (showField("ward_id") && !formData.ward_id) ||
-      (showField("status") && !formData.status)
+      ((role === "driver" || showField("driver_id")) && role === "driver" && !selectedId)
     ) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
@@ -291,6 +302,7 @@ export default function UnassignedStaffPoolForm() {
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.role} />
             </div>
             )}
 
@@ -333,14 +345,16 @@ export default function UnassignedStaffPoolForm() {
               <Label>{t("admin.unassigned_staff_pool.zone")}</Label>
               <Select
                 value={formData.zone_id}
-                onChange={(value) =>
-                  setFormData((prev) => ({ ...prev, zone_id: value, ward_id: "" }))
-                }
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, zone_id: value, ward_id: "" }));
+                  setFieldErrors((prev) => ({ ...prev, zone_id: "" }));
+                }}
                 options={zones}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.zone_id} />
             </div>
             )}
 
@@ -349,12 +363,16 @@ export default function UnassignedStaffPoolForm() {
               <Label>{t("admin.unassigned_staff_pool.ward")}</Label>
               <Select
                 value={formData.ward_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, ward_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, ward_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, ward_id: "" }));
+                }}
                 options={wardOptions}
                 placeholder={t("common.select_option")}
                 disabled={fetching || !formData.zone_id}
                 required
               />
+              <FieldError message={fieldErrors.ward_id} />
             </div>
             )}
 
@@ -363,11 +381,15 @@ export default function UnassignedStaffPoolForm() {
               <Label>{t("admin.unassigned_staff_pool.status")}</Label>
               <Select
                 value={formData.status}
-                onChange={(value) => setFormData((prev) => ({ ...prev, status: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, status: value }));
+                  setFieldErrors((prev) => ({ ...prev, status: "" }));
+                }}
                 options={statusOptions}
                 placeholder={t("common.select_status")}
                 disabled={fetching}
               />
+              <FieldError message={fieldErrors.status} />
             </div>
             )}
 

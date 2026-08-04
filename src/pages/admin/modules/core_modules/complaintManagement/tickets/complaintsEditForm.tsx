@@ -9,6 +9,9 @@ import Input from "@/components/form/input/InputField";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 import { useTranslation } from "react-i18next";
+import { complaintStatusUpdateSchema } from "@/schemas/core_modules/complaintManagement/complaintStatusUpdate.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const FILE_ICON =
   "https://cdn-icons-png.flaticon.com/512/337/337946.png";
@@ -29,6 +32,7 @@ export default function ComplaintEditForm() {
   const [data, setData] = useState<any>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   useEffect(() => {
     if (!id) return;
@@ -94,6 +98,14 @@ export default function ComplaintEditForm() {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const values = { status, remarks };
+    const validation = parseWithSchema(complaintStatusUpdateSchema, values);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      return;
+    }
+    setFieldErrors({});
+
     const fd = new FormData();
     fd.append("status", status);
     fd.append("action_remarks", remarks);
@@ -135,7 +147,10 @@ export default function ComplaintEditForm() {
             <Label>{t("common.status")}</Label>
             <Select
               value={status}
-              onChange={(v) => setStatus(v)}
+              onChange={(v) => {
+                setStatus(v);
+                setFieldErrors((prev) => ({ ...prev, status: "" }));
+              }}
               options={[
                 {
                   value: "PROGRESSING",
@@ -147,14 +162,19 @@ export default function ComplaintEditForm() {
                 },
               ]}
             />
+            <FieldError message={fieldErrors.status} />
           </div>
 
           <div>
             <Label>{t("admin.citizen_grievance.complaints_edit.action_remarks")}</Label>
             <Input
               value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
+              onChange={(e) => {
+                setRemarks(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, remarks: "" }));
+              }}
             />
+            <FieldError message={fieldErrors.remarks} />
           </div>
 
           <div className="md:col-span-2">

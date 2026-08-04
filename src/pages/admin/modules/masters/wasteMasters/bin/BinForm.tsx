@@ -23,6 +23,10 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 import type { BinRecord, CityOption, CollectionPointOption, LocationOption, WardOption } from "./types";
+import { binSchema } from "@/schemas/masters/wasteMasters/bin.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const { encMasters, encBins } = getEncryptedRoute();
 const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encBins);
@@ -91,7 +95,7 @@ const normalizeIdValue = (value: unknown): string => {
 
 export default function BinForm() {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("assets", "bins", BIN_FIELDS);
   const { showZone, showPanchayat } = useZonePanchayatVisibility();
   const { id } = useParams<{ id: string }>();
@@ -169,6 +173,7 @@ export default function BinForm() {
   } | null>(null);
   const [lookupsLoading, setLookupsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const isPanchayatSelected = Boolean(panchayatId);
   const isZoneSelected = Boolean(zoneId);
@@ -567,7 +572,6 @@ export default function BinForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    const missingFields: string[] = [];
     const fieldValues: Record<string, unknown> = {
       bin_name: binName.trim(),
       district_id: districtId,
@@ -578,29 +582,23 @@ export default function BinForm() {
       wastetype_id: wasteTypeId,
       bin_capacity: typeof binCapacity === "number" && binCapacity > 0 ? binCapacity : "",
     };
-    if (getMissingRequiredFields(["bin_name"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
-      missingFields.push("Bin name");
+
+    const schema = requireWhenVisible(binSchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire(
+        t("common.warning"),
+        t("admin.bin.missing_fields", { fields: Object.values(validation.errors).join(", ") }),
+        "warning"
+      );
+      return;
     }
+    setFieldErrors({});
+
+    const missingFields: string[] = [];
     if (!companyUniqueId) missingFields.push(t("admin.nav.company"));
     if (!projectId) missingFields.push(t("admin.nav.project"));
-    if (getMissingRequiredFields(["district_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
-      missingFields.push(t("common.district"));
-    }
-    if (getMissingRequiredFields(["city_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
-      missingFields.push(t("common.city"));
-    }
-    if (
-      getMissingRequiredFields(["collection_point_id"], (fieldKey) => fieldValues[fieldKey])
-        .length > 0
-    ) {
-      missingFields.push(t("admin.nav.collection_point"));
-    }
-    if (getMissingRequiredFields(["wastetype_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
-      missingFields.push(t("common.waste_type"));
-    }
-    if (getMissingRequiredFields(["bin_capacity"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
-      missingFields.push(t("common.bin_capacity"));
-    }
 
     if (missingFields.length > 0) {
       Swal.fire(
@@ -721,6 +719,7 @@ export default function BinForm() {
                 setZoneId("");
                 setWardId("");
                 setCollectionPointId("");
+                setFieldErrors((prev) => ({ ...prev, district_id: "" }));
               }}
             >
               <SelectTrigger className="input-validate w-full">
@@ -734,6 +733,7 @@ export default function BinForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.district_id} />
           </div>
         )}
 
@@ -748,6 +748,7 @@ export default function BinForm() {
                 setZoneId("");
                 setWardId("");
                 setCollectionPointId("");
+                setFieldErrors((prev) => ({ ...prev, city_id: "" }));
               }}
               disabled={!districtId}
             >
@@ -762,6 +763,7 @@ export default function BinForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.city_id} />
           </div>
         )}
 
@@ -858,7 +860,14 @@ export default function BinForm() {
         {showField("collection_point_id") && (
           <div>
             <Label>{t("admin.nav.collection_point")} *</Label>
-            <Select value={collectionPointId} onValueChange={setCollectionPointId} disabled={collectionPointOptions.length === 0}>
+            <Select
+              value={collectionPointId}
+              onValueChange={(value) => {
+                setCollectionPointId(value);
+                setFieldErrors((prev) => ({ ...prev, collection_point_id: "" }));
+              }}
+              disabled={collectionPointOptions.length === 0}
+            >
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.collection_point") })} />
               </SelectTrigger>
@@ -870,6 +879,7 @@ export default function BinForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.collection_point_id} />
           </div>
         )}
 
@@ -879,10 +889,14 @@ export default function BinForm() {
             <Input
               type="number"
               value={binCapacity}
-              onChange={(e) => setBinCapacity(e.target.value ? Number(e.target.value) : "")}
+              onChange={(e) => {
+                setBinCapacity(e.target.value ? Number(e.target.value) : "");
+                setFieldErrors((prev) => ({ ...prev, bin_capacity: "" }));
+              }}
               min={1}
               required
             />
+            <FieldError message={fieldErrors.bin_capacity} />
           </div>
         )}
 
@@ -905,7 +919,13 @@ export default function BinForm() {
         {showField("wastetype_id") && (
           <div>
             <Label>{t("common.waste_type")} *</Label>
-            <Select value={wasteTypeId} onValueChange={setWasteTypeId}>
+            <Select
+              value={wasteTypeId}
+              onValueChange={(value) => {
+                setWasteTypeId(value);
+                setFieldErrors((prev) => ({ ...prev, wastetype_id: "" }));
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.waste_type") })} />
               </SelectTrigger>
@@ -917,13 +937,22 @@ export default function BinForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.wastetype_id} />
           </div>
         )}
 
         {showField("bin_name") && (
           <div>
             <Label>{t("common.item_name", { item: t("admin.nav.bin_master") })} *</Label>
-            <Input value={binName} onChange={(e) => setBinName(e.target.value)} required />
+            <Input
+              value={binName}
+              onChange={(e) => {
+                setBinName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, bin_name: "" }));
+              }}
+              required
+            />
+            <FieldError message={fieldErrors.bin_name} />
           </div>
         )}
 

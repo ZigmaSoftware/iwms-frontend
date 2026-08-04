@@ -15,6 +15,9 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
+import { binLoadLogSchema } from "@/schemas/masters/transportMasters/binLoadLog.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const sourceTypeOptions: SelectOption[] = [
@@ -49,6 +52,7 @@ export default function BinLoadLogForm() {
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [zones, setZones] = useState<SelectOption[]>([]);
   const [vehicles, setVehicles] = useState<SelectOption[]>([]);
@@ -161,18 +165,13 @@ export default function BinLoadLogForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (
-      !formData.zone_id ||
-      !formData.vehicle_id ||
-      !formData.property_id ||
-      !formData.sub_property_id ||
-      !formData.weight_kg ||
-      !formData.source_type ||
-      !formData.event_time
-    ) {
+    const validation = parseWithSchema(binLoadLogSchema, formData);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
+    setFieldErrors({});
 
     setLoading(true);
     try {
@@ -221,48 +220,64 @@ export default function BinLoadLogForm() {
               <Label>{t("admin.bin_load_log.zone")}</Label>
               <Select
                 value={formData.zone_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, zone_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, zone_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, zone_id: "" }));
+                }}
                 options={zones}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.zone_id} />
             </div>
 
             <div>
               <Label>{t("admin.bin_load_log.vehicle")}</Label>
               <Select
                 value={formData.vehicle_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, vehicle_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, vehicle_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, vehicle_id: "" }));
+                }}
                 options={vehicles}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.vehicle_id} />
             </div>
 
             <div>
               <Label>{t("admin.bin_load_log.property")}</Label>
               <Select
                 value={formData.property_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, property_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, property_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, property_id: "" }));
+                }}
                 options={properties}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.property_id} />
             </div>
 
             <div>
               <Label>{t("admin.bin_load_log.sub_property")}</Label>
               <Select
                 value={formData.sub_property_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, sub_property_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, sub_property_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, sub_property_id: "" }));
+                }}
                 options={subProperties}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.sub_property_id} />
             </div>
 
             <div>
@@ -271,21 +286,29 @@ export default function BinLoadLogForm() {
                 type="number"
                 min={0}
                 value={formData.weight_kg}
-                onChange={(e) => setFormData((prev) => ({ ...prev, weight_kg: e.target.value }))}
+                onChange={(e) => {
+                  setFormData((prev) => ({ ...prev, weight_kg: e.target.value }));
+                  setFieldErrors((prev) => ({ ...prev, weight_kg: "" }));
+                }}
                 placeholder={t("admin.bin_load_log.weight_kg")}
               />
+              <FieldError message={fieldErrors.weight_kg} />
             </div>
 
             <div>
               <Label>{t("admin.bin_load_log.source_type")}</Label>
               <Select
                 value={formData.source_type}
-                onChange={(value) => setFormData((prev) => ({ ...prev, source_type: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, source_type: value }));
+                  setFieldErrors((prev) => ({ ...prev, source_type: "" }));
+                }}
                 options={sourceTypeOptions}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.source_type} />
             </div>
 
             <div>
@@ -293,8 +316,12 @@ export default function BinLoadLogForm() {
               <Input
                 type="datetime-local"
                 value={formData.event_time}
-                onChange={(e) => setFormData((prev) => ({ ...prev, event_time: e.target.value }))}
+                onChange={(e) => {
+                  setFormData((prev) => ({ ...prev, event_time: e.target.value }));
+                  setFieldErrors((prev) => ({ ...prev, event_time: "" }));
+                }}
               />
+              <FieldError message={fieldErrors.event_time} />
             </div>
           </div>
 

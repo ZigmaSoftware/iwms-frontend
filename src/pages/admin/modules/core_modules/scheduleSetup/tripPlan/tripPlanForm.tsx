@@ -18,6 +18,9 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { tripPlanSchema } from "@/schemas/core_modules/scheduleSetup/tripPlan.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const statusOptions: SelectOption[] = [
@@ -220,6 +223,7 @@ export default function TripPlanForm() {
   ]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [lookups, setLookups] = useState<Record<string, any[]>>({});
   const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
   // Track bin IDs already assigned in OTHER trip plans (same geo scope) —
@@ -707,6 +711,7 @@ export default function TripPlanForm() {
       ...(field === "zone_id" && value ? { panchayat_id: "", ward_ids: [] } : {}),
       ...(field === "panchayat_id" && value ? { zone_id: "", ward_ids: [] } : {}),
     }));
+    setFieldErrors((prev) => ({ ...prev, [field]: "" }));
     // Household/Bulk mode has no manual stop rows to reset — the auto-assign
     // scope just follows the new zone/panchayat/ward automatically via the
     // autoAssignCustomers memo. Only Bin mode's manual rows need clearing.
@@ -784,18 +789,30 @@ export default function TripPlanForm() {
       ? [autoAssignStop(formData.collection_type as "household_collection" | "bulk_waste_collection")]
       : stops.filter((stop) => Boolean(stop.collection_point_id && stop.bin_id));
 
+    const fieldValues = {
+      district_id: formData.district_id,
+      city_id: formData.city_id,
+      staff_template_id: formData.staff_template_id,
+      vehicle_id: formData.vehicle_id,
+      supervisor_id: formData.supervisor_id,
+      waste_type_ids: formData.waste_type_ids,
+      scheduled_time: formData.scheduled_time,
+    };
+
     const missingFields: string[] = [];
     if (!companyUniqueId) missingFields.push("Company");
     if (!projectId) missingFields.push("Project");
-    if (!formData.district_id) missingFields.push("District");
-    if (!formData.city_id) missingFields.push("City");
-    if (!formData.staff_template_id) missingFields.push("Staff Template");
-    if (!formData.vehicle_id) missingFields.push("Vehicle");
-    if (!formData.supervisor_id) missingFields.push("Supervisor");
-    if (formData.waste_type_ids.length === 0) missingFields.push("Waste Type");
-    if (!formData.scheduled_time) missingFields.push("Start Time");
-    if (missingFields.length) {
-      Swal.fire(t("common.warning"), `Please fill: ${missingFields.join(", ")}`, "warning");
+
+    const validation = parseWithSchema(tripPlanSchema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+    } else {
+      setFieldErrors({});
+    }
+
+    if (missingFields.length > 0 || !validation.success) {
+      const schemaMessages = !validation.success ? Object.values(validation.errors) : [];
+      Swal.fire(t("common.warning"), `Please fill: ${[...missingFields, ...schemaMessages].join(", ")}`, "warning");
       return;
     }
     if (!formData.panchayat_id && !formData.zone_id) {
@@ -912,8 +929,8 @@ export default function TripPlanForm() {
                 {projects.map((project) => <option key={project.value} value={project.value}>{project.label}</option>)}
               </select>
             </div>
-            <div><Label>District</Label><Select value={formData.district_id} onChange={setField("district_id")} options={options.districts} disabled={loading || !projectId} /></div>
-            <div><Label>City</Label><Select value={formData.city_id} onChange={setField("city_id")} options={options.cities} disabled={loading || !formData.district_id} /></div>
+            <div><Label>District</Label><Select value={formData.district_id} onChange={setField("district_id")} options={options.districts} disabled={loading || !projectId} /><FieldError message={fieldErrors.district_id} /></div>
+            <div><Label>City</Label><Select value={formData.city_id} onChange={setField("city_id")} options={options.cities} disabled={loading || !formData.district_id} /><FieldError message={fieldErrors.city_id} /></div>
             {showZone && !formData.panchayat_id && <div><Label>Zone</Label><Select value={formData.zone_id} onChange={setField("zone_id")} options={options.zones} disabled={loading || !formData.city_id} /></div>}
             {showPanchayat && !formData.zone_id && <div><Label>PLB (Participating Local Bodies)</Label><Select value={formData.panchayat_id} onChange={setField("panchayat_id")} options={options.panchayats} disabled={loading || !formData.city_id} /></div>}
             {(formData.zone_id || formData.panchayat_id) && (
@@ -939,9 +956,9 @@ export default function TripPlanForm() {
                 />
               </div>
             )}
-            <div><Label>Staff Template</Label><Select value={formData.staff_template_id} onChange={setField("staff_template_id")} options={options.staffTemplates} disabled={loading || !projectId} /></div>
-            <div><Label>Vehicle</Label><Select value={formData.vehicle_id} onChange={setField("vehicle_id")} options={options.vehicles} disabled={loading || !projectId} /></div>
-            <div><Label>Supervisor</Label><Select value={formData.supervisor_id} onChange={setField("supervisor_id")} options={options.staff} disabled={loading || !projectId} /></div>
+            <div><Label>Staff Template</Label><Select value={formData.staff_template_id} onChange={setField("staff_template_id")} options={options.staffTemplates} disabled={loading || !projectId} /><FieldError message={fieldErrors.staff_template_id} /></div>
+            <div><Label>Vehicle</Label><Select value={formData.vehicle_id} onChange={setField("vehicle_id")} options={options.vehicles} disabled={loading || !projectId} /><FieldError message={fieldErrors.vehicle_id} /></div>
+            <div><Label>Supervisor</Label><Select value={formData.supervisor_id} onChange={setField("supervisor_id")} options={options.staff} disabled={loading || !projectId} /><FieldError message={fieldErrors.supervisor_id} /></div>
             <div>
               <Label>Waste Type</Label>
               <MultiSelect
@@ -954,6 +971,7 @@ export default function TripPlanForm() {
                   );
                   setFormData((prev) => ({ ...prev, waste_type_ids: values }));
                   setStops((current) => current.map((stop) => ({ ...stop, bin_id: "" })));
+                  setFieldErrors((prev) => ({ ...prev, waste_type_ids: "" }));
                 }}
                 options={options.wasteTypes}
                 optionLabel="label"
@@ -963,8 +981,9 @@ export default function TripPlanForm() {
                 disabled={loading || !projectId}
                 className="!flex !h-10 !w-full !items-center !rounded-md !border !border-gray-300 !bg-white !px-3 !py-2 !text-sm !shadow-none"
               />
+              <FieldError message={fieldErrors.waste_type_ids} />
             </div>
-            <div><Label>Start Time</Label><Input type="time" value={formData.scheduled_time} onChange={(e) => setField("scheduled_time")(e.target.value)} disabled={!projectId} /></div>
+            <div><Label>Start Time</Label><Input type="time" value={formData.scheduled_time} onChange={(e) => setField("scheduled_time")(e.target.value)} disabled={!projectId} /><FieldError message={fieldErrors.scheduled_time} /></div>
             <div><Label>Trigger Weight (kg)</Label><Input type="number" min={0} value={formData.trip_trigger_weight_kg} onChange={(e) => setField("trip_trigger_weight_kg")(e.target.value)} /></div>
             <div><Label>Max Vehicle Capacity (kg)</Label><Input type="number" min={0} value={formData.max_vehicle_capacity_kg} onChange={(e) => setField("max_vehicle_capacity_kg")(e.target.value)} /></div>
             <div><Label>Status</Label><Select value={formData.status} onChange={setField("status")} options={statusOptions} disabled={loading} /></div>

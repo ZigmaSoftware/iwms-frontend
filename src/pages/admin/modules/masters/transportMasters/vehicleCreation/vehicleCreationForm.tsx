@@ -15,6 +15,10 @@ import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
+import { vehicleCreationSchema } from "@/schemas/masters/transportMasters/vehicleCreation.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
@@ -157,6 +161,8 @@ export default function VehicleCreationForm() {
     fuelTankCapacity: "",
     isActive: "true",
   });
+
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [rcFile, setRcFile] = useState<File | null>(null);
   const [insuranceFile, setInsuranceFile] = useState<File | null>(null);
@@ -374,9 +380,33 @@ export default function VehicleCreationForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const fieldValues = {
+      vehicle_no: form.vehicleNo.trim(),
+      vehicle_type_id: form.vehicleTypeId,
+      fuel_type_id: form.fuelTypeId,
+      capacity: form.capacity,
+      mileage_per_liter: form.mileagePerLiter,
+      service_record: form.serviceRecord,
+      vehicle_insurance: form.vehicleInsurance,
+      insurance_expiry_date: form.insuranceExpiryDate,
+      vehicle_condition: form.vehicleCondition,
+      fuel_tank_capacity: form.fuelTankCapacity,
+      is_active: form.isActive,
+    };
+    const schema = requireWhenVisible(vehicleCreationSchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire(
+        t("common.warning"),
+        `${t("common.please_fill")}: ${t("admin.vehicle_creation.vehicle_no")}`,
+        "warning"
+      );
+      return;
+    }
+    setFieldErrors({});
+
     const missingFields: string[] = [];
-    if (showField("vehicle_no") && !form.vehicleNo.trim())
-      missingFields.push(t("admin.vehicle_creation.vehicle_no"));
     if (showField("company_id_input") && !companyUniqueId) missingFields.push(t("admin.nav.company"));
     if (showField("project_id_input") && !projectId) missingFields.push(t("admin.nav.project"));
 
@@ -596,13 +626,17 @@ export default function VehicleCreationForm() {
             <Input
               id="vehicleNo"
               value={form.vehicleNo}
-              onChange={(e) => update("vehicleNo", e.target.value)}
+              onChange={(e) => {
+                update("vehicleNo", e.target.value);
+                setFieldErrors((prev) => ({ ...prev, vehicle_no: "" }));
+              }}
               placeholder={t("admin.vehicle_creation.vehicle_no_placeholder")}
               className="input-validate w-full"
               required
             />
+            <FieldError message={fieldErrors.vehicle_no} />
           </div>
-          )}        
+          )}
 
           {/* Capacity */}
           {showField("capacity") && (

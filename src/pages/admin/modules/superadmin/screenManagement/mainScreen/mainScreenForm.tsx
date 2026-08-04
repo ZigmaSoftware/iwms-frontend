@@ -19,6 +19,9 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { adminApi } from "@/helpers/admin/registry";
+import { mainScreenSchema } from "@/schemas/superadmin/screenManagement/mainScreen.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 /* ------------------------------
     ROUTES
@@ -59,6 +62,7 @@ export default function MainScreenForm() {
 
   const [mainScreenTypesList, setMainScreenTypesList] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   /* ==========================================================
       FETCH MAIN SCREEN TYPES (dropdown)
@@ -129,10 +133,19 @@ export default function MainScreenForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!mainscreenName.trim() || !mainscreenTypeId) {
+    const validation = parseWithSchema(mainScreenSchema, {
+      mainscreentype_id: mainscreenTypeId,
+      mainscreen_name: mainscreenName.trim(),
+      order_no: String(orderNo ?? ""),
+      description: description.trim(),
+      is_active: isActive,
+    });
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
+    setFieldErrors({});
 
     setIsSubmitting(true);
     try {
@@ -187,7 +200,10 @@ export default function MainScreenForm() {
             <Label>{t("admin.nav.main_screen_type")} *</Label>
             <Select
               value={mainscreenTypeId}
-              onValueChange={(v) => setMainScreenTypeId(v)}
+              onValueChange={(v) => {
+                setMainScreenTypeId(v);
+                setFieldErrors((prev) => ({ ...prev, mainscreentype_id: "" }));
+              }}
             >
               <SelectTrigger className="input-validate w-full">
                 <SelectValue
@@ -214,6 +230,7 @@ export default function MainScreenForm() {
                 )}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.mainscreentype_id} />
           </div>
 
           {/* Name */}
@@ -223,13 +240,17 @@ export default function MainScreenForm() {
             </Label>
             <Input
               value={mainscreenName}
-              onChange={(e) => setMainScreenName(e.target.value)}
+              onChange={(e) => {
+                setMainScreenName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, mainscreen_name: "" }));
+              }}
               placeholder={t("common.enter_item_name", {
                 item: t("admin.nav.main_screen"),
               })}
               className="input-validate w-full"
               required
             />
+            <FieldError message={fieldErrors.mainscreen_name} />
           </div>
 
           {/* Order No (edit only — backend auto-assigns on create) */}

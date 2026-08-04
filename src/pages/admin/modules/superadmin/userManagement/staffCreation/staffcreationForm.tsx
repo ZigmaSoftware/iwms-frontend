@@ -15,6 +15,10 @@ import { staffCreationApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
+import { staffCreationSchema } from "@/schemas/superadmin/userManagement/staffCreation.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 // ─── Password helpers ────────────────────────────────────────────────────────
 const PASSWORD_EXPIRY_DAYS = 90;
@@ -383,6 +387,7 @@ export default function StaffCreationForm() {
   const [photoPreview, setPhotoPreview] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [sameAddress, setSameAddress] = useState(false);
   const [passwordCrtDate, setPasswordCrtDate] = useState<string | null>(null);
   const [staffCreatedAt, setStaffCreatedAt] = useState<string | null>(null);
@@ -1099,12 +1104,14 @@ export default function StaffCreationForm() {
   ) => {
     const { id, value } = e.target;
     setFormData((prev) => ({ ...prev, [id]: value }));
+    setFieldErrors((prev) => ({ ...prev, [id]: "" }));
   };
 
   const handleSelectChange = (
     field: keyof typeof initialFormData,
     value: string,
   ) => {
+    setFieldErrors((prev) => ({ ...prev, [field]: "" }));
     if (field === "company_id") {
       hookOnCompanyChange(value);
       hookSetProjectId("");
@@ -1230,6 +1237,14 @@ export default function StaffCreationForm() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
+    const schema = requireWhenVisible(staffCreationSchema, showField);
+    const validation = parseWithSchema(schema, formData);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      return;
+    }
+    setFieldErrors({});
+
     if (!companyUniqueId) {
       Swal.fire(
         "Error",
@@ -1251,16 +1266,6 @@ export default function StaffCreationForm() {
         title: t("admin.staff_creation.invalid_photo_title"),
         text: t("admin.staff_creation.invalid_photo_desc"),
       });
-      return;
-    }
-
-    if (showField("department_id") && !formData.department_id) {
-      Swal.fire("Error", "Department is required", "error");
-      return;
-    }
-
-    if (showField("designation_id") && !formData.designation_id) {
-      Swal.fire("Error", "Designation is required", "error");
       return;
     }
 
@@ -1461,6 +1466,7 @@ export default function StaffCreationForm() {
             onChange={handleInputChange}
             required
           />
+          <FieldError message={fieldErrors.employee_name} />
         </div>
       )}
       {/* <div>
@@ -1497,6 +1503,7 @@ export default function StaffCreationForm() {
               item: t("admin.staff_creation.department_name"),
             })}
           />
+          <FieldError message={fieldErrors.department_id} />
         </div>
       )}
       {showField("designation_id") && (
@@ -1516,6 +1523,7 @@ export default function StaffCreationForm() {
                 : "Select a department first"
             }
           />
+          <FieldError message={fieldErrors.designation_id} />
         </div>
       )}
       {showField("staffusertype_id") && (
@@ -2171,6 +2179,7 @@ export default function StaffCreationForm() {
                     value={formData.present_pincode}
                     onChange={handleInputChange}
                   />
+                  <FieldError message={fieldErrors.present_pincode} />
                 </div>
               )}
             </div>
@@ -2315,6 +2324,7 @@ export default function StaffCreationForm() {
                     value={formData.permanent_pincode}
                     onChange={handleInputChange}
                   />
+                  <FieldError message={fieldErrors.permanent_pincode} />
                 </div>
               )}
             </div>
@@ -2338,6 +2348,7 @@ export default function StaffCreationForm() {
                   value={formData.contact_mobile}
                   onChange={handleInputChange}
                 />
+                <FieldError message={fieldErrors.contact_mobile} />
               </div>
             )}
             {showField("contact_email") && (
@@ -2351,6 +2362,7 @@ export default function StaffCreationForm() {
                   value={formData.contact_email}
                   onChange={handleInputChange}
                 />
+                <FieldError message={fieldErrors.contact_email} />
               </div>
             )}
             {/* <div>

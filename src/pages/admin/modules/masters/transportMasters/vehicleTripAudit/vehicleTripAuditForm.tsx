@@ -16,6 +16,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { vehicleTripAuditSchema } from "@/schemas/masters/transportMasters/vehicleTripAudit.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const toOptions = (
@@ -85,6 +88,7 @@ const extractErrorMessage = (error: any): string | null => {
 
 function VehicleTripAuditEditor({
   formData,
+  fieldErrors,
   tripOptions,
   vehicles,
   fetching,
@@ -110,6 +114,7 @@ function VehicleTripAuditEditor({
             disabled={fetching || isEdit}
             required
           />
+          <FieldError message={fieldErrors.daily_trip_assignment_id} />
         </div>
 
         <div>
@@ -122,6 +127,7 @@ function VehicleTripAuditEditor({
             disabled={fetching || isVehicleLocked}
             required
           />
+          <FieldError message={fieldErrors.vehicle_id} />
         </div>
 
         <div className="md:col-span-2">
@@ -132,6 +138,7 @@ function VehicleTripAuditEditor({
             placeholder={t("admin.vehicle_trip_audit.gps_placeholder")}
             rows={3}
           />
+          <FieldError message={fieldErrors.gps_lat} />
         </div>
 
         <div className="md:col-span-2">
@@ -142,6 +149,7 @@ function VehicleTripAuditEditor({
             placeholder={t("admin.vehicle_trip_audit.gps_placeholder")}
             rows={3}
           />
+          <FieldError message={fieldErrors.gps_lon} />
         </div>
 
         <div>
@@ -152,6 +160,7 @@ function VehicleTripAuditEditor({
             onChange={(e) => onChange({ avg_speed: e.target.value })}
             placeholder={t("admin.vehicle_trip_audit.avg_speed")}
           />
+          <FieldError message={fieldErrors.avg_speed} />
         </div>
 
         <div>
@@ -220,6 +229,7 @@ export default function VehicleTripAuditForm() {
   const [vehicleOptions, setVehicleOptions] = useState<SelectOption[]>([]);
   const [fetching, setFetching] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [formData, setFormData] = useState<VehicleTripAuditFormState>(() => ({
     ...emptyFormState,
@@ -335,16 +345,13 @@ export default function VehicleTripAuditForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (
-      !formData.daily_trip_assignment_id ||
-      !formData.vehicle_id ||
-      !formData.gps_lat ||
-      !formData.gps_lon ||
-      !formData.avg_speed
-    ) {
+    const validation = parseWithSchema(vehicleTripAuditSchema, formData);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
+    setFieldErrors({});
 
     let latValues: number[];
     let lonValues: number[];
@@ -431,18 +438,26 @@ export default function VehicleTripAuditForm() {
         <VehicleTripAuditEditor
           key={formKey}
           formData={formData}
+          fieldErrors={fieldErrors}
           tripOptions={tripOptions}
           vehicles={vehicleOptions}
           fetching={fetching}
           isEdit={isEdit}
           isSubmitting={isSubmitting}
           isVehicleLocked={isVehicleLocked}
-          onChange={(updates) =>
+          onChange={(updates) => {
             setFormData((prev) => ({
               ...prev,
               ...updates,
-            }))
-          }
+            }));
+            setFieldErrors((prev) => {
+              const next = { ...prev };
+              Object.keys(updates).forEach((key) => {
+                next[key] = "";
+              });
+              return next;
+            });
+          }}
           onCancel={() => navigate(ENC_LIST_PATH)}
           onSubmit={handleSubmit}
         />

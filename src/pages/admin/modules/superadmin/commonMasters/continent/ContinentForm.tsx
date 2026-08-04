@@ -21,6 +21,10 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import type { ContinentEditorProps } from "./types";
+import { continentSchema } from "@/schemas/superadmin/commonMasters/continent.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const { encMasters, encContinents } = getEncryptedRoute();
 
@@ -66,20 +70,24 @@ function ContinentEditor({
   onSubmit,
 }: ContinentEditorProps) {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "continents", CONTINENT_FIELDS);
   const [name, setName] = useState(initialPayload.name);
   const [isActive, setIsActive] = useState(initialPayload.is_active);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
-    const fieldValues: Record<string, unknown> = {
+    const fieldValues = {
       name: trimmedName,
       is_active: isActive,
     };
 
-    if (getMissingRequiredFields(["name"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
+    const schema = requireWhenVisible(continentSchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -88,6 +96,7 @@ function ContinentEditor({
       });
       return;
     }
+    setFieldErrors({});
 
     const rawPayload = {
       name: trimmedName,
@@ -110,7 +119,10 @@ function ContinentEditor({
               id="continentName"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, name: "" }));
+              }}
               placeholder={t("common.enter_item_name", {
                 item: t("admin.nav.continent"),
               })}
@@ -118,6 +130,7 @@ function ContinentEditor({
               disabled={isSubmitting}
               required
             />
+            <FieldError message={fieldErrors.name} />
           </div>
         )}
 

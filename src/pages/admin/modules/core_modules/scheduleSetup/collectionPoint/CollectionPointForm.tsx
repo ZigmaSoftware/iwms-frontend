@@ -22,6 +22,10 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
 import { stateApi, districtApi, cityApi, panchayatApi, zoneApi, wardApi, collectionPointApi } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
+import { collectionPointSchema } from "@/schemas/core_modules/scheduleSetup/collectionPoint.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 import type { SelectOption } from "@/types";
 import type {
   CollectionPointCollectionType,
@@ -196,6 +200,7 @@ export default function CollectionPointForm() {
   const [longitude, setLongitude] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [states, setStates] = useState<SelectOption[]>([]);
   const [districts, setDistricts] = useState<WithStateIdOption[]>([]);
@@ -603,46 +608,38 @@ export default function CollectionPointForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    const missingFields: string[] = [];
-    const fieldValues: Record<string, unknown> = {
+    const fieldValues = {
       state_id: stateId,
       district_id: districtId,
       city_id: cityId,
       panchayat_id: panchayatId,
-      ward_ids: wardIds,
+      zone_id: zoneId,
       cp_name: cpName.trim(),
       latitude: latitude.trim(),
       longitude: longitude.trim(),
     };
+
+    const missingFields: string[] = [];
     if (!companyUniqueId) missingFields.push(t("admin.nav.company"));
     if (!projectId) missingFields.push(t("admin.nav.project"));
-    if (getMissingRequiredFields(["state_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
-      missingFields.push(t("common.state"));
+
+    const schema = requireWhenVisible(collectionPointSchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+    } else {
+      setFieldErrors({});
     }
-    if (getMissingRequiredFields(["district_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
-      missingFields.push(t("common.district"));
-    }
-    if (getMissingRequiredFields(["city_id"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
-      missingFields.push(t("common.city"));
-    }
+
     if ((showField("panchayat_id") || showField("zone_id") || showField("ward_id")) && !panchayatId && !zoneId && wardIds.length === 0) {
       missingFields.push(`${t("admin.nav.panchayat")} / ${t("admin.nav.zone")} / ${t("admin.nav.ward")}`);
     }
-    if (getMissingRequiredFields(["cp_name"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
-      missingFields.push(t("common.item_name", { item: t("admin.nav.collection_point") }));
-    }
-    if (getMissingRequiredFields(["latitude"], (fieldKey) => fieldValues[fieldKey]).length > 0) missingFields.push(t("common.latitude"));
-    if (getMissingRequiredFields(["longitude"], (fieldKey) => fieldValues[fieldKey]).length > 0) missingFields.push(t("common.longitude"));
 
-    const latitudeValid = isValidCoordinate(latitude, -90, 90);
-    const longitudeValid = isValidCoordinate(longitude, -180, 180);
-    if (showField("latitude") && latitude.trim() && !latitudeValid) missingFields.push("Valid Latitude");
-    if (showField("longitude") && longitude.trim() && !longitudeValid) missingFields.push("Valid Longitude");
-
-    if (missingFields.length > 0) {
+    if (missingFields.length > 0 || !validation.success) {
+      const schemaMessages = !validation.success ? Object.values(validation.errors) : [];
       Swal.fire(
         t("common.warning"),
-        t("admin.bin.missing_fields", { fields: missingFields.join(", ") }),
+        t("admin.bin.missing_fields", { fields: [...missingFields, ...schemaMessages].join(", ") }),
         "warning"
       );
       return;
@@ -780,6 +777,7 @@ export default function CollectionPointForm() {
                 setPanchayatId("");
                 setZoneId("");
                 setWardIds([]);
+                setFieldErrors((prev) => ({ ...prev, state_id: "" }));
               }}
             >
               <SelectTrigger className="input-validate w-full">
@@ -793,6 +791,7 @@ export default function CollectionPointForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.state_id} />
           </div>
         )}
 
@@ -807,6 +806,7 @@ export default function CollectionPointForm() {
                 setPanchayatId("");
                 setZoneId("");
                 setWardIds([]);
+                setFieldErrors((prev) => ({ ...prev, district_id: "" }));
               }}
               disabled={!stateId}
             >
@@ -821,6 +821,7 @@ export default function CollectionPointForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.district_id} />
           </div>
         )}
 
@@ -834,6 +835,7 @@ export default function CollectionPointForm() {
                 setPanchayatId("");
                 setZoneId("");
                 setWardIds([]);
+                setFieldErrors((prev) => ({ ...prev, city_id: "" }));
               }}
               disabled={!districtId}
             >
@@ -848,6 +850,7 @@ export default function CollectionPointForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.city_id} />
           </div>
         )}
 
@@ -1013,14 +1016,34 @@ export default function CollectionPointForm() {
         {showField("cp_name") && (
           <div>
             <Label>{t("common.item_name", { item: t("admin.nav.collection_point") })} *</Label>
-            <Input value={cpName} onChange={(e) => setCpName(e.target.value)} placeholder="CP 1" required />
+            <Input
+              value={cpName}
+              onChange={(e) => {
+                setCpName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, cp_name: "" }));
+              }}
+              placeholder="CP 1"
+              required
+            />
+            <FieldError message={fieldErrors.cp_name} />
           </div>
         )}
 
         {showField("latitude") && (
           <div>
             <Label>{t("common.latitude")} *</Label>
-            <Input type="number" step="0.000001" value={latitude} onChange={(e) => setLatitude(e.target.value)} placeholder="13.083000" required />
+            <Input
+              type="number"
+              step="0.000001"
+              value={latitude}
+              onChange={(e) => {
+                setLatitude(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, latitude: "" }));
+              }}
+              placeholder="13.083000"
+              required
+            />
+            <FieldError message={fieldErrors.latitude} />
           </div>
         )}
 
@@ -1028,14 +1051,26 @@ export default function CollectionPointForm() {
           <div>
             <Label>{t("common.longitude")} *</Label>
             <div className="flex items-center gap-2">
-              <Input type="number" step="0.000001" value={longitude} onChange={(e) => setLongitude(e.target.value)} placeholder="80.271000" required />
+              <Input
+                type="number"
+                step="0.000001"
+                value={longitude}
+                onChange={(e) => {
+                  setLongitude(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, longitude: "" }));
+                }}
+                placeholder="80.271000"
+                required
+              />
               <AutoDetectLocationButton
                 onDetected={({ latitude: lat, longitude: lng }) => {
                   setLatitude(String(lat));
                   setLongitude(String(lng));
+                  setFieldErrors((prev) => ({ ...prev, latitude: "", longitude: "" }));
                 }}
               />
             </div>
+            <FieldError message={fieldErrors.longitude} />
           </div>
         )}
 

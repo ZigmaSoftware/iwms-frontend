@@ -11,6 +11,10 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
+import { fuelSchema } from "@/schemas/masters/transportMasters/fuel.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const { encTransportMaster, encFuel } = getEncryptedRoute();
@@ -65,6 +69,7 @@ function FuelForm() {
   const [fuelType, setFuelType] = useState("");
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   // ── Populate form in edit mode ────────────────────────────────────────────
   useEffect(() => {
@@ -78,7 +83,15 @@ function FuelForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (showField("fuel_type") && !fuelType) {
+    const fieldValues = {
+      fuel_type: fuelType,
+      description,
+      is_active: isActive,
+    };
+    const schema = requireWhenVisible(fuelSchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -87,6 +100,7 @@ function FuelForm() {
       });
       return;
     }
+    setFieldErrors({});
 
     const rawPayload = {
       fuel_type: fuelType,
@@ -155,11 +169,15 @@ function FuelForm() {
               id="fuelType"
               type="text"
               value={fuelType}
-              onChange={(e) => setFuelType(e.target.value)}
+              onChange={(e) => {
+                setFuelType(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, fuel_type: "" }));
+              }}
               placeholder={t("admin.fuel.fuel_type_placeholder")}
               className="input-validate w-full"
               required
             />
+            <FieldError message={fieldErrors.fuel_type} />
           </div>
           )}
 
@@ -174,11 +192,15 @@ function FuelForm() {
               id="fuelDescription"
               type="text"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, description: "" }));
+              }}
               placeholder={t("admin.fuel.description_placeholder")}
               className="input-validate w-full"
               required
             />
+            <FieldError message={fieldErrors.description} />
           </div>
           )}
 
