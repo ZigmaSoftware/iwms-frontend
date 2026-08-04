@@ -266,14 +266,18 @@ const enResource = {
             "all": "Vehicle",
             "vehicle": "Vehicle",
             "bins": "Bins",
-            "households": "Households"
+            "households": "Households",
+            "wards": "Wards"
           },
           "map_summaries": {
             "all": "Fleet, routes, and live coverage.",
             "vehicle": "Fleet, routes, and live coverage.",
             "bins": "Smart bin fill levels and priority hotspots.",
-            "households": "Door-to-door collection status by ward."
-          }
+            "households": "Door-to-door collection status by ward.",
+            "wards": "Ward boundaries, framed to fit."
+          },
+          "wards_loading": "Loading wards...",
+          "wards_empty": "No ward boundaries found for the current filters."
         },
         "overview": {
           "title": "Dashboard Overview",
