@@ -65,6 +65,24 @@ function resolveInitialProjectId(projects: ProjectConfig[]): string {
   return projects[0]?.unique_id ?? "";
 }
 
+function mapProjectRecord(p: any): ProjectConfig {
+  return {
+    unique_id: p.unique_id,
+    name: p.name,
+    gps_api_url: p.gps_api_url ?? null,
+    gps_vehicle_history_api: p.gps_vehicle_history_api ?? null,
+    gps_vehicle_tracking_api: p.gps_vehicle_tracking_api ?? null,
+    gps_trip_summary_api: p.gps_trip_summary_api ?? null,
+    gps_user_id: p.gps_user_id ?? null,
+    gps_group_name: p.gps_group_name ?? null,
+    gps_provider_name: p.gps_provider_name ?? null,
+    gps_fcode: p.gps_fcode ?? null,
+    gps_trip_user_id: p.gps_trip_user_id ?? null,
+    weighment_api_url: p.weighment_api_url ?? null,
+    day_wise_weighment_api_url: p.day_wise_weighment_api_url ?? null,
+  };
+}
+
 // ─── provider ────────────────────────────────────────────────────────────────
 
 export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
@@ -127,21 +145,7 @@ export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
             params: { company_unique_id: targetCompany },
           });
           if (cancelled) return;
-          const projectList: ProjectConfig[] = (projectRecords as any[]).map((p) => ({
-            unique_id: p.unique_id,
-            name: p.name,
-            gps_api_url: p.gps_api_url ?? null,
-            gps_vehicle_history_api: p.gps_vehicle_history_api ?? null,
-            gps_vehicle_tracking_api: p.gps_vehicle_tracking_api ?? null,
-            gps_trip_summary_api: p.gps_trip_summary_api ?? null,
-            gps_user_id: p.gps_user_id ?? null,
-            gps_group_name: p.gps_group_name ?? null,
-            gps_provider_name: p.gps_provider_name ?? null,
-            gps_fcode: p.gps_fcode ?? null,
-            gps_trip_user_id: p.gps_trip_user_id ?? null,
-            weighment_api_url: p.weighment_api_url ?? null,
-            day_wise_weighment_api_url: p.day_wise_weighment_api_url ?? null,
-          }));
+          const projectList: ProjectConfig[] = (projectRecords as any[]).map(mapProjectRecord);
           setProjects(projectList);
           setProjectIdState(resolveInitialProjectId(projectList));
         }
@@ -149,6 +153,37 @@ export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
         // non-fatal — pages still work with env-var fallbacks
       } finally {
         if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ── For staff/company logins — the projects list is seeded once from the
+  // login response and never refetched, so edits a superadmin makes to a
+  // project's API config (e.g. day_wise_weighment_api_url) after this user
+  // logged in would stay invisible until they log out and back in. Refresh
+  // each stored project from the backend on mount to pick up such edits. ───
+  useEffect(() => {
+    const stored = getStoredProjects();
+    if (stored.length === 0) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const fresh = await Promise.all(
+          stored.map((p) => (projectApi as any).read(p.unique_id).catch(() => null))
+        );
+        if (cancelled) return;
+        const refreshed = fresh.map((record, i) =>
+          record ? mapProjectRecord(record) : stored[i]
+        );
+        setProjects(refreshed);
+      } catch {
+        // non-fatal — keep the cached snapshot
       }
     })();
 
@@ -169,21 +204,7 @@ export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
       const projectRecords = await (projectApi as any).readAll({
         params: { company_unique_id: id },
       });
-      const projectList: ProjectConfig[] = (projectRecords as any[]).map((p) => ({
-        unique_id: p.unique_id,
-        name: p.name,
-        gps_api_url: p.gps_api_url ?? null,
-        gps_vehicle_history_api: p.gps_vehicle_history_api ?? null,
-        gps_vehicle_tracking_api: p.gps_vehicle_tracking_api ?? null,
-        gps_trip_summary_api: p.gps_trip_summary_api ?? null,
-        gps_user_id: p.gps_user_id ?? null,
-        gps_group_name: p.gps_group_name ?? null,
-        gps_provider_name: p.gps_provider_name ?? null,
-        gps_fcode: p.gps_fcode ?? null,
-        gps_trip_user_id: p.gps_trip_user_id ?? null,
-        weighment_api_url: p.weighment_api_url ?? null,
-        day_wise_weighment_api_url: p.day_wise_weighment_api_url ?? null,
-      }));
+      const projectList: ProjectConfig[] = (projectRecords as any[]).map(mapProjectRecord);
       setProjects(projectList);
       const newProjectId = resolveInitialProjectId(projectList);
       setProjectIdState(newProjectId);
