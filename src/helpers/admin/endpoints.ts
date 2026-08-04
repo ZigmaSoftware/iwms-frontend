@@ -13,7 +13,6 @@ export const adminEndpoints = {
      AUTHENTICATION
   ========================= */
   loginUser: "login/login-user",
-  userpermission: "login/my-permissions",
 
   /* =========================
      COMMON MASTERS

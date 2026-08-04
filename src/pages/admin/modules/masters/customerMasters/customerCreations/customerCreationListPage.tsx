@@ -1,13 +1,13 @@
 import type { Customer } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -33,6 +33,18 @@ import {
 import { createCustomerQrPdfBlob, downloadCustomerQrPdf } from "./customerQrPdf";
 import { downloadAllCustomersPdf } from "./customerAllDetailsPdf";
 
+
+// Backend `ordering_fields` are ["customer_name", "is_active"]; only
+// customer_name maps to a visible, sortable column here.
+const SORTABLE_FIELDS = new Set(["customer_name"]);
+
+const toRecordList = (value: unknown): Customer[] => {
+  if (Array.isArray(value)) return value as Customer[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: Customer[] }).results;
+  }
+  return [];
+};
 
 const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   customer_name: ["customer_name", "name"],
@@ -87,8 +99,13 @@ export default function CustomerCreationListPage() {
     CUSTOMER_CREATION_COLUMN_FIELDS,
   );
 
-  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
@@ -97,19 +114,11 @@ export default function CustomerCreationListPage() {
   const [isPreviewingQr, setIsPreviewingQr] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const requestIdRef = useRef(0);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [globalSearchTerm, setGlobalSearchTerm] = useState("");
   const [statusFilterValue, setStatusFilterValue] = useState<StatusFilterValue>("all");
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    contact_no: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    state_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
 
   const navigate = useNavigate();
   const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
@@ -134,71 +143,113 @@ export default function CustomerCreationListPage() {
     encCustomerCreation,
   );
 
-  // ── Load data ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (isSuperAdmin && companies.length === 0) return;
-    if (!companyUniqueId && !isSuperAdmin) return;
+  const mappedSortField = sortField && SORTABLE_FIELDS.has(sortField) ? sortField : undefined;
+  const ordering = mappedSortField
+    ? `${sortOrder === -1 ? "-" : ""}${mappedSortField}`
+    : undefined;
 
-    let mounted = true;
+  const activeStatusParam =
+    statusFilterValue === "all" ? "" : statusFilterValue === "active" ? "1" : "0";
+
+  // ── Load data (server-side pagination) ──────────────────────────────────
+  const loadRows = async (
+    page: number,
+    limit: number,
+    search: string,
+    activeStatus: string,
+    orderingParam?: string,
+  ) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
+    try {
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+      if (search) params.search = search;
+      if (activeStatus) params.active_status = activeStatus;
+      if (orderingParam) params.ordering = orderingParam;
 
-    const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-    if (projectId) params.project_id = projectId;
+      const response = await customerCreationApi.readAllwithPaginated(page, limit, { params });
+      if (requestId !== requestIdRef.current) return;
 
-    customerCreationApi.readAll({ params })
-      .then((data: unknown) => {
-        if (mounted) setAllCustomers(Array.isArray(data) ? (data as Customer[]) : []);
-      })
-      .catch((error: unknown) => {
-        if (mounted) {
-          Swal.fire({
-            icon: "error",
-            title: t("common.error"),
-            text: String((error as { response?: { data?: unknown } })?.response?.data ?? error),
-          });
-        }
-      })
-      .finally(() => { if (mounted) setIsLoading(false); });
-    return () => { mounted = false; };
-  }, [t, refetchTrigger, companyUniqueId, projectId, isSuperAdmin, companies.length]);
+      const rows = toRecordList(response);
+      setCustomers(rows);
+      setTotalRecords(
+        typeof (response as { count?: number })?.count === "number"
+          ? (response as { count: number }).count
+          : rows.length,
+      );
+    } catch (error: unknown) {
+      if (requestId !== requestIdRef.current) return;
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: String((error as { response?: { data?: unknown } })?.response?.data ?? error),
+      });
+    } finally {
+      if (requestId === requestIdRef.current) setIsLoading(false);
+    }
+  };
 
-  // Company/project scoping is now applied server-side (tenant users are
-  // scoped automatically by the backend; superadmin scoping is passed via
-  // company_id/project_id params above) — no client-side narrowing needed.
-  const customers = useMemo<Customer[]>(() => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
+  useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) {
+      requestIdRef.current += 1;
+      setCustomers([]);
+      setTotalRecords(0);
+      setIsLoading(false);
+      return;
+    }
+    if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
+      setCustomers([]);
+      setTotalRecords(0);
+      setIsLoading(false);
+      return;
+    }
 
-    return [...allCustomers].sort((a, b) =>
-      String(a.customer_name ?? "").localeCompare(String(b.customer_name ?? ""))
-    );
-  }, [allCustomers, companies.length, companyUniqueId, isSuperAdmin]);
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, globalSearchTerm, activeStatusParam, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    t,
+    refetchTrigger,
+    companyUniqueId,
+    projectId,
+    isSuperAdmin,
+    companies.length,
+    first,
+    rowsPerPage,
+    globalSearchTerm,
+    activeStatusParam,
+    ordering,
+  ]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setGlobalSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
-    setGlobalFilterValue(value);
-  };
-
-  const onSearchValueChange = (value: string) =>
-    onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>);
+  const onSearchValueChange = (value: string) => setGlobalFilterValue(value);
 
   const onStatusFilterChange = (value: StatusFilterValue) => {
     setStatusFilterValue(value);
-    setFilters((prev) => ({
-      ...prev,
-      is_active: {
-        value: value === "all" ? null : value === "active",
-        matchMode: FilterMatchMode.EQUALS,
-      },
-    } as TableFilters));
+    setFirst(0);
   };
 
   // ── Download template ─────────────────────────────────────────────────────
@@ -259,37 +310,21 @@ export default function CustomerCreationListPage() {
     }
   };
 
-  const filteredExportRows = (): Customer[] => {
-    const search = globalFilterValue.trim().toLowerCase();
-    const statusFiltered =
-      statusFilterValue === "all"
-        ? customers
-        : customers.filter((customer) =>
-            statusFilterValue === "active" ? customer.is_active : !customer.is_active
-          );
-    if (!search) return statusFiltered;
-    return statusFiltered.filter((customer) =>
-      [
-        customer.customer_name,
-        customer.contact_no,
-        customer.apartment_name,
-        customer.block_no,
-        customer.flat_no,
-        customer.ward_name,
-        customer.zone_name,
-        customer.city_name,
-        customer.company_name,
-        customer.project_name,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(search))
-    );
+  const fetchExportRows = async (): Promise<Customer[]> => {
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
+    if (projectId) params.project_id = projectId;
+    if (globalSearchTerm) params.search = globalSearchTerm;
+    if (activeStatusParam) params.active_status = activeStatusParam;
+
+    const response = await customerCreationApi.readAllForExport({ params });
+    return toRecordList(response);
   };
 
   const handleDownloadExcel = async () => {
     setIsExportingExcel(true);
     try {
-      const rows = filteredExportRows();
+      const rows = await fetchExportRows();
       if (rows.length === 0) {
         Swal.fire(t("common.warning") || "Warning", "No customers to export", "warning");
         return;
@@ -303,7 +338,7 @@ export default function CustomerCreationListPage() {
   const handleDownloadPdf = async () => {
     setIsExportingPdf(true);
     try {
-      const rows = filteredExportRows();
+      const rows = await fetchExportRows();
       if (rows.length === 0) {
         Swal.fire(t("common.warning") || "Warning", "No customers to export", "warning");
         return;
@@ -452,7 +487,7 @@ export default function CustomerCreationListPage() {
           row.unique_id,
           filterPayload(rawPayload, ["company_id", "project_id"]) as Record<string, unknown>
         );
-        setAllCustomers((current) =>
+        setCustomers((current) =>
           current.map((item) =>
             item.unique_id === row.unique_id ? { ...item, is_active: value } : item
           )
@@ -546,8 +581,15 @@ export default function CustomerCreationListPage() {
         bulkImportable={false}
         exportable={false}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading && customers.length === 0}
         filters={filters}
@@ -571,10 +613,14 @@ export default function CustomerCreationListPage() {
           body={(row: Customer) => row.customer_id || "-"}
         />
         {showCol("customer_name") && (
-          <Column field="customer_name" header={t("admin.customer_creation.customer")} sortable />
+          <Column
+            field="customer_name"
+            header={t("admin.customer_creation.customer")}
+            sortable={SORTABLE_FIELDS.has("customer_name")}
+          />
         )}
         {showCol("contact_no") && (
-          <Column field="contact_no" header={t("common.mobile")} sortable />
+          <Column field="contact_no" header={t("common.mobile")} />
         )}
         {showCol("apartment_name") && (
           <Column
@@ -594,23 +640,22 @@ export default function CustomerCreationListPage() {
           />
         )}
         {showCol("ward_name") && (
-          <Column field="ward_name" header={t("common.ward")} body={(row: Customer) => row.ward_name || "-"} sortable />
+          <Column field="ward_name" header={t("common.ward")} body={(row: Customer) => row.ward_name || "-"} />
         )}
         {showCol("zone_name") && (
-          <Column field="zone_name" header={t("common.zone")} body={(row: Customer) => row.zone_name || "-"} sortable />
+          <Column field="zone_name" header={t("common.zone")} body={(row: Customer) => row.zone_name || "-"} />
         )}
         {showCol("city_name") && (
-          <Column field="city_name" header={t("common.city")} sortable />
+          <Column field="city_name" header={t("common.city")} />
         )}
         {showCol("state_name") && (
-          <Column field="state_name" header={t("common.state")} sortable />
+          <Column field="state_name" header={t("common.state")} />
         )}
         {showCol("panchayat_name") && (
           <Column
             field="panchayat_name"
             header={t("admin.nav.panchayat")}
             body={(row: Customer) => row.panchayat_name || "-"}
-            sortable
           />
         )}
         {showCol("waste_types") && (

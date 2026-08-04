@@ -1,5 +1,5 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -56,6 +56,7 @@ export default function SubPropertyList() {
   const [subProperties, setSubProperties] = useState<SubPropertyRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
   const {
     filters, onFilter, globalFilterValue, onGlobalFilterChange,
     statusValue, onStatusFilterChange,
@@ -95,6 +96,7 @@ export default function SubPropertyList() {
   );
 
   const loadSubProperties = async () => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     try {
       const params: Record<string, string> = {};
@@ -102,19 +104,21 @@ export default function SubPropertyList() {
       if (projectId) params.project_id = projectId;
 
       const response = await adminApi.subProperties.readAll({ params });
+      if (requestId !== requestIdRef.current) return;
       setSubProperties(
         (Array.isArray(response)
           ? response
           : ((response as { results?: SubPropertyRecord[] })?.results ?? [])) as SubPropertyRecord[]
       );
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.fetch_failed")),
         "error"
       );
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 

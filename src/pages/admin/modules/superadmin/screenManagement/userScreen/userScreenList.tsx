@@ -1,5 +1,5 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -29,6 +29,7 @@ export default function UserScreenList() {
   const [screens, setScreens] = useState<UserScreen[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const {
     filters,
@@ -51,14 +52,17 @@ export default function UserScreenList() {
     let mounted = true;
 
     const loadScreens = async () => {
+      const requestId = ++requestIdRef.current;
       setIsLoading(true);
       try {
         const data = await userScreenApi.readAll();
-        if (mounted) setScreens(data as UserScreen[]);
+        if (!mounted || requestId !== requestIdRef.current) return;
+        setScreens(data as UserScreen[]);
       } catch {
-        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        if (!mounted || requestId !== requestIdRef.current) return;
+        Swal.fire(t("common.error"), t("common.load_failed"), "error");
       } finally {
-        if (mounted) setIsLoading(false);
+        if (mounted && requestId === requestIdRef.current) setIsLoading(false);
       }
     };
 

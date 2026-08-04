@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 
 
 const sourceTypeOptions: SelectOption[] = [
@@ -39,6 +40,7 @@ export default function BinLoadLogForm() {
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
 
+  const { showZone } = useZonePanchayatVisibility();
   const binLoadLogApi = adminApi.binLoadLogs;
   const zoneApi = adminApi.zones;
   const vehicleApi = adminApi.vehicleCreations;
@@ -74,23 +76,28 @@ export default function BinLoadLogForm() {
 
   useEffect(() => {
     setFetching(true);
-    Promise.all([
-      zoneApi.readAll(),
+    // Promise.allSettled — not all() — because a staff without Zone access
+    // (e.g. a panchayat-only project) 403s that one call at the module-
+    // permission middleware; that must not blank out vehicles/properties/
+    // subProperties too. The zone fetch is skipped entirely up front when
+    // the login-scoped data shows the staff has no access to it.
+    Promise.allSettled([
+      showZone ? zoneApi.readAll() : Promise.resolve([]),
       vehicleApi.readAll(),
       propertyApi.readAll(),
       subPropertyApi.readAll(),
     ])
-      .then(([zoneRes, vehicleRes, propertyRes, subPropertyRes]) => {
-        setZones(toOptions(normalizeList(zoneRes), "unique_id", "name"));
-        setVehicles(toOptions(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
-        setProperties(toOptions(normalizeList(propertyRes), "unique_id", "property_name"));
-        setSubProperties(toOptions(normalizeList(subPropertyRes), "unique_id", "sub_property_name"));
-      })
-      .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      .then(([zoneR, vehicleR, propertyR, subPropertyR]) => {
+        const settled = (result: PromiseSettledResult<unknown>): unknown =>
+          result.status === "fulfilled" ? result.value : [];
+
+        setZones(toOptions(normalizeList(settled(zoneR)), "unique_id", "name"));
+        setVehicles(toOptions(normalizeList(settled(vehicleR)), "unique_id", "vehicle_no"));
+        setProperties(toOptions(normalizeList(settled(propertyR)), "unique_id", "property_name"));
+        setSubProperties(toOptions(normalizeList(settled(subPropertyR)), "unique_id", "sub_property_name"));
       })
       .finally(() => setFetching(false));
-  }, [propertyApi, subPropertyApi, t, vehicleApi, zoneApi]);
+  }, [propertyApi, subPropertyApi, t, vehicleApi, zoneApi, showZone]);
 
   useEffect(() => {
     if (!isEdit || !id) return;

@@ -1,6 +1,6 @@
 import type { CityRecord, CityWithRelations } from "./types";
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -46,6 +46,7 @@ export default function CityList() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const {
     filters,
@@ -99,6 +100,7 @@ export default function CityList() {
     let mounted = true;
 
     const loadCities = async () => {
+      const requestId = ++requestIdRef.current;
       setIsLoading(true);
       try {
         const params: Record<string, string> = {};
@@ -106,14 +108,14 @@ export default function CityList() {
         if (projectId) params.project_id = projectId;
 
         const data = await cityApi.readAll({ params });
-        if (mounted) setAllCities(data as CityRecord[]);
+        if (!mounted || requestId !== requestIdRef.current) return;
+        setAllCities(data as CityRecord[]);
       } catch (error) {
-        if (mounted) {
-          const errorData = (error as { response?: { data?: unknown } })?.response?.data;
-          Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
-        }
+        if (!mounted || requestId !== requestIdRef.current) return;
+        const errorData = (error as { response?: { data?: unknown } })?.response?.data;
+        Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
       } finally {
-        if (mounted) setIsLoading(false);
+        if (mounted && requestId === requestIdRef.current) setIsLoading(false);
       }
     };
 

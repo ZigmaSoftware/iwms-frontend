@@ -19,6 +19,14 @@ export const REFRESH_TOKEN_STORAGE_KEY = "refresh_token";
 export const USER_STORAGE_KEY = "user";
 export const PROFILE_STORAGE_KEY = "profile";
 export const PROJECTS_STORAGE_KEY = "projects_config";
+export const CONTINENTS_STORAGE_KEY = "continents_config";
+export const COUNTRIES_STORAGE_KEY = "countries_config";
+export const STATES_STORAGE_KEY = "states_config";
+export const DISTRICTS_STORAGE_KEY = "districts_config";
+export const CITIES_STORAGE_KEY = "cities_config";
+export const ZONES_STORAGE_KEY = "zones_config";
+export const PANCHAYATS_STORAGE_KEY = "panchayats_config";
+export const WARDS_STORAGE_KEY = "wards_config";
 
 type JwtPayload = {
   exp?: number;
@@ -44,7 +52,18 @@ export type ProjectConfig = {
   day_wise_weighment_api_url?: string | null;
 };
 
-export type AuthUser = {  
+// Scoped location entries returned by login, keyed by whichever "name"
+// field that master uses (name for continent/country/state/district/city,
+// zone_name/panchayat_name/ward_name for the rest).
+export type LocationConfig = {
+  unique_id: string;
+  name?: string;
+  zone_name?: string;
+  panchayat_name?: string;
+  ward_name?: string;
+};
+
+export type AuthUser = {
   unique_id?: string;
   username?: string;
   email?: string;
@@ -80,6 +99,14 @@ export type LoginPayload = {
   column_permissions?: unknown;
   profile?: AuthProfile;
   projects?: ProjectConfig[];
+  continents?: LocationConfig[];
+  countries?: LocationConfig[];
+  states?: LocationConfig[];
+  districts?: LocationConfig[];
+  cities?: LocationConfig[];
+  zones?: LocationConfig[];
+  panchayats?: LocationConfig[];
+  wards?: LocationConfig[];
 };
 
 export type LoginEnvelope = LoginPayload | {
@@ -129,6 +156,30 @@ export const getStoredProjects = (): ProjectConfig[] =>
 
 export const getStoredProjectConfig = (projectId: string): ProjectConfig | null =>
   getStoredProjects().find((p) => p.unique_id === projectId) ?? null;
+
+export const getStoredContinents = (): LocationConfig[] =>
+  safeJsonParse<LocationConfig[]>(localStorage.getItem(CONTINENTS_STORAGE_KEY), []);
+
+export const getStoredCountries = (): LocationConfig[] =>
+  safeJsonParse<LocationConfig[]>(localStorage.getItem(COUNTRIES_STORAGE_KEY), []);
+
+export const getStoredStates = (): LocationConfig[] =>
+  safeJsonParse<LocationConfig[]>(localStorage.getItem(STATES_STORAGE_KEY), []);
+
+export const getStoredDistricts = (): LocationConfig[] =>
+  safeJsonParse<LocationConfig[]>(localStorage.getItem(DISTRICTS_STORAGE_KEY), []);
+
+export const getStoredCities = (): LocationConfig[] =>
+  safeJsonParse<LocationConfig[]>(localStorage.getItem(CITIES_STORAGE_KEY), []);
+
+export const getStoredZones = (): LocationConfig[] =>
+  safeJsonParse<LocationConfig[]>(localStorage.getItem(ZONES_STORAGE_KEY), []);
+
+export const getStoredPanchayats = (): LocationConfig[] =>
+  safeJsonParse<LocationConfig[]>(localStorage.getItem(PANCHAYATS_STORAGE_KEY), []);
+
+export const getStoredWards = (): LocationConfig[] =>
+  safeJsonParse<LocationConfig[]>(localStorage.getItem(WARDS_STORAGE_KEY), []);
 
 export const isAccessTokenValid = (token = getStoredAccessToken()): boolean => {
   if (!token) return false;
@@ -189,6 +240,24 @@ export const persistLoginSession = (payload: LoginPayload): void => {
   } else {
     localStorage.removeItem(PROJECTS_STORAGE_KEY);
   }
+
+  const locationEntries: [string, LocationConfig[] | undefined][] = [
+    [CONTINENTS_STORAGE_KEY, payload.continents],
+    [COUNTRIES_STORAGE_KEY, payload.countries],
+    [STATES_STORAGE_KEY, payload.states],
+    [DISTRICTS_STORAGE_KEY, payload.districts],
+    [CITIES_STORAGE_KEY, payload.cities],
+    [ZONES_STORAGE_KEY, payload.zones],
+    [PANCHAYATS_STORAGE_KEY, payload.panchayats],
+    [WARDS_STORAGE_KEY, payload.wards],
+  ];
+  for (const [key, entries] of locationEntries) {
+    if (entries && entries.length > 0) {
+      safeSetStorageItem(key, JSON.stringify(entries));
+    } else {
+      localStorage.removeItem(key);
+    }
+  }
 };
 
 export const clearAuthSession = (): void => {
@@ -210,6 +279,14 @@ export const clearAuthSession = (): void => {
   localStorage.removeItem("current_project_id");
   localStorage.removeItem("selected_project_id");
   localStorage.removeItem(PROJECTS_STORAGE_KEY);
+  localStorage.removeItem(CONTINENTS_STORAGE_KEY);
+  localStorage.removeItem(COUNTRIES_STORAGE_KEY);
+  localStorage.removeItem(STATES_STORAGE_KEY);
+  localStorage.removeItem(DISTRICTS_STORAGE_KEY);
+  localStorage.removeItem(CITIES_STORAGE_KEY);
+  localStorage.removeItem(ZONES_STORAGE_KEY);
+  localStorage.removeItem(PANCHAYATS_STORAGE_KEY);
+  localStorage.removeItem(WARDS_STORAGE_KEY);
   clearStoredPermissions();
   clearAdminViewPreference();
 };

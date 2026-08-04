@@ -1,6 +1,6 @@
 import type { Staff } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { type ChangeEvent, useEffect, useState } from "react";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
@@ -125,6 +125,7 @@ export default function StaffCreationList() {
   ];
 
   const [refetchTrigger, setRefetchTrigger] = useState(0);
+  const requestIdRef = useRef(0);
 
   const requestParams = {
     salary_type: filterParams.salary_type,
@@ -147,12 +148,15 @@ export default function StaffCreationList() {
     params: Record<string, unknown>,
     orderingParam?: string,
   ) => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setStaffs([]);
     try {
       const response = await adminApi.staffCreation.readAllwithPaginated(page, limit, {
         params: { ...params, ...(orderingParam ? { ordering: orderingParam } : {}) },
       });
+      if (requestId !== requestIdRef.current) return;
+
       const rows = toRecordList(response);
 
       const hasContextFields = rows.some((row) => {
@@ -180,14 +184,16 @@ export default function StaffCreationList() {
           : filtered.length,
       );
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) {
+      requestIdRef.current += 1;
       setStaffs([]);
       setTotalRecords(0);
       setLoading(false);
@@ -195,6 +201,7 @@ export default function StaffCreationList() {
     }
 
     if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
       setStaffs([]);
       setTotalRecords(0);
       setLoading(false);

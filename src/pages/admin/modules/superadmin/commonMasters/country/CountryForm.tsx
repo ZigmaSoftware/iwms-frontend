@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useScopedContinents } from "@/hooks/useScopedLocationOptions";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { continentApi, countryApi } from "@/helpers/admin";
 
@@ -68,8 +69,9 @@ export default function CountryForm() {
   const [isActive, setIsActive] = useState(true);
   const [continentId, setContinentId] = useState("");
 
-  /* ── dropdown data ── */
-  const [continents, setContinents] = useState<SelectOption[]>([]);
+  /* ── dropdown data: scoped to the logged-in staff's assigned states'
+     continents, same convention as company/project ── */
+  const { options: continents, singleValue: singleContinentId } = useScopedContinents(continentApi);
 
   /* ── pending for edit prefill ── */
   const [pendingContinentId, setPendingContinentId] = useState("");
@@ -77,23 +79,6 @@ export default function CountryForm() {
 
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  /* ── load continents ── */
-  useEffect(() => {
-    let cancelled = false;
-    continentApi.readAll()
-      .then((res: any) => {
-        if (cancelled) return;
-        const data: any[] = Array.isArray(res) ? res : (res?.results ?? []);
-        setContinents(
-          data
-            .filter((c) => c.is_active)
-            .map((c) => ({ value: String(c.unique_id), label: String(c.name ?? "") }))
-        );
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
 
   /* ── apply pending continent once options load ── */
   useEffect(() => {
@@ -105,6 +90,13 @@ export default function CountryForm() {
       setPendingContinentName("");
     }
   }, [pendingContinentId, pendingContinentName, continents]);
+
+  /* ── create mode: prefill the only assigned continent, same as a single
+     project auto-selecting itself ── */
+  useEffect(() => {
+    if (isEdit || !singleContinentId) return;
+    setContinentId((prev) => prev || singleContinentId);
+  }, [isEdit, singleContinentId]);
 
   /* ── edit mode: fetch record ── */
   useEffect(() => {

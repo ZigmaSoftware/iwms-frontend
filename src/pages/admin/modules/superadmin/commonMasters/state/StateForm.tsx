@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useScopedContinents } from "@/hooks/useScopedLocationOptions";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { continentApi, countryApi, stateApi } from "@/helpers/admin";
 
@@ -66,8 +67,9 @@ export default function StateForm() {
   const [continentId, setContinentId] = useState("");
   const [countryId, setCountryId] = useState("");
 
-  /* ── dropdown data ── */
-  const [continents, setContinents] = useState<SelectOption[]>([]);
+  /* ── dropdown data: continents scoped to the logged-in staff's assigned
+     states, same convention as company/project ── */
+  const { options: continents, singleValue: singleContinentId } = useScopedContinents(continentApi);
   const [allCountries, setAllCountries] = useState<CountryMeta[]>([]);
   const [filteredCountries, setFilteredCountries] = useState<SelectOption[]>([]);
 
@@ -79,24 +81,6 @@ export default function StateForm() {
 
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  /* ── load continents ── */
-  useEffect(() => {
-    let cancelled = false;
-    continentApi.readAll()
-      .then((res: any) => {
-        if (cancelled) return;
-        const data: any[] = Array.isArray(res) ? res : (res?.results ?? []);
-        setContinents(
-          data.filter((c) => c.is_active).map((c) => ({
-            value: String(c.unique_id),
-            label: String(c.name ?? ""),
-          }))
-        );
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
 
   /* ── load countries ── */
   useEffect(() => {
@@ -170,6 +154,19 @@ export default function StateForm() {
       }
     }
   }, [pendingCountryId, pendingCountryName, filteredCountries]);
+
+  /* ── create mode: prefill the only assigned continent, then (once the
+     cascade resolves) the only assigned country — same convention as a
+     single project auto-selecting itself ── */
+  useEffect(() => {
+    if (isEdit || !singleContinentId) return;
+    setContinentId((prev) => prev || singleContinentId);
+  }, [isEdit, singleContinentId]);
+
+  useEffect(() => {
+    if (isEdit || countryId || filteredCountries.length !== 1) return;
+    setCountryId(filteredCountries[0].value);
+  }, [isEdit, countryId, filteredCountries]);
 
   /* ── edit mode: fetch record ── */
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -68,6 +68,7 @@ export default function StaffAccessConfigList() {
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
+  const requestIdRef = useRef(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
@@ -113,6 +114,7 @@ export default function StaffAccessConfigList() {
     : undefined;
 
   const loadRows = async (page: number, limit: number) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setRows([]);
     try {
@@ -124,6 +126,8 @@ export default function StaffAccessConfigList() {
       if (ordering) params.ordering = ordering;
 
       const response = await staffAccessConfigurationApi.readAllwithPaginated(page, limit, { params });
+      if (requestId !== requestIdRef.current) return;
+
       const list = toRecordList(response);
       setRows(list);
       setTotalRecords(
@@ -132,9 +136,10 @@ export default function StaffAccessConfigList() {
           : list.length,
       );
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire(t("common.error"), extractErrorMessage(error, t("common.load_failed")), "error");
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 

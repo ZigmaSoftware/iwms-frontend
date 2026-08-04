@@ -1,6 +1,6 @@
 import type { PanchayatLeader } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -58,6 +58,7 @@ export default function PanchayatLeaderListPage() {
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
+  const requestIdRef = useRef(0);
   const {
     globalFilterValue, onGlobalFilterChange,
     statusValue, onStatusFilterChange,
@@ -79,6 +80,7 @@ export default function PanchayatLeaderListPage() {
 
   /* ── fetch, scoped server-side by company+project, search, sort, and pagination ── */
   const loadRows = async (page: number, limit: number) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setRows([]);
     try {
@@ -89,6 +91,7 @@ export default function PanchayatLeaderListPage() {
       if (ordering) params.ordering = ordering;
 
       const response = await panchayatLeaderApi.readAllwithPaginated(page, limit, { params });
+      if (requestId !== requestIdRef.current) return;
       const list = toRecordList(response);
       setRows(list);
       setTotalRecords(
@@ -97,19 +100,22 @@ export default function PanchayatLeaderListPage() {
           : list.length,
       );
     } catch {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) {
+      requestIdRef.current += 1;
       setRows([]);
       setTotalRecords(0);
       return;
     }
     if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
       setRows([]);
       setTotalRecords(0);
       return;

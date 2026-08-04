@@ -1,6 +1,6 @@
 import type { DailyTripLogRecord } from "./types";
 import { formatCollectionTime } from "./collectionTime";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -625,6 +625,7 @@ export default function DailyTripLogList() {
   const [isExporting, setIsExporting] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const requestIdRef = useRef(0);
 
   /* ── waste type options for the filter multiselect ── */
   useEffect(() => {
@@ -662,11 +663,13 @@ export default function DailyTripLogList() {
   /* ── load logs (re-runs whenever pagination/sort/search/company/project/date/waste-type filters change) ── */
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) {
+      requestIdRef.current += 1;
       setRawRows([]);
       setTotalRecords(0);
       return;
     }
     if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
       setRawRows([]);
       setTotalRecords(0);
       return;
@@ -675,6 +678,7 @@ export default function DailyTripLogList() {
     let mounted = true;
 
     const loadRows = async (page: number, limit: number) => {
+      const requestId = ++requestIdRef.current;
       setIsLoading(true);
       if (mounted) setRawRows([]);
       try {
@@ -685,6 +689,7 @@ export default function DailyTripLogList() {
             ...(ordering ? { ordering } : {}),
           },
         });
+        if (requestId !== requestIdRef.current) return;
         if (mounted) {
           const list = toRecordList(response);
           setRawRows(list);
@@ -695,10 +700,11 @@ export default function DailyTripLogList() {
           );
         }
       } catch (err: any) {
+        if (requestId !== requestIdRef.current) return;
         if (mounted)
           Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
       } finally {
-        if (mounted) setIsLoading(false);
+        if (requestId === requestIdRef.current && mounted) setIsLoading(false);
       }
     };
 

@@ -1,6 +1,6 @@
 import type { ErrorWithResponse } from "./types";
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -72,6 +72,7 @@ export default function WardList() {
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const requestIdRef = useRef(0);
 
   const {
     filters, onFilter, globalFilterValue, onGlobalFilterChange,
@@ -153,6 +154,7 @@ export default function WardList() {
   // server-side (tenant users are scoped automatically by the backend;
   // superadmin scoping is passed via company_id/project_id params below).
   const loadRows = async (page: number, limit: number) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setRows([]);
     try {
@@ -163,6 +165,7 @@ export default function WardList() {
       if (ordering) params.ordering = ordering;
 
       const response = await wardApi.readAllwithPaginated(page, limit, { params });
+      if (requestId !== requestIdRef.current) return;
       const list = toRecordList(response);
       setRows(list);
       setTotalRecords(
@@ -171,20 +174,23 @@ export default function WardList() {
           : list.length,
       );
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
       const errorData = (error as ErrorWithResponse)?.response?.data;
       Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) {
+      requestIdRef.current += 1;
       setRows([]);
       setTotalRecords(0);
       return;
     }
     if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
       setRows([]);
       setTotalRecords(0);
       return;

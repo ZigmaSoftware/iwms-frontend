@@ -19,6 +19,7 @@ import {
   zoneApi,
 } from "@/helpers/admin";
 
+import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -591,6 +592,8 @@ export default function CustomerCreationForm() {
     industry_type: "",
   });
 
+  const { showZone, showPanchayat } = useZonePanchayatVisibility();
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dropdownsLoaded, setDropdownsLoaded] = useState(false);
   const [pendingEditData, setPendingEditData] = useState<any>(null);
@@ -746,40 +749,47 @@ export default function CustomerCreationForm() {
 
     const scopeParams = { company_id: companyUniqueId, project_id: projectId };
 
-    Promise.all([
+    // Promise.allSettled — not all() — because a staff without Zone (or
+    // Panchayat) access 403s that one call at the module-permission
+    // middleware; that must not blank out every other dropdown. Zone/
+    // Panchayat are additionally skipped entirely up front when the
+    // login-scoped data shows the staff has no access to that resource.
+    Promise.allSettled([
       wardApi.readAll({ params: scopeParams }),
-      zoneApi.readAll({ params: scopeParams }),
+      showZone ? zoneApi.readAll({ params: scopeParams }) : Promise.resolve([]),
       cityApi.readAll({ params: scopeParams }),
       districtApi.readAll({ params: scopeParams }),
       stateApi.readAll({ params: scopeParams }),
       countryApi.readAll({ params: scopeParams }),
       propertiesApi.readAll({ params: scopeParams }),
       subPropertiesApi.readAll({ params: scopeParams }),
-      panchayatApi.readAll({ params: scopeParams }),
+      showPanchayat ? panchayatApi.readAll({ params: scopeParams }) : Promise.resolve([]),
       wasteTypeApi.readAll({ params: scopeParams }),
     ])
-      .then(([wards, zones, cities, districts, states, countries, properties, subProperties, panchayats, wasteTypes]) => {
+      .then(([wardsR, zonesR, citiesR, districtsR, statesR, countriesR, propertiesR, subPropertiesR, panchayatsR, wasteTypesR]) => {
         if (cancelled) return;
-        setRawWards(Array.isArray(wards) ? wards : (wards as any)?.results ?? []);
-        setRawZones(Array.isArray(zones) ? zones : (zones as any)?.results ?? []);
-        setRawCities(Array.isArray(cities) ? cities : (cities as any)?.results ?? []);
-        setRawDistricts(Array.isArray(districts) ? districts : (districts as any)?.results ?? []);
-        setRawStates(Array.isArray(states) ? states : (states as any)?.results ?? []);
-        setRawCountries(Array.isArray(countries) ? countries : (countries as any)?.results ?? []);
-        setRawProperties(Array.isArray(properties) ? properties : (properties as any)?.results ?? []);
-        setRawSubProperties(Array.isArray(subProperties) ? subProperties : (subProperties as any)?.results ?? []);
-        setRawPanchayats(Array.isArray(panchayats) ? panchayats : (panchayats as any)?.results ?? []);
-        setRawWasteTypes(Array.isArray(wasteTypes) ? wasteTypes : (wasteTypes as any)?.results ?? []);
+
+        const settled = (result: PromiseSettledResult<any>): any[] => {
+          if (result.status !== "fulfilled") return [];
+          const value = result.value;
+          return Array.isArray(value) ? value : (value?.results ?? []);
+        };
+
+        setRawWards(settled(wardsR));
+        setRawZones(settled(zonesR));
+        setRawCities(settled(citiesR));
+        setRawDistricts(settled(districtsR));
+        setRawStates(settled(statesR));
+        setRawCountries(settled(countriesR));
+        setRawProperties(settled(propertiesR));
+        setRawSubProperties(settled(subPropertiesR));
+        setRawPanchayats(settled(panchayatsR));
+        setRawWasteTypes(settled(wasteTypesR));
         setDropdownsLoaded(true);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error("Failed to fetch customer dropdowns:", err);
-        Swal.fire("Error", "Failed to load customer form data", "error");
       });
 
     return () => { cancelled = true; };
-  }, [companyUniqueId, projectId]);
+  }, [companyUniqueId, projectId, showZone, showPanchayat]);
 
   const dropdowns = useMemo(
     () => ({
@@ -1622,7 +1632,7 @@ export default function CustomerCreationForm() {
               placeholder={t("common.select_item_placeholder", { item: t("common.city") }) || "Select city"}
             />
           )}
-          {showField("zone_id") && !isPanchayatSelected && (
+          {showField("zone_id") && showZone && !isPanchayatSelected && (
             <ShadcnSelect
               label={t("common.zone") || "Zone"}
               value={formData.zone_id || "__none__"}
@@ -1643,7 +1653,7 @@ export default function CustomerCreationForm() {
               isRequired={false}
             />
           )}
-          {showField("panchayat_id") && !isZoneSelected && (
+          {showField("panchayat_id") && showPanchayat && !isZoneSelected && (
             <ShadcnSelect
               label={t("admin.nav.panchayat") || "PLB (Participating Local Bodies)"}
               value={formData.panchayat_id || "__none__"}

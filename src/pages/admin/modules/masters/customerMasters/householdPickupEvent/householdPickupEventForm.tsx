@@ -24,6 +24,7 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 
 
 const householdPickupEventApi = createCrudHelpers<HouseholdPickupEventRecord>(
@@ -63,6 +64,7 @@ export default function HouseholdPickupEventForm() {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
     useFieldVisibility("customer-master", "household-pickup-event", HOUSEHOLD_PICKUP_FIELDS);
+  const { showZone } = useZonePanchayatVisibility();
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const location = useLocation();
@@ -111,31 +113,36 @@ export default function HouseholdPickupEventForm() {
 
   useEffect(() => {
     setFetching(true);
-    Promise.all([
+    // Promise.allSettled — not all() — because a staff without Zone access
+    // (e.g. a panchayat-only project) 403s that one call at the module-
+    // permission middleware; that must not blank out the other dropdowns.
+    // The zone fetch is skipped entirely up front when the login-scoped
+    // data shows the staff has no access to it.
+    Promise.allSettled([
       customerCreationApi.readAll(),
-      zoneApi.readAll(),
+      showZone ? zoneApi.readAll() : Promise.resolve([]),
       propertiesApi.readAll(),
       subPropertiesApi.readAll(),
       userCreationApi.readAll(),
       vehicleCreationApi.readAll(),
     ])
-      .then(([customerRes, zoneRes, propertyRes, subPropertyRes, userRes, vehicleRes]) => {
-        const staffUsers = normalizeList(userRes).filter(
+      .then(([customerR, zoneR, propertyR, subPropertyR, userR, vehicleR]) => {
+        const settled = (result: PromiseSettledResult<unknown>): unknown =>
+          result.status === "fulfilled" ? result.value : [];
+
+        const staffUsers = normalizeList(settled(userR)).filter(
           (u: any) => String(u?.user_type_name ?? "").toLowerCase() === "staff"
         );
 
-        setCustomers(toOptions(normalizeList(customerRes), "unique_id", "customer_name"));
-        setZones(toOptions(normalizeList(zoneRes), "unique_id", "name"));
-        setProperties(toOptions(normalizeList(propertyRes), "unique_id", "property_name"));
-        setSubProperties(toOptions(normalizeList(subPropertyRes), "unique_id", "sub_property_name"));
+        setCustomers(toOptions(normalizeList(settled(customerR)), "unique_id", "customer_name"));
+        setZones(toOptions(normalizeList(settled(zoneR)), "unique_id", "name"));
+        setProperties(toOptions(normalizeList(settled(propertyR)), "unique_id", "property_name"));
+        setSubProperties(toOptions(normalizeList(settled(subPropertyR)), "unique_id", "sub_property_name"));
         setCollectors(toOptions(staffUsers, "unique_id", "staff_name"));
-        setVehicles(toOptions(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
-      })
-      .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        setVehicles(toOptions(normalizeList(settled(vehicleR)), "unique_id", "vehicle_no"));
       })
       .finally(() => setFetching(false));
-  }, [t]);
+  }, [t, showZone]);
 
   useEffect(() => {
     if (!isEdit || !id) return;
