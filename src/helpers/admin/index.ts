@@ -99,6 +99,11 @@ export const feedbackApi = adminApi.feedbacks;
 // export const collectionMonitoringApi = adminApi.pointCollections;
 
 /* =========================
+   DASHBOARD
+========================= */
+export const dashboardSummaryApi = adminApi.dashboardSummary;
+
+/* =========================
    GRIEVANCES
 ========================= */
 export const complaintApi = adminApi.complaints;

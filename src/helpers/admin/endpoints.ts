@@ -139,6 +139,11 @@ export const adminEndpoints = {
   fuels: "transport-masters/fuels",
 
   /* =========================
+     DASHBOARD
+  ========================= */
+  dashboardSummary: "dashboard/summary",
+
+  /* =========================
      AUDITS
   ========================= */
   vehicleTripAudits: "audits/vehicle-trip-audit",

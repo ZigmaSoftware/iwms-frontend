@@ -5,6 +5,8 @@ import type { LatLngTuple } from "leaflet";
 import {
   BIN_PRIORITY_META,
   createBinIcon,
+  DEFAULT_WARD_STYLE,
+  DISTRICT_COLORS,
   initBaseMap,
   type BinPriority,
 } from "./mapUtils";
@@ -116,12 +118,26 @@ const getPriorityFromColor = (
 };
 
 /* ================= COMPONENT ================= */
-export function BinMapPanel() {
+export function BinMapPanel({
+  params = {},
+  showWardGeofences = false,
+  wardGeofences = [],
+}: {
+  params?: Record<string, string>;
+  showWardGeofences?: boolean;
+  wardGeofences?: Array<{
+    id: string;
+    name: string;
+    coordinates: Array<{ latitude: number; longitude: number }>;
+    district_name?: string;
+  }>;
+} = {}) {
   const { t } = useTranslation();
   const mapRef = useRef<L.Map | null>(null);
   const mapDivRef = useRef<HTMLDivElement | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
   const markerLookupRef = useRef<Record<string, L.Marker>>({});
+  const wardLayerRef = useRef<L.LayerGroup | null>(null);
 
   const [selectedBin, setSelectedBin] = useState<Bin | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -140,8 +156,9 @@ export function BinMapPanel() {
   useEffect(() => {
     let isMounted = true;
     const fetchBins = async () => {
+      const config = Object.keys(params).length ? { params } : undefined;
       try {
-        const data = await binApi.readAll();
+        const data = await binApi.readAll(config);
         if (!isMounted) return;
         setBinRecords(Array.isArray(data) ? data : []);
       } catch {
@@ -154,7 +171,8 @@ export function BinMapPanel() {
     return () => {
       isMounted = false;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(params)]);
 
   /* ================= DATA ================= */
   const bins = useMemo(
@@ -211,6 +229,8 @@ export function BinMapPanel() {
 
     const map = initBaseMap(mapDivRef.current);
     markersRef.current = L.layerGroup().addTo(map);
+    const wardLayer = L.layerGroup().addTo(map);
+    wardLayerRef.current = wardLayer;
     mapRef.current = map;
 
     const resize = () => map.invalidateSize();
@@ -225,8 +245,47 @@ export function BinMapPanel() {
       map.remove();
       mapRef.current = null;
       markersRef.current = null;
+      wardLayerRef.current = null;
     };
   }, []);
+
+  /* ================= WARD GEOFENCE ================= */
+  useEffect(() => {
+    if (!mapRef.current || !wardLayerRef.current) return;
+    const layer = wardLayerRef.current;
+    layer.clearLayers();
+
+    if (!showWardGeofences) return;
+
+    const bounds: LatLngTuple[] = [];
+    wardGeofences.forEach((ward) => {
+      if (!ward.coordinates || ward.coordinates.length < 3) return;
+
+      const latLngs: LatLngTuple[] = ward.coordinates.map((c) => [
+        c.latitude,
+        c.longitude,
+      ]);
+      latLngs.forEach((point) => bounds.push(point));
+
+      const districtName = ward.district_name || "";
+      const style = DISTRICT_COLORS[districtName] || DEFAULT_WARD_STYLE;
+
+      const polygon = L.polygon(latLngs, {
+        fillColor: style.fill,
+        color: style.stroke,
+        weight: 1.5,
+        fillOpacity: 0.35,
+        opacity: 0.8,
+        className: "ward-geofence-polygon",
+      });
+      polygon.addTo(layer);
+    });
+
+    // Ward polygons are a few hundred meters across — invisible at the usual
+    // ward-wide zoom. Frame the map to them the moment they're turned on.
+    if (bounds.length) mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showWardGeofences, wardGeofences]);
 
   /* ================= MARKERS ================= */
   useEffect(() => {

@@ -30,6 +30,10 @@ export interface Grievance {
   action_remarks?: string;
   main_category?: string;
   sub_category?: string;
+  // Backend's ComplaintSerializer uses `fields = "__all__"` on the Complaint
+  // model, which has a `priority` field (HIGH/MEDIUM/LOW) — it's already
+  // returned by the API, this type was just incomplete.
+  priority?: string;
 }
 
 export interface InfoFieldProps {
