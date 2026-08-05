@@ -186,11 +186,11 @@ export default function WasteCollectedDataList() {
       }
       const exportRows = buildExportRows();
       if (format === "excel") {
-        exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Waste Collected Data");
+        exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collections");
       } else {
         downloadRecordsPdf({
-          title: "Waste Collected Data",
-          filename: "waste_collected_data.pdf",
+          title: "Household Collections",
+          filename: "household_collections.pdf",
           rows: exportRows,
           columns: Object.keys(exportRows[0]).map((key) => ({ key, label: key })),
         });

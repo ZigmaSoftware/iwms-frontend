@@ -248,6 +248,7 @@ function TripLogModal({
           icon="pi pi-check"
           className="p-button-success"
           loading={isLoading}
+          disabled={!row.actual_end_time}
           onClick={() => onConfirm(remarks)}
         />
       )}
@@ -327,10 +328,10 @@ function TripLogModal({
               </div>
             )}
             {row.actual_start_time && (
-              <InfoRow label="Start Time" value={formatCollectionTime(row.actual_start_time)} />
+              <InfoRow label="Start Time" value={formatTimeOnly(row.actual_start_time)} />
             )}
             {row.actual_end_time && (
-              <InfoRow label="End Time" value={formatCollectionTime(row.actual_end_time)} />
+              <InfoRow label="End Time" value={formatTimeOnly(row.actual_end_time)} />
             )}
             {mode === "submit" && !canSubmit && (
               <p className="text-xs text-red-500 font-medium mt-1">
@@ -916,6 +917,7 @@ export default function DailyTripLogList() {
     const isSubmitted = row.log_status === "Submitted";
     const totalWeight = computeTotalWeight(row);
     const canSubmit = isDraft && totalWeight > 0;
+    const canVerify = !isVerified && Boolean(row.actual_end_time);
 
     return (
       <div className="flex items-center gap-1.5">
@@ -946,15 +948,22 @@ export default function DailyTripLogList() {
           </button>
         )}
 
-        {/* Verify — Submitted/Draft only, disabled once already Verified (read-only) */}
+        {/* Verify — requires the trip to have actually ended (actual_end_time
+            set), disabled once already Verified (read-only) */}
         <button
-          title={isVerified ? "Already verified" : "Verify this log"}
-          disabled={isVerified}
+          title={
+            isVerified
+              ? "Already verified"
+              : canVerify
+                ? "Verify this log"
+                : "Trip must have an actual end time before it can be verified"
+          }
+          disabled={!canVerify}
           onClick={() => setModalState({ row, mode: "verify" })}
           className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-            isVerified
-              ? "bg-green-50 text-green-400 cursor-not-allowed opacity-60"
-              : "bg-green-100 text-green-700 hover:bg-green-200"
+            canVerify
+              ? "bg-green-100 text-green-700 hover:bg-green-200"
+              : "bg-green-50 text-green-400 cursor-not-allowed opacity-60"
           }`}
         >
           <i className="pi pi-check-circle text-xs" />
@@ -1367,7 +1376,7 @@ export default function DailyTripLogList() {
           header="Start Time"
           style={{ minWidth: 110 }}
           body={(row: DailyTripLogRecord) => (
-            <span className="text-sm text-gray-700">{formatCollectionTime(row.actual_start_time)}</span>
+            <span className="text-sm text-gray-700">{formatTimeOnly(row.actual_start_time)}</span>
           )}
         />
         <Column
@@ -1375,7 +1384,7 @@ export default function DailyTripLogList() {
           header="End Time"
           style={{ minWidth: 110 }}
           body={(row: DailyTripLogRecord) => (
-            <span className="text-sm text-gray-700">{formatCollectionTime(row.actual_end_time)}</span>
+            <span className="text-sm text-gray-700">{formatTimeOnly(row.actual_end_time)}</span>
           )}
         />
         <Column

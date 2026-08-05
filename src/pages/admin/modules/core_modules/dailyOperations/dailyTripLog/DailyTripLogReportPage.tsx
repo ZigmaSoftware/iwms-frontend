@@ -12,6 +12,7 @@ import { Column } from "primereact/column";
 import { dailyTripHouseholdCollectionApi, dailyTripLogApi } from "@/helpers/admin";
 import { normalizeList } from "@/utils/forms";
 import { formatCollectionTime } from "./collectionTime";
+import { formatTimeOnly } from "@/utils/formatTime";
 
 const extractError = (error: any): string | null => {
   const data = error?.response?.data;
@@ -273,8 +274,8 @@ export default function DailyTripLogReportPage() {
             <InfoRow label="Collection Status" value={row.collection_status} />
             <InfoRow label="Waste Type" value={wasteTypeName} />
             <InfoRow label="Vehicle" value={(row.vehicle as any)?.vehicle_no} />
-            <InfoRow label="Start Time" value={row.actual_start_time} />
-            <InfoRow label="End Time" value={row.actual_end_time} />
+            <InfoRow label="Start Time" value={formatTimeOnly(row.actual_start_time)} />
+            <InfoRow label="End Time" value={formatTimeOnly(row.actual_end_time)} />
           </div>
         </div>
 

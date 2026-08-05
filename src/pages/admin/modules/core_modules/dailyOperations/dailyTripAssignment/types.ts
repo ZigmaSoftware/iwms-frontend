@@ -69,6 +69,9 @@ export type DailyTripAssignmentRecord = {
   waste_types_detail?: { unique_id?: string; waste_type_name?: string }[];
   trip_date?: string;
   scheduled_time?: string;
+  actual_start_time?: string | null;
+  actual_end_time?: string | null;
+  total_trip_time_seconds?: number | null;
   status?: string;
   remarks?: string | null;
   breakdown_info?: {
@@ -82,6 +85,11 @@ export type DailyTripAssignmentRecord = {
     replacement_vehicle_no?: string | null;
     replacement_driver?: string | null;
     replacement_operator?: string | null;
+  } | null;
+  retrip_info?: {
+    unique_id: string;
+    status: "Pending" | "Approved" | "Rejected";
+    new_assignment_id?: string | null;
   } | null;
   [key: string]: unknown;
 };
