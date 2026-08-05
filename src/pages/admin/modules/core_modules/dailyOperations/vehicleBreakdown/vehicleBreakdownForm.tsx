@@ -116,6 +116,7 @@ export default function VehicleBreakdownForm() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [photos, setPhotos] = useState<File[]>([]);
 
   /* ── dropdown data ── */
   const [assignmentOptions, setAssignmentOptions] = useState<SelectOption[]>([]);
@@ -441,6 +442,14 @@ export default function VehicleBreakdownForm() {
 
       if (isEdit && id) {
         await vehicleBreakdownApi.update(id, payload);
+      } else if (photos.length > 0) {
+        const formData = new FormData();
+        Object.entries(payload).forEach(([key, value]) => {
+          if (value === null || value === undefined) return;
+          formData.append(key, String(value));
+        });
+        photos.forEach((file) => formData.append("photos", file));
+        await vehicleBreakdownApi.upload(formData);
       } else {
         await vehicleBreakdownApi.create(payload);
       }
@@ -655,6 +664,23 @@ export default function VehicleBreakdownForm() {
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
             />
           </div>
+
+          {/* Photo Evidence — create only, matches the backend's perform_create-only handling */}
+          {!isEdit && (
+            <div className="md:col-span-2">
+              <Label>Photos (optional)</Label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => setPhotos(Array.from(e.target.files ?? []))}
+                className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-orange-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-orange-700 hover:file:bg-orange-100"
+              />
+              {photos.length > 0 && (
+                <p className="mt-1 text-xs text-gray-500">{photos.length} photo(s) selected.</p>
+              )}
+            </div>
+          )}
         </div>
       </ComponentCard>
 

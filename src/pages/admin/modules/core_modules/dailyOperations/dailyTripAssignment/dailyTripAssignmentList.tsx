@@ -15,6 +15,10 @@ import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta, DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { dailyTripAssignmentApi, binApi, customerCreationApi } from "@/helpers/admin";
@@ -76,6 +80,37 @@ const BreakdownCell = ({ row }: { row: DailyTripAssignmentRecord }) => {
   );
 };
 
+// Re-Trip is a separate workflow from a vehicle breakdown (closing a trip
+// early to carry leftover stops to a continuation trip, vs. swapping the
+// vehicle/crew on the same trip) — driven by unrelated events, so this is
+// its own cell/column, never merged with BreakdownCell above.
+const RetripCell = ({ retrip }: { retrip?: DailyTripAssignmentRecord["retrip_info"] }) => {
+  if (!retrip) return <span className="text-xs text-gray-300">—</span>;
+
+  const isApproved = retrip.status === "Approved";
+  const isPending = retrip.status === "Pending";
+
+  return (
+    <div className="space-y-1">
+      <span
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+          isApproved
+            ? "bg-green-100 text-green-700"
+            : isPending
+              ? "bg-orange-100 text-orange-700"
+              : "bg-red-100 text-red-700"
+        }`}
+      >
+        {isApproved ? "→ Proceeded" : isPending ? "⚠ Pending" : "✕ Rejected"}
+      </span>
+      {isApproved && retrip.new_assignment_id && (
+        <div className="text-[10px] text-gray-600 leading-tight">
+          <span className="font-medium">Next:</span> {retrip.new_assignment_id}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const COLLECTION_TYPE_STYLES: Record<CollectionTypeKey, string> = {
   bin:       "bg-blue-100 text-blue-800",
@@ -215,6 +250,10 @@ export default function DailyTripAssignmentList() {
   const [isSavingSchedulerConfig, setIsSavingSchedulerConfig] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingDetailed, setIsExportingDetailed] = useState(false);
+  const [retripRow, setRetripRow] = useState<DailyTripAssignmentRecord | null>(null);
+  const [retripRemarks, setRetripRemarks] = useState("");
+  const [retripSelectedCps, setRetripSelectedCps] = useState<Set<string>>(new Set());
+  const [isRetripSubmitting, setIsRetripSubmitting] = useState(false);
   const requestIdRef = useRef(0);
   const [schedulerDate, setSchedulerDate] = useState(toDateInputValue());
   const [schedulerRunTime, setSchedulerRunTime] = useState("04:00");
@@ -448,6 +487,83 @@ export default function DailyTripAssignmentList() {
     <Badge value={row.status} styleMap={STATUS_STYLES} />
   );
 
+  /* ── Re-Trip: close an In Progress trip early, carrying leftover stops to
+     a continuation trip (app.services.retrip_service.proceed_to_next_trip
+     on the backend). Bin trips require picking which stops carry over;
+     household trips always carry everything. ── */
+  const retripPendingCps = (retripRow?.collection_points ?? []).filter(
+    (cp) => cp.status !== "Collected" && cp.status !== "Missed",
+  );
+  const retripIsBinTrip = (retripRow?.collection_points?.length ?? 0) > 0;
+
+  const openRetripModal = (row: DailyTripAssignmentRecord) => {
+    const pending = (row.collection_points ?? []).filter(
+      (cp) => cp.status !== "Collected" && cp.status !== "Missed",
+    );
+    setRetripRow(row);
+    setRetripRemarks("");
+    setRetripSelectedCps(new Set(pending.map((cp) => cp.unique_id).filter(Boolean) as string[]));
+  };
+
+  const closeRetripModal = () => {
+    if (isRetripSubmitting) return;
+    setRetripRow(null);
+  };
+
+  const toggleRetripCp = (cpId: string, checked: boolean) => {
+    setRetripSelectedCps((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(cpId);
+      else next.delete(cpId);
+      return next;
+    });
+  };
+
+  const submitRetrip = async () => {
+    if (!retripRow) return;
+    const rowId = retripRow.unique_id ?? String((retripRow as any).id ?? "");
+    if (!rowId) return;
+
+    const remarks = retripRemarks.trim();
+    if (!remarks) {
+      Swal.fire({ icon: "warning", title: t("common.warning"), text: "Please enter a reason." });
+      return;
+    }
+    if (retripIsBinTrip && retripSelectedCps.size === 0) {
+      Swal.fire({
+        icon: "warning",
+        title: t("common.warning"),
+        text: "Select at least one collection point to carry over.",
+      });
+      return;
+    }
+
+    setIsRetripSubmitting(true);
+    try {
+      await dailyTripAssignmentApi.action(`${rowId}/proceed-next-trip`, {
+        remarks,
+        collection_point_ids: retripIsBinTrip ? Array.from(retripSelectedCps) : undefined,
+      });
+      Swal.fire({
+        icon: "success",
+        title: "Trip closed",
+        text: "A continuation trip has been created with the carried-over stops.",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+      setRetripRow(null);
+      void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: extractError(err) ?? "Failed to close this trip.",
+      });
+    } finally {
+      setIsRetripSubmitting(false);
+    }
+  };
+
   const actionTemplate = (row: DailyTripAssignmentRecord) => {
     const rowId = row.unique_id ?? String((row as any).id ?? "");
     return (
@@ -467,6 +583,15 @@ export default function DailyTripAssignmentList() {
         >
           <PencilIcon className="size-5" />
         </button>
+        {row.status === "In Progress" && (
+          <button
+            title="Close & Start Next Trip"
+            onClick={() => openRetripModal(row)}
+            className="ml-2 text-orange-600 hover:text-orange-800"
+          >
+            ⏭
+          </button>
+        )}
       </div>
     );
   };
@@ -667,6 +792,8 @@ export default function DailyTripAssignmentList() {
             ["Household / Bulk Stops", row.household_collection_points?.length ?? 0],
             ["Trip Date", row.trip_date ?? "-"],
             ["Scheduled Time", formatTimeOnly(row.scheduled_time)],
+            ["Actual Start", formatTimeOnly(row.actual_start_time)],
+            ["Actual End", formatTimeOnly(row.actual_end_time)],
             ["Status", row.status ?? "-"],
             ["Approval", (row as any).approval_status ?? "-"],
             ["Remarks", row.remarks ?? "-"],
@@ -1080,11 +1207,7 @@ export default function DailyTripAssignmentList() {
             return <span className="text-sm text-gray-400">—</span>;
           }}
         />
-        {/* <Column
-          field="_waste"
-          header="Waste Type"
-          body={(row: DailyTripAssignmentRecord) => wasteTypeText(row)}
-        /> */}
+ 
         <Column
           field="_collection_type_label"
           header="Collection Type"
@@ -1127,12 +1250,95 @@ export default function DailyTripAssignmentList() {
           style={{ minWidth: 160 }}
         />
         <Column
+          field="actual_start_time"
+          header="Actual Start"
+          body={(row: DailyTripAssignmentRecord) => formatTimeOnly(row.actual_start_time)}
+          style={{ minWidth: 110 }}
+        />
+        <Column
+          field="actual_end_time"
+          header="Actual End"
+          body={(row: DailyTripAssignmentRecord) => formatTimeOnly(row.actual_end_time)}
+          style={{ minWidth: 110 }}
+        />
+        <Column
           header="Breakdown"
           body={(row: DailyTripAssignmentRecord) => <BreakdownCell row={row} />}
           style={{ minWidth: 180 }}
         />
+        <Column
+          header="Re-Trip"
+          body={(row: DailyTripAssignmentRecord) => <RetripCell retrip={row.retrip_info} />}
+          style={{ minWidth: 150 }}
+        />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 80 }} />
       </DataTable>
+
+      <Dialog open={Boolean(retripRow)} onOpenChange={(open) => !open && closeRetripModal()}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Close &amp; Start Next Trip</DialogTitle>
+          </DialogHeader>
+          {retripRow && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                This ends <span className="font-medium">{retripRow.unique_id}</span> now and opens
+                a new trip carrying the remaining stops.
+              </p>
+              <div className="space-y-1.5">
+                <Label htmlFor="retrip-remarks">Reason *</Label>
+                <Textarea
+                  id="retrip-remarks"
+                  value={retripRemarks}
+                  onChange={(e) => setRetripRemarks(e.target.value)}
+                  placeholder="Why is this trip being closed early?"
+                  rows={3}
+                  disabled={isRetripSubmitting}
+                />
+              </div>
+              {retripIsBinTrip && (
+                <div className="space-y-1.5">
+                  <Label>Stops to carry over to the next trip</Label>
+                  <div className="max-h-48 space-y-1 overflow-y-auto rounded border p-2">
+                    {retripPendingCps.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No pending stops left.</p>
+                    ) : (
+                      retripPendingCps.map((cp) => (
+                        <label
+                          key={cp.unique_id}
+                          className="flex items-center gap-2 py-1 text-sm"
+                        >
+                          <Checkbox
+                            checked={cp.unique_id ? retripSelectedCps.has(cp.unique_id) : false}
+                            onCheckedChange={(checked) =>
+                              cp.unique_id && toggleRetripCp(cp.unique_id, checked === true)
+                            }
+                            disabled={isRetripSubmitting}
+                          />
+                          {cp.collection_point?.cp_name ?? cp.collection_point_id ?? cp.unique_id}
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              label={t("common.cancel")}
+              severity="secondary"
+              onClick={closeRetripModal}
+              disabled={isRetripSubmitting}
+            />
+            <Button
+              label={isRetripSubmitting ? t("common.saving") : "Close & Start Next Trip"}
+              onClick={submitRetrip}
+              disabled={isRetripSubmitting}
+            />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

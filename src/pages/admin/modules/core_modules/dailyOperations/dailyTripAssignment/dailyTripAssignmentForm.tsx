@@ -209,6 +209,10 @@ export default function DailyTripAssignmentForm() {
     status: "Scheduled",
     remarks: "",
   });
+  // Display-only — set by the backend's mark_started()/mark_ended(), never
+  // submitted back, so these live outside FormState.
+  const [actualStartTime, setActualStartTime] = useState("");
+  const [actualEndTime, setActualEndTime] = useState("");
 
   // collection-type flags derived from the selected trip plan
   const [hasBinStops, setHasBinStops] = useState(true);
@@ -494,6 +498,8 @@ export default function DailyTripAssignmentForm() {
       status: rec.status ?? "Scheduled",
       remarks: String(rec.remarks ?? ""),
     });
+    setActualStartTime(rec.actual_start_time ? String(rec.actual_start_time).slice(0, 5) : "");
+    setActualEndTime(rec.actual_end_time ? String(rec.actual_end_time).slice(0, 5) : "");
     setCollectionPoints(
       Array.isArray(rec.collection_points)
         ? rec.collection_points.map((point) => ({
@@ -1085,6 +1091,20 @@ export default function DailyTripAssignmentForm() {
                   options={STATUS_OPTIONS}
                   placeholder="Select status"
                 />
+              </div>
+            )}
+
+            {isEdit && (
+              <div>
+                <Label>Actual Start Time</Label>
+                <Input value={actualStartTime || "—"} disabled className="bg-gray-50" />
+              </div>
+            )}
+
+            {isEdit && (
+              <div>
+                <Label>Actual End Time</Label>
+                <Input value={actualEndTime || "—"} disabled className="bg-gray-50" />
               </div>
             )}
 

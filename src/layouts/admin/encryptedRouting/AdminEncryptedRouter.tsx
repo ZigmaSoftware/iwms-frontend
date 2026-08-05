@@ -128,6 +128,7 @@ import AlternativeStaffTemplateForm from "@/pages/admin/modules/core_modules/sch
 import BinCollectionEventList from "@/pages/admin/modules/core_modules/dailyOperations/binCollectionEvent/binCollectionEventList";
 import BinCollectionEventForm from "@/pages/admin/modules/core_modules/dailyOperations/binCollectionEvent/binCollectionEventForm";
 import VehicleBreakdownList from "@/pages/admin/modules/core_modules/dailyOperations/vehicleBreakdown/vehicleBreakdownList";
+import TripRetripRequestList from "@/pages/admin/modules/core_modules/dailyOperations/tripRetripRequest/tripRetripRequestList";
 import VehicleBreakdownForm from "@/pages/admin/modules/core_modules/dailyOperations/vehicleBreakdown/vehicleBreakdownForm";
 import DailyWasteComparisonList from "@/pages/admin/modules/reports/wasteReports/dailyWasteComparison/dailyWasteComparisonList";
 import StaffTemplateAuditList from "@/pages/admin/modules/superadmin/audits/staffTemplateAudit/staffTemplateAuditList";
@@ -228,6 +229,7 @@ const ROUTES: RouteMap = {
     "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
     "daily-trip-log": { list: DailyTripLogList },
     "vehicle-breakdowns": { list: VehicleBreakdownList, form: VehicleBreakdownForm },
+    "retrip-requests": { list: TripRetripRequestList },
     "scheduler-config": { component: SchedulerConfigPage },
   },
   // Legacy name — kept alive only for the reporting sub-resources, matching

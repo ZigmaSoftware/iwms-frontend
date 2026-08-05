@@ -514,8 +514,8 @@ export default function BinCollectionEventForm() {
   }
 
   const title = isEdit
-    ? `Edit Bin Collection Event${record?.unique_id ? ` — ${record.unique_id}` : ""}`
-    : "Add Bin Collection Event";
+    ? `Edit Secondary Bin Collection Event${record?.unique_id ? ` — ${record.unique_id}` : ""}`
+    : "Add Secondary Bin Collection Event";
 
   return (
     <div className="p-4 space-y-4">
