@@ -14,6 +14,7 @@ import {
   Leaf,
   MapPin,
   Recycle,
+  RefreshCw,
   Scale,
   Truck,
 } from "lucide-react";
@@ -608,6 +609,14 @@ export default function DailyWasteComparisonList({
                   className="h-10 rounded-xl border-white/20 bg-white/5 font-semibold text-white hover:bg-white/10 hover:text-white"
                 >
                   All dates
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => void fetchReport()}
+                  disabled={loading}
+                  className="h-10 rounded-xl border-white/20 bg-white/5 font-semibold text-white hover:bg-white/10 hover:text-white"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
                 </Button>
                 <Button
                   onClick={handleDownload}
