@@ -213,7 +213,7 @@ export default function CollectionMonitoringListPage() {
           <h1 className="text-3xl font-bold text-gray-800 mb-1">
             {t("admin.nav.collection_monitoring")}
           </h1>
-          <p className="text-gray-500 text-sm">Bin collection event records</p>
+          <p className="text-gray-500 text-sm">Secondary bin collection event records</p>
         </div>
         <div className="flex items-center gap-3">
           <Button

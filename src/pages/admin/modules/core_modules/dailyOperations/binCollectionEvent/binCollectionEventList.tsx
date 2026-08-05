@@ -222,15 +222,15 @@ export default function BinCollectionEventList() {
   const handleDownload = (format: "excel" | "pdf") => {
     const exportRows = buildExportRows();
     if (exportRows.length === 0) {
-      Swal.fire({ icon: "warning", title: "No records", text: "There are no bin collection events to export." });
+      Swal.fire({ icon: "warning", title: "No records", text: "There are no secondary bin collection events to export." });
       return;
     }
     if (format === "excel") {
-      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Bin Collection Events");
+      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Secondary Bin Collection Events");
     } else {
       downloadRecordsPdf({
-        title: "Bin Collection Events",
-        filename: "bin_collection_events.pdf",
+        title: "Secondary Bin Collection Events",
+        filename: "secondary_bin_collection_events.pdf",
         rows: exportRows,
         columns: Object.keys(exportRows[0]).map((key) => ({ key, label: key })),
       });
@@ -256,7 +256,7 @@ export default function BinCollectionEventList() {
   const header = (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-800">Bin Collection Events</h1>
+        <h1 className="text-2xl font-semibold text-gray-800">Secondary Bin Collection Events</h1>
         <p className="text-sm text-gray-500">Scan audit log — one record per operator bin scan</p>
       </div>
 
@@ -326,7 +326,7 @@ export default function BinCollectionEventList() {
         trailing={
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              label="Add Bin Collection Event"
+              label="Add Secondary Bin Collection Event"
               icon="pi pi-plus"
               className="p-button-success p-button-sm"
               onClick={() => navigate(NEW_PATH, { state: { companyUniqueId, projectId } })}
@@ -369,7 +369,7 @@ export default function BinCollectionEventList() {
         stripedRows
         showGridlines
         className="p-datatable-sm"
-        emptyMessage="No bin collection events found"
+        emptyMessage="No secondary bin collection events found"
       >
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 60 }} />
         <Column field="_trip_plan" header="Trip Plan" filter showFilterMatchModes={false} />
