@@ -592,7 +592,6 @@ export default function CustomerCreationListPage() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading && customers.length === 0}
-        filters={filters}
         globalFilterFields={[
           "unique_id", "customer_id", "customer_name", "contact_no", "apartment_name",
           "block_no", "flat_no", "ward_name", "zone_name",
