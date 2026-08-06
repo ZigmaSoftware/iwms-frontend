@@ -111,7 +111,7 @@ const runWithConcurrency = async <T,>(
 
 export default function MonthlyDistance() {
   const { t, i18n } = useTranslation();
-  const { gpsVehicleTrackingApi, gpsTripSummaryApi, gpsProviderName, gpsFcode, gpsTripUserId } = useProjectSelector();
+  const { gpsVehicleTrackingApi, gpsTripSummaryApi, gpsProviderName, gpsFcode, gpsTripUserId, loading: contextLoading } = useProjectSelector();
   const TRACKING_API_URL = buildVehicleTrackingUrl(
     { providerName: gpsProviderName, fcode: gpsFcode },
     gpsVehicleTrackingApi
@@ -329,7 +329,7 @@ export default function MonthlyDistance() {
 
   /* ================= UI ================= */
 
-  if (!TRACKING_API_URL || !TRIP_SUMMARY_API_URL) {
+  if (!contextLoading && (!TRACKING_API_URL || !TRIP_SUMMARY_API_URL)) {
     return (
       <div className="p-3">
         <ProjectSelectorBar />

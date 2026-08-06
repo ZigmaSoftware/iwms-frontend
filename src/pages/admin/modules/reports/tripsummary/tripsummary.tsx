@@ -151,7 +151,7 @@ const normalizeVehicle = (record: RawVehicle): VehicleOption | null => {
 
 export default function TripSummary() {
   const { t } = useTranslation();
-  const { gpsVehicleTrackingApi, gpsTripSummaryApi, gpsProviderName, gpsFcode, gpsTripUserId } = useProjectSelector();
+  const { gpsVehicleTrackingApi, gpsTripSummaryApi, gpsProviderName, gpsFcode, gpsTripUserId, loading: contextLoading } = useProjectSelector();
   const TRACKING_API_URL = buildVehicleTrackingUrl(
     { providerName: gpsProviderName, fcode: gpsFcode },
     gpsVehicleTrackingApi
@@ -363,7 +363,7 @@ export default function TripSummary() {
     [filteredHistoryRows, summary?.vehicleName, t, vehicleId],
   );
 
-  if (!TRACKING_API_URL || !TRIP_SUMMARY_API_URL) {
+  if (!contextLoading && (!TRACKING_API_URL || !TRIP_SUMMARY_API_URL)) {
     return (
       <div className="trip-summary-shell">
         <ProjectSelectorBar />

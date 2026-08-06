@@ -230,6 +230,7 @@ export default function VehicleTracking() {
     gpsFcode,
     gpsTripUserId,
     dayWiseWeighmentApiUrl,
+    loading: contextLoading,
   } = useProjectSelector();
   const API_URL = buildVehicleTrackingUrl(
     { providerName: gpsProviderName, fcode: gpsFcode },
@@ -673,7 +674,7 @@ export default function VehicleTracking() {
 
   /* ================= JSX ================= */
 
-  if (!gpsVehicleTrackingApi) {
+  if (!contextLoading && !gpsVehicleTrackingApi) {
     return (
       <div className={`tracking-page ${isDarkMode ? "dark-mode" : ""}`}>
         <div className="px-2 pt-2">
