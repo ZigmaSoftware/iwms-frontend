@@ -673,6 +673,7 @@ export default function CityForm() {
       state_id: stateId,
       district_id: districtId,
       name: cityName.trim(),
+      is_active: isActive,
     };
     const schema = requireWhenVisible(citySchema, showField);
     const validation = parseWithSchema(schema, fieldValues);
@@ -814,6 +815,7 @@ export default function CityForm() {
             <Select
               value={continentId}
               onValueChange={(val) => {
+                if (val === continentId) return;
                 setContinentId(val);
                 setCountryId("");
                 setStateId("");
@@ -847,7 +849,7 @@ export default function CityForm() {
           {showField("country_id") && (
           <div>
             <Label>{t("admin.nav.country")} *</Label>
-            <Select value={countryId} onValueChange={(val) => { setCountryId(val); setStateId(""); setDistrictId(""); setPendingStateId(""); setPendingDistrictId(""); setFieldErrors((prev) => ({ ...prev, country_id: "" })); }} disabled={!continentId}>
+            <Select value={countryId} onValueChange={(val) => { if (val === countryId) return; setCountryId(val); setStateId(""); setDistrictId(""); setPendingStateId(""); setPendingDistrictId(""); setFieldErrors((prev) => ({ ...prev, country_id: "" })); }} disabled={!continentId}>
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.country") })} />
               </SelectTrigger>
@@ -867,7 +869,7 @@ export default function CityForm() {
           {showField("state_id") && (
           <div>
             <Label>{t("admin.nav.state")} *</Label>
-            <Select value={stateId} onValueChange={(val) => { setStateId(val); setDistrictId(""); setPendingDistrictId(""); setFieldErrors((prev) => ({ ...prev, state_id: "" })); }} disabled={!countryId}>
+            <Select value={stateId} onValueChange={(val) => { if (val === stateId) return; setStateId(val); setDistrictId(""); setPendingDistrictId(""); setFieldErrors((prev) => ({ ...prev, state_id: "" })); }} disabled={!countryId}>
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.state") })} />
               </SelectTrigger>
