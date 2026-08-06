@@ -23,7 +23,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 import LocationScopeSelector, { type LocationScopeOptions } from "./LocationScopeSelector";
 import { MultiSelect } from "@/components/form/MultiSelect";
-import { useCascadingSelection } from "./useCascadingSelection";
 import type {
   AvailableMainScreen,
   AvailablePermissionsResponse,
@@ -189,11 +188,20 @@ export default function StaffAccessConfigForm() {
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
+  // Project is the root-level scope field (no parent selection drives it),
+  // so unlike the geo levels below it, loading its option list must never
+  // auto-select every option — an empty selection here is a deliberate,
+  // meaningful state ("all projects under the company"). Only drop ids that
+  // are no longer valid for the current company.
   const eligibleProjectIds = useMemo(() => new Set(projects.map((p) => p.value)), [projects]);
-  useCascadingSelection(projectIds, eligibleProjectIds, setProjectIds, {
-    canReconcile: projectsLoaded && (!isEdit || !fetching),
-    skipFirstReconcile: isEdit,
-  });
+  useEffect(() => {
+    if (!projectsLoaded || (isEdit && fetching)) return;
+    setProjectIds((current) => {
+      const survived = current.filter((id) => eligibleProjectIds.has(id));
+      return survived.length === current.length ? current : survived;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eligibleProjectIds, projectsLoaded, isEdit, fetching]);
 
   useEffect(() => {
     let cancelled = false;
