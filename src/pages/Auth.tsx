@@ -1,7 +1,6 @@
-import { useState, useEffect, type ChangeEvent, type FormEvent } from "react";
+import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { api } from "@/api";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { useUser } from "@/contexts/UserContext";
@@ -24,9 +23,11 @@ import {
   unwrapLoginPayload,
   type LoginEnvelope,
 } from "@/utils/authStorage";
-import { Eye, EyeOff, Lock, LogIn, User, UserRound, Leaf } from "lucide-react";
+import { Eye, EyeOff, Lock, User, UserRound, Leaf, AlertCircle } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
-import LoginBg from "../images/bg1.png";
+import AnimatedLoginScene from "@/components/auth/AnimatedLoginScene";
+import LoginFeatureChain from "@/components/auth/LoginFeatureChain";
+import "@/components/auth/animated-login.css";
 
 type LoginResponse = LoginEnvelope;
 
@@ -36,22 +37,27 @@ type LoginResponse = LoginEnvelope;
 function AccentLastWord({ text }: { text: string }) {
   const words = text.trim().split(/\s+/);
   if (words.length <= 1) {
-    return <span className="text-green-600">{text}</span>;
+    return <em>{text}</em>;
   }
   const lastWord = words.pop();
   return (
     <>
-      {words.join(" ")} <span className="text-green-600">{lastWord}</span>
+      {words.join(" ")} <em>{lastWord}</em>
     </>
   );
 }
-
 
 export default function Auth() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const [userInvalid, setUserInvalid] = useState(false);
+  const [passInvalid, setPassInvalid] = useState(false);
+  const [passHint, setPassHint] = useState("Enter your password to continue.");
+  const [shake, setShake] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -72,8 +78,27 @@ export default function Auth() {
   const { updatePermissions } = usePermission();
   const { reloadFromSession } = useProjectSelector();
 
+  const triggerShake = () => {
+    setShake(false);
+    requestAnimationFrame(() => setShake(true));
+  };
+
   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setUserInvalid(false);
+    setPassInvalid(false);
+
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername || !password) {
+      if (!trimmedUsername) setUserInvalid(true);
+      if (!password) {
+        setPassHint("Enter your password to continue.");
+        setPassInvalid(true);
+      }
+      triggerShake();
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -81,8 +106,6 @@ export default function Auth() {
         username,
         password,
       });
-
-      console.log("[Auth] Login response received:", res.data);
 
       const payload = unwrapLoginPayload(res.data);
       persistLoginSession(payload);
@@ -109,8 +132,6 @@ export default function Auth() {
       //   All other staff (Driver, Operator, Supervisor, User) → /dashboard
       const hasAdminRole = isAdmin(normalizedRole);
 
-      console.log("[Auth] Role:", normalizedRole, "| isAdmin:", hasAdminRole);
-
       if (hasAdminRole) {
         setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);
         navigate("/admin", { replace: true });
@@ -119,12 +140,14 @@ export default function Auth() {
         navigate("/dashboard", { replace: true });
       }
     } catch (error: any) {
-      console.error("[Auth] ❌ Login failed:", error);
-
       const errorMessage =
         error?.response?.data?.detail ||
         error?.message ||
         "Invalid credentials";
+
+      setPassHint(errorMessage);
+      setPassInvalid(true);
+      triggerShake();
 
       toast({
         title: t("login.title"),
@@ -137,128 +160,115 @@ export default function Auth() {
   };
 
   return (
-    <div
-      className="relative flex min-h-screen items-center justify-center bg-cover bg-center bg-no-repeat px-4 py-10 font-sans md:justify-end md:px-16"
-      style={{ backgroundImage: `url(${LoginBg})` }}
-    >
-      {/* ── Logo (top-left) ─────────────────────────────────────── */}
-      <img
-        src={ZigmaLogo}
-        alt="Zigma IWMS"
-        className="absolute left-6 top-6 z-10 h-10 w-auto object-contain md:left-10 md:top-8 md:h-14"
-      />
+    <div className="zigma-login" ref={containerRef}>
+      <AnimatedLoginScene containerRef={containerRef} />
 
-      {/* ── Login card ──────────────────────────────────────────── */}
-      <div className="relative z-10 w-full max-w-md rounded-4xl border border-white/60 bg-white/95 p-8 shadow-2xl shadow-slate-400/30 backdrop-blur-sm sm:p-10">
+      <main className="page">
+        <section className="left">
+          <a className="brand" href="#" aria-label="Zigma home" onClick={(e) => e.preventDefault()}>
+            <img src={ZigmaLogo} alt="Zigma IWMS" />
+          </a>
 
-        {/* avatar ring */}
-        <div className="mb-6 flex justify-center">
-          <div className="relative flex h-24 w-24 items-center justify-center rounded-full border-2 border-green-100 bg-green-50">
-            <UserRound className="h-11 w-11 text-green-600" />
-            <Leaf className="absolute bottom-3 right-4 h-4 w-4 text-green-500" />
-          </div>
-        </div>
+          <h1 className="headline">Smart Solutions for a Cleaner, Greener Tomorrow</h1>
 
-        {/* heading */}
-        <div className="mb-7 text-center">
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-800">
-            <AccentLastWord text={t("login.title")} />
-          </h1>
-          <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-slate-500">
-            {t("login.subtitle")}
-          </p>
-        </div>
+          <LoginFeatureChain containerRef={containerRef} />
+        </section>
 
-        {/* form */}
-        <form onSubmit={handleSignIn} className="space-y-5">
-
-          {/* username */}
-          <div className="space-y-1.5">
-            <label htmlFor="username" className="block text-sm font-semibold text-slate-700">
-              {t("login.username")}
-            </label>
-            <div className="relative">
-              <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                id="username"
-                type="text"
-                placeholder={t("login.username_placeholder")}
-                value={username}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
-                className="h-12 rounded-xl border-slate-200 bg-white pl-10 text-slate-900 placeholder:text-slate-400 focus-visible:border-green-400 focus-visible:ring-green-300/50 transition-all"
-                required
-              />
+        <section className="right">
+          <div className={`card${shake ? " shake" : ""}`} id="card">
+            <div className="avatar" aria-hidden="true">
+              <UserRound className="avatar-icon" />
+              <Leaf className="avatar-badge" />
             </div>
-          </div>
 
-          {/* password */}
-          <div className="space-y-1.5">
-            <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
-              {t("login.password")}
-            </label>
-            <div className="relative">
-              <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder={t("login.password_placeholder")}
-                value={password}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                className="h-12 rounded-xl border-slate-200 bg-white pl-10 pr-12 text-slate-900 placeholder:text-slate-400 focus-visible:border-green-400 focus-visible:ring-green-300/50 transition-all"
-                required
-              />
+            <h2 className="welcome">
+              <AccentLastWord text={t("login.title")} />
+            </h2>
+            <p className="subtitle">{t("login.subtitle")}</p>
+
+            <form onSubmit={handleSignIn} noValidate>
+              <div className={`field u${userInvalid ? " invalid" : ""}`}>
+                <label htmlFor="username">{t("login.username")}</label>
+                <div className="control">
+                  <span className="lead" aria-hidden="true"><User /></span>
+                  <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    autoComplete="username"
+                    placeholder={t("login.username_placeholder")}
+                    value={username}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                      setUsername(e.target.value);
+                      setUserInvalid(false);
+                    }}
+                  />
+                </div>
+                <p className="hint" role="alert">
+                  <AlertCircle />
+                  <span>Enter your username or email to continue.</span>
+                </p>
+              </div>
+
+              <div className={`field p${passInvalid ? " invalid" : ""}`}>
+                <label htmlFor="password">{t("login.password")}</label>
+                <div className="control">
+                  <span className="lead" aria-hidden="true"><Lock /></span>
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder={t("login.password_placeholder")}
+                    value={password}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                      setPassword(e.target.value);
+                      setPassInvalid(false);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="reveal"
+                    aria-pressed={showPassword}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((v) => !v)}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                <p className="hint" role="alert">
+                  <AlertCircle />
+                  <span>{passHint}</span>
+                </p>
+              </div>
+
               <button
                 type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="forgot"
+                onClick={() => navigate("/auth/forgot-password")}
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                {t("login.forgot_password")}
               </button>
-            </div>
-          </div>
 
-          {/* forgot */}
-          <div className="flex justify-end">
-            <button
-              type="button"
-              className="text-sm font-semibold text-green-600 hover:underline"
-              onClick={() => navigate("/auth/forgot-password")}
-            >
-              {t("login.forgot_password")}
-            </button>
-          </div>
-
-          {/* submit */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-700 text-sm font-semibold text-white shadow-lg shadow-green-200 transition-all hover:bg-green-800 active:scale-[0.98] disabled:opacity-60"
-          >
-            {loading ? (
-              <>
-                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+              <button className={`submit${loading ? " busy" : ""}`} type="submit" disabled={loading}>
+                <svg className="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M10 17l5-5-5-5" /><path d="M15 12H3" />
                 </svg>
-                {t("login.authenticating")}
-              </>
-            ) : (
-              <>
-                <LogIn size={18} />
-                {t("login.sign_in")}
-              </>
-            )}
-          </button>
-        </form>
+                <span className="label">{t("login.sign_in")}</span>
+                <svg className="spinner" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M21 12a9 9 0 0 0-9-9" />
+                </svg>
+              </button>
+            </form>
 
-        {/* card footer */}
-        <p className="mt-7 flex items-center justify-center gap-1.5 text-sm text-slate-500">
-          <Leaf className="h-4 w-4 text-green-500" />
-          Secure login ·{" "}
-          <span className="font-semibold text-slate-600">Zigma IWMS</span>
-        </p>
-      </div>
+            <p className="footnote">
+              <Leaf aria-hidden="true" />
+              Together for a Sustainable Future
+            </p>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }

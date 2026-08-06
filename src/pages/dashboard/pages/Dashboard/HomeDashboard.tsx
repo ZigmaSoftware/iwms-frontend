@@ -740,6 +740,7 @@ function WardTicker({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
+  const [panelEl, setPanelEl] = useState<HTMLDivElement | null>(null);
   const [hasOverflow, setHasOverflow] = useState(false);
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const [isInteracting, setIsInteracting] = useState(false);
@@ -828,6 +829,7 @@ function WardTicker({
   };
 
   return (
+    <div ref={setPanelEl}>
     <DashboardPanel
       title="Ward Collection Live Ticker"
       action={
@@ -914,6 +916,9 @@ function WardTicker({
                   side="bottom"
                   align="center"
                   sideOffset={14}
+                  collisionBoundary={panelEl}
+                  collisionPadding={12}
+                  avoidCollisions
                   className="w-[360px] overflow-visible rounded-lg border border-slate-200 bg-white p-0 text-xs text-slate-700 shadow-xl dark:border-[#28425f] dark:bg-[#101d2c] dark:text-slate-200"
                 >
                   <div className="border-b border-slate-100 bg-yellow-50 px-3 py-2.5 dark:border-[#243954] dark:bg-yellow-400/10">
@@ -1003,6 +1008,7 @@ function WardTicker({
         </div>
       </div>
     </DashboardPanel>
+    </div>
   );
 }
 

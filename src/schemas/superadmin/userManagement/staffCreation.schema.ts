@@ -43,6 +43,14 @@ export const staffCreationSchema = z.object({
   login_enabled: optionalString,
   marital_status: optionalString,
   dob: optionalString,
+  age: z
+    .string()
+    .refine(
+      (value) =>
+        value === "" ||
+        (/^\d+$/.test(value) && Number(value) >= 18 && Number(value) <= 120),
+      "Age must be a whole number between 18 and 120.",
+    ),
   blood_group: optionalString,
   gender: optionalString,
   physically_challenged: optionalString,
