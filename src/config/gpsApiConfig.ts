@@ -3,33 +3,19 @@
  * Centralized configuration for all Vamosys GPS-related APIs
  */
 
+// No hardcoded base URLs or auth params here — every value must come from
+// the selected project's own GPS configuration (via ProjectSelectorContext).
+// A project with a field left blank gets that field blank in the built URL,
+// never a shared/hardcoded fallback.
 export const GPS_API_CONFIG = {
-  // Vehicle History API
   vehicleHistory: {
-    baseUrl: import.meta.env.VITE_GPS_VEHICLE_HISTORY_API || "https://api.vamosys.com/getVehicleHistory",
-    defaultParams: {
-      userId: import.meta.env.VITE_GPS_USER_ID || "BLUEPLANET",
-      groupName: import.meta.env.VITE_GPS_GROUP_NAME || "BLUEPLANET:VAM",
-      interval: "-1",
-    },
+    defaultParams: { interval: "-1" },
   },
-
-  // Vehicle Tracking API
   vehicleTracking: {
-    baseUrl: import.meta.env.VITE_GPS_VEHICLE_TRACKING_API || "https://api.vamosys.com/mobile/getGrpDataForTrustedClients",
-    defaultParams: {
-      providerName: import.meta.env.VITE_GPS_PROVIDER_NAME || "BLUEPLANET",
-      fcode: import.meta.env.VITE_GPS_FCODE || "VAM",
-    },
+    defaultParams: {},
   },
-
-  // Trip Summary API
   tripSummary: {
-    baseUrl: import.meta.env.VITE_GPS_TRIP_SUMMARY_API || "https://gpsvtsprobend.vamosys.com/v2/getTripSummary",
-    defaultParams: {
-      userId: import.meta.env.VITE_GPS_TRIP_USER_ID || "NMCP2DISPOSAL",
-      duration: "0",
-    },
+    defaultParams: { duration: "0" },
   },
 };
 
@@ -79,7 +65,7 @@ export const buildVehicleHistoryUrl = (
   overrideParams?: QueryParams,
   customBaseUrl?: string
 ): string => {
-  const baseUrl = customBaseUrl ?? GPS_API_CONFIG.vehicleHistory.baseUrl;
+  const baseUrl = customBaseUrl ?? "";
   const params = mergeParams(GPS_API_CONFIG.vehicleHistory.defaultParams, {
     vehicleId,
     fromDateUTC: String(fromDateUTC),
@@ -99,7 +85,7 @@ export const buildVehicleTrackingUrl = (
   overrideParams?: QueryParams,
   customBaseUrl?: string
 ): string => {
-  const baseUrl = customBaseUrl ?? GPS_API_CONFIG.vehicleTracking.baseUrl;
+  const baseUrl = customBaseUrl ?? "";
   const params = mergeParams(GPS_API_CONFIG.vehicleTracking.defaultParams, overrideParams);
 
   return buildUrlWithParams(baseUrl, params);
@@ -120,7 +106,7 @@ export const buildTripSummaryUrl = (
   overrideParams?: QueryParams,
   customBaseUrl?: string
 ): string => {
-  const baseUrl = customBaseUrl ?? GPS_API_CONFIG.tripSummary.baseUrl;
+  const baseUrl = customBaseUrl ?? "";
   const params = mergeParams(GPS_API_CONFIG.tripSummary.defaultParams, {
     vehicleId,
     fromDateUTC: String(fromDateUTC),
