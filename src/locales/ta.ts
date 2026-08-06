@@ -1359,7 +1359,7 @@ const taResource = {
           "marital_divorced": "விவாகரத்து பெற்றவர்",
           "dob": "பிறந்த தேதி",
           "age": "வயது",
-          "age_auto": "தானாக கணிக்கப்படும்",
+          "age_placeholder": "வயதை உள்ளிடவும்",
           "blood_group": "இரத்தக் குழு",
           "blood_group_placeholder": "இரத்தக் குழுவை தேர்வு செய்க",
           "gender": "பாலினம்",
