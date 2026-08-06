@@ -256,6 +256,7 @@ export default function VehicleHistory(): JSX.Element {
     gpsGroupName,
     gpsProviderName,
     gpsFcode,
+    loading: contextLoading,
   } = useProjectSelector();
   const TRACKING_API_URL = buildVehicleTrackingUrl(
     { providerName: gpsProviderName, fcode: gpsFcode },
@@ -573,7 +574,7 @@ export default function VehicleHistory(): JSX.Element {
     return total;
   }, [track]);
 
-  if (!gpsVehicleHistoryApi || !gpsVehicleTrackingApi) {
+  if (!contextLoading && (!gpsVehicleHistoryApi || !gpsVehicleTrackingApi)) {
     return (
       <div className="vh-container fade-in">
         <ProjectSelectorBar />

@@ -86,7 +86,7 @@ const statusStyles = {
 ========================================================= */
 export default function Weighbridge() {
   const { t } = useTranslation();
-  const { dayWiseWeighmentApiUrl } = useProjectSelector();
+  const { dayWiseWeighmentApiUrl, loading: contextLoading } = useProjectSelector();
   const formatDate = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -164,7 +164,7 @@ export default function Weighbridge() {
 
   /* ================= RENDER ================= */
 
-  if (!dayWiseWeighmentApiUrl) {
+  if (!contextLoading && !dayWiseWeighmentApiUrl) {
     return (
       <div className="p-6 space-y-6 bg-white dark:bg-slate-950 min-h-screen">
         <ProjectSelectorBar />

@@ -422,6 +422,7 @@ export default function MapView() {
     gpsFcode,
     gpsTripUserId,
     dayWiseWeighmentApiUrl,
+    loading: contextLoading,
   } = useProjectSelector();
   const trackingApiUrl = buildVehicleTrackingUrl(
     { providerName: gpsProviderName, fcode: gpsFcode },
@@ -823,7 +824,7 @@ export default function MapView() {
     };
   }, [selectedVehicle?.id]);
 
-  if (!trackingApiUrl) {
+  if (!contextLoading && !trackingApiUrl) {
     return (
       <div className="space-y-3">
         <ProjectSelectorBar />
