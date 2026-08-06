@@ -1,5 +1,4 @@
 import { decryptSegment } from "@/utils/routeCrypto";
-import { adminEndpoints } from "@/helpers/admin/endpoints";
 import { jwtDecode } from "jwt-decode";
 
 // ============================================================

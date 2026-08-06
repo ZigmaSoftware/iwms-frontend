@@ -100,6 +100,7 @@ const {
   encLoginAudits,
   encDailyWasteComparison,
   encVehicleBreakdown,
+  encTripRetripRequest,
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -654,6 +655,12 @@ const scheduleOperationsItems: NavItem[] = [
         path: `/${encScheduleOperations}/${encVehicleBreakdown}`,
         module: "schedule-operations",
         screen: "vehicle-breakdowns",
+      },
+      {
+        nameKey: "admin.nav.trip_retrip_request",
+        path: `/${encScheduleOperations}/${encTripRetripRequest}`,
+        module: "schedule-operations",
+        screen: "retrip-requests",
       },
     ],
   },

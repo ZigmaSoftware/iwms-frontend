@@ -38,6 +38,7 @@ export default function WasteSummary() {
     gpsVehicleTrackingApi,
     gpsProviderName,
     gpsFcode,
+    loading: contextLoading,
   } = useProjectSelector();
 
   const WEIGHMENT_API_URL = weighmentApiUrl;
@@ -372,7 +373,7 @@ export default function WasteSummary() {
 
   /* ================= UI ================= */
 
-  if (!WEIGHMENT_API_URL) {
+  if (!contextLoading && !WEIGHMENT_API_URL) {
     return (
       <div className="p-3">
         <ProjectSelectorBar />

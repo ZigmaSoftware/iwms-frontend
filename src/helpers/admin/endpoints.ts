@@ -13,7 +13,6 @@ export const adminEndpoints = {
      AUTHENTICATION
   ========================= */
   loginUser: "login/login-user",
-  userpermission: "login/my-permissions",
 
   /* =========================
      COMMON MASTERS
@@ -69,6 +68,7 @@ export const adminEndpoints = {
   dailyTripHouseholdCollection: "schedule-operations/daily-trip-household-collections",
   binCollectionEvent: "schedule-operations/bin-collection-events",
   vehicleBreakdown: "schedule-operations/vehicle-breakdowns",
+  retripRequests: "schedule-operations/retrip-requests",
   schedulerConfig: "schedule-operations/daily-trip-assignments/scheduler-config/",
   wasteCollections: "schedule-operations/wastecollections",
 
@@ -138,6 +138,11 @@ export const adminEndpoints = {
   vehicleCreations: "transport-masters/vehicle-creation",
   tripAttendances: "transport-masters/trip-attendance",
   fuels: "transport-masters/fuels",
+
+  /* =========================
+     DASHBOARD
+  ========================= */
+  dashboardSummary: "dashboard/summary",
 
   /* =========================
      AUDITS

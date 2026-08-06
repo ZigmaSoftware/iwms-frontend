@@ -56,18 +56,27 @@ export type LocationScopeNames = {
   ward_name?: string;
 };
 
-/** One row per project in the redesigned Screen Management list. */
+/**
+ * One row per company + project *name* in the redesigned Screen Management
+ * list. A single project name can be backed by several distinct project_ids
+ * (duplicate project records) and by both Screen and Field permission
+ * types — this row merges all of that into one summary so the UI shows a
+ * single "Masters (20)" / "Screens (8)" record instead of one row per
+ * underlying (project_id, permission_type) combination.
+ */
 export type ProjectPermissionSummaryRow = {
+  /** Project chosen as the Edit target — the first project_id encountered for this name. */
   project_id: string;
   project_name: string;
   company_id: string;
   company_name: string;
   main_screen_count: number;
   screen_count: number;
-  /** Distinct mainscreen_ids present for this project — needed for delete-by-project loop. */
-  mainscreen_ids: string[];
-  permission_type: string;
   permission_type_label: string;
+  /** Permission type to default the edit form to (prefers "screen" when both are present). */
+  edit_permission_type: string;
+  /** Every (project_id, permission_type, mainscreen_id) triple folded into this row — needed to delete the whole merged group. */
+  delete_targets: { project_id: string; permission_type: string; mainscreen_id: string }[];
   composite_key: string;
 };
 

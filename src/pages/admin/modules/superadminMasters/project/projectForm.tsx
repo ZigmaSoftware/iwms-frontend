@@ -21,6 +21,9 @@ import {
 
 import { projectApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { projectSchema } from "@/schemas/superadminMasters/project.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const normalizeIsActive = (value: unknown): boolean => {
@@ -83,6 +86,9 @@ export default function ProjectForm() {
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [gpsApiUrl, setGpsApiUrl] = useState("");
+  const [gpsVehicleHistoryApi, setGpsVehicleHistoryApi] = useState("");
+  const [gpsVehicleTrackingApi, setGpsVehicleTrackingApi] = useState("");
+  const [gpsTripSummaryApi, setGpsTripSummaryApi] = useState("");
   const [gpsUserId, setGpsUserId] = useState("BLUEPLANET");
   const [gpsGroupName, setGpsGroupName] = useState("BLUEPLANET:VAM");
   const [gpsProviderName, setGpsProviderName] = useState("BLUEPLANET");
@@ -100,6 +106,7 @@ export default function ProjectForm() {
   const [adminEmployeeName, setAdminEmployeeName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   // Convenience default preserved from the pre-shared-hook behavior: if there's
   // only one company to choose from, select it automatically (create mode only).
@@ -128,6 +135,9 @@ export default function ProjectForm() {
         setName(record.name ?? "");
         setDescription(record.description ?? "");
         setGpsApiUrl(record.gps_api_url ?? "");
+        setGpsVehicleHistoryApi(record.gps_vehicle_history_api ?? "");
+        setGpsVehicleTrackingApi(record.gps_vehicle_tracking_api ?? "");
+        setGpsTripSummaryApi(record.gps_trip_summary_api ?? "");
         setGpsUserId(record.gps_user_id ?? "BLUEPLANET");
         setGpsGroupName(record.gps_group_name ?? "BLUEPLANET:VAM");
         setGpsProviderName(record.gps_provider_name ?? "BLUEPLANET");
@@ -159,7 +169,29 @@ export default function ProjectForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!name.trim()) {
+    const fieldValues = {
+      name: name.trim(),
+      description: description.trim(),
+      is_active: isActive,
+      gps_api_url: gpsApiUrl.trim(),
+      gps_user_id: gpsUserId.trim(),
+      gps_group_name: gpsGroupName.trim(),
+      gps_provider_name: gpsProviderName.trim(),
+      gps_fcode: gpsFcode.trim(),
+      gps_trip_user_id: gpsTripUserId.trim(),
+      weighment_api_url: weighmentApiUrl.trim(),
+      day_wise_weighment_api_url: dayWiseWeighmentApiUrl.trim(),
+      attendance_api_url: attendanceApiUrl.trim(),
+      attendance_api_key: attendanceApiKey.trim(),
+      admin_username: adminUsername.trim(),
+      admin_password: adminPassword.trim(),
+      admin_employee_name: adminEmployeeName.trim(),
+      admin_email: adminEmail.trim(),
+    };
+
+    const validation = parseWithSchema(projectSchema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -167,6 +199,7 @@ export default function ProjectForm() {
       });
       return;
     }
+    setFieldErrors({});
 
     const hasAnyAdmin =
       !!adminUsername.trim() ||
@@ -192,6 +225,9 @@ export default function ProjectForm() {
           name: name.trim(),
           description: description.trim() || null,
           gps_api_url: gpsApiUrl.trim() || null,
+          gps_vehicle_history_api: gpsVehicleHistoryApi.trim() || null,
+          gps_vehicle_tracking_api: gpsVehicleTrackingApi.trim() || null,
+          gps_trip_summary_api: gpsTripSummaryApi.trim() || null,
           gps_user_id: gpsUserId.trim() || "BLUEPLANET",
           gps_group_name: gpsGroupName.trim() || "BLUEPLANET:VAM",
           gps_provider_name: gpsProviderName.trim() || "BLUEPLANET",
@@ -208,6 +244,9 @@ export default function ProjectForm() {
           name: name.trim(),
           description: description.trim() || null,
           gps_api_url: gpsApiUrl.trim() || null,
+          gps_vehicle_history_api: gpsVehicleHistoryApi.trim() || null,
+          gps_vehicle_tracking_api: gpsVehicleTrackingApi.trim() || null,
+          gps_trip_summary_api: gpsTripSummaryApi.trim() || null,
           gps_user_id: gpsUserId.trim() || "BLUEPLANET",
           gps_group_name: gpsGroupName.trim() || "BLUEPLANET:VAM",
           gps_provider_name: gpsProviderName.trim() || "BLUEPLANET",
@@ -308,10 +347,14 @@ export default function ProjectForm() {
               id="projectName"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, name: "" }));
+              }}
               placeholder={t("common.enter_item_name", { item: t("admin.nav.project") })}
               required
             />
+            <FieldError message={fieldErrors.name} />
           </div>
 
           <div>
@@ -351,6 +394,42 @@ export default function ProjectForm() {
               value={gpsApiUrl}
               onChange={(e) => setGpsApiUrl(e.target.value)}
               placeholder="https://api.example.com/getVehicleHistory"
+            />
+          </div>
+
+          {/* GPS Vehicle History API */}
+          <div>
+            <Label htmlFor="gpsVehicleHistoryApi">GPS Vehicle History API</Label>
+            <Input
+              id="gpsVehicleHistoryApi"
+              type="url"
+              value={gpsVehicleHistoryApi}
+              onChange={(e) => setGpsVehicleHistoryApi(e.target.value)}
+              placeholder="https://api.vamosys.com/mobile/getGrpDataForTrustedClients"
+            />
+          </div>
+
+          {/* GPS Vehicle Tracking API */}
+          <div>
+            <Label htmlFor="gpsVehicleTrackingApi">GPS Vehicle Tracking API</Label>
+            <Input
+              id="gpsVehicleTrackingApi"
+              type="url"
+              value={gpsVehicleTrackingApi}
+              onChange={(e) => setGpsVehicleTrackingApi(e.target.value)}
+              placeholder="https://api.vamosys.com/mobile/getGrpDataForTrustedClients"
+            />
+          </div>
+
+          {/* GPS Trip Summary API */}
+          <div>
+            <Label htmlFor="gpsTripSummaryApi">GPS Trip Summary API</Label>
+            <Input
+              id="gpsTripSummaryApi"
+              type="url"
+              value={gpsTripSummaryApi}
+              onChange={(e) => setGpsTripSummaryApi(e.target.value)}
+              placeholder="https://gpsvtsprobend.vamosys.com/v2/getTripSummary"
             />
           </div>
 
@@ -520,9 +599,13 @@ export default function ProjectForm() {
                   id="adminEmail"
                   type="email"
                   value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
+                  onChange={(e) => {
+                    setAdminEmail(e.target.value);
+                    setFieldErrors((prev) => ({ ...prev, admin_email: "" }));
+                  }}
                   placeholder={t("admin.project.admin_email")}
                 />
+                <FieldError message={fieldErrors.admin_email} />
               </div>
             </>
           ) : null}

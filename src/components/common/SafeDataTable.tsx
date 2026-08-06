@@ -21,6 +21,7 @@ import {
 import {
   getLatestServerListMetadata,
   registerServerListApi,
+  unregisterServerListApi,
 } from "@/helpers/admin/serverListMode";
 import { getListCompanyProjectContext } from "@/utils/listQueryContext";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
@@ -433,6 +434,15 @@ export const DataTable = <TValue extends SafeTableRows>(
   if (serverApi) {
     registerServerListApi(serverApi, initialPageSize);
   }
+
+  // Registration above is scoped to this instance being mounted on this
+  // route. Unregister on unmount/route-away so a later readAll() call from
+  // an unrelated page (e.g. a dropdown reusing the same entity's API) isn't
+  // silently truncated to whatever page size this list happened to use.
+  useEffect(() => {
+    if (!serverApi) return;
+    return () => unregisterServerListApi(serverApi);
+  }, [serverApi]);
 
   const [serverRows, setServerRows] = useState<SafeTableRows>(safeRows);
   const [serverTotal, setServerTotal] = useState(safeRows.length);

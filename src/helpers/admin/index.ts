@@ -99,6 +99,11 @@ export const feedbackApi = adminApi.feedbacks;
 // export const collectionMonitoringApi = adminApi.pointCollections;
 
 /* =========================
+   DASHBOARD
+========================= */
+export const dashboardSummaryApi = adminApi.dashboardSummary;
+
+/* =========================
    GRIEVANCES
 ========================= */
 export const complaintApi = adminApi.complaints;
@@ -120,6 +125,7 @@ export const dailyTripHouseholdCollectionApi = adminApi.dailyTripHouseholdCollec
 export const binCollectionEventApi = adminApi.binCollectionEvent;
 export const dailyWasteComparisonApi = adminApi.dailyWasteComparison;
 export const vehicleBreakdownApi = adminApi.vehicleBreakdown;
+export const retripRequestApi = adminApi.retripRequests;
 
 /* =========================
    AUDITS

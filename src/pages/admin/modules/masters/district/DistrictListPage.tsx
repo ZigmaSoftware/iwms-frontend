@@ -1,6 +1,6 @@
 import type { DistrictApiRow } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -60,6 +60,7 @@ export default function DistrictListPage() {
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const requestIdRef = useRef(0);
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
@@ -102,17 +103,20 @@ export default function DistrictListPage() {
 
   const loadRows = async (page: number, limit: number, search: string, order?: string) => {
     if (isSuperAdmin && companies.length === 0) {
+      requestIdRef.current += 1;
       setDistricts([]);
       setTotalRecords(0);
       return;
     }
 
     if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
       setDistricts([]);
       setTotalRecords(0);
       return;
     }
 
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setDistricts([]);
     try {
@@ -125,16 +129,18 @@ export default function DistrictListPage() {
       const response = await districtApi.readAllwithPaginated(page, limit, {
         params,
       });
+      if (requestId !== requestIdRef.current) return;
       const rows: DistrictApiRow[] = Array.isArray(response?.results)
         ? (response.results as unknown as DistrictApiRow[])
         : [];
       setDistricts(rows.map(mapRow));
       setTotalRecords(typeof response?.count === "number" ? response.count : rows.length);
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
       const errorData = (error as { response?: { data?: unknown } })?.response?.data;
       Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 

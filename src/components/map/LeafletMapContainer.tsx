@@ -6,15 +6,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useTranslation } from "react-i18next";
 import { fetchWasteReport } from "@/utils/wasteApi";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
-
-/* ================= API ================= */
-const GEOFENCE_API_URL =
-  "https://api.vamosys.com/v2/viewSiteV2?userId=BLUEPLANET";
-
-const TRIP_SUMMARY_ENDPOINT =
-  "https://gpsvtsprobend.vamosys.com/v2/getTripSummary";
-
-const TRIP_SUMMARY_USER_ID = "NMCP2DISPOSAL";
+import { buildVehicleTrackingUrl, buildTripSummaryUrl } from "@/config/gpsApiConfig";
 
 /* ================= TYPES ================= */
 type VehicleStatus = "Running" | "Idle" | "Parked" | "No Data";
@@ -312,22 +304,38 @@ function getVehicleIcon(status: VehicleStatus, isFocused = false) {
 interface LeafletMapContainerProps {
   vehicles?: VehicleData[];
   height?: string;
+  onVehiclesChange?: (vehicles: VehicleData[]) => void;
 }
 
 /* ================= COMPONENT ================= */
 export function LeafletMapContainer({
   vehicles: overrideVehicles,
   height = "600px",
+  onVehiclesChange,
 }: LeafletMapContainerProps = {}) {
   const { t, i18n } = useTranslation();
   const { theme } = useTheme();
-  const { gpsApiUrl, weighmentApiUrl } = useProjectSelector();
+  const {
+    gpsVehicleTrackingApi,
+    gpsTripSummaryApi,
+    gpsProviderName,
+    gpsFcode,
+    gpsUserId,
+    gpsTripUserId,
+    dayWiseWeighmentApiUrl,
+  } = useProjectSelector();
+  const trackingApiUrl = buildVehicleTrackingUrl(
+    { providerName: gpsProviderName, fcode: gpsFcode },
+    gpsVehicleTrackingApi
+  );
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
   const vehicleLayerRef = useRef<L.LayerGroup | null>(null);
   const geofenceLayerRef = useRef<L.LayerGroup | null>(null);
   const metricsRequestRef = useRef(0);
+  const onVehiclesChangeRef = useRef(onVehiclesChange);
+  onVehiclesChangeRef.current = onVehiclesChange;
 
   const [fetchedVehicles, setFetchedVehicles] = useState<VehicleData[]>([]);
   const [geofenceSites, setGeofenceSites] = useState<GeofenceSite[]>([]);
@@ -484,9 +492,12 @@ export function LeafletMapContainer({
   }, []);
 
   /* ================= FETCH GEOFENCES ================= */
+  // No per-project geofence URL field exists on the Project model — this
+  // reuses the vehicle tracking provider's userId as the geofence query,
+  // and only runs when tracking is configured for the project.
   useEffect(() => {
-    if (!gpsApiUrl) return;
-    fetch(GEOFENCE_API_URL)
+    if (!gpsVehicleTrackingApi || !gpsUserId) return;
+    fetch(`https://api.vamosys.com/v2/viewSiteV2?userId=${encodeURIComponent(gpsUserId)}`)
       .then((r) => r.json())
       .then((json) => {
         const sites =
@@ -494,14 +505,18 @@ export function LeafletMapContainer({
         setGeofenceSites(sites);
       })
       .catch(console.error);
-  }, [gpsApiUrl]);
+  }, [gpsVehicleTrackingApi, gpsUserId]);
 
   /* ================= FETCH VEHICLES ================= */
   useEffect(() => {
     const fetchVehicles = async () => {
-      if (!gpsApiUrl) { setFetchedVehicles([]); return; }
+      if (!trackingApiUrl) {
+        setFetchedVehicles([]);
+        onVehiclesChangeRef.current?.([]);
+        return;
+      }
       try {
-        const res = await fetch(gpsApiUrl);
+        const res = await fetch(trackingApiUrl);
         const json = await res.json();
 
         const rows = extractVehicleRows(json);
@@ -575,15 +590,16 @@ export function LeafletMapContainer({
           .filter(Boolean) as VehicleData[];
 
         setFetchedVehicles(normalized);
+        onVehiclesChangeRef.current?.(normalized);
       } catch (err) {
         console.error("Failed to fetch vehicles", err);
       }
     };
 
     fetchVehicles();
-    const t = setInterval(fetchVehicles, 15000);
+    const t = setInterval(fetchVehicles, 2000);
     return () => clearInterval(t);
-  }, [gpsApiUrl]);
+  }, [trackingApiUrl]);
 
   const displayedVehicles = useMemo(
     () => overrideVehicles ?? fetchedVehicles,
@@ -687,13 +703,19 @@ export function LeafletMapContainer({
           59
         ).getTime();
 
-        const tripUrl = `${TRIP_SUMMARY_ENDPOINT}?vehicleId=${encodeURIComponent(
-          vehicleId
-        )}&fromDateUTC=${monthStart}&toDateUTC=${monthEnd}&userId=${TRIP_SUMMARY_USER_ID}&duration=0`;
+        const tripUrl = gpsTripSummaryApi
+          ? buildTripSummaryUrl(
+              vehicleId,
+              monthStart,
+              monthEnd,
+              { userId: gpsTripUserId, duration: "0" },
+              gpsTripSummaryApi
+            )
+          : "";
 
         const [tripRes, weightResult] = await Promise.all([
-          fetch(tripUrl).then((res) => res.json()),
-          fetchWasteReport(weighmentApiUrl, "day_wise_data", reportStartKey, todayKey).catch(
+          tripUrl ? fetch(tripUrl).then((res) => res.json()) : Promise.resolve(null),
+          fetchWasteReport(dayWiseWeighmentApiUrl, "day_wise_data", reportStartKey, todayKey).catch(
             () => ({
               rows: [],
             })
@@ -788,7 +810,7 @@ export function LeafletMapContainer({
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [selectedVehicle?.vehicle_no]);
+  }, [selectedVehicle?.vehicle_no, gpsTripSummaryApi, gpsTripUserId, dayWiseWeighmentApiUrl]);
 
   /* ================= DRAW GEOFENCES ================= */
   useEffect(() => {

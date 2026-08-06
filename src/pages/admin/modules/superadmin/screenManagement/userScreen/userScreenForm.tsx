@@ -19,6 +19,9 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { adminApi } from "@/helpers/admin/registry";
+import { userScreenSchema } from "@/schemas/superadmin/screenManagement/userScreen.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 /* -----------------------------------------
    ROUTES
@@ -59,6 +62,7 @@ export default function UserScreenForm() {
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [mainScreensList, setMainScreensList] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   /* =========================================
       FETCH MAIN SCREENS (dropdown)
@@ -130,10 +134,20 @@ export default function UserScreenForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!mainscreenId || !userScreenName.trim() || !folderName.trim()) {
+    const validation = parseWithSchema(userScreenSchema, {
+      mainscreen_id: mainscreenId,
+      userscreen_name: userScreenName.trim(),
+      folder_name: folderName.trim(),
+      order_no: orderNo,
+      description: description.trim(),
+      is_active: isActive,
+    });
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
+    setFieldErrors({});
 
     setIsSubmitting(true);
     try {
@@ -189,7 +203,10 @@ export default function UserScreenForm() {
             <Label>{t("admin.nav.main_screen")} *</Label>
             <Select
               value={mainscreenId}
-              onValueChange={(val) => setMainscreenId(val)}
+              onValueChange={(val) => {
+                setMainscreenId(val);
+                setFieldErrors((prev) => ({ ...prev, mainscreen_id: "" }));
+              }}
             >
               <SelectTrigger className="input-validate w-full">
                 <SelectValue
@@ -206,6 +223,7 @@ export default function UserScreenForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.mainscreen_id} />
           </div>
 
           {/* User Screen Name */}
@@ -215,13 +233,17 @@ export default function UserScreenForm() {
             </Label>
             <Input
               value={userScreenName}
-              onChange={(e) => setUserScreenName(e.target.value)}
+              onChange={(e) => {
+                setUserScreenName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, userscreen_name: "" }));
+              }}
               placeholder={t("common.enter_item_name", {
                 item: t("admin.nav.user_screen"),
               })}
               required
               className="input-validate w-full"
             />
+            <FieldError message={fieldErrors.userscreen_name} />
           </div>
 
           {/* Folder Name */}
@@ -229,11 +251,15 @@ export default function UserScreenForm() {
             <Label>{t("common.folder_path")} *</Label>
             <Input
               value={folderName}
-              onChange={(e) => setFolderName(e.target.value)}
+              onChange={(e) => {
+                setFolderName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, folder_name: "" }));
+              }}
               placeholder={t("common.folder_path_placeholder")}
               required
               className="input-validate w-full"
             />
+            <FieldError message={fieldErrors.folder_name} />
           </div>
 
           {/* Order No (edit only — backend auto-assigns on create) */}

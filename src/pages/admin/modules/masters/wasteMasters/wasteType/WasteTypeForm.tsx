@@ -21,6 +21,10 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { wasteTypeApi } from "@/helpers/admin";
+import { wasteTypeSchema } from "@/schemas/masters/wasteMasters/wasteType.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const { encMasters, encWasteTypes } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encWasteTypes);
@@ -35,7 +39,7 @@ const WASTE_TYPE_FIELDS: Record<string, string[]> = {
 
 export default function WasteTypeForm() {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "waste-types", WASTE_TYPE_FIELDS);
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -63,6 +67,7 @@ export default function WasteTypeForm() {
   const [isActive, setIsActive] = useState(true);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
     projectUniqueId: string; projectId: string; projectName: string;
   } | null>(null);
@@ -126,17 +131,23 @@ export default function WasteTypeForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
+    const fieldValues = {
+      waste_type_name: wasteTypeName.trim(),
+      is_active: isActive,
+    };
+
+    const schema = requireWhenVisible(wasteTypeSchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire(t("common.warning"), t("admin.bin.missing_fields", { fields: Object.values(validation.errors).join(", ") }), "warning");
+      return;
+    }
+    setFieldErrors({});
+
     const missingFields: string[] = [];
     if (!companyUniqueId) missingFields.push(t("admin.nav.company"));
     if (!projectId) missingFields.push(t("admin.nav.project"));
-    if (
-      getMissingRequiredFields(
-        ["waste_type_name"],
-        (k) => ({ waste_type_name: wasteTypeName.trim() })[k as "waste_type_name"],
-      ).length > 0
-    ) {
-      missingFields.push(t("common.item_name", { item: t("common.waste_type") }));
-    }
 
     if (missingFields.length > 0) {
       Swal.fire(t("common.warning"), t("admin.bin.missing_fields", { fields: missingFields.join(", ") }), "warning");
@@ -241,10 +252,14 @@ export default function WasteTypeForm() {
             <Label>{t("common.item_name", { item: t("common.waste_type") })} *</Label>
             <Input
               value={wasteTypeName}
-              onChange={(e) => setWasteTypeName(e.target.value)}
+              onChange={(e) => {
+                setWasteTypeName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, waste_type_name: "" }));
+              }}
               placeholder={t("common.enter_item_name", { item: t("common.waste_type") })}
               required
             />
+            <FieldError message={fieldErrors.waste_type_name} />
           </div>
         )}
 

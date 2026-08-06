@@ -21,6 +21,9 @@ import {
   staffUserTypeApi,
   userTypeApi,
 } from "@/helpers/admin";
+import { staffUserTypeSchema } from "@/schemas/superadmin/roleManagement/staffUserType.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const { encAdmins, encStaffUserType } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encAdmins, encStaffUserType);
@@ -155,6 +158,7 @@ export default function StaffUserTypeForm() {
   const [selectedUserType, setSelectedUserType] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [pageReady, setPageReady] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const navigate = useNavigate();
   const { id } = useParams();
@@ -356,10 +360,19 @@ export default function StaffUserTypeForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedUserType || !name) {
+    const fieldValues = {
+      usertype_id: selectedUserType,
+      name,
+      is_active: isActive,
+    };
+
+    const validation = parseWithSchema(staffUserTypeSchema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.error"), t("common.all_fields_required"), "error");
       return;
     }
+    setFieldErrors({});
 
     const payload = {
       usertype_id: selectedUserType,
@@ -429,7 +442,10 @@ export default function StaffUserTypeForm() {
 
               <Select
                 value={selectedUserType}
-                onValueChange={setSelectedUserType}
+                onValueChange={(val) => {
+                  setSelectedUserType(val);
+                  setFieldErrors((prev) => ({ ...prev, usertype_id: "" }));
+                }}
               >
                 <SelectTrigger>
                   <SelectValue
@@ -446,6 +462,7 @@ export default function StaffUserTypeForm() {
                   ))}
                 </SelectContent>
               </Select>
+              <FieldError message={fieldErrors.usertype_id} />
             </div>
 
             {/* STAFF ROLE */}
@@ -455,7 +472,13 @@ export default function StaffUserTypeForm() {
                 <span className="text-red-500">*</span>
               </label>
 
-              <Select value={name} onValueChange={setName}>
+              <Select
+                value={name}
+                onValueChange={(val) => {
+                  setName(val);
+                  setFieldErrors((prev) => ({ ...prev, name: "" }));
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder={t("common.select_role")} />
                 </SelectTrigger>
@@ -473,6 +496,7 @@ export default function StaffUserTypeForm() {
                   )}
                 </SelectContent>
               </Select>
+              <FieldError message={fieldErrors.name} />
             </div>
           </div>
 

@@ -14,6 +14,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { tripExceptionLogSchema } from "@/schemas/masters/transportMasters/tripExceptionLog.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const exceptionTypeValues = [
@@ -60,6 +63,7 @@ export default function TripExceptionLogForm() {
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [dailyTripAssignmentRecords, setDailyTripAssignmentRecords] = useState<DailyTripAssignmentRecord[]>([]);
 
@@ -151,10 +155,13 @@ export default function TripExceptionLogForm() {
       return;
     }
 
-    if (!formData.daily_trip_assignment_id || !formData.exception_type || !formData.detected_by) {
+    const validation = parseWithSchema(tripExceptionLogSchema, formData);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
+    setFieldErrors({});
 
     setLoading(true);
     try {
@@ -193,38 +200,48 @@ export default function TripExceptionLogForm() {
               <Label>{t("admin.trip_exception_log.daily_trip_assignment")}</Label>
               <Select
                 value={formData.daily_trip_assignment_id}
-                onChange={(value) =>
-                  setFormData((prev) => ({ ...prev, daily_trip_assignment_id: value }))
-                }
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, daily_trip_assignment_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, daily_trip_assignment_id: "" }));
+                }}
                 options={tripOptions}
                 placeholder={t("common.select_option")}
                 disabled={fetching || isEdit}
                 required
               />
+              <FieldError message={fieldErrors.daily_trip_assignment_id} />
             </div>
 
             <div>
               <Label>{t("admin.trip_exception_log.exception_type")}</Label>
               <Select
                 value={formData.exception_type}
-                onChange={(value) => setFormData((prev) => ({ ...prev, exception_type: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, exception_type: value }));
+                  setFieldErrors((prev) => ({ ...prev, exception_type: "" }));
+                }}
                 options={exceptionTypeOptions}
                 placeholder={t("common.select_option")}
                 disabled={fetching || isEdit}
                 required
               />
+              <FieldError message={fieldErrors.exception_type} />
             </div>
 
             <div>
               <Label>{t("admin.trip_exception_log.detected_by")}</Label>
               <Select
                 value={formData.detected_by}
-                onChange={(value) => setFormData((prev) => ({ ...prev, detected_by: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, detected_by: value }));
+                  setFieldErrors((prev) => ({ ...prev, detected_by: "" }));
+                }}
                 options={detectedByOptions}
                 placeholder={t("common.select_option")}
                 disabled={fetching || isEdit}
                 required
               />
+              <FieldError message={fieldErrors.detected_by} />
             </div>
 
             <div className="md:col-span-2">

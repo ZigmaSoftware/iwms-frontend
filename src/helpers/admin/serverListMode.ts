@@ -19,6 +19,16 @@ export const registerServerListApi = (
   registeredApis.set(api, pageSize);
 };
 
+// Reverses registerServerListApi. Call this when the DataTable instance that
+// registered `api` unmounts (or stops using server mode), so a `readAll()`
+// call made from an unrelated page/component (e.g. a dropdown) after the
+// list page has been left doesn't keep getting silently truncated to
+// whatever page size that list page happened to use.
+export const unregisterServerListApi = (api: CrudHelpers) => {
+  registeredApis.delete(api);
+  latestMetadata.delete(api);
+};
+
 export const getRegisteredServerListPageSize = (api: CrudHelpers) =>
   registeredApis.get(api);
 

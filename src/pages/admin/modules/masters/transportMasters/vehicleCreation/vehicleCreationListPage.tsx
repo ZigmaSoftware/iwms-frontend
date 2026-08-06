@@ -134,6 +134,7 @@ export default function VehicleCreationListPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
+  const requestIdRef = useRef(0);
 
   // ── Company / Project ─────────────────────────────────────────────────────
   const location = useLocation();
@@ -167,15 +168,18 @@ export default function VehicleCreationListPage() {
   // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) {
+      requestIdRef.current += 1;
       setAllVehicles([]);
       return;
     }
     if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
       setAllVehicles([]);
       return;
     }
 
     let mounted = true;
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
@@ -184,7 +188,7 @@ export default function VehicleCreationListPage() {
     vehicleCreationApi
       .readAll({ params })
       .then((data: unknown) => {
-        if (!mounted) return;
+        if (!mounted || requestId !== requestIdRef.current) return;
         const list = Array.isArray(data)
           ? (data as VehicleCreationRecord[])
           : [];
@@ -199,16 +203,15 @@ export default function VehicleCreationListPage() {
         );
       })
       .catch((error: unknown) => {
-        if (mounted) {
-          Swal.fire({
-            icon: "error",
-            title: t("common.error"),
-            text: String(error),
-          });
-        }
+        if (!mounted || requestId !== requestIdRef.current) return;
+        Swal.fire({
+          icon: "error",
+          title: t("common.error"),
+          text: String(error),
+        });
       })
       .finally(() => {
-        if (mounted) setIsLoading(false);
+        if (mounted && requestId === requestIdRef.current) setIsLoading(false);
       });
     return () => {
       mounted = false;

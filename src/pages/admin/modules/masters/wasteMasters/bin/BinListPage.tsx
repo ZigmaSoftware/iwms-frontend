@@ -1,7 +1,7 @@
 import type { Bin, BinApiRow } from "./types";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -107,6 +107,7 @@ export default function BinList() {
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const requestIdRef = useRef(0);
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "assets",
     "bins",
@@ -156,11 +157,13 @@ export default function BinList() {
 
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) {
+      requestIdRef.current += 1;
       setBinRows([]);
       setTotalRecords(0);
       return;
     }
     if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
       setBinRows([]);
       setTotalRecords(0);
       return;
@@ -169,6 +172,7 @@ export default function BinList() {
     let mounted = true;
 
     const loadBins = async (page: number, limit: number) => {
+      const requestId = ++requestIdRef.current;
       setIsLoading(true);
       if (mounted) setBinRows([]);
       try {
@@ -182,6 +186,7 @@ export default function BinList() {
             ...(ordering ? { ordering } : {}),
           },
         });
+        if (requestId !== requestIdRef.current) return;
         if (mounted) {
           const list = toRecordList(response) as BinApiRow[];
           setBinRows(list);
@@ -192,12 +197,13 @@ export default function BinList() {
           );
         }
       } catch (error) {
+        if (requestId !== requestIdRef.current) return;
         if (mounted) {
           const data = (error as { response?: { data?: unknown } })?.response?.data;
           Swal.fire(t("common.error"), String(data ?? error), "error");
         }
       } finally {
-        if (mounted) setIsLoading(false);
+        if (requestId === requestIdRef.current && mounted) setIsLoading(false);
       }
     };
 

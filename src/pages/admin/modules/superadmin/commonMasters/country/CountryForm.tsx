@@ -19,8 +19,13 @@ import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useScopedContinents } from "@/hooks/useScopedLocationOptions";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { continentApi, countryApi } from "@/helpers/admin";
+import { countrySchema } from "@/schemas/superadmin/commonMasters/country.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const { encMasters, encCountries } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encCountries);
@@ -54,7 +59,7 @@ const resolveId = (
 
 export default function CountryForm() {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "countries", COUNTRY_FIELDS);
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -68,8 +73,9 @@ export default function CountryForm() {
   const [isActive, setIsActive] = useState(true);
   const [continentId, setContinentId] = useState("");
 
-  /* ── dropdown data ── */
-  const [continents, setContinents] = useState<SelectOption[]>([]);
+  /* ── dropdown data: scoped to the logged-in staff's assigned states'
+     continents, same convention as company/project ── */
+  const { options: continents, singleValue: singleContinentId } = useScopedContinents(continentApi);
 
   /* ── pending for edit prefill ── */
   const [pendingContinentId, setPendingContinentId] = useState("");
@@ -77,23 +83,7 @@ export default function CountryForm() {
 
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  /* ── load continents ── */
-  useEffect(() => {
-    let cancelled = false;
-    continentApi.readAll()
-      .then((res: any) => {
-        if (cancelled) return;
-        const data: any[] = Array.isArray(res) ? res : (res?.results ?? []);
-        setContinents(
-          data
-            .filter((c) => c.is_active)
-            .map((c) => ({ value: String(c.unique_id), label: String(c.name ?? "") }))
-        );
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   /* ── apply pending continent once options load ── */
   useEffect(() => {
@@ -105,6 +95,13 @@ export default function CountryForm() {
       setPendingContinentName("");
     }
   }, [pendingContinentId, pendingContinentName, continents]);
+
+  /* ── create mode: prefill the only assigned continent, same as a single
+     project auto-selecting itself ── */
+  useEffect(() => {
+    if (isEdit || !singleContinentId) return;
+    setContinentId((prev) => prev || singleContinentId);
+  }, [isEdit, singleContinentId]);
 
   /* ── edit mode: fetch record ── */
   useEffect(() => {
@@ -148,11 +145,22 @@ export default function CountryForm() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
-    const fieldValues: Record<string, unknown> = { name: name.trim(), continent_id: continentId };
-    if (getMissingRequiredFields(["name", "continent_id"], (k) => fieldValues[k]).length > 0) {
+    const fieldValues = {
+      name: name.trim(),
+      continent_id: continentId,
+      mob_code: mobCode.trim(),
+      currency: currency.trim(),
+      is_active: isActive,
+    };
+
+    const schema = requireWhenVisible(countrySchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire({ icon: "warning", title: t("common.warning"), text: t("common.missing_fields") });
       return;
     }
+    setFieldErrors({});
 
     setIsSubmitting(true);
     try {
@@ -199,7 +207,13 @@ export default function CountryForm() {
             <Label htmlFor="continent">
               {t("admin.nav.continent")} <span className="text-red-500">*</span>
             </Label>
-            <Select value={continentId} onValueChange={setContinentId}>
+            <Select
+              value={continentId}
+              onValueChange={(val) => {
+                setContinentId(val);
+                setFieldErrors((prev) => ({ ...prev, continent_id: "" }));
+              }}
+            >
               <SelectTrigger id="continent">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.continent") })} />
               </SelectTrigger>
@@ -209,6 +223,7 @@ export default function CountryForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.continent_id} />
           </div>
         )}
 
@@ -220,10 +235,14 @@ export default function CountryForm() {
             <Input
               id="countryName"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, name: "" }));
+              }}
               placeholder={t("common.enter_item_name", { item: t("admin.nav.country") })}
               required
             />
+            <FieldError message={fieldErrors.name} />
           </div>
         )}
 
@@ -236,9 +255,13 @@ export default function CountryForm() {
               id="mobile_code"
               type="number"
               value={mobCode}
-              onChange={(e) => setMobCode(e.target.value)}
+              onChange={(e) => {
+                setMobCode(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, mob_code: "" }));
+              }}
               placeholder={t("common.mobile_code_placeholder")}
             />
+            <FieldError message={fieldErrors.mob_code} />
           </div>
         )}
 
@@ -250,9 +273,13 @@ export default function CountryForm() {
             <Input
               id="currency"
               value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
+              onChange={(e) => {
+                setCurrency(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, currency: "" }));
+              }}
               placeholder={t("common.currency_placeholder")}
             />
+            <FieldError message={fieldErrors.currency} />
           </div>
         )}
 

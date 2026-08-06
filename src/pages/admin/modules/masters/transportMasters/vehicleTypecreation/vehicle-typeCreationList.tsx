@@ -1,6 +1,6 @@
 import type { VehicleTypeRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -51,6 +51,7 @@ export default function VehicleTypeCreationList() {
   const [statusValue, setStatusValue] = useState<StatusFilterValue>("all");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const requestIdRef = useRef(0);
 
   const { encTransportMaster, encVehicleType } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -63,6 +64,7 @@ export default function VehicleTypeCreationList() {
     : undefined;
 
   const loadRows = async (page: number, limit: number) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setRows([]);
     try {
@@ -72,6 +74,8 @@ export default function VehicleTypeCreationList() {
       if (ordering) params.ordering = ordering;
 
       const response = await vehicleTypeApi.readAllwithPaginated(page, limit, { params });
+      if (requestId !== requestIdRef.current) return;
+
       const list = toRecordList(response);
       setRows(list);
       setTotalRecords(
@@ -80,9 +84,10 @@ export default function VehicleTypeCreationList() {
           : list.length,
       );
     } catch (error: unknown) {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 

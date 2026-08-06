@@ -20,6 +20,9 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
+import { subcategorySchema } from "@/schemas/core_modules/complaintManagement/subcategory.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const { encCitizenGrivence, encSubComplaintCategory } = getEncryptedRoute();
@@ -64,12 +67,26 @@ function SubCategoryEditor({
   const [name, setName] = useState(initialPayload.name);
   const [mainCategory, setMainCategory] = useState(initialPayload.mainCategory);
   const [isActive, setIsActive] = useState(initialPayload.is_active);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const values = {
+      mainCategory,
+      name: name.trim(),
+      is_active: isActive,
+    };
+
+    const validation = parseWithSchema(subcategorySchema, values);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      return;
+    }
+    setFieldErrors({});
+
     const payload: SubCategoryPayload = {
-      name,
+      name: values.name,
       is_active: isActive,
       company_id: initialPayload.company_id,
     };
@@ -93,7 +110,10 @@ function SubCategoryEditor({
 
           <Select
             value={mainCategory}
-            onValueChange={(val) => setMainCategory(val)}
+            onValueChange={(val) => {
+              setMainCategory(val);
+              setFieldErrors((prev) => ({ ...prev, mainCategory: "" }));
+            }}
             disabled={isSubmitting}
           >
             <SelectTrigger className="input-validate w-full" id="mainCategory">
@@ -109,6 +129,7 @@ function SubCategoryEditor({
               ))}
             </SelectContent>
           </Select>
+          <FieldError message={fieldErrors.mainCategory} />
         </div>
 
         <div>
@@ -122,11 +143,15 @@ function SubCategoryEditor({
             type="text"
             required
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              setFieldErrors((prev) => ({ ...prev, name: "" }));
+            }}
             placeholder={t("admin.citizen_grievance.sub_category_form.sub_category_placeholder")}
             className="input-validate w-full"
             disabled={isSubmitting}
           />
+          <FieldError message={fieldErrors.name} />
         </div>
 
         <div>

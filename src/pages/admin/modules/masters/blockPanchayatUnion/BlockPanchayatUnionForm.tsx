@@ -16,6 +16,10 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { blockPanchayatUnionApi, stateApi, districtApi } from "@/helpers/admin";
 import type { SelectOption } from "@/types";
 import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
+import { blockPanchayatUnionSchema } from "@/schemas/masters/blockPanchayatUnion.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const BLOCK_FIELDS: Record<string, string[]> = {
   state_id: ["state_id", "state"],
@@ -80,6 +84,7 @@ export default function BlockPanchayatUnionForm() {
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [pendingState, setPendingState] = useState("");
   const [pendingDistrict, setPendingDistrict] = useState("");
@@ -186,6 +191,24 @@ export default function BlockPanchayatUnionForm() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+
+    const fieldValues = {
+      state_id: stateId,
+      district_id: districtId,
+      block_name: blockName,
+      description,
+      latitude,
+      longitude,
+      is_active: isActive,
+    };
+    const schema = requireWhenVisible(blockPanchayatUnionSchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      return;
+    }
+    setFieldErrors({});
+
     if (!companyUniqueId) { Swal.fire("Error", "Company is required", "error"); return; }
     if (!projectId) { Swal.fire("Error", "Project is required", "error"); return; }
 
@@ -252,31 +275,34 @@ export default function BlockPanchayatUnionForm() {
         {showField("state_id") && (
           <div>
             <Label>State *</Label>
-            <Select value={stateId} onValueChange={(value) => { setStateId(value); setDistrictId(""); setFilteredDistricts([]); setPendingDistrict(""); }}>
+            <Select value={stateId} onValueChange={(value) => { setStateId(value); setDistrictId(""); setFilteredDistricts([]); setPendingDistrict(""); setFieldErrors((prev) => ({ ...prev, state_id: "" })); }}>
               <SelectTrigger><SelectValue placeholder="Select State" /></SelectTrigger>
               <SelectContent>
                 {allStates.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.state_id} />
           </div>
         )}
 
         {showField("district_id") && (
           <div>
             <Label>District *</Label>
-            <Select value={districtId} onValueChange={setDistrictId} disabled={!stateId}>
+            <Select value={districtId} onValueChange={(value) => { setDistrictId(value); setFieldErrors((prev) => ({ ...prev, district_id: "" })); }} disabled={!stateId}>
               <SelectTrigger><SelectValue placeholder="Select District" /></SelectTrigger>
               <SelectContent>
                 {filteredDistricts.map((d) => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.district_id} />
           </div>
         )}
 
         {showField("block_name") && (
           <div>
             <Label>Block / PU Name *</Label>
-            <Input value={blockName} onChange={(e) => setBlockName(e.target.value)} required />
+            <Input value={blockName} onChange={(e) => { setBlockName(e.target.value); setFieldErrors((prev) => ({ ...prev, block_name: "" })); }} required />
+            <FieldError message={fieldErrors.block_name} />
           </div>
         )}
 

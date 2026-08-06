@@ -20,6 +20,10 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import type { ApiError } from "./types";
+import { hierarchySchema } from "@/schemas/masters/hierarchy.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const { encMasters, encHierarchies } = getEncryptedRoute();
@@ -32,11 +36,12 @@ const HIERARCHY_FIELDS: Record<string, string[]> = {
 
 export default function HierarchyForm() {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "hierarchies", HIERARCHY_FIELDS);
   const [name, setName] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
@@ -94,14 +99,14 @@ export default function HierarchyForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const fieldValues: Record<string, unknown> = {
+    const fieldValues = {
       level_name: name.trim(),
+      is_active: isActive,
     };
-
-    if (
-      getMissingRequiredFields(["level_name"], (fieldKey) => fieldValues[fieldKey])
-        .length > 0
-    ) {
+    const schema = requireWhenVisible(hierarchySchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -109,6 +114,7 @@ export default function HierarchyForm() {
       });
       return;
     }
+    setFieldErrors({});
 
     if (!companyUniqueId) {
       Swal.fire(
@@ -267,12 +273,16 @@ export default function HierarchyForm() {
               id="name"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, level_name: "" }));
+              }}
               placeholder={t("common.enter_item_name", {
                 item: t("admin.nav.hierarchy"),
               })}
               required
             />
+            <FieldError message={fieldErrors.level_name} />
           </div>
         )}
 

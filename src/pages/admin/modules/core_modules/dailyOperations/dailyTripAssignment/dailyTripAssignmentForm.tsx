@@ -2,7 +2,6 @@ import type { DailyTripAssignmentRecord } from "./types";
 import type { DailyTripCollectionPointInline, DailyTripHouseholdCollectionInline } from "./types";
 import type { FormState, SelectOption } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -19,7 +18,11 @@ import { adminApi } from "@/helpers/admin/registry";
 import { dailyTripAssignmentApi, dailyTripHouseholdCollectionApi, binApi, customerCreationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 import { normalizeList } from "@/utils/forms";
+import { dailyTripAssignmentSchema } from "@/schemas/core_modules/dailyOperations/dailyTripAssignment.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -186,6 +189,8 @@ export default function DailyTripAssignmentForm() {
     initialProjectId: routeState?.projectId,
   });
 
+  const { showZone, showPanchayat } = useZonePanchayatVisibility();
+
   const { encScheduleMasters, encDailyTripAssignment } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encDailyTripAssignment);
 
@@ -204,11 +209,16 @@ export default function DailyTripAssignmentForm() {
     status: "Scheduled",
     remarks: "",
   });
+  // Display-only — set by the backend's mark_started()/mark_ended(), never
+  // submitted back, so these live outside FormState.
+  const [actualStartTime, setActualStartTime] = useState("");
+  const [actualEndTime, setActualEndTime] = useState("");
 
   // collection-type flags derived from the selected trip plan
   const [hasBinStops, setHasBinStops] = useState(true);
   const [hasHouseholdStops, setHasHouseholdStops] = useState(false);
 
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [recordData, setRecordData] = useState<DailyTripAssignmentRecord | null>(null);
   const [collectionPoints, setCollectionPoints] = useState<DailyTripCollectionPointInline[]>([]);
   const [householdCollectionPoints, setHouseholdCollectionPoints] = useState<DailyTripHouseholdCollectionInline[]>([]);
@@ -273,17 +283,34 @@ export default function DailyTripAssignmentForm() {
     let cancelled = false;
     setFetching(true);
     const params = { company_id: companyUniqueId, project_id: projectId };
-    Promise.all([
+    // Promise.allSettled — not all() — because a staff without Zone (or
+    // Panchayat) access 403s that one call at the module-permission
+    // middleware; that must not blank out every other dropdown. Zone/
+    // Panchayat are additionally skipped entirely up front when the
+    // login-scoped data shows the staff has no access to that resource.
+    Promise.allSettled([
       adminApi.tripPlans.readAll({ params }),
       adminApi.staffTemplateCreation.readAll({ params }),
-      adminApi.zones.readAll({ params }),
-      adminApi.panchayats.readAll({ params }),
+      showZone ? adminApi.zones.readAll({ params }) : Promise.resolve([]),
+      showPanchayat ? adminApi.panchayats.readAll({ params }) : Promise.resolve([]),
       adminApi.wards.readAll({ params }),
       adminApi.wasteTypes.readAll({ params }),
       adminApi.alternativeStaffTemplate.readAll({ params }),
     ])
-      .then(([tripRes, staffRes, zoneRes, panchRes, wardRes, wtRes, altRes]) => {
+      .then(([tripR, staffR, zoneR, panchR, wardR, wtR, altR]) => {
         if (cancelled) return;
+
+        const settled = (result: PromiseSettledResult<unknown>): unknown =>
+          result.status === "fulfilled" ? result.value : [];
+
+        const tripRes = settled(tripR);
+        const staffRes = settled(staffR);
+        const zoneRes = settled(zoneR);
+        const panchRes = settled(panchR);
+        const wardRes = settled(wardR);
+        const wtRes = settled(wtR);
+        const altRes = settled(altR);
+
         const tripRows = filterByCompanyProject(normalizeList(tripRes), companyUniqueId, projectId);
         const wardRows = filterByCompanyProject(normalizeList(wardRes), companyUniqueId, projectId);
         setTripPlanRecords(tripRows);
@@ -295,10 +322,9 @@ export default function DailyTripAssignmentForm() {
         setWasteTypes(buildOptions(normalizeList(wtRes), ["waste_type_name", "name"]));
         setAltStaffCache(normalizeList(altRes));
       })
-      .catch((err: any) => Swal.fire(t("common.error"), extractError(err) ?? t("common.load_failed"), "error"))
       .finally(() => { if (!cancelled) setFetching(false); });
     return () => { cancelled = true; };
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectId, t, showZone, showPanchayat]);
 
   // ── Fetch trip plans already assigned (non-cancelled) on the selected date,
   // so the Trip Plan dropdown can mark them "(Assigned)" / disabled and block
@@ -472,6 +498,8 @@ export default function DailyTripAssignmentForm() {
       status: rec.status ?? "Scheduled",
       remarks: String(rec.remarks ?? ""),
     });
+    setActualStartTime(rec.actual_start_time ? String(rec.actual_start_time).slice(0, 5) : "");
+    setActualEndTime(rec.actual_end_time ? String(rec.actual_end_time).slice(0, 5) : "");
     setCollectionPoints(
       Array.isArray(rec.collection_points)
         ? rec.collection_points.map((point) => ({
@@ -509,6 +537,7 @@ export default function DailyTripAssignmentForm() {
   }, [pendingRecord, tripPlan, tripPlanRecords, staffTemplates, zones, panchayats, wardRecords, wasteTypes]);
 
   const handleTripPlanChange = (value: string) => {
+    setFieldErrors((prev) => ({ ...prev, trip_plan_id: "" }));
     const plan = tripPlanRecords.find((item) => toEntityId(item?.unique_id ?? item?.id) === value);
 
     // Derive collection types from the plan's collection points
@@ -724,13 +753,22 @@ export default function DailyTripAssignmentForm() {
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    const validation = parseWithSchema(dailyTripAssignmentSchema, {
+      trip_plan_id: formData.trip_plan_id,
+      staff_template_id: formData.staff_template_id,
+      ward_ids: formData.ward_ids,
+      trip_date: formData.trip_date,
+      scheduled_time: formData.scheduled_time,
+    });
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+      return;
+    }
+    setFieldErrors({});
+
     const wasteMissing = (hasBinStops || hasHouseholdStops) && formData.waste_type_ids.length === 0;
-    const wardMissing = formData.ward_ids.length === 0;
-    if (!companyUniqueId || !projectId ||
-      !formData.trip_plan_id || !formData.staff_template_id ||
-      wardMissing ||
-      wasteMissing ||
-      !formData.trip_date || !formData.scheduled_time) {
+    if (!companyUniqueId || !projectId || wasteMissing) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
@@ -802,12 +840,14 @@ export default function DailyTripAssignmentForm() {
     }
   };
 
-  const set = (field: keyof FormState) => (value: string) =>
+  const set = (field: keyof FormState) => (value: string) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
       ...(field === "staff_template_id" ? { alt_staff_template_id: "" } : {}),
     }));
+    setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+  };
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -869,6 +909,7 @@ export default function DailyTripAssignmentForm() {
                 disabled={!projectId}
                 required
               />
+              <FieldError message={fieldErrors.trip_date} />
             </div>
 
             {/* Start Time */}
@@ -881,6 +922,7 @@ export default function DailyTripAssignmentForm() {
                 disabled={!projectId}
                 required
               />
+              <FieldError message={fieldErrors.scheduled_time} />
             </div>
 
             {/* Trip Plan */}
@@ -893,6 +935,7 @@ export default function DailyTripAssignmentForm() {
                 placeholder="Select trip plan"
                 disabled={fetching || !projectId}
               />
+              <FieldError message={fieldErrors.trip_plan_id} />
             </div>
 
             {/* Staff Template */}
@@ -905,6 +948,7 @@ export default function DailyTripAssignmentForm() {
                 placeholder="Select staff template"
                 disabled={fetching || !projectId}
               />
+              <FieldError message={fieldErrors.staff_template_id} />
             </div>
 
             {/* Alternative Staff Template — only shown when alternatives exist for the selected staff template */}
@@ -981,6 +1025,7 @@ export default function DailyTripAssignmentForm() {
                   onChange={(e) => {
                     const values = Array.isArray(e.value) ? e.value.map(String) : [];
                     setFormData((prev) => ({ ...prev, ward_ids: values }));
+                    setFieldErrors((prev) => ({ ...prev, ward_ids: "" }));
                   }}
                   options={resolvedWards}
                   optionLabel="label"
@@ -990,6 +1035,7 @@ export default function DailyTripAssignmentForm() {
                   className="w-full"
                   disabled={fetching || !projectId}
                 />
+                <FieldError message={fieldErrors.ward_ids} />
               </div>
             )}
 
@@ -1045,6 +1091,20 @@ export default function DailyTripAssignmentForm() {
                   options={STATUS_OPTIONS}
                   placeholder="Select status"
                 />
+              </div>
+            )}
+
+            {isEdit && (
+              <div>
+                <Label>Actual Start Time</Label>
+                <Input value={actualStartTime || "—"} disabled className="bg-gray-50" />
+              </div>
+            )}
+
+            {isEdit && (
+              <div>
+                <Label>Actual End Time</Label>
+                <Input value={actualEndTime || "—"} disabled className="bg-gray-50" />
               </div>
             )}
 

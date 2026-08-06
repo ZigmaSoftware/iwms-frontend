@@ -16,6 +16,10 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { staffCreationApi, staffTemplateApi, companyApi, projectApi } from "@/helpers/admin";
 
 import { useFormCompanyProjectSync } from "@/hooks/useFormCompanyProjectSync";
+import { staffTemplateSchema } from "@/schemas/core_modules/scheduleSetup/staffTemplate.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 /* ================= TYPES ================= */
 
@@ -78,6 +82,7 @@ export default function StaffTemplateForm() {
   const [submitting, setSubmitting] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   // Pending prefill: values from the fetched template, applied once their option lists are ready
   const [pendingDriverId, setPendingDriverId] = useState<string | null>(null);
@@ -560,6 +565,20 @@ export default function StaffTemplateForm() {
     e.preventDefault();
     setFormError(null);
 
+    const fieldValues = {
+      driver_id: formData.driver_id,
+      operator_id: formData.operator_id,
+      extra_operator_id: formData.extra_operator_id,
+      status: formData.status,
+    };
+    const schema = requireWhenVisible(staffTemplateSchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      return;
+    }
+    setFieldErrors({});
+
     if (
       showField("driver_id") &&
       showField("operator_id") &&
@@ -686,14 +705,16 @@ export default function StaffTemplateForm() {
                 <Label>{t("admin.staff_template.primary_driver")}</Label>
                 <Select
                   value={formData.driver_id}
-                  onChange={(v) =>
-                    setFormData((p) => ({ ...p, driver_id: v }))
-                  }
+                  onChange={(v) => {
+                    setFormData((p) => ({ ...p, driver_id: v }));
+                    setFieldErrors((prev) => ({ ...prev, driver_id: "" }));
+                  }}
                   options={driverOptionsWithCurrent}
                   placeholder={t("common.select_option")}
                   required
                   disabled={fetching}
                 />
+                <FieldError message={fieldErrors.driver_id} />
               </div>
             )}
 
@@ -703,14 +724,16 @@ export default function StaffTemplateForm() {
                 <Label>{t("admin.staff_template.primary_operator")}</Label>
                 <Select
                   value={formData.operator_id}
-                  onChange={(v) =>
-                    setFormData((p) => ({ ...p, operator_id: v }))
-                  }
+                  onChange={(v) => {
+                    setFormData((p) => ({ ...p, operator_id: v }));
+                    setFieldErrors((prev) => ({ ...prev, operator_id: "" }));
+                  }}
                   options={operatorOptionsWithCurrent}
                   placeholder={t("common.select_option")}
                   required
                   disabled={fetching}
                 />
+                <FieldError message={fieldErrors.operator_id} />
               </div>
             )}
 
@@ -765,14 +788,16 @@ export default function StaffTemplateForm() {
                 <Label>{t("common.status")}</Label>
                 <Select
                   value={formData.status}
-                  onChange={(v) =>
-                    setFormData((p) => ({ ...p, status: v as any }))
-                  }
+                  onChange={(v) => {
+                    setFormData((p) => ({ ...p, status: v as any }));
+                    setFieldErrors((prev) => ({ ...prev, status: "" }));
+                  }}
                   options={statusOptions}
                   placeholder={t("common.select_status")}
                   required
                   disabled={fetching}
                 />
+                <FieldError message={fieldErrors.status} />
               </div>
             )}
           </div>

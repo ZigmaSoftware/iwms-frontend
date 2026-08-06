@@ -9,6 +9,9 @@ import { Input } from "@/components/ui/input";
 import Select from "@/components/form/Select";
 import { departmentApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { departmentSchema } from "@/schemas/masters/department.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const { encMasters, encDepartments } = getEncryptedRoute();
 const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encDepartments);
@@ -19,6 +22,7 @@ export default function DepartmentForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [form, setForm] = useState({
     department_name: "",
     department_code: "",
@@ -40,10 +44,13 @@ export default function DepartmentForm() {
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!form.department_name.trim() || !form.department_code.trim()) {
+    const validation = parseWithSchema(departmentSchema, form);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.error"), "Department name and code are required", "error");
       return;
     }
+    setFieldErrors({});
 
     setSaving(true);
     try {
@@ -80,18 +87,26 @@ export default function DepartmentForm() {
           <Input
             id="department_name"
             value={form.department_name}
-            onChange={(e) => setForm((prev) => ({ ...prev, department_name: e.target.value }))}
+            onChange={(e) => {
+              setForm((prev) => ({ ...prev, department_name: e.target.value }));
+              setFieldErrors((prev) => ({ ...prev, department_name: "" }));
+            }}
             required
           />
+          <FieldError message={fieldErrors.department_name} />
         </div>
         <div>
           <Label htmlFor="department_code">Department Code</Label>
           <Input
             id="department_code"
             value={form.department_code}
-            onChange={(e) => setForm((prev) => ({ ...prev, department_code: e.target.value }))}
+            onChange={(e) => {
+              setForm((prev) => ({ ...prev, department_code: e.target.value }));
+              setFieldErrors((prev) => ({ ...prev, department_code: "" }));
+            }}
             required
           />
+          <FieldError message={fieldErrors.department_code} />
         </div>
         <div>
           <Label htmlFor="status">Status</Label>

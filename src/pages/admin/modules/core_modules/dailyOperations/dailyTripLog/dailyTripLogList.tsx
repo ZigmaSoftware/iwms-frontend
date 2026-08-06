@@ -1,6 +1,6 @@
 import type { DailyTripLogRecord } from "./types";
 import { formatCollectionTime } from "./collectionTime";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -248,6 +248,7 @@ function TripLogModal({
           icon="pi pi-check"
           className="p-button-success"
           loading={isLoading}
+          disabled={!row.actual_end_time}
           onClick={() => onConfirm(remarks)}
         />
       )}
@@ -327,10 +328,10 @@ function TripLogModal({
               </div>
             )}
             {row.actual_start_time && (
-              <InfoRow label="Start Time" value={formatCollectionTime(row.actual_start_time)} />
+              <InfoRow label="Start Time" value={formatTimeOnly(row.actual_start_time)} />
             )}
             {row.actual_end_time && (
-              <InfoRow label="End Time" value={formatCollectionTime(row.actual_end_time)} />
+              <InfoRow label="End Time" value={formatTimeOnly(row.actual_end_time)} />
             )}
             {mode === "submit" && !canSubmit && (
               <p className="text-xs text-red-500 font-medium mt-1">
@@ -625,6 +626,7 @@ export default function DailyTripLogList() {
   const [isExporting, setIsExporting] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const requestIdRef = useRef(0);
 
   /* ── waste type options for the filter multiselect ── */
   useEffect(() => {
@@ -662,11 +664,13 @@ export default function DailyTripLogList() {
   /* ── load logs (re-runs whenever pagination/sort/search/company/project/date/waste-type filters change) ── */
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) {
+      requestIdRef.current += 1;
       setRawRows([]);
       setTotalRecords(0);
       return;
     }
     if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
       setRawRows([]);
       setTotalRecords(0);
       return;
@@ -675,6 +679,7 @@ export default function DailyTripLogList() {
     let mounted = true;
 
     const loadRows = async (page: number, limit: number) => {
+      const requestId = ++requestIdRef.current;
       setIsLoading(true);
       if (mounted) setRawRows([]);
       try {
@@ -685,6 +690,7 @@ export default function DailyTripLogList() {
             ...(ordering ? { ordering } : {}),
           },
         });
+        if (requestId !== requestIdRef.current) return;
         if (mounted) {
           const list = toRecordList(response);
           setRawRows(list);
@@ -695,10 +701,11 @@ export default function DailyTripLogList() {
           );
         }
       } catch (err: any) {
+        if (requestId !== requestIdRef.current) return;
         if (mounted)
           Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
       } finally {
-        if (mounted) setIsLoading(false);
+        if (requestId === requestIdRef.current && mounted) setIsLoading(false);
       }
     };
 
@@ -910,6 +917,7 @@ export default function DailyTripLogList() {
     const isSubmitted = row.log_status === "Submitted";
     const totalWeight = computeTotalWeight(row);
     const canSubmit = isDraft && totalWeight > 0;
+    const canVerify = !isVerified && Boolean(row.actual_end_time);
 
     return (
       <div className="flex items-center gap-1.5">
@@ -940,15 +948,22 @@ export default function DailyTripLogList() {
           </button>
         )}
 
-        {/* Verify — Submitted/Draft only, disabled once already Verified (read-only) */}
+        {/* Verify — requires the trip to have actually ended (actual_end_time
+            set), disabled once already Verified (read-only) */}
         <button
-          title={isVerified ? "Already verified" : "Verify this log"}
-          disabled={isVerified}
+          title={
+            isVerified
+              ? "Already verified"
+              : canVerify
+                ? "Verify this log"
+                : "Trip must have an actual end time before it can be verified"
+          }
+          disabled={!canVerify}
           onClick={() => setModalState({ row, mode: "verify" })}
           className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-            isVerified
-              ? "bg-green-50 text-green-400 cursor-not-allowed opacity-60"
-              : "bg-green-100 text-green-700 hover:bg-green-200"
+            canVerify
+              ? "bg-green-100 text-green-700 hover:bg-green-200"
+              : "bg-green-50 text-green-400 cursor-not-allowed opacity-60"
           }`}
         >
           <i className="pi pi-check-circle text-xs" />
@@ -1361,7 +1376,7 @@ export default function DailyTripLogList() {
           header="Start Time"
           style={{ minWidth: 110 }}
           body={(row: DailyTripLogRecord) => (
-            <span className="text-sm text-gray-700">{formatCollectionTime(row.actual_start_time)}</span>
+            <span className="text-sm text-gray-700">{formatTimeOnly(row.actual_start_time)}</span>
           )}
         />
         <Column
@@ -1369,7 +1384,7 @@ export default function DailyTripLogList() {
           header="End Time"
           style={{ minWidth: 110 }}
           body={(row: DailyTripLogRecord) => (
-            <span className="text-sm text-gray-700">{formatCollectionTime(row.actual_end_time)}</span>
+            <span className="text-sm text-gray-700">{formatTimeOnly(row.actual_end_time)}</span>
           )}
         />
         <Column

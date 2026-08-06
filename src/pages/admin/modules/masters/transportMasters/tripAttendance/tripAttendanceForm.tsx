@@ -17,6 +17,9 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { api } from "@/api";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { tripAttendanceSchema } from "@/schemas/masters/transportMasters/tripAttendance.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const sourceOptions: SelectOption[] = [
@@ -79,6 +82,7 @@ export default function TripAttendanceForm() {
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [dailyTripAssignmentRecords, setDailyTripAssignmentRecords] = useState<DailyTripAssignmentRecord[]>([]);
   const [vehicles, setVehicles] = useState<SelectOption[]>([]);
@@ -313,19 +317,14 @@ export default function TripAttendanceForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (
-      (!isEdit && (
-        (showField("daily_trip_assignment_id") && !formData.daily_trip_assignment_id) ||
-        (showField("staff_id") && !formData.staff_id) ||
-        (showField("vehicle_id") && !formData.vehicle_id)
-      )) ||
-      (showField("latitude") && formData.latitude === "") ||
-      (showField("longitude") && formData.longitude === "") ||
-      (showField("source") && !formData.source)
-    ) {
+    const schema = tripAttendanceSchema(isEdit, showField);
+    const validation = parseWithSchema(schema, formData);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
+    setFieldErrors({});
 
     const latitude = showField("latitude") ? Number(formData.latitude) : null;
     const longitude = showField("longitude") ? Number(formData.longitude) : null;
@@ -419,14 +418,16 @@ export default function TripAttendanceForm() {
               <Label>{t("admin.trip_attendance.daily_trip_assignment")}</Label>
               <Select
                 value={formData.daily_trip_assignment_id}
-                onChange={(value) =>
-                  setFormData((prev) => ({ ...prev, daily_trip_assignment_id: value }))
-                }
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, daily_trip_assignment_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, daily_trip_assignment_id: "" }));
+                }}
                 options={tripOptions}
                 placeholder={t("common.select_option")}
                 disabled={fetching || isEdit}
                 required
               />
+              <FieldError message={fieldErrors.daily_trip_assignment_id} />
             </div>
             )}
 
@@ -435,12 +436,16 @@ export default function TripAttendanceForm() {
               <Label>{t("admin.trip_attendance.staff")}</Label>
               <Select
                 value={formData.staff_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, staff_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, staff_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, staff_id: "" }));
+                }}
                 options={staffOptions}
                 placeholder={t("common.select_option")}
                 disabled={fetching || isEdit}
                 required
               />
+              <FieldError message={fieldErrors.staff_id} />
             </div>
             )}
 
@@ -449,12 +454,16 @@ export default function TripAttendanceForm() {
               <Label>{t("admin.trip_attendance.vehicle")}</Label>
               <Select
                 value={formData.vehicle_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, vehicle_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, vehicle_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, vehicle_id: "" }));
+                }}
                 options={vehicles}
                 placeholder={t("common.select_option")}
                 disabled={fetching || isVehicleLocked}
                 required
               />
+              <FieldError message={fieldErrors.vehicle_id} />
             </div>
             )}
 
@@ -476,9 +485,13 @@ export default function TripAttendanceForm() {
               <Input
                 type="number"
                 value={formData.latitude}
-                onChange={(e) => setFormData((prev) => ({ ...prev, latitude: e.target.value }))}
+                onChange={(e) => {
+                  setFormData((prev) => ({ ...prev, latitude: e.target.value }));
+                  setFieldErrors((prev) => ({ ...prev, latitude: "" }));
+                }}
                 placeholder={t("admin.trip_attendance.latitude")}
               />
+              <FieldError message={fieldErrors.latitude} />
             </div>
             )}
 
@@ -488,22 +501,31 @@ export default function TripAttendanceForm() {
               <Input
                 type="number"
                 value={formData.longitude}
-                onChange={(e) => setFormData((prev) => ({ ...prev, longitude: e.target.value }))}
+                onChange={(e) => {
+                  setFormData((prev) => ({ ...prev, longitude: e.target.value }));
+                  setFieldErrors((prev) => ({ ...prev, longitude: "" }));
+                }}
                 placeholder={t("admin.trip_attendance.longitude")}
               />
+              <FieldError message={fieldErrors.longitude} />
             </div>
             )}
 
             {(showField("latitude") || showField("longitude")) && (
             <div className="md:col-span-2">
               <AutoDetectLocationButton
-                onDetected={({ latitude, longitude }) =>
+                onDetected={({ latitude, longitude }) => {
                   setFormData((prev) => ({
                     ...prev,
                     ...(showField("latitude") ? { latitude: String(latitude) } : {}),
                     ...(showField("longitude") ? { longitude: String(longitude) } : {}),
-                  }))
-                }
+                  }));
+                  setFieldErrors((prev) => ({
+                    ...prev,
+                    ...(showField("latitude") ? { latitude: "" } : {}),
+                    ...(showField("longitude") ? { longitude: "" } : {}),
+                  }));
+                }}
                 label={t("admin.trip_attendance.auto_detect_location", {
                   defaultValue: "Auto-detect current location",
                 })}
@@ -516,7 +538,10 @@ export default function TripAttendanceForm() {
               <Label>{t("admin.trip_attendance.source")}</Label>
               <Select
                 value={formData.source}
-                onChange={(value) => setFormData((prev) => ({ ...prev, source: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, source: value }));
+                  setFieldErrors((prev) => ({ ...prev, source: "" }));
+                }}
                 options={sourceOptions.map((option) => ({
                   value: option.value,
                   label:
@@ -528,6 +553,7 @@ export default function TripAttendanceForm() {
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.source} />
             </div>
             )}
 

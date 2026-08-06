@@ -22,7 +22,12 @@ import { useTranslation } from "react-i18next";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 import { continentApi, countryApi, stateApi, districtApi, cityApi, zoneApi, panchayatApi, wardApi } from "@/helpers/admin";
+import { wardSchema } from "@/schemas/masters/ward.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const WARD_FORM_FIELDS: Record<string, string[]> = {
   continent_id:  ["continent_id"],
@@ -104,7 +109,7 @@ const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encWards);
 ========================================================== */
 export default function WardForm() {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } = useFieldVisibility(
+  const { showField, filterPayload } = useFieldVisibility(
     "masters",
     "wards",
     WARD_FORM_FIELDS,
@@ -120,6 +125,7 @@ export default function WardForm() {
   const [panchayatId, setPanchayatId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [description, setDescription] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   /* PENDING CHAINS (Edit Support) */
   const [pendingContinent, setPendingContinent] = useState("");
@@ -166,6 +172,7 @@ export default function WardForm() {
     onCompanyChange,
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit });
+  const { showZone, showPanchayat } = useZonePanchayatVisibility();
 
   const extractErr = (e: any): string => {
     if (e?.response?.data) return String(e.response.data);
@@ -193,20 +200,37 @@ export default function WardForm() {
   }, [id, isEdit, t]);
 
   /* ==========================================================
-      LOAD MASTER DATA (all in one Promise.all to avoid race conditions)
+      LOAD MASTER DATA
+      Promise.allSettled — not all() — because a staff without Zone (or
+      Panchayat) access 403s that one call at the module-permission
+      middleware; that must not blank out every other dropdown. Zone/
+      Panchayat are additionally skipped entirely up front when the
+      login-scoped data shows the staff has no access to that resource,
+      avoiding the doomed request altogether.
   ========================================================== */
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
+    Promise.allSettled([
       continentApi.readAll(),
       countryApi.readAll(),
       stateApi.readAll(),
       districtApi.readAll(),
       cityApi.readAll(),
-      zoneApi.readAll(),
-      panchayatApi.readAll(),
-    ]).then(([continentRes, countryRes, stateRes, districtRes, cityRes, zoneRes, panchayatRes]) => {
+      showZone ? zoneApi.readAll() : Promise.resolve([]),
+      showPanchayat ? panchayatApi.readAll() : Promise.resolve([]),
+    ]).then(([continentR, countryR, stateR, districtR, cityR, zoneR, panchayatR]) => {
       if (cancelled) return;
+
+      const settled = <T,>(result: PromiseSettledResult<T>): T[] =>
+        result.status === "fulfilled" && Array.isArray(result.value) ? result.value : [];
+
+      const continentRes = settled(continentR);
+      const countryRes = settled(countryR);
+      const stateRes = settled(stateR);
+      const districtRes = settled(districtR);
+      const cityRes = settled(cityR);
+      const zoneRes = settled(zoneR);
+      const panchayatRes = settled(panchayatR);
 
       const contData = (continentRes as any[]) ?? [];
       setContinents(
@@ -288,9 +312,9 @@ export default function WardForm() {
         stateName: p.state_name ?? null,
         isActive: Boolean(p.is_active),
       })));
-    }).catch(() => {});
+    });
     return () => { cancelled = true; };
-  }, []);
+  }, [showZone, showPanchayat]);
 
   useEffect(() => {
     if (isEdit) return;
@@ -785,21 +809,26 @@ export default function WardForm() {
     const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    const fieldValues: Record<string, unknown> = {
+    const fieldValues = {
       continent_id: continentId,
       country_id: effectiveCountryId,
       state_id: effectiveStateId,
+      district_id: effectiveDistrictId,
+      city_id: effectiveCityId,
+      zone_id: effectiveZoneId,
+      panchayat_id: effectivePanchayatId,
       ward_name: wardName.trim(),
+      description,
+      is_active: isActive,
     };
-    const missingFields = getMissingRequiredFields(
-      ["continent_id", "country_id", "state_id", "ward_name"],
-      (fieldKey) => fieldValues[fieldKey],
-    );
-
-    if (missingFields.length > 0) {
+    const schema = requireWhenVisible(wardSchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.warning"), t("common.all_fields_required"), "warning");
       return;
     }
+    setFieldErrors({});
 
     if (effectiveZoneId && effectivePanchayatId) {
       Swal.fire(t("common.warning"), "Ward can belong to either Zone or Panchayat.", "warning");
@@ -943,7 +972,7 @@ export default function WardForm() {
           {showField("continent_id") && (
           <div>
             <Label>{t("admin.nav.continent")} *</Label>
-            <Select value={continentId} onValueChange={(val) => { setContinentId(val); setCountryId(""); setStateId(""); setDistrictId(""); setCityId(""); setZoneId(""); setPendingCountry(""); setPendingState(""); setPendingDistrict(""); setPendingCity(""); setPendingZone(""); }}>
+            <Select value={continentId} onValueChange={(val) => { setContinentId(val); setCountryId(""); setStateId(""); setDistrictId(""); setCityId(""); setZoneId(""); setPendingCountry(""); setPendingState(""); setPendingDistrict(""); setPendingCity(""); setPendingZone(""); setFieldErrors((prev) => ({ ...prev, continent_id: "" })); }}>
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.continent") })} />
               </SelectTrigger>
@@ -951,6 +980,7 @@ export default function WardForm() {
                 {continents.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.continent_id} />
           </div>
           )}
 
@@ -958,7 +988,7 @@ export default function WardForm() {
           {showField("country_id") && (
           <div>
             <Label>{t("admin.nav.country")} *</Label>
-            <Select value={effectiveCountryId} onValueChange={(val) => { setCountryId(val); setStateId(""); setDistrictId(""); setCityId(""); setZoneId(""); setPendingState(""); setPendingDistrict(""); setPendingCity(""); setPendingZone(""); }}>
+            <Select value={effectiveCountryId} onValueChange={(val) => { setCountryId(val); setStateId(""); setDistrictId(""); setCityId(""); setZoneId(""); setPendingState(""); setPendingDistrict(""); setPendingCity(""); setPendingZone(""); setFieldErrors((prev) => ({ ...prev, country_id: "" })); }}>
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.country") })} />
               </SelectTrigger>
@@ -966,6 +996,7 @@ export default function WardForm() {
                 {countryOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.country_id} />
           </div>
           )}
 
@@ -981,6 +1012,7 @@ export default function WardForm() {
                 setCountryId(selectedState.countryId ?? "");
                 setContinentId(selectedState.continentId ?? "");
               }
+              setFieldErrors((prev) => ({ ...prev, state_id: "" }));
             }}>
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.state") })} />
@@ -989,6 +1021,7 @@ export default function WardForm() {
                 {stateOptions.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.state_id} />
           </div>
           )}
 
@@ -1022,8 +1055,8 @@ export default function WardForm() {
           </div>
           )}
 
-          {/* Zone — hidden when Panchayat is selected */}
-          {showField("zone_id") && !effectivePanchayatId && (
+          {/* Zone — hidden when the staff has no Zone access, or when Panchayat is selected */}
+          {showField("zone_id") && showZone && !effectivePanchayatId && (
           <div>
             <Label>{t("admin.nav.zone")}</Label>
             <Select
@@ -1044,8 +1077,8 @@ export default function WardForm() {
           </div>
           )}
 
-          {/* Panchayat — hidden when Zone is selected */}
-          {showField("panchayat_id") && !effectiveZoneId && (
+          {/* Panchayat — hidden when the staff has no Panchayat access, or when Zone is selected */}
+          {showField("panchayat_id") && showPanchayat && !effectiveZoneId && (
           <div>
             <Label>{t("admin.nav.panchayat")}</Label>
             <Select
@@ -1070,7 +1103,8 @@ export default function WardForm() {
           {showField("ward_name") && (
           <div>
             <Label>{t("common.item_name", { item: t("admin.nav.ward") })} *</Label>
-            <Input value={wardName} onChange={(e) => setWardName(e.target.value)} placeholder={t("common.enter_item_name", { item: t("admin.nav.ward") })} required />
+            <Input value={wardName} onChange={(e) => { setWardName(e.target.value); setFieldErrors((prev) => ({ ...prev, ward_name: "" })); }} placeholder={t("common.enter_item_name", { item: t("admin.nav.ward") })} required />
+            <FieldError message={fieldErrors.ward_name} />
           </div>
           )}
 

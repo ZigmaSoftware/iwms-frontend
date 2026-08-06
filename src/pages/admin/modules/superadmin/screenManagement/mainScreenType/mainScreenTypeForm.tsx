@@ -18,6 +18,9 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { adminApi } from "@/helpers/admin/registry";
+import { mainScreenTypeSchema } from "@/schemas/superadmin/screenManagement/mainScreenType.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 /* ------------------------------
     ROUTES
@@ -46,6 +49,7 @@ export default function MainScreenTypeForm() {
   const [recordData, setRecordData] = useState<any>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   /* ==========================================================
       EDIT MODE — LOAD RECORD
@@ -81,10 +85,16 @@ export default function MainScreenTypeForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!typeName.trim()) {
+    const validation = parseWithSchema(mainScreenTypeSchema, {
+      type_name: typeName.trim(),
+      is_active: isActive,
+    });
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
+    setFieldErrors({});
 
     setIsSubmitting(true);
     try {
@@ -141,13 +151,17 @@ export default function MainScreenTypeForm() {
             </Label>
             <Input
               value={typeName}
-              onChange={(e) => setTypeName(e.target.value)}
+              onChange={(e) => {
+                setTypeName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, type_name: "" }));
+              }}
               placeholder={t("common.enter_item_name", {
                 item: t("admin.nav.main_screen_type"),
               })}
               className="input-validate w-full"
               required
             />
+            <FieldError message={fieldErrors.type_name} />
           </div>
 
           {/* Status */}

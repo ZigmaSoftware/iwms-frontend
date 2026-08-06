@@ -13,6 +13,9 @@ import { dailyTripAssignmentApi, dailyTripCollectionPointApi, binApi, staffCreat
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCollectionPointLocationOptions } from "@/hooks/useCollectionPointLocationOptions";
+import { dailyTripCollectionPointSchema } from "@/schemas/core_modules/dailyOperations/dailyTripCollectionPoint.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const STATUS_OPTIONS: SelectOption[] = [
@@ -139,6 +142,7 @@ export default function DailyTripCollectionPointForm() {
   const [statusLongitude, setStatusLongitude] = useState("");
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [record, setRecord] = useState<DailyTripCollectionPointRecord | null>(null);
   // Pending IDs — flushed once their option list is ready (Radix re-sync pattern)
   const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
@@ -315,7 +319,19 @@ export default function DailyTripCollectionPointForm() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!companyUniqueId || !projectId || !tripAssignmentId || !collectionPointId || !binId) {
+    const validation = parseWithSchema(dailyTripCollectionPointSchema, {
+      tripAssignmentId,
+      collectionPointId,
+      binId,
+    });
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+      return;
+    }
+    setFieldErrors({});
+
+    if (!companyUniqueId || !projectId) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
@@ -396,11 +412,15 @@ export default function DailyTripCollectionPointForm() {
               <Label>Trip Assignment <span className="text-red-500">*</span></Label>
               <Select
                 value={tripAssignmentId}
-                onChange={setTripAssignmentId}
+                onChange={(value) => {
+                  setTripAssignmentId(value);
+                  setFieldErrors((prev) => ({ ...prev, tripAssignmentId: "" }));
+                }}
                 options={assignmentOptions}
                 placeholder="Select trip assignment"
                 disabled={fetching || !projectId}
               />
+              <FieldError message={fieldErrors.tripAssignmentId} />
             </div>
 
             <div>
@@ -425,22 +445,28 @@ export default function DailyTripCollectionPointForm() {
                 onChange={(value) => {
                   setCollectionPointId(value);
                   setBinId("");
+                  setFieldErrors((prev) => ({ ...prev, collectionPointId: "" }));
                 }}
                 options={collectionPointOptions}
                 placeholder="Select collection point"
                 disabled={fetching || locationOptions.loading || !projectId}
               />
+              <FieldError message={fieldErrors.collectionPointId} />
             </div>
 
             <div>
               <Label>Bin <span className="text-red-500">*</span></Label>
               <Select
                 value={binId}
-                onChange={setBinId}
+                onChange={(value) => {
+                  setBinId(value);
+                  setFieldErrors((prev) => ({ ...prev, binId: "" }));
+                }}
                 options={binOptions}
                 placeholder="Select bin"
                 disabled={fetching || !collectionPointId}
               />
+              <FieldError message={fieldErrors.binId} />
             </div>
 
             <div>

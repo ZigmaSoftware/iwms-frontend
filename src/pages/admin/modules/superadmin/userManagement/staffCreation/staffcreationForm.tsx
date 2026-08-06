@@ -1,4 +1,4 @@
-import type { ChangePasswordModalProps, ErrorWithResponse, LocationOption, Section } from "./types";
+import type { ChangePasswordModalProps, ErrorWithResponse, Section } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
@@ -15,6 +15,10 @@ import { staffCreationApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
+import { staffCreationSchema } from "@/schemas/superadmin/userManagement/staffCreation.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 // ─── Password helpers ────────────────────────────────────────────────────────
 const PASSWORD_EXPIRY_DAYS = 90;
@@ -140,10 +144,6 @@ function ChangePasswordModal({ targetType, targetId, onClose, onSuccess }: Chang
   );
 }
 import {
-  countryApi,
-  stateApi,
-  districtApi,
-  cityApi,
   staffUserTypeApi,
   contractorUserTypeApi,
   departmentApi,
@@ -173,7 +173,7 @@ const getSalaryTypeOptions = (t: (key: string) => string) => [
 
 const getYesNoOptions = (t: (key: string) => string) => [
   { value: "1", label: t("common.yes") },
-  { value: "0", label: t("common.no") },
+  { value: "0", label: t("common.no") },            
 ];
 
 const getMaritalStatusOptions = (t: (key: string) => string) => [
@@ -232,19 +232,6 @@ const normalizeListResponse = (res: unknown): ApiRecord[] => {
   return [];
 };
 
-const mapLocationOptions = (items: any[]): LocationOption[] =>
-  (items ?? [])
-    .filter((item) => item?.name && item.is_active !== false)
-    .map((item) => ({
-      value: item.name,
-      label: item.name,
-      uniqueId: normalizeId(item.unique_id ?? item.id),
-      countryId: normalizeId(item.country_id ?? item.country),
-      stateId: normalizeId(item.state_id ?? item.state),
-      districtId: normalizeId(item.district_id ?? item.district),
-    }));
-
-
 const formatErrorMessage = (t: (key: string) => string, error: unknown) => {
   if (!error) return t("common.review_fields");
   if (typeof error === "string") return error;
@@ -297,6 +284,7 @@ const initialFormData = {
   project_id: "",
   marital_status: "",
   dob: "",
+  age: "",
   blood_group: "",
   gender: "",
   physically_challenged: "",
@@ -347,6 +335,7 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   project_id: ["project_id", "project"],
   marital_status: ["marital_status"],
   dob: ["dob", "date_of_birth"],
+  age: ["age"],
   blood_group: ["blood_group"],
   gender: ["gender"],
   physically_challenged: ["physically_challenged"],
@@ -383,15 +372,12 @@ export default function StaffCreationForm() {
   const [photoPreview, setPhotoPreview] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [sameAddress, setSameAddress] = useState(false);
   const [passwordCrtDate, setPasswordCrtDate] = useState<string | null>(null);
   const [staffCreatedAt, setStaffCreatedAt] = useState<string | null>(null);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const [countryOptions, setCountryOptions] = useState<LocationOption[]>([]);
-  const [stateOptions, setStateOptions] = useState<LocationOption[]>([]);
-  const [districtOptions, setDistrictOptions] = useState<LocationOption[]>([]);
-  const [cityOptions, setCityOptions] = useState<LocationOption[]>([]);
   const [staffUserTypeOptions, setStaffUserTypeOptions] = useState<
     { value: string; label: string }[]
   >([]);
@@ -420,12 +406,6 @@ export default function StaffCreationForm() {
   const [pendingContractorUserTypeId, setPendingContractorUserTypeId] = useState<string | null>(null);
   const [pendingDepartmentId, setPendingDepartmentId] = useState<string | null>(null);
   const [pendingDesignationId, setPendingDesignationId] = useState<string | null>(null);
-  const [pendingPresentState, setPendingPresentState] = useState<string | null>(null);
-  const [pendingPresentDistrict, setPendingPresentDistrict] = useState<string | null>(null);
-  const [pendingPresentCity, setPendingPresentCity] = useState<string | null>(null);
-  const [pendingPermanentState, setPendingPermanentState] = useState<string | null>(null);
-  const [pendingPermanentDistrict, setPendingPermanentDistrict] = useState<string | null>(null);
-  const [pendingPermanentCity, setPendingPermanentCity] = useState<string | null>(null);
 
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -514,50 +494,6 @@ export default function StaffCreationForm() {
     !!formData.driving_licence_no ||
     !!selectedUserType?.label?.toLowerCase().includes("driver");
 
-  const presentDistrictOptions = useMemo(
-    () =>
-      districtOptions.filter(
-        (option) =>
-          !formData.present_state ||
-          !option.stateName ||
-          option.stateName === formData.present_state,
-      ),
-    [districtOptions, formData.present_state],
-  );
-
-  const presentCityOptions = useMemo(
-    () =>
-      cityOptions.filter(
-        (option) =>
-          !formData.present_district ||
-          !option.districtName ||
-          option.districtName === formData.present_district,
-      ),
-    [cityOptions, formData.present_district],
-  );
-
-  const permanentDistrictOptions = useMemo(
-    () =>
-      districtOptions.filter(
-        (option) =>
-          !formData.permanent_state ||
-          !option.stateName ||
-          option.stateName === formData.permanent_state,
-      ),
-    [districtOptions, formData.permanent_state],
-  );
-
-  const permanentCityOptions = useMemo(
-    () =>
-      cityOptions.filter(
-        (option) =>
-          !formData.permanent_district ||
-          !option.districtName ||
-          option.districtName === formData.permanent_district,
-      ),
-    [cityOptions, formData.permanent_district],
-  );
-
 
   const handleLicenceUpload = (file: File | null) => {
     if (!file) return;
@@ -630,67 +566,6 @@ export default function StaffCreationForm() {
     };
 
     loadUserTypeOptions();
-  }, []);
-
-  useEffect(() => {
-    const loadLocationOptions = async () => {
-      try {
-        const [
-          countries,
-          states,
-          districts,
-          cities,
-        ] =
-          await Promise.all([
-            countryApi.readAll(),
-            stateApi.readAll(),
-            districtApi.readAll(),
-            cityApi.readAll(),
-          ]);
-
-        const countryList = mapLocationOptions(countries);
-        const stateList = mapLocationOptions(states).map((state) => ({
-          ...state,
-          countryName: countryList.find(
-            (country) =>
-              country.uniqueId && country.uniqueId === state.countryId,
-          )?.value,
-        }));
-        const districtList = mapLocationOptions(districts).map((district) => ({
-          ...district,
-          countryName: countryList.find(
-            (country) =>
-              country.uniqueId && country.uniqueId === district.countryId,
-          )?.value,
-          stateName: stateList.find(
-            (state) => state.uniqueId && state.uniqueId === district.stateId,
-          )?.value,
-        }));
-        const cityList = mapLocationOptions(cities).map((city) => ({
-          ...city,
-          countryName: countryList.find(
-            (country) =>
-              country.uniqueId && country.uniqueId === city.countryId,
-          )?.value,
-          stateName: stateList.find(
-            (state) => state.uniqueId && state.uniqueId === city.stateId,
-          )?.value,
-          districtName: districtList.find(
-            (district) =>
-              district.uniqueId && district.uniqueId === city.districtId,
-          )?.value,
-        }));
-
-        setCountryOptions(countryList);
-        setStateOptions(stateList);
-        setDistrictOptions(districtList);
-        setCityOptions(cityList);
-      } catch (error) {
-        console.error("Failed to load location masters", error);
-      }
-    };
-
-    void loadLocationOptions();
   }, []);
 
   useEffect(() => {
@@ -812,6 +687,7 @@ export default function StaffCreationForm() {
             staff.personal_details?.marital_status ??
             "",
           dob: staff.dob ?? staff.personal_details?.dob ?? "",
+          age: String(staff.age ?? staff.personal_details?.age ?? ""),
           blood_group:
             staff.blood_group ?? staff.personal_details?.blood_group ?? "",
           gender: staff.gender ?? staff.personal_details?.gender ?? "",
@@ -864,12 +740,6 @@ export default function StaffCreationForm() {
         if (contractorTypeId) setPendingContractorUserTypeId(contractorTypeId);
         if (departmentId) setPendingDepartmentId(departmentId);
         if (designationId) setPendingDesignationId(designationId);
-        if (staff.present_address?.state) setPendingPresentState(staff.present_address.state);
-        if (staff.present_address?.district) setPendingPresentDistrict(staff.present_address.district);
-        if (staff.present_address?.city) setPendingPresentCity(staff.present_address.city);
-        if (staff.permanent_address?.state) setPendingPermanentState(staff.permanent_address.state);
-        if (staff.permanent_address?.district) setPendingPermanentDistrict(staff.permanent_address.district);
-        if (staff.permanent_address?.city) setPendingPermanentCity(staff.permanent_address.city);
 
         if (staff.driving_licence_file) {
           setLicencePreview(
@@ -1038,60 +908,6 @@ export default function StaffCreationForm() {
       setPendingDesignationId(null);
     }
   }, [pendingDesignationId, designationOptions]);
-
-  useEffect(() => {
-    if (!pendingPresentState || stateOptions.length === 0) return;
-    const match = stateOptions.find((o) => o.value === pendingPresentState);
-    if (match) {
-      setFormData((prev) => ({ ...prev, present_state: pendingPresentState }));
-      setPendingPresentState(null);
-    }
-  }, [pendingPresentState, stateOptions]);
-
-  useEffect(() => {
-    if (!pendingPresentDistrict || districtOptions.length === 0) return;
-    const match = districtOptions.find((o) => o.value === pendingPresentDistrict);
-    if (match) {
-      setFormData((prev) => ({ ...prev, present_district: pendingPresentDistrict }));
-      setPendingPresentDistrict(null);
-    }
-  }, [pendingPresentDistrict, districtOptions]);
-
-  useEffect(() => {
-    if (!pendingPresentCity || cityOptions.length === 0) return;
-    const match = cityOptions.find((o) => o.value === pendingPresentCity);
-    if (match) {
-      setFormData((prev) => ({ ...prev, present_city: pendingPresentCity }));
-      setPendingPresentCity(null);
-    }
-  }, [pendingPresentCity, cityOptions]);
-
-  useEffect(() => {
-    if (!pendingPermanentState || stateOptions.length === 0) return;
-    const match = stateOptions.find((o) => o.value === pendingPermanentState);
-    if (match) {
-      setFormData((prev) => ({ ...prev, permanent_state: pendingPermanentState }));
-      setPendingPermanentState(null);
-    }
-  }, [pendingPermanentState, stateOptions]);
-
-  useEffect(() => {
-    if (!pendingPermanentDistrict || districtOptions.length === 0) return;
-    const match = districtOptions.find((o) => o.value === pendingPermanentDistrict);
-    if (match) {
-      setFormData((prev) => ({ ...prev, permanent_district: pendingPermanentDistrict }));
-      setPendingPermanentDistrict(null);
-    }
-  }, [pendingPermanentDistrict, districtOptions]);
-
-  useEffect(() => {
-    if (!pendingPermanentCity || cityOptions.length === 0) return;
-    const match = cityOptions.find((o) => o.value === pendingPermanentCity);
-    if (match) {
-      setFormData((prev) => ({ ...prev, permanent_city: pendingPermanentCity }));
-      setPendingPermanentCity(null);
-    }
-  }, [pendingPermanentCity, cityOptions]);
   // ────────────────────────────────────────────────────────────────────────────
 
   const handleInputChange = (
@@ -1099,12 +915,14 @@ export default function StaffCreationForm() {
   ) => {
     const { id, value } = e.target;
     setFormData((prev) => ({ ...prev, [id]: value }));
+    setFieldErrors((prev) => ({ ...prev, [id]: "" }));
   };
 
   const handleSelectChange = (
     field: keyof typeof initialFormData,
     value: string,
   ) => {
+    setFieldErrors((prev) => ({ ...prev, [field]: "" }));
     if (field === "company_id") {
       hookOnCompanyChange(value);
       hookSetProjectId("");
@@ -1115,30 +933,6 @@ export default function StaffCreationForm() {
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
 
-      if (field === "present_country") {
-        next.present_state = "";
-        next.present_district = "";
-        next.present_city = "";
-      }
-      if (field === "present_state") {
-        next.present_district = "";
-        next.present_city = "";
-      }
-      if (field === "present_district") {
-        next.present_city = "";
-      }
-      if (field === "permanent_country") {
-        next.permanent_state = "";
-        next.permanent_district = "";
-        next.permanent_city = "";
-      }
-      if (field === "permanent_state") {
-        next.permanent_district = "";
-        next.permanent_city = "";
-      }
-      if (field === "permanent_district") {
-        next.permanent_city = "";
-      }
       if (field === "department_id") {
         const department = departmentOptionsWithCurrent.find((item) => item.value === value);
         next.department = department?.name ?? "";
@@ -1162,20 +956,6 @@ export default function StaffCreationForm() {
 
       return next;
     });
-  };
-
-  const calculateAge = (dobValue: string) => {
-    const birthDate = new Date(dobValue);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    const dayDiff = today.getDate() - birthDate.getDate();
-
-    if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
-      age -= 1;
-    }
-
-    return age >= 0 ? age : 0;
   };
 
   const buildAddressPayload = (prefix: "present" | "permanent") => {
@@ -1230,6 +1010,14 @@ export default function StaffCreationForm() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
+    const schema = requireWhenVisible(staffCreationSchema, showField);
+    const validation = parseWithSchema(schema, formData);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      return;
+    }
+    setFieldErrors({});
+
     if (!companyUniqueId) {
       Swal.fire(
         "Error",
@@ -1251,16 +1039,6 @@ export default function StaffCreationForm() {
         title: t("admin.staff_creation.invalid_photo_title"),
         text: t("admin.staff_creation.invalid_photo_desc"),
       });
-      return;
-    }
-
-    if (showField("department_id") && !formData.department_id) {
-      Swal.fire("Error", "Department is required", "error");
-      return;
-    }
-
-    if (showField("designation_id") && !formData.designation_id) {
-      Swal.fire("Error", "Designation is required", "error");
       return;
     }
 
@@ -1312,6 +1090,7 @@ export default function StaffCreationForm() {
         // Personal
         marital_status: formData.marital_status,
         dob: formData.dob || null,
+        age: formData.age === "" ? null : Number(formData.age),
         blood_group: formData.blood_group,
         gender: formData.gender,
         physically_challenged: formData.physically_challenged,
@@ -1461,6 +1240,7 @@ export default function StaffCreationForm() {
             onChange={handleInputChange}
             required
           />
+          <FieldError message={fieldErrors.employee_name} />
         </div>
       )}
       {/* <div>
@@ -1497,6 +1277,7 @@ export default function StaffCreationForm() {
               item: t("admin.staff_creation.department_name"),
             })}
           />
+          <FieldError message={fieldErrors.department_id} />
         </div>
       )}
       {showField("designation_id") && (
@@ -1516,6 +1297,7 @@ export default function StaffCreationForm() {
                 : "Select a department first"
             }
           />
+          <FieldError message={fieldErrors.designation_id} />
         </div>
       )}
       {showField("staffusertype_id") && (
@@ -1998,9 +1780,15 @@ export default function StaffCreationForm() {
             <Label htmlFor="age">{t("admin.staff_creation.age")}</Label>
             <Input
               id="age"
-              value={formData.dob ? calculateAge(formData.dob) : ""}
-              placeholder={t("admin.staff_creation.age_auto")}
+              type="number"
+              min="18"
+              max="120"
+              inputMode="numeric"
+              value={formData.age}
+              onChange={handleInputChange}
+              placeholder={t("admin.staff_creation.age_placeholder")}
             />
+            <FieldError message={fieldErrors.age} />
           </div>
         )}
         {showField("blood_group") && (
@@ -2064,32 +1852,20 @@ export default function StaffCreationForm() {
               {showField("present_country") && (
                 <div>
                   <Label htmlFor="present_country">{t("common.country")}</Label>
-                  <Select
+                  <Input
                     id="present_country"
                     value={formData.present_country}
-                    onChange={(value) =>
-                      handleSelectChange("present_country", value)
-                    }
-                    options={countryOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.country"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
               {showField("present_state") && (
                 <div>
                   <Label htmlFor="present_state">{t("common.state")}</Label>
-                  <Select
+                  <Input
                     id="present_state"
                     value={formData.present_state}
-                    onChange={(value) =>
-                      handleSelectChange("present_state", value)
-                    }
-                    options={stateOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.state"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
@@ -2098,32 +1874,20 @@ export default function StaffCreationForm() {
                   <Label htmlFor="present_district">
                     {t("common.district")}
                   </Label>
-                  <Select
+                  <Input
                     id="present_district"
                     value={formData.present_district}
-                    onChange={(value) =>
-                      handleSelectChange("present_district", value)
-                    }
-                    options={presentDistrictOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.district"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
               {showField("present_city") && (
                 <div>
                   <Label htmlFor="present_city">{t("common.city")}</Label>
-                  <Select
+                  <Input
                     id="present_city"
                     value={formData.present_city}
-                    onChange={(value) =>
-                      handleSelectChange("present_city", value)
-                    }
-                    options={presentCityOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.city"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
@@ -2171,6 +1935,7 @@ export default function StaffCreationForm() {
                     value={formData.present_pincode}
                     onChange={handleInputChange}
                   />
+                  <FieldError message={fieldErrors.present_pincode} />
                 </div>
               )}
             </div>
@@ -2206,32 +1971,20 @@ export default function StaffCreationForm() {
                   <Label htmlFor="permanent_country">
                     {t("common.country")}
                   </Label>
-                  <Select
+                  <Input
                     id="permanent_country"
                     value={formData.permanent_country}
-                    onChange={(value) =>
-                      handleSelectChange("permanent_country", value)
-                    }
-                    options={countryOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.country"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
               {showField("permanent_state") && (
                 <div>
                   <Label htmlFor="permanent_state">{t("common.state")}</Label>
-                  <Select
+                  <Input
                     id="permanent_state"
                     value={formData.permanent_state}
-                    onChange={(value) =>
-                      handleSelectChange("permanent_state", value)
-                    }
-                    options={stateOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.state"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
@@ -2240,32 +1993,20 @@ export default function StaffCreationForm() {
                   <Label htmlFor="permanent_district">
                     {t("common.district")}
                   </Label>
-                  <Select
+                  <Input
                     id="permanent_district"
                     value={formData.permanent_district}
-                    onChange={(value) =>
-                      handleSelectChange("permanent_district", value)
-                    }
-                    options={permanentDistrictOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.district"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
               {showField("permanent_city") && (
                 <div>
                   <Label htmlFor="permanent_city">{t("common.city")}</Label>
-                  <Select
+                  <Input
                     id="permanent_city"
                     value={formData.permanent_city}
-                    onChange={(value) =>
-                      handleSelectChange("permanent_city", value)
-                    }
-                    options={permanentCityOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.city"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
@@ -2315,6 +2056,7 @@ export default function StaffCreationForm() {
                     value={formData.permanent_pincode}
                     onChange={handleInputChange}
                   />
+                  <FieldError message={fieldErrors.permanent_pincode} />
                 </div>
               )}
             </div>
@@ -2338,6 +2080,7 @@ export default function StaffCreationForm() {
                   value={formData.contact_mobile}
                   onChange={handleInputChange}
                 />
+                <FieldError message={fieldErrors.contact_mobile} />
               </div>
             )}
             {showField("contact_email") && (
@@ -2351,6 +2094,7 @@ export default function StaffCreationForm() {
                   value={formData.contact_email}
                   onChange={handleInputChange}
                 />
+                <FieldError message={fieldErrors.contact_email} />
               </div>
             )}
             {/* <div>

@@ -1,6 +1,6 @@
 import type { Fuel } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -69,6 +69,7 @@ export default function FuelList() {
   const [statusValue, setStatusValue] = useState<StatusFilterValue>("all");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const requestIdRef = useRef(0);
 
   // ── Company / project selection ───────────────────────────────────────────
   const location = useLocation();
@@ -99,6 +100,7 @@ export default function FuelList() {
 
   // ── Load data ─────────────────────────────────────────────────────────────
   const loadRows = async (page: number, limit: number) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setRows([]);
     try {
@@ -110,6 +112,8 @@ export default function FuelList() {
       if (ordering) params.ordering = ordering;
 
       const response = await fuelApi.readAllwithPaginated(page, limit, { params });
+      if (requestId !== requestIdRef.current) return;
+
       const list = toRecordList(response);
       setRows(list);
       setTotalRecords(
@@ -118,19 +122,22 @@ export default function FuelList() {
           : list.length,
       );
     } catch (error: unknown) {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) {
+      requestIdRef.current += 1;
       setRows([]);
       setTotalRecords(0);
       return;
     }
     if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
       setRows([]);
       setTotalRecords(0);
       return;

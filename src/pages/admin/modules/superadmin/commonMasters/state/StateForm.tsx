@@ -20,8 +20,13 @@ import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useScopedContinents } from "@/hooks/useScopedLocationOptions";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { continentApi, countryApi, stateApi } from "@/helpers/admin";
+import { stateSchema } from "@/schemas/superadmin/commonMasters/state.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const { encMasters, encStates } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encStates);
@@ -52,7 +57,7 @@ const resolveId = (items: SelectOption[], id: string | null, name?: string | nul
 
 export default function StateForm() {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "states", STATE_FIELDS);
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -66,8 +71,9 @@ export default function StateForm() {
   const [continentId, setContinentId] = useState("");
   const [countryId, setCountryId] = useState("");
 
-  /* ── dropdown data ── */
-  const [continents, setContinents] = useState<SelectOption[]>([]);
+  /* ── dropdown data: continents scoped to the logged-in staff's assigned
+     states, same convention as company/project ── */
+  const { options: continents, singleValue: singleContinentId } = useScopedContinents(continentApi);
   const [allCountries, setAllCountries] = useState<CountryMeta[]>([]);
   const [filteredCountries, setFilteredCountries] = useState<SelectOption[]>([]);
 
@@ -79,24 +85,7 @@ export default function StateForm() {
 
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  /* ── load continents ── */
-  useEffect(() => {
-    let cancelled = false;
-    continentApi.readAll()
-      .then((res: any) => {
-        if (cancelled) return;
-        const data: any[] = Array.isArray(res) ? res : (res?.results ?? []);
-        setContinents(
-          data.filter((c) => c.is_active).map((c) => ({
-            value: String(c.unique_id),
-            label: String(c.name ?? ""),
-          }))
-        );
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   /* ── load countries ── */
   useEffect(() => {
@@ -171,6 +160,19 @@ export default function StateForm() {
     }
   }, [pendingCountryId, pendingCountryName, filteredCountries]);
 
+  /* ── create mode: prefill the only assigned continent, then (once the
+     cascade resolves) the only assigned country — same convention as a
+     single project auto-selecting itself ── */
+  useEffect(() => {
+    if (isEdit || !singleContinentId) return;
+    setContinentId((prev) => prev || singleContinentId);
+  }, [isEdit, singleContinentId]);
+
+  useEffect(() => {
+    if (isEdit || countryId || filteredCountries.length !== 1) return;
+    setCountryId(filteredCountries[0].value);
+  }, [isEdit, countryId, filteredCountries]);
+
   /* ── edit mode: fetch record ── */
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -218,17 +220,22 @@ export default function StateForm() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
-    const fieldValues: Record<string, unknown> = {
+    const fieldValues = {
       continent_id: continentId,
       country_id: countryId,
       name: name.trim(),
       label: label.trim(),
+      is_active: isActive,
     };
 
-    if (getMissingRequiredFields(["continent_id", "country_id", "name", "label"], (k) => fieldValues[k]).length > 0) {
+    const schema = requireWhenVisible(stateSchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire({ icon: "warning", title: t("common.warning"), text: t("common.missing_fields") });
       return;
     }
+    setFieldErrors({});
 
     setIsSubmitting(true);
     try {
@@ -271,7 +278,13 @@ export default function StateForm() {
             </Label>
             <Select
               value={continentId}
-              onValueChange={(val) => { setContinentId(val); setCountryId(""); setFilteredCountries([]); setPendingCountryId(""); }}
+              onValueChange={(val) => {
+                setContinentId(val);
+                setCountryId("");
+                setFilteredCountries([]);
+                setPendingCountryId("");
+                setFieldErrors((prev) => ({ ...prev, continent_id: "" }));
+              }}
             >
               <SelectTrigger id="continent">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.continent") })} />
@@ -280,6 +293,7 @@ export default function StateForm() {
                 {continents.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.continent_id} />
           </div>
         )}
 
@@ -290,7 +304,10 @@ export default function StateForm() {
             </Label>
             <Select
               value={countryId}
-              onValueChange={setCountryId}
+              onValueChange={(val) => {
+                setCountryId(val);
+                setFieldErrors((prev) => ({ ...prev, country_id: "" }));
+              }}
               disabled={!continentId || filteredCountries.length === 0}
             >
               <SelectTrigger id="country">
@@ -300,6 +317,7 @@ export default function StateForm() {
                 {filteredCountries.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.country_id} />
           </div>
         )}
 
@@ -311,9 +329,13 @@ export default function StateForm() {
             <Input
               id="stateName"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, name: "" }));
+              }}
               placeholder={t("common.enter_item_name", { item: t("admin.nav.state") })}
             />
+            <FieldError message={fieldErrors.name} />
           </div>
         )}
 
@@ -325,9 +347,13 @@ export default function StateForm() {
             <Input
               id="stateLabel"
               value={label}
-              onChange={(e) => setLabel(e.target.value)}
+              onChange={(e) => {
+                setLabel(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, label: "" }));
+              }}
               placeholder={t("common.enter_label")}
             />
+            <FieldError message={fieldErrors.label} />
           </div>
         )}
 

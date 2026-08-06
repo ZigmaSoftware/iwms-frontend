@@ -18,6 +18,7 @@ export type DailyReportRow = {
   total_trips: number;
   collection_points_covered: number;
   average_weight_per_trip?: number;
+  verification_status?: string;
 };
 
 export type LocationComparisonRow = {
@@ -54,5 +55,6 @@ export type DailyReportResponse = {
     collection_points_covered: number;
     waste_type_count?: number;
     local_body_count?: number;
+    verification_status?: string;
   };
 };

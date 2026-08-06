@@ -1,22 +1,20 @@
-import type { AlternativeStaffTemplate, TableFilters } from "./types";
+import type { AlternativeStaffTemplate } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { FilterBar } from "@/components/common/FilterBar";
-import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -65,23 +63,15 @@ export default function AlternativeStaffTemplateList() {
 
   const [records, setRecords] = useState<AlternativeStaffTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
-
-  const {
-    filters: datatableFilters,
-    setFilters: setDatatableFilters,
-    globalFilterValue,
-    onGlobalFilterChange,
-  } = useFilterBarFilters({
-    withStatusFilter: false,
-    initialFilters: {
-      effective_date: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      driver_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      operator_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      change_reason: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      approval_status: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    } as TableFilters,
-  });
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [globalSearchTerm, setGlobalSearchTerm] = useState("");
+  const requestIdRef = useRef(0);
 
   const { encScheduleMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -94,96 +84,109 @@ export default function AlternativeStaffTemplateList() {
       : "";
   const selectedContext = { companyUniqueId, projectId: selectedProjectId };
 
-  const normalizeId = (value: unknown): string =>
-    value === null || value === undefined ? "" : String(value).trim();
+  const ordering = sortField
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  /* ================= FETCH (server-side pagination) ================= */
+
+  const loadRows = async (
+    page: number,
+    limit: number,
+    search: string,
+    orderingParam?: string,
+  ) => {
+    const requestId = ++requestIdRef.current;
+    setLoading(true);
+    try {
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (selectedProjectId) params.project_id = selectedProjectId;
+      if (search) params.search = search;
+      if (orderingParam) params.ordering = orderingParam;
+
+      const response = await adminApi.alternativeStaffTemplate.readAllwithPaginated(page, limit, { params });
+      if (requestId !== requestIdRef.current) return;
+
+      const payload: any = response ?? [];
+      const rows: AlternativeStaffTemplate[] = Array.isArray(payload) ? payload : payload?.results ?? [];
+      setRecords(rows);
+      setTotalRecords(typeof payload?.count === "number" ? payload.count : rows.length);
+    } catch {
+      if (requestId !== requestIdRef.current) return;
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let mounted = true;
+    if (isSuperAdmin && companies.length === 0) {
+      requestIdRef.current += 1;
+      setRecords([]);
+      setTotalRecords(0);
+      setLoading(false);
+      return;
+    }
 
-    const fetchRecords = async () => {
-      if (isSuperAdmin && companies.length === 0) {
-        if (mounted) { setRecords([]); setLoading(false); }
-        return;
-      }
+    if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
+      setRecords([]);
+      setTotalRecords(0);
+      setLoading(false);
+      return;
+    }
 
-      if (!companyUniqueId && !isSuperAdmin) {
-        if (mounted) { setRecords([]); setLoading(false); }
-        return;
-      }
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, globalSearchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    companyUniqueId,
+    companies.length,
+    isSuperAdmin,
+    selectedProjectId,
+    first,
+    rowsPerPage,
+    globalSearchTerm,
+    ordering,
+    t,
+  ]);
 
-      if (mounted) setLoading(true);
-      try {
-        const params = {
-          company_id: companyUniqueId,
-          ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
-        };
-        const payload: any = await adminApi.alternativeStaffTemplate.readAll({ params });
-        if (!mounted) return;
-        const data =
-          Array.isArray(payload)
-            ? payload
-            : Array.isArray(payload?.data)
-            ? payload.data
-            : payload?.data?.results ?? [];
-        const rows = data as AlternativeStaffTemplate[];
-
-        const hasContextFields = rows.some((row) => {
-          const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-          const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-          return Boolean(rowCompanyId || rowProjectId);
-        });
-
-        if (!hasContextFields) {
-          setRecords(rows);
-          return;
-        }
-
-        const filtered = rows.filter((row) => {
-          const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-          const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-          const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-          const projectMatches = !selectedProjectId || rowProjectId === selectedProjectId;
-          return companyMatches && projectMatches;
-        });
-
-        setRecords(filtered);
-      } catch {
-        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    void fetchRecords();
-
-    return () => { mounted = false; };
-  }, [companyUniqueId, companies.length, isSuperAdmin, selectedProjectId, t]);
-
-  const onFilter = (e: DataTableFilterEvent) => {
-    setDatatableFilters(e.filters as TableFilters);
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
   };
 
-  const filteredExportRows = (): AlternativeStaffTemplate[] => {
-    const search = globalFilterValue.trim().toLowerCase();
-    if (!search) return records;
-    return records.filter((record) =>
-      [
-        record.display_code ?? record.unique_id,
-        record.staff_template_display_code ?? record.staff_template,
-        record.driver_name ?? record.driver,
-        record.operator_name ?? record.operator,
-        record.change_reason,
-        record.approval_status,
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(search))
-    );
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
   };
 
-  const handleDownloadExcel = () => {
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setGlobalSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onGlobalFilterChange = (value: string) => setGlobalFilterValue(value);
+
+  const fetchExportRows = async (): Promise<AlternativeStaffTemplate[]> => {
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
+    if (selectedProjectId) params.project_id = selectedProjectId;
+    if (globalSearchTerm) params.search = globalSearchTerm;
+
+    const response = await adminApi.alternativeStaffTemplate.readAllForExport({ params });
+    const payload: any = response ?? [];
+    return Array.isArray(payload) ? payload : payload?.results ?? [];
+  };
+
+  const handleDownloadExcel = async () => {
     setIsExportingExcel(true);
     try {
-      const rows = filteredExportRows();
+      const rows = await fetchExportRows();
       if (rows.length === 0) {
         Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
         return;
@@ -289,21 +292,17 @@ export default function AlternativeStaffTemplateList() {
     <div className="p-3">
       <DataTable
         value={records}
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
+        rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
-        filters={datatableFilters}
-        onFilter={onFilter}
-        globalFilterFields={[
-          ...(showCol("unique_id") ? ["unique_id", "display_code"] : []),
-          ...(showCol("staff_template") ? ["staff_template", "staff_template_display_code"] : []),
-          ...(showCol("driver_name") ? ["driver", "driver_name"] : []),
-          ...(showCol("operator_name") ? ["operator", "operator_name"] : []),
-          ...(showCol("change_reason") ? ["change_reason"] : []),
-          ...(showCol("approval_status") ? ["approval_status"] : []),
-          "company_name",
-          "project_name",
-        ]}
         header={header}
         stripedRows
         showGridlines
@@ -316,7 +315,6 @@ export default function AlternativeStaffTemplateList() {
           <Column
             header={t("admin.alternative_staff_template.columns.template_id")}
             body={(row: AlternativeStaffTemplate) => row.display_code ?? row.unique_id}
-            sortable
           />
         )}
 
@@ -343,8 +341,6 @@ export default function AlternativeStaffTemplateList() {
             field="driver_name"
             header={t("admin.alternative_staff_template.columns.driver")}
             body={(row: AlternativeStaffTemplate) => row.driver_name ?? row.driver}
-            filter
-            showFilterMatchModes={false}
           />
         )}
 
@@ -353,8 +349,6 @@ export default function AlternativeStaffTemplateList() {
             field="operator_name"
             header={t("admin.alternative_staff_template.columns.operator")}
             body={(row: AlternativeStaffTemplate) => row.operator_name ?? row.operator}
-            filter
-            showFilterMatchModes={false}
           />
         )}
 
@@ -376,8 +370,6 @@ export default function AlternativeStaffTemplateList() {
           <Column
             field="change_reason"
             header={t("admin.alternative_staff_template.columns.change_reason")}
-            filter
-            showFilterMatchModes={false}
           />
         )}
 
@@ -385,8 +377,6 @@ export default function AlternativeStaffTemplateList() {
           <Column
             field="approval_status"
             header={t("admin.alternative_staff_template.columns.approval_status")}
-            filter
-            showFilterMatchModes={false}
           />
         )}
 

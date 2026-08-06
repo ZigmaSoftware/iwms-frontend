@@ -18,6 +18,10 @@ import { adminApi } from "@/helpers/admin/registry";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { PropertyEditorProps, PropertyPayload } from "./types";
+import { propertySchema } from "@/schemas/masters/wasteMasters/property.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const { encMasters, encProperties } = getEncryptedRoute();
 
@@ -75,14 +79,34 @@ function PropertyEditor({
   setProjectId: (val: string) => void;
 }) {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "properties", PROPERTY_FIELDS);
   const [propertyName, setPropertyName] = useState(initialPayload.property_name ?? "");
   const [isActive, setIsActive] = useState(initialPayload.is_active);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = propertyName.trim();
+
+    const fieldValues: Record<string, unknown> = {
+      property_name: trimmedName,
+      is_active: isActive,
+    };
+
+    const schema = requireWhenVisible(propertySchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire({
+        icon: "warning",
+        title: t("common.warning"),
+        text: t("common.missing_fields"),
+        confirmButtonColor: "#3085d6",
+      });
+      return;
+    }
+    setFieldErrors({});
 
     if (!companyUniqueId) {
       Swal.fire(
@@ -97,24 +121,6 @@ function PropertyEditor({
 
     if (!projectId) {
       Swal.fire("Error", "Project is required", "error");
-      return;
-    }
-
-    const fieldValues: Record<string, unknown> = {
-      property_name: trimmedName,
-      is_active: isActive,
-    };
-
-    if (
-      getMissingRequiredFields(["property_name"], (fieldKey) => fieldValues[fieldKey])
-        .length > 0
-    ) {
-      Swal.fire({
-        icon: "warning",
-        title: t("common.warning"),
-        text: t("common.missing_fields"),
-        confirmButtonColor: "#3085d6",
-      });
       return;
     }
 
@@ -206,7 +212,10 @@ function PropertyEditor({
               id="propertyName"
               type="text"
               value={propertyName}
-              onChange={(e) => setPropertyName(e.target.value)}
+              onChange={(e) => {
+                setPropertyName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, property_name: "" }));
+              }}
               placeholder={t("common.enter_item_name", {
                 item: t("admin.nav.property"),
               })}
@@ -214,6 +223,7 @@ function PropertyEditor({
               disabled={isSubmitting}
               required
             />
+            <FieldError message={fieldErrors.property_name} />
           </div>
         )}
 

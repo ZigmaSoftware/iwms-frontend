@@ -16,6 +16,7 @@ import {
   MapPin,
   PieChart as PieChartIcon,
   Recycle,
+  RefreshCw,
   Scale,
   Truck,
 } from "lucide-react";
@@ -519,6 +520,14 @@ export default function MonthlyWasteComparisonListPage({
                 className="h-10 rounded-xl border border-white/20 bg-white/5 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10"
               >
                 All Months
+              </button>
+              <button
+                onClick={() => void fetchReport()}
+                disabled={loading}
+                className="flex h-10 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-50"
+                aria-label="Refresh"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               </button>
               <button
                 onClick={handleDownload}

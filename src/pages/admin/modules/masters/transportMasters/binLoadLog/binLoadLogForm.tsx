@@ -14,6 +14,10 @@ import { Input } from "@/components/ui/input";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
+import { binLoadLogSchema } from "@/schemas/masters/transportMasters/binLoadLog.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const sourceTypeOptions: SelectOption[] = [
@@ -39,6 +43,7 @@ export default function BinLoadLogForm() {
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
 
+  const { showZone } = useZonePanchayatVisibility();
   const binLoadLogApi = adminApi.binLoadLogs;
   const zoneApi = adminApi.zones;
   const vehicleApi = adminApi.vehicleCreations;
@@ -47,6 +52,7 @@ export default function BinLoadLogForm() {
 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const [zones, setZones] = useState<SelectOption[]>([]);
   const [vehicles, setVehicles] = useState<SelectOption[]>([]);
@@ -74,23 +80,28 @@ export default function BinLoadLogForm() {
 
   useEffect(() => {
     setFetching(true);
-    Promise.all([
-      zoneApi.readAll(),
+    // Promise.allSettled — not all() — because a staff without Zone access
+    // (e.g. a panchayat-only project) 403s that one call at the module-
+    // permission middleware; that must not blank out vehicles/properties/
+    // subProperties too. The zone fetch is skipped entirely up front when
+    // the login-scoped data shows the staff has no access to it.
+    Promise.allSettled([
+      showZone ? zoneApi.readAll() : Promise.resolve([]),
       vehicleApi.readAll(),
       propertyApi.readAll(),
       subPropertyApi.readAll(),
     ])
-      .then(([zoneRes, vehicleRes, propertyRes, subPropertyRes]) => {
-        setZones(toOptions(normalizeList(zoneRes), "unique_id", "name"));
-        setVehicles(toOptions(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
-        setProperties(toOptions(normalizeList(propertyRes), "unique_id", "property_name"));
-        setSubProperties(toOptions(normalizeList(subPropertyRes), "unique_id", "sub_property_name"));
-      })
-      .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      .then(([zoneR, vehicleR, propertyR, subPropertyR]) => {
+        const settled = (result: PromiseSettledResult<unknown>): unknown =>
+          result.status === "fulfilled" ? result.value : [];
+
+        setZones(toOptions(normalizeList(settled(zoneR)), "unique_id", "name"));
+        setVehicles(toOptions(normalizeList(settled(vehicleR)), "unique_id", "vehicle_no"));
+        setProperties(toOptions(normalizeList(settled(propertyR)), "unique_id", "property_name"));
+        setSubProperties(toOptions(normalizeList(settled(subPropertyR)), "unique_id", "sub_property_name"));
       })
       .finally(() => setFetching(false));
-  }, [propertyApi, subPropertyApi, t, vehicleApi, zoneApi]);
+  }, [propertyApi, subPropertyApi, t, vehicleApi, zoneApi, showZone]);
 
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -154,18 +165,13 @@ export default function BinLoadLogForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (
-      !formData.zone_id ||
-      !formData.vehicle_id ||
-      !formData.property_id ||
-      !formData.sub_property_id ||
-      !formData.weight_kg ||
-      !formData.source_type ||
-      !formData.event_time
-    ) {
+    const validation = parseWithSchema(binLoadLogSchema, formData);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
+    setFieldErrors({});
 
     setLoading(true);
     try {
@@ -214,48 +220,64 @@ export default function BinLoadLogForm() {
               <Label>{t("admin.bin_load_log.zone")}</Label>
               <Select
                 value={formData.zone_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, zone_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, zone_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, zone_id: "" }));
+                }}
                 options={zones}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.zone_id} />
             </div>
 
             <div>
               <Label>{t("admin.bin_load_log.vehicle")}</Label>
               <Select
                 value={formData.vehicle_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, vehicle_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, vehicle_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, vehicle_id: "" }));
+                }}
                 options={vehicles}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.vehicle_id} />
             </div>
 
             <div>
               <Label>{t("admin.bin_load_log.property")}</Label>
               <Select
                 value={formData.property_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, property_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, property_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, property_id: "" }));
+                }}
                 options={properties}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.property_id} />
             </div>
 
             <div>
               <Label>{t("admin.bin_load_log.sub_property")}</Label>
               <Select
                 value={formData.sub_property_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, sub_property_id: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, sub_property_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, sub_property_id: "" }));
+                }}
                 options={subProperties}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.sub_property_id} />
             </div>
 
             <div>
@@ -264,21 +286,29 @@ export default function BinLoadLogForm() {
                 type="number"
                 min={0}
                 value={formData.weight_kg}
-                onChange={(e) => setFormData((prev) => ({ ...prev, weight_kg: e.target.value }))}
+                onChange={(e) => {
+                  setFormData((prev) => ({ ...prev, weight_kg: e.target.value }));
+                  setFieldErrors((prev) => ({ ...prev, weight_kg: "" }));
+                }}
                 placeholder={t("admin.bin_load_log.weight_kg")}
               />
+              <FieldError message={fieldErrors.weight_kg} />
             </div>
 
             <div>
               <Label>{t("admin.bin_load_log.source_type")}</Label>
               <Select
                 value={formData.source_type}
-                onChange={(value) => setFormData((prev) => ({ ...prev, source_type: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, source_type: value }));
+                  setFieldErrors((prev) => ({ ...prev, source_type: "" }));
+                }}
                 options={sourceTypeOptions}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.source_type} />
             </div>
 
             <div>
@@ -286,8 +316,12 @@ export default function BinLoadLogForm() {
               <Input
                 type="datetime-local"
                 value={formData.event_time}
-                onChange={(e) => setFormData((prev) => ({ ...prev, event_time: e.target.value }))}
+                onChange={(e) => {
+                  setFormData((prev) => ({ ...prev, event_time: e.target.value }));
+                  setFieldErrors((prev) => ({ ...prev, event_time: "" }));
+                }}
               />
+              <FieldError message={fieldErrors.event_time} />
             </div>
           </div>
 

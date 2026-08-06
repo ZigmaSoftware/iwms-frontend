@@ -421,7 +421,8 @@ export default function MapView() {
     gpsProviderName,
     gpsFcode,
     gpsTripUserId,
-    weighmentApiUrl,
+    dayWiseWeighmentApiUrl,
+    loading: contextLoading,
   } = useProjectSelector();
   const trackingApiUrl = buildVehicleTrackingUrl(
     { providerName: gpsProviderName, fcode: gpsFcode },
@@ -728,7 +729,7 @@ export default function MapView() {
 
         const [tripRes, weightResult] = await Promise.all([
           fetch(tripUrl).then((res) => res.json()),
-          fetchWasteReport(weighmentApiUrl, "day_wise_data", reportStartKey, todayKey).catch(
+          fetchWasteReport(dayWiseWeighmentApiUrl, "day_wise_data", reportStartKey, todayKey).catch(
             () => ({ rows: [] }),
           ),
         ]);
@@ -823,7 +824,7 @@ export default function MapView() {
     };
   }, [selectedVehicle?.id]);
 
-  if (!trackingApiUrl) {
+  if (!contextLoading && !trackingApiUrl) {
     return (
       <div className="space-y-3">
         <ProjectSelectorBar />

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { Label } from "@/components/ui/label";
 import { MultiSelect, type MultiSelectOption } from "@/components/form/MultiSelect";
 import { stateApi, districtApi, cityApi, panchayatApi, zoneApi, wardApi } from "@/helpers/admin";
 import { useCascadingSelection } from "./useCascadingSelection";
+import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 
 import type {
   DataScopeForm,
@@ -99,6 +99,7 @@ export default function LocationScopeSelector({
   onOptionsResolved,
 }: LocationScopeSelectorProps) {
   const { t } = useTranslation();
+  const { showZone, showPanchayat } = useZonePanchayatVisibility();
 
   const [states, setStates] = useState<WithStateIdOption[]>([]);
   const [statesLoaded, setStatesLoaded] = useState(false);
@@ -166,15 +167,30 @@ export default function LocationScopeSelector({
     setScopedOptionsLoaded(false);
     const params = { company_id: companyUniqueId };
 
-    Promise.all([
+    // Promise.allSettled — not all() — because an operator whose own Staff
+    // Access Configuration has no Zone (or Panchayat) access 403s that one
+    // call at the module-permission middleware; that must not block them
+    // from configuring District/City/Panchayat/Ward for someone else. Zone/
+    // Panchayat are additionally skipped entirely up front when the
+    // login-scoped data shows the operator has no access to that resource.
+    Promise.allSettled([
       districtApi.readAll({ params }),
       cityApi.readAll({ params }),
-      panchayatApi.readAll({ params }),
-      zoneApi.readAll({ params }),
+      showPanchayat ? panchayatApi.readAll({ params }) : Promise.resolve([]),
+      showZone ? zoneApi.readAll({ params }) : Promise.resolve([]),
       wardApi.readAll({ params }),
     ])
-      .then(([distData, cityData, panData, zoneData, wardData]) => {
+      .then(([distR, cityR, panR, zoneR, wardR]) => {
         if (cancelled) return;
+
+        const settled = (result: PromiseSettledResult<unknown>): unknown =>
+          result.status === "fulfilled" ? result.value : [];
+
+        const distData = settled(distR);
+        const cityData = settled(cityR);
+        const panData = settled(panR);
+        const zoneData = settled(zoneR);
+        const wardData = settled(wardR);
 
         setDistricts(
           toRecordList(distData)
@@ -245,13 +261,6 @@ export default function LocationScopeSelector({
             .filter((item) => item.value && item.label)
         );
       })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        const message =
-          (err as { response?: { data?: unknown }; message?: string })?.message ||
-          t("common.load_failed");
-        Swal.fire(t("common.error"), String(message), "error");
-      })
       .finally(() => {
         if (!cancelled) setScopedOptionsLoaded(true);
       });
@@ -260,7 +269,7 @@ export default function LocationScopeSelector({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyUniqueId]);
+  }, [companyUniqueId, showZone, showPanchayat]);
 
   /* ── Eligible id sets per level (narrowed by project + parent-level selections) ── */
 
@@ -409,6 +418,7 @@ export default function LocationScopeSelector({
         />
       </div>
 
+      {showZone && (
       <div>
         <Label>{t("admin.nav.zone")}</Label>
         <MultiSelect
@@ -419,7 +429,9 @@ export default function LocationScopeSelector({
           disabled={disabled || noProjectSelected}
         />
       </div>
+      )}
 
+      {showPanchayat && (
       <div>
         <Label>{t("admin.nav.panchayat")}</Label>
         <MultiSelect
@@ -430,6 +442,7 @@ export default function LocationScopeSelector({
           disabled={disabled || noProjectSelected}
         />
       </div>
+      )}
 
       <div>
         <Label>{t("admin.nav.ward")}</Label>

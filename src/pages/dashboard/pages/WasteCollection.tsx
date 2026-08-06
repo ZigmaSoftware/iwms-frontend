@@ -3,6 +3,7 @@ import { Pie } from "react-chartjs-2";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import type { ChartData } from "chart.js";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { fetchWasteReport } from "@/utils/wasteApi";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
@@ -1043,6 +1044,7 @@ export default function WasteCollection() {
     null
   );
   const { theme } = useTheme();
+  const { weighmentApiUrl, dayWiseWeighmentApiUrl } = useProjectSelector();
   const isDarkMode = theme === "dark";
   const locale = i18n.language || "en-US";
   const tonsLabel = t("common.tons");
@@ -1189,12 +1191,12 @@ export default function WasteCollection() {
     };
 
     load();
-  }, [selectedMonth]);
+  }, [selectedMonth, weighmentApiUrl]);
 
   const fetchWaste = async (fromDate: string, toDate: string) => {
     try {
       const result = await fetchWasteReport<ApiWasteRow>(
-        "",
+        weighmentApiUrl,
         "date_wise_data",
         fromDate,
         toDate
@@ -1254,7 +1256,7 @@ export default function WasteCollection() {
       const endDate = getLocalDateKey();
       try {
         const result = await fetchWasteReport<ApiWasteRow>(
-          "",
+          weighmentApiUrl,
           "date_wise_data",
           ALL_MONTHS_START,
           endDate
@@ -1317,7 +1319,7 @@ export default function WasteCollection() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [weighmentApiUrl]);
 
   const wardBaseData = useMemo(() => {
     if (!selectedZone || !selectedWard) return null;
@@ -1684,7 +1686,7 @@ export default function WasteCollection() {
       try {
         const { fromDate, toDate } = vehicleDialogRange;
         const result = await fetchWasteReport(
-          "",
+          dayWiseWeighmentApiUrl,
           "day_wise_data",
           fromDate,
           toDate
@@ -1713,7 +1715,7 @@ export default function WasteCollection() {
     return () => {
       cancelled = true;
     };
-  }, [vehicleDialogOpen, vehicleDialogRange, t]);
+  }, [vehicleDialogOpen, vehicleDialogRange, dayWiseWeighmentApiUrl, t]);
 
   useEffect(() => {
     if (!monthlyVehicleDialogOpen || !monthlyVehicleDialogRange) return;
@@ -1736,7 +1738,7 @@ export default function WasteCollection() {
       setMonthlyVehicleError("");
       try {
         const result = await fetchWasteReport(
-          "",
+          dayWiseWeighmentApiUrl,
           "day_wise_data",
           fromDate,
           toDate
@@ -1767,7 +1769,7 @@ export default function WasteCollection() {
     return () => {
       cancelled = true;
     };
-  }, [monthlyVehicleDialogOpen, monthlyVehicleDialogRange, t]);
+  }, [monthlyVehicleDialogOpen, monthlyVehicleDialogRange, dayWiseWeighmentApiUrl, t]);
 
   useEffect(() => {
     if (!monthlyDailyDialogOpen || !monthlyDailyDialogRange) return;
@@ -1790,7 +1792,7 @@ export default function WasteCollection() {
       setMonthlyDailyError("");
       try {
         const result = await fetchWasteReport<ApiWasteRow>(
-          "",
+          weighmentApiUrl,
           "date_wise_data",
           fromDate,
           toDate
@@ -1821,7 +1823,7 @@ export default function WasteCollection() {
     return () => {
       cancelled = true;
     };
-  }, [monthlyDailyDialogOpen, monthlyDailyDialogRange, buildDailyRows, t]);
+  }, [monthlyDailyDialogOpen, monthlyDailyDialogRange, weighmentApiUrl, buildDailyRows, t]);
 
   useEffect(() => {
     const range = getMonthDateRange(monthlySelectedMonth);
@@ -1832,7 +1834,7 @@ export default function WasteCollection() {
     const prefetchMonthlyVehicles = async () => {
       try {
         const result = await fetchWasteReport(
-          "",
+          dayWiseWeighmentApiUrl,
           "day_wise_data",
           range.start,
           range.end
@@ -1852,7 +1854,7 @@ export default function WasteCollection() {
     return () => {
       cancelled = true;
     };
-  }, [monthlySelectedMonth]);
+  }, [monthlySelectedMonth, dayWiseWeighmentApiUrl]);
   const latestEntry = useMemo(
     () => (dailyData.length ? dailyData[0] : null),
     [dailyData]

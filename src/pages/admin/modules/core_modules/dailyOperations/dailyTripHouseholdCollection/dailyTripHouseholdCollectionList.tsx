@@ -1,6 +1,6 @@
 import type { DailyTripHouseholdCollectionRecord, NamedRef } from "./types";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -130,6 +130,7 @@ export default function DailyTripHouseholdCollectionList() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<string>("");
   const [filteredRows, setFilteredRows] = useState<DailyTripHouseholdCollectionRecord[]>([]);
+  const requestIdRef = useRef(0);
 
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
     ? `${sortOrder === -1 ? "-" : ""}${sortField}`
@@ -137,15 +138,18 @@ export default function DailyTripHouseholdCollectionList() {
 
   const loadRows = async (page: number, limit: number, search: string, order?: string) => {
     if (isSuperAdmin && companies.length === 0) {
+      requestIdRef.current += 1;
       setRawRows([]);
       setTotalRecords(0);
       return;
     }
     if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
       setRawRows([]);
       setTotalRecords(0);
       return;
     }
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setRawRows([]);
     try {
@@ -160,19 +164,21 @@ export default function DailyTripHouseholdCollectionList() {
       const response = await dailyTripHouseholdCollectionApi.readAllwithPaginated(page, limit, {
         params,
       });
+      if (requestId !== requestIdRef.current) return;
       const rows = toRecordList(response);
       setRawRows(rows);
       setTotalRecords(
         typeof (response as any)?.count === "number" ? (response as any).count : rows.length,
       );
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       Swal.fire({
         icon: "error",
         title: t("common.error"),
         text: extractError(err) ?? String(err),
       });
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   };
 

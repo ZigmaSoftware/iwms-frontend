@@ -33,6 +33,9 @@ import type {
   StaffAccessConfigRecord,
   UnknownRecord,
 } from "./types";
+import { buildStaffAccessConfigSchema } from "@/schemas/superadmin/userManagement/staffAccessConfiguration.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const { encAdmins, encStaffAccessConfiguration } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encAdmins, encStaffAccessConfiguration);
@@ -184,6 +187,7 @@ export default function StaffAccessConfigForm() {
   >(null);
   const [fetching, setFetching] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const eligibleProjectIds = useMemo(() => new Set(projects.map((p) => p.value)), [projects]);
   useCascadingSelection(projectIds, eligibleProjectIds, setProjectIds, {
@@ -423,28 +427,39 @@ export default function StaffAccessConfigForm() {
     });
   }, []);
 
+  // Field keys each tab is responsible for gating — used to pick which schema
+  // error (if any) should block advancing past that specific tab.
+  const TAB_FIELD_KEYS: Record<number, string[]> = {
+    0: ["employeeName", "staffConfigName", "mobileNumber", "officeEmail", "doj"],
+    1: ["username", "password", "confirmPassword", "userTypeId", "staffUserTypeId"],
+  };
+
   const validateTab = (tab: number): boolean => {
     setStepError(null);
-    if (tab === 0 && !employeeName.trim()) {
-      setStepError("Employee name is required.");
-      return false;
-    }
-    if (tab === 1) {
-      if (!username.trim()) {
-        setStepError("Username is required.");
-        return false;
-      }
-      if (!isEdit && !password) {
-        setStepError("Password is required.");
-        return false;
-      }
-      if ((password || confirmPassword) && password !== confirmPassword) {
-        setStepError("Passwords do not match.");
-        return false;
-      }
-      if (!userTypeId || !staffUserTypeId) {
-        setStepError("Select user type and staff user type.");
-        return false;
+
+    if (tab === 0 || tab === 1) {
+      const schema = buildStaffAccessConfigSchema(isEdit);
+      const validation = parseWithSchema(schema, {
+        employeeName,
+        staffConfigName,
+        mobileNumber,
+        officeEmail,
+        doj,
+        username,
+        password,
+        confirmPassword,
+        userTypeId,
+        staffUserTypeId,
+      });
+      if (!validation.success) {
+        setFieldErrors(validation.errors);
+        const relevantKey = TAB_FIELD_KEYS[tab].find((key) => validation.errors[key]);
+        if (relevantKey) {
+          setStepError(validation.errors[relevantKey]);
+          return false;
+        }
+      } else {
+        setFieldErrors({});
       }
     }
     if (tab === DATA_SCOPE_TAB && !companyUniqueId) {
@@ -572,7 +587,15 @@ export default function StaffAccessConfigForm() {
     <div className="grid gap-4 md:grid-cols-2">
       <div>
         <Label htmlFor="employeeName">Employee Name</Label>
-        <Input id="employeeName" value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} />
+        <Input
+          id="employeeName"
+          value={employeeName}
+          onChange={(event) => {
+            setEmployeeName(event.target.value);
+            setFieldErrors((prev) => ({ ...prev, employeeName: "" }));
+          }}
+        />
+        <FieldError message={fieldErrors.employeeName} />
       </div>
       <div>
         <Label htmlFor="staffConfigName">Staff Config Name</Label>
@@ -580,11 +603,28 @@ export default function StaffAccessConfigForm() {
       </div>
       <div>
         <Label htmlFor="mobileNumber">Mobile Number</Label>
-        <Input id="mobileNumber" value={mobileNumber} onChange={(event) => setMobileNumber(event.target.value)} />
+        <Input
+          id="mobileNumber"
+          value={mobileNumber}
+          onChange={(event) => {
+            setMobileNumber(event.target.value);
+            setFieldErrors((prev) => ({ ...prev, mobileNumber: "" }));
+          }}
+        />
+        <FieldError message={fieldErrors.mobileNumber} />
       </div>
       <div>
         <Label htmlFor="officeEmail">Office Email</Label>
-        <Input id="officeEmail" type="email" value={officeEmail} onChange={(event) => setOfficeEmail(event.target.value)} />
+        <Input
+          id="officeEmail"
+          type="email"
+          value={officeEmail}
+          onChange={(event) => {
+            setOfficeEmail(event.target.value);
+            setFieldErrors((prev) => ({ ...prev, officeEmail: "" }));
+          }}
+        />
+        <FieldError message={fieldErrors.officeEmail} />
       </div>
       <div>
         <Label htmlFor="doj">Date Of Joining</Label>
@@ -601,13 +641,22 @@ export default function StaffAccessConfigForm() {
     <div className="grid gap-4 md:grid-cols-2">
       <div>
         <Label htmlFor="username">Username</Label>
-        <Input id="username" value={username} onChange={(event) => setUsername(event.target.value)} />
+        <Input
+          id="username"
+          value={username}
+          onChange={(event) => {
+            setUsername(event.target.value);
+            setFieldErrors((prev) => ({ ...prev, username: "" }));
+          }}
+        />
+        <FieldError message={fieldErrors.username} />
       </div>
       <div>
         <Label htmlFor="userTypeId">User Type</Label>
         <Select value={userTypeId} onValueChange={(value) => {
           setUserTypeId(value);
           setStaffUserTypeId("");
+          setFieldErrors((prev) => ({ ...prev, userTypeId: "" }));
         }}>
           <SelectTrigger id="userTypeId" className="w-full">
             <SelectValue placeholder="Select user type" />
@@ -618,28 +667,40 @@ export default function StaffAccessConfigForm() {
             ))}
           </SelectContent>
         </Select>
+        <FieldError message={fieldErrors.userTypeId} />
       </div>
       <div>
         <Label htmlFor="password">Password</Label>
         <PasswordInput
           id="password"
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          onChange={(event) => {
+            setPassword(event.target.value);
+            setFieldErrors((prev) => ({ ...prev, password: "" }));
+          }}
           placeholder="Enter password"
         />
+        <FieldError message={fieldErrors.password} />
       </div>
       <div>
         <Label htmlFor="confirmPassword">Confirm Password</Label>
         <PasswordInput
           id="confirmPassword"
           value={confirmPassword}
-          onChange={(event) => setConfirmPassword(event.target.value)}
+          onChange={(event) => {
+            setConfirmPassword(event.target.value);
+            setFieldErrors((prev) => ({ ...prev, confirmPassword: "" }));
+          }}
           placeholder="Repeat password"
         />
+        <FieldError message={fieldErrors.confirmPassword} />
       </div>
       <div>
         <Label htmlFor="staffUserTypeId">Staff User Type</Label>
-        <Select value={staffUserTypeId} onValueChange={setStaffUserTypeId}>
+        <Select value={staffUserTypeId} onValueChange={(value) => {
+          setStaffUserTypeId(value);
+          setFieldErrors((prev) => ({ ...prev, staffUserTypeId: "" }));
+        }}>
           <SelectTrigger id="staffUserTypeId" className="w-full">
             <SelectValue placeholder={userTypeId ? "Select staff user type" : "Select user type first"} />
           </SelectTrigger>
@@ -649,6 +710,7 @@ export default function StaffAccessConfigForm() {
             ))}
           </SelectContent>
         </Select>
+        <FieldError message={fieldErrors.staffUserTypeId} />
       </div>
       <label className="flex items-center gap-3 text-sm font-medium text-gray-700 dark:text-gray-200">
         <input type="checkbox" className="h-4 w-4" checked={loginEnabled} onChange={(event) => setLoginEnabled(event.target.checked)} />

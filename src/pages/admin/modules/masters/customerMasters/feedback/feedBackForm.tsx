@@ -13,6 +13,9 @@ import { Input } from "@/components/ui/input";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { feedbackSchema } from "@/schemas/masters/customerMasters/feedback.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const CATEGORY_OPTIONS = [
   { value: "Excellent", label: "Excellent" },
@@ -65,6 +68,7 @@ export default function FeedBackForm() {
   const [fetchingCustomers, setFetchingCustomers] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   // Pending values — applied once their option lists are ready
   const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
@@ -171,10 +175,20 @@ export default function FeedBackForm() {
       Swal.fire(t("common.warning"), "Company and project are required", "warning");
       return;
     }
-    if (!customerId) {
-      Swal.fire(t("common.warning"), t("admin.citizen_grievance.feedback_form.customer_required"), "warning");
+
+    const validation = parseWithSchema(feedbackSchema, {
+      customer: customerId,
+      category: feedbackCategory,
+      feedback_details: feedbackDetails,
+    });
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      if (validation.errors.customer) {
+        Swal.fire(t("common.warning"), t("admin.citizen_grievance.feedback_form.customer_required"), "warning");
+      }
       return;
     }
+    setFieldErrors({});
 
     const payload = {
       company_id_input: companyUniqueId,
@@ -261,7 +275,10 @@ export default function FeedBackForm() {
               </Label>
               <Select
                 value={customerId}
-                onChange={setCustomerId}
+                onChange={(value) => {
+                  setCustomerId(value);
+                  setFieldErrors((prev) => ({ ...prev, customer: "" }));
+                }}
                 options={customers.map((c) => ({
                   value: resolveCustomerId(c),
                   label: String(c.customer_name ?? ""),
@@ -269,6 +286,7 @@ export default function FeedBackForm() {
                 placeholder={fetchingCustomers ? "Loading..." : "Select customer"}
                 disabled={fetchingCustomers || !projectId}
               />
+              <FieldError message={fieldErrors.customer} />
             </div>
 
             {/* Address */}

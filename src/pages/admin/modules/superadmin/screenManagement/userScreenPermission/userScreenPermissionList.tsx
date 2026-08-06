@@ -172,38 +172,43 @@ export default function UserScreenPermissionList() {
           return false;
         });
 
-    // Group by project + permission type so screen and field grants are managed independently.
+    // Group by company + project *name* so a project shows as one row regardless of
+    // duplicate project_ids or whether it has screen and/or field permissions.
     type GroupAccum = {
       composite_key: string;
       project_id: string;
       project_name: string;
       company_id: string;
       company_name: string;
-      permission_type: string;
-      permission_type_label: string;
+      permissionTypes: Set<string>;
       mainScreenIds: Set<string>;
       userScreenIds: Set<string>;
+      deleteTargets: Map<string, { project_id: string; permission_type: string; mainscreen_id: string }>;
     };
 
     const groupedObj: Record<string, GroupAccum> = filteredData.reduce(
       (acc, item) => {
         const projId = toStrId(item.project_id);
+        const companyId = toStrId(item.company_id);
+        const projectName = String(item.project_name ?? t("common.unknown"));
         const permissionType = String(item.permission_type ?? "screen") || "screen";
-        const key = `${projId || "__no_project__"}__${permissionType}`;
+        const key = `${companyId || "__no_company__"}__${projectName.trim().toLowerCase() || "__no_project__"}`;
 
         if (!acc[key]) {
           acc[key] = {
             composite_key: key,
             project_id: projId,
-            project_name: String(item.project_name ?? t("common.unknown")),
-            company_id: toStrId(item.company_id),
+            project_name: projectName,
+            company_id: companyId,
             company_name: String(item.company_name ?? t("common.unknown")),
-            permission_type: permissionType,
-            permission_type_label: PERMISSION_TYPE_LABELS[permissionType] ?? permissionType,
+            permissionTypes: new Set<string>(),
             mainScreenIds: new Set<string>(),
             userScreenIds: new Set<string>(),
+            deleteTargets: new Map(),
           };
         }
+
+        acc[key].permissionTypes.add(permissionType);
 
         const mainScreenId = toStrId(item.mainscreen_id);
         if (mainScreenId) acc[key].mainScreenIds.add(mainScreenId);
@@ -211,23 +216,41 @@ export default function UserScreenPermissionList() {
         const userScreenId = toStrId(item.userscreen_id);
         if (userScreenId) acc[key].userScreenIds.add(userScreenId);
 
+        const targetKey = `${projId}__${permissionType}__${mainScreenId}`;
+        if (!acc[key].deleteTargets.has(targetKey)) {
+          acc[key].deleteTargets.set(targetKey, {
+            project_id: projId,
+            permission_type: permissionType,
+            mainscreen_id: mainScreenId,
+          });
+        }
+
         return acc;
       },
       {} as Record<string, GroupAccum>
     );
 
-    return Object.values(groupedObj).map((group) => ({
-      project_id: group.project_id,
-      project_name: group.project_name,
-      company_id: group.company_id,
-      company_name: group.company_name,
-      permission_type: group.permission_type,
-      permission_type_label: group.permission_type_label,
-      main_screen_count: group.mainScreenIds.size,
-      screen_count: group.userScreenIds.size,
-      mainscreen_ids: Array.from(group.mainScreenIds),
-      composite_key: group.composite_key,
-    }));
+    return Object.values(groupedObj).map((group) => {
+      const editPermissionType = group.permissionTypes.has("screen")
+        ? "screen"
+        : Array.from(group.permissionTypes)[0] ?? "screen";
+      const permissionTypeLabel = Array.from(group.permissionTypes)
+        .map((permissionType) => PERMISSION_TYPE_LABELS[permissionType] ?? permissionType)
+        .join(" + ");
+
+      return {
+        project_id: group.project_id,
+        project_name: group.project_name,
+        company_id: group.company_id,
+        company_name: group.company_name,
+        main_screen_count: group.mainScreenIds.size,
+        screen_count: group.userScreenIds.size,
+        permission_type_label: permissionTypeLabel,
+        edit_permission_type: editPermissionType,
+        delete_targets: Array.from(group.deleteTargets.values()),
+        composite_key: group.composite_key,
+      };
+    });
   }, [companies, companyUniqueId, permissionRows, t]);
 
   /* -----------------------------------------------------------
@@ -246,21 +269,26 @@ export default function UserScreenPermissionList() {
     if (!confirmDelete.isConfirmed) return;
 
     try {
-      const mainScreenIds = row.mainscreen_ids.length > 0 ? row.mainscreen_ids : [""];
+      const targets = row.delete_targets.length > 0
+        ? row.delete_targets
+        : [{ project_id: row.project_id, permission_type: row.edit_permission_type, mainscreen_id: "" }];
 
       await Promise.all(
-        mainScreenIds.map((mainScreenId) =>
+        targets.map((target) =>
           userScreenPermissionApi.delete(
-            `delete-by-project/${row.project_id}/?mainscreen_id=${encodeURIComponent(mainScreenId)}&permission_type=${encodeURIComponent(row.permission_type)}`
+            `delete-by-project/${target.project_id}/?mainscreen_id=${encodeURIComponent(target.mainscreen_id)}&permission_type=${encodeURIComponent(target.permission_type)}`
           )
         )
       );
 
+      const targetKeys = new Set(
+        targets.map((target) => `${target.project_id}__${target.permission_type}`)
+      );
+
       setPermissionRows((current) =>
         current.filter((item) => {
-          const sameProject = toStrId(item.project_id) === row.project_id;
-          const samePermissionType = String(item.permission_type ?? "screen") === row.permission_type;
-          return !(sameProject && samePermissionType);
+          const itemKey = `${toStrId(item.project_id)}__${String(item.permission_type ?? "screen")}`;
+          return !targetKeys.has(itemKey);
         })
       );
 
@@ -370,7 +398,7 @@ export default function UserScreenPermissionList() {
             return;
           }
           navigate(
-            ENC_EDIT_PATH(row.project_id, row.company_id, row.permission_type),
+            ENC_EDIT_PATH(row.project_id, row.company_id, row.edit_permission_type),
             { state: { companyUniqueId: row.company_id, projectId: row.project_id } }
           );
         }}

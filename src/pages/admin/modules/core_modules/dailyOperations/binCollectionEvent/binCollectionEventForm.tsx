@@ -19,6 +19,9 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
+import { binCollectionEventSchema } from "@/schemas/core_modules/dailyOperations/binCollectionEvent.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 // A5: BinCollectionEvent.STATUS_CHOICES.
@@ -155,6 +158,7 @@ export default function BinCollectionEventForm() {
     notes: "",
   });
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   /* ── raw lookup data ── */
   const [allAssignments, setAllAssignments] = useState<any[]>([]);
@@ -436,6 +440,7 @@ export default function BinCollectionEventForm() {
       trip_collection_point_id: stopId,
       bin_id: binIdOf(stop),
     }));
+    setFieldErrors((prev) => ({ ...prev, bin_id: "" }));
   };
 
   const set = (field: keyof FormState) => (value: string) =>
@@ -443,18 +448,28 @@ export default function BinCollectionEventForm() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    const validation = parseWithSchema(binCollectionEventSchema, {
+      trip_assignment_id: form.trip_assignment_id,
+      bin_id: form.bin_id,
+      status: form.status,
+      collected_weight_kg: form.collected_weight_kg,
+    });
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire(
+        t("common.warning"),
+        validation.errors.trip_assignment_id ??
+          validation.errors.bin_id ??
+          validation.errors.collected_weight_kg ??
+          "Trip Assignment and Bin are required.",
+        "warning",
+      );
+      return;
+    }
+    setFieldErrors({});
+
     if (!companyUniqueId || !projectId) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
-      return;
-    }
-    if (!form.trip_assignment_id || !form.bin_id) {
-      Swal.fire(t("common.warning"), "Trip Assignment and Bin are required.", "warning");
-      return;
-    }
-    // A5: collected_weight_kg is only required when status is Collected
-    // (nullable on the backend for Not Collected / Collect Later).
-    if (form.status === "Collected" && !form.collected_weight_kg) {
-      Swal.fire(t("common.warning"), "Collected weight is required when status is Collected.", "warning");
       return;
     }
     setSaving(true);
@@ -499,8 +514,8 @@ export default function BinCollectionEventForm() {
   }
 
   const title = isEdit
-    ? `Edit Bin Collection Event${record?.unique_id ? ` — ${record.unique_id}` : ""}`
-    : "Add Bin Collection Event";
+    ? `Edit Secondary Bin Collection Event${record?.unique_id ? ` — ${record.unique_id}` : ""}`
+    : "Add Secondary Bin Collection Event";
 
   return (
     <div className="p-4 space-y-4">
@@ -556,10 +571,12 @@ export default function BinCollectionEventForm() {
                 value={form.trip_assignment_id}
                 onChange={(v) => {
                   setForm((prev) => ({ ...prev, trip_assignment_id: v, trip_collection_point_id: "", bin_id: "" }));
+                  setFieldErrors((prev) => ({ ...prev, trip_assignment_id: "" }));
                 }}
                 placeholder={fetchingDropdowns ? "Loading..." : "Select Trip Assignment"}
                 disabled={fetchingDropdowns || !projectId}
               />
+              <FieldError message={fieldErrors.trip_assignment_id} />
             </div>
           </div>
 
@@ -603,6 +620,7 @@ export default function BinCollectionEventForm() {
                 placeholder="Select a collection point"
                 disabled
               />
+              <FieldError message={fieldErrors.bin_id} />
             </div>
           </div>
 
@@ -656,11 +674,15 @@ export default function BinCollectionEventForm() {
                 min={0}
                 step="0.01"
                 value={form.collected_weight_kg}
-                onChange={(e) => set("collected_weight_kg")(e.target.value)}
+                onChange={(e) => {
+                  set("collected_weight_kg")(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, collected_weight_kg: "" }));
+                }}
                 placeholder="e.g. 12.5"
                 disabled={form.status !== "Collected"}
                 required={form.status === "Collected"}
               />
+              <FieldError message={fieldErrors.collected_weight_kg} />
             </div>
           </div>
 
