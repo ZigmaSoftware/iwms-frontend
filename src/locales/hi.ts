@@ -1358,7 +1358,7 @@ const hiResource = {
           "marital_divorced": "तलाकशुदा",
           "dob": "जन्म तिथि",
           "age": "आयु",
-          "age_auto": "स्वचालित रूप से गणना",
+          "age_placeholder": "आयु दर्ज करें",
           "blood_group": "रक्त समूह",
           "blood_group_placeholder": "रक्त समूह चुनें",
           "gender": "लिंग",

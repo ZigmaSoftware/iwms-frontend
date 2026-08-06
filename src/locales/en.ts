@@ -1377,7 +1377,7 @@ const enResource = {
           "marital_divorced": "Divorced",
           "dob": "Date of Birth",
           "age": "Age",
-          "age_auto": "Auto-calculated",
+          "age_placeholder": "Enter age",
           "blood_group": "Blood Group",
           "blood_group_placeholder": "Select blood group",
           "gender": "Gender",
