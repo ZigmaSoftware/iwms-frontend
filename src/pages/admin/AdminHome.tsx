@@ -30,7 +30,6 @@ import {
 import { api } from "@/api";
 import { Button } from "@/components/ui/button";
 import {
-  areaTypeApi,
   binApi,
   cityApi,
   collectionPointApi,
@@ -85,7 +84,6 @@ type EntityKey =
   | "panchayats"
   | "departments"
   | "designations"
-  | "areaTypes"
   | "hierarchies"
   | "properties"
   | "subProperties"
@@ -234,13 +232,6 @@ const MASTER_CATEGORIES: Array<{
     group: "Organisation",
   },
   {
-    label: "Area Types",
-    key: "areaTypes",
-    color: "#ec4899",
-    icon: Tag,
-    group: "Organisation",
-  },
-  {
     label: "Hierarchies",
     key: "hierarchies",
     color: "#8b5cf6",
@@ -348,7 +339,6 @@ const emptyData = (): DashboardData => ({
   panchayats: [],
   departments: [],
   designations: [],
-  areaTypes: [],
   hierarchies: [],
   properties: [],
   subProperties: [],
@@ -434,7 +424,6 @@ const entityRequests: Array<[EntityKey, () => Promise<unknown>]> = [
   ["panchayats", () => panchayatApi.readAll()],
   ["departments", () => departmentApi.readAll()],
   ["designations", () => designationApi.readAll()],
-  ["areaTypes", () => areaTypeApi.readAll()],
   ["hierarchies", () => hierarchyApi.readAll()],
   ["properties", () => propertiesApi.readAll()],
   ["subProperties", () => subPropertiesApi.readAll()],
@@ -531,7 +520,6 @@ export default function AdminHome() {
     const orgTotal =
       data.departments.length +
       data.designations.length +
-      data.areaTypes.length +
       data.hierarchies.length;
     const wasteTotal = data.properties.length + data.subProperties.length;
     const masterTotal = geographyTotal + orgTotal + wasteTotal;
@@ -709,7 +697,6 @@ export default function AdminHome() {
         { label: "Panchayats", value: data.panchayats.length, sub: "Geography" },
         { label: "Departments", value: data.departments.length, sub: "Organisation" },
         { label: "Designations", value: data.designations.length, sub: "Organisation" },
-        { label: "Area Types", value: data.areaTypes.length, sub: "Organisation" },
         { label: "Hierarchies", value: data.hierarchies.length, sub: "Organisation" },
         { label: "Properties", value: data.properties.length, sub: "Waste" },
         { label: "Sub Properties", value: data.subProperties.length, sub: "Waste" },

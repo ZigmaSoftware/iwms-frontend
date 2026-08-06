@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import { PencilIcon } from "@/icons";
@@ -14,10 +13,11 @@ import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { binCollectionEventApi } from "@/helpers/admin";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import Swal from "@/lib/notify";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
 
 const text = (value: unknown): string =>
   value === null || value === undefined || String(value).trim() === ""
@@ -75,14 +75,22 @@ export default function CollectionMonitoringListPage() {
 
   const [records, setRecords] = useState<BinCollectionEventRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _bin_name: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _waste_type: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _collection_point: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _vehicle: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _route: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      _bin_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      _waste_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      _collection_point: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      _vehicle: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      _route: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    },
   });
 
   const fetchRows = useCallback(async () => {
@@ -104,13 +112,7 @@ export default function CollectionMonitoringListPage() {
       if (projectId) params.project_id = projectId;
       const response = await binCollectionEventApi.readAll({ params });
       const data = normalizeList(response);
-      setRecords(
-        data.filter((row) => {
-          const rowCompany = normalizeId(row.company_id ?? row.company_unique_id);
-          const rowProject = normalizeId(row.project_id ?? row.project_unique_id);
-          return (!rowCompany || rowCompany === companyUniqueId) && (!projectId || !rowProject || rowProject === projectId);
-        }),
-      );
+      setRecords(data);
     } catch (error) {
       console.error("Failed to fetch bin collection events", error);
       setRecords([]);
@@ -138,10 +140,40 @@ export default function CollectionMonitoringListPage() {
     [records],
   );
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
-    setGlobalFilterValue(value);
+  const getFilteredExportRows = () => {
+    const search = globalFilterValue.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (statusValue !== "all") {
+        const wantActive = statusValue === "active";
+        if (Boolean(row.is_active) !== wantActive) return false;
+      }
+      if (!search) return true;
+      return [
+        row._bin_name,
+        row._waste_type,
+        row._collection_point,
+        row._vehicle,
+        row._route,
+        row.company_name,
+        row.project_name,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search));
+    });
+  };
+
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const exportRows = getFilteredExportRows();
+      if (exportRows.length === 0) {
+        Swal.fire(t("common.warning"), t("common.no_items_found", { item: t("admin.nav.collection_monitoring") }), "warning");
+        return;
+      }
+      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Collection Monitoring");
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
 
   const statusTemplate = (row: BinCollectionEventRecord) => {
@@ -181,46 +213,57 @@ export default function CollectionMonitoringListPage() {
           <h1 className="text-3xl font-bold text-gray-800 mb-1">
             {t("admin.nav.collection_monitoring")}
           </h1>
-          <p className="text-gray-500 text-sm">Bin collection event records</p>
+          <p className="text-gray-500 text-sm">Secondary bin collection event records</p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>{company.label}</option>
-            ))}
-          </select>
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>{project.label}</option>
-            ))}
-          </select>
           <Button
             label={t("common.add_item", { item: t("admin.nav.collection_monitoring") })}
             icon="pi pi-plus"
             className="p-button-success"
-           
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
       </div>
+
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.collection_monitoring") })}
+        statusValue={statusValue}
+        onStatusChange={onStatusFilterChange}
+        className="mb-4"
+        trailing={
+          <Button
+            label={isExportingExcel ? "Downloading..." : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+        }
+      >
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={onCompanyChange}
+          options={companies}
+          placeholder="All Companies"
+          disabled={!isSuperAdmin || companies.length === 0}
+        />
+        <FilterBarSelect
+          value={projectId || ""}
+          onChange={setProjectId}
+          options={projects}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+        />
+      </FilterBar>
 
       <DataTable
         value={rows}
         paginator
         rows={10}
         filters={filters}
+        onFilter={onFilter}
         globalFilterFields={[
           "unique_id",
           "_bin_name",
@@ -232,19 +275,6 @@ export default function CollectionMonitoringListPage() {
           "project_name",
         ]}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        header={
-          <div className="flex justify-end items-center">
-            <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-              <i className="pi pi-search text-gray-500" />
-              <InputText
-                value={globalFilterValue}
-                onChange={onGlobalFilterChange}
-                placeholder={t("common.search_placeholder", { item: t("admin.nav.collection_monitoring") })}
-                className="p-inputtext-sm !border-0 !shadow-none"
-              />
-            </div>
-          </div>
-        }
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.collection_monitoring") })}

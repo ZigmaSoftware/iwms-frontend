@@ -1,11 +1,7 @@
 import type { ApiRow } from "./types";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./wastesummary.css";
-import { saveAs } from "file-saver";
-import * as XLSX from "xlsx";
-import { recordExcelAudit } from "@/helpers/admin/commonAudit";
-import { getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import { applyTableFilters } from "@/utils/tableFilterMatch";
 import { customerCreationApi, wasteCollectionApi } from "@/helpers/admin";
 
 import {
@@ -19,11 +15,21 @@ import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
+import { FilterBar } from "@/components/common/FilterBar";
 import { buildVehicleTrackingUrl } from "@/config/gpsApiConfig";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
+
+const WASTE_SUMMARY_GLOBAL_FIELDS = [
+  "date",
+  "total_trip",
+  "dry_weight",
+  "wet_weight",
+  "mix_weight",
+  "total_net_weight",
+];
 
 export default function WasteSummary() {
   const { t, i18n } = useTranslation();
@@ -109,7 +115,7 @@ export default function WasteSummary() {
     entry?.created_date ??
     entry?.createdDate;
 
-  const getVehicleCount = (row: ApiRow) => {
+  const getVehicleCount = useCallback((row: ApiRow) => {
     const values = [
       row.total_vehicle,
       row.vehicle_count,
@@ -123,7 +129,7 @@ export default function WasteSummary() {
       if (n !== null) return n;
     }
     return vehicleTrackingCount;
-  };
+  }, [vehicleTrackingCount]);
 
   const getCollectedCount = (dateValue?: string | null) => {
     const dateKey = toDateKey(dateValue ?? "");
@@ -308,18 +314,15 @@ export default function WasteSummary() {
 
   /* ================= SEARCH ================= */
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const onGlobalFilterChange = (value: string) => {
     setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
     setGlobalFilterValue(value);
   };
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("admin.reports.waste_summary.search_placeholder"),
-    });
+  const filteredRows = useMemo(
+    () => applyTableFilters(displayRows, filters, WASTE_SUMMARY_GLOBAL_FIELDS),
+    [displayRows, filters],
+  );
 
   /* ================= EXPORT ================= */
   const exportLabels = useMemo(
@@ -341,8 +344,8 @@ export default function WasteSummary() {
     [i18n.language, t]
   );
 
-  const handleDownload = () => {
-    const exportRows = displayRows.map((r) => ({
+  const exportRows = useMemo(
+    () => filteredRows.map((r) => ({
       [exportLabels.date]: r.date,
       [exportLabels.totalHousehold]: totalHouseholdCount,
       [exportLabels.collected]: totalCollectedCount,
@@ -357,22 +360,15 @@ export default function WasteSummary() {
       [exportLabels.mixedWeight]: parseNum(r.mix_weight),
       [exportLabels.weighment]: parseNum(r.total_net_weight),
       [exportLabels.avgPerTrip]: parseNum(r.average_weight_per_trip),
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(exportRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, exportLabels.sheetName);
-    const filename = getAdminScreenExcelFilename("all");
-    recordExcelAudit("download_all_excel", {
-      file_name: filename,
-      row_count: exportRows.length,
-    });
-
-    saveAs(
-      new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })]),
-      filename
-    );
-  };
+    })),
+    [
+      exportLabels,
+      filteredRows,
+      getVehicleCount,
+      totalCollectedCount,
+      totalHouseholdCount,
+    ],
+  );
 
   /* ================= UI ================= */
 
@@ -421,33 +417,28 @@ export default function WasteSummary() {
             {t("common.go")}
           </button>
 
-          <button
-            onClick={handleDownload}
-            className="bg-green-600 text-white px-4 py-2 rounded"
-          >
-            {t("common.download")}
-          </button>
         </div>
       </div>
 
       <DataTable
         value={displayRows}
+        exportRows={exportRows}
+        exportSheetName={exportLabels.sheetName}
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
         filters={filters}
-        header={renderHeader()}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("admin.reports.waste_summary.search_placeholder")}
+          />
+        }
         stripedRows
         showGridlines
         emptyMessage={t("admin.reports.waste_summary.empty_message")}
-        globalFilterFields={[
-          "date",
-          "total_trip",
-          "dry_weight",
-          "wet_weight",
-          "mix_weight",
-          "total_net_weight",
-        ]}
+        globalFilterFields={WASTE_SUMMARY_GLOBAL_FIELDS}
         className="p-datatable-sm"
       >
         <Column

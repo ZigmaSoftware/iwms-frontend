@@ -23,6 +23,10 @@ import type { CountryMeta, StateMeta } from "./types";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
+import { districtSchema } from "@/schemas/masters/district.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const DISTRICT_FORM_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],
@@ -74,7 +78,7 @@ const resolveOptionValue = (
 
 export default function DistrictForm() {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } = useFieldVisibility(
+  const { showField, filterPayload } = useFieldVisibility(
     "masters",
     "districts",
     DISTRICT_FORM_FIELDS,
@@ -93,6 +97,7 @@ export default function DistrictForm() {
   const [allStates, setAllStates] = useState<StateMeta[]>([]);
   const [filteredStates, setFilteredStates] = useState<SelectOption[]>([]);
   const [isActive, setIsActive] = useState(true);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -480,18 +485,18 @@ export default function DistrictForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    const fieldValues: Record<string, unknown> = {
+    const fieldValues = {
       continent_id: continentId,
       country_id: countryId,
       state_id: stateId,
       name: districtName.trim(),
+      is_active: isActive,
     };
-    const missingFields = getMissingRequiredFields(
-      ["continent_id", "country_id", "state_id", "name"],
-      (fieldKey) => fieldValues[fieldKey],
-    );
 
-    if (missingFields.length > 0) {
+    const schema = requireWhenVisible(districtSchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -499,6 +504,7 @@ export default function DistrictForm() {
       });
       return;
     }
+    setFieldErrors({});
 
     if (!companyUniqueId) {
       Swal.fire(
@@ -640,6 +646,7 @@ export default function DistrictForm() {
                 setStateId("");
                 setPendingCountryId("");
                 setPendingStateId("");
+                setFieldErrors((prev) => ({ ...prev, continent_id: "" }));
               }}
             >
               <SelectTrigger className="input-validate w-full">
@@ -651,6 +658,7 @@ export default function DistrictForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.continent_id} />
           </div>
           )}
 
@@ -658,7 +666,16 @@ export default function DistrictForm() {
           {showField("country_id") && (
           <div>
             <Label>{t("admin.nav.country")} *</Label>
-            <Select value={countryId} onValueChange={(val) => { setCountryId(val); setStateId(""); setPendingStateId(""); }} disabled={!continentId}>
+            <Select
+              value={countryId}
+              onValueChange={(val) => {
+                setCountryId(val);
+                setStateId("");
+                setPendingStateId("");
+                setFieldErrors((prev) => ({ ...prev, country_id: "" }));
+              }}
+              disabled={!continentId}
+            >
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.country") })} />
               </SelectTrigger>
@@ -672,6 +689,7 @@ export default function DistrictForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.country_id} />
           </div>
           )}
 
@@ -679,7 +697,14 @@ export default function DistrictForm() {
           {showField("state_id") && (
           <div>
             <Label>{t("admin.nav.state")} *</Label>
-            <Select value={stateId} onValueChange={setStateId} disabled={!countryId}>
+            <Select
+              value={stateId}
+              onValueChange={(val) => {
+                setStateId(val);
+                setFieldErrors((prev) => ({ ...prev, state_id: "" }));
+              }}
+              disabled={!countryId}
+            >
               <SelectTrigger className="input-validate w-full">
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.state") })} />
               </SelectTrigger>
@@ -693,6 +718,7 @@ export default function DistrictForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.state_id} />
           </div>
           )}
 
@@ -702,11 +728,15 @@ export default function DistrictForm() {
             <Label>{t("common.item_name", { item: t("admin.nav.district") })} *</Label>
             <Input
               value={districtName}
-              onChange={(e) => setDistrictName(e.target.value)}
+              onChange={(e) => {
+                setDistrictName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, name: "" }));
+              }}
               placeholder={t("common.enter_item_name", { item: t("admin.nav.district") })}
               className="input-validate w-full"
               required
             />
+            <FieldError message={fieldErrors.name} />
           </div>
           )}
 

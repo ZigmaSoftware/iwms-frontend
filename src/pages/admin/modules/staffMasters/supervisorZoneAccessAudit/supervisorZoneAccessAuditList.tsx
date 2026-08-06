@@ -8,12 +8,18 @@ import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
+import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 
 const buildLookup = (items: any[], key: string, label: string) =>
@@ -35,19 +41,22 @@ export default function SupervisorZoneAccessAuditList() {
 
   const [records, setRecords] = useState<SupervisorZoneAccessAuditRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  // const [filters, setFilters] = useState<any>({
-  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  // });
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    supervisor_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    performed_by: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    performed_role: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    remarks: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    old_zone_ids: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    new_zone_ids: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  const {
+    filters,
+    globalFilterValue,
+    onGlobalFilterChange,
+  } = useFilterBarFilters({
+    withStatusFilter: false,
+    initialFilters: {
+      supervisor_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      performed_by: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      performed_role: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      remarks: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      old_zone_ids: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      new_zone_ids: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    } as TableFilters,
   });
 
   const [zoneLookup, setZoneLookup] = useState<Record<string, string>>({});
@@ -83,17 +92,40 @@ export default function SupervisorZoneAccessAuditList() {
     fetchRecords();
   }, []);
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
-  };
-
   const resolveUser = (id: string) => userLookup[id] ?? id ?? "-";
 
   const resolveZones = (zoneIds?: Array<number | string> | null) => {
     if (!Array.isArray(zoneIds) || zoneIds.length === 0) return "-";
     return zoneIds.map((zoneId) => zoneLookup[String(zoneId)] ?? zoneId).join(", ");
+  };
+
+  const filteredExportRows = (): SupervisorZoneAccessAuditRecord[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    if (!search) return records;
+    return records.filter((record) =>
+      [
+        resolveUser(record.supervisor_id),
+        resolveUser(record.performed_by),
+        record.performed_role,
+        record.remarks,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search))
+    );
+  };
+
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = filteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "SupervisorZoneAccessAudit");
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
 
   const actionTemplate = (row: SupervisorZoneAccessAuditRecord) => (
@@ -119,18 +151,21 @@ export default function SupervisorZoneAccessAuditList() {
             {t("admin.supervisor_zone_access_audit.list_subtitle")}
           </p>
         </div>
+        <Button
+          label={isExportingExcel ? "Downloading..." : "Download Excel"}
+          icon="pi pi-file-excel"
+          className="p-button-outlined"
+          disabled={isExportingExcel}
+          onClick={handleDownloadExcel}
+        />
       </div>
 
       <div className="flex justify-end mb-4">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("common.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={onGlobalFilterChange}
+          searchPlaceholder={t("common.search_placeholder")}
+        />
       </div>
 
       <DataTable

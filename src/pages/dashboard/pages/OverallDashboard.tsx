@@ -51,7 +51,6 @@ import {
   Building2,
   Globe,
   Filter,
-  MapPin,
 } from "lucide-react";
 
 // ─── MOCK DATA ────────────────────────────────────────────────────
@@ -121,26 +120,6 @@ const localBodyTypes = [
     iconCls: "text-sky-600",
     iconBg: "bg-sky-50 border-sky-100",
     desc: "Municipal Corporation",
-  },
-  {
-    type: "Municipality",
-    count: 152,
-    active: 148,
-    Icon: Building2,
-    accentCls: "bg-blue-500",
-    iconCls: "text-blue-600",
-    iconBg: "bg-blue-50 border-blue-100",
-    desc: "Municipal Council",
-  },
-  {
-    type: "Town Panchayat",
-    count: 528,
-    active: 516,
-    Icon: MapPin,
-    accentCls: "bg-violet-500",
-    iconCls: "text-violet-600",
-    iconBg: "bg-violet-50 border-violet-100",
-    desc: "Town & Nagara Panchayat",
   },
   {
     type: "Panchayat",
@@ -374,8 +353,6 @@ export default function OverallDashboard() {
           <SelectContent>
             <SelectItem value="all">All Local Bodies</SelectItem>
             <SelectItem value="corporation">Corporation</SelectItem>
-            <SelectItem value="municipality">Municipality</SelectItem>
-            <SelectItem value="town-panchayat">Town Panchayat</SelectItem>
             <SelectItem value="panchayat">Panchayat</SelectItem>
           </SelectContent>
         </Select>
@@ -565,28 +542,30 @@ export default function OverallDashboard() {
 
       {/* ── MAIN MODULE TABS ──────────────────────────────────── */}
       <Tabs defaultValue="collection" className="space-y-4">
-        <TabsList className="h-9 bg-muted/50 border border-border/40 rounded-xl p-1 gap-0.5">
-          <TabsTrigger value="collection" className="gap-1.5 text-xs px-3 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
-            <Trash2 className="h-3.5 w-3.5" />
-            Waste Collection
-          </TabsTrigger>
-          <TabsTrigger value="grievances" className="gap-1.5 text-xs px-3 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Grievances
-          </TabsTrigger>
-          <TabsTrigger value="fleet" className="gap-1.5 text-xs px-3 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
-            <Truck className="h-3.5 w-3.5" />
-            Fleet Management
-          </TabsTrigger>
-          <TabsTrigger value="segregation" className="gap-1.5 text-xs px-3 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
-            <Recycle className="h-3.5 w-3.5" />
-            Segregation
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto">
+          <TabsList className="h-9 w-max bg-muted/50 border border-border/40 rounded-xl p-1 gap-0.5">
+            <TabsTrigger value="collection" className="gap-1.5 text-xs px-3 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
+              <Trash2 className="h-3.5 w-3.5" />
+              Waste Collection
+            </TabsTrigger>
+            <TabsTrigger value="grievances" className="gap-1.5 text-xs px-3 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Grievances
+            </TabsTrigger>
+            <TabsTrigger value="fleet" className="gap-1.5 text-xs px-3 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
+              <Truck className="h-3.5 w-3.5" />
+              Fleet Management
+            </TabsTrigger>
+            <TabsTrigger value="segregation" className="gap-1.5 text-xs px-3 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
+              <Recycle className="h-3.5 w-3.5" />
+              Segregation
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ── WASTE COLLECTION ──────────────────────────────── */}
         <TabsContent value="collection" className="space-y-4 mt-0">
-          <div className="grid gap-3 grid-cols-3">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
             <MiniStatCard
               label="Daily Average"
               value="4,827 MT"
@@ -726,7 +705,7 @@ export default function OverallDashboard() {
 
         {/* ── GRIEVANCES ────────────────────────────────────── */}
         <TabsContent value="grievances" className="space-y-4 mt-0">
-          <div className="grid gap-3 grid-cols-3">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
             <MiniStatCard label="Total Received" value="267" sub="This month" />
             <MiniStatCard label="Resolved" value="249" sub="93.3% resolution rate" subCls="text-emerald-600" />
             <MiniStatCard label="Pending" value="18" sub="↓ -23% vs last week" subCls="text-emerald-600" />

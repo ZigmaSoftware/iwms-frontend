@@ -1,11 +1,11 @@
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import { FilterBar } from "@/components/common/FilterBar";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 
@@ -16,6 +16,7 @@ import "primeicons/primeicons.css";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import "./datereport.css";
 import { useTranslation } from "react-i18next";
+import { applyTableFilters } from "@/utils/tableFilterMatch";
 
 // ---------- Type definition (matches the API response) ----------
 type ApiRow = {
@@ -29,6 +30,18 @@ type ApiRow = {
   total_net_weight: number;
   average_weight_per_trip: number;
 };
+
+const DATE_REPORT_GLOBAL_FIELDS = [
+  "date",
+  "Start_Time",
+  "End_Time",
+  "total_trip",
+  "dry_weight",
+  "wet_weight",
+  "mix_weight",
+  "total_net_weight",
+  "average_weight_per_trip",
+];
 
 // ---------- Helpers ----------
 const today = new Date();
@@ -64,8 +77,7 @@ export default function DateReport() {
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const onGlobalFilterChange = (value: string) => {
     setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
     setGlobalFilterValue(value);
   };
@@ -93,13 +105,11 @@ export default function DateReport() {
         </label>
         <Button label={t("common.go")} onClick={loadData} />
       </div>
-      <span className="p-input-icon-left">
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.workforce_management.date_report.search_placeholder")}
-        />
-      </span>
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={onGlobalFilterChange}
+        searchPlaceholder={t("admin.workforce_management.date_report.search_placeholder")}
+      />
     </div>
   );
 
@@ -169,6 +179,10 @@ export default function DateReport() {
 
   // ---------- Table index column ----------
   const indexTemplate = (_: ApiRow, { rowIndex }: any) => rowIndex + 1;
+  const exportRows = useMemo(
+    () => applyTableFilters(rows, filters, DATE_REPORT_GLOBAL_FIELDS),
+    [filters, rows],
+  );
 
   // ---------- UI ----------
   if (!contextLoading && !API_BASE) {
@@ -224,6 +238,7 @@ export default function DateReport() {
         {/* DataTable */}
         <DataTable
           value={rows}
+          exportRows={exportRows}
           paginator
           rows={10}
           rowsPerPageOptions={[5, 10, 25, 50]}
@@ -232,17 +247,7 @@ export default function DateReport() {
           loading={loading}
           stripedRows
           showGridlines
-          globalFilterFields={[
-            "date",
-            "Start_Time",
-            "End_Time",
-            "total_trip",
-            "dry_weight",
-            "wet_weight",
-            "mix_weight",
-            "total_net_weight",
-            "average_weight_per_trip",
-          ]}
+          globalFilterFields={DATE_REPORT_GLOBAL_FIELDS}
           emptyMessage={t("admin.workforce_management.date_report.empty_message")}
           className="p-datatable-sm"
         >

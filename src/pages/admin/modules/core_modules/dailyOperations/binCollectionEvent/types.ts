@@ -1,0 +1,82 @@
+import type { FilterMatchMode } from "primereact/api";
+
+export type SelectOption = { value: string; label: string; disabled?: boolean };
+
+// A5: BinCollectionEvent.STATUS_CHOICES.
+export type BinCollectionEventStatus = "Collected" | "Not Collected" | "Collect Later";
+
+export type FormState = {
+  trip_assignment_id: string;
+  trip_collection_point_id: string;
+  bin_id: string;
+  collection_date: string;
+  collected_weight_kg: string;
+  // A5: status/status_reason — collected_weight_kg is now required only when
+  // status === "Collected" (nullable on the backend for Not Collected / Collect Later).
+  status: BinCollectionEventStatus;
+  status_reason: string;
+  driver_latitude: string;
+  driver_longitude: string;
+  notes: string;
+};
+
+export type TableFilters = {
+  global: { value: string | null; matchMode: FilterMatchMode };
+  _trip_plan: { value: string | null; matchMode: FilterMatchMode };
+  _collection_point: { value: string | null; matchMode: FilterMatchMode };
+  _bin: { value: string | null; matchMode: FilterMatchMode };
+  _waste_type: { value: string | null; matchMode: FilterMatchMode };
+  _panchayat: { value: string | null; matchMode: FilterMatchMode };
+  _ward: { value: string | null; matchMode: FilterMatchMode };
+  _zone: { value: string | null; matchMode: FilterMatchMode };
+  collection_date: { value: string | null; matchMode: FilterMatchMode };
+  // A5: status query-param filter (viewset supports ward_id/zone_id/status).
+  status: { value: string | null; matchMode: FilterMatchMode };
+};
+
+export type BinCERecord = {
+  unique_id?: string;
+  trip_assignment_id?: string;
+  trip_collection_point_id?: string | null;
+  bin_id?: string | null;
+  collection_point_id?: string | null;
+  panchayat_id?: string | null;
+  ward_id?: string | null;
+  zone_id?: string | null;
+  trip_plan?: { display_code?: string };
+  collection_point?: { cp_name?: string } | null;
+  bin?: { unique_id?: string; id?: string | number; bin_name?: string; bin_capacity?: number; bin_type?: string };
+  waste_type?: { waste_type_name?: string };
+  vehicle?: { vehicle_no?: string };
+  vehicle_breakdown_id?: string | null;
+  effective_staff_template?: unknown;
+  collected_weight_kg?: string | number | null;
+  collection_date?: string;
+  // A5
+  status?: BinCollectionEventStatus;
+  status_reason?: string | null;
+  driver_latitude?: string | number | null;
+  driver_longitude?: string | number | null;
+  notes?: string | null;
+  created_at?: string;
+  company_name?: string;
+  company_id?: string;
+  project_name?: string;
+  project_id?: string;
+  panchayat_name?: string | null;
+  ward_name?: string | null;
+  zone_name?: string | null;
+  breakdown_info?: {
+    unique_id: string;
+    status: string;
+    approval_status: string;
+    breakdown_reason?: string | null;
+    breakdown_time?: string | null;
+    breakdown_location?: string | null;
+    breakdown_vehicle_no?: string | null;
+    replacement_vehicle_no?: string | null;
+    replacement_driver?: string | null;
+    replacement_operator?: string | null;
+  } | null;
+  [key: string]: unknown;
+};

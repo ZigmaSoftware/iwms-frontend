@@ -20,25 +20,28 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import type { ApiError } from "./types";
+import { hierarchySchema } from "@/schemas/masters/hierarchy.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const { encMasters, encHierarchies } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encHierarchies);
 
 const HIERARCHY_FIELDS: Record<string, string[]> = {
-  area_type: ["area_type", "area_type_id"],
   level_name: ["level_name", "name"],
   is_active: ["is_active"],
 };
 
 export default function HierarchyForm() {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "hierarchies", HIERARCHY_FIELDS);
   const [name, setName] = useState("");
   const [isActive, setIsActive] = useState(true);
-  const [areaTypeId, setAreaTypeId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
@@ -46,8 +49,6 @@ export default function HierarchyForm() {
   const [recordData, setRecordData] = useState<any>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [areaTypes, setAreaTypes] = useState<{ value: string; label: string }[]>([]);
-  const [pendingAreaTypeId, setPendingAreaTypeId] = useState("");
 
   const location = useLocation();
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
@@ -63,41 +64,6 @@ export default function HierarchyForm() {
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
-  // Fetch area types list
-  useEffect(() => {
-    let cancelled = false;
-    adminApi.areatypes.readAll()
-      .then((res: any) => {
-        if (cancelled) return;
-        const data: any[] = Array.isArray(res) ? res : [];
-        setAreaTypes(
-          data
-            .filter((record) => record && record.is_active !== false)
-            .map((record) => ({
-              value: String(record.unique_id),
-              label: record.name ?? record.area_type_name ?? String(record.unique_id),
-            }))
-        );
-      })
-      .catch(() => {
-        if (cancelled) return;
-        // silently ignore area types fetch error
-      });
-    return () => { cancelled = true; };
-  }, []);
-
-  // Apply pending area type once the list has loaded
-  useEffect(() => {
-    if (
-      pendingAreaTypeId &&
-      areaTypes.length > 0 &&
-      areaTypes.some((a) => a.value === pendingAreaTypeId)
-    ) {
-      setAreaTypeId(pendingAreaTypeId);
-      setPendingAreaTypeId("");
-    }
-  }, [pendingAreaTypeId, areaTypes]);
-
   // Fetch hierarchy record in edit mode
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -112,9 +78,6 @@ export default function HierarchyForm() {
 
         setName(record.level_name ?? "");
         setIsActive(Boolean(record.is_active));
-        if (record.area_type ?? record.area_type_id) {
-          setPendingAreaTypeId(String(record.area_type ?? record.area_type_id));
-        }
         applyCompanyProjectFromRecord(
           record as unknown as Record<string, unknown>
         );
@@ -136,15 +99,14 @@ export default function HierarchyForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const fieldValues: Record<string, unknown> = {
+    const fieldValues = {
       level_name: name.trim(),
-      area_type: areaTypeId,
+      is_active: isActive,
     };
-
-    if (
-      getMissingRequiredFields(["level_name"], (fieldKey) => fieldValues[fieldKey])
-        .length > 0
-    ) {
+    const schema = requireWhenVisible(hierarchySchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -152,6 +114,7 @@ export default function HierarchyForm() {
       });
       return;
     }
+    setFieldErrors({});
 
     if (!companyUniqueId) {
       Swal.fire(
@@ -169,24 +132,11 @@ export default function HierarchyForm() {
       return;
     }
 
-    if (
-      getMissingRequiredFields(["area_type"], (fieldKey) => fieldValues[fieldKey])
-        .length > 0
-    ) {
-      Swal.fire({
-        icon: "warning",
-        title: t("common.warning"),
-        text: "Area Type is required",
-      });
-      return;
-    }
-
     setLoading(true);
     setIsSubmitting(true);
     try {
       const rawPayload = {
         level_name: name.trim(),
-        area_type: areaTypeId,
         is_active: isActive,
         company_id: companyUniqueId,
         project_id: projectId,
@@ -313,33 +263,6 @@ export default function HierarchyForm() {
           )}
         </div>
 
-        {showField("area_type") && (
-          <div>
-            <Label htmlFor="areaType">
-              Area Type <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={areaTypeId}
-              onValueChange={setAreaTypeId}
-              disabled={areaTypes.length === 0}
-            >
-              <SelectTrigger id="areaType">
-                <SelectValue placeholder="Select Area Type" />
-              </SelectTrigger>
-              <SelectContent>
-                {areaTypes.map((a) => (
-                  <SelectItem key={a.value} value={a.value}>
-                    {a.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {areaTypes.length === 0 && (
-              <p className="mt-1 text-xs text-red-500">No area types found.</p>
-            )}
-          </div>
-        )}
-
         {showField("level_name") && (
           <div>
             <Label htmlFor="name">
@@ -350,12 +273,16 @@ export default function HierarchyForm() {
               id="name"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, level_name: "" }));
+              }}
               placeholder={t("common.enter_item_name", {
                 item: t("admin.nav.hierarchy"),
               })}
               required
             />
+            <FieldError message={fieldErrors.level_name} />
           </div>
         )}
 

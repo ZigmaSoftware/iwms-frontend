@@ -879,6 +879,10 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useFormCompanyProjectSync } from "@/hooks/useFormCompanyProjectSync";
+import { supervisorZoneMapSchema } from "@/schemas/staffMasters/supervisorZoneMap/supervisorZoneMap.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 /* ─────────────────────────── types ──────────────────────────────────────── */
 
@@ -1098,6 +1102,7 @@ export default function SupervisorZoneMapForm() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [remarks, setRemarks] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   /* raw master lists */
   const [allStaff, setAllStaff] = useState<StaffRecord[]>([]);
@@ -1394,17 +1399,25 @@ export default function SupervisorZoneMapForm() {
 
   /* ── save ────────────────────────────────────────────────────────────────── */
   const handleSave = async () => {
-    if (
-      (showField("company_id") && !selectedCompanyId) ||
-      (showField("project_id") && !selectedProjectId) ||
-      (showField("supervisor_id") && !form.supervisor_id) ||
-      (showField("district_id") && !form.district_id) ||
-      (showField("city_id") && !form.city_id) ||
-      (showField("zone_ids") && zoneIds.length === 0)
-    ) {
+    const fieldValues = {
+      company_id: selectedCompanyId,
+      project_id: selectedProjectId,
+      supervisor_id: form.supervisor_id,
+      district_id: form.district_id,
+      city_id: form.city_id,
+      zone_ids: zoneIds,
+      status: form.status,
+      remarks: remarks.trim(),
+    };
+
+    const schema = requireWhenVisible(supervisorZoneMapSchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire(t("common.error"), t("common.missing_fields"), "warning");
       return;
     }
+    setFieldErrors({});
     setFormError(null);
 
     const rawPayload = {
@@ -1486,12 +1499,16 @@ export default function SupervisorZoneMapForm() {
               </Label>
               <Select
                 value={selectedCompanyId}
-                onChange={handleCompanyChange}
+                onChange={(value) => {
+                  handleCompanyChange(value);
+                  setFieldErrors((prev) => ({ ...prev, company_id: "" }));
+                }}
                 options={companyOptions}
                 placeholder={t("common.select_option")}
                 disabled={fetching}
                 required
               />
+              <FieldError message={fieldErrors.company_id} />
             </div>
           )}
 
@@ -1504,7 +1521,10 @@ export default function SupervisorZoneMapForm() {
               </Label>
               <Select
                 value={selectedProjectId}
-                onChange={handleProjectChange}
+                onChange={(value) => {
+                  handleProjectChange(value);
+                  setFieldErrors((prev) => ({ ...prev, project_id: "" }));
+                }}
                 options={projectOptions}
                 placeholder={
                   !selectedCompanyId
@@ -1514,6 +1534,7 @@ export default function SupervisorZoneMapForm() {
                 disabled={fetching || !selectedCompanyId}
                 required
               />
+              <FieldError message={fieldErrors.project_id} />
             </div>
           )}
 
@@ -1526,9 +1547,10 @@ export default function SupervisorZoneMapForm() {
               </Label>
               <Select
                 value={form.supervisor_id}
-                onChange={(value) =>
-                  setForm((p) => ({ ...p, supervisor_id: value }))
-                }
+                onChange={(value) => {
+                  setForm((p) => ({ ...p, supervisor_id: value }));
+                  setFieldErrors((prev) => ({ ...prev, supervisor_id: "" }));
+                }}
                 options={supervisorOptions}
                 placeholder={
                   !selectedProjectId
@@ -1538,6 +1560,7 @@ export default function SupervisorZoneMapForm() {
                 disabled={fetching || !selectedProjectId}
                 required
               />
+              <FieldError message={fieldErrors.supervisor_id} />
             </div>
           )}
 
@@ -1550,7 +1573,10 @@ export default function SupervisorZoneMapForm() {
               </Label>
               <Select
                 value={form.district_id}
-                onChange={handleDistrictChange}
+                onChange={(value) => {
+                  handleDistrictChange(value);
+                  setFieldErrors((prev) => ({ ...prev, district_id: "" }));
+                }}
                 options={districtOptions}
                 placeholder={
                   !selectedProjectId
@@ -1560,6 +1586,7 @@ export default function SupervisorZoneMapForm() {
                 disabled={fetching || !selectedProjectId}
                 required
               />
+              <FieldError message={fieldErrors.district_id} />
             </div>
           )}
 
@@ -1572,7 +1599,10 @@ export default function SupervisorZoneMapForm() {
               </Label>
               <Select
                 value={form.city_id}
-                onChange={handleCityChange}
+                onChange={(value) => {
+                  handleCityChange(value);
+                  setFieldErrors((prev) => ({ ...prev, city_id: "" }));
+                }}
                 options={cityOptions}
                 placeholder={
                   !form.district_id
@@ -1582,6 +1612,7 @@ export default function SupervisorZoneMapForm() {
                 disabled={fetching || !form.district_id}
                 required
               />
+              <FieldError message={fieldErrors.city_id} />
             </div>
           )}
 
@@ -1616,7 +1647,10 @@ export default function SupervisorZoneMapForm() {
             <ZoneMultiSelect
               options={zoneOptions}
               value={zoneIds}
-              onChange={setZoneIds}
+              onChange={(value) => {
+                setZoneIds(value);
+                setFieldErrors((prev) => ({ ...prev, zone_ids: "" }));
+              }}
               zoneLabels={zoneLabels}
               placeholder={
                 !form.district_id
@@ -1627,6 +1661,7 @@ export default function SupervisorZoneMapForm() {
               }
               disabled={fetching || !form.district_id || !form.city_id}
             />
+            <FieldError message={fieldErrors.zone_ids} />
           </div>
         )}
 

@@ -1,7 +1,7 @@
-import type { CompanyOption, ProjectCreateResponse, ProjectRecord } from "./types";
+import type { ProjectCreateResponse, ProjectRecord } from "./types";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -19,7 +19,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { companyApi, projectApi } from "@/helpers/admin";
+import { projectApi } from "@/helpers/admin";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { projectSchema } from "@/schemas/superadminMasters/project.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const normalizeIsActive = (value: unknown): boolean => {
@@ -66,13 +70,25 @@ export default function ProjectForm() {
     return `${ENC_LIST_PATH}?company_unique_id=${encodeURIComponent(companyUniqueIdFromQuery)}`;
   }, [companyUniqueIdFromQuery]);
 
-  const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyUniqueId, setCompanyUniqueId] = useState(companyUniqueIdFromQuery ?? "");
-  const [pendingCompanyId, setPendingCompanyId] = useState<string | null>(null);
+  const {
+    companyUniqueId,
+    companies,
+    onCompanyChange,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({
+    isEdit,
+    initialCompanyId: companyUniqueIdFromQuery ?? undefined,
+    // A superadmin choosing among many companies shouldn't get a silent
+    // default — only auto-select below when there's exactly one option.
+    defaultToAll: true,
+  });
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [gpsApiUrl, setGpsApiUrl] = useState("");
+  const [gpsVehicleHistoryApi, setGpsVehicleHistoryApi] = useState("");
+  const [gpsVehicleTrackingApi, setGpsVehicleTrackingApi] = useState("");
+  const [gpsTripSummaryApi, setGpsTripSummaryApi] = useState("");
   const [gpsUserId, setGpsUserId] = useState("BLUEPLANET");
   const [gpsGroupName, setGpsGroupName] = useState("BLUEPLANET:VAM");
   const [gpsProviderName, setGpsProviderName] = useState("BLUEPLANET");
@@ -90,51 +106,14 @@ export default function ProjectForm() {
   const [adminEmployeeName, setAdminEmployeeName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
-  const fetchCompanies = useCallback(async () => {
-    let cancelled = false;
-    try {
-      const records = await companyApi.readAll();
-      if (cancelled) return;
-      const options = records.map((company) => ({
-        unique_id: company.unique_id,
-        name: company.name,
-      }));
-      setCompanies(options);
-      setCompanyUniqueId((current) => {
-        if (!current && options.length === 1) return options[0].unique_id;
-        return current;
-      });
-      setPendingCompanyId((pending) => {
-        if (pending && options.some((o) => o.unique_id === pending)) {
-          setCompanyUniqueId(pending);
-          return null;
-        }
-        return pending;
-      });
-    } catch {
-      // Some roles may not have company listing permission.
-      if (!cancelled) setCompanies([]);
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  // Convenience default preserved from the pre-shared-hook behavior: if there's
+  // only one company to choose from, select it automatically (create mode only).
   useEffect(() => {
-    fetchCompanies();
-  }, [fetchCompanies]);
-
-  // Apply pendingCompanyId once the companies list is loaded.
-  // Handles the common case where the project record resolves after companies.
-  useEffect(() => {
-    if (!pendingCompanyId || companies.length === 0) return;
-    const found = companies.some((c) => c.unique_id === pendingCompanyId);
-    if (found) {
-      setCompanyUniqueId(pendingCompanyId);
-      setPendingCompanyId(null);
-    }
-  }, [pendingCompanyId, companies]);
+    if (isEdit || companyUniqueId || companies.length !== 1) return;
+    onCompanyChange(companies[0].value);
+  }, [isEdit, companyUniqueId, companies, onCompanyChange]);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -156,6 +135,9 @@ export default function ProjectForm() {
         setName(record.name ?? "");
         setDescription(record.description ?? "");
         setGpsApiUrl(record.gps_api_url ?? "");
+        setGpsVehicleHistoryApi(record.gps_vehicle_history_api ?? "");
+        setGpsVehicleTrackingApi(record.gps_vehicle_tracking_api ?? "");
+        setGpsTripSummaryApi(record.gps_trip_summary_api ?? "");
         setGpsUserId(record.gps_user_id ?? "BLUEPLANET");
         setGpsGroupName(record.gps_group_name ?? "BLUEPLANET:VAM");
         setGpsProviderName(record.gps_provider_name ?? "BLUEPLANET");
@@ -167,7 +149,7 @@ export default function ProjectForm() {
         setDayWiseWeighmentApiUrl(record.day_wise_weighment_api_url ?? "");
         setAttendanceApiUrl(record.attendance_api_url ?? "");
         setAttendanceApiConfigured(Boolean(record.attendance_api_configured));
-        setPendingCompanyId(record.company_unique_id ?? null);
+        applyCompanyProjectFromRecord(record as unknown as Record<string, unknown>);
         setIsActive(normalizeIsActive(record.is_active));
       })
       .catch((error: unknown) => {
@@ -182,12 +164,34 @@ export default function ProjectForm() {
     return () => {
       cancelled = true;
     };
-  }, [id, isEdit, t]);
+  }, [id, isEdit, t, applyCompanyProjectFromRecord]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!name.trim()) {
+    const fieldValues = {
+      name: name.trim(),
+      description: description.trim(),
+      is_active: isActive,
+      gps_api_url: gpsApiUrl.trim(),
+      gps_user_id: gpsUserId.trim(),
+      gps_group_name: gpsGroupName.trim(),
+      gps_provider_name: gpsProviderName.trim(),
+      gps_fcode: gpsFcode.trim(),
+      gps_trip_user_id: gpsTripUserId.trim(),
+      weighment_api_url: weighmentApiUrl.trim(),
+      day_wise_weighment_api_url: dayWiseWeighmentApiUrl.trim(),
+      attendance_api_url: attendanceApiUrl.trim(),
+      attendance_api_key: attendanceApiKey.trim(),
+      admin_username: adminUsername.trim(),
+      admin_password: adminPassword.trim(),
+      admin_employee_name: adminEmployeeName.trim(),
+      admin_email: adminEmail.trim(),
+    };
+
+    const validation = parseWithSchema(projectSchema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
@@ -195,6 +199,7 @@ export default function ProjectForm() {
       });
       return;
     }
+    setFieldErrors({});
 
     const hasAnyAdmin =
       !!adminUsername.trim() ||
@@ -220,6 +225,9 @@ export default function ProjectForm() {
           name: name.trim(),
           description: description.trim() || null,
           gps_api_url: gpsApiUrl.trim() || null,
+          gps_vehicle_history_api: gpsVehicleHistoryApi.trim() || null,
+          gps_vehicle_tracking_api: gpsVehicleTrackingApi.trim() || null,
+          gps_trip_summary_api: gpsTripSummaryApi.trim() || null,
           gps_user_id: gpsUserId.trim() || "BLUEPLANET",
           gps_group_name: gpsGroupName.trim() || "BLUEPLANET:VAM",
           gps_provider_name: gpsProviderName.trim() || "BLUEPLANET",
@@ -236,6 +244,9 @@ export default function ProjectForm() {
           name: name.trim(),
           description: description.trim() || null,
           gps_api_url: gpsApiUrl.trim() || null,
+          gps_vehicle_history_api: gpsVehicleHistoryApi.trim() || null,
+          gps_vehicle_tracking_api: gpsVehicleTrackingApi.trim() || null,
+          gps_trip_summary_api: gpsTripSummaryApi.trim() || null,
           gps_user_id: gpsUserId.trim() || "BLUEPLANET",
           gps_group_name: gpsGroupName.trim() || "BLUEPLANET:VAM",
           gps_provider_name: gpsProviderName.trim() || "BLUEPLANET",
@@ -307,7 +318,7 @@ export default function ProjectForm() {
             <Label htmlFor="projectCompany">{t("admin.nav.company")}</Label>
             <Select
               value={companyUniqueId}
-              onValueChange={setCompanyUniqueId}
+              onValueChange={onCompanyChange}
               disabled={isEdit}
             >
               <SelectTrigger className="input-validate w-full" id="projectCompany">
@@ -319,8 +330,8 @@ export default function ProjectForm() {
               </SelectTrigger>
               <SelectContent>
                 {companies.map((company) => (
-                  <SelectItem key={company.unique_id} value={company.unique_id}>
-                    {company.name}
+                  <SelectItem key={company.value} value={company.value}>
+                    {company.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -336,10 +347,14 @@ export default function ProjectForm() {
               id="projectName"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, name: "" }));
+              }}
               placeholder={t("common.enter_item_name", { item: t("admin.nav.project") })}
               required
             />
+            <FieldError message={fieldErrors.name} />
           </div>
 
           <div>
@@ -379,6 +394,42 @@ export default function ProjectForm() {
               value={gpsApiUrl}
               onChange={(e) => setGpsApiUrl(e.target.value)}
               placeholder="https://api.example.com/getVehicleHistory"
+            />
+          </div>
+
+          {/* GPS Vehicle History API */}
+          <div>
+            <Label htmlFor="gpsVehicleHistoryApi">GPS Vehicle History API</Label>
+            <Input
+              id="gpsVehicleHistoryApi"
+              type="url"
+              value={gpsVehicleHistoryApi}
+              onChange={(e) => setGpsVehicleHistoryApi(e.target.value)}
+              placeholder="https://api.vamosys.com/mobile/getGrpDataForTrustedClients"
+            />
+          </div>
+
+          {/* GPS Vehicle Tracking API */}
+          <div>
+            <Label htmlFor="gpsVehicleTrackingApi">GPS Vehicle Tracking API</Label>
+            <Input
+              id="gpsVehicleTrackingApi"
+              type="url"
+              value={gpsVehicleTrackingApi}
+              onChange={(e) => setGpsVehicleTrackingApi(e.target.value)}
+              placeholder="https://api.vamosys.com/mobile/getGrpDataForTrustedClients"
+            />
+          </div>
+
+          {/* GPS Trip Summary API */}
+          <div>
+            <Label htmlFor="gpsTripSummaryApi">GPS Trip Summary API</Label>
+            <Input
+              id="gpsTripSummaryApi"
+              type="url"
+              value={gpsTripSummaryApi}
+              onChange={(e) => setGpsTripSummaryApi(e.target.value)}
+              placeholder="https://gpsvtsprobend.vamosys.com/v2/getTripSummary"
             />
           </div>
 
@@ -548,9 +599,13 @@ export default function ProjectForm() {
                   id="adminEmail"
                   type="email"
                   value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
+                  onChange={(e) => {
+                    setAdminEmail(e.target.value);
+                    setFieldErrors((prev) => ({ ...prev, admin_email: "" }));
+                  }}
                   placeholder={t("admin.project.admin_email")}
                 />
+                <FieldError message={fieldErrors.admin_email} />
               </div>
             </>
           ) : null}

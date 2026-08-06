@@ -21,6 +21,11 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { panchayatApi, stateApi, districtApi, cityApi } from "@/helpers/admin";
 import type { SelectOption } from "@/types";
+import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
+import { panchayatSchema } from "@/schemas/masters/panchayat.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const PANCHAYAT_FIELDS: Record<string, string[]> = {
   state_id: ["state_id", "state"],
@@ -128,6 +133,7 @@ export default function PanchayatForm() {
   const [longitude, setLongitude] = useState("");
   const [geofencingType, setGeofencingType] = useState("polygon");
   const [isActive, setIsActive] = useState(true);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   /* ── pending IDs for edit-mode cascade (applied once list loads) ── */
   const [pendingState, setPendingState] = useState("");
@@ -328,6 +334,27 @@ export default function PanchayatForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
+    const fieldValues = {
+      state_id: stateId,
+      district_id: districtId,
+      city_id: cityId,
+      panchayat_name: panchayatName,
+      agreed_weight_kg: agreedWeightKg,
+      weight_unit: weightUnit,
+      effective_from: effectiveFrom,
+      latitude,
+      longitude,
+      geofencing_type: geofencingType,
+      is_active: isActive,
+    };
+    const schema = requireWhenVisible(panchayatSchema, showField);
+    const validation = parseWithSchema(schema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      return;
+    }
+    setFieldErrors({});
+
     if (!companyUniqueId) {
       Swal.fire(
         "Error",
@@ -469,6 +496,7 @@ export default function PanchayatForm() {
                 setFilteredCities([]);
                 setPendingDistrict("");
                 setPendingCity("");
+                setFieldErrors((prev) => ({ ...prev, state_id: "" }));
               }}
             >
               <SelectTrigger>
@@ -482,6 +510,7 @@ export default function PanchayatForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.state_id} />
           </div>
         )}
 
@@ -496,6 +525,7 @@ export default function PanchayatForm() {
                 setCityId("");
                 setFilteredCities([]);
                 setPendingCity("");
+                setFieldErrors((prev) => ({ ...prev, district_id: "" }));
               }}
               disabled={!stateId}
             >
@@ -510,6 +540,7 @@ export default function PanchayatForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.district_id} />
           </div>
         )}
 
@@ -517,7 +548,14 @@ export default function PanchayatForm() {
         {showField("city_id") && (
           <div>
             <Label>City *</Label>
-            <Select value={cityId} onValueChange={setCityId} disabled={!districtId}>
+            <Select
+              value={cityId}
+              onValueChange={(value) => {
+                setCityId(value);
+                setFieldErrors((prev) => ({ ...prev, city_id: "" }));
+              }}
+              disabled={!districtId}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select City" />
               </SelectTrigger>
@@ -529,6 +567,7 @@ export default function PanchayatForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.city_id} />
           </div>
         )}
 
@@ -539,9 +578,13 @@ export default function PanchayatForm() {
             <Label>PLB Name *</Label>
             <Input
               value={panchayatName}
-              onChange={(e) => setPanchayatName(e.target.value)}
+              onChange={(e) => {
+                setPanchayatName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, panchayat_name: "" }));
+              }}
               required
             />
+            <FieldError message={fieldErrors.panchayat_name} />
           </div>
         )}
 
@@ -554,9 +597,13 @@ export default function PanchayatForm() {
               min="0"
               step="0.01"
               value={agreedWeightKg}
-              onChange={(e) => setAgreedWeightKg(e.target.value)}
+              onChange={(e) => {
+                setAgreedWeightKg(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, agreed_weight_kg: "" }));
+              }}
               required
             />
+            <FieldError message={fieldErrors.agreed_weight_kg} />
           </div>
         )}
 
@@ -594,9 +641,13 @@ export default function PanchayatForm() {
             <Label>Latitude *</Label>
             <Input
               value={latitude}
-              onChange={(e) => setLatitude(e.target.value)}
+              onChange={(e) => {
+                setLatitude(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, latitude: "" }));
+              }}
               required
             />
+            <FieldError message={fieldErrors.latitude} />
           </div>
         )}
 
@@ -604,11 +655,24 @@ export default function PanchayatForm() {
         {showField("longitude") && (
           <div>
             <Label>Longitude *</Label>
-            <Input
-              value={longitude}
-              onChange={(e) => setLongitude(e.target.value)}
-              required
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                value={longitude}
+                onChange={(e) => {
+                  setLongitude(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, longitude: "" }));
+                }}
+                required
+              />
+              <AutoDetectLocationButton
+                onDetected={({ latitude: lat, longitude: lng }) => {
+                  setLatitude(String(lat));
+                  setLongitude(String(lng));
+                  setFieldErrors((prev) => ({ ...prev, latitude: "", longitude: "" }));
+                }}
+              />
+            </div>
+            <FieldError message={fieldErrors.longitude} />
           </div>
         )}
 

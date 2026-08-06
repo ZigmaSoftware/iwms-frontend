@@ -1,11 +1,11 @@
 import { decryptSegment } from "@/utils/routeCrypto";
-import { adminEndpoints } from "@/helpers/admin/endpoints";
+import { jwtDecode } from "jwt-decode";
 
 // ============================================================
 // Types
 // ============================================================
 
-export type PermissionAction = "view" | "add" | "edit" | "delete" | "show" | string;
+export type PermissionAction = "view" | "add" | "edit" | "delete" | "use" | string;
 export type PermissionsMap = Record<string, Record<string, string[]>>;
 
 export type PermissionDetailsColumn = {
@@ -23,11 +23,11 @@ export type PermissionDetailsColumn = {
 export type PermissionDetailsScreen = {
   userScreenId: string;
   permissions: {
-    show: boolean;
     view: boolean;
     add: boolean;
     edit: boolean;
     delete: boolean;
+    use: boolean;
   };
   columns: PermissionDetailsColumn[];
 };
@@ -71,11 +71,11 @@ export const PERMISSION_DETAILS_STORAGE_KEY = "permission_details";
 export const COLUMN_PERMISSIONS_STORAGE_KEY = "column_permissions";
 
 const ACTION_ALIASES: Record<string, string[]> = {
-  show: ["show", "display", "visible"],
-  view: ["view", "list", "read"],
+  view: ["view", "display", "visible", "list", "read", "show"],
   add: ["add", "create"],
   edit: ["edit", "update", "change"],
   delete: ["delete", "remove"],
+  use: ["use", "select", "reference"],
 };
 
 const MODULE_ALIASES: Record<string, string[]> = {
@@ -92,16 +92,24 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "user-creation": ["staff-masters", "user-creations"],
   "transport-master": ["transport-masters"],
   "transport-masters": ["transport-master"],
-  "schedule-masters": ["schedule masters"],
-  "citizen-grievance": ["grivences", "grievance"],
-  grivences: ["citizen-grievance", "grievance"],
-  grievance: ["citizen-grievance", "grivences"],
+  // "schedule-setup"/"schedule-operations" are a pure split of the legacy
+  // "schedule-masters" module — kept as fallbacks so permissions granted
+  // before the split still authorize both halves.
+  "schedule-masters": ["schedule masters", "schedule-setup", "schedule-operations"],
+  "schedule-setup": ["schedule-masters", "schedule masters"],
+  "schedule-operations": ["schedule-masters", "schedule masters"],
+  // "complaint-ticket" is the renamed "citizen-grievance"/"grivences" module.
+  "citizen-grievance": ["grivences", "grievance", "complaint-ticket"],
+  grivences: ["citizen-grievance", "grievance", "complaint-ticket"],
+  grievance: ["citizen-grievance", "grivences", "complaint-ticket"],
+  "complaint-ticket": ["citizen-grievance", "grivences", "grievance"],
   "superadmin-masters": ["superadmin", "admin"],
   superadmin: ["superadmin-masters", "admin"],
   admin: ["superadmin-masters", "superadmin"],
   "common-masters": ["masters"],
-  "waste-types": ["masters"],
-  assets: ["masters"],
+  // "waste-types" absorbed the legacy "assets" module (bins/wastetype/collection-point).
+  "waste-types": ["masters", "assets"],
+  assets: ["masters", "waste-types"],
   masters: ["common-masters", "waste-types", "assets"],
   "waste-management": ["collections"],
   collections: ["waste-management"],
@@ -111,13 +119,17 @@ const MODULE_ALIASES: Record<string, string[]> = {
 };
 
 const SCREEN_ALIASES: Record<string, string[]> = {
-  complaint: ["complaints"],
-  "main-complaint-category": ["main-category"],
-  "sub-complaint-category": ["sub-category"],
+  complaint: ["complaints", "tickets"],
+  "main-complaint-category": ["main-category", "categories"],
+  "sub-complaint-category": ["sub-category", "subcategories"],
+  // renamed complaint-ticket screen names — fall back to the pre-rename names
+  // so permissions granted before the rename still authorize the new screens.
+  tickets: ["complaint", "complaints"],
+  categories: ["main-complaint-category", "main-category"],
+  subcategories: ["sub-complaint-category", "sub-category"],
   feedback: ["feedbacks"],
   fuel: ["fuels"],
   panchayats: ["panchayat"],
-  "area-types": ["areatypes"],
   hierarchies: ["hierarchy"],
   "collection-points": ["collection-point"],
   "staff-templates": ["staff-template", "stafftemplatecreation", "stafftemplate", "staff template"],
@@ -211,7 +223,7 @@ const sanitizePermissions = (source: unknown): PermissionsMap => {
 
   Object.entries(root).forEach(([moduleName, screens]) => {
     if (typeof screens === "boolean") {
-      if (screens) sanitized[moduleName] = { [moduleName]: ["show", "view"] };
+      if (screens) sanitized[moduleName] = { [moduleName]: ["view"] };
       return;
     }
 
@@ -221,7 +233,7 @@ const sanitizePermissions = (source: unknown): PermissionsMap => {
 
     Object.entries(screens).forEach(([screenName, actions]) => {
       if (typeof actions === "boolean") {
-        if (actions) sanitizedScreens[screenName] = ["show", "view"];
+        if (actions) sanitizedScreens[screenName] = ["view"];
         return;
       }
 
@@ -233,7 +245,7 @@ const sanitizePermissions = (source: unknown): PermissionsMap => {
           .filter(Boolean);
 
         if (actionList.length > 0) {
-          sanitizedScreens[screenName] = Array.from(new Set(["show", ...actionList]));
+          sanitizedScreens[screenName] = Array.from(new Set(["view", ...actionList]));
         }
         return;
       }
@@ -290,11 +302,11 @@ const sanitizePermissionDetails = (source: unknown): PermissionDetailsMap => {
       sanitizedScreens[screenName] = {
         userScreenId: String(screen.userScreenId ?? screen.userscreen_id ?? ""),
         permissions: {
-          show: Boolean(perms.show ?? false),
           view: Boolean(perms.view ?? false),
           add: Boolean(perms.add ?? false),
           edit: Boolean(perms.edit ?? false),
           delete: Boolean(perms.delete ?? false),
+          use: Boolean(perms.use ?? false),
         },
         columns,
       };
@@ -609,6 +621,7 @@ export const hasPermission = (
   permissions: PermissionsMap = getStoredPermissions(),
 ): boolean => {
   if (!moduleName || !screenName || !action) return false;
+  if (isStoredSuperAdmin()) return true;
 
   const moduleEntry = resolveModuleEntry(permissions, moduleName);
   if (!moduleEntry) return false;
@@ -696,7 +709,20 @@ export const hasSidebarPermission = (
   moduleName: string,
   screenName: string,
   permissions: PermissionsMap = getStoredPermissions(),
-): boolean => hasPermission(moduleName, screenName, "show", permissions);
+): boolean => hasPermission(moduleName, screenName, "view", permissions);
+
+/**
+ * True if the user can consume a screen's records as reference data (e.g. as
+ * dropdown/autocomplete options in another form) — granted by either the
+ * full "view" action or the lighter-weight "use" action.
+ */
+export const canUseScreenData = (
+  moduleName: string,
+  screenName: string,
+  permissions: PermissionsMap = getStoredPermissions(),
+): boolean =>
+  hasPermission(moduleName, screenName, "view", permissions) ||
+  hasPermission(moduleName, screenName, "use", permissions);
 
 export const hasAnyPermission = (
   action: PermissionAction = "view",
@@ -749,12 +775,34 @@ type PermissionsAPIResponse = {
   column_permissions?: unknown;
 };
 
+type PermissionTokenPayload = { exp?: number };
+
+const expirePermissionSession = (): void => {
+  localStorage.removeItem("access_token");
+  clearStoredPermissions();
+  window.dispatchEvent(new Event("iwms:auth-expired"));
+};
+
 export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
   try {
     const token = localStorage.getItem("access_token");
     if (!token) return {};
 
-    const apiBaseUrl = import.meta.env.VITE_API_LOCAL || import.meta.env.VITE_API_PROD;
+    try {
+      const { exp } = jwtDecode<PermissionTokenPayload>(token);
+      if (exp && exp <= Math.floor(Date.now() / 1000)) {
+        expirePermissionSession();
+        return {};
+      }
+    } catch {
+      expirePermissionSession();
+      return {};
+    }
+
+    const isProduction = import.meta.env.VITE_PROD === "true";
+    const apiBaseUrl = isProduction
+      ? import.meta.env.VITE_API_PROD
+      : import.meta.env.VITE_API_LOCAL;
     if (!apiBaseUrl) {
       console.error("[Permissions API] ❌ API base URL not configured");
       return {};
@@ -771,6 +819,7 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
     });
 
     if (!response.ok) {
+      if (response.status === 401) expirePermissionSession();
       console.error(`[Permissions API] ❌ HTTP ${response.status}: ${response.statusText}`);
       return {};
     }

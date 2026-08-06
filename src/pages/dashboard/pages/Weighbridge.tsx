@@ -86,7 +86,7 @@ const statusStyles = {
 ========================================================= */
 export default function Weighbridge() {
   const { t } = useTranslation();
-  const { weighmentApiUrl } = useProjectSelector();
+  const { dayWiseWeighmentApiUrl } = useProjectSelector();
   const formatDate = (date: Date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -105,8 +105,8 @@ export default function Weighbridge() {
 
   /* ================= FETCH (UNCHANGED) ================= */
   useEffect(() => {
-    if (!weighmentApiUrl) { setData([]); return; }
-    const url = `${weighmentApiUrl}?action=day_wise_data&from_date=${fromDate}&to_date=${toDate}&key=${API_KEY}`;
+    if (!dayWiseWeighmentApiUrl) { setData([]); return; }
+    const url = `${dayWiseWeighmentApiUrl}?action=day_wise_data&from_date=${fromDate}&to_date=${toDate}&key=${API_KEY}`;
 
     fetch(url)
       .then(res => res.json())
@@ -146,7 +146,7 @@ export default function Weighbridge() {
         setActiveStatus("all");
       })
       .catch(() => setData([]));
-  }, [fromDate, toDate, weighmentApiUrl]);
+  }, [fromDate, toDate, dayWiseWeighmentApiUrl]);
 
   const filtered =
     activeStatus === "all" ? data : data.filter(d => d.status === activeStatus);
@@ -164,7 +164,7 @@ export default function Weighbridge() {
 
   /* ================= RENDER ================= */
 
-  if (!weighmentApiUrl) {
+  if (!dayWiseWeighmentApiUrl) {
     return (
       <div className="p-6 space-y-6 bg-white dark:bg-slate-950 min-h-screen">
         <ProjectSelectorBar />

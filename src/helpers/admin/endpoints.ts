@@ -13,7 +13,6 @@ export const adminEndpoints = {
      AUTHENTICATION
   ========================= */
   loginUser: "login/login-user",
-  userpermission: "login/my-permissions",
 
   /* =========================
      COMMON MASTERS
@@ -34,11 +33,8 @@ export const adminEndpoints = {
   panchayats: "masters/panchayat",
   panchayatLeaders: "masters/panchayat-leaders",
   districtLeaders: "masters/district-leaders",
-  areatypes: "masters/areatypes",
   hierarchies: "masters/hierarchy",
-  municipalities: "masters/municipalities",
-  townPanchayats: "masters/town-panchayats",
-
+  blockPanchayatUnions: "masters/block-panchayat-unions",
 
   /* =========================
      WASTE TYPES
@@ -47,28 +43,41 @@ export const adminEndpoints = {
   subProperties: "waste-types/subproperties",
 
   /* =========================
-     ASSETS
+     WASTE TYPES (merged from the legacy "assets" group — the old
+     assets/waste-types + assets/bins endpoints now live here)
   ========================= */
-  wasteTypes: "assets/waste-types",
-  bins: "assets/bins",
+  wasteTypes: "waste-types/wastetypes",
+  bins: "waste-types/bins",
 
   /* =========================
-     SCHEDULE MASTERS
+     SCHEDULE SETUP (split from the legacy "schedule-masters" group —
+     template/plan setup resources)
   ========================= */
-  collectionPoints: "schedule-masters/collection-points",
-  staffTemplateCreation: "schedule-masters/staff-templates",
-  alternativeStaffTemplate: "schedule-masters/alternative-staff-templates",
-  tripPlans: "schedule-masters/trip-plans",
-  dailyTripAssignment: "schedule-masters/daily-trip-assignments",
-  dailyTripLog: "schedule-masters/daily-trip-logs",
-  dailyTripCollectionPoint: "schedule-masters/daily-trip-collection-points",
-  dailyTripHouseholdCollection: "schedule-masters/daily-trip-household-collections",
-  binCollectionEvent: "schedule-masters/bin-collection-events",
+  collectionPoints: "schedule-setup/collection-points",
+  staffTemplateCreation: "schedule-setup/staff-templates",
+  alternativeStaffTemplate: "schedule-setup/alternative-staff-templates",
+  tripPlans: "schedule-setup/trip-plans",
+
+  /* =========================
+     SCHEDULE OPERATIONS (split from the legacy "schedule-masters" group —
+     day-to-day execution resources)
+  ========================= */
+  dailyTripAssignment: "schedule-operations/daily-trip-assignments",
+  dailyTripLog: "schedule-operations/daily-trip-logs",
+  dailyTripCollectionPoint: "schedule-operations/daily-trip-collection-points",
+  dailyTripHouseholdCollection: "schedule-operations/daily-trip-household-collections",
+  binCollectionEvent: "schedule-operations/bin-collection-events",
+  vehicleBreakdown: "schedule-operations/vehicle-breakdowns",
+  retripRequests: "schedule-operations/retrip-requests",
+  schedulerConfig: "schedule-operations/daily-trip-assignments/scheduler-config/",
+  wasteCollections: "schedule-operations/wastecollections",
+
+  /* =========================
+     SCHEDULE MASTERS (legacy name — kept only for the reporting
+     sub-resources still registered under it; see base_urls.py)
+  ========================= */
   dailyWasteComparison: "schedule-masters/daily-waste-comparisons",
   monthlyWasteComparison: "schedule-masters/monthly-waste-comparison",
-  vehicleBreakdown: "schedule-masters/vehicle-breakdowns",
-  schedulerConfig: "schedule-masters/daily-trip-assignments/scheduler-config/",
-  wasteCollections: "schedule-masters/wastecollections",
 
   /* =========================
      SCREEN MANAGEMENT
@@ -96,6 +105,7 @@ export const adminEndpoints = {
   staffCreation: "user-creations/staffcreation",
   supervisorZoneMap: "user-creations/supervisor-zone-map",
   unassignedStaffPool: "user-creations/unassigned-staff-pool",
+  staffAccessConfiguration: "user-creations/staff-access-configuration",
 
   /* =========================
      PROCESS
@@ -115,11 +125,11 @@ export const adminEndpoints = {
   wardWiseCollections: "collections/ward-wise",
 
   /* =========================
-     GRIEVANCES
+     COMPLAINT TICKET (renamed from the legacy "grivences" group)
   ========================= */
-  complaints: "grivences/complaints",
-  mainCategory: "grivences/main-category",
-  subCategory: "grivences/sub-category",
+  complaints: "complaint-ticket/tickets",
+  mainCategory: "complaint-ticket/categories",
+  subCategory: "complaint-ticket/subcategories",
 
   /* =========================
      TRANSPORT MASTERS
@@ -128,6 +138,11 @@ export const adminEndpoints = {
   vehicleCreations: "transport-masters/vehicle-creation",
   tripAttendances: "transport-masters/trip-attendance",
   fuels: "transport-masters/fuels",
+
+  /* =========================
+     DASHBOARD
+  ========================= */
+  dashboardSummary: "dashboard/summary",
 
   /* =========================
      AUDITS

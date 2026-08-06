@@ -46,7 +46,7 @@ export const checkPermission = (
   module: string | undefined,
   screen: string | undefined,
   hasPermissionFn: (module: string, screen: string, action: string) => boolean,
-  action: string = "show"
+  action: string = "view"
 ): boolean => {
   // Items without module/screen always visible (e.g., dashboard)
   if (!module || !screen) {
@@ -58,7 +58,7 @@ export const checkPermission = (
 
 /**
  * Filter menu sub-items by permission
- * Removes items that user doesn't have "show" permission for
+ * Removes items that user doesn't have "view" permission for
  */
 export const filterSubItems = (
   subItems: MenuItem[] | undefined,

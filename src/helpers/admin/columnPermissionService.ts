@@ -19,9 +19,7 @@ export interface ColumnPermissionsResponse {
 export interface CreateColumnPermissionPayload {
   userscreen_id: string;
   column_id: string;
-  staffusertype_id?: string;
-  contractorusertype_id?: string;
-  usertype_id?: string;
+  project_id?: string;
   is_active?: boolean;
   order_no?: number;
   company_id?: string;
@@ -37,30 +35,23 @@ export interface UpdateColumnPermissionPayload {
 
 const _api = adminApi.columnPermissions;
 
-const isContractorRoleId = (value: string): boolean =>
-  value.trim().startsWith("CNTUSRTYPE-");
-
 // ---------------------------------------------------------------------------
 // Service functions
 // ---------------------------------------------------------------------------
 
 /**
- * Returns all column permissions for a specific screen + staff type.
+ * Returns all column permissions for a specific screen + project.
  * Response is always grouped: { userscreen_id, column_permissions: [...] }
  */
 export async function getColumnPermissions(
   userscreenId: string,
-  staffuserTypeId: string,
+  projectId: string,
   companyId?: string
 ): Promise<ColumnPermissionsResponse> {
-  const roleParam = isContractorRoleId(staffuserTypeId)
-    ? { contractorusertype_id: staffuserTypeId }
-    : { staffusertype_id: staffuserTypeId };
-
   const result = await _api.readAll({
     params: {
       userscreen_id: userscreenId,
-      ...roleParam,
+      project_id: projectId,
       ...(companyId ? { company_id: companyId } : {}),
     },
   });

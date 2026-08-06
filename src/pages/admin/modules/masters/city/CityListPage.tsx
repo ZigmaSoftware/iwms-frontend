@@ -1,16 +1,13 @@
-import type { CityRecord } from "./types";
+import type { CityRecord, CityWithRelations } from "./types";
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -23,6 +20,9 @@ import { Switch } from "@/components/ui/switch";
 import { cityApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 
 const CITY_COLUMN_FIELDS: Record<string, string[]> = {
@@ -33,9 +33,6 @@ const CITY_COLUMN_FIELDS: Record<string, string[]> = {
   is_active: ["is_active"],
 };
 
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
 
 export default function CityList() {
   const { t } = useTranslation();
@@ -49,15 +46,24 @@ export default function CityList() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    country_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    state_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    district_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      country_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      state_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      district_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    },
   });
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {
@@ -88,20 +94,28 @@ export default function CityList() {
     });
 
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
     let mounted = true;
 
     const loadCities = async () => {
+      const requestId = ++requestIdRef.current;
       setIsLoading(true);
       try {
-        const data = await cityApi.readAll();
-        if (mounted) setAllCities(data as CityRecord[]);
+        const params: Record<string, string> = {};
+        if (companyUniqueId) params.company_id = companyUniqueId;
+        if (projectId) params.project_id = projectId;
+
+        const data = await cityApi.readAll({ params });
+        if (!mounted || requestId !== requestIdRef.current) return;
+        setAllCities(data as CityRecord[]);
       } catch (error) {
-        if (mounted) {
-          const errorData = (error as { response?: { data?: unknown } })?.response?.data;
-          Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
-        }
+        if (!mounted || requestId !== requestIdRef.current) return;
+        const errorData = (error as { response?: { data?: unknown } })?.response?.data;
+        Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
       } finally {
-        if (mounted) setIsLoading(false);
+        if (mounted && requestId === requestIdRef.current) setIsLoading(false);
       }
     };
 
@@ -110,44 +124,45 @@ export default function CityList() {
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length]);
 
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
   const cities = useMemo(() => {
     if (isSuperAdmin && companies.length === 0) return [];
     if (!companyUniqueId && !isSuperAdmin) return [];
 
-    return allCities.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+    return allCities;
+  }, [allCities, companyUniqueId, companies.length, isSuperAdmin]);
 
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-
-      return companyMatches && projectMatches;
+  const getFilteredExportRows = (): CityRecord[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    return (cities as CityWithRelations[]).filter((city) => {
+      if (statusValue !== "all") {
+        const wantActive = statusValue === "active";
+        if (Boolean(city.is_active) !== wantActive) return false;
+      }
+      if (!search) return true;
+      return [city.name, city.country_name, city.state_name, city.district_name]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search));
     });
-  }, [allCities, companyUniqueId, companies.length, isSuperAdmin, projectId]);
-
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
-    setGlobalFilterValue(value);
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = getFilteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No cities to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Cities");
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
-
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("admin.nav.city"),
-      }),
-    });
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -219,39 +234,11 @@ export default function CityList() {
           </div>
 
           <div className="flex items-center gap-3">
-            <select
-              value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
-              disabled={!isSuperAdmin || companies.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Companies</option>
-              {companies.map((company) => (
-                <option key={company.value} value={company.value}>
-                  {company.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={projectId || ""}
-              onChange={(e) => setProjectId(e.target.value)}
-              disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              {showAllProjectsOption && <option value="">All Projects</option>}
-              {projects.map((project) => (
-                <option key={project.value} value={project.value}>
-                  {project.label}
-                </option>
-              ))}
-            </select>
-
             <Button
               label={t("common.add_item", { item: t("admin.nav.city") })}
               icon="pi pi-plus"
               className="p-button-success"
-             
+
               onClick={() =>
                 navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
                   state: {
@@ -264,6 +251,39 @@ export default function CityList() {
           </div>
         </div>
 
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={onGlobalFilterChange}
+          searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.city") })}
+          statusValue={statusValue}
+          onStatusChange={onStatusFilterChange}
+          className="mb-4"
+          trailing={
+            <Button
+              label={isExportingExcel ? "Downloading..." : "Download Excel"}
+              icon="pi pi-file-excel"
+              className="p-button-outlined"
+              disabled={isExportingExcel}
+              onClick={handleDownloadExcel}
+            />
+          }
+        >
+          <FilterBarSelect
+            value={companyUniqueId || ""}
+            onChange={onCompanyChange}
+            options={companies}
+            placeholder="All Companies"
+            disabled={!isSuperAdmin || companies.length === 0}
+          />
+          <FilterBarSelect
+            value={projectId || ""}
+            onChange={setProjectId}
+            options={projects}
+            placeholder={showAllProjectsOption ? "All Projects" : undefined}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+          />
+        </FilterBar>
+
         <DataTable
           value={cities}
           dataKey="unique_id"
@@ -273,7 +293,6 @@ export default function CityList() {
           loading={isLoading && cities.length === 0}
           filters={filters}
           onFilter={onFilter}
-          header={renderHeader()}
           stripedRows
           showGridlines
           emptyMessage={t("common.no_items_found", {

@@ -10,6 +10,12 @@ export type EncryptedRoutes = {
   encPanchayatBaseCollection: string;
   encWardBaseCollection: string;
   encComplaint: string;
+  // renamed from encCitizenGrivence/encComplaint/encMainComplaintCategory/
+  // encSubComplaintCategory to match the backend's "complaint-ticket" group
+  encComplaintTicket: string;
+  encTickets: string;
+  encCategories: string;
+  encSubcategories: string;
   encContinents: string;
   encCountries: string;
   encBins: string;
@@ -25,6 +31,11 @@ export type EncryptedRoutes = {
   encMasters: string;
   encStaffMasters: string;
   encScheduleMasters: string;
+  // split from encScheduleMasters to match the backend's schedule-setup /
+  // schedule-operations groups; encScheduleMasters is kept for the
+  // reporting sub-resources still registered under that legacy group
+  encScheduleSetup: string;
+  encScheduleOperations: string;
   encStaffTemplate: string;
   encAlternativeStaffTemplate: string;
   encStaffTemplateAudit: string;
@@ -39,6 +50,7 @@ export type EncryptedRoutes = {
   encTripSummary: string;
   encUserCreation: string;
   encUserScreenPermission: string;
+  encStaffAccessConfiguration: string;
 
   encUserType: string;
   encVehicleCreation: string;
@@ -82,6 +94,7 @@ export type EncryptedRoutes = {
   encVehicleTripAudit: string;
   encTripExceptionLog: string;
   encVehicleBreakdown: string;
+  encTripRetripRequest: string;
 
   // dashboard
   encDashboardOverall: string;
@@ -103,12 +116,10 @@ export type EncryptedRoutes = {
 
 
   encPanchayats: string;
-  encAreaTypes: string;
+  encBlockPanchayatUnions: string;
   encHierarchies: string;
   encPanchayatLeaders: string;
   encDistrictLeaders: string;
-  encMunicipalities: string;
-  encTownPanchayats: string;
 
 };
 
@@ -122,6 +133,10 @@ const plainRoutes: EncryptedRoutes = {
   encPanchayatBaseCollection: "panchayat-base-collection",
   encWardBaseCollection: "ward-base-collection",
   encComplaint: "complaint",
+  encComplaintTicket: "complaint-ticket",
+  encTickets: "tickets",
+  encCategories: "categories",
+  encSubcategories: "subcategories",
   encContinents: "continents",
   encCountries: "countries",
   encBins: "bins",
@@ -142,6 +157,8 @@ const plainRoutes: EncryptedRoutes = {
   encMasters: "masters",
   encStaffMasters: "staff-masters",
   encScheduleMasters: "schedule-masters",
+  encScheduleSetup: "schedule-setup",
+  encScheduleOperations: "schedule-operations",
   encStaffTemplate: "staff-template",
   encAlternativeStaffTemplate: "alternative-staff-template",
   encStaffTemplateAudit: "staff-template-audit",
@@ -181,6 +198,7 @@ const plainRoutes: EncryptedRoutes = {
   encMainScreen: "mainscreens",
   encUserScreen: "userscreens",
   encUserScreenPermission: "userscreenpermissions",
+  encStaffAccessConfiguration: "staff-access-configuration",
   encTripPlans: "trip-plans",
   encDailyTripAssignment: "daily-trip-assignment",
   encDailyTripCollectionPoint: "daily-trip-collection-point",
@@ -199,16 +217,15 @@ const plainRoutes: EncryptedRoutes = {
   encVehicleTripAudit: "vehicle-trip-audit",
   encTripExceptionLog: "trip-exception-log",
   encVehicleBreakdown: "vehicle-breakdowns",
+  encTripRetripRequest: "retrip-requests",
 
   // palakkad
 
   encPanchayats: "panchayats",
-  encAreaTypes: "area-types",
+  encBlockPanchayatUnions: "block-panchayat-unions",
   encHierarchies: "hierarchies",
   encPanchayatLeaders: "panchayat-leaders",
   encDistrictLeaders: "district-leaders",
-  encMunicipalities: "municipalities",
-  encTownPanchayats: "town-panchayats",
 
 
   //dashboard

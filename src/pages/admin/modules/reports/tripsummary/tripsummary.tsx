@@ -1,17 +1,14 @@
 import type { HistoryRow, RawVehicle, TableFilters, TripData, VehicleOption, VisualStatus } from "./types";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent, JSX } from "react";
-import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
-import { recordExcelAudit } from "@/helpers/admin/commonAudit";
-import { getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import type { JSX } from "react";
+import { applyTableFilters } from "@/utils/tableFilterMatch";
 import "./tripsummary.css";
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import { DataTable } from "@/components/common/SafeDataTable";
+import { FilterBar } from "@/components/common/FilterBar";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
@@ -321,44 +318,7 @@ export default function TripSummary() {
     fetchSummary({ allowFallback: true });
   }, [rosterReady]);
 
-  const handleExport = () => {
-    const dataSource = summary?.historyConsilated ?? [];
-    if (!dataSource.length) {
-      setSummaryError("admin.reports.trip_summary.error_no_export");
-      return;
-    }
-
-    const rows = dataSource.map((row, idx) => ({
-      [t("admin.reports.trip_summary.columns.s_no")]: idx + 1,
-      [t("admin.reports.trip_summary.columns.vehicle_no")]: summary?.vehicleName || vehicleId,
-      [t("admin.reports.trip_summary.columns.start_time")]: new Date(row.startTime).toLocaleString(),
-      [t("admin.reports.trip_summary.columns.start_address")]: row.intLoc || "-",
-      [t("admin.reports.trip_summary.columns.end_time")]: new Date(row.endTime).toLocaleString(),
-      [t("admin.reports.trip_summary.columns.end_address")]: row.finLoc || "-",
-      [t("admin.reports.trip_summary.columns.position")]: row.position || "-",
-      [t("admin.reports.trip_summary.columns.total_minutes")]: Math.floor((row.duration ?? 0) / 60000),
-      [t("admin.reports.trip_summary.columns.distance")]: row.tripDistance ?? 0,
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(
-      workbook,
-      worksheet,
-      t("admin.reports.trip_summary.export_sheet"),
-    );
-    const wbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([wbout], { type: "application/octet-stream" });
-    const filename = getAdminScreenExcelFilename("all");
-    recordExcelAudit("download_all_excel", {
-      file_name: filename,
-      row_count: rows.length,
-    });
-    saveAs(blob, filename);
-  };
-
-  const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const onGlobalFilterChange = (value: string) => {
     const updatedFilters = { ...filters };
     updatedFilters["global"].value = value;
     setFilters(updatedFilters);
@@ -366,7 +326,42 @@ export default function TripSummary() {
   };
 
   const displaySummary = summary ?? {};
-  const historyRows = displaySummary.historyConsilated ?? [];
+  const historyRows = useMemo(
+    () => summary?.historyConsilated ?? [],
+    [summary],
+  );
+  const filteredHistoryRows = useMemo(
+    () =>
+      applyTableFilters(historyRows, filters, [
+        "intLoc",
+        "finLoc",
+        "position",
+      ]),
+    [filters, historyRows],
+  );
+  const exportRows = useMemo(
+    () =>
+      filteredHistoryRows.map((row, idx) => ({
+        [t("admin.reports.trip_summary.columns.s_no")]: idx + 1,
+        [t("admin.reports.trip_summary.columns.vehicle_no")]:
+          summary?.vehicleName || vehicleId,
+        [t("admin.reports.trip_summary.columns.start_time")]:
+          new Date(row.startTime).toLocaleString(),
+        [t("admin.reports.trip_summary.columns.start_address")]:
+          row.intLoc || "-",
+        [t("admin.reports.trip_summary.columns.end_time")]:
+          new Date(row.endTime).toLocaleString(),
+        [t("admin.reports.trip_summary.columns.end_address")]:
+          row.finLoc || "-",
+        [t("admin.reports.trip_summary.columns.position")]:
+          row.position || "-",
+        [t("admin.reports.trip_summary.columns.total_minutes")]:
+          Math.floor((row.duration ?? 0) / 60000),
+        [t("admin.reports.trip_summary.columns.distance")]:
+          row.tripDistance ?? 0,
+      })),
+    [filteredHistoryRows, summary?.vehicleName, t, vehicleId],
+  );
 
   if (!TRACKING_API_URL || !TRIP_SUMMARY_API_URL) {
     return (
@@ -386,10 +381,6 @@ export default function TripSummary() {
       <div className="trip-summary-container">
         <div className="trip-summary-header">
           <h3>{t("admin.reports.trip_summary.title")}</h3>
-          <button className="btn-excel" type="button" onClick={handleExport}>
-            <i className="fa fa-file-excel-o" aria-hidden="true" />
-            {t("common.download")}
-          </button>
         </div>
 
         <div className="filter-row">
@@ -484,24 +475,23 @@ export default function TripSummary() {
         <div className="trip-table-card">
           <DataTable
             value={historyRows}
+            exportRows={exportRows}
+            exportSheetName={t("admin.reports.trip_summary.export_sheet")}
             paginator
             rows={10}
             filters={filters}
             globalFilterFields={["intLoc", "finLoc", "position"]}
             header={
-              <div className="flex justify-between items-center gap-4">
-                <div className="text-lg font-semibold text-gray-700">
-                  {t("admin.reports.trip_summary.records_title")}
-                </div>
-                <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-                  <InputText
-                    value={globalFilterValue}
-                    onChange={onGlobalFilterChange}
-                    placeholder={t("admin.reports.trip_summary.search_placeholder")}
-                    className="p-inputtext-sm !border-0 !shadow-none"
-                  />
-                </div>
-              </div>
+              <FilterBar
+                searchValue={globalFilterValue}
+                onSearchChange={onGlobalFilterChange}
+                searchPlaceholder={t("admin.reports.trip_summary.search_placeholder")}
+                trailing={
+                  <div className="text-lg font-semibold text-gray-700">
+                    {t("admin.reports.trip_summary.records_title")}
+                  </div>
+                }
+              />
             }
             emptyMessage={t("admin.reports.trip_summary.empty_message")}
             responsiveLayout="scroll"

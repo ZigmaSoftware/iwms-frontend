@@ -1,7 +1,6 @@
-import { useState, useEffect, type ChangeEvent, type FormEvent } from "react";
+import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { api } from "@/api";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { useUser } from "@/contexts/UserContext";
@@ -24,17 +23,41 @@ import {
   unwrapLoginPayload,
   type LoginEnvelope,
 } from "@/utils/authStorage";
-import { ArrowRight, Eye, EyeOff, Lock, User } from "lucide-react";
+import { Eye, EyeOff, Lock, User, UserRound, Leaf, AlertCircle } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
+import AnimatedLoginScene from "@/components/auth/AnimatedLoginScene";
+import LoginFeatureChain from "@/components/auth/LoginFeatureChain";
+import "@/components/auth/animated-login.css";
 
 type LoginResponse = LoginEnvelope;
 
+/** Renders a translated heading with its last word accented, matching the
+ * government reference app's two-tone "Welcome <accent>Back!</accent>" style
+ * without hardcoding English text (works for any locale's word order). */
+function AccentLastWord({ text }: { text: string }) {
+  const words = text.trim().split(/\s+/);
+  if (words.length <= 1) {
+    return <em>{text}</em>;
+  }
+  const lastWord = words.pop();
+  return (
+    <>
+      {words.join(" ")} <em>{lastWord}</em>
+    </>
+  );
+}
 
 export default function Auth() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const [userInvalid, setUserInvalid] = useState(false);
+  const [passInvalid, setPassInvalid] = useState(false);
+  const [passHint, setPassHint] = useState("Enter your password to continue.");
+  const [shake, setShake] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -55,8 +78,27 @@ export default function Auth() {
   const { updatePermissions } = usePermission();
   const { reloadFromSession } = useProjectSelector();
 
+  const triggerShake = () => {
+    setShake(false);
+    requestAnimationFrame(() => setShake(true));
+  };
+
   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setUserInvalid(false);
+    setPassInvalid(false);
+
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername || !password) {
+      if (!trimmedUsername) setUserInvalid(true);
+      if (!password) {
+        setPassHint("Enter your password to continue.");
+        setPassInvalid(true);
+      }
+      triggerShake();
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -64,8 +106,6 @@ export default function Auth() {
         username,
         password,
       });
-
-      console.log("[Auth] Login response received:", res.data);
 
       const payload = unwrapLoginPayload(res.data);
       persistLoginSession(payload);
@@ -92,8 +132,6 @@ export default function Auth() {
       //   All other staff (Driver, Operator, Supervisor, User) → /dashboard
       const hasAdminRole = isAdmin(normalizedRole);
 
-      console.log("[Auth] Role:", normalizedRole, "| isAdmin:", hasAdminRole);
-
       if (hasAdminRole) {
         setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);
         navigate("/admin", { replace: true });
@@ -102,12 +140,14 @@ export default function Auth() {
         navigate("/dashboard", { replace: true });
       }
     } catch (error: any) {
-      console.error("[Auth] ❌ Login failed:", error);
-
       const errorMessage =
         error?.response?.data?.detail ||
         error?.message ||
         "Invalid credentials";
+
+      setPassHint(errorMessage);
+      setPassInvalid(true);
+      triggerShake();
 
       toast({
         title: t("login.title"),
@@ -120,207 +160,115 @@ export default function Auth() {
   };
 
   return (
-    <>
-      <style>{`
-        @keyframes iwms-blob {
-          0%,100% { transform: translate(0,0) scale(1); }
-          33%      { transform: translate(28px,-24px) scale(1.06); }
-          66%      { transform: translate(-18px,18px) scale(0.96); }
-        }
-        .blob-a { animation: iwms-blob 8s ease-in-out infinite; }
-        .blob-b { animation: iwms-blob 10s ease-in-out infinite reverse; animation-delay:-3s; }
-        .blob-c { animation: iwms-blob 12s ease-in-out infinite; animation-delay:-6s; }
-        .blob-d { animation: iwms-blob 9s ease-in-out infinite; animation-delay:-2s; }
-      `}</style>
+    <div className="zigma-login" ref={containerRef}>
+      <AnimatedLoginScene containerRef={containerRef} />
 
-      {/* ── Page wrapper with animated blobs ────────────────────────── */}
-      <div className="relative min-h-screen overflow-hidden flex items-center justify-center bg-slate-50 p-4 font-sans">
+      <main className="page">
+        <section className="left">
+          <a className="brand" href="#" aria-label="Zigma home" onClick={(e) => e.preventDefault()}>
+            <img src={ZigmaLogo} alt="Zigma IWMS" />
+          </a>
 
-        {/* Background blobs */}
-        <div className="blob-a pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-green-300/55 blur-3xl" />
-        <div className="blob-b pointer-events-none absolute -bottom-40 -right-40 h-112 w-md rounded-full bg-orange-200/55 blur-3xl" />
-        <div className="blob-c pointer-events-none absolute top-1/3 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-green-200/45 blur-3xl" />
-        <div className="blob-d pointer-events-none absolute top-3/4 left-1/4 h-40 w-40 rounded-full bg-emerald-200/40 blur-2xl" />
+          <h1 className="headline">Smart Solutions for a Cleaner, Greener Tomorrow</h1>
 
-        {/* ── Card ──────────────────────────────────────────────────── */}
-        <div className="relative z-10 w-full max-w-4xl overflow-hidden rounded-3xl border border-white/80 shadow-2xl shadow-slate-300/50 grid md:grid-cols-2">
+          <LoginFeatureChain containerRef={containerRef} />
+        </section>
 
-          {/* ── LEFT: Illustration panel ──────────────────────────── */}
-          <div className="relative hidden md:flex flex-col items-center justify-between overflow-hidden bg-green-50 p-8 border-r border-green-100">
-            {/* animated green blobs */}
-            <div className="blob-a pointer-events-none absolute -top-10 -right-10 h-56 w-56 rounded-full bg-green-300/45 blur-2xl" />
-            <div className="blob-b pointer-events-none absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-emerald-200/50 blur-2xl" />
-            <div className="blob-c pointer-events-none absolute top-1/2 left-1/2 h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-200/60 blur-xl" />
-            <div className="blob-d pointer-events-none absolute bottom-1/4 right-0 h-28 w-28 rounded-full bg-orange-200/40 blur-xl" />
-
-            {/* company label */}
-            <p className="relative z-10 w-full text-center text-[10px] font-bold uppercase tracking-[0.25em] text-green-700/60">
-              Integrated Waste Management System
-            </p>
-
-            {/* logo — centered with green ring */}
-            <div className="relative z-10 flex flex-1 items-center justify-center w-full py-4">
-              <div className="relative flex items-center justify-center">
-                {/* pulsing outer glow */}
-                <div className="blob-a absolute h-60 w-60 rounded-full bg-green-200/55 blur-3xl" />
-                <div className="blob-c absolute h-40 w-40 rounded-full bg-emerald-300/30 blur-2xl" />
-                {/* ring border */}
-                <div className="relative z-10 rounded-full border-2 border-green-200 bg-white p-3 shadow-xl shadow-green-100/60">
-                  <div className="rounded-full bg-green-50 p-4">
-                    <img
-                      src={ZigmaLogo}
-                      className="h-28 w-28 object-contain"
-                      alt="Zigma IWMS"
-                    />
-                  </div>
-                </div>
-              </div>
+        <section className="right">
+          <div className={`card${shake ? " shake" : ""}`} id="card">
+            <div className="avatar" aria-hidden="true">
+              <UserRound className="avatar-icon" />
+              <Leaf className="avatar-badge" />
             </div>
 
-            {/* feature pills */}
-            <div className="relative z-10 flex flex-wrap justify-center gap-1.5 mb-4">
-              {["Route Optimization", "Fleet Tracking", "Real-time Data"].map((f) => (
-                <span key={f} className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-semibold text-green-700">
-                  <span className="h-1 w-1 rounded-full bg-green-500" />
-                  {f}
-                </span>
-              ))}
-            </div>
+            <h2 className="welcome">
+              <AccentLastWord text={t("login.title")} />
+            </h2>
+            <p className="subtitle">{t("login.subtitle")}</p>
 
-            {/* brand text */}
-            <div className="relative z-10 text-center mb-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-green-600">ZIGMA</p>
-              <p className="text-[10px] text-green-500/70 italic mt-0.5">Alchemists of the MSW</p>
-            </div>
-
-            {/* carousel dots */}
-            <div className="relative z-10 flex items-center gap-2">
-              <div className="h-2 w-6 rounded-full bg-orange-400" />
-              <div className="h-2 w-2 rounded-full bg-green-200" />
-              <div className="h-2 w-2 rounded-full bg-green-200" />
-            </div>
-          </div>
-
-          {/* ── RIGHT: Form panel ─────────────────────────────────── */}
-          <div className="flex flex-col justify-center bg-white p-10">
-
-            {/* mobile logo */}
-            <div className="flex md:hidden items-center gap-3 mb-6">
-              <img src={ZigmaLogo} className="h-9 w-9 object-contain" alt="Zigma" />
-              <div>
-                <p className="text-sm font-black tracking-wide text-gray-800">ZIGMA IWMS</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-green-500">Field Operations</p>
-              </div>
-            </div>
-
-            {/* lock icon */}
-            <div className="mb-5">
-              <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-green-200 bg-green-50">
-                <Lock className="h-5 w-5 text-green-600" />
-              </div>
-            </div>
-
-            {/* heading */}
-            <div className="mb-7">
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-                {t("login.title")}
-              </h1>
-              <p className="mt-1 text-sm text-gray-500 leading-relaxed">
-                {t("login.subtitle")}
-              </p>
-            </div>
-
-            {/* form */}
-            <form onSubmit={handleSignIn} className="space-y-4">
-
-              {/* username */}
-              <div className="space-y-1.5">
-                <label htmlFor="username" className="block text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                  {t("login.username")}
-                </label>
-                <div className="relative">
-                  <User className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
+            <form onSubmit={handleSignIn} noValidate>
+              <div className={`field u${userInvalid ? " invalid" : ""}`}>
+                <label htmlFor="username">{t("login.username")}</label>
+                <div className="control">
+                  <span className="lead" aria-hidden="true"><User /></span>
+                  <input
                     id="username"
+                    name="username"
                     type="text"
+                    autoComplete="username"
                     placeholder={t("login.username_placeholder")}
                     value={username}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
-                    className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 text-gray-900 placeholder:text-gray-400 focus-visible:border-green-400 focus-visible:ring-green-300/50 transition-all"
-                    required
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                      setUsername(e.target.value);
+                      setUserInvalid(false);
+                    }}
                   />
                 </div>
+                <p className="hint" role="alert">
+                  <AlertCircle />
+                  <span>Enter your username or email to continue.</span>
+                </p>
               </div>
 
-              {/* password */}
-              <div className="space-y-1.5">
-                <label htmlFor="password" className="block text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                  {t("login.password")}
-                </label>
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
+              <div className={`field p${passInvalid ? " invalid" : ""}`}>
+                <label htmlFor="password">{t("login.password")}</label>
+                <div className="control">
+                  <span className="lead" aria-hidden="true"><Lock /></span>
+                  <input
                     id="password"
+                    name="password"
                     type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
                     placeholder={t("login.password_placeholder")}
                     value={password}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                    className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 pr-12 text-gray-900 placeholder:text-gray-400 focus-visible:border-green-400 focus-visible:ring-green-300/50 transition-all"
-                    required
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                      setPassword(e.target.value);
+                      setPassInvalid(false);
+                    }}
                   />
                   <button
                     type="button"
+                    className="reveal"
+                    aria-pressed={showPassword}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                <p className="hint" role="alert">
+                  <AlertCircle />
+                  <span>{passHint}</span>
+                </p>
               </div>
 
-              {/* forgot */}
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  className="text-[11px] font-semibold text-green-600 hover:underline"
-                  onClick={() => navigate("/auth/forgot-password")}
-                >
-                  {t("login.forgot_password")}
-                </button>
-              </div>
-
-              {/* submit — orange gradient matching reference */}
               <button
-                type="submit"
-                disabled={loading}
-                className="flex w-full h-12 items-center justify-center gap-2 rounded-xl bg-linear-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 active:scale-[0.98] disabled:opacity-60 text-white text-sm font-semibold shadow-lg shadow-orange-200/70 transition-all mt-1"
+                type="button"
+                className="forgot"
+                onClick={() => navigate("/auth/forgot-password")}
               >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
-                    </svg>
-                    {t("login.authenticating")}
-                  </>
-                ) : (
-                  <>
-                    {t("login.sign_in")}
-                    <ArrowRight size={15} />
-                  </>
-                )}
+                {t("login.forgot_password")}
+              </button>
+
+              <button className={`submit${loading ? " busy" : ""}`} type="submit" disabled={loading}>
+                <svg className="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M10 17l5-5-5-5" /><path d="M15 12H3" />
+                </svg>
+                <span className="label">{t("login.sign_in")}</span>
+                <svg className="spinner" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M21 12a9 9 0 0 0-9-9" />
+                </svg>
               </button>
             </form>
 
-            {/* footer */}
-            <p className="mt-8 text-center text-[11px] text-gray-400">
-              Secure login ·{" "}
-              <span className="font-semibold text-gray-500">Zigma IWMS</span>
+            <p className="footnote">
+              <Leaf aria-hidden="true" />
+              Together for a Sustainable Future
             </p>
           </div>
-
-        </div>
-      </div>
-    </>
+        </section>
+      </main>
+    </div>
   );
 }

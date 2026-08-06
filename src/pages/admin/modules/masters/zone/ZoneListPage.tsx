@@ -1,15 +1,12 @@
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -22,6 +19,9 @@ import { Switch } from "@/components/ui/switch";
 import { zoneApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import type { ZoneListRecord } from "./types";
 
 const ZONE_COLUMN_FIELDS: Record<string, string[]> = {
@@ -29,9 +29,6 @@ const ZONE_COLUMN_FIELDS: Record<string, string[]> = {
   zone_name: ["zone_name"],
   is_active: ["is_active"],
 };
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
 
 // ===========================
 //   Component
@@ -49,11 +46,18 @@ export default function ZoneList() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+  const {
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
+  } = useFilterBarFilters({
+    initialFilters: {
+      city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    },
   });
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
@@ -96,12 +100,19 @@ export default function ZoneList() {
   };
 
   useEffect(() => {
+    if (isSuperAdmin && companies.length === 0) return;
+    if (!companyUniqueId && !isSuperAdmin) return;
+
     let mounted = true;
 
     const loadZones = async () => {
       setIsLoading(true);
       try {
-        const data = await zoneApi.readAll();
+        const params: Record<string, string> = {};
+        if (companyUniqueId) params.company_id = companyUniqueId;
+        if (projectId) params.project_id = projectId;
+
+        const data = await zoneApi.readAll({ params });
         if (mounted) setAllZones(data as ZoneListRecord[]);
       } catch (error) {
         if (mounted) {
@@ -118,55 +129,55 @@ export default function ZoneList() {
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length]);
 
-  const zones = ((): ZoneListRecord[] => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
+  // Company/project scoping is now applied server-side (tenant users are
+  // scoped automatically by the backend; superadmin scoping is passed via
+  // company_id/project_id params above) — no client-side narrowing needed.
+  const zones: ZoneListRecord[] =
+    (isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)
+      ? []
+      : Array.isArray(allZones)
+        ? (allZones as unknown as ZoneListRecord[])
+        : [];
 
-    const rows = Array.isArray(allZones)
-      ? (allZones as unknown as ZoneListRecord[])
-      : [];
-    const filtered = rows.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-      return companyMatches && projectMatches;
+  // ===========================
+  //   Export (respects current search/status filters)
+  // ===========================
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+  const getFilteredExportRows = (): ZoneListRecord[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    return zones.filter((zone) => {
+      if (statusValue !== "all") {
+        const wantActive = statusValue === "active";
+        if (Boolean(zone.is_active) !== wantActive) return false;
+      }
+      if (!search) return true;
+      return [
+        zone.zone_name,
+        zone.city_name,
+        zone.district_name,
+        zone.state_name,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search));
     });
-
-    return filtered as ZoneListRecord[];
-  })();
-
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters);
   };
 
-  // ===========================
-  //   Delete
-  // ===========================
-  // ===========================
-  //   Search
-  // ===========================
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
-
-    setGlobalFilterValue(value);
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = getFilteredExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No zones to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Zones");
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
-
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("admin.nav.zone"),
-      }),
-    });
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -240,39 +251,11 @@ export default function ZoneList() {
           </div>
 
           <div className="flex items-center gap-3">
-            <select
-              value={companyUniqueId || ""}
-              onChange={(e) => onFilterCompanyChange(e.target.value)}
-              disabled={!isSuperAdmin || companies.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Companies</option>
-              {companies.map((company) => (
-                <option key={company.value} value={company.value}>
-                  {company.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={projectId || ""}
-              onChange={(e) => onFilterProjectChange(e.target.value)}
-              disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              {showAllProjectsOption && <option value="">All Projects</option>}
-              {projects.map((project) => (
-                <option key={project.value} value={project.value}>
-                  {project.label}
-                </option>
-              ))}
-            </select>
-
             <Button
               label={t("common.add_item", { item: t("admin.nav.zone") })}
               icon="pi pi-plus"
               className="p-button-success"
-             
+
               onClick={() =>
                 navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
                   state: {
@@ -285,6 +268,39 @@ export default function ZoneList() {
           </div>
         </div>
 
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={onGlobalFilterChange}
+          searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.zone") })}
+          statusValue={statusValue}
+          onStatusChange={onStatusFilterChange}
+          className="mb-4"
+          trailing={
+            <Button
+              label={isExportingExcel ? "Downloading..." : "Download Excel"}
+              icon="pi pi-file-excel"
+              className="p-button-outlined"
+              disabled={isExportingExcel}
+              onClick={handleDownloadExcel}
+            />
+          }
+        >
+          <FilterBarSelect
+            value={companyUniqueId || ""}
+            onChange={onFilterCompanyChange}
+            options={companies}
+            placeholder="All Companies"
+            disabled={!isSuperAdmin || companies.length === 0}
+          />
+          <FilterBarSelect
+            value={projectId || ""}
+            onChange={onFilterProjectChange}
+            options={projects}
+            placeholder={showAllProjectsOption ? "All Projects" : undefined}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+          />
+        </FilterBar>
+
         <DataTable
           value={zones}
           dataKey="unique_id"
@@ -294,7 +310,6 @@ export default function ZoneList() {
           loading={isLoading && zones.length === 0}
           filters={filters}
           onFilter={onFilter}
-          header={renderHeader()}
           stripedRows
           showGridlines
           emptyMessage={t("common.no_items_found", {

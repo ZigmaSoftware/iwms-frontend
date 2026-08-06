@@ -52,11 +52,19 @@ const {
   encTripSummary,
   encWasteCollectedSummary,
   encMonthlyWasteComparison,
-  encCitizenGrivence,
-  encComplaint,
+  // renamed from encCitizenGrivence/encComplaint/encMainComplaintCategory/
+  // encSubComplaintCategory to match the backend's "complaint-ticket" group
+  encComplaintTicket,
+  encTickets,
+  encCategories,
+  encSubcategories,
   encFeedback,
   encTransportMaster,
   encScheduleMasters,
+  // split from encScheduleMasters to match the backend's schedule-setup /
+  // schedule-operations groups
+  encScheduleSetup,
+  encScheduleOperations,
   encFuel,
   encVehicleCreation,
   encVehicleHistory,
@@ -66,12 +74,11 @@ const {
   encWasteCollectedData,
   encWorkforceManagement,
   encStaffUserType,
-  encMainComplaintCategory,
-  encSubComplaintCategory,
   encMainScreenType,
   encUserScreenAction,
   encMainScreen,
   encUserScreenPermission,
+  encStaffAccessConfiguration,
   encStaffMasters,
   encStaffTemplate,
   encAlternativeStaffTemplate,
@@ -83,9 +90,6 @@ const {
   encPanchayats,
   encPanchayatLeaders,
   encDistrictLeaders,
-  encAreaTypes,
-  encMunicipalities,
-  encTownPanchayats,
 
   encBins,
   encDailyTripAssignment,
@@ -96,6 +100,7 @@ const {
   encLoginAudits,
   encDailyWasteComparison,
   encVehicleBreakdown,
+  encTripRetripRequest,
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -118,20 +123,83 @@ type SidebarSectionKey =
   | "superadminMaster"
   | "commonMaster"
   | "master"
+  | "leaderManagement"
   | "wasteType"
-  | "assets"
   | "screenManagement"
   | "roleAssigns"
   | "userCreations"
   | "processItems"
   | "customerMasters"
-  | "citizenGrievance"
+  | "complaintTicket"
   | "transportMasters"
+  | "scheduleSetup"
+  | "scheduleOperations"
   | "scheduleMasters"
   | "auditItems"
   | "wasteManagement"
   | "workforceManagement"
   | "fleetReports";
+
+// Top-level category headers rendered above their member sections, matching
+// the government reference app's grouped sidebar (SUPER ADMIN / MASTERS /
+// CORE MODULES / REPORTS). "superadminMaster" (company/project) has no
+// government equivalent — private is multi-tenant, government is not — so
+// it's kept as its own section under SUPER ADMIN rather than dropped.
+const MODULE_GROUPS: {
+  key: string;
+  titleKey: string;
+  accent: string;
+  sectionKeys: SidebarSectionKey[];
+}[] = [
+  {
+    key: "dashboard",
+    titleKey: "admin.nav.group_dashboard",
+    accent: "bg-green-500",
+    sectionKeys: ["main"],
+  },
+  {
+    key: "super-admin",
+    titleKey: "admin.nav.group_super_admin",
+    accent: "bg-blue-500",
+    sectionKeys: [
+      "superadminMaster",
+      "screenManagement",
+      "roleAssigns",
+      "userCreations",
+      "commonMaster",
+      "auditItems",
+    ],
+  },
+  {
+    key: "masters",
+    titleKey: "admin.nav.group_masters",
+    accent: "bg-orange-400",
+    sectionKeys: [
+      "master",
+      "wasteType",
+      "transportMasters",
+      "customerMasters",
+      "leaderManagement",
+    ],
+  },
+  {
+    key: "core-modules",
+    titleKey: "admin.nav.group_core_modules",
+    accent: "bg-green-500",
+    sectionKeys: [
+      "scheduleSetup",
+      "scheduleOperations",
+      "complaintTicket",
+      "attendance",
+    ],
+  },
+  {
+    key: "reports",
+    titleKey: "admin.nav.group_reports",
+    accent: "bg-blue-500",
+    sectionKeys: ["scheduleMasters", "fleetReports"],
+  },
+];
 
 /* =====================
    MENU DEFINITIONS
@@ -209,7 +277,7 @@ const commonMasterItems: NavItem[] = [
 
 const masterItems: NavItem[] = [
   {
-    nameKey: "admin.nav.masters",
+    nameKey: "admin.nav.location_masters",
     icon: <Layers3 size={18} />,
     module: "masters",
     screen: "masters",
@@ -240,26 +308,12 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "zones",
       },
-      // ── Urban Local Bodies (ULB) — parallel at same level ───
       {
         nameKey: "admin.nav.city",
         path: `/${encMasters}/${encCities}`,
         module: "masters",
         screen: "cities",
       },
-      {
-        nameKey: "admin.nav.municipality",
-        path: `/${encMasters}/${encMunicipalities}`,
-        module: "masters",
-        screen: "municipalities",
-      },
-      {
-        nameKey: "admin.nav.town_panchayat",
-        path: `/${encMasters}/${encTownPanchayats}`,
-        module: "masters",
-        screen: "town-panchayats",
-      },
-
       // ── Operational / Field Level ────────────────────────────
       {
         nameKey: "admin.nav.ward",
@@ -268,17 +322,24 @@ const masterItems: NavItem[] = [
         screen: "wards",
       },
       {
-        nameKey: "admin.nav.area_type",
-        path: `/${encMasters}/${encAreaTypes}`,
-        module: "masters",
-        screen: "areatypes",
-      },
-      {
         nameKey: "admin.nav.panchayat",
         path: `/${encMasters}/${encPanchayats}`,
         module: "masters",
         screen: "panchayats",
       },
+    ],
+  },
+];
+
+// Split from "Location Masters" to match the government reference app's
+// dedicated Leader Management section.
+const leaderManagementItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.leader_management",
+    icon: <Users size={18} />,
+    module: "masters",
+    screen: "masters",
+    subItems: [
       {
         nameKey: "admin.nav.panchayat_leader",
         path: `/${encMasters}/${encPanchayatLeaders}`,
@@ -297,7 +358,7 @@ const masterItems: NavItem[] = [
 
 const wasteTypeItems: NavItem[] = [
   {
-    nameKey: "admin.nav.wastetype",
+    nameKey: "admin.nav.waste_masters",
     icon: <Users size={18} />,
     module: "waste-types",
     screen: "waste-types",
@@ -314,36 +375,27 @@ const wasteTypeItems: NavItem[] = [
         module: "waste-types",
         screen: "subproperties",
       },
-    ],
-  },
-];
-
-const assetItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.assets",
-    icon: <Users size={18} />,
-    module: "assets",
-    screen: "assets",
-    subItems: [
+      // merged in from the legacy "assets" section — now the same
+      // backend router/permission group as properties/subproperties above
       {
-        nameKey: "admin.nav.bin_creation", 
+        nameKey: "admin.nav.bin_creation",
         path: `/${encMasters}/${encBins}`,
-        module: "assets",
+        module: "waste-types",
         screen: "bins",
       },
       {
-        nameKey: "common.waste_type", 
+        nameKey: "common.waste_type",
         path: `/${encMasters}/${encWasteTypes}`,
-        module: "assets",
+        module: "waste-types",
         screen: "wastetypes",
-      }
+      },
     ],
   },
 ];
 
 const screenManagementItems: NavItem[] = [
   {
-    nameKey: "admin.nav.screenManagements",
+    nameKey: "admin.nav.screen_management",
     icon: <Settings size={18} />,
     module: "screen-managements",
     screen: "screen-managements",
@@ -384,7 +436,7 @@ const screenManagementItems: NavItem[] = [
 
 const roleAssignsItems: NavItem[] = [
   {
-    nameKey: "admin.nav.roleAssigns",
+    nameKey: "admin.nav.role_management",
     icon: <Settings size={18} />,
     module: "role-assigns",
     screen: "role-assigns",
@@ -407,7 +459,7 @@ const roleAssignsItems: NavItem[] = [
 
 const userCreationMasters: NavItem[] = [
   {
-    nameKey: "admin.nav.user_creations",
+    nameKey: "admin.nav.staff_management",
     icon: <Users size={18} />,
     module: "user-creations",
     screen: "user-creations",
@@ -417,6 +469,12 @@ const userCreationMasters: NavItem[] = [
         path: `/${encStaffMasters}/${encStaffCreation}`,
         module: "user-creations",
         screen: "staffcreation",
+      },
+      {
+        nameKey: "admin.nav.staff_access_configuration",
+        path: `/${encAdmins}/${encStaffAccessConfiguration}`,
+        module: "user-creations",
+        screen: "staff-access-configuration",
       },
     ],
   },
@@ -444,7 +502,7 @@ const customerMasters: NavItem[] = [
       },
       {
         nameKey: "admin.nav.feedback",
-        path: `/${encCitizenGrivence}/${encFeedback}`,
+        path: `/${encComplaintTicket}/${encFeedback}`,
         module: "customers",
         screen: "feedbacks",
       },
@@ -452,30 +510,32 @@ const customerMasters: NavItem[] = [
   },
 ];
 
-const citizenGrievanceItems: NavItem[] = [
+// Renamed from the legacy "citizen-grievance"/"grivences" section to match
+// the backend's "complaint-ticket" router/permission group.
+const complaintTicketItems: NavItem[] = [
   {
-    nameKey: "admin.nav.citizen_grievance",
+    nameKey: "admin.nav.complaint_management",
     icon: <AlertTriangle size={18} />,
-    module: "grivences",
-    screen: "grivences",
+    module: "complaint-ticket",
+    screen: "complaint-ticket",
     subItems: [
       {
         nameKey: "admin.nav.complaints",
-        path: `/${encCitizenGrivence}/${encComplaint}`,
-        module: "grivences",
-        screen: "complaints",
+        path: `/${encComplaintTicket}/${encTickets}`,
+        module: "complaint-ticket",
+        screen: "tickets",
       },
       {
         nameKey: "admin.nav.main_category",
-        path: `/${encCitizenGrivence}/${encMainComplaintCategory}`,
-        module: "grivences",
-        screen: "main-category",
+        path: `/${encComplaintTicket}/${encCategories}`,
+        module: "complaint-ticket",
+        screen: "categories",
       },
       {
         nameKey: "admin.nav.sub_category",
-        path: `/${encCitizenGrivence}/${encSubComplaintCategory}`,
-        module: "grivences",
-        screen: "sub-category",
+        path: `/${encComplaintTicket}/${encSubcategories}`,
+        module: "complaint-ticket",
+        screen: "subcategories",
       },
     ],
   },
@@ -510,79 +570,112 @@ const transportMastersItems: NavItem[] = [
   },
 ];
 
-const scheduleMastersItems: NavItem[] = [
+// Split from the legacy "schedule-masters" section — template/plan setup resources.
+const scheduleSetupItems: NavItem[] = [
   {
-    nameKey: "admin.nav.schedule_masters",
+    nameKey: "admin.nav.schedule_setup",
     icon: <LayoutGrid size={18} />,
-    module: "schedule-masters",
-    screen: "schedule-masters",
+    module: "schedule-setup",
+    screen: "schedule-setup",
     subItems: [
       {
         nameKey: "admin.nav.staff_template",
-        path: `/${encScheduleMasters}/${encStaffTemplate}`,
-        module: "schedule-masters",
+        path: `/${encScheduleSetup}/${encStaffTemplate}`,
+        module: "schedule-setup",
         screen: "staff-templates",
       },
       {
         nameKey: "admin.nav.alternative_staff_template",
-        path: `/${encScheduleMasters}/${encAlternativeStaffTemplate}`,
-        module: "schedule-masters",
+        path: `/${encScheduleSetup}/${encAlternativeStaffTemplate}`,
+        module: "schedule-setup",
         screen: "alternative-staff-templates",
       },
       {
         nameKey: "admin.nav.collection_point",
-        path: `/${encScheduleMasters}/${encCollectionPoints}`,
-        module: "schedule-masters",
+        path: `/${encScheduleSetup}/${encCollectionPoints}`,
+        module: "schedule-setup",
         screen: "collection-points",
       },
       {
         nameKey: "admin.nav.trip_plans",
-        path: `/${encScheduleMasters}/${encTripPlans}`,
-        module: "schedule-masters",
+        path: `/${encScheduleSetup}/${encTripPlans}`,
+        module: "schedule-setup",
         screen: "trip-plans",
       },
+    ],
+  },
+];
+
+// Split from the legacy "schedule-masters" section — day-to-day execution resources.
+const scheduleOperationsItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.schedule_operations",
+    icon: <LayoutGrid size={18} />,
+    module: "schedule-operations",
+    screen: "schedule-operations",
+    subItems: [
       {
         nameKey: "admin.nav.daily_trip_plan",
-        path: `/${encScheduleMasters}/${encDailyTripAssignment}`,
-        module: "schedule-masters",
+        path: `/${encScheduleOperations}/${encDailyTripAssignment}`,
+        module: "schedule-operations",
         screen: "daily-trip-assignments",
       },
       {
         nameKey: "admin.nav.daily_trip_tracking",
-        path: `/${encScheduleMasters}/${encDailyTripTracking}`,
-        module: "schedule-masters",
+        path: `/${encScheduleOperations}/${encDailyTripTracking}`,
+        module: "schedule-operations",
         screen: "daily-trip-collection-points",
       },
       // {
       //   nameKey: "admin.nav.daily_trip_household_collection",
-      //   path: `/${encScheduleMasters}/${encDailyTripHouseholdCollection}`,
-      //   module: "schedule-masters",
+      //   path: `/${encScheduleOperations}/${encDailyTripHouseholdCollection}`,
+      //   module: "schedule-operations",
       //   screen: "daily-trip-household-collections",
       // },
       {
         nameKey: "admin.nav.bin_collection_event",
-        path: `/${encScheduleMasters}/${encBinCollectionEvent}`,
-        module: "schedule-masters",
+        path: `/${encScheduleOperations}/${encBinCollectionEvent}`,
+        module: "schedule-operations",
         screen: "bin-collection-events",
       },
       {
         nameKey: "admin.nav.waste_collected_data",
-        path: `/${encScheduleMasters}/${encWasteCollectedData}`,
-        module: "schedule-masters",
+        path: `/${encScheduleOperations}/${encWasteCollectedData}`,
+        module: "schedule-operations",
         screen: "wastecollections",
       },
       {
         nameKey: "admin.nav.daily_trip_log",
-        path: `/${encScheduleMasters}/${encDailyTripLog}`,
-        module: "schedule-masters",
+        path: `/${encScheduleOperations}/${encDailyTripLog}`,
+        module: "schedule-operations",
         screen: "daily-trip-logs",
       },
       {
         nameKey: "Vehicle Breakdown",
-        path: `/${encScheduleMasters}/${encVehicleBreakdown}`,
-        module: "schedule-masters",
+        path: `/${encScheduleOperations}/${encVehicleBreakdown}`,
+        module: "schedule-operations",
         screen: "vehicle-breakdowns",
       },
+      {
+        nameKey: "admin.nav.trip_retrip_request",
+        path: `/${encScheduleOperations}/${encTripRetripRequest}`,
+        module: "schedule-operations",
+        screen: "retrip-requests",
+      },
+    ],
+  },
+];
+
+// Legacy name — kept alive only for the reporting sub-resources, matching
+// the backend's equivalent split (see base_urls.py); setup/operations
+// resources above are no longer looked up under this module.
+const scheduleMastersItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.waste_reports",
+    icon: <LayoutGrid size={18} />,
+    module: "schedule-masters",
+    screen: "schedule-masters",
+    subItems: [
       {
         nameKey: "Daily Waste Comparison",
         path: `/${encScheduleMasters}/${encDailyWasteComparison}`,
@@ -601,7 +694,7 @@ const scheduleMastersItems: NavItem[] = [
 
 const auditItems: NavItem[] = [
   {
-    nameKey: "admin.nav.audit_items",
+    nameKey: "admin.nav.audits",
     icon: <Truck size={18} />,
     module: "audits",
     screen: "audits",
@@ -722,12 +815,11 @@ const AppSidebar: React.FC = () => {
   //  Detect if current user is superadmin
   const isSuperAdmin = useMemo(() => isSuperAdminUser(), []);
 
-  // Check permission with proper logging
+  // Check sidebar visibility using the read/view permission returned by login.
   const checkPermission = useCallback(
     (module: string | undefined, screen: string | undefined): boolean => {
       if (!module || !screen) return true;
-      const allowed = hasPermission(module, screen, "show");
-      return allowed;
+      return hasPermission(module, screen, "view");
     },
     [hasPermission]
   );
@@ -742,13 +834,7 @@ const AppSidebar: React.FC = () => {
     if (isSuperAdmin) return subItems;
 
     // Regular users: only show items they have permission for
-    return subItems.filter((sub) => {
-      const allowed = checkPermission(sub.module, sub.screen);
-      console.log(
-        `[Filter SubItem] ${sub.nameKey} (${sub.module}/${sub.screen}) = ${allowed}`
-      );
-      return allowed;
-    });
+    return subItems.filter((sub) => checkPermission(sub.module, sub.screen));
   };
 
   // Check if menu item should be shown
@@ -756,26 +842,18 @@ const AppSidebar: React.FC = () => {
     item: NavItem,
     filteredSubItems: NavItem["subItems"]
   ): boolean => {
-
     if (item.nameKey === "admin.nav.dashboard") {
-    return true;
-  }
+      return true;
+    }
+
     // If no subItems, check direct permission or show if no permission needed
     if (!item.subItems || item.subItems.length === 0) {
       if (!item.module || !item.screen) return true;
-      const allowed = checkPermission(item.module, item.screen);
-      console.log(
-        `[Show Item] ${item.nameKey} (no children, ${item.module}/${item.screen}) = ${allowed}`
-      );
-      return allowed;
+      return checkPermission(item.module, item.screen);
     }
 
     // If has subItems, show only if filtered children exist
-    const hasChildren = !!(filteredSubItems && filteredSubItems.length > 0);
-    console.log(
-      `[Show Item] ${item.nameKey} (parent, has ${filteredSubItems?.length || 0} children) = ${hasChildren}`
-    );
-    return hasChildren;
+    return !!(filteredSubItems && filteredSubItems.length > 0);
   };
 
   // Build sidebar sections with strict filtering
@@ -787,14 +865,16 @@ const AppSidebar: React.FC = () => {
         { key: "superadminMaster" as const, items: superadminMasterItems },
         { key: "commonMaster" as const, items: commonMasterItems },
         { key: "master" as const, items: masterItems },
+        { key: "leaderManagement" as const, items: leaderManagementItems },
         { key: "wasteType" as const, items: wasteTypeItems },
-        { key: "assets" as const, items: assetItems },
         { key: "screenManagement" as const, items: screenManagementItems },
         { key: "roleAssigns" as const, items: roleAssignsItems },
         { key: "userCreations" as const, items: userCreationMasters },
         { key: "customerMasters" as const, items: customerMasters },
-        { key: "citizenGrievance" as const, items: citizenGrievanceItems },
+        { key: "complaintTicket" as const, items: complaintTicketItems },
         { key: "transportMasters" as const, items: transportMastersItems },
+        { key: "scheduleSetup" as const, items: scheduleSetupItems },
+        { key: "scheduleOperations" as const, items: scheduleOperationsItems },
         { key: "scheduleMasters" as const, items: scheduleMastersItems },
         { key: "auditItems" as const, items: auditItems },
         { key: "fleetReports" as const, items: fleetReportItems },
@@ -807,7 +887,6 @@ const AppSidebar: React.FC = () => {
       }
 
       // For regular users: strict filtering
-      console.log("[Sidebar] Regular user - applying permission filters");
       return allSections
         .map((section) => {
           // Filter items within section
@@ -853,6 +932,26 @@ const AppSidebar: React.FC = () => {
       })
       .filter((section) => section.items.length > 0);
   }, [searchQuery, sidebarSections, t]);
+
+  // Nest the flat, permission/search-filtered sections under their top-level
+  // category group (SUPER ADMIN / MASTERS / CORE MODULES / REPORTS), in the
+  // exact order each group expects.
+  const groupedSections = useMemo(() => {
+    const sectionsByKey = new Map<SidebarSectionKey, (typeof filteredSections)[number]>(
+      filteredSections.map((section) => [section.key, section])
+    );
+    return MODULE_GROUPS.map((group) => ({
+      key: group.key,
+      titleKey: group.titleKey,
+      accent: group.accent,
+      sections: group.sectionKeys
+        .map((key) => sectionsByKey.get(key))
+        .filter(
+          (section): section is (typeof filteredSections)[number] =>
+            !!section && section.items.length > 0
+        ),
+    })).filter((group) => group.sections.length > 0);
+  }, [filteredSections]);
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: SidebarSectionKey;
@@ -1102,10 +1201,32 @@ const AppSidebar: React.FC = () => {
 
         <div className="no-scrollbar flex-1 overflow-y-auto pr-1">
           <nav className="flex flex-col gap-1.5">
-            {filteredSections.length > 0 ? (
-              filteredSections.map((section) => (
-                <div key={section.key} className="flex flex-col gap-1">
-                  {renderMenuItems(section.items, section.key)}
+            {groupedSections.length > 0 ? (
+              groupedSections.map((group, groupIndex) => (
+                <div key={group.key} className="flex flex-col gap-1">
+                  {showFullSidebar ? (
+                    <div
+                      className={cn(
+                        "flex items-center gap-2 px-3 pb-1.5",
+                        groupIndex === 0 ? "pt-0" : "pt-3"
+                      )}
+                    >
+                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", group.accent)} />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                        {t(group.titleKey)}
+                      </span>
+                    </div>
+                  ) : (
+                    groupIndex > 0 && (
+                      <div className="mx-2 my-2 h-px bg-green-100" />
+                    )
+                  )}
+
+                  {group.sections.map((section) => (
+                    <div key={section.key} className="flex flex-col gap-1">
+                      {renderMenuItems(section.items, section.key)}
+                    </div>
+                  ))}
                 </div>
               ))
             ) : (

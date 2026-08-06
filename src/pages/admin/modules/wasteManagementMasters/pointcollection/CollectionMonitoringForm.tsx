@@ -19,6 +19,11 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
+import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
+import type { DetectedCoordinates } from "@/utils/geolocation";
+import { collectionMonitoringSchema } from "@/schemas/wasteManagementMasters/pointcollection/collectionMonitoring.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 
 const ShadcnSelect = ({
@@ -29,6 +34,7 @@ const ShadcnSelect = ({
   placeholder,
   isRequired = true,
   disabled = false,
+  error,
 }: {
   label: string;
   value: string;
@@ -37,6 +43,7 @@ const ShadcnSelect = ({
   placeholder?: string;
   isRequired?: boolean;
   disabled?: boolean;
+  error?: string;
 }) => (
   <div className="space-y-2">
     <Label className="text-sm font-medium text-gray-700">
@@ -59,6 +66,7 @@ const ShadcnSelect = ({
         )}
       </SelectContent>
     </Select>
+    <FieldError message={error} />
   </div>
 );
 
@@ -80,6 +88,7 @@ const FormInput = ({
   min,
   isRequired = true,
   disabled = false,
+  error,
 }: {
   label: string;
   value: string;
@@ -89,6 +98,7 @@ const FormInput = ({
   min?: string;
   isRequired?: boolean;
   disabled?: boolean;
+  error?: string;
 }) => (
   <div className="space-y-2">
     <Label className="text-sm font-medium text-gray-700">
@@ -105,6 +115,7 @@ const FormInput = ({
       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
       autoComplete="off"
     />
+    <FieldError message={error} />
   </div>
 );
 
@@ -192,6 +203,7 @@ function CollectionMonitoringForm() {
   const [tripCollectionPoints, setTripCollectionPoints] = useState<TripCollectionPointRecord[]>([]);
   const [pendingProjectId, setPendingProjectId] = useState("");
   const [pendingEvent, setPendingEvent] = useState<BinCollectionEventRecord | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const selectedTripCp = useMemo(
     () => tripCollectionPoints.find((item) => item.unique_id === tripCollectionPointId),
@@ -291,6 +303,11 @@ function CollectionMonitoringForm() {
     setPendingEvent(null);
   }, [pendingEvent, tripCollectionPoints]);
 
+  const handleLocationDetected = (coordinates: DetectedCoordinates) => {
+    setDriverLatitude(String(coordinates.latitude));
+    setDriverLongitude(String(coordinates.longitude));
+  };
+
   const selectedBinName = nested(selectedTripCp?.bin, ["bin_name", "name"]) || binId;
   const selectedWasteType = (() => {
     const waste = selectedTripCp?.bin && typeof selectedTripCp.bin === "object"
@@ -304,11 +321,25 @@ function CollectionMonitoringForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
+    const fieldValues = {
+      tripCollectionPointId,
+      weight: weight.trim(),
+      driverLatitude: driverLatitude.trim(),
+      driverLongitude: driverLongitude.trim(),
+      notes: notes.trim(),
+    };
+
+    const validation = parseWithSchema(collectionMonitoringSchema, fieldValues);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire(t("common.warning"), t("admin.bin.missing_fields", { fields: Object.values(validation.errors).join(", ") }), "warning");
+      return;
+    }
+    setFieldErrors({});
+
     const missingFields: string[] = [];
     if (!companyUniqueId) missingFields.push(t("admin.nav.company"));
     if (!projectId) missingFields.push(t("admin.nav.project"));
-    if (!tripCollectionPointId) missingFields.push("Trip Collection Point");
-    if (!weight.trim()) missingFields.push("Collected Weight");
 
     if (missingFields.length > 0) {
       Swal.fire(t("common.warning"), t("admin.bin.missing_fields", { fields: missingFields.join(", ") }), "warning");
@@ -382,10 +413,14 @@ function CollectionMonitoringForm() {
           <ShadcnSelect
             label="Trip Collection Point"
             value={tripCollectionPointId}
-            onChange={setTripCollectionPointId}
+            onChange={(value) => {
+              setTripCollectionPointId(value);
+              setFieldErrors((prev) => ({ ...prev, tripCollectionPointId: "" }));
+            }}
             options={tripCpOptions}
             placeholder={fetching ? t("common.loading") : "Select trip collection point"}
             disabled={!companyUniqueId || !projectId || fetching || tripCpOptions.length === 0 || isEdit}
+            error={fieldErrors.tripCollectionPointId}
           />
           <FormInput label="Trip Assignment" value={selectedTripLabel} onChange={() => undefined} disabled />
           <FormInput label={t("admin.nav.collection_point")} value={selectedCollectionPointName} onChange={() => undefined} disabled />
@@ -400,24 +435,43 @@ function CollectionMonitoringForm() {
             step="0.01"
             min="0.01"
             value={weight}
-            onChange={(e) => setWeight(e.target.value)}
+            onChange={(e) => {
+              setWeight(e.target.value);
+              setFieldErrors((prev) => ({ ...prev, weight: "" }));
+            }}
+            error={fieldErrors.weight}
           />
           <FormInput
             label="Driver Latitude"
             type="number"
             step="0.000001"
             value={driverLatitude}
-            onChange={(e) => setDriverLatitude(e.target.value)}
+            onChange={(e) => {
+              setDriverLatitude(e.target.value);
+              setFieldErrors((prev) => ({ ...prev, driverLatitude: "" }));
+            }}
             isRequired={false}
+            error={fieldErrors.driverLatitude}
           />
           <FormInput
             label="Driver Longitude"
             type="number"
             step="0.000001"
             value={driverLongitude}
-            onChange={(e) => setDriverLongitude(e.target.value)}
+            onChange={(e) => {
+              setDriverLongitude(e.target.value);
+              setFieldErrors((prev) => ({ ...prev, driverLongitude: "" }));
+            }}
             isRequired={false}
+            error={fieldErrors.driverLongitude}
           />
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-gray-700">&nbsp;</Label>
+            <AutoDetectLocationButton
+              onDetected={handleLocationDetected}
+              className="w-full"
+            />
+          </div>
           <FormInput
             label="Notes"
             value={notes}

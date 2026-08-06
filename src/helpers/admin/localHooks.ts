@@ -28,7 +28,6 @@ export type WardRecord = AdminRecord;
 export type PanchayatRecord = AdminRecord;
 export type PropertyRecord = AdminRecord & { property_name: string };
 export type SubPropertyRecord = AdminRecord;
-export type AreaTypeRecord = AdminRecord;
 export type HierarchyRecord = AdminRecord;
 export type BinRecord = AdminRecord;
 export type CollectionPointRecord = AdminRecord;
@@ -61,7 +60,6 @@ export type WardPayload = Record<string, any>;
 export type PanchayatPayload = Record<string, any>;
 export type PropertyPayload = Record<string, any>;
 export type SubPropertyPayload = Record<string, any>;
-export type AreaTypePayload = Record<string, any>;
 export type HierarchyPayload = Record<string, any>;
 export type BinPayload = Record<string, any>;
 export type CollectionPointPayload = Record<string, any>;
@@ -340,11 +338,6 @@ export const useSubPropertyQuery = (id: string | number | null | undefined) => u
 export const useCreateSubPropertyMutation = () => useCreate<SubPropertyPayload, SubPropertyRecord>("subProperties");
 export const useUpdateSubPropertyMutation = () => useUpdate<SubPropertyPayload, SubPropertyRecord>("subProperties");
 
-export const useAreaTypesQuery = () => useList<AreaTypeRecord>("areatypes");
-export const useAreaTypeQuery = (id: string | number | null | undefined) => useDetail<AreaTypeRecord>("areatypes", id);
-export const useCreateAreaTypeMutation = () => useCreate<AreaTypePayload, AreaTypeRecord>("areatypes");
-export const useUpdateAreaTypeMutation = () => useUpdate<AreaTypePayload, AreaTypeRecord>("areatypes");
-
 export const useHierarchiesQuery = () => useList<HierarchyRecord>("hierarchies");
 export const useHierarchyQuery = (id: string | number | null | undefined) => useDetail<HierarchyRecord>("hierarchies", id);
 export const useCreateHierarchyMutation = () => useCreate<HierarchyPayload, HierarchyRecord>("hierarchies");
@@ -452,28 +445,28 @@ export const useUserScreenPermissionsByCompanyQuery = (companyId?: string) =>
 
 export const useUserScreenPermissionFormattedQuery = (
   companyId?: string,
-  staffTypeId?: string,
+  projectId?: string,
   mainScreenId?: string
 ) =>
   useDirectQuery<any>(
     () =>
       userScreenPermissionApi.read(
-        `by-staff-format/?company_id=${encodeURIComponent(companyId ?? "")}&staffusertype_id=${encodeURIComponent(staffTypeId ?? "")}&mainscreen_id=${encodeURIComponent(mainScreenId ?? "")}`
+        `by-project-format/?company_id=${encodeURIComponent(companyId ?? "")}&project_id=${encodeURIComponent(projectId ?? "")}&mainscreen_id=${encodeURIComponent(mainScreenId ?? "")}`
       ),
-    [companyId, staffTypeId, mainScreenId],
-    Boolean(companyId && staffTypeId && mainScreenId)
+    [companyId, projectId, mainScreenId],
+    Boolean(companyId && projectId && mainScreenId)
   );
 
 export const useSyncUserScreenPermissionMutation = () =>
   useMutationAction<
-    { staffTypeId: string; payload: any; isEdit: boolean },
+    { projectId: string; payload: any; isEdit: boolean },
     any
   >(
-    ({ staffTypeId, payload, isEdit }) =>
+    ({ projectId, payload, isEdit }) =>
       userScreenPermissionApi.action(
         isEdit
-          ? `update-by-staffusertype/${staffTypeId}`
-          : `bulk-sync-multi/${staffTypeId}`,
+          ? `update-by-project/${projectId}`
+          : `bulk-sync-multi-project/${projectId}`,
         payload
       ),
     ["companyWiseScreenPermissions"]

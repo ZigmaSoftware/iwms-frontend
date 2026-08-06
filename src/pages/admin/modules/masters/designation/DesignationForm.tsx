@@ -9,6 +9,9 @@ import { Input } from "@/components/ui/input";
 import Select from "@/components/form/Select";
 import { departmentApi, designationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { designationSchema } from "@/schemas/masters/designation.schema";
+import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import { FieldError } from "@/components/form/FieldError";
 
 const { encMasters, encDesignations } = getEncryptedRoute();
 const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encDesignations);
@@ -19,6 +22,7 @@ export default function DesignationForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [departmentOptions, setDepartmentOptions] = useState<{ value: string; label: string }[]>([]);
   const [form, setForm] = useState({
     designation_name: "",
@@ -79,14 +83,17 @@ export default function DesignationForm() {
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!form.designation_name.trim()) {
-      Swal.fire(t("common.error"), "Designation name is required", "error");
+    const validation = parseWithSchema(designationSchema, form);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      Swal.fire(
+        t("common.error"),
+        validation.errors.designation_name ?? validation.errors.department_id ?? t("common.all_fields_required"),
+        "error",
+      );
       return;
     }
-    if (!form.department_id) {
-      Swal.fire(t("common.error"), "Department is required", "error");
-      return;
-    }
+    setFieldErrors({});
 
     setSaving(true);
     try {
@@ -125,9 +132,13 @@ export default function DesignationForm() {
           <Input
             id="designation_name"
             value={form.designation_name}
-            onChange={(e) => setForm((prev) => ({ ...prev, designation_name: e.target.value }))}
+            onChange={(e) => {
+              setForm((prev) => ({ ...prev, designation_name: e.target.value }));
+              setFieldErrors((prev) => ({ ...prev, designation_name: "" }));
+            }}
             required
           />
+          <FieldError message={fieldErrors.designation_name} />
         </div>
         <div>
           <Label htmlFor="department_id">
@@ -136,10 +147,14 @@ export default function DesignationForm() {
           <Select
             id="department_id"
             value={form.department_id}
-            onChange={(value) => setForm((prev) => ({ ...prev, department_id: value }))}
+            onChange={(value) => {
+              setForm((prev) => ({ ...prev, department_id: value }));
+              setFieldErrors((prev) => ({ ...prev, department_id: "" }));
+            }}
             options={departmentOptions}
             placeholder="Select Department"
           />
+          <FieldError message={fieldErrors.department_id} />
         </div>
         <div>
           <Label htmlFor="status">Status</Label>

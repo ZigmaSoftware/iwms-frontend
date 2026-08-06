@@ -1,0 +1,1137 @@
+import type {
+  DailyReportResponse,
+  DailyReportRow,
+  LocationComparisonRow,
+  WasteTypeBreakdownRow,
+} from "./types";
+import { useEffect, useMemo, useState } from "react";
+import ReportMultiSelect from "../ReportMultiSelect";
+import {
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Leaf,
+  MapPin,
+  Recycle,
+  RefreshCw,
+  Scale,
+  Truck,
+} from "lucide-react";
+import Swal from "@/lib/notify";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { useTranslation } from "react-i18next";
+import {
+  dailyWasteComparisonApi,
+  panchayatApi,
+} from "@/helpers/admin";
+import { api } from "@/api";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+/* ══════════════════════════════════════════════════════════════════
+   TOKENS — civic sanitation ledger palette, layered onto shadcn primitives
+══════════════════════════════════════════════════════════════════ */
+const C = {
+  bg: "#F5F7FB",
+  surface: "#FFFFFF",
+  surfaceSunk: "#F1F5F9",
+  ink: "#0F172A",
+  inkSoft: "#475569",
+  inkFaint: "#94A3B8",
+  line: "#E2E8F0",
+  primary: "#0F766E",
+  primaryDeep: "#0F2744",
+  leaf: "#10B981",
+  teal: "#0EA5E9",
+  ochre: "#F59E0B",
+  brick: "#EF4444",
+  violet: "#8B5CF6",
+} as const;
+
+const WASTE_PALETTE: string[] = [C.leaf, C.teal, C.ochre, C.violet, C.brick, C.primary, "#3E8E7E"];
+const OTHER_SLICE_COLOR = "#9CA3AF";
+
+const FONTS = `
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+.dwcr{font-family:'Manrope',system-ui,sans-serif;color:${C.ink};background:${C.bg};}
+.dwcr .font-display{font-family:'Manrope',system-ui,sans-serif;}
+.dwcr .font-mono{font-family:'IBM Plex Mono',monospace;}
+.dwcr ::-webkit-scrollbar{height:6px;width:6px;}
+.dwcr ::-webkit-scrollbar-thumb{background:${C.line};border-radius:4px;}
+.dwcr .dwcr-select{background:${C.surfaceSunk};border-color:${C.line};color:${C.ink};font-size:0.75rem;height:2.25rem;}
+.dwcr .dwcr-select-dark{background:#fff;border-color:rgba(255,255,255,0.3);color:${C.ink};height:2.5rem;}
+.dwcr .dwcr-select-dark svg{color:${C.inkSoft};opacity:0.8;}
+`;
+
+const initialKpis: DailyReportResponse["kpis"] = {
+  total_actual_weight_kg: 0,
+  average_weight_per_trip: 0,
+  total_trips: 0,
+  collection_points_covered: 0,
+  waste_type_count: 0,
+  local_body_count: 0,
+};
+
+const todayValue = () => new Date().toISOString().split("T")[0];
+
+const resolveGeoId = (record: any): string => String(record?.unique_id ?? record?.id ?? "");
+const resolveGeoName = (record: any): string =>
+  String(
+    record?.name ??
+      record?.corporation_name ??
+      record?.municipality_name ??
+      record?.town_panchayat_name ??
+      record?.union_name ??
+      record?.panchayat_name ??
+      record?.ward_name ??
+      resolveGeoId(record),
+  );
+const toRecordList = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) return value.filter((x) => x && typeof x === "object");
+  if (value && typeof value === "object") {
+    const r = (value as { results?: unknown }).results;
+    if (Array.isArray(r)) return r.filter((x) => x && typeof x === "object");
+  }
+  return [];
+};
+const toGeoOptions = (records: any[]) =>
+  records.filter((r) => resolveGeoId(r)).map((r) => ({ value: resolveGeoId(r), label: resolveGeoName(r) }));
+/* ── Helpers ─────────────────────────────────────────────────────── */
+const fmtKg = (v?: number | string | null, dec = 0) => {
+  const n = Number(v);
+  return Number.isNaN(n)
+    ? "—"
+    : n.toLocaleString("en-IN", { maximumFractionDigits: dec });
+};
+const fmtAxis = (v: number) =>
+  Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
+
+/* ── Hero collection snapshot ──────────────────────────────────── */
+function WeighDial({
+  value,
+  max,
+  unit = "kg",
+  trips,
+  points,
+}: {
+  value: number;
+  max: number;
+  unit?: string;
+  trips: number;
+  points: number;
+}) {
+  const pct = Math.max(0, Math.min(1, max ? value / max : 0));
+  return (
+    <div className="w-full">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-100/70">
+            Total collected
+          </p>
+          <p className="mt-2 font-mono text-3xl font-semibold tracking-tight text-white md:text-4xl">
+            {value.toLocaleString("en-IN")}
+            <span className="ml-2 text-sm font-medium text-cyan-100/70">{unit}</span>
+          </p>
+        </div>
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-400/15 ring-1 ring-inset ring-emerald-300/20">
+          <Scale className="h-5 w-5 text-emerald-300" />
+        </div>
+      </div>
+      <div className="mt-5">
+        <div className="mb-2 flex items-center justify-between text-[10px] font-medium text-cyan-100/60">
+          <span>Against peak collection</span>
+          <span className="font-mono">{Math.round(pct * 100)}%</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-300 transition-all duration-700"
+            style={{ width: `${pct * 100}%` }}
+          />
+        </div>
+      </div>
+      <div className="mt-5 grid grid-cols-2 gap-3 border-t border-white/10 pt-4">
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-cyan-100/50">Trips</p>
+          <p className="mt-1 font-mono text-lg font-semibold text-white">{fmtKg(trips)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-cyan-100/50">Points covered</p>
+          <p className="mt-1 font-mono text-lg font-semibold text-white">{fmtKg(points)}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Tooltip components ──────────────────────────────────────────── */
+const ChipTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg px-3 py-2.5 text-xs shadow-lg" style={{ background: C.primaryDeep, color: "#F4F5EE", minWidth: 140 }}>
+      <p className="font-semibold mb-1 opacity-80">{label}</p>
+      {payload.map((p: any) => (
+        <div key={p.dataKey} className="flex justify-between gap-4 font-mono">
+          <span>{p.name}</span>
+          <span className="font-semibold">{`${fmtKg(p.value)} kg`}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const WasteTypeTooltip = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null;
+  const p = payload[0];
+  const row = p.payload as WasteTypeBreakdownRow & { color: string };
+  return (
+    <div className="rounded-lg px-3 py-2.5 text-xs shadow-lg" style={{ background: C.primaryDeep, color: "#F4F5EE", minWidth: 160 }}>
+      <p className="font-semibold mb-1.5 flex items-center gap-1.5 opacity-90">
+        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: row.color }} />
+        {row.waste_type}
+      </p>
+      <div className="flex justify-between gap-4 font-mono">
+        <span className="opacity-70">Weight</span>
+        <span className="font-semibold">{fmtKg(row.actual_weight_kg)} kg</span>
+      </div>
+      <div className="flex justify-between gap-4 font-mono mt-0.5">
+        <span className="opacity-70">Share</span>
+        <span className="font-semibold">{row.share_percent.toFixed(1)}%</span>
+      </div>
+      <div className="flex justify-between gap-4 font-mono mt-0.5">
+        <span className="opacity-70">Trips</span>
+        <span className="font-semibold">{row.total_trips}</span>
+      </div>
+    </div>
+  );
+};
+
+const WasteTypeLegend = ({ payload }: any) => (
+  <ul className="flex flex-wrap justify-center gap-3 mt-3">
+    {(payload ?? []).map((entry: any) => (
+      <li key={entry.value} className="flex items-center gap-1.5 text-xs" style={{ color: C.inkSoft }}>
+        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: entry.color }} />
+        {entry.value}
+      </li>
+    ))}
+  </ul>
+);
+
+/* ── local, small select wrapper for the "value=all/none" placeholder pattern ── */
+const NONE = "__none__";
+
+function FilterSelect({
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  options,
+  dark = false,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  disabled?: boolean;
+  options: Array<{ value: string; label: string }>;
+  dark?: boolean;
+}) {
+  return (
+    <Select
+      value={value || undefined}
+      onValueChange={(v) => onChange(v === NONE ? "" : v)}
+      disabled={disabled}
+    >
+      <SelectTrigger className={dark ? "dwcr-select-dark rounded-xl border-0" : "dwcr-select rounded-lg"}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════════
+    MAIN COMPONENT
+══════════════════════════════════════════════════════════════════ */
+export default function DailyWasteComparisonList({
+  embedded = false,
+}: {
+  embedded?: boolean;
+} = {}) {
+  const { t } = useTranslation();
+
+  const [dateValue, setDateValue] = useState("");
+  const [appliedDate, setAppliedDate] = useState("");
+  const [sortMode, setSortMode] = useState("weight");
+  const [source, setSource] = useState("bin");
+
+  const {
+    companyUniqueId,
+    projectId,
+    companies,
+    projects,
+    companiesLoaded,
+    projectsLoaded,
+    isSuperAdmin,
+    showAllProjectsOption,
+    onCompanyChange,
+    setProjectId,
+  } = useCompanyProjectSelection({ isEdit: false, defaultToAll: true });
+  const [panchayatIds, setPanchayatIds] = useState<string[]>([]);
+  const [panchayatRecords, setPanchayatRecords] = useState<Record<string, unknown>[]>([]);
+
+  const [rows, setRows] = useState<DailyReportRow[]>([]);
+  const [dateTrends, setDateTrends] = useState<
+    DailyReportResponse["date_trends"]
+  >([]);
+  const [plbCompare, setPlbCompare] = useState<LocationComparisonRow[]>([]);
+  const [wasteTypeBreakdown, setWasteTypeBreakdown] = useState<
+    WasteTypeBreakdownRow[]
+  >([]);
+  const [kpis, setKpis] = useState<DailyReportResponse["kpis"]>(initialKpis);
+  const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState("");
+  const [detailPage, setDetailPage] = useState(1);
+  const [detailPageSize, setDetailPageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
+    if (projectId) params.project_id = projectId;
+    panchayatApi.readAll({ params }).then((value) => {
+      if (active) setPanchayatRecords(toRecordList(value));
+    }).catch(() => {
+      if (active) setPanchayatRecords([]);
+    });
+    setPanchayatIds([]);
+    return () => { active = false; };
+  }, [companyUniqueId, projectId]);
+
+  const panchayatOptions = toGeoOptions(panchayatRecords);
+
+  /* ── fetch report ── */
+  const fetchReport = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const params: Record<string, string> = {
+        sort: sortMode,
+        source,
+        page: String(detailPage),
+        limit: String(detailPageSize),
+      };
+      if (appliedDate) params.date = appliedDate;
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+      if (panchayatIds.length) params.panchayat_id = panchayatIds.join(",");
+
+      const { data } = await api.get<DailyReportResponse>(
+        "/schedule-masters/daily-waste-comparisons/",
+        { params },
+      );
+      setRows(Array.isArray(data?.results) ? data.results : []);
+      setTotalCount(
+        typeof data?.count === "number"
+          ? data.count
+          : Array.isArray(data?.results)
+            ? data.results.length
+            : 0,
+      );
+      setDateTrends(Array.isArray(data?.date_trends) ? data.date_trends : []);
+      setPlbCompare(
+        Array.isArray(data?.location_comparison)
+          ? data.location_comparison
+          : [],
+      );
+      setWasteTypeBreakdown(
+        Array.isArray(data?.waste_type_breakdown)
+          ? data.waste_type_breakdown
+          : [],
+      );
+      setKpis(data?.kpis ?? initialKpis);
+    } catch {
+      setRows([]);
+      setTotalCount(0);
+      setDateTrends([]);
+      setPlbCompare([]);
+      setWasteTypeBreakdown([]);
+      setKpis(initialKpis);
+      setError("Unable to load daily waste collection data.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    appliedDate,
+    sortMode,
+    source,
+    companyUniqueId,
+    projectId,
+    panchayatIds,
+    detailPage,
+    detailPageSize,
+  ]);
+
+  /* Reset to page 1 whenever a filter OTHER than pagination changes — the
+     server refetch above also fires when detailPage/detailPageSize change
+     (i.e. on a "next page" click), so an unconditional reset there would
+     immediately snap the user back to page 1. */
+  useEffect(() => {
+    setDetailPage(1);
+  }, [appliedDate, sortMode, source, companyUniqueId, projectId, panchayatIds]);
+
+  /* ── derived ── */
+  const maxPlbWeight = useMemo(
+    () => plbCompare.reduce((max, p) => Math.max(max, p.actual_weight_kg), 0),
+    [plbCompare],
+  );
+
+  const dayMax = useMemo(
+    () => dateTrends.reduce((max, d) => Math.max(max, Number(d.actual_weight_kg ?? 0)), 0) || 1,
+    [dateTrends],
+  );
+
+  /* waste-type pie data — top slots take fixed categorical colors in order,
+     the tail (past the 7-slot ceiling) folds into "Other" per the series-count rule */
+  const MAX_PIE_SLICES = 7;
+  const wasteTypePieData = useMemo(() => {
+    const sorted = [...wasteTypeBreakdown].sort(
+      (a, b) => b.actual_weight_kg - a.actual_weight_kg,
+    );
+    const head = sorted.slice(0, MAX_PIE_SLICES).map((row, i) => ({
+      ...row,
+      color: WASTE_PALETTE[i % WASTE_PALETTE.length],
+    }));
+    const tail = sorted.slice(MAX_PIE_SLICES);
+    if (tail.length > 0) {
+      const tailWeight = tail.reduce((s, r) => s + r.actual_weight_kg, 0);
+      const tailTrips = tail.reduce((s, r) => s + r.total_trips, 0);
+      const tailPoints = tail.reduce((s, r) => s + r.collection_points_covered, 0);
+      const tailShare = tail.reduce((s, r) => s + r.share_percent, 0);
+      head.push({
+        waste_type_id: "__other__",
+        waste_type: `Other (${tail.length})`,
+        actual_weight_kg: tailWeight,
+        total_trips: tailTrips,
+        collection_points_covered: tailPoints,
+        share_percent: tailShare,
+        color: OTHER_SLICE_COLOR,
+      });
+    }
+    return head;
+  }, [wasteTypeBreakdown]);
+
+  const selectedLocalBodyLabel = panchayatOptions
+    .filter((option) => panchayatIds.includes(option.value))
+    .map((option) => option.label)
+    .join(", ");
+  const detailPageCount = Math.max(1, Math.ceil(totalCount / detailPageSize));
+  const safeDetailPage = Math.min(detailPage, detailPageCount);
+  const visibleDetailPages = useMemo(() => {
+    const visibleCount = Math.min(5, detailPageCount);
+    const start = Math.max(
+      1,
+      Math.min(safeDetailPage - 2, detailPageCount - visibleCount + 1),
+    );
+    return Array.from({ length: visibleCount }, (_, index) => start + index);
+  }, [detailPageCount, safeDetailPage]);
+
+  const handleDownload = async () => {
+    setExporting(true);
+    try {
+      const params: Record<string, string> = { sort: sortMode, source };
+      if (appliedDate) params.date = appliedDate;
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+      if (panchayatIds.length) params.panchayat_id = panchayatIds.join(",");
+
+      const exportRows = await dailyWasteComparisonApi.readAllForExport({
+        params,
+      });
+      exportRecordsToExcel(
+        exportRows.map((r) => ({
+          Date: r.collection_date,
+          "Panchayat Type": r.local_body_type,
+          Panchayat: r.local_body_name,
+          "Waste Type": r.waste_type,
+          "Weight Collected (kg)": r.actual_weight_kg,
+          Trips: r.total_trips,
+          Points: r.collection_points_covered,
+          "Avg Weight / Trip (kg)": r.average_weight_per_trip,
+        })),
+        getAdminScreenExcelFilename("all"),
+        "Daily Waste Collection",
+      );
+    } catch {
+      Swal.fire(
+        t("common.error"),
+        "Failed to download daily waste collection data.",
+        "error",
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const clearLocalBodyFilter = () => setPanchayatIds([]);
+
+  /* ══════════════════════════════════════════════════════════════
+      RENDER
+  ══════════════════════════════════════════════════════════════ */
+  return (
+    <div className={embedded ? "dwcr overflow-hidden rounded-2xl" : "dwcr min-h-screen"}>
+      <style>{FONTS}</style>
+
+
+      {/* ══════════════ HERO ══════════════ */}
+      <div className={embedded ? "pt-0" : "px-6 md:px-10 pt-5"}>
+        <div
+          className="relative overflow-hidden rounded-[28px] border border-white/10 shadow-[0_20px_60px_-28px_rgba(15,39,68,0.65)]"
+          style={{ background: `linear-gradient(120deg, ${C.primaryDeep} 0%, #115E6D 58%, ${C.primary} 100%)` }}
+        >
+          <div
+            className="absolute inset-0 opacity-[0.09]"
+            style={{ backgroundImage: "radial-gradient(circle at 20% 20%, white 1px, transparent 1px)", backgroundSize: "24px 24px" }}
+          />
+          <div className="absolute -right-20 -top-32 h-80 w-80 rounded-full bg-cyan-300/10 blur-3xl" />
+          <div className="relative grid grid-cols-1 gap-7 px-7 py-8 md:px-10 lg:grid-cols-[1.65fr_0.8fr] lg:items-stretch">
+            <div className="flex flex-col justify-between gap-6">
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-400/15 ring-1 ring-inset ring-emerald-300/20">
+                    <Leaf className="h-4 w-4 text-emerald-300" />
+                  </div>
+                  <span className="font-mono text-[10px] tracking-[0.22em] text-cyan-100/70">
+                    CIVIC SANITATION · DAILY OPERATIONS
+                  </span>
+                </div>
+                <h1 className="font-display text-3xl font-bold leading-tight tracking-tight text-white md:text-[2.6rem]">
+                  Daily Waste Collection
+                </h1>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-cyan-50/65">
+                  Monitor collected weight, completed trips, coverage, and waste composition across accessible panchayats.
+                </p>
+              </div>
+
+              {/* ── toolbar ── */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Input
+                  type="date"
+                  value={dateValue}
+                  max={todayValue()}
+                  onChange={(e) => setDateValue(e.target.value)}
+                  className="h-10 w-auto rounded-xl border-white/20 bg-white px-3 text-sm text-slate-900 shadow-sm"
+                  style={{ colorScheme: "light" }}
+                />
+                <div className="w-44">
+                  <FilterSelect
+                    value={sortMode}
+                    onChange={setSortMode}
+                    placeholder="Sort"
+                    dark
+                    options={[
+                      { value: "weight", label: "Highest weight" },
+                      { value: "trips", label: "Most trips" },
+                    ]}
+                  />
+                </div>
+                <div className="w-44">
+                  <FilterSelect
+                    value={source}
+                    onChange={setSource}
+                    placeholder="Source"
+                    dark
+                    options={[
+                      { value: "bin", label: "Bin Collection" },
+                      { value: "household", label: "Household Collection" },
+                      { value: "all", label: "All Sources" },
+                    ]}
+                  />
+                </div>
+                <Button
+                  onClick={() => setAppliedDate(dateValue)}
+                  className="h-10 rounded-xl bg-emerald-400 px-5 font-semibold text-emerald-950 shadow-sm transition-all hover:bg-emerald-300"
+                >
+                  Go
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDateValue("");
+                    setAppliedDate("");
+                  }}
+                  className="h-10 rounded-xl border-white/20 bg-white/5 font-semibold text-white hover:bg-white/10 hover:text-white"
+                >
+                  All dates
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => void fetchReport()}
+                  disabled={loading}
+                  className="h-10 rounded-xl border-white/20 bg-white/5 font-semibold text-white hover:bg-white/10 hover:text-white"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+                </Button>
+                <Button
+                  onClick={handleDownload}
+                  disabled={!totalCount || exporting}
+                  className="flex h-10 items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-4 font-semibold text-white shadow-sm transition-colors hover:bg-white/15 lg:ml-auto"
+                >
+                  <Download className="h-3.5 w-3.5" /> {exporting ? "Downloading…" : "Download all"}
+                </Button>
+              </div>
+            </div>
+
+            {/* ── signature weighbridge dial ── */}
+            <div
+              className="flex min-h-56 flex-col justify-center rounded-2xl border border-white/10 bg-white/[0.07] p-6 shadow-inner backdrop-blur-sm"
+            >
+              <WeighDial
+                value={kpis.total_actual_weight_kg}
+                max={dayMax}
+                unit="kg"
+                trips={kpis.total_trips}
+                points={kpis.collection_points_covered}
+              />
+              <p className="mt-4 border-t border-white/10 pt-3 font-mono text-[10px] tracking-wide text-cyan-100/50">
+                {appliedDate || "All dates"} · load against day's peak
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════ COMPANY / PROJECT / PANCHAYAT FILTER ══════════════ */}
+      <div className="px-6 md:px-10 mt-5">
+        <Card className="rounded-2xl px-5 py-4 shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: C.inkSoft }}>
+              <MapPin className="h-3.5 w-3.5" /> Filter by company, project and panchayat
+            </h2>
+            {panchayatIds.length > 0 && (
+              <Button variant="link" onClick={clearLocalBodyFilter} className="h-auto p-0 text-xs font-semibold" style={{ color: C.teal }}>
+                Clear filter
+              </Button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+            {isSuperAdmin && (
+              <FilterSelect
+                value={companyUniqueId}
+                onChange={onCompanyChange}
+                placeholder="All companies"
+                disabled={!companiesLoaded}
+                options={companies}
+              />
+            )}
+            <FilterSelect
+              value={projectId}
+              onChange={setProjectId}
+              placeholder={showAllProjectsOption ? "All projects" : "Select project"}
+              disabled={!projectsLoaded}
+              options={projects}
+            />
+            <ReportMultiSelect
+              value={panchayatIds}
+              onChange={setPanchayatIds}
+              options={panchayatOptions}
+              placeholder="All panchayats"
+              ariaLabel="Panchayats"
+            />
+          </div>
+
+          {panchayatIds.length > 0 && (
+            <p className="mt-3 text-xs" style={{ color: C.inkFaint }}>
+              Showing data for{" "}
+              <span className="font-semibold" style={{ color: C.ink }}>
+                {selectedLocalBodyLabel}
+              </span>
+            </p>
+          )}
+        </Card>
+      </div>
+
+      {error && (
+        <div className="px-6 md:px-10 mt-5">
+          <div className="rounded-xl px-4 py-3 text-sm" style={{ background: `${C.brick}14`, border: `1px solid ${C.brick}44`, color: C.brick }}>
+            {error}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════ KPI STRIP ══════════════ */}
+      <div className="px-6 md:px-10 mt-5 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        {[
+          { label: "Total weight collected", value: `${fmtKg(kpis.total_actual_weight_kg)} kg`, icon: Scale, accent: C.leaf },
+          { label: "Total trips", value: fmtKg(kpis.total_trips), icon: Truck, accent: C.teal },
+          { label: "Points covered", value: fmtKg(kpis.collection_points_covered), icon: MapPin, accent: C.ochre },
+          { label: "Waste types", value: fmtKg(kpis.waste_type_count), icon: Recycle, accent: C.violet },
+          { label: "Panchayats", value: fmtKg(kpis.local_body_count), icon: Leaf, accent: C.primary },
+        ].map((k) => (
+          <Card key={k.label} className="rounded-2xl p-4 flex flex-col gap-3 shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.inkFaint }}>
+                {k.label}
+              </span>
+              <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: `${k.accent}1A` }}>
+                <k.icon className="h-3.5 w-3.5" style={{ color: k.accent }} />
+              </div>
+            </div>
+            <p className="font-mono text-2xl font-semibold" style={{ color: C.ink }}>
+              {loading ? "—" : k.value}
+            </p>
+          </Card>
+        ))}
+      </div>
+
+      {/* ══════════════ CHARTS ══════════════ */}
+      <div className="px-6 md:px-10 mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* trend */}
+        <Card className="rounded-2xl p-5 shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
+          <h2 className="font-display text-base font-semibold">Date-wise collection trend</h2>
+          <p className="text-xs mt-0.5 mb-4" style={{ color: C.inkFaint }}>
+            Total weight collected per date
+          </p>
+          {dateTrends.length === 0 ? (
+            <div className="h-52 flex items-center justify-center text-sm" style={{ color: C.inkFaint }}>
+              No trend data yet.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={dateTrends} margin={{ top: 6, right: 12, left: 0, bottom: 4 }}>
+                <defs>
+                  <linearGradient id="gradTrend" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={C.leaf} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={C.leaf} stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.line} vertical={false} />
+                <XAxis
+                  dataKey="collection_date"
+                  tick={{ fontSize: 10, fill: C.inkFaint }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(d: string) => d.slice(5)}
+                />
+                <YAxis tick={{ fontSize: 10, fill: C.inkFaint }} axisLine={false} tickLine={false} tickFormatter={fmtAxis} />
+                <Tooltip content={<ChipTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="actual_weight_kg"
+                  name="Weight collected"
+                  stroke={C.leaf}
+                  strokeWidth={2.5}
+                  fill="url(#gradTrend)"
+                  dot={{ r: 3.5, fill: C.leaf, stroke: C.surface, strokeWidth: 1.5 }}
+                  activeDot={{ r: 5.5 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+
+        {/* composition */}
+        <Card className="rounded-2xl p-5 shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
+          <h2 className="font-display text-base font-semibold flex items-center gap-1.5">
+            <Recycle className="h-4 w-4" style={{ color: C.inkFaint }} /> Waste composition
+          </h2>
+          <p className="text-xs mt-0.5 mb-2" style={{ color: C.inkFaint }}>
+            Share of total weight by waste type
+          </p>
+          {wasteTypePieData.length === 0 ? (
+            <div className="h-52 flex items-center justify-center text-sm" style={{ color: C.inkFaint }}>
+              No waste-type data yet.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Tooltip content={<WasteTypeTooltip />} />
+                <Pie
+                  data={wasteTypePieData}
+                  dataKey="actual_weight_kg"
+                  nameKey="waste_type"
+                  innerRadius={52}
+                  outerRadius={82}
+                  paddingAngle={2}
+                  stroke={C.surface}
+                  strokeWidth={2}
+                  label={(props: unknown) => {
+                    const p = props as { share_percent: number };
+                    return p.share_percent >= 5 ? `${p.share_percent.toFixed(0)}%` : "";
+                  }}
+                  labelLine={false}
+                >
+                  {wasteTypePieData.map((entry) => (
+                    <Cell key={entry.waste_type_id} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Legend content={<WasteTypeLegend />} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+
+        {/* panchayat ranked bars */}
+        <Card className="rounded-2xl p-5 lg:col-span-2 shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
+          <h2 className="font-display text-base font-semibold">Weight collected by panchayat</h2>
+          <p className="text-xs mt-0.5 mb-4" style={{ color: C.inkFaint }}>
+            Corporation · municipality · town panchayat · panchayat union · panchayat
+          </p>
+          {plbCompare.length === 0 ? (
+            <div className="h-52 flex items-center justify-center text-sm" style={{ color: C.inkFaint }}>
+              No panchayat data yet.
+            </div>
+          ) : (
+            <div className="space-y-1 max-h-[320px] overflow-y-auto pr-1">
+              {plbCompare.map((p) => {
+                const pct = maxPlbWeight > 0 ? Math.min((p.actual_weight_kg / maxPlbWeight) * 100, 100) : 0;
+                return (
+                  <div key={p.local_body_id} className="flex items-center gap-3 py-2.5" style={{ borderBottom: `1px solid ${C.line}` }}>
+                    <div className="w-40 shrink-0">
+                      <p className="text-xs font-semibold truncate" title={p.local_body_name}>
+                        {p.local_body_name}
+                      </p>
+                      <p className="text-[10px] mt-0.5" style={{ color: C.inkFaint }}>
+                        {p.local_body_type} · {p.total_trips} trip{p.total_trips !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <div className="flex-1 h-2.5 rounded-full overflow-hidden" style={{ background: C.surfaceSunk }}>
+                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: C.leaf }} />
+                    </div>
+                    <div className="w-24 text-right shrink-0 font-mono text-xs font-semibold">{fmtKg(p.actual_weight_kg)} kg</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* ══════════════ WASTE TYPE TABLE ══════════════ */}
+      {wasteTypeBreakdown.length > 0 && (
+        <div className="px-6 md:px-10 mt-5">
+          <Card className="rounded-2xl overflow-hidden shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
+            <div className="px-6 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <Recycle className="h-4 w-4" style={{ color: C.inkFaint }} />
+              <h2 className="font-display text-base font-semibold">Waste type breakdown</h2>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow style={{ background: C.surfaceSunk, borderColor: C.line }} className="hover:bg-transparent">
+                  <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>
+                    Waste type
+                  </TableHead>
+                  <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>
+                    Weight (kg)
+                  </TableHead>
+                  <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>
+                    Share
+                  </TableHead>
+                  <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>
+                    Trips
+                  </TableHead>
+                  <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>
+                    Points covered
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[...wasteTypeBreakdown]
+                  .sort((a, b) => b.actual_weight_kg - a.actual_weight_kg)
+                  .map((w, i) => (
+                    <TableRow key={w.waste_type_id} style={{ borderColor: C.line }}>
+                      <TableCell className="font-semibold whitespace-nowrap text-xs">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full mr-2 align-middle"
+                          style={{ background: WASTE_PALETTE[i % WASTE_PALETTE.length] }}
+                        />
+                        {w.waste_type}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-medium text-xs" style={{ color: C.primary }}>
+                        {fmtKg(w.actual_weight_kg)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs" style={{ color: C.inkSoft }}>
+                        {w.share_percent.toFixed(1)}%
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs" style={{ color: C.inkSoft }}>
+                        {w.total_trips}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs" style={{ color: C.inkSoft }}>
+                        {w.collection_points_covered}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </div>
+      )}
+
+      {/* ══════════════ SUMMARY ══════════════ */}
+      <div className="px-6 md:px-10 mt-5 pb-10">
+        <Card className="rounded-2xl overflow-hidden shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
+          <div
+            className="flex flex-wrap items-center justify-between gap-3 px-6 py-5"
+            style={{ background: `linear-gradient(120deg, ${C.primaryDeep}, ${C.primary})` }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,255,255,0.14)" }}>
+                <Calendar className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <p className="font-display font-semibold text-white">Daily collection summary</p>
+                <p className="text-xs mt-0.5" style={{ color: "rgba(244,245,238,0.7)" }}>
+                  Totals for{" "}
+                  <span className="font-semibold" style={{ color: "#B8E6C6" }}>
+                    {appliedDate || "All dates"}
+                  </span>{" "}
+                  · {totalCount} record{totalCount !== 1 ? "s" : ""} combined
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: "Total weight collected", value: `${fmtKg(kpis.total_actual_weight_kg)} kg`, tint: `${C.leaf}14`, border: `${C.leaf}33` },
+              { label: "Total trips", value: fmtKg(kpis.total_trips), tint: `${C.teal}14`, border: `${C.teal}33` },
+              { label: "Points covered", value: fmtKg(kpis.collection_points_covered), tint: `${C.ochre}14`, border: `${C.ochre}33` },
+              { label: "Avg weight / trip", value: `${fmtKg(kpis.average_weight_per_trip)} kg`, tint: `${C.violet}14`, border: `${C.violet}33` },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl p-4 flex flex-col gap-1" style={{ background: s.tint, border: `1px solid ${s.border}` }}>
+                <span className="text-xs font-medium" style={{ color: C.inkSoft }}>
+                  {s.label}
+                </span>
+                <span className="font-mono text-xl font-semibold">{s.value}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* panchayat cards */}
+          {plbCompare.length > 0 && (
+            <div className="px-6 py-5" style={{ borderTop: `1px solid ${C.line}` }}>
+              <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: C.inkFaint }}>
+                Panchayat breakdown — {plbCompare.length} location{plbCompare.length !== 1 ? "s" : ""}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {plbCompare.slice(0, 8).map((p) => (
+                  <Card key={p.local_body_id} className="rounded-xl p-3.5 hover:shadow-md transition-shadow" style={{ borderColor: C.line }}>
+                    <p className="text-xs font-bold">{p.local_body_name}</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: C.inkFaint }}>
+                      {p.local_body_type}
+                    </p>
+                    <div className="text-center rounded-lg py-2 my-2" style={{ background: `${C.leaf}14` }}>
+                      <p className="text-[10px] font-medium" style={{ color: C.leaf }}>
+                        Weight collected
+                      </p>
+                      <p className="text-sm font-mono font-bold" style={{ color: C.primary }}>
+                        {fmtKg(p.actual_weight_kg)} kg
+                      </p>
+                    </div>
+                    <div className="flex justify-between text-[10px]" style={{ color: C.inkFaint }}>
+                      <span>
+                        Trips: <strong style={{ color: C.inkSoft }}>{p.total_trips}</strong>
+                      </span>
+                      <span>
+                        Points: <strong style={{ color: C.inkSoft }}>{p.collection_points_covered}</strong>
+                      </span>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* detail table */}
+          {rows.length > 0 && (
+            <div className="px-6 py-5" style={{ borderTop: `1px solid ${C.line}` }}>
+              <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: C.inkFaint }}>
+                Breakdown by panchayat &amp; waste type — {totalCount} row{totalCount !== 1 ? "s" : ""}
+              </p>
+              <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
+                <Table>
+                  <TableHeader>
+                    <TableRow style={{ background: C.surfaceSunk, borderColor: C.line }} className="hover:bg-transparent">
+                      <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Date</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Type</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Panchayat</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Waste type</TableHead>
+                      <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Weight (kg)</TableHead>
+                      <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Trips</TableHead>
+                      <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Points</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((r) => {
+                      const isVerified = r.verification_status === "Verified";
+                      return (
+                      <TableRow key={r.unique_id} style={{ borderColor: C.line }}>
+                        <TableCell className="whitespace-nowrap font-mono text-xs" style={{ color: C.inkSoft }}>
+                          {r.collection_date}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-xs" style={{ color: C.inkFaint }}>
+                          {r.local_body_type}
+                        </TableCell>
+                        <TableCell className="font-semibold whitespace-nowrap text-xs">{r.local_body_name}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs" style={{ color: C.inkSoft }}>
+                          {r.waste_type}
+                        </TableCell>
+                        <TableCell className="text-right font-mono font-medium text-xs" style={{ color: C.primary }}>
+                          {fmtKg(r.actual_weight_kg)}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs" style={{ color: C.inkSoft }}>
+                          {r.total_trips}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs" style={{ color: C.inkSoft }}>
+                          {r.collection_points_covered}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-xs">
+                          <span
+                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                            style={{
+                              color: isVerified ? C.leaf : C.ochre,
+                              background: isVerified ? `${C.leaf}1A` : `${C.ochre}1A`,
+                            }}
+                          >
+                            {r.verification_status ?? "Unverified"}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2 text-xs" style={{ color: C.inkSoft }}>
+                  <span>Rows per page</span>
+                  <select
+                    value={detailPageSize}
+                    onChange={(event) => {
+                      setDetailPageSize(Number(event.target.value));
+                      setDetailPage(1);
+                    }}
+                    className="h-8 rounded-lg border px-2 font-mono outline-none"
+                    style={{ borderColor: C.line, background: C.surfaceSunk, color: C.ink }}
+                    aria-label="Rows per page"
+                  >
+                    {[10, 25, 50].map((size) => (
+                      <option key={size} value={size}>{size}</option>
+                    ))}
+                  </select>
+                  <span className="font-mono">
+                    {(safeDetailPage - 1) * detailPageSize + 1}–
+                    {Math.min(safeDetailPage * detailPageSize, totalCount)} of {totalCount}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDetailPage((page) => Math.max(1, page - 1))}
+                    disabled={safeDetailPage === 1}
+                    className="h-8 w-8 rounded-lg p-0"
+                    style={{ borderColor: C.line }}
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  {visibleDetailPages.map((page) => (
+                    <Button
+                      key={page}
+                      type="button"
+                      variant={page === safeDetailPage ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setDetailPage(page)}
+                      className="h-8 min-w-8 rounded-lg px-2 font-mono text-xs"
+                      style={
+                        page === safeDetailPage
+                          ? { background: C.primary, color: "#fff" }
+                          : { borderColor: C.line, color: C.inkSoft }
+                      }
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDetailPage((page) => Math.min(detailPageCount, page + 1))}
+                    disabled={safeDetailPage === detailPageCount}
+                    className="h-8 w-8 rounded-lg p-0"
+                    style={{ borderColor: C.line }}
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {loading && (
+        <div className="px-6 md:px-10 pb-10">
+          <Card className="rounded-2xl p-12 flex items-center justify-center gap-3 text-sm shadow-sm" style={{ background: C.surface, borderColor: C.line, color: C.inkFaint }}>
+            <span
+              className="animate-spin h-5 w-5 rounded-full"
+              style={{ border: `2px solid ${C.line}`, borderTopColor: C.leaf }}
+            />
+            Loading daily data…
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
