@@ -105,6 +105,13 @@ const STAFF_EXCLUDED_SLUGS = new Set([
   // which crashes the render (blank page) with no error boundary to catch it.
   "bin-collection-event",
   "collection-monitoring",
+  // Companywise User Screen Permission list groups the flat, one-row-per
+  // (project, mainscreen, userscreen, action) API rows into one summary row
+  // per project (userScreenPermissionList.tsx). SafeDataTable's server/lazy
+  // mode fetches raw ungrouped rows straight from the API on every page
+  // change, which replaced the grouped rows with the flat list as soon as
+  // the user paged past page 1.
+  "userscreenpermissions",
 ]);
 
 export const getCurrentAdminServerListApi = (): CrudHelpers | null => {

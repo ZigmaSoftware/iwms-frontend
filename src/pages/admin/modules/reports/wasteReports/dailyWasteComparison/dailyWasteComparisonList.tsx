@@ -1006,10 +1006,13 @@ export default function DailyWasteComparisonList({
                       <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Weight (kg)</TableHead>
                       <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Trips</TableHead>
                       <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Points</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map((r) => (
+                    {rows.map((r) => {
+                      const isVerified = r.verification_status === "Verified";
+                      return (
                       <TableRow key={r.unique_id} style={{ borderColor: C.line }}>
                         <TableCell className="whitespace-nowrap font-mono text-xs" style={{ color: C.inkSoft }}>
                           {r.collection_date}
@@ -1030,8 +1033,20 @@ export default function DailyWasteComparisonList({
                         <TableCell className="text-right font-mono text-xs" style={{ color: C.inkSoft }}>
                           {r.collection_points_covered}
                         </TableCell>
+                        <TableCell className="whitespace-nowrap text-xs">
+                          <span
+                            className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                            style={{
+                              color: isVerified ? C.leaf : C.ochre,
+                              background: isVerified ? `${C.leaf}1A` : `${C.ochre}1A`,
+                            }}
+                          >
+                            {r.verification_status ?? "Unverified"}
+                          </span>
+                        </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
