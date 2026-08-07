@@ -75,12 +75,12 @@ export default function SubComplaintCategoryList() {
   });
 
   const navigate = useNavigate();
-  const { encCitizenGrivence, encSubComplaintCategory } = getEncryptedRoute();
+  const { encComplaintTicket, encSubcategories } = getEncryptedRoute();
   const companyUniqueId = getCurrentCompanyUniqueId() ?? "";
 
   const { newPath: NEW_PATH, editPath: EDIT_PATH } = createCrudRoutePaths(
-    encCitizenGrivence,
-    encSubComplaintCategory,
+    encComplaintTicket,
+    encSubcategories,
   );
 
   useEffect(() => {

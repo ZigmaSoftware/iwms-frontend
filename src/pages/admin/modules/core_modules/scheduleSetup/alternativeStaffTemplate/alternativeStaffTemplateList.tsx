@@ -73,9 +73,9 @@ export default function AlternativeStaffTemplateList() {
   const [globalSearchTerm, setGlobalSearchTerm] = useState("");
   const requestIdRef = useRef(0);
 
-  const { encScheduleMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
+  const { encScheduleSetup, encAlternativeStaffTemplate } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encScheduleMasters,
+    encScheduleSetup,
     encAlternativeStaffTemplate,
   );
   const selectedProjectId =

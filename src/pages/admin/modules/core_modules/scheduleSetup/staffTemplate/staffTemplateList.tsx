@@ -80,9 +80,9 @@ export default function StaffTemplateList() {
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const requestIdRef = useRef(0);
 
-  const { encScheduleMasters, encStaffTemplate } = getEncryptedRoute();
+  const { encScheduleSetup, encStaffTemplate } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encScheduleMasters,
+    encScheduleSetup,
     encStaffTemplate,
   );
   const selectedProjectId =

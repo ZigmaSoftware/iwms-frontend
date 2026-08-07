@@ -56,9 +56,9 @@ export default function WasteCollectedDataList() {
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
-  const { encScheduleMasters, encWasteCollectedData } = getEncryptedRoute();
+  const { encScheduleOperations, encWasteCollectedData } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encScheduleMasters,
+    encScheduleOperations,
     encWasteCollectedData,
   );
 
