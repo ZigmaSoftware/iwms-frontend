@@ -49,12 +49,12 @@ export default function ComplaintsList() {
 
   const navigate = useNavigate();
 
-    const { encCitizenGrivence, encComplaint } = getEncryptedRoute();
+    const { encComplaintTicket, encTickets } = getEncryptedRoute();
   
   
     const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-      encCitizenGrivence,
-      encComplaint,
+      encComplaintTicket,
+      encTickets,
     );
   
   

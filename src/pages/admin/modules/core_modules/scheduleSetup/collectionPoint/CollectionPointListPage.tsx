@@ -89,9 +89,9 @@ export default function CollectionPointListPage() {
     isEdit: false,
     defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
-  const { encScheduleMasters, encCollectionPoints } = getEncryptedRoute();
+  const { encScheduleSetup, encCollectionPoints } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encScheduleMasters,
+    encScheduleSetup,
     encCollectionPoints,
   );
 

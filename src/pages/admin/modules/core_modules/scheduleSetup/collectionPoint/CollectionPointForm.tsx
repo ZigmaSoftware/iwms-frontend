@@ -99,8 +99,8 @@ const toRecordList = (value: unknown): Record<string, unknown>[] => {
   return [];
 };
 
-const { encScheduleMasters, encCollectionPoints } = getEncryptedRoute();
-const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encCollectionPoints);
+const { encScheduleSetup, encCollectionPoints } = getEncryptedRoute();
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encScheduleSetup, encCollectionPoints);
 
 const COLLECTION_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "bin_collection", label: "Secondary Collection Point" },

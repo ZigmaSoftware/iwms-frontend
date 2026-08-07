@@ -1,4 +1,5 @@
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { decryptSegment } from "@/utils/routeCrypto";
 
 export type RouteEntry = {
   path: string;
@@ -7,6 +8,15 @@ export type RouteEntry = {
 };
 
 let _cache: RouteEntry[] | null = null;
+
+const getDecodedRouteKey = (pathname: string): string | null => {
+  const [masterSegment, moduleSegment] = pathname.split("/").filter(Boolean);
+  if (!masterSegment || !moduleSegment) return null;
+
+  const master = decryptSegment(masterSegment) ?? masterSegment;
+  const moduleName = decryptSegment(moduleSegment) ?? moduleSegment;
+  return `${master}/${moduleName}`;
+};
 
 export function buildNavRouteMap(): RouteEntry[] {
   if (_cache) return _cache;
@@ -69,6 +79,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encAlternativeStaffTemplate,
     encStaffTemplateAudit,
     encCommonAudit,
+    encLoginAudits,
     encSupervisorZoneMap,
     encSupervisorZoneAccessAudit,
     encTripPlans,
@@ -94,6 +105,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encDailyWasteComparison,
     encSchedulerConfig,
     encVehicleBreakdown,
+    encTripRetripRequest,
   } = getEncryptedRoute();
 
   _cache = [
@@ -149,28 +161,29 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encCustomerMaster}/${encApartmentList}`, nameKey: "admin.nav.apartment_list", parentNameKey: "admin.nav.customer_masters" },
     { path: `/${encComplaintTicket}/${encFeedback}`, nameKey: "admin.nav.feedback", parentNameKey: "admin.nav.customer_masters" },
     // Complaint Ticket (renamed from the legacy "citizen-grievance" bucket)
-    { path: `/${encComplaintTicket}/${encTickets}`, nameKey: "admin.nav.complaints", parentNameKey: "admin.nav.citizen_grievance" },
-    { path: `/${encComplaintTicket}/${encCategories}`, nameKey: "admin.nav.main_category", parentNameKey: "admin.nav.citizen_grievance" },
-    { path: `/${encComplaintTicket}/${encSubcategories}`, nameKey: "admin.nav.sub_category", parentNameKey: "admin.nav.citizen_grievance" },
+    { path: `/${encComplaintTicket}/${encTickets}`, nameKey: "admin.nav.complaints", parentNameKey: "admin.nav.complaint_management" },
+    { path: `/${encComplaintTicket}/${encCategories}`, nameKey: "admin.nav.main_category", parentNameKey: "admin.nav.complaint_management" },
+    { path: `/${encComplaintTicket}/${encSubcategories}`, nameKey: "admin.nav.sub_category", parentNameKey: "admin.nav.complaint_management" },
     // Transport Masters
     { path: `/${encTransportMaster}/${encVehicleType}`, nameKey: "admin.nav.vehicle_type", parentNameKey: "admin.nav.transport_masters" },
     { path: `/${encTransportMaster}/${encVehicleCreation}`, nameKey: "admin.nav.vehicle_creation", parentNameKey: "admin.nav.transport_masters" },
     { path: `/${encTransportMaster}/${encTripPlans}`, nameKey: "admin.nav.trip_plans", parentNameKey: "admin.nav.transport_masters" },
     { path: `/${encTransportMaster}/${encFuel}`, nameKey: "admin.nav.fuel", parentNameKey: "admin.nav.transport_masters" },
     // Schedule Setup (split from the legacy "schedule-masters" group)
-    { path: `/${encScheduleSetup}/${encStaffTemplate}`, nameKey: "admin.nav.staff_template", parentNameKey: "admin.nav.schedule_masters" },
-    { path: `/${encScheduleSetup}/${encAlternativeStaffTemplate}`, nameKey: "admin.nav.alternative_staff_template", parentNameKey: "admin.nav.schedule_masters" },
-    { path: `/${encScheduleSetup}/${encCollectionPoints}`, nameKey: "admin.nav.collection_point", parentNameKey: "admin.nav.schedule_masters" },
-    { path: `/${encScheduleSetup}/${encTripPlans}`, nameKey: "admin.nav.trip_plans", parentNameKey: "admin.nav.schedule_masters" },
+    { path: `/${encScheduleSetup}/${encStaffTemplate}`, nameKey: "admin.nav.staff_template", parentNameKey: "admin.nav.schedule_setup" },
+    { path: `/${encScheduleSetup}/${encAlternativeStaffTemplate}`, nameKey: "admin.nav.alternative_staff_template", parentNameKey: "admin.nav.schedule_setup" },
+    { path: `/${encScheduleSetup}/${encCollectionPoints}`, nameKey: "admin.nav.collection_point", parentNameKey: "admin.nav.schedule_setup" },
+    { path: `/${encScheduleSetup}/${encTripPlans}`, nameKey: "admin.nav.trip_plans", parentNameKey: "admin.nav.schedule_setup" },
     // Schedule Operations (split from the legacy "schedule-masters" group)
-    { path: `/${encScheduleOperations}/${encDailyTripAssignment}`, nameKey: "admin.nav.daily_trip_assignment", parentNameKey: "admin.nav.schedule_masters" },
-    { path: `/${encScheduleOperations}/${encDailyTripCollectionPoint}`, nameKey: "admin.nav.daily_trip_collection_point", parentNameKey: "admin.nav.schedule_masters" },
-    { path: `/${encScheduleOperations}/${encDailyTripTracking}`, nameKey: "admin.nav.daily_trip_tracking", parentNameKey: "admin.nav.schedule_masters" },
-    { path: `/${encScheduleOperations}/${encBinCollectionEvent}`, nameKey: "admin.nav.bin_collection_event", parentNameKey: "admin.nav.schedule_masters" },
-    { path: `/${encScheduleOperations}/${encWasteCollectedData}`, nameKey: "admin.nav.waste_collected_data", parentNameKey: "admin.nav.schedule_masters" },
-    { path: `/${encScheduleOperations}/${encDailyTripLog}`, nameKey: "admin.nav.daily_trip_log", parentNameKey: "admin.nav.schedule_masters" },
-    { path: `/${encScheduleOperations}/${encVehicleBreakdown}`, nameKey: "Vehicle Breakdown", parentNameKey: "admin.nav.schedule_masters" },
-    { path: `/${encScheduleOperations}/${encSchedulerConfig}`, nameKey: "admin.nav.scheduler_config", parentNameKey: "admin.nav.schedule_masters" },
+    { path: `/${encScheduleOperations}/${encDailyTripAssignment}`, nameKey: "admin.nav.daily_trip_plan", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encScheduleOperations}/${encDailyTripCollectionPoint}`, nameKey: "admin.nav.daily_trip_collection_point", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encScheduleOperations}/${encDailyTripTracking}`, nameKey: "admin.nav.daily_trip_tracking", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encScheduleOperations}/${encBinCollectionEvent}`, nameKey: "admin.nav.bin_collection_event", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encScheduleOperations}/${encWasteCollectedData}`, nameKey: "admin.nav.waste_collected_data", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encScheduleOperations}/${encDailyTripLog}`, nameKey: "admin.nav.daily_trip_log", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encScheduleOperations}/${encVehicleBreakdown}`, nameKey: "Vehicle Breakdown", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encScheduleOperations}/${encTripRetripRequest}`, nameKey: "admin.nav.trip_retrip_request", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encScheduleOperations}/${encSchedulerConfig}`, nameKey: "admin.nav.scheduler_config", parentNameKey: "admin.nav.schedule_operations" },
     // Waste reports still use the legacy encrypted schedule-masters route.
     // Keep both entries in the breadcrumb map because these are the paths used
     // by the sidebar (the reports-master aliases below remain valid too).
@@ -178,6 +191,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encScheduleMasters}/${encMonthlyWasteComparison}`, nameKey: "admin.nav.monthly_waste_comparison", parentNameKey: "admin.nav.waste_reports" },
     // Audits
     { path: `/${encAudits}/${encCommonAudit}`, nameKey: "admin.nav.common_audit", parentNameKey: "admin.nav.audit_items" },
+    { path: `/${encAudits}/${encLoginAudits}`, nameKey: "admin.nav.login_audit", parentNameKey: "admin.nav.audit_items" },
     { path: `/${encTransportMaster}/${encVehicleTripAudit}`, nameKey: "admin.nav.vehicle_trip_audit", parentNameKey: "admin.nav.audit_items" },
     { path: `/${encTransportMaster}/${encTripExceptionLog}`, nameKey: "admin.nav.trip_exception_log", parentNameKey: "admin.nav.audit_items" },
     { path: `/${encStaffMasters}/${encSupervisorZoneAccessAudit}`, nameKey: "admin.nav.supervisor_zone_access_audit", parentNameKey: "admin.nav.audit_items" },
@@ -199,4 +213,24 @@ export function buildNavRouteMap(): RouteEntry[] {
   ];
 
   return _cache;
+}
+
+/**
+ * Match by the decrypted master/module identity instead of ciphertext.
+ * CryptoJS passphrase encryption uses a fresh salt, so the same route gets a
+ * different encrypted string after a full browser refresh.
+ */
+export function findNavRoute(pathname: string): RouteEntry | undefined {
+  if (pathname === "/admin") {
+    return buildNavRouteMap().find((route) => route.path === "/admin");
+  }
+
+  const currentRouteKey = getDecodedRouteKey(pathname);
+  if (!currentRouteKey) return undefined;
+
+  return buildNavRouteMap().find(
+    (route) =>
+      route.path !== "/admin" &&
+      getDecodedRouteKey(route.path) === currentRouteKey,
+  );
 }

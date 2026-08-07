@@ -42,9 +42,9 @@ export default function FeedBackFormList() {
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
-  const { encCitizenGrivence, encFeedback } = getEncryptedRoute();
+  const { encComplaintTicket, encFeedback } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encCitizenGrivence,
+    encComplaintTicket,
     encFeedback,
   );
 

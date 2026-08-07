@@ -105,8 +105,8 @@ export default function VehicleBreakdownForm() {
     initialProjectId: routeState?.projectId,
   });
 
-  const { encScheduleMasters, encVehicleBreakdown } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encVehicleBreakdown);
+  const { encScheduleOperations, encVehicleBreakdown } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleOperations, encVehicleBreakdown);
 
   /* ── record (edit mode) ── */
   const [record, setRecord] = useState<VehicleBreakdownRecord | null>(null);
