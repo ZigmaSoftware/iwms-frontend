@@ -113,10 +113,10 @@ export default function BinCollectionEventList() {
     initialProjectId: restoredState?.projectId,
   });
 
-  const { encScheduleMasters, encBinCollectionEvent } = getEncryptedRoute();
-  const { newPath: NEW_PATH } = createCrudRoutePaths(encScheduleMasters, encBinCollectionEvent);
+  const { encScheduleOperations, encBinCollectionEvent } = getEncryptedRoute();
+  const { newPath: NEW_PATH } = createCrudRoutePaths(encScheduleOperations, encBinCollectionEvent);
   const { editPath: VIEW_PATH } = createCrudRoutePaths(
-    encScheduleMasters,
+    encScheduleOperations,
     encBinCollectionEvent,
   );
 

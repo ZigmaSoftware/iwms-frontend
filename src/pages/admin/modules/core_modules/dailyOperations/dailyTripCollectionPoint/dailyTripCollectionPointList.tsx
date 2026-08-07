@@ -76,10 +76,10 @@ export default function DailyTripCollectionPointList() {
   const navigate = useNavigate();
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const { encScheduleMasters, encDailyTripCollectionPoint } = getEncryptedRoute();
-  const { newPath: NEW_PATH } = createCrudRoutePaths(encScheduleMasters, encDailyTripCollectionPoint);
+  const { encScheduleOperations, encDailyTripCollectionPoint } = getEncryptedRoute();
+  const { newPath: NEW_PATH } = createCrudRoutePaths(encScheduleOperations, encDailyTripCollectionPoint);
   const { editPath: EDIT_PATH } = createCrudRoutePaths(
-    encScheduleMasters,
+    encScheduleOperations,
     encDailyTripCollectionPoint,
   );
 

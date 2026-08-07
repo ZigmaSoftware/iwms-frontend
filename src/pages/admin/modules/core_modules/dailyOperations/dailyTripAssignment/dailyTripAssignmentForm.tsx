@@ -191,8 +191,8 @@ export default function DailyTripAssignmentForm() {
 
   const { showZone, showPanchayat } = useZonePanchayatVisibility();
 
-  const { encScheduleMasters, encDailyTripAssignment } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encDailyTripAssignment);
+  const { encScheduleOperations, encDailyTripAssignment } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleOperations, encDailyTripAssignment);
 
   // ── Form & record state ───────────────────────────────────────────────────
   const [formData, setFormData] = useState<FormState>({

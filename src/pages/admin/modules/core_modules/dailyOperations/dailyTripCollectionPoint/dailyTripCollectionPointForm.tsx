@@ -123,8 +123,8 @@ export default function DailyTripCollectionPointForm() {
     initialProjectId: routeState?.projectId,
   });
 
-  const { encScheduleMasters, encDailyTripCollectionPoint } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encDailyTripCollectionPoint);
+  const { encScheduleOperations, encDailyTripCollectionPoint } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleOperations, encDailyTripCollectionPoint);
 
   const [tripAssignmentId, setTripAssignmentId] = useState("");
   const [collectionPointId, setCollectionPointId] = useState("");

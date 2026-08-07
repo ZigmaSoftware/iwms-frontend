@@ -61,8 +61,8 @@ const resolveCustomerId = (c: any) =>
 export default function ComplaintAddForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { encCitizenGrivence, encComplaint } = getEncryptedRoute();
-  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCitizenGrivence, encComplaint);
+  const { encComplaintTicket, encTickets } = getEncryptedRoute();
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encComplaintTicket, encTickets);
 
   const location = useLocation();
   const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;

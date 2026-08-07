@@ -214,8 +214,8 @@ export default function TripPlanForm() {
 
   const { showZone, showPanchayat } = useZonePanchayatVisibility();
 
-  const { encScheduleMasters, encTripPlans } = getEncryptedRoute();
-  const { listPath: listPath } = createCrudRoutePaths(encScheduleMasters, encTripPlans);
+  const { encScheduleSetup, encTripPlans } = getEncryptedRoute();
+  const { listPath: listPath } = createCrudRoutePaths(encScheduleSetup, encTripPlans);
 
   const [formData, setFormData] = useState<FormState>(emptyFormState);
   const [stops, setStops] = useState<StopRow[]>([

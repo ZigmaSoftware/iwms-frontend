@@ -247,8 +247,8 @@ export default function VehicleBreakdownList() {
     initialProjectId: restoredState?.projectId,
   });
 
-  const { encScheduleMasters, encVehicleBreakdown } = getEncryptedRoute();
-  const { newPath, editPath } = createCrudRoutePaths(encScheduleMasters, encVehicleBreakdown);
+  const { encScheduleOperations, encVehicleBreakdown } = getEncryptedRoute();
+  const { newPath, editPath } = createCrudRoutePaths(encScheduleOperations, encVehicleBreakdown);
   const selectedContext = { companyUniqueId, projectId };
 
   const [rawRows, setRawRows] = useState<VehicleBreakdownRecord[]>([]);
