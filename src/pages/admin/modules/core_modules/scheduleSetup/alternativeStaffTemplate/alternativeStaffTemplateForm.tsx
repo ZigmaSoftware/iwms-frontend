@@ -99,8 +99,8 @@ export default function AlternativeStaffTemplateForm() {
   const templateSelectedByUser = useRef(false);
   const editDataLoaded = useRef(false);
 
-  const { encScheduleMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
-  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encAlternativeStaffTemplate);
+  const { encScheduleSetup, encAlternativeStaffTemplate } = getEncryptedRoute();
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encScheduleSetup, encAlternativeStaffTemplate);
 
   const [allAlternativeTemplatesData, setAllAlternativeTemplatesData] = useState<any[]>([]);
   const [selectedStaffTemplateData, setSelectedStaffTemplateData] = useState<any>(null);

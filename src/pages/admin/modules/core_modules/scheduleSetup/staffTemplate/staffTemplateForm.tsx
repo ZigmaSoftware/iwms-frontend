@@ -89,8 +89,8 @@ export default function StaffTemplateForm() {
   const [pendingOperatorId, setPendingOperatorId] = useState<string | null>(null);
   const [pendingExtraIds, setPendingExtraIds] = useState<string[] | null>(null);
 
-  const { encScheduleMasters, encStaffTemplate } = getEncryptedRoute();
-  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encStaffTemplate);
+  const { encScheduleSetup, encStaffTemplate } = getEncryptedRoute();
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encScheduleSetup, encStaffTemplate);
 
   const statusOptions = [
     { value: "ACTIVE", label: t("common.active") },

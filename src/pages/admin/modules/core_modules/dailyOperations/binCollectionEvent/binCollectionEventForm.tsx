@@ -137,8 +137,8 @@ export default function BinCollectionEventForm() {
     initialProjectId: routeState?.projectId,
   });
 
-  const { encScheduleMasters, encBinCollectionEvent } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encBinCollectionEvent);
+  const { encScheduleOperations, encBinCollectionEvent } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleOperations, encBinCollectionEvent);
 
   /* ── record loading (edit mode) ── */
   const [record, setRecord] = useState<BinCERecord | null>(null);

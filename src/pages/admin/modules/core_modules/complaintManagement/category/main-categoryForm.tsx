@@ -25,8 +25,8 @@ import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErr
 import { FieldError } from "@/components/form/FieldError";
 
 
-const { encCitizenGrivence, encMainComplaintCategory } = getEncryptedRoute();
-const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCitizenGrivence, encMainComplaintCategory);
+const { encComplaintTicket, encCategories } = getEncryptedRoute();
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encComplaintTicket, encCategories);
 
 
 const extractErrorMessage = (error: unknown, fallback: string) => {

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Home, ChevronRight } from "lucide-react";
-import { buildNavRouteMap } from "../navRouteMap";
+import { findNavRoute } from "../navRouteMap";
 
 type BreadcrumbItem = {
   label: string;
@@ -25,20 +25,13 @@ const AdminBreadcrumb: React.FC = () => {
       return [{ ...home, isActive: true }];
     }
 
-    const routeMap = buildNavRouteMap();
-    const matched = routeMap.find(
-      (r) =>
-        r.path !== "/admin" &&
-        (location.pathname === r.path ||
-          location.pathname.startsWith(r.path + "/"))
-    );
+    const matched = findNavRoute(location.pathname);
 
     if (!matched) {
       return [home, { label: "...", isActive: true }];
     }
 
-    const isScheduleMaster = matched.parentNameKey === "admin.nav.schedule_masters";
-    const items: BreadcrumbItem[] = isScheduleMaster ? [] : [home];
+    const items: BreadcrumbItem[] = [home];
 
     if (matched.parentNameKey) {
       items.push({ label: t(matched.parentNameKey), isActive: false });
@@ -46,11 +39,13 @@ const AdminBreadcrumb: React.FC = () => {
 
     items.push({ label: t(matched.nameKey), isActive: true });
 
-    if (isScheduleMaster && location.pathname.endsWith("/new")) {
+    if (location.pathname.endsWith("/new")) {
       items[items.length - 1].isActive = false;
+      items[items.length - 1].path = matched.path;
       items.push({ label: t("common.add"), isActive: true });
-    } else if (isScheduleMaster && location.pathname.endsWith("/edit")) {
+    } else if (location.pathname.endsWith("/edit")) {
       items[items.length - 1].isActive = false;
+      items[items.length - 1].path = matched.path;
       items.push({ label: t("common.edit"), isActive: true });
     }
 

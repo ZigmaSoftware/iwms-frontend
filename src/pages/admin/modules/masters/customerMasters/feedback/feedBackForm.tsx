@@ -55,8 +55,8 @@ export default function FeedBackForm() {
     initialProjectId: routeState?.projectId,
   });
 
-  const { encCitizenGrivence, encFeedback } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encCitizenGrivence, encFeedback);
+  const { encComplaintTicket, encFeedback } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encComplaintTicket, encFeedback);
 
   /* ── form fields ── */
   const [customerId, setCustomerId] = useState("");
