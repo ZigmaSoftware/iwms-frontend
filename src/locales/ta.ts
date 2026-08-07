@@ -150,7 +150,32 @@ const taResource = {
         pincode: "அஞ்சல் குறியீடு",
         date: "தேதி",
         customer: "வாடிக்கையாளர்",
+        bins: "குப்பைத்தொட்டி உருவாக்கங்கள்",
         location_unavailable: "இடம் கிடைக்கவில்லை",
+        access_denied: "அணுகல் மறுக்கப்பட்டது",
+        all_companies: "அனைத்து நிறுவனங்கள்",
+        all_projects: "அனைத்து திட்டங்கள்",
+        are_you_sure: "நிச்சயமாக தொடர வேண்டுமா?",
+        bin_capacity: "குப்பைத்தொட்டி கொள்ளளவு",
+        change: "மாற்று",
+        company: "நிறுவனம்",
+        company_from_profile: "சுயவிவரத்திலிருந்து நிறுவனம்",
+        detect_current_location: "தற்போதைய இடத்தைக் கண்டறி",
+        download_excel: "எக்செல் பதிவிறக்கு",
+        downloading: "பதிவிறக்கப்படுகிறது...",
+        email: "மின்னஞ்சல்",
+        export_excel: "எக்செல் ஏற்றுமதி",
+        name: "பெயர்",
+        next: "அடுத்து",
+        no_permission: "இந்த செயலைச் செய்ய உங்களுக்கு அனுமதி இல்லை.",
+        no_projects_found: "திட்டங்கள் எதுவும் இல்லை",
+        no_records: "பதிவுகள் எதுவும் இல்லை",
+        ok: "சரி",
+        please_fill: "தேவையான அனைத்து புலங்களையும் நிரப்பவும்.",
+        project: "திட்டம்",
+        select_company_first: "முதலில் நிறுவனத்தைத் தேர்ந்தெடுக்கவும்",
+        toggle_theme: "தோற்றத்தை மாற்று",
+        username: "பயனர் பெயர்",
       },
       "login": {
         "title": "மீண்டும் வரவேற்கிறோம்",
@@ -191,6 +216,8 @@ const taResource = {
         "nav": {
           "dashboard": "டாஷ்போர்டு",
           "overall": "ஒட்டுமொத்த டாஷ்போர்டு",
+          "wastetype": "கழிவு வகை",
+          "assets": "சொத்துகள்",
           "live_map": "நேரடி வரைபடம்",
           "vehicle": "வாகனம்",
           "waste_collection": "கழிவு சேகரிப்பு",
@@ -791,7 +818,10 @@ const taResource = {
           "common_masters": "பொது மாஸ்டர்கள்",
           "superAdmin_masters": "சூப்பர் அட்மின் மாஸ்டர்கள்",
           "company": "நிறுவனம்",
+          "company_placeholder": "நிறுவனத்தைத் தேர்ந்தெடுக்கவும்",
           "project": "திட்டம்",
+          "project_placeholder": "திட்டத்தைத் தேர்ந்தெடுக்கவும்",
+          "companywise_user_screen_permission": "நிறுவன வாரியான பயனர் திரை அனுமதி",
           "main_screen_type": "மெயின் ஸ்கிரீன் வகை",
           "user_screen_action": "யூசர் ஸ்கிரீன் செயல்கள்",
           "main_screen": "மெயின் ஸ்கிரீன்",
@@ -813,6 +843,11 @@ const taResource = {
           "city": "நகரம்",
           "zone": "மண்டலம்",
           "ward": "வார்டு",
+          "panchayat": "PLB (பங்கேற்கும் உள்ளாட்சி அமைப்புகள்)",
+          "hierarchy": "படிநிலை",
+          "department": "துறை மாஸ்டர்",
+          "designation": "பதவி மாஸ்டர்",
+          "daily_collection_point": "தினசரி சேகரிப்பு இடம்",
           "collection_point": "சேகரிப்பு இடம்",
           "panchayat_leader": "PLB தலைவர்",
           "district_leader": "மாநில தலைவர்",
@@ -840,11 +875,13 @@ const taResource = {
           "vehicle_creation": "வாகன உருவாக்கம்",
           "trip_plans": "பயண திட்டங்கள்",
           "daily_trip_assignment": "தினசரி பயண ஒதுக்கீடு",
+          "daily_trip_plan": "தினசரி பயண திட்டம்",
           "daily_trip_collection_point": "தினசரி பயண சேகரிப்பு இடம்",
           "daily_trip_household_collection": "வீட்டு சேகரிப்பு புள்ளிகள்",
           "daily_trip_tracking": "தினசரி பயண கண்காணிப்பு",
           "daily_trip_log": "தினசரி பயண பதிவு",
           "trip_retrip_request": "மறு-பயண கோரிக்கைகள்",
+          "scheduler_config": "பயண அட்டவணை அமைப்பு",
           "bin_collection_event": "இரண்டாம் நிலை குப்பைத்தொட்டி சேகரிப்பு நிகழ்வு",
           "bin_load_log": "பின் ஏற்ற பதிவு",
           "trip_instance": "பயண நிகழ்வு",
@@ -852,6 +889,7 @@ const taResource = {
           "audit_items": "ஆய்வு உருப்படிகள்",
           "audits": "ஆய்வுகள்",
           "common_audit": "Common Audit",
+          "login_audit": "உள்நுழைவு ஆய்வு",
           "vehicle_trip_audit": "வாகன பயண ஆய்வு",
           "trip_exception_log": "பயண விதிவிலக்கு பதிவு",
           "zone_property_load_tracker": "மண்டல சொத்து சுமை கண்காணிப்பு",
@@ -885,8 +923,12 @@ const taResource = {
           "waste_collected_summary": "கழிவு சேகரிப்பு சுருக்கம்",
           "monthly_waste_comparison": "மாதாந்திர கழிவு ஒப்பீடு"
         },
+        "company": {
+          "logo": "நிறுவன லோகோ"
+        },
         "project": {
           "company_id": "நிறுவன ஐடி",
+          "company_name": "நிறுவன பெயர்",
           "filtered_company": "வடிகட்டிய நிறுவனம்: {{id}}",
           "admin_help_text": "விருப்பம்: ஒரு நிறுவனத்தின் முதல் திட்டத்தை உருவாக்கும் போது மட்டும் திட்ட நிர்வாகி விவரங்களை வழங்கவும்.",
           "admin_employee_name": "நிர்வாகி பணியாளர் பெயர்",
@@ -975,7 +1017,8 @@ const taResource = {
           "district": "மாவட்டம்",
           "zone": "மண்டலம்",
           "vehicle": "வாகனம்",
-          "supervisor": "மேற்பார்வையாளர்"
+          "supervisor": "மேற்பார்வையாளர்",
+          "display_code": "காட்சி குறியீடு"
         },
         "staff_template_audit": {
           "title": "பணியாளர் டெம்ப்ளேட் ஆய்வு",
@@ -1006,6 +1049,11 @@ const taResource = {
           "detail_title": "Audit Details",
           "previous_data": "Previous Data",
           "new_data": "New Data"
+        },
+        "login_audit": {
+          "subtitle": "பயனர் உள்நுழைவு செயல்பாட்டை மதிப்பாய்வு செய்யவும்",
+          "search": "உள்நுழைவு ஆய்வுகளைத் தேடவும்...",
+          "details": "உள்நுழைவு ஆய்வு விவரங்கள்"
         },
         "supervisor_zone_map": {
           "title": "மேற்பார்வையாளர் மண்டல வரைபடம்",
@@ -1044,6 +1092,7 @@ const taResource = {
           "status": "நிலை"
         },
         "trip_instance": {
+          "title_add": "பயண நிகழ்வைச் சேர்",
           "title_edit": "பயண நிகழ்வை திருத்தவும்",
           "subtitle": "பயண செயல்பாட்டு நிலை மற்றும் சுமைகளை நிர்வகிக்கவும்.",
           "list_title": "பயண நிகழ்வுகள்",
@@ -1086,7 +1135,9 @@ const taResource = {
           "photo": "புகைப்படம்",
           "source": "மூலம்",
           "source_mobile": "மொபைல்",
-          "source_vehicle_cam": "வாகன கேமரா"
+          "source_vehicle_cam": "வாகன கேமரா",
+          "auto_detect_location": "இடத்தைத் தானாகக் கண்டறி",
+          "daily_trip_assignment": "தினசரி பயண ஒதுக்கீடு"
         },
         "vehicle_trip_audit": {
           "title_add": "வாகன பயண ஆய்வு சேர்க்கவும்",
@@ -1104,7 +1155,8 @@ const taResource = {
           "avg_speed": "சராசரி வேகம் (கிமீ/ம)",
           "idle_seconds": "இடைவேளை (விநாடி)",
           "captured_at": "பதிவான நேரம்",
-          "gps_placeholder": "JSON வரிசை அல்லது கமா பிரிக்கப்பட்ட மதிப்புகள்"
+          "gps_placeholder": "JSON வரிசை அல்லது கமா பிரிக்கப்பட்ட மதிப்புகள்",
+          "daily_trip_assignment": "தினசரி பயண ஒதுக்கீடு"
         },
         "trip_exception_log": {
           "title_add": "பயண விதிவிலக்கு பதிவு சேர்க்கவும்",
@@ -1130,7 +1182,8 @@ const taResource = {
             "system": "அமைப்பு",
             "supervisor": "மேற்பார்வையாளர்"
           },
-          "edit_not_allowed": "பயண விதிவிலக்கு பதிவுகள் மாற்ற முடியாது."
+          "edit_not_allowed": "பயண விதிவிலக்கு பதிவுகள் மாற்ற முடியாது.",
+          "daily_trip_assignment": "தினசரி பயண ஒதுக்கீடு"
         },
         "bin_load_log": {
           "title_add": "பின் ஏற்ற பதிவு சேர்க்கவும்",
@@ -1213,7 +1266,8 @@ const taResource = {
           "old_zones": "முந்தைய மண்டலங்கள்",
           "new_zones": "புதிய மண்டலங்கள்",
           "remarks": "குறிப்புகள்",
-          "created_at": "உருவாக்கப்பட்டது"
+          "created_at": "உருவாக்கப்பட்டது",
+          "select_district_city_first": "மண்டலங்களை வடிகட்ட முதலில் மாவட்டம் மற்றும் நகரத்தைத் தேர்ந்தெடுக்கவும்."
         },
         "unassigned_staff_pool": {
           "title_add": "Add Unassigned Staff Pool",
@@ -1234,7 +1288,8 @@ const taResource = {
           "status_available": "Available",
           "status_assigned": "Assigned",
           "trip_instance": "Trip Instance",
-          "created_at": "Created At"
+          "created_at": "Created At",
+          "daily_trip_assignment": "தினசரி பயண ஒதுக்கீடு"
         },
         "user_screen_action": {
           "action_label": "செயல்",
@@ -1255,7 +1310,17 @@ const taResource = {
           "permission_exists_title": "அனுமதி உள்ளது",
           "permission_exists_body": "இந்த பணியாளர் பயனர் வகைக்கு ஏற்கனவே அனுமதி உள்ளது. திருத்தம் செய்ய மாற்றுகிறோம்.",
           "all": "அனைத்தும்",
-          "no_screens": "இந்த முக்கியத் திரைக்கு திரைகள் இல்லை."
+          "no_screens": "இந்த முக்கியத் திரைக்கு திரைகள் இல்லை.",
+          "main_screens_count": "{{count}} மாஸ்டர்",
+          "screens_count": "{{count}} திரைகள்",
+          "download_template": "டெம்ப்ளேட்டைப் பதிவிறக்கு",
+          "upload_excel": "எக்செல் பதிவேற்று",
+          "upload_completed_title": "பதிவேற்றம் முடிந்தது",
+          "upload_failed": "பதிவேற்றம் தோல்வியடைந்தது",
+          "add_another_main_screen": "மற்றொரு முதன்மை திரையைச் சேர்",
+          "all_main_screens_added": "அனைத்து முதன்மை திரைகளும் சேர்க்கப்பட்டுள்ளன",
+          "no_project_edit_warning": "அனுமதிகளைத் திருத்தும் முன் திட்டத்தைத் தேர்ந்தெடுக்கவும்",
+          "location_scope": "இருப்பிட வரம்பு (விருப்பம்)"
         },
         "staff_access_configuration": {
           "title": "Staff Access Configuration",
@@ -1400,7 +1465,11 @@ const taResource = {
           "password": "கடவுச்சொல்",
           "password_placeholder": "கடவுச்சொல்லை உள்ளிடவும்",
           "password_edit_placeholder": "தற்போதைய கடவுச்சொல்லை வைத்திருக்க காலியாக விடவும்",
-          "password_edit_hint": "மாற்ற விரும்பினால் மட்டும் புதிய கடவுச்சொல்லை உள்ளிடவும்."
+          "password_edit_hint": "மாற்ற விரும்பினால் மட்டும் புதிய கடவுச்சொல்லை உள்ளிடவும்.",
+          "username": "பயனர் பெயர்",
+          "username_placeholder": "பயனர் பெயரை உள்ளிடவும்",
+          "login_enabled": "உள்நுழைவு இயக்கப்பட்டது",
+          "login_enabled_placeholder": "உள்நுழைவு நிலையைத் தேர்ந்தெடுக்கவும்"
         },
         "dashboard_home": {
           "title": "செயற்பாட்டு மேலோட்டம்",
@@ -1472,6 +1541,9 @@ const taResource = {
           "mixed_waste": "கலப்பு கழிவு (கிலோ)",
           "quantity": "அளவு (கிலோ)",
           "total_quantity": "மொத்த அளவு (கிலோ)",
+          "collection_date": "சேகரிப்பு தேதி",
+          "collection_time": "சேகரிப்பு நேரம்",
+          "sanitary_waste": "சுகாதார கழிவு (கிலோ)",
           "save_success": "வெற்றிகரமாக சேமிக்கப்பட்டது"
         },
         "fuel": {
@@ -1545,6 +1617,8 @@ const taResource = {
           invalid_mobile_title: "தவறான மொபைல் எண்",
           invalid_mobile_desc: "ஓட்டுநர் மொபைல் எண் 10 இலக்கமாக இருக்க வேண்டும்.",
           save_success: "வெற்றிகரமாக சேமிக்கப்பட்டது",
+          download_template: "டெம்ப்ளேட்டைப் பதிவிறக்கு",
+          upload_csv: "CSV பதிவேற்று",
         },
         "customer_creation": {
           "title": "வாடிக்கையாளர் உருவாக்கம்",
@@ -1559,6 +1633,8 @@ const taResource = {
           "title_edit": "வாடிக்கையாளரைத் திருத்துக",
           "customer_name": "வாடிக்கையாளர் பெயர்",
           "contact_no": "தொடர்பு எண்",
+          "bulk_waste_generator": "மொத்தக் கழிவு உற்பத்தியாளர்",
+          "bulk_waste_generator_placeholder": "விருப்பத்தைத் தேர்ந்தெடுக்கவும்",
           "id_proof_type": "அடையாள அட்டை வகை",
           "id_proof_placeholder": "அடையாள அட்டை தேர்வு செய்க",
           "id_proof_aadhaar": "ஆதார்",
@@ -1579,7 +1655,23 @@ const taResource = {
           "invalid_pincode_desc": "அஞ்சல் குறியீடு 6 இலக்கமாக இருக்க வேண்டும்.",
           "invalid_coordinates_title": "தவறான கோஆர்டினேட்ஸ்",
           "invalid_coordinates_desc": "அட்சரேகை / தீர்க்கரேகை தவறாக உள்ளது.",
-          "save_success": "வாடிக்கையாளர் வெற்றிகரமாக சேமிக்கப்பட்டார்"
+          "save_success": "வாடிக்கையாளர் வெற்றிகரமாக சேமிக்கப்பட்டார்",
+          "personal_info": "தனிப்பட்ட தகவல்",
+          "email": "மின்னஞ்சல்",
+          "sqft": "சதுர அடி",
+          "property_info": "சொத்து தகவல்",
+          "address_info": "முகவரி தகவல்",
+          "company_project_info": "நிறுவனம் மற்றும் திட்டத் தகவல்",
+          "identification": "அடையாளத் தகவல்",
+          "location_details": "இருப்பிட விவரங்கள்",
+          "select_property_subproperty": "சொத்து மற்றும் துணைச் சொத்தைத் தேர்ந்தெடுக்கவும்",
+          "step_1_info": "படி 1 / 2: தொடர சொத்து மற்றும் துணைச் சொத்தைத் தேர்ந்தெடுக்கவும்",
+          "step_2_info": "படி 2 / 2: வாடிக்கையாளர் விவரங்களை நிரப்பவும்",
+          "selected_property": "தேர்ந்தெடுக்கப்பட்ட சொத்து",
+          "selected_sub_property": "தேர்ந்தெடுக்கப்பட்ட துணைச் சொத்து",
+          "selected_company": "தேர்ந்தெடுக்கப்பட்ட நிறுவனம்",
+          "selected_project": "தேர்ந்தெடுக்கப்பட்ட திட்டம்",
+          "save_failed": "வாடிக்கையாளரைச் சேமிக்க முடியவில்லை"
         },
         "home": {
           "title": "பகுப்பாய்வு டாஷ்போர்டு",
