@@ -10,6 +10,16 @@ export type EncryptedRoutes = {
   encPanchayatBaseCollection: string;
   encWardBaseCollection: string;
   encComplaint: string;
+  encComplaintModules: string;
+  encComplaintCategories: string;
+  encComplaintSubcategories: string;
+  encComplaintFeedback: string;
+  encComplaintMasters: string;
+  encComplaintPriorities: string;
+  encComplaintStatuses: string;
+  encComplaintSources: string;
+  encComplaintTeams: string;
+  encComplaintSlaRules: string;
   // renamed from encCitizenGrivence/encComplaint/encMainComplaintCategory/
   // encSubComplaintCategory to match the backend's "complaint-ticket" group
   encComplaintTicket: string;
@@ -133,6 +143,16 @@ const plainRoutes: EncryptedRoutes = {
   encPanchayatBaseCollection: "panchayat-base-collection",
   encWardBaseCollection: "ward-base-collection",
   encComplaint: "complaint",
+  encComplaintModules: "modules",
+  encComplaintCategories: "categories",
+  encComplaintSubcategories: "subcategories",
+  encComplaintFeedback: "feedback",
+  encComplaintMasters: "masters",
+  encComplaintPriorities: "priorities",
+  encComplaintStatuses: "statuses",
+  encComplaintSources: "sources",
+  encComplaintTeams: "teams",
+  encComplaintSlaRules: "sla-rules",
   encComplaintTicket: "complaint-ticket",
   encTickets: "tickets",
   encCategories: "categories",

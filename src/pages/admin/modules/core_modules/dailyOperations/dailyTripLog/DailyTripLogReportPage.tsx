@@ -343,7 +343,6 @@ export default function DailyTripLogReportPage() {
             paginator
             rows={10}
             rowsPerPageOptions={[10, 25, 50]}
-            exportable={false}
           >
             <Column field="sequence" header="#" style={{ width: 50 }} />
             <Column
@@ -384,7 +383,6 @@ export default function DailyTripLogReportPage() {
             paginator
             rows={10}
             rowsPerPageOptions={[10, 25, 50]}
-            exportable={false}
           >
             <Column field="sequence" header="#" style={{ width: 50 }} />
             <Column field="cp_name" header="Collection Point" />
