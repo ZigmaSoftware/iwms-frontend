@@ -15,7 +15,10 @@ import { staffCreationApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
-import { staffCreationSchema } from "@/schemas/superadmin/userManagement/staffCreation.schema";
+import {
+  staffCreationSchema,
+  buildStaffCreationFileSchema,
+} from "@/schemas/superadmin/userManagement/staffCreation.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
@@ -1016,46 +1019,43 @@ export default function StaffCreationForm() {
       setFieldErrors(validation.errors);
       return;
     }
+
+    const fileSchema = buildStaffCreationFileSchema({
+      companyUniqueId,
+      showPhoto: showField("photo"),
+      photoFile,
+      showDrivingLicenceFile: showField("driving_licence_file"),
+      isDriverSelected,
+      licenceFile,
+      licencePreview,
+    });
+    const fileValidation = parseWithSchema(fileSchema, {});
+    if (!fileValidation.success) {
+      setFieldErrors(fileValidation.errors);
+      if (fileValidation.errors.company_id) {
+        Swal.fire(
+          "Error",
+          !loggedInCompanyUniqueId && !isSuperAdmin
+            ? "Company is not mapped to this login. Only super admin can choose a company."
+            : "Company is required",
+          "error",
+        );
+      } else if (fileValidation.errors.photo) {
+        Swal.fire({
+          icon: "warning",
+          title: t("admin.staff_creation.invalid_photo_title"),
+          text: t("admin.staff_creation.invalid_photo_desc"),
+        });
+      } else if (fileValidation.errors.driving_licence_file) {
+        Swal.fire({
+          icon: "error",
+          title: "Licence Required",
+          text: fileValidation.errors.driving_licence_file,
+        });
+      }
+      return;
+    }
     setFieldErrors({});
-
-    if (!companyUniqueId) {
-      Swal.fire(
-        "Error",
-        !loggedInCompanyUniqueId && !isSuperAdmin
-          ? "Company is not mapped to this login. Only super admin can choose a company."
-          : "Company is required",
-        "error",
-      );
-      return;
-    }
-
-    if (
-      showField("photo") &&
-      photoFile &&
-      !photoFile.type.startsWith("image/")
-    ) {
-      Swal.fire({
-        icon: "warning",
-        title: t("admin.staff_creation.invalid_photo_title"),
-        text: t("admin.staff_creation.invalid_photo_desc"),
-      });
-      return;
-    }
-
-    // ✅ DRIVER VALIDATION — mandatory on create AND on edit when no existing file
-    if (
-      showField("driving_licence_file") &&
-      isDriverSelected &&
-      !licenceFile &&
-      !licencePreview
-    ) {
-      Swal.fire({
-        icon: "error",
-        title: "Licence Required",
-        text: "Please upload the driving licence file (JPG, JPEG, PNG or PDF).",
-      });
-      return;
-    }
 
     setSubmitting(true);
 
@@ -1207,6 +1207,7 @@ export default function StaffCreationForm() {
             options={hookCompanies}
             placeholder={t("admin.nav.company_placeholder") || "Select company"}
           />
+          <FieldError message={fieldErrors.company_id} />
         </div>
       )}
 
@@ -1398,6 +1399,7 @@ export default function StaffCreationForm() {
               )}
             </p>
           )}
+          <FieldError message={fieldErrors.password} />
         </div>
       )}
 
@@ -1539,6 +1541,7 @@ export default function StaffCreationForm() {
                 <p className="mt-1 text-xs text-gray-400">
                   Accepted: JPG, JPEG, PNG, PDF · Max 5 MB
                 </p>
+                <FieldError message={fieldErrors.driving_licence_file} />
 
                 <input
                   ref={licenceInputRef}
@@ -1705,6 +1708,7 @@ export default function StaffCreationForm() {
           <p className="mt-1 text-xs text-gray-400">
             Accepted: JPG, JPEG, PNG, WEBP · Max 5 MB
           </p>
+          <FieldError message={fieldErrors.photo} />
 
           <input
             ref={photoInputRef}

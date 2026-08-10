@@ -832,13 +832,13 @@ export default function BinForm() {
         {/* Ward — editable dropdown, filtered by the selected zone or panchayat */}
         {showField("ward_id") && (
           <div>
-            <Label>{t("common.ward")}</Label>
+            <Label>{t("common.ward")} *</Label>
             <Select
-              value={wardId || "__none__"}
+              value={wardId}
               onValueChange={(value) => {
-                const next = value === "__none__" ? "" : value;
-                setWardId(next);
+                setWardId(value);
                 setCollectionPointId("");
+                setFieldErrors((prev) => ({ ...prev, ward_id: "" }));
               }}
               disabled={!zoneId && !panchayatId}
             >
@@ -846,7 +846,6 @@ export default function BinForm() {
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.ward") })} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
                 {wardOptions.map((w) => (
                   <SelectItem key={w.value} value={w.value}>
                     {w.label}
@@ -854,6 +853,7 @@ export default function BinForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.ward_id} />
           </div>
         )}
 
