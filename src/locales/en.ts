@@ -1273,7 +1273,8 @@ const enResource = {
           "upload_excel": "Upload Excel",
           "upload_completed_title": "Upload Completed",
           "upload_failed": "Upload failed",
-          "location_scope": "Location Scope (Optional)"
+          "location_scope": "Location Scope (Optional)",
+          "company_wide": "Company-Wide (All Projects)"
         },
         "staff_access_configuration": {
           "title": "Staff Access Configuration",
