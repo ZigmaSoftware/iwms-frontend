@@ -55,9 +55,9 @@ export default function ComplaintEditForm() {
     return () => { cancelled = true; };
   }, [id]);
 
-  const { encCitizenGrivence, encComplaint } = getEncryptedRoute();
+  const { encComplaintTicket, encTickets } = getEncryptedRoute();
 
-  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCitizenGrivence, encComplaint);
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encComplaintTicket, encTickets);
 
 
   const isImageUrl = (url: string) => {

@@ -52,8 +52,6 @@ const {
   encTripSummary,
   encWasteCollectedSummary,
   encMonthlyWasteComparison,
-  // renamed from encCitizenGrivence/encComplaint/encMainComplaintCategory/
-  // encSubComplaintCategory to match the backend's "complaint-ticket" group
   encComplaintTicket,
   encTickets,
   encCategories,
@@ -61,8 +59,6 @@ const {
   encFeedback,
   encTransportMaster,
   encScheduleMasters,
-  // split from encScheduleMasters to match the backend's schedule-setup /
-  // schedule-operations groups
   encScheduleSetup,
   encScheduleOperations,
   encFuel,
@@ -90,7 +86,6 @@ const {
   encPanchayats,
   encPanchayatLeaders,
   encDistrictLeaders,
-
   encBins,
   encDailyTripAssignment,
   encDailyTripLog,
@@ -140,11 +135,6 @@ type SidebarSectionKey =
   | "workforceManagement"
   | "fleetReports";
 
-// Top-level category headers rendered above their member sections, matching
-// the government reference app's grouped sidebar (SUPER ADMIN / MASTERS /
-// CORE MODULES / REPORTS). "superadminMaster" (company/project) has no
-// government equivalent — private is multi-tenant, government is not — so
-// it's kept as its own section under SUPER ADMIN rather than dropped.
 const MODULE_GROUPS: {
   key: string;
   titleKey: string;
@@ -375,8 +365,6 @@ const wasteTypeItems: NavItem[] = [
         module: "waste-types",
         screen: "subproperties",
       },
-      // merged in from the legacy "assets" section — now the same
-      // backend router/permission group as properties/subproperties above
       {
         nameKey: "admin.nav.bin_creation",
         path: `/${encMasters}/${encBins}`,

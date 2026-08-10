@@ -111,14 +111,14 @@ export default function LoginAuditList() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-800">{t("admin.nav.login_audit")}</h1>
-          <p className="text-sm text-gray-500">{t("admin.login_audit_subtitle", "Login audit records")}</p>
+          <p className="text-sm text-gray-500">{t("admin.login_audit.subtitle", "Login audit records")}</p>
         </div>
       </div>
 
       <FilterBar
         searchValue={globalFilterValue}
         onSearchChange={(value) => onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)}
-        searchPlaceholder={t("admin.login_audit_search", "Search login audits...")}
+        searchPlaceholder={t("admin.login_audit.search", "Search login audits...")}
       >
         <select
           value={companyUniqueId || ""}
@@ -208,7 +208,7 @@ export default function LoginAuditList() {
       <Dialog open={Boolean(selectedAudit)} onOpenChange={(open) => !open && closeDetails()}>
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{t("admin.login_audit_details", "Login Audit Details")}</DialogTitle>
+            <DialogTitle>{t("admin.login_audit.details", "Login Audit Details")}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 md:grid-cols-2">
             <JsonViewer title="Audit Record" value={selectedAudit ?? undefined} />

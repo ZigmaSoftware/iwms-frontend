@@ -64,12 +64,12 @@ export default function MainComplaintCategoryList() {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const navigate = useNavigate();
-  const { encCitizenGrivence, encMainComplaintCategory } = getEncryptedRoute();
+  const { encComplaintTicket, encCategories } = getEncryptedRoute();
   const companyUniqueId = getCurrentCompanyUniqueId() ?? "";
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encCitizenGrivence,
-    encMainComplaintCategory,
+    encComplaintTicket,
+    encCategories,
   );
 
   const {

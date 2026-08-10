@@ -173,9 +173,9 @@ export default function TripPlanList() {
     initialProjectId: restoredState?.projectId,
   });
 
-  const { encScheduleMasters, encTripPlans } = getEncryptedRoute();
-  const { newPath: newPath } = createCrudRoutePaths(encScheduleMasters, encTripPlans);
-  const { editPath } = createCrudRoutePaths(encScheduleMasters, encTripPlans);
+  const { encScheduleSetup, encTripPlans } = getEncryptedRoute();
+  const { newPath: newPath } = createCrudRoutePaths(encScheduleSetup, encTripPlans);
+  const { editPath } = createCrudRoutePaths(encScheduleSetup, encTripPlans);
 
   const [rawRows, setRawRows] = useState<TripPlanRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);

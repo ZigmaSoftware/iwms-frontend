@@ -1,5 +1,4 @@
 import { decryptSegment } from "@/utils/routeCrypto";
-import { jwtDecode } from "jwt-decode";
 
 // ============================================================
 // Types
@@ -765,81 +764,3 @@ export const hasRoutePermission = (
   );
 };
 
-// ============================================================
-// API Integration
-// ============================================================
-
-type PermissionsAPIResponse = {
-  permissions?: PermissionsMap;
-  permission_details?: PermissionDetailsMap;
-  column_permissions?: unknown;
-};
-
-type PermissionTokenPayload = { exp?: number };
-
-const expirePermissionSession = (): void => {
-  localStorage.removeItem("access_token");
-  clearStoredPermissions();
-  window.dispatchEvent(new Event("iwms:auth-expired"));
-};
-
-export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
-  try {
-    const token = localStorage.getItem("access_token");
-    if (!token) return {};
-
-    try {
-      const { exp } = jwtDecode<PermissionTokenPayload>(token);
-      if (exp && exp <= Math.floor(Date.now() / 1000)) {
-        expirePermissionSession();
-        return {};
-      }
-    } catch {
-      expirePermissionSession();
-      return {};
-    }
-
-    const isProduction = import.meta.env.VITE_PROD === "true";
-    const apiBaseUrl = isProduction
-      ? import.meta.env.VITE_API_PROD
-      : import.meta.env.VITE_API_LOCAL;
-    if (!apiBaseUrl) {
-      console.error("[Permissions API] ❌ API base URL not configured");
-      return {};
-    }
-
-    const url = `${apiBaseUrl}/${adminEndpoints.userpermission}/`;
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) expirePermissionSession();
-      console.error(`[Permissions API] ❌ HTTP ${response.status}: ${response.statusText}`);
-      return {};
-    }
-
-    const data = (await response.json()) as PermissionsAPIResponse;
-    const permissions = sanitizePermissions(data);
-
-    setStoredPermissions(permissions);
-
-    if ("permission_details" in data) {
-      setStoredPermissionDetails(data.permission_details ?? {});
-    }
-
-    if ("column_permissions" in data) {
-      setStoredColumnPermissions(data.column_permissions ?? {});
-    }
-
-    return permissions;
-  } catch (error) {
-    console.error("[Permissions API] ❌ Error fetching permissions:", error);
-    return {};
-  }
-};
