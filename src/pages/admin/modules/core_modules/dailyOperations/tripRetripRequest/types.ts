@@ -22,7 +22,7 @@ export interface RetripPendingSnapshot {
   households: RetripPendingHousehold[];
 }
 
-export interface TripRetripRequestRecord {
+export type TripRetripRequestRecord = {
   unique_id: string;
   company_id: string;
   project_id: string;
@@ -54,7 +54,7 @@ export interface TripRetripRequestRecord {
 
   created_at: string;
   updated_at: string;
-}
+};
 
 export const RETRIP_STATUS_LABELS: Record<RetripStatus, string> = {
   Pending: "Pending",

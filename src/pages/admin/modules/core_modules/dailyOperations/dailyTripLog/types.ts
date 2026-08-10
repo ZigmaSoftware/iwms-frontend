@@ -107,7 +107,7 @@ export type DailyTripLogRecord = {
 };
 
 /** Log status values per A6 — no "Cancelled" log status exists. */
-export type DailyTripLogStatus = "Draft" | "Submitted" | "Verified";
+export type DailyTripLogStatus = "Unverified" | "Verified";
 
 /** Body for `PATCH .../daily-trip-logs/<unique_id>/verify/` (DailyTripLogVerifySerializer). */
 export type DailyTripLogVerifyPayload = {
