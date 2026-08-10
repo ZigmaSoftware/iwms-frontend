@@ -259,7 +259,11 @@ export default function PermissionSection({
             `/permissions/userscreen/${screenId}/columns/`
           ),
           hasScope
-            ? getColumnPermissions(screenId, projectId, companyId || undefined)
+            ? getColumnPermissions(
+                screenId,
+                projectId === "none" ? "" : projectId,
+                companyId || undefined
+              )
             : Promise.resolve<ColumnPermissionsResponse>({
                 userscreen_id: screenId,
                 column_permissions: [],

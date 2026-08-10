@@ -6,7 +6,7 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "primereact/button";
-import { DataTable } from "primereact/datatable";
+import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 
 import { dailyTripHouseholdCollectionApi, dailyTripLogApi } from "@/helpers/admin";

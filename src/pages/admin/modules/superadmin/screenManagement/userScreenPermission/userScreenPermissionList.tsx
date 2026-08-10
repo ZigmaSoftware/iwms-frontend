@@ -40,7 +40,7 @@ const PERMISSION_SEARCH_FIELDS = ["project_name", "company_name", "permission_ty
 
 const BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   { field: "company_id", header: "company_id", required: true, sample: "COMPANY-0001" },
-  { field: "project_id", header: "project_id", required: true, sample: "PROJECT-0001" },
+  { field: "project_id", header: "project_id", sample: "PROJECT-0001 (leave blank for company-wide)" },
   { field: "permission_type", header: "permission_type", sample: "screen" },
   { field: "main_screen_id_or_name", header: "main_screen_id_or_name", required: true, sample: "Transport Masters" },
   { field: "user_screen_id_or_name", header: "user_screen_id_or_name", required: true, sample: "Vehicle Creation" },
@@ -190,9 +190,11 @@ export default function UserScreenPermissionList() {
       (acc, item) => {
         const projId = toStrId(item.project_id);
         const companyId = toStrId(item.company_id);
-        const projectName = String(item.project_name ?? t("common.unknown"));
+        const projectName = projId
+          ? String(item.project_name ?? t("common.unknown"))
+          : "Company-Wide (All Projects)";
         const permissionType = String(item.permission_type ?? "screen") || "screen";
-        const key = `${companyId || "__no_company__"}__${projectName.trim().toLowerCase() || "__no_project__"}`;
+        const key = `${companyId || "__no_company__"}__${projId ? projectName.trim().toLowerCase() : "__company_wide__"}`;
 
         if (!acc[key]) {
           acc[key] = {
@@ -276,7 +278,7 @@ export default function UserScreenPermissionList() {
       await Promise.all(
         targets.map((target) =>
           userScreenPermissionApi.delete(
-            `delete-by-project/${target.project_id}/?mainscreen_id=${encodeURIComponent(target.mainscreen_id)}&permission_type=${encodeURIComponent(target.permission_type)}`
+            `delete-by-project/${target.project_id || "none"}/?mainscreen_id=${encodeURIComponent(target.mainscreen_id)}&permission_type=${encodeURIComponent(target.permission_type)}`
           )
         )
       );
@@ -389,16 +391,9 @@ export default function UserScreenPermissionList() {
         title={t("common.edit")}
         className="text-blue-600 hover:text-blue-800"
         onClick={() => {
-          if (!row.project_id) {
-            Swal.fire(
-              t("common.warning"),
-              t("admin.user_screen_permission.no_project_edit_warning"),
-              "warning"
-            );
-            return;
-          }
+          const routeProjectId = row.project_id || "none";
           navigate(
-            ENC_EDIT_PATH(row.project_id, row.company_id, row.edit_permission_type),
+            ENC_EDIT_PATH(routeProjectId, row.company_id, row.edit_permission_type),
             { state: { companyUniqueId: row.company_id, projectId: row.project_id } }
           );
         }}

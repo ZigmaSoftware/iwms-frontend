@@ -1308,6 +1308,7 @@ const enResource = {
           "upload_completed_title": "Upload Completed",
           "upload_failed": "Upload failed",
           "location_scope": "Location Scope (Optional)",
+          "company_wide": "Company-Wide (All Projects)",
           "add_another_main_screen": "Add another main screen",
           "all_main_screens_added": "All main screens have been added",
           "no_project_edit_warning": "Select a project before editing permissions"
