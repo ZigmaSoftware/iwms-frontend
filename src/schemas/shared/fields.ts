@@ -74,6 +74,18 @@ export const passwordField = z
   .regex(/[0-9]/, PASSWORD_POLICY_MESSAGE)
   .regex(/[^A-Za-z0-9]/, PASSWORD_POLICY_MESSAGE);
 
+/** Same policy as `passwordField`, but blank passes — for forms where a
+ * password is only set/changed sometimes (e.g. leave blank to keep the
+ * existing password on edit). */
+export const optionalPasswordField = z
+  .string()
+  .optional()
+  .refine((value) => !value || value.length >= 8, PASSWORD_POLICY_MESSAGE)
+  .refine((value) => !value || /[A-Z]/.test(value), PASSWORD_POLICY_MESSAGE)
+  .refine((value) => !value || /[a-z]/.test(value), PASSWORD_POLICY_MESSAGE)
+  .refine((value) => !value || /[0-9]/.test(value), PASSWORD_POLICY_MESSAGE)
+  .refine((value) => !value || /[^A-Za-z0-9]/.test(value), PASSWORD_POLICY_MESSAGE);
+
 export const CONFIRM_PASSWORD_MESSAGE = "Passwords do not match";
 
 /** Attach to a schema's `.refine()`/`.superRefine()` to enforce a confirm-password match. */
