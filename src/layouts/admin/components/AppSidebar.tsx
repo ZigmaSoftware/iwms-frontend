@@ -53,9 +53,11 @@ const {
   encWasteCollectedSummary,
   encMonthlyWasteComparison,
   encComplaintTicket,
-  encTickets,
-  encCategories,
-  encSubcategories,
+  encComplaint,
+  encComplaintModules,
+  encComplaintCategories,
+  encComplaintTeams,
+  encComplaintSlaRules,
   encFeedback,
   encTransportMaster,
   encScheduleMasters,
@@ -109,6 +111,7 @@ type NavItem = {
     path: string;
     module?: string;
     screen?: string;
+    screens?: string[];
   }>;
 };
 
@@ -498,8 +501,6 @@ const customerMasters: NavItem[] = [
   },
 ];
 
-// Renamed from the legacy "citizen-grievance"/"grivences" section to match
-// the backend's "complaint-ticket" router/permission group.
 const complaintTicketItems: NavItem[] = [
   {
     nameKey: "admin.nav.complaint_management",
@@ -508,22 +509,34 @@ const complaintTicketItems: NavItem[] = [
     screen: "complaint-ticket",
     subItems: [
       {
-        nameKey: "admin.nav.complaints",
-        path: `/${encComplaintTicket}/${encTickets}`,
+        nameKey: "admin.nav.complaint_tickets",
+        path: `/${encComplaintTicket}/${encComplaint}`,
         module: "complaint-ticket",
         screen: "tickets",
       },
       {
-        nameKey: "admin.nav.main_category",
-        path: `/${encComplaintTicket}/${encCategories}`,
+        nameKey: "admin.nav.reference_data",
+        path: `/${encComplaintTicket}/${encComplaintModules}`,
         module: "complaint-ticket",
-        screen: "categories",
+        screens: ["modules", "priorities", "sources", "statuses"],
       },
       {
-        nameKey: "admin.nav.sub_category",
-        path: `/${encComplaintTicket}/${encSubcategories}`,
+        nameKey: "admin.nav.categories",
+        path: `/${encComplaintTicket}/${encComplaintCategories}`,
         module: "complaint-ticket",
-        screen: "subcategories",
+        screens: ["categories", "subcategories"],
+      },
+      {
+        nameKey: "admin.nav.teams",
+        path: `/${encComplaintTicket}/${encComplaintTeams}`,
+        module: "complaint-ticket",
+        screen: "teams",
+      },
+      {
+        nameKey: "admin.nav.sla_rules",
+        path: `/${encComplaintTicket}/${encComplaintSlaRules}`,
+        module: "complaint-ticket",
+        screen: "sla-rules",
       },
     ],
   },
@@ -812,6 +825,16 @@ const AppSidebar: React.FC = () => {
     [hasPermission]
   );
 
+  const checkSubItemPermission = useCallback(
+    (sub: NonNullable<NavItem["subItems"]>[number]): boolean => {
+      if (!sub.module) return true;
+      const screens = sub.screens?.length ? sub.screens : sub.screen ? [sub.screen] : [];
+      if (screens.length === 0) return true;
+      return screens.some((screen) => checkPermission(sub.module, screen));
+    },
+    [checkPermission],
+  );
+
   // Filter sub-items: only show items with permission
   const filterSubItems = (
     subItems: NavItem["subItems"]
@@ -822,7 +845,7 @@ const AppSidebar: React.FC = () => {
     if (isSuperAdmin) return subItems;
 
     // Regular users: only show items they have permission for
-    return subItems.filter((sub) => checkPermission(sub.module, sub.screen));
+    return subItems.filter((sub) => checkSubItemPermission(sub));
   };
 
   // Check if menu item should be shown

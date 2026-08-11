@@ -104,11 +104,25 @@ export const feedbackApi = adminApi.feedbacks;
 export const dashboardSummaryApi = adminApi.dashboardSummary;
 
 /* =========================
-   GRIEVANCES
+   COMPLAINT TICKETING
 ========================= */
-export const complaintApi = adminApi.complaints;
-export const mainCategoryApi = adminApi.mainCategory;
-export const subCategoryApi = adminApi.subCategory;
+export const complaintTicketApi = adminApi.complaintTickets;
+export const complaintModuleApi = adminApi.complaintModules;
+export const complaintCategoryApi = adminApi.complaintCategories;
+export const complaintSubcategoryApi = adminApi.complaintSubcategories;
+export const complaintPriorityApi = adminApi.complaintPriorities;
+export const complaintStatusApi = adminApi.complaintStatuses;
+export const complaintSourceApi = adminApi.complaintSources;
+export const complaintLanguageApi = adminApi.complaintLanguages;
+export const complaintTeamApi = adminApi.complaintTeams;
+export const complaintSlaRuleApi = adminApi.complaintSlaRules;
+export const complaintRoutingRuleApi = adminApi.complaintRoutingRules;
+export const complaintFeedbackApi = adminApi.complaintFeedback;
+
+// Legacy aliases kept for older dashboard widgets.
+export const complaintApi = adminApi.complaintTickets;
+export const mainCategoryApi = adminApi.complaintCategories;
+export const subCategoryApi = adminApi.complaintSubcategories;
 
 /* =========================
    TRANSPORT MASTERS
