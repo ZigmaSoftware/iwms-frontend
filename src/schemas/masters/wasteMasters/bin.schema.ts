@@ -6,15 +6,17 @@ import { optionalString, positiveIntField, requiredString } from "@/schemas/shar
  * Mirrors the original inline `missingFields` checks in BinForm's
  * handleSubmit: bin_name, district_id, city_id, collection_point_id,
  * wastetype_id and bin_capacity (> 0) were required before submit.
- * panchayat_id and ward_id are mutually-exclusive optional location
- * refinements (Zone/Panchayat cascade), never required directly.
+ * panchayat_id is a mutually-exclusive optional location refinement
+ * (Zone/Panchayat cascade), never required directly. ward_id IS required —
+ * a bin physically sits in exactly one ward, and the dashboard's ward-level
+ * bin counts (Ward Collection Live Ticker) depend on it being set.
  */
 export const binSchema = z.object({
   bin_name: requiredString("Bin name"),
   district_id: requiredString("District"),
   city_id: requiredString("City"),
   panchayat_id: optionalString,
-  ward_id: optionalString,
+  ward_id: requiredString("Ward"),
   collection_point_id: requiredString("Collection point"),
   wastetype_id: requiredString("Waste type"),
   bin_capacity: positiveIntField("Bin capacity"),

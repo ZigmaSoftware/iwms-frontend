@@ -1113,7 +1113,7 @@ function VehicleStatusRing({
                 const percentage = (item.value / totalWasteForBreakdown) * 100;
 
                 return (
-                  <Tooltip key={item.label}>
+                  <Tooltip key={item.id}>
                     <TooltipTrigger asChild>
                       <div
                         tabIndex={0}
@@ -1308,12 +1308,18 @@ export function HomeDashboard() {
 
     const loadDashboard = (showLoading: boolean) => {
       if (requestInFlight || document.visibilityState === "hidden") return;
+      // Without a company selected there's nothing to scope by — the
+      // superadmin-facing waste-types endpoint returns its entire unscoped
+      // master list (every company/project) when called with no company_id
+      // at all, which would otherwise flash into the Waste Type Breakdown
+      // card during the brief window before the Company dropdown populates.
+      if (!params.company_id) return;
       requestInFlight = true;
       if (showLoading) setLoading(true);
       Promise.all([
         dashboardSummaryApi.readAllwithPaginated(1, 1, { params }),
         complaintApi.readAllForExport().catch(() => []),
-        wasteTypeApi.readAllForExport().catch(() => []),
+        wasteTypeApi.readAllForExport({ params }).catch(() => []),
       ])
         .then(([response, grievanceResult, wasteTypeResult]: [any, unknown, unknown]) => {
           if (!isMounted) return;
@@ -1465,7 +1471,7 @@ export function HomeDashboard() {
       <div className="flex-1 min-h-0 relative">
         {activeMapTab === "vehicle" && (
           <div className="h-full w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-            <LeafletMapContainer height="100%" onVehiclesChange={setLiveVehicles} />
+            <LeafletMapContainer height="100%" onVehiclesChange={setLiveVehicles} projectId={projectId} />
           </div>
         )}
         {activeMapTab === "bins" && (
@@ -1592,13 +1598,14 @@ export function HomeDashboard() {
   const dynamicWasteTypes = summary.waste.waste_type_breakdown ?? [];
   const wasteSource = dynamicWasteTypes.length > 0
     ? dynamicWasteTypes.map((item) => ({
+        id: item.waste_type_id,
         label: item.waste_type_name,
         value: item.tons,
       }))
     : [
-        { label: "Wet Waste", value: summary.waste.wet_tons },
-        { label: "Dry Waste", value: summary.waste.dry_tons },
-        { label: "Others", value: summary.waste.other_tons },
+        { id: "wet", label: "Wet Waste", value: summary.waste.wet_tons },
+        { id: "dry", label: "Dry Waste", value: summary.waste.dry_tons },
+        { id: "others", label: "Others", value: summary.waste.other_tons },
       ];
   const wasteSegments = wasteSource.map((item, index) => ({
     ...item,

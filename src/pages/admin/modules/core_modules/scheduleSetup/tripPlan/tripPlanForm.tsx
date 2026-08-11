@@ -557,8 +557,22 @@ export default function TripPlanForm() {
         }),
         ["ward_name", "name"]
       ),
-      staffTemplates: buildOptions(scopedItems(lookups.staffTemplates ?? [], companyUniqueId, projectId), ["display_code"]),
-      vehicles: buildOptions(scopedItems(lookups.vehicles ?? [], companyUniqueId, projectId), ["vehicle_no"]),
+      staffTemplates: buildOptions(
+        scopedItems(lookups.staffTemplates ?? [], companyUniqueId, projectId).map((item) =>
+          item?.is_assigned_today
+            ? { ...item, label: `${optionLabel(item, ["display_code"])} (Assigned)`, disabled: true }
+            : item
+        ),
+        ["display_code"]
+      ),
+      vehicles: buildOptions(
+        scopedItems(lookups.vehicles ?? [], companyUniqueId, projectId).map((item) =>
+          item?.is_assigned_today
+            ? { ...item, label: `${optionLabel(item, ["vehicle_no"])} (Assigned)`, disabled: true }
+            : item
+        ),
+        ["vehicle_no"]
+      ),
       staff: buildOptions(
         scopedItems(lookups.staff ?? [], companyUniqueId, projectId).filter((s) =>
           String(s?.staffusertype_name ?? s?.designation ?? "").trim().toLowerCase().includes("supervisor")
