@@ -484,7 +484,7 @@ export default function TripRetripRequestList() {
 
       {/* DataTable */}
       <DataTable
-        value={rawRows}
+        value={rawRows as unknown as Record<string, unknown>[]}
         dataKey="unique_id"
         lazy
         paginator

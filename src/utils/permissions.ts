@@ -1,4 +1,6 @@
 import { decryptSegment } from "@/utils/routeCrypto";
+import { adminEndpoints } from "@/helpers/admin/endpoints";
+import { jwtDecode } from "jwt-decode";
 
 // ============================================================
 // Types
@@ -126,6 +128,13 @@ const SCREEN_ALIASES: Record<string, string[]> = {
   tickets: ["complaint", "complaints"],
   categories: ["main-complaint-category", "main-category"],
   subcategories: ["sub-complaint-category", "sub-category"],
+  teams: ["teams"],
+  "sla-rules": ["sla-rule", "sla_rules", "slaRules", "slarules", "sla"],
+  "sla-rule": ["sla-rules"],
+  sla_rules: ["sla-rules"],
+  slaRules: ["sla-rules"],
+  slarules: ["sla-rules"],
+  sla: ["sla-rules"],
   feedback: ["feedbacks"],
   fuel: ["fuels"],
   panchayats: ["panchayat"],
