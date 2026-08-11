@@ -150,7 +150,32 @@ const hiResource = {
         pincode: "पिनकोड",
         date: "तिथि",
         customer: "ग्राहक",
+        bins: "बिन निर्माण",
         location_unavailable: "स्थान उपलब्ध नहीं है",
+        access_denied: "पहुँच अस्वीकृत",
+        all_companies: "सभी कंपनियाँ",
+        all_projects: "सभी परियोजनाएँ",
+        are_you_sure: "क्या आप निश्चित हैं?",
+        bin_capacity: "बिन क्षमता",
+        change: "बदलें",
+        company: "कंपनी",
+        company_from_profile: "प्रोफ़ाइल से कंपनी",
+        detect_current_location: "वर्तमान स्थान का पता लगाएँ",
+        download_excel: "एक्सेल डाउनलोड करें",
+        downloading: "डाउनलोड हो रहा है...",
+        email: "ईमेल",
+        export_excel: "एक्सेल निर्यात करें",
+        name: "नाम",
+        next: "अगला",
+        no_permission: "आपको यह कार्रवाई करने की अनुमति नहीं है।",
+        no_projects_found: "कोई परियोजना नहीं मिली",
+        no_records: "कोई रिकॉर्ड नहीं मिला",
+        ok: "ठीक है",
+        please_fill: "कृपया सभी आवश्यक फ़ील्ड भरें।",
+        project: "परियोजना",
+        select_company_first: "पहले कंपनी चुनें",
+        toggle_theme: "थीम बदलें",
+        username: "उपयोगकर्ता नाम",
       },
       "login": {
         "title": "वापसी पर स्वागत है",
@@ -191,6 +216,8 @@ const hiResource = {
         "nav": {
           "dashboard": "डैशबोर्ड",
           "overall": "समग्र डैशबोर्ड",
+          "wastetype": "कचरा प्रकार",
+          "assets": "संपत्तियाँ",
           "live_map": "लाइव मैप",
           "vehicle": "वाहन",
           "waste_collection": "कचरा संग्रह",
@@ -791,7 +818,10 @@ const hiResource = {
           "common_masters": "कॉमन मास्टर्स",
           "superAdmin_masters": "सुपरएडमिन मास्टर्स",
           "company": "कंपनी",
+          "company_placeholder": "कंपनी चुनें",
           "project": "प्रोजेक्ट",
+          "project_placeholder": "प्रोजेक्ट चुनें",
+          "companywise_user_screen_permission": "कंपनीवार यूज़र स्क्रीन अनुमति",
           "main_screen_type": "मेन स्क्रीन प्रकार",
           "user_screen_action": "यूज़र स्क्रीन एक्शन",
           "main_screen": "मेन स्क्रीन",
@@ -813,6 +843,11 @@ const hiResource = {
           "city": "शहर",
           "zone": "ज़ोन",
           "ward": "वार्ड",
+          "panchayat": "PLB (भाग लेने वाले स्थानीय निकाय)",
+          "hierarchy": "पदानुक्रम",
+          "department": "विभाग मास्टर",
+          "designation": "पदनाम मास्टर",
+          "daily_collection_point": "दैनिक संग्रह बिंदु",
           "collection_point": "कलेक्शन पॉइंट",
           "panchayat_leader": "PLB नेता",
           "district_leader": "District Leader",
@@ -840,10 +875,13 @@ const hiResource = {
           "vehicle_creation": "वाहन निर्माण",
           "trip_plans": "ट्रिप प्लान",
           "daily_trip_assignment": "दैनिक ट्रिप असाइनमेंट",
+          "daily_trip_plan": "दैनिक ट्रिप योजना",
           "daily_trip_collection_point": "दैनिक ट्रिप कलेक्शन पॉइंट",
+          "daily_trip_tracking": "दैनिक ट्रिप ट्रैकिंग",
           "daily_trip_household_collection": "घरेलू संग्रह बिंदु",
           "daily_trip_log": "दैनिक ट्रिप लॉग",
           "trip_retrip_request": "रीट्रिप अनुरोध",
+          "scheduler_config": "ट्रिप शेड्यूलर कॉन्फ़िगरेशन",
           "bin_collection_event": "द्वितीयक बिन कलेक्शन इवेंट",
           "bin_load_log": "बिन लोड लॉग",
           "trip_instance": "ट्रिप इंस्टेंस",
@@ -851,6 +889,7 @@ const hiResource = {
           "audit_items": "ऑडिट आइटम्स",
           "audits": "ऑडिट्स",
           "common_audit": "Common Audit",
+          "login_audit": "लॉगिन ऑडिट",
           "vehicle_trip_audit": "वाहन ट्रिप ऑडिट",
           "trip_exception_log": "ट्रिप अपवाद लॉग",
           "zone_property_load_tracker": "ज़ोन प्रॉपर्टी लोड ट्रैकर",
@@ -895,8 +934,12 @@ const hiResource = {
           "waste_collected_summary": "संग्रहित कचरा सारांश",
           "monthly_waste_comparison": "मासिक कचरा तुलना"
         },
+        "company": {
+          "logo": "कंपनी लोगो"
+        },
         "project": {
           "company_id": "कंपनी आईडी",
+          "company_name": "कंपनी का नाम",
           "filtered_company": "फ़िल्टर की गई कंपनी: {{id}}",
           "admin_help_text": "वैकल्पिक: किसी कंपनी का पहला प्रोजेक्ट बनाते समय ही प्रोजेक्ट एडमिन विवरण दें।",
           "admin_employee_name": "एडमिन कर्मचारी नाम",
@@ -985,7 +1028,8 @@ const hiResource = {
           "district": "ज़िला",
           "zone": "ज़ोन",
           "vehicle": "वाहन",
-          "supervisor": "सुपरवाइज़र"
+          "supervisor": "सुपरवाइज़र",
+          "display_code": "डिस्प्ले कोड"
         },
         "staff_template_audit": {
           "title": "स्टाफ टेम्पलेट ऑडिट",
@@ -1016,6 +1060,11 @@ const hiResource = {
           "detail_title": "Audit Details",
           "previous_data": "Previous Data",
           "new_data": "New Data"
+        },
+        "login_audit": {
+          "subtitle": "उपयोगकर्ता लॉगिन गतिविधि की समीक्षा करें",
+          "search": "लॉगिन ऑडिट खोजें...",
+          "details": "लॉगिन ऑडिट विवरण"
         },
         "supervisor_zone_map": {
           "title": "सुपरवाइज़र ज़ोन मैप",
@@ -1054,6 +1103,7 @@ const hiResource = {
           "status": "स्थिति"
         },
         "trip_instance": {
+          "title_add": "ट्रिप इंस्टेंस जोड़ें",
           "title_edit": "ट्रिप इंस्टेंस संपादित करें",
           "subtitle": "ट्रिप निष्पादन स्थिति और लोड प्रबंधित करें।",
           "list_title": "ट्रिप इंस्टेंस",
@@ -1096,7 +1146,9 @@ const hiResource = {
           "photo": "फोटो",
           "source": "स्रोत",
           "source_mobile": "मोबाइल",
-          "source_vehicle_cam": "वाहन कैमरा"
+          "source_vehicle_cam": "वाहन कैमरा",
+          "auto_detect_location": "स्थान स्वतः पहचानें",
+          "daily_trip_assignment": "दैनिक ट्रिप असाइनमेंट"
         },
         "vehicle_trip_audit": {
           "title_add": "वाहन ट्रिप ऑडिट जोड़ें",
@@ -1114,7 +1166,8 @@ const hiResource = {
           "avg_speed": "औसत गति (किमी/घं.)",
           "idle_seconds": "आइडल (सेकंड)",
           "captured_at": "कैप्चर समय",
-          "gps_placeholder": "JSON ऐरे या कॉमा से अलग मान"
+          "gps_placeholder": "JSON ऐरे या कॉमा से अलग मान",
+          "daily_trip_assignment": "दैनिक ट्रिप असाइनमेंट"
         },
         "trip_exception_log": {
           "title_add": "ट्रिप अपवाद लॉग जोड़ें",
@@ -1140,7 +1193,8 @@ const hiResource = {
             "system": "सिस्टम",
             "supervisor": "सुपरवाइज़र"
           },
-          "edit_not_allowed": "ट्रिप अपवाद लॉग बदले नहीं जा सकते।"
+          "edit_not_allowed": "ट्रिप अपवाद लॉग बदले नहीं जा सकते।",
+          "daily_trip_assignment": "दैनिक ट्रिप असाइनमेंट"
         },
         "bin_load_log": {
           "title_add": "बिन लोड लॉग जोड़ें",
@@ -1223,7 +1277,8 @@ const hiResource = {
           "old_zones": "पुराने ज़ोन्स",
           "new_zones": "नए ज़ोन्स",
           "remarks": "टिप्पणियाँ",
-          "created_at": "बनाया गया"
+          "created_at": "बनाया गया",
+          "select_district_city_first": "ज़ोन फ़िल्टर करने के लिए पहले ज़िला और शहर चुनें।"
         },
         "unassigned_staff_pool": {
           "title_add": "Add Unassigned Staff Pool",
@@ -1244,7 +1299,8 @@ const hiResource = {
           "status_available": "Available",
           "status_assigned": "Assigned",
           "trip_instance": "Trip Instance",
-          "created_at": "Created At"
+          "created_at": "Created At",
+          "daily_trip_assignment": "दैनिक ट्रिप असाइनमेंट"
         },
         "user_screen_action": {
           "action_label": "एक्शन",
@@ -1265,7 +1321,17 @@ const hiResource = {
           "permission_exists_title": "अनुमति मौजूद है",
           "permission_exists_body": "इस स्टाफ यूज़र प्रकार के लिए अनुमति पहले से मौजूद है। एडिट पर रीडायरेक्ट किया जा रहा है।",
           "all": "सभी",
-          "no_screens": "इस मुख्य स्क्रीन के लिए कोई स्क्रीन नहीं मिला."
+          "no_screens": "इस मुख्य स्क्रीन के लिए कोई स्क्रीन नहीं मिला.",
+          "main_screens_count": "{{count}} मास्टर",
+          "screens_count": "{{count}} स्क्रीन",
+          "download_template": "टेम्पलेट डाउनलोड करें",
+          "upload_excel": "एक्सेल अपलोड करें",
+          "upload_completed_title": "अपलोड पूर्ण हुआ",
+          "upload_failed": "अपलोड विफल रहा",
+          "add_another_main_screen": "एक और मुख्य स्क्रीन जोड़ें",
+          "all_main_screens_added": "सभी मुख्य स्क्रीन जोड़ी जा चुकी हैं",
+          "no_project_edit_warning": "अनुमतियाँ संपादित करने से पहले परियोजना चुनें",
+          "location_scope": "स्थान सीमा (वैकल्पिक)"
         },
         "staff_access_configuration": {
           "title": "Staff Access Configuration",
@@ -1410,7 +1476,11 @@ const hiResource = {
           "password": "पासवर्ड",
           "password_placeholder": "पासवर्ड दर्ज करें",
           "password_edit_placeholder": "मौजूदा पासवर्ड रखने के लिए खाली छोड़ दें",
-          "password_edit_hint": "यदि आप पासवर्ड बदलना चाहते हैं तो नया पासवर्ड दर्ज करें।"
+          "password_edit_hint": "यदि आप पासवर्ड बदलना चाहते हैं तो नया पासवर्ड दर्ज करें।",
+          "username": "उपयोगकर्ता नाम",
+          "username_placeholder": "उपयोगकर्ता नाम दर्ज करें",
+          "login_enabled": "लॉगिन सक्षम",
+          "login_enabled_placeholder": "लॉगिन स्थिति चुनें"
         },
         "dashboard_home": {
           "title": "संचालन अवलोकन",
@@ -1482,6 +1552,9 @@ const hiResource = {
           "mixed_waste": "मिश्रित कचरा (किग्रा)",
           "quantity": "मात्रा (किग्रा)",
           "total_quantity": "कुल मात्रा (किग्रा)",
+          "collection_date": "संग्रह तिथि",
+          "collection_time": "संग्रह समय",
+          "sanitary_waste": "सैनिटरी कचरा (किग्रा)",
           "save_success": "सफलतापूर्वक सहेजा गया"
         },
         "fuel": {
@@ -1555,6 +1628,8 @@ const hiResource = {
           invalid_mobile_title: "अमान्य मोबाइल नंबर",
           invalid_mobile_desc: "चालक मोबाइल नंबर ठीक 10 अंकों का होना चाहिए।",
           save_success: "सफलतापूर्वक सहेजा गया",
+          download_template: "टेम्पलेट डाउनलोड करें",
+          upload_csv: "CSV अपलोड करें",
         },
         "customer_creation": {
           "title": "ग्राहक निर्माण",
@@ -1569,6 +1644,8 @@ const hiResource = {
           "title_edit": "ग्राहक संपादित करें",
           "customer_name": "ग्राहक नाम",
           "contact_no": "संपर्क नंबर",
+          "bulk_waste_generator": "थोक कचरा उत्पादक",
+          "bulk_waste_generator_placeholder": "विकल्प चुनें",
           "id_proof_type": "पहचान प्रमाण प्रकार",
           "id_proof_placeholder": "पहचान प्रमाण चुनें",
           "id_proof_aadhaar": "आधार",
@@ -1589,7 +1666,23 @@ const hiResource = {
           "invalid_pincode_desc": "पिनकोड 6 अंकों का होना चाहिए।",
           "invalid_coordinates_title": "अमान्य निर्देशांक",
           "invalid_coordinates_desc": "अक्षांश / देशांतर अमान्य है।",
-          "save_success": "ग्राहक सफलतापूर्वक सहेजा गया"
+          "save_success": "ग्राहक सफलतापूर्वक सहेजा गया",
+          "personal_info": "व्यक्तिगत जानकारी",
+          "email": "ईमेल",
+          "sqft": "वर्ग फुट",
+          "property_info": "संपत्ति जानकारी",
+          "address_info": "पता जानकारी",
+          "company_project_info": "कंपनी और परियोजना जानकारी",
+          "identification": "पहचान जानकारी",
+          "location_details": "स्थान विवरण",
+          "select_property_subproperty": "संपत्ति और उप-संपत्ति चुनें",
+          "step_1_info": "चरण 1 में से 2: आगे बढ़ने के लिए संपत्ति और उप-संपत्ति चुनें",
+          "step_2_info": "चरण 2 में से 2: ग्राहक विवरण भरें",
+          "selected_property": "चयनित संपत्ति",
+          "selected_sub_property": "चयनित उप-संपत्ति",
+          "selected_company": "चयनित कंपनी",
+          "selected_project": "चयनित परियोजना",
+          "save_failed": "ग्राहक सहेजने में विफल"
         },
         "home": {
           "title": "एनालिटिक्स डैशबोर्ड",

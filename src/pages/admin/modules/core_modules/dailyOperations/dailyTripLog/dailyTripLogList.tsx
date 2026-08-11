@@ -25,8 +25,7 @@ import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
 
 
 const STATUS_STYLES: Record<string, string> = {
-  Draft: "bg-gray-100 text-gray-700",
-  Submitted: "bg-blue-100 text-blue-800",
+  Unverified: "bg-gray-100 text-gray-700",
   Verified: "bg-green-100 text-green-800",
 };
 
@@ -210,7 +209,7 @@ function TripLogModal({
   isLoading,
 }: {
   row: DailyTripLogRecord;
-  mode: "view" | "verify" | "submit";
+  mode: "view" | "verify";
   onClose: () => void;
   onConfirm: (remarks: string) => void;
   isLoading: boolean;
@@ -232,7 +231,6 @@ function TripLogModal({
     ? `${Number(row.collected_weight_kg).toFixed(2)} kg`
     : "-";
   const totalWeight = computeTotalWeight(row);
-  const canSubmit = totalWeight > 0;
 
   const footer = (
     <div className="flex justify-end gap-2 pt-2">
@@ -252,24 +250,12 @@ function TripLogModal({
           onClick={() => onConfirm(remarks)}
         />
       )}
-      {mode === "submit" && (
-        <Button
-          label="Submit"
-          icon="pi pi-send"
-          className="p-button-info"
-          loading={isLoading}
-          disabled={!canSubmit}
-          onClick={() => onConfirm(remarks)}
-        />
-      )}
     </div>
   );
 
-  const title =
-    mode === "verify" ? "Verify Trip Log" : mode === "submit" ? "Submit Trip Log" : "Trip Log Details";
+  const title = mode === "verify" ? "Verify Trip Log" : "Trip Log Details";
   const statusColor: Record<string, string> = {
-    Draft: "text-gray-600",
-    Submitted: "text-blue-600",
+    Unverified: "text-gray-600",
     Verified: "text-green-600",
   };
 
@@ -332,11 +318,6 @@ function TripLogModal({
             )}
             {row.actual_end_time && (
               <InfoRow label="End Time" value={formatTimeOnly(row.actual_end_time)} />
-            )}
-            {mode === "submit" && !canSubmit && (
-              <p className="text-xs text-red-500 font-medium mt-1">
-                Total weight must be greater than 0 kg before this log can be submitted.
-              </p>
             )}
             {(row.vehicle as any)?.vehicle_no && (
               <InfoRow label="Vehicle" value={(row.vehicle as any).vehicle_no} />
@@ -540,20 +521,18 @@ function TripLogModal({
         )}
 
         {/* Remarks */}
-        {(mode === "verify" || mode === "submit" || row.remarks) && (
+        {(mode === "verify" || row.remarks) && (
           <>
             <Divider className="!my-0" />
             <div>
-              <SectionLabel>
-                {mode === "verify" || mode === "submit" ? "Remarks (optional)" : "Remarks"}
-              </SectionLabel>
-              {mode === "verify" || mode === "submit" ? (
+              <SectionLabel>{mode === "verify" ? "Remarks (optional)" : "Remarks"}</SectionLabel>
+              {mode === "verify" ? (
                 <InputTextarea
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   rows={2}
                   className="w-full text-sm"
-                  placeholder={mode === "submit" ? "Add submission remarks..." : "Add verification remarks..."}
+                  placeholder="Add verification remarks..."
                   autoResize
                 />
               ) : (
@@ -619,10 +598,9 @@ export default function DailyTripLogList() {
   const [isLoading, setIsLoading] = useState(false);
   const [modalState, setModalState] = useState<{
     row: DailyTripLogRecord;
-    mode: "view" | "verify" | "submit";
+    mode: "view" | "verify";
   } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -825,98 +803,9 @@ export default function DailyTripLogList() {
     }
   };
 
-  /* ── submit confirm (from modal): Draft → Submitted via change-status,
-     with a client-side weight>0 pre-check per the A6 contract. The server
-     also enforces this gate in DailyTripLog.clean(); a 400 is still
-     handled gracefully below in case source records change between the
-     pre-check and the actual request. ── */
-  const handleSubmitConfirm = async (remarks: string) => {
-    if (!modalState) return;
-    const totalWeight = computeTotalWeight(modalState.row);
-    if (totalWeight <= 0) {
-      Swal.fire({
-        icon: "warning",
-        title: "Weight required",
-        text: "Total collected weight must be greater than 0 kg before submitting this log.",
-      });
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      const res = await api.patch(
-        `/schedule-operations/daily-trip-logs/${modalState.row.unique_id}/change-status/`,
-        { log_status: "Submitted", ...(remarks ? { remarks } : {}) }
-      );
-      const updated = (res as any)?.data ?? res;
-      setRawRows((current) =>
-        current.map((item) =>
-          item.unique_id === modalState.row.unique_id
-            ? { ...item, log_status: updated.log_status ?? "Submitted", remarks: updated.remarks ?? item.remarks }
-            : item
-        )
-      );
-      setModalState(null);
-      Swal.fire({
-        icon: "success",
-        title: "Submitted",
-        text: "Trip log has been submitted.",
-        timer: 2000,
-        showConfirmButton: false,
-      });
-    } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err) ?? "Failed to submit trip log", "error");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  /* ── inline status change (Draft ↔ Verify) ── */
-  const handleStatusChange = async (row: DailyTripLogRecord, newStatus: string) => {
-    const result = await Swal.fire({
-      title: `Change status to ${newStatus}?`,
-      text: `This will move the log from "${row.log_status}" to "${newStatus}".`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: `Yes, change to ${newStatus}`,
-    });
-    if (!result.isConfirmed) return;
-    try {
-      const res = await api.patch(
-        `/schedule-operations/daily-trip-logs/${row.unique_id}/change-status/`,
-        { log_status: newStatus }
-      );
-      const updated = (res as any)?.data ?? res;
-      setRawRows((current) =>
-        current.map((item) =>
-          item.unique_id === row.unique_id
-            ? {
-                ...item,
-                log_status: updated.log_status ?? newStatus,
-                verified_by_name: updated.verified_by_name ?? null,
-                verified_at: updated.verified_at ?? null,
-              }
-            : item
-        )
-      );
-      Swal.fire({
-        icon: "success",
-        title: "Done",
-        text: `Status changed to ${newStatus}.`,
-        timer: 2000,
-        showConfirmButton: false,
-      });
-    } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err) ?? "Failed to change status", "error");
-    }
-  };
-
   /* ── inline action buttons ── */
   const actionTemplate = (row: DailyTripLogRecord) => {
     const isVerified = row.log_status === "Verified";
-    const isDraft = row.log_status === "Draft";
-    const isSubmitted = row.log_status === "Submitted";
-    const totalWeight = computeTotalWeight(row);
-    const canSubmit = isDraft && totalWeight > 0;
     const canVerify = !isVerified && Boolean(row.actual_end_time);
 
     return (
@@ -930,23 +819,6 @@ export default function DailyTripLogList() {
           <i className="pi pi-eye text-xs" />
           View
         </button>
-
-        {/* Submit — Draft only, requires total weight > 0 (A6 contract) */}
-        {isDraft && (
-          <button
-            title={canSubmit ? "Submit this log" : "Total weight must be greater than 0 kg to submit"}
-            disabled={!canSubmit}
-            onClick={() => setModalState({ row, mode: "submit" })}
-            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-              canSubmit
-                ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                : "bg-blue-50 text-blue-300 cursor-not-allowed opacity-60"
-            }`}
-          >
-            <i className="pi pi-send text-xs" />
-            Submit
-          </button>
-        )}
 
         {/* Verify — requires the trip to have actually ended (actual_end_time
             set), disabled once already Verified (read-only) */}
@@ -969,27 +841,6 @@ export default function DailyTripLogList() {
           <i className="pi pi-check-circle text-xs" />
           Verify
         </button>
-
-        {/* Draft — revert to Draft; disabled when already Draft, and
-           disabled once Verified since the backend rejects any further
-           change to a Verified log (read-only-once-Verified guard). */}
-        <button
-          title={isVerified ? "Verified logs are read-only" : isDraft ? "Already in draft" : "Revert to draft"}
-          disabled={isDraft || isVerified}
-          onClick={() => handleStatusChange(row, "Draft")}
-          className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-            isDraft || isVerified
-              ? "bg-gray-50 text-gray-300 cursor-not-allowed opacity-60"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          <i className="pi pi-undo text-xs" />
-          Draft
-        </button>
-
-        {isSubmitted && (
-          <span className="text-[10px] text-gray-400 italic">awaiting verify</span>
-        )}
       </div>
     );
   };
@@ -1418,8 +1269,8 @@ export default function DailyTripLogList() {
           row={modalState.row}
           mode={modalState.mode}
           onClose={() => setModalState(null)}
-          onConfirm={modalState.mode === "submit" ? handleSubmitConfirm : handleVerifyConfirm}
-          isLoading={modalState.mode === "submit" ? isSubmitting : isVerifying}
+          onConfirm={handleVerifyConfirm}
+          isLoading={isVerifying}
         />
       )}
     </div>

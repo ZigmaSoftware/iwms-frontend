@@ -154,7 +154,28 @@ const enResource = {
         location_unavailable: "Location unavailable",
         next: "Next",
         change: "Change",
-        bins: "Bin Creations"
+        bins: "Bin Creations",
+        access_denied: "Access Denied",
+        all_companies: "All Companies",
+        are_you_sure: "Are you sure?",
+        capacity_liters: "Capacity (L)",
+        company: "Company",
+        company_from_profile: "Company from profile",
+        detect_current_location: "Detect current location",
+        download_excel: "Download Excel",
+        downloading: "Downloading...",
+        email: "Email",
+        export_excel: "Export Excel",
+        name: "Name",
+        no_permission: "You do not have permission to perform this action.",
+        no_projects_found: "No projects found",
+        no_records: "No records found",
+        ok: "OK",
+        please_fill: "Please fill all required fields.",
+        project: "Project",
+        select_company_first: "Select a company first",
+        toggle_theme: "Toggle theme",
+        username: "Username"
       },
       "login": {
         "title": "Welcome Back",
@@ -915,6 +936,9 @@ const enResource = {
           "waste_collected_summary": "Waste Collected Summary",
           "monthly_waste_comparison": "Monthly Waste Comparison"
         },
+        "company": {
+          "logo": "Company Logo"
+        },
         "project": {
           "company_id": "Company ID",
           "company_name": "Company Name",
@@ -1027,6 +1051,11 @@ const enResource = {
           "previous_data": "Previous Data",
           "new_data": "New Data"
         },
+        "login_audit": {
+          "subtitle": "Review user login activity",
+          "search": "Search login audits...",
+          "details": "Login Audit Details"
+        },
         "supervisor_zone_map": {
           "title": "Supervisor Zone Map",
           "subtitle": "Assign zones to supervisors and manage status.",
@@ -1107,7 +1136,9 @@ const enResource = {
           "photo": "Photo",
           "source": "Source",
           "source_mobile": "Mobile",
-          "source_vehicle_cam": "Vehicle Camera"
+          "source_vehicle_cam": "Vehicle Camera",
+          "auto_detect_location": "Auto-detect location",
+          "daily_trip_assignment": "Daily Trip Assignment"
         },
         "vehicle_trip_audit": {
           "title_add": "Add Vehicle Trip Audit",
@@ -1125,7 +1156,8 @@ const enResource = {
           "avg_speed": "Average Speed (km/h)",
           "idle_seconds": "Idle Time (seconds)",
           "captured_at": "Captured At",
-          "gps_placeholder": "JSON array or comma-separated values"
+          "gps_placeholder": "JSON array or comma-separated values",
+          "daily_trip_assignment": "Daily Trip Assignment"
         },
         "trip_exception_log": {
           "title_add": "Add Trip Exception Log",
@@ -1151,7 +1183,8 @@ const enResource = {
             "system": "System",
             "supervisor": "Supervisor"
           },
-          "edit_not_allowed": "Trip exception logs cannot be edited."
+          "edit_not_allowed": "Trip exception logs cannot be edited.",
+          "daily_trip_assignment": "Daily Trip Assignment"
         },
         "bin_load_log": {
           "title_add": "Add Bin Load Log",
@@ -1256,7 +1289,8 @@ const enResource = {
           "status_available": "Available",
           "status_assigned": "Assigned",
           "trip_instance": "Trip Instance",
-          "created_at": "Created At"
+          "created_at": "Created At",
+          "daily_trip_assignment": "Daily Trip Assignment"
         },
         "user_screen_action": {
           "action_label": "Action",
@@ -1284,7 +1318,11 @@ const enResource = {
           "upload_excel": "Upload Excel",
           "upload_completed_title": "Upload Completed",
           "upload_failed": "Upload failed",
-          "location_scope": "Location Scope (Optional)"
+          "location_scope": "Location Scope (Optional)",
+          "company_wide": "Company-Wide (All Projects)",
+          "add_another_main_screen": "Add another main screen",
+          "all_main_screens_added": "All main screens have been added",
+          "no_project_edit_warning": "Select a project before editing permissions"
         },
         "staff_access_configuration": {
           "title": "Staff Access Configuration",
@@ -1505,6 +1543,9 @@ const enResource = {
           "mixed_waste": "Mixed Waste (kg)",
           "quantity": "Quantity (kg)",
           "total_quantity": "Total Quantity (kg)",
+          "collection_date": "Collection Date",
+          "collection_time": "Collection Time",
+          "sanitary_waste": "Sanitary Waste (kg)",
           "save_success": "Saved successfully"
         },
         "fuel": {
@@ -1578,6 +1619,8 @@ const enResource = {
           invalid_mobile_title: "Invalid Mobile Number",
           invalid_mobile_desc: "Driver mobile number must be exactly 10 digits.",
           save_success: "Saved successfully",
+          download_template: "Download Template",
+          upload_csv: "Upload CSV",
         },
         route_plan: {
           title: "Route Plans",
@@ -1640,6 +1683,9 @@ const enResource = {
           "step_2_info": "Step 2 of 2: Fill in the customer details",
           "selected_property": "Selected Property",
           "selected_sub_property": "Selected Sub-Property",
+          "selected_company": "Selected Company",
+          "selected_project": "Selected Project",
+          "save_failed": "Failed to save customer",
         },
         "home": {
           "title": "Analytics Dashboard",

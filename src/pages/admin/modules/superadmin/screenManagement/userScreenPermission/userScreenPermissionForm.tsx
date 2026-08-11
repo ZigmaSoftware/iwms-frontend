@@ -91,6 +91,11 @@ const PERMISSION_TYPE_OPTIONS: Array<{ value: PermissionType; label: string }> =
   { value: "field", label: "Field Permission" },
 ];
 
+/** Radix Select can't hold an empty-string value, so the "no project" choice
+ * (company-wide permission) uses this sentinel and is translated back to ""
+ * wherever projectId state is set. */
+const COMPANY_WIDE_VALUE = "__company_wide__";
+
 export default function UserScreenPermissionForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -99,6 +104,9 @@ export default function UserScreenPermissionForm() {
   const location = useLocation();
 
   const routeProjectId = params.id;
+  // "none" is the sentinel used for company-wide (no-project) permissions,
+  // since a URL path segment can't be empty.
+  const isCompanyWideRoute = routeProjectId === "none";
   const companyIdFromQuery = searchParams.get("company_unique_id") ?? "";
   const permissionTypeFromQuery = searchParams.get("permission_type") ?? "";
   const isEdit = Boolean(routeProjectId);
@@ -116,7 +124,12 @@ export default function UserScreenPermissionForm() {
   } = useCompanyProjectSelection({
     isEdit,
     initialCompanyId: routeState?.companyUniqueId ?? companyIdFromQuery,
-    initialProjectId: routeState?.projectId ?? (isEdit ? String(routeProjectId) : undefined),
+    initialProjectId: isCompanyWideRoute
+      ? ""
+      : routeState?.projectId ?? (isEdit ? String(routeProjectId) : undefined),
+    // Blank projectId is a valid, meaningful choice here (company-wide
+    // permission) — don't let the hook auto-select the first project.
+    defaultToAll: true,
   });
 
   const [permissionType, setPermissionType] = useState<PermissionType>(() =>
@@ -137,8 +150,14 @@ export default function UserScreenPermissionForm() {
   const sectionDataRef = useRef<Record<string, PermissionSectionData>>({});
 
   const effectiveCompanyId = companyIdFromQuery || companyUniqueId;
-  const effectiveProjectId = isEdit ? String(routeProjectId) : projectId;
-  const hasProjectScope = Boolean(effectiveCompanyId && effectiveProjectId);
+  const effectiveProjectId = isEdit
+    ? (isCompanyWideRoute ? "" : String(routeProjectId))
+    : projectId;
+  // A blank project means "company-wide" — the permission applies to the
+  // company as a whole rather than to a specific project. The "none" sentinel
+  // is only used at the API-path level (see effectiveProjectIdParam below).
+  const hasProjectScope = Boolean(effectiveCompanyId);
+  const effectiveProjectIdParam = effectiveProjectId || "none";
 
   const isEditContextLocked = isEdit && Boolean(companyIdFromQuery);
   const isCompanyLocked =
@@ -220,13 +239,13 @@ export default function UserScreenPermissionForm() {
   }, [companyIdFromQuery, companyUniqueId, onCompanyChange]);
 
   useEffect(() => {
-    if (!isEdit || !routeProjectId) return;
+    if (!isEdit || !routeProjectId || isCompanyWideRoute) return;
     if (projectId !== String(routeProjectId)) {
       setProjectId(String(routeProjectId));
       sectionDataRef.current = {};
       setMainScreenIds([]);
     }
-  }, [isEdit, routeProjectId, projectId, setProjectId]);
+  }, [isEdit, routeProjectId, isCompanyWideRoute, projectId, setProjectId]);
 
   useEffect(() => {
     if (!isEdit || !hasProjectScope) return;
@@ -237,7 +256,7 @@ export default function UserScreenPermissionForm() {
       .readAll({
         params: {
           company_id: effectiveCompanyId,
-          project_id: effectiveProjectId,
+          project_id: effectiveProjectIdParam,
           permission_type: permissionType,
           limit: 6000,
           offset: 0,
@@ -261,7 +280,7 @@ export default function UserScreenPermissionForm() {
     return () => {
       cancelled = true;
     };
-  }, [isEdit, hasProjectScope, effectiveCompanyId, effectiveProjectId, permissionType]);
+  }, [isEdit, hasProjectScope, effectiveCompanyId, effectiveProjectIdParam, permissionType]);
 
   const availableMainScreens = useMemo(
     () => mainScreens.filter((opt) => !mainScreenIds.includes(opt.value)),
@@ -316,7 +335,7 @@ export default function UserScreenPermissionForm() {
     }
     setFieldErrors({});
 
-    if (!effectiveCompanyId || !effectiveProjectId) {
+    if (!effectiveCompanyId) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
@@ -340,7 +359,7 @@ export default function UserScreenPermissionForm() {
     setLoading(true);
 
     try {
-      const actionPath = `bulk-sync-multi-project/${effectiveProjectId}`;
+      const actionPath = `bulk-sync-multi-project/${effectiveProjectIdParam}`;
 
       for (const mainScreenId of mainScreenIds) {
         const sectionData = sectionDataRef.current[mainScreenId];
@@ -514,14 +533,14 @@ export default function UserScreenPermissionForm() {
           </div>
 
           <div>
-            <Label>{t("admin.nav.project")} *</Label>
+            <Label>{t("admin.nav.project")}</Label>
             <Select
-              value={projectId}
+              value={projectId || COMPANY_WIDE_VALUE}
               onValueChange={(value) => {
-                setProjectId(value);
+                setProjectId(value === COMPANY_WIDE_VALUE ? "" : value);
                 if (!isEdit) resetSections();
               }}
-              disabled={isEdit || !companyUniqueId || projects.length === 0}
+              disabled={isEdit || !companyUniqueId}
             >
               <SelectTrigger>
                 <SelectValue
@@ -531,6 +550,9 @@ export default function UserScreenPermissionForm() {
                 />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={COMPANY_WIDE_VALUE}>
+                  {t("admin.user_screen_permission.company_wide")}
+                </SelectItem>
                 {projects.map((project) => (
                   <SelectItem key={project.value} value={project.value}>
                     {project.label}
@@ -611,7 +633,7 @@ export default function UserScreenPermissionForm() {
             }
             permissionType={permissionType}
             companyId={effectiveCompanyId}
-            projectId={effectiveProjectId}
+            projectId={effectiveProjectIdParam}
             hasScope={hasProjectScope}
             allUserScreens={allUserScreens}
             actions={actions}

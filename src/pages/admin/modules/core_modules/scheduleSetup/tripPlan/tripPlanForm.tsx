@@ -78,7 +78,8 @@ const buildOptions = (items: any[], keys: string[]): SelectOption[] =>
   items
     .map((item) => ({
       value: String(item?.unique_id ?? item?.staff_unique_id ?? ""),
-      label: String(optionLabel(item, keys)),
+      label: String(item?.label ?? optionLabel(item, keys)),
+      ...(item?.disabled ? { disabled: true } : {}),
     }))
     .filter((item) => item.value);
 
@@ -465,32 +466,38 @@ export default function TripPlanForm() {
       return true;
     });
 
-    // For each collection point, check if all its bins (matching selected waste types) are assigned
-    const collectionPointsWithStatus = filteredCollectionPoints.map((cp) => {
-      const cpId = recordId(cp);
-      // Find bins for this collection point that match selected waste types
-      const eligibleBins = bins.filter((bin) => {
-        const binCpId = recordId(bin?.collection_point_id ?? bin?.collection_point);
-        if (binCpId !== cpId) return false;
-        if (formData.waste_type_ids.length > 0) {
-          const binWasteTypeId = recordId(bin?.wastetype_id ?? bin?.waste_type_id);
-          if (binWasteTypeId && !formData.waste_type_ids.includes(binWasteTypeId)) return false;
-        }
-        // Exclude bins assigned in other trip plans
-        if (assignedBinIds.includes(recordId(bin))) return false;
-        // Exclude bins already used in current form stops
-        const usedInCurrentStops = stops.some(
-          (stop) => stop.bin_id === recordId(bin) && stop.collection_point_id === cpId
-        );
-        if (usedInCurrentStops) return false;
-        return true;
+    // For each collection point, check if all its bins (matching selected waste types) are assigned.
+    // excludeStopIndex lets the row currently holding a given collection point treat its own
+    // selected bin as still "eligible" (a bin doesn't count as blocking itself).
+    const buildCollectionPointsWithStatus = (excludeStopIndex: number = -1) =>
+      filteredCollectionPoints.map((cp) => {
+        const cpId = recordId(cp);
+        // Find bins for this collection point that match selected waste types
+        const eligibleBins = bins.filter((bin) => {
+          const binCpId = recordId(bin?.collection_point_id ?? bin?.collection_point);
+          if (binCpId !== cpId) return false;
+          if (formData.waste_type_ids.length > 0) {
+            const binWasteTypeId = recordId(bin?.wastetype_id ?? bin?.waste_type_id);
+            if (binWasteTypeId && !formData.waste_type_ids.includes(binWasteTypeId)) return false;
+          }
+          // Exclude bins assigned in other trip plans
+          if (assignedBinIds.includes(recordId(bin))) return false;
+          // Exclude bins already used in current form stops (other than the excluded row)
+          const usedInCurrentStops = stops.some(
+            (stop, stopIndex) =>
+              stopIndex !== excludeStopIndex && stop.bin_id === recordId(bin) && stop.collection_point_id === cpId
+          );
+          if (usedInCurrentStops) return false;
+          return true;
+        });
+        const allBinsForCp = bins.filter((bin) => recordId(bin?.collection_point_id ?? bin?.collection_point) === cpId);
+        const allBinsAssigned = allBinsForCp.length > 0 && eligibleBins.length === 0;
+        return allBinsAssigned
+          ? { ...cp, label: String(cp?.cp_name ?? cp?.collection_point_name ?? cp?.name ?? "") + " (Assigned)", disabled: true }
+          : cp;
       });
-      const allBinsForCp = bins.filter((bin) => recordId(bin?.collection_point_id ?? bin?.collection_point) === cpId);
-      const allBinsAssigned = allBinsForCp.length > 0 && eligibleBins.length === 0;
-      return allBinsAssigned
-        ? { ...cp, label: String(cp?.cp_name ?? cp?.collection_point_name ?? cp?.name ?? "") + " (Assigned)", disabled: true }
-        : cp;
-    });
+
+    const collectionPointsWithStatus = buildCollectionPointsWithStatus();
 
     return {
       districts: buildOptions(districts, ["name", "district_name"]),
@@ -560,6 +567,8 @@ export default function TripPlanForm() {
       ),
       wasteTypes: buildOptions(wasteTypeOptions, ["waste_type_name", "name"]),
       collectionPoints: buildOptions(collectionPointsWithStatus, ["cp_name", "collection_point_name", "name"]),
+      collectionPointsFor: (excludeStopIndex: number) =>
+        buildOptions(buildCollectionPointsWithStatus(excludeStopIndex), ["cp_name", "collection_point_name", "name"]),
       customers: buildOptions(
         customers.filter((item) => {
           if (formData.panchayat_id) {
@@ -657,24 +666,34 @@ export default function TripPlanForm() {
         .filter(Boolean)
     );
 
+    const matchingBins = scopedItems(lookups.bins ?? [], companyUniqueId, projectId).filter((bin) => {
+      // Direct ID match: bin.collection_point_id or bin.collection_point?.unique_id
+      const binCollectionPointId = recordId(bin?.collection_point_id ?? bin?.collection_point);
+      const belongsToCollectionPoint = !collectionPointId || binCollectionPointId === collectionPointId;
+      if (!belongsToCollectionPoint) return false;
+      if (normalizedWasteTypeIds.length === 0) return true;
+      // Try ID match first (if the API ever returns wastetype_id)
+      const binWasteTypeId = recordId(bin?.wastetype_id ?? bin?.waste_type_id);
+      if (binWasteTypeId && normalizedWasteTypeIds.includes(binWasteTypeId)) return true;
+      // Fall back to name match
+      const binWasteTypeName = normalizedText(bin?.waste_type_name ?? bin?.wastetype_name ?? bin?.waste_type);
+      return binWasteTypeName ? selectedWasteTypeNames.has(binWasteTypeName) : false;
+    });
+
+    // Bins already reserved (by another trip plan or another stop in this
+    // form) stay visible but show as "Assigned" and can't be picked, so the
+    // dropdown communicates why a bin is unavailable instead of just hiding it.
     return buildOptions(
-      scopedItems(lookups.bins ?? [], companyUniqueId, projectId).filter((bin) => {
+      matchingBins.map((bin) => {
         const binId = recordId(bin);
-        // Direct ID match: bin.collection_point_id or bin.collection_point?.unique_id
-        const binCollectionPointId = recordId(bin?.collection_point_id ?? bin?.collection_point);
-        const belongsToCollectionPoint = !collectionPointId || binCollectionPointId === collectionPointId;
-        if (!belongsToCollectionPoint) return false;
-        // Exclude bins assigned in other trip plans (unless it's this row's current bin)
-        if (assignedBinIds.includes(binId) && binId !== currentBinId) return false;
-        // Exclude bins already used in current form stops
-        if (usedBinIdsInCurrentStops.has(binId)) return false;
-        if (normalizedWasteTypeIds.length === 0) return true;
-        // Try ID match first (if the API ever returns wastetype_id)
-        const binWasteTypeId = recordId(bin?.wastetype_id ?? bin?.waste_type_id);
-        if (binWasteTypeId && normalizedWasteTypeIds.includes(binWasteTypeId)) return true;
-        // Fall back to name match
-        const binWasteTypeName = normalizedText(bin?.waste_type_name ?? bin?.wastetype_name ?? bin?.waste_type);
-        return binWasteTypeName ? selectedWasteTypeNames.has(binWasteTypeName) : false;
+        if (binId === currentBinId) return bin;
+        const isAssigned = assignedBinIds.includes(binId) || usedBinIdsInCurrentStops.has(binId);
+        if (!isAssigned) return bin;
+        return {
+          ...bin,
+          bin_name: `${String(bin?.bin_name ?? bin?.name ?? "")} (Assigned)`,
+          disabled: true,
+        };
       }),
       ["bin_name", "name"]
     );
@@ -1089,7 +1108,7 @@ export default function TripPlanForm() {
                     </div>
                     <div>
                       <Label>Collection Point</Label>
-                      <Select value={stop.collection_point_id} onChange={(value) => setStop(index, { collection_point_id: value })} options={options.collectionPoints} disabled={loading || !projectId || (!formData.zone_id && !formData.panchayat_id && formData.ward_ids.length === 0)} />
+                      <Select value={stop.collection_point_id} onChange={(value) => setStop(index, { collection_point_id: value })} options={options.collectionPointsFor(index)} disabled={loading || !projectId || (!formData.zone_id && !formData.panchayat_id && formData.ward_ids.length === 0)} />
                       {stop.collection_point_id && (
                         <p className="mt-1 min-h-5 text-xs text-gray-500">
                           {coordinateText(stop.collection_point_id) || "Lat: - | Long: -"}
