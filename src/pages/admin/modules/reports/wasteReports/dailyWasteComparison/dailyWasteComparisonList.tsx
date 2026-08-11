@@ -36,6 +36,7 @@ import { useTranslation } from "react-i18next";
 import {
   dailyWasteComparisonApi,
   panchayatApi,
+  zoneApi,
 } from "@/helpers/admin";
 import { api } from "@/api";
 import {
@@ -118,6 +119,7 @@ const resolveGeoName = (record: any): string =>
       record?.town_panchayat_name ??
       record?.union_name ??
       record?.panchayat_name ??
+      record?.zone_name ??
       record?.ward_name ??
       resolveGeoId(record),
   );
@@ -318,6 +320,8 @@ export default function DailyWasteComparisonList({
   } = useCompanyProjectSelection({ isEdit: false, defaultToAll: true });
   const [panchayatIds, setPanchayatIds] = useState<string[]>([]);
   const [panchayatRecords, setPanchayatRecords] = useState<Record<string, unknown>[]>([]);
+  const [zoneIds, setZoneIds] = useState<string[]>([]);
+  const [zoneRecords, setZoneRecords] = useState<Record<string, unknown>[]>([]);
 
   const [rows, setRows] = useState<DailyReportRow[]>([]);
   const [dateTrends, setDateTrends] = useState<
@@ -345,11 +349,18 @@ export default function DailyWasteComparisonList({
     }).catch(() => {
       if (active) setPanchayatRecords([]);
     });
+    zoneApi.readAll({ params }).then((value) => {
+      if (active) setZoneRecords(toRecordList(value));
+    }).catch(() => {
+      if (active) setZoneRecords([]);
+    });
     setPanchayatIds([]);
+    setZoneIds([]);
     return () => { active = false; };
   }, [companyUniqueId, projectId]);
 
   const panchayatOptions = toGeoOptions(panchayatRecords);
+  const zoneOptions = toGeoOptions(zoneRecords);
 
   /* ── fetch report ── */
   const fetchReport = async () => {
@@ -366,6 +377,7 @@ export default function DailyWasteComparisonList({
       if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
       if (panchayatIds.length) params.panchayat_id = panchayatIds.join(",");
+      if (zoneIds.length) params.zone_id = zoneIds.join(",");
 
       const { data } = await api.get<DailyReportResponse>(
         "/schedule-masters/daily-waste-comparisons/",
@@ -414,6 +426,7 @@ export default function DailyWasteComparisonList({
     companyUniqueId,
     projectId,
     panchayatIds,
+    zoneIds,
     detailPage,
     detailPageSize,
   ]);
@@ -424,7 +437,7 @@ export default function DailyWasteComparisonList({
      immediately snap the user back to page 1. */
   useEffect(() => {
     setDetailPage(1);
-  }, [appliedDate, sortMode, source, companyUniqueId, projectId, panchayatIds]);
+  }, [appliedDate, sortMode, source, companyUniqueId, projectId, panchayatIds, zoneIds]);
 
   /* ── derived ── */
   const maxPlbWeight = useMemo(
@@ -467,8 +480,10 @@ export default function DailyWasteComparisonList({
     return head;
   }, [wasteTypeBreakdown]);
 
-  const selectedLocalBodyLabel = panchayatOptions
-    .filter((option) => panchayatIds.includes(option.value))
+  const selectedLocalBodyLabel = [
+    ...panchayatOptions.filter((option) => panchayatIds.includes(option.value)),
+    ...zoneOptions.filter((option) => zoneIds.includes(option.value)),
+  ]
     .map((option) => option.label)
     .join(", ");
   const detailPageCount = Math.max(1, Math.ceil(totalCount / detailPageSize));
@@ -490,6 +505,7 @@ export default function DailyWasteComparisonList({
       if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
       if (panchayatIds.length) params.panchayat_id = panchayatIds.join(",");
+      if (zoneIds.length) params.zone_id = zoneIds.join(",");
 
       const exportRows = await dailyWasteComparisonApi.readAllForExport({
         params,
@@ -497,8 +513,8 @@ export default function DailyWasteComparisonList({
       exportRecordsToExcel(
         exportRows.map((r) => ({
           Date: r.collection_date,
-          "Panchayat Type": r.local_body_type,
-          Panchayat: r.local_body_name,
+          "Location Type": r.local_body_type,
+          Location: r.local_body_name,
           "Waste Type": r.waste_type,
           "Weight Collected (kg)": r.actual_weight_kg,
           Trips: r.total_trips,
@@ -519,7 +535,10 @@ export default function DailyWasteComparisonList({
     }
   };
 
-  const clearLocalBodyFilter = () => setPanchayatIds([]);
+  const clearLocalBodyFilter = () => {
+    setPanchayatIds([]);
+    setZoneIds([]);
+  };
 
   /* ══════════════════════════════════════════════════════════════
       RENDER
@@ -555,7 +574,7 @@ export default function DailyWasteComparisonList({
                   Daily Waste Collection
                 </h1>
                 <p className="mt-2 max-w-xl text-sm leading-6 text-cyan-50/65">
-                  Monitor collected weight, completed trips, coverage, and waste composition across accessible panchayats.
+                  Monitor collected weight, completed trips, coverage, and waste composition across accessible panchayats and zones.
                 </p>
               </div>
 
@@ -647,21 +666,21 @@ export default function DailyWasteComparisonList({
         </div>
       </div>
 
-      {/* ══════════════ COMPANY / PROJECT / PANCHAYAT FILTER ══════════════ */}
+      {/* ══════════════ COMPANY / PROJECT / PANCHAYAT / ZONE FILTER ══════════════ */}
       <div className="px-6 md:px-10 mt-5">
         <Card className="rounded-2xl px-5 py-4 shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: C.inkSoft }}>
-              <MapPin className="h-3.5 w-3.5" /> Filter by company, project and panchayat
+              <MapPin className="h-3.5 w-3.5" /> Filter by company, project, panchayat and zone
             </h2>
-            {panchayatIds.length > 0 && (
+            {(panchayatIds.length > 0 || zoneIds.length > 0) && (
               <Button variant="link" onClick={clearLocalBodyFilter} className="h-auto p-0 text-xs font-semibold" style={{ color: C.teal }}>
                 Clear filter
               </Button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
             {isSuperAdmin && (
               <FilterSelect
                 value={companyUniqueId}
@@ -685,9 +704,16 @@ export default function DailyWasteComparisonList({
               placeholder="All panchayats"
               ariaLabel="Panchayats"
             />
+            <ReportMultiSelect
+              value={zoneIds}
+              onChange={setZoneIds}
+              options={zoneOptions}
+              placeholder="All zones"
+              ariaLabel="Zones"
+            />
           </div>
 
-          {panchayatIds.length > 0 && (
+          {(panchayatIds.length > 0 || zoneIds.length > 0) && (
             <p className="mt-3 text-xs" style={{ color: C.inkFaint }}>
               Showing data for{" "}
               <span className="font-semibold" style={{ color: C.ink }}>
@@ -713,7 +739,7 @@ export default function DailyWasteComparisonList({
           { label: "Total trips", value: fmtKg(kpis.total_trips), icon: Truck, accent: C.teal },
           { label: "Points covered", value: fmtKg(kpis.collection_points_covered), icon: MapPin, accent: C.ochre },
           { label: "Waste types", value: fmtKg(kpis.waste_type_count), icon: Recycle, accent: C.violet },
-          { label: "Panchayats", value: fmtKg(kpis.local_body_count), icon: Leaf, accent: C.primary },
+          { label: "Locations", value: fmtKg(kpis.local_body_count), icon: Leaf, accent: C.primary },
         ].map((k) => (
           <Card key={k.label} className="rounded-2xl p-4 flex flex-col gap-3 shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
             <div className="flex items-center justify-between">
@@ -818,15 +844,15 @@ export default function DailyWasteComparisonList({
           )}
         </Card>
 
-        {/* panchayat ranked bars */}
+        {/* panchayat / zone ranked bars */}
         <Card className="rounded-2xl p-5 lg:col-span-2 shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
-          <h2 className="font-display text-base font-semibold">Weight collected by panchayat</h2>
+          <h2 className="font-display text-base font-semibold">Weight collected by panchayat / zone</h2>
           <p className="text-xs mt-0.5 mb-4" style={{ color: C.inkFaint }}>
-            Corporation · municipality · town panchayat · panchayat union · panchayat
+            Bin-collection trips are panchayat-scoped; household trips are zone-scoped.
           </p>
           {plbCompare.length === 0 ? (
             <div className="h-52 flex items-center justify-center text-sm" style={{ color: C.inkFaint }}>
-              No panchayat data yet.
+              No location data yet.
             </div>
           ) : (
             <div className="space-y-1 max-h-[320px] overflow-y-auto pr-1">
@@ -958,7 +984,7 @@ export default function DailyWasteComparisonList({
           {plbCompare.length > 0 && (
             <div className="px-6 py-5" style={{ borderTop: `1px solid ${C.line}` }}>
               <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: C.inkFaint }}>
-                Panchayat breakdown — {plbCompare.length} location{plbCompare.length !== 1 ? "s" : ""}
+                Location breakdown — {plbCompare.length} location{plbCompare.length !== 1 ? "s" : ""}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {plbCompare.slice(0, 8).map((p) => (
@@ -993,7 +1019,7 @@ export default function DailyWasteComparisonList({
           {rows.length > 0 && (
             <div className="px-6 py-5" style={{ borderTop: `1px solid ${C.line}` }}>
               <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: C.inkFaint }}>
-                Breakdown by panchayat &amp; waste type — {totalCount} row{totalCount !== 1 ? "s" : ""}
+                Breakdown by location &amp; waste type — {totalCount} row{totalCount !== 1 ? "s" : ""}
               </p>
               <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
                 <Table>
@@ -1001,7 +1027,7 @@ export default function DailyWasteComparisonList({
                     <TableRow style={{ background: C.surfaceSunk, borderColor: C.line }} className="hover:bg-transparent">
                       <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Date</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Type</TableHead>
-                      <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Panchayat</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Location</TableHead>
                       <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Waste type</TableHead>
                       <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Weight (kg)</TableHead>
                       <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Trips</TableHead>
