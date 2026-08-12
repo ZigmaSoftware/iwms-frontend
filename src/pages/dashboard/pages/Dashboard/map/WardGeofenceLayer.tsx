@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import type { Map, LatLngTuple } from "leaflet";
 import { wardApi } from "@/helpers/admin";
+import { getWardColor } from "./mapUtils";
 
 type WardGeofence = {
   id: string;
@@ -18,14 +19,6 @@ type WardGeofenceLayerProps = {
   visible: boolean;
   onWardClick?: (ward: WardGeofence) => void;
 };
-
-const DISTRICT_COLORS: Record<string, { fill: string; stroke: string }> = {
-  Erode: { fill: "rgba(56, 189, 248, 0.25)", stroke: "#0ea5e9" },
-  Coimbatore: { fill: "rgba(34, 197, 94, 0.25)", stroke: "#22c55e" },
-  Salem: { fill: "rgba(168, 85, 247, 0.25)", stroke: "#a855f7" },
-};
-
-const DEFAULT_STYLE = { fill: "rgba(99, 102, 241, 0.25)", stroke: "#6366f1" };
 
 export function WardGeofenceLayer({
   map,
@@ -55,8 +48,7 @@ export function WardGeofenceLayer({
         c.longitude,
       ]);
 
-      const districtName = ward.district_name || "";
-      const style = DISTRICT_COLORS[districtName] || DEFAULT_STYLE;
+      const style = getWardColor(ward.id);
 
       const polygon = L.polygon(latLngs, {
         fillColor: style.fill,

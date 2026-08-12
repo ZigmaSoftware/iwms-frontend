@@ -3,7 +3,7 @@ import L from "leaflet";
 import type { LatLngTuple } from "leaflet";
 import { useTranslation } from "react-i18next";
 
-import { DEFAULT_CENTER, DEFAULT_WARD_STYLE, DISTRICT_COLORS, initBaseMap } from "./mapUtils";
+import { DEFAULT_CENTER, getWardColor, initBaseMap } from "./mapUtils";
 
 export type WardGeofence = {
   id: string;
@@ -70,8 +70,7 @@ export function WardMapPanel({
       const latLngs: LatLngTuple[] = ward.coordinates.map((c) => [c.latitude, c.longitude]);
       latLngs.forEach((point) => bounds.push(point));
 
-      const districtName = ward.district_name || "";
-      const style = DISTRICT_COLORS[districtName] || DEFAULT_WARD_STYLE;
+      const style = getWardColor(ward.id);
       const isSelected = ward.id === selectedWard?.id;
 
       const polygon = L.polygon(latLngs, {
@@ -123,14 +122,10 @@ export function WardMapPanel({
     map.fitBounds(bounds, { padding: [80, 80], maxZoom: 17 });
   }, [selectedWard, wards]);
 
-  const districtCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    wards.forEach((ward) => {
-      const key = ward.district_name || "Other";
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    });
-    return Array.from(counts.entries());
-  }, [wards]);
+  const wardLegend = useMemo(
+    () => wards.map((ward) => ({ id: ward.id, name: ward.name, style: getWardColor(ward.id) })),
+    [wards]
+  );
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-lg border border-gray-200">
@@ -143,26 +138,22 @@ export function WardMapPanel({
               {t("dashboard.home.wards_loading")}
             </span>
           )}
-          {!loading && districtCounts.length === 0 && (
+          {!loading && wardLegend.length === 0 && (
             <span className="font-semibold text-slate-500">
               {t("dashboard.home.wards_empty")}
             </span>
           )}
           {!loading &&
-            districtCounts.map(([district, count]) => {
-              const style = DISTRICT_COLORS[district] || DEFAULT_WARD_STYLE;
-              return (
-                <span
-                  key={district}
-                  className="flex items-center gap-1.5 rounded-full px-2 py-1 font-semibold"
-                  style={{ background: style.fill, color: style.stroke }}
-                >
-                  <span className="h-2 w-2 rounded-full" style={{ background: style.stroke }} />
-                  {district}
-                  <span className="ml-1 text-[11px] font-bold">{count}</span>
-                </span>
-              );
-            })}
+            wardLegend.map(({ id, name, style }) => (
+              <span
+                key={id}
+                className="flex items-center gap-1.5 rounded-full px-2 py-1 font-semibold"
+                style={{ background: style.fill, color: style.stroke }}
+              >
+                <span className="h-2 w-2 rounded-full" style={{ background: style.stroke }} />
+                {name}
+              </span>
+            ))}
         </div>
       </div>
 

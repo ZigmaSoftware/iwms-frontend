@@ -1028,6 +1028,7 @@ function VehicleStatusRing({
   parked: number;
   offlineGps: number;
   wasteSegments: Array<{
+    id: string;
     label: string;
     value: number;
     color: string;
@@ -1275,7 +1276,7 @@ export function HomeDashboard() {
   const [mapSize, setMapSize] = useState<"mid" | "max">("mid");
   const [asOf, setAsOf] = useState("");
   const [selectedAlert, setSelectedAlert] = useState<CriticalAlert | null>(null);
-  const [showWardGeofences, setShowWardGeofences] = useState(false);
+  const [showWardGeofences, setShowWardGeofences] = useState(true);
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   // Populated by LeafletMapContainer's own live-GPS polling (independent of
   // loadDashboard below) so the Vehicle Status counts reflect the same feed

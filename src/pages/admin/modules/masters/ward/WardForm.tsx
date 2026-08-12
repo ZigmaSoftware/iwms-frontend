@@ -1,4 +1,4 @@
-import type { WardCityMeta, WardDistrictMeta, WardPanchayatMeta, WardRouteState, WardStateMeta, WardWithRelations, WardZoneMeta } from "./types";
+import type { WardBoundaryPoint, WardCityMeta, WardDistrictMeta, WardPanchayatMeta, WardRouteState, WardStateMeta, WardWithRelations, WardZoneMeta } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, type FormEvent } from "react";
@@ -125,6 +125,7 @@ export default function WardForm() {
   const [panchayatId, setPanchayatId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [description, setDescription] = useState("");
+  const [boundaryPoints, setBoundaryPoints] = useState<WardBoundaryPoint[]>([]);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   /* PENDING CHAINS (Edit Support) */
@@ -522,6 +523,14 @@ export default function WardForm() {
     setWardName(data.ward_name ?? data.name ?? "");
     setIsActive(Boolean(data.is_active));
     setDescription(data.description ?? data.remarks ?? data.notes ?? "");
+    setBoundaryPoints(
+      Array.isArray(data.coordinates)
+        ? data.coordinates.map((p) => ({
+            latitude: String(p.latitude ?? ""),
+            longitude: String(p.longitude ?? ""),
+          }))
+        : []
+    );
 
     let cont = resolveMetaId(
       continents.map((c) => ({ id: c.value, name: c.label })),
@@ -856,6 +865,36 @@ export default function WardForm() {
       return;
     }
 
+    const filledBoundaryPoints = boundaryPoints.filter(
+      (p) => p.latitude.trim() !== "" || p.longitude.trim() !== ""
+    );
+    if (filledBoundaryPoints.length > 0) {
+      const incomplete = filledBoundaryPoints.some(
+        (p) => p.latitude.trim() === "" || p.longitude.trim() === ""
+      );
+      if (incomplete) {
+        Swal.fire(t("common.warning"), "Every boundary point needs both latitude and longitude.", "warning");
+        return;
+      }
+      if (filledBoundaryPoints.length < 3) {
+        Swal.fire(t("common.warning"), "A boundary needs at least 3 points to form a polygon.", "warning");
+        return;
+      }
+      const invalidNumber = filledBoundaryPoints.some(
+        (p) => Number.isNaN(Number(p.latitude)) || Number.isNaN(Number(p.longitude))
+      );
+      if (invalidNumber) {
+        Swal.fire(t("common.warning"), "Latitude/longitude must be numbers.", "warning");
+        return;
+      }
+    }
+    const coordinates = filledBoundaryPoints.length
+      ? filledBoundaryPoints.map((p) => ({
+          latitude: Number(p.latitude),
+          longitude: Number(p.longitude),
+        }))
+      : null;
+
     const rawPayload = {
       ward_name: wardName.trim(),
       continent_id: continentId,
@@ -869,8 +908,9 @@ export default function WardForm() {
       is_active: isActive,
       company_id: companyUniqueId,
       project_id: effectiveProjectId,
+      coordinates,
     };
-    const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
+    const payload = filterPayload(rawPayload, ["company_id", "project_id", "coordinates"]) as typeof rawPayload;
 
     setIsSubmitting(true);
     try {
@@ -1131,6 +1171,75 @@ export default function WardForm() {
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("common.description_optional")} className="w-full border rounded-md p-2 focus:ring focus:ring-green-200 outline-none" rows={3} />
           </div>
           )}
+
+          {/* Boundary Coordinates — geofence polygon points, connected in order */}
+          <div className="md:col-span-2">
+            <div className="flex items-center justify-between">
+              <Label>Boundary Coordinates</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setBoundaryPoints((points) => [...points, { latitude: "", longitude: "" }])
+                }
+              >
+                + Add Point
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Add points in order around the ward's edge — they connect into a
+              boundary polygon on the map. At least 3 points are needed for
+              the geofence to show.
+            </p>
+            {boundaryPoints.length === 0 ? (
+              <p className="mt-2 text-xs text-gray-400">No boundary points added yet.</p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {boundaryPoints.map((point, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <span className="w-6 shrink-0 text-xs text-gray-400">{index + 1}.</span>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      value={point.latitude}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setBoundaryPoints((points) =>
+                          points.map((p, i) => (i === index ? { ...p, latitude: value } : p))
+                        );
+                      }}
+                      placeholder="Latitude"
+                      className="flex-1"
+                    />
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      value={point.longitude}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setBoundaryPoints((points) =>
+                          points.map((p, i) => (i === index ? { ...p, longitude: value } : p))
+                        );
+                      }}
+                      placeholder="Longitude"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() =>
+                        setBoundaryPoints((points) => points.filter((_, i) => i !== index))
+                      }
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* BUTTONS */}

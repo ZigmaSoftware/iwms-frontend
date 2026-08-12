@@ -5,8 +5,7 @@ import type { LatLngTuple } from "leaflet";
 import {
   createHouseIcon,
   DEFAULT_CENTER,
-  DEFAULT_WARD_STYLE,
-  DISTRICT_COLORS,
+  getWardColor,
   HOUSEHOLD_STATUS_META,
   initBaseMap,
   spreadPositions,
@@ -385,8 +384,7 @@ export function HouseholdMapPanel({
       ]);
       latLngs.forEach((point) => bounds.push(point));
 
-      const districtName = ward.district_name || "";
-      const style = DISTRICT_COLORS[districtName] || DEFAULT_WARD_STYLE;
+      const style = getWardColor(ward.id);
 
       const polygon = L.polygon(latLngs, {
         fillColor: style.fill,

@@ -60,6 +60,39 @@ export const DISTRICT_COLORS: Record<string, { fill: string; stroke: string }> =
 
 export const DEFAULT_WARD_STYLE = { fill: "rgba(99, 102, 241, 0.25)", stroke: "#6366f1" };
 
+// A fixed categorical palette so every ward gets a visually distinct,
+// stable color (same ward -> same color across renders/panels) instead of
+// all wards in the same district sharing one look. Cycles if there are
+// more wards than colors.
+const WARD_COLOR_PALETTE: Array<{ fill: string; stroke: string }> = [
+  { fill: "rgba(99, 102, 241, 0.25)", stroke: "#6366f1" },   // indigo
+  { fill: "rgba(34, 197, 94, 0.25)", stroke: "#22c55e" },    // green
+  { fill: "rgba(245, 158, 11, 0.25)", stroke: "#f59e0b" },   // amber
+  { fill: "rgba(236, 72, 153, 0.25)", stroke: "#ec4899" },   // pink
+  { fill: "rgba(14, 165, 233, 0.25)", stroke: "#0ea5e9" },   // sky
+  { fill: "rgba(168, 85, 247, 0.25)", stroke: "#a855f7" },   // violet
+  { fill: "rgba(239, 68, 68, 0.25)", stroke: "#ef4444" },    // red
+  { fill: "rgba(20, 184, 166, 0.25)", stroke: "#14b8a6" },   // teal
+  { fill: "rgba(234, 179, 8, 0.25)", stroke: "#eab308" },    // yellow
+  { fill: "rgba(244, 114, 182, 0.25)", stroke: "#f472b6" },  // rose
+];
+
+// Deterministic hash so the same ward id always lands on the same color,
+// regardless of array order/pagination.
+const hashWardId = (id: string): number => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+};
+
+export const getWardColor = (wardId: string): { fill: string; stroke: string } => {
+  if (!wardId) return DEFAULT_WARD_STYLE;
+  const index = hashWardId(wardId) % WARD_COLOR_PALETTE.length;
+  return WARD_COLOR_PALETTE[index];
+};
+
 export const BIN_POINTS: BinPoint[] = [
   { id: "BIN-101", name: "Bin 101", lat: 11.0189, lng: 76.9524, fill: 88, area: "East Zone" },
   { id: "BIN-104", name: "Bin 104", lat: 11.0241, lng: 76.9589, fill: 72, area: "East Zone" },
