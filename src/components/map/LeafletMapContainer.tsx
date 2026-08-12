@@ -305,6 +305,13 @@ interface LeafletMapContainerProps {
   vehicles?: VehicleData[];
   height?: string;
   onVehiclesChange?: (vehicles: VehicleData[]) => void;
+  /** Scope live-GPS tracking to this project instead of the global
+   * ProjectSelectorContext selection — e.g. the Home Dashboard's own
+   * Company/Project filter, which is independent of that context. Passing
+   * this prop at all (even "") opts into scoped mode: "" means no project is
+   * selected, so the map shows nothing rather than falling back to whatever
+   * the global selector happens to have picked. */
+  projectId?: string;
 }
 
 /* ================= COMPONENT ================= */
@@ -312,18 +319,60 @@ export function LeafletMapContainer({
   vehicles: overrideVehicles,
   height = "600px",
   onVehiclesChange,
+  projectId: scopedProjectId,
 }: LeafletMapContainerProps = {}) {
   const { t, i18n } = useTranslation();
   const { theme } = useTheme();
   const {
-    gpsVehicleTrackingApi,
-    gpsTripSummaryApi,
-    gpsProviderName,
-    gpsFcode,
-    gpsUserId,
-    gpsTripUserId,
-    dayWiseWeighmentApiUrl,
+    gpsVehicleTrackingApi: contextGpsVehicleTrackingApi,
+    gpsTripSummaryApi: contextGpsTripSummaryApi,
+    gpsProviderName: contextGpsProviderName,
+    gpsFcode: contextGpsFcode,
+    gpsUserId: contextGpsUserId,
+    gpsTripUserId: contextGpsTripUserId,
+    dayWiseWeighmentApiUrl: contextDayWiseWeighmentApiUrl,
+    projects,
   } = useProjectSelector();
+
+  // When a `projectId` prop is passed at all (e.g. the dashboard's own
+  // Company/Project dropdowns), resolve GPS config from the full `projects`
+  // list scoped to that exact project — rather than the context's own
+  // (independently selected) `selectedProject` — so the map/live-vehicle feed
+  // can never silently show whatever project the global selector happens to
+  // be on. An empty string ("All Projects" selected) resolves to no project,
+  // so the map shows nothing until a specific project is chosen.
+  const isScoped = scopedProjectId !== undefined;
+  const scopedProject = isScoped
+    ? projects.find((p) => p.unique_id === scopedProjectId) ?? null
+    : null;
+  const hasScopedGps = Boolean(
+    scopedProject?.gps_vehicle_tracking_api ||
+      scopedProject?.gps_trip_summary_api ||
+      scopedProject?.gps_api_url
+  );
+
+  const gpsVehicleTrackingApi = isScoped
+    ? scopedProject?.gps_vehicle_tracking_api ?? ""
+    : contextGpsVehicleTrackingApi;
+  const gpsTripSummaryApi = isScoped
+    ? scopedProject?.gps_trip_summary_api ?? ""
+    : contextGpsTripSummaryApi;
+  const gpsProviderName = isScoped
+    ? (hasScopedGps ? scopedProject?.gps_provider_name ?? "" : "")
+    : contextGpsProviderName;
+  const gpsFcode = isScoped
+    ? (hasScopedGps ? scopedProject?.gps_fcode ?? "" : "")
+    : contextGpsFcode;
+  const gpsUserId = isScoped
+    ? (hasScopedGps ? scopedProject?.gps_user_id ?? "" : "")
+    : contextGpsUserId;
+  const gpsTripUserId = isScoped
+    ? (hasScopedGps ? scopedProject?.gps_trip_user_id ?? "" : "")
+    : contextGpsTripUserId;
+  const dayWiseWeighmentApiUrl = isScoped
+    ? scopedProject?.day_wise_weighment_api_url ?? ""
+    : contextDayWiseWeighmentApiUrl;
+
   const trackingApiUrl = buildVehicleTrackingUrl(
     { providerName: gpsProviderName, fcode: gpsFcode },
     gpsVehicleTrackingApi
@@ -338,6 +387,7 @@ export function LeafletMapContainer({
   onVehiclesChangeRef.current = onVehiclesChange;
 
   const [fetchedVehicles, setFetchedVehicles] = useState<VehicleData[]>([]);
+  const [vehiclesLoading, setVehiclesLoading] = useState(false);
   const [geofenceSites, setGeofenceSites] = useState<GeofenceSite[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
   const [infoOpen, setInfoOpen] = useState(true);
@@ -509,12 +559,16 @@ export function LeafletMapContainer({
 
   /* ================= FETCH VEHICLES ================= */
   useEffect(() => {
+    let isFirstFetch = true;
+
     const fetchVehicles = async () => {
       if (!trackingApiUrl) {
         setFetchedVehicles([]);
+        setVehiclesLoading(false);
         onVehiclesChangeRef.current?.([]);
         return;
       }
+      if (isFirstFetch) setVehiclesLoading(true);
       try {
         const res = await fetch(trackingApiUrl);
         const json = await res.json();
@@ -593,6 +647,11 @@ export function LeafletMapContainer({
         onVehiclesChangeRef.current?.(normalized);
       } catch (err) {
         console.error("Failed to fetch vehicles", err);
+      } finally {
+        if (isFirstFetch) {
+          isFirstFetch = false;
+          setVehiclesLoading(false);
+        }
       }
     };
 
@@ -859,6 +918,36 @@ export function LeafletMapContainer({
         backgroundColor: isDarkMode ? "#0f172a" : "#fff",
       }}
     >
+      {vehiclesLoading && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 1200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            background: isDarkMode ? "rgba(15,23,42,0.55)" : "rgba(255,255,255,0.65)",
+            color: isDarkMode ? "#e2e8f0" : "#1e293b",
+            fontSize: 13,
+            fontWeight: 500,
+            pointerEvents: "none",
+          }}
+        >
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              borderRadius: "50%",
+              border: "2px solid currentColor",
+              borderTopColor: "transparent",
+              animation: "leaflet-map-spin 0.8s linear infinite",
+            }}
+          />
+          {loadingLabel}
+        </div>
+      )}
       {selectedVehicle && (
         <>
           <div

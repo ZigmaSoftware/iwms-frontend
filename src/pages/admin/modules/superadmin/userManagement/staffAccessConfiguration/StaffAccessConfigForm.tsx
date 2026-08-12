@@ -32,7 +32,11 @@ import type {
   StaffAccessConfigRecord,
   UnknownRecord,
 } from "./types";
-import { buildStaffAccessConfigSchema } from "@/schemas/superadmin/userManagement/staffAccessConfiguration.schema";
+import {
+  buildStaffAccessConfigSchema,
+  staffDataScopeSchema,
+  staffPermissionsSchema,
+} from "@/schemas/superadmin/userManagement/staffAccessConfiguration.schema";
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
 
@@ -470,10 +474,24 @@ export default function StaffAccessConfigForm() {
         setFieldErrors({});
       }
     }
-    if (tab === DATA_SCOPE_TAB && !companyUniqueId) {
-      setStepError("Select a company to define the staff scope.");
-      return false;
+    if (tab === DATA_SCOPE_TAB) {
+      const validation = parseWithSchema(staffDataScopeSchema, { companyUniqueId });
+      if (!validation.success) {
+        setFieldErrors(validation.errors);
+        setStepError(validation.errors.companyUniqueId);
+        return false;
+      }
     }
+
+    if (tab === PERMISSIONS_TAB) {
+      const validation = parseWithSchema(staffPermissionsSchema, { selections });
+      if (!validation.success) {
+        setFieldErrors(validation.errors);
+        setStepError(validation.errors.selections);
+        return false;
+      }
+    }
+
     return true;
   };
 
@@ -530,7 +548,7 @@ export default function StaffAccessConfigForm() {
   });
 
   const handleSave = async () => {
-    for (let index = 0; index <= DATA_SCOPE_TAB; index += 1) {
+    for (let index = 0; index <= PERMISSIONS_TAB; index += 1) {
       if (!validateTab(index)) {
         setActiveTab(index);
         return;

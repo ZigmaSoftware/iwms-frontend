@@ -13,6 +13,7 @@ export const adminEndpoints = {
      AUTHENTICATION
   ========================= */
   loginUser: "login/login-user",
+  userpermission: "login/my-permissions",
 
   /* =========================
      COMMON MASTERS
@@ -125,8 +126,25 @@ export const adminEndpoints = {
   wardWiseCollections: "collections/ward-wise",
 
   /* =========================
-     COMPLAINT TICKET (renamed from the legacy "grivences" group)
+     COMPLAINT TICKETING
   ========================= */
+  complaintTickets: "complaint-ticket/tickets",
+  complaintModules: "complaint-ticket/modules",
+  complaintCategories: "complaint-ticket/categories",
+  complaintSubcategories: "complaint-ticket/subcategories",
+  complaintPriorities: "complaint-ticket/priorities",
+  complaintStatuses: "complaint-ticket/statuses",
+  complaintSources: "complaint-ticket/sources",
+  complaintLanguages: "complaint-ticket/languages",
+  complaintTeams: "complaint-ticket/teams",
+  complaintSlaRules: "complaint-ticket/sla-rules",
+  complaintRoutingRules: "complaint-ticket/routing-rules",
+  complaintFeedback: "complaint-ticket/feedback",
+  complaintReopenHistory: "complaint-ticket/reopen-history",
+  complaintAddressChange: "complaint-ticket/address-change",
+  complaintNotifications: "complaint-ticket/notifications",
+
+  // Legacy aliases kept for older imports/bookmarks.
   complaints: "complaint-ticket/tickets",
   mainCategory: "complaint-ticket/categories",
   subCategory: "complaint-ticket/subcategories",

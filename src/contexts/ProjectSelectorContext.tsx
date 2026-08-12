@@ -104,6 +104,40 @@ export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
   );
   const [loading, setLoading] = useState(false);
 
+  // ── For superadmin / empty stored list — fetch via API ─────────────────────
+  // Extracted so it can be re-run both on provider mount and after
+  // reloadFromSession() (post-login), since the provider lives above the
+  // router and isn't remounted on navigation.
+  const fetchCompaniesAndProjects = useCallback(async (currentCompanyId: string) => {
+    setLoading(true);
+
+    try {
+      // Fetch all accessible companies
+      const companyRecords = await companyApi.readAll();
+      const companyList: CompanyOption[] = (companyRecords as CompanyOption[]).map(
+        (c) => ({ unique_id: c.unique_id, name: c.name })
+      );
+      setCompanies(companyList);
+
+      // Use existing companyId or default to first company
+      const targetCompany = currentCompanyId || companyList[0]?.unique_id || "";
+      if (targetCompany && !currentCompanyId) setCompanyIdState(targetCompany);
+
+      if (targetCompany) {
+        const projectRecords = await (projectApi as any).readAll({
+          params: { company_unique_id: targetCompany },
+        });
+        const projectList: ProjectConfig[] = (projectRecords as any[]).map(mapProjectRecord);
+        setProjects(projectList);
+        setProjectIdState(resolveInitialProjectId(projectList));
+      }
+    } catch {
+      // non-fatal — pages still work with env-var fallbacks
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // Re-seed company/project state from localStorage. Needed after
   // login/logout since this provider lives above the router and isn't
   // remounted on navigation — only a hard refresh would otherwise pick up a
@@ -111,54 +145,26 @@ export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
   const reloadFromSession = useCallback(() => {
     const profile = getStoredProfile();
     const freshProjects = getStoredProjects();
-    setCompanyIdState((profile?.company_unique_id as string) ?? "");
+    const freshCompanyId = (profile?.company_unique_id as string) ?? "";
+    setCompanyIdState(freshCompanyId);
     setCompanyName((profile?.company_name as string) ?? "");
     setCompanies([]);
     setProjects(freshProjects);
     sessionStorage.removeItem(SESSION_KEY);
     setProjectIdState(resolveInitialProjectId(freshProjects));
-  }, []);
 
-  // ── For superadmin / empty stored list — fetch via API ─────────────────────
+    // Superadmin logins (and any session with nothing cached) still need
+    // the company/project lists fetched — the mount-time effect below only
+    // ever runs once, so without this the dropdowns stay empty until a
+    // hard refresh.
+    if (freshProjects.length === 0) {
+      fetchCompaniesAndProjects(freshCompanyId);
+    }
+  }, [fetchCompaniesAndProjects]);
+
   useEffect(() => {
     if (getStoredProjects().length > 0) return;
-
-    let cancelled = false;
-    setLoading(true);
-
-    (async () => {
-      try {
-        // Fetch all accessible companies
-        const companyRecords = await companyApi.readAll();
-        if (cancelled) return;
-        const companyList: CompanyOption[] = (companyRecords as CompanyOption[]).map(
-          (c) => ({ unique_id: c.unique_id, name: c.name })
-        );
-        setCompanies(companyList);
-
-        // Use existing companyId or default to first company
-        const targetCompany = companyId || companyList[0]?.unique_id || "";
-        if (targetCompany && !companyId) setCompanyIdState(targetCompany);
-
-        if (targetCompany) {
-          const projectRecords = await (projectApi as any).readAll({
-            params: { company_unique_id: targetCompany },
-          });
-          if (cancelled) return;
-          const projectList: ProjectConfig[] = (projectRecords as any[]).map(mapProjectRecord);
-          setProjects(projectList);
-          setProjectIdState(resolveInitialProjectId(projectList));
-        }
-      } catch {
-        // non-fatal — pages still work with env-var fallbacks
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    fetchCompaniesAndProjects(companyId);
   }, []);
 
   // ── For staff/company logins — the projects list is seeded once from the

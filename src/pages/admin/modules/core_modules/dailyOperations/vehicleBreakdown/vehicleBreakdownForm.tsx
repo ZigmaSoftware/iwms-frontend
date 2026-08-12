@@ -1,4 +1,4 @@
-import type { VehicleBreakdownRecord } from "./types";
+import type { PendingStopsSnapshot, VehicleBreakdownRecord } from "./types";
 import { BREAKDOWN_REASON_LABELS } from "./types";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
@@ -22,6 +22,30 @@ import { FieldError } from "@/components/form/FieldError";
 
 type SelectOption = { value: string; label: string };
 
+type StaffTemplateOption = SelectOption & {
+  driverId: string;
+  operatorId: string;
+};
+
+type AssignmentBinStop = {
+  unique_id?: string;
+  sequence?: number;
+  status?: string;
+  collection_point_id?: string | null;
+  collection_point?: { cp_name?: string | null } | null;
+  bin_id?: string | null;
+  is_collected?: boolean;
+};
+
+type AssignmentHouseholdStop = {
+  unique_id?: string;
+  sequence?: number;
+  status?: string;
+  customer_id?: string | null;
+  customer?: { customer_name?: string | null; building_no?: string | null } | null;
+  is_collected?: boolean;
+};
+
 const extractError = (error: any): string => {
   const data = error?.response?.data;
   if (!data) return "An unexpected error occurred.";
@@ -44,6 +68,7 @@ interface FormState {
   trip_assignment_id: string;
   breakdown_vehicle_id: string;
   replacement_vehicle_id: string;
+  replacement_staff_template_id: string;
   replacement_driver_id: string;
   replacement_operator_id: string;
   breakdown_reason: string;
@@ -59,6 +84,7 @@ const EMPTY_FORM: FormState = {
   trip_assignment_id: "",
   breakdown_vehicle_id: "",
   replacement_vehicle_id: "",
+  replacement_staff_template_id: "",
   replacement_driver_id: "",
   replacement_operator_id: "",
   breakdown_reason: "",
@@ -81,6 +107,36 @@ function InfoRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+const isPendingBinStop = (stop: AssignmentBinStop) =>
+  !stop.is_collected && !["Collected", "Missed"].includes(String(stop.status ?? ""));
+
+const isPendingHouseholdStop = (stop: AssignmentHouseholdStop) =>
+  !stop.is_collected && !["Collected", "Not Available"].includes(String(stop.status ?? ""));
+
+const pendingStopsFromAssignment = (assignment: any): PendingStopsSnapshot => ({
+  collection_points: (Array.isArray(assignment?.collection_points) ? assignment.collection_points : [])
+    .filter(isPendingBinStop)
+    .map((stop: AssignmentBinStop) => ({
+      unique_id: String(stop.unique_id ?? ""),
+      sequence: Number(stop.sequence ?? 0),
+      status: String(stop.status ?? "Pending"),
+      collection_point_id: stop.collection_point_id ?? null,
+      name: stop.collection_point?.cp_name ?? null,
+      bin_id: stop.bin_id ?? null,
+    }))
+    .filter((stop: PendingStopsSnapshot["collection_points"][number]) => stop.unique_id),
+  households: (Array.isArray(assignment?.household_collection_points) ? assignment.household_collection_points : [])
+    .filter(isPendingHouseholdStop)
+    .map((stop: AssignmentHouseholdStop) => ({
+      unique_id: String(stop.unique_id ?? ""),
+      sequence: Number(stop.sequence ?? 0),
+      status: String(stop.status ?? "Pending"),
+      customer_id: stop.customer_id ?? null,
+      name: stop.customer?.customer_name ?? stop.customer?.building_no ?? null,
+    }))
+    .filter((stop: PendingStopsSnapshot["households"][number]) => stop.unique_id),
+});
 
 export default function VehicleBreakdownForm() {
   const { t } = useTranslation();
@@ -121,8 +177,7 @@ export default function VehicleBreakdownForm() {
   /* ── dropdown data ── */
   const [assignmentOptions, setAssignmentOptions] = useState<SelectOption[]>([]);
   const [availableVehicleOptions, setAvailableVehicleOptions] = useState<SelectOption[]>([]);
-  const [driverOptions, setDriverOptions] = useState<SelectOption[]>([]);
-  const [operatorOptions, setOperatorOptions] = useState<SelectOption[]>([]);
+  const [staffTemplateOptions, setStaffTemplateOptions] = useState<StaffTemplateOption[]>([]);
   const [fetchingDropdowns, setFetchingDropdowns] = useState(false);
   const [fetchingVehicles, setFetchingVehicles] = useState(false);
   const [fetchingStaff, setFetchingStaff] = useState(false);
@@ -132,12 +187,12 @@ export default function VehicleBreakdownForm() {
   const [autoVehicleNo, setAutoVehicleNo] = useState("");
   const [autoDriver, setAutoDriver] = useState("");
   const [autoOperator, setAutoOperator] = useState("");
+  const [selectedPendingStops, setSelectedPendingStops] = useState<PendingStopsSnapshot | null>(null);
 
   /* ── pending IDs for edit pre-fill ── */
   const [pendingAssignmentId, setPendingAssignmentId] = useState("");
   const [pendingReplacementVehicleId, setPendingReplacementVehicleId] = useState("");
-  const [pendingDriverId, setPendingDriverId] = useState("");
-  const [pendingOperatorId, setPendingOperatorId] = useState("");
+  const [pendingStaffTemplateIds, setPendingStaffTemplateIds] = useState<{ driverId: string; operatorId: string } | null>(null);
 
   /* ────────────────────────────────────────────────────────────
      Load record in edit mode
@@ -161,6 +216,7 @@ export default function VehicleBreakdownForm() {
       trip_assignment_id: String(record.trip_assignment_id ?? ""),
       breakdown_vehicle_id: String(record.breakdown_vehicle_id ?? ""),
       replacement_vehicle_id: String(record.replacement_vehicle_id ?? ""),
+      replacement_staff_template_id: "",
       replacement_driver_id: String(record.replacement_driver_id ?? ""),
       replacement_operator_id: String(record.replacement_operator_id ?? ""),
       breakdown_reason: String(record.breakdown_reason ?? ""),
@@ -173,14 +229,19 @@ export default function VehicleBreakdownForm() {
     });
     if (record.trip_assignment_id) setPendingAssignmentId(String(record.trip_assignment_id));
     if (record.replacement_vehicle_id) setPendingReplacementVehicleId(String(record.replacement_vehicle_id));
-    if (record.replacement_driver_id) setPendingDriverId(String(record.replacement_driver_id));
-    if (record.replacement_operator_id) setPendingOperatorId(String(record.replacement_operator_id));
+    if (record.replacement_driver_id && record.replacement_operator_id) {
+      setPendingStaffTemplateIds({
+        driverId: String(record.replacement_driver_id),
+        operatorId: String(record.replacement_operator_id),
+      });
+    }
 
     /* restore auto-filled display strings */
     if (record.trip_assignment_detail?.trip_date) setSelectedTripDate(record.trip_assignment_detail.trip_date);
     if (record.breakdown_vehicle_detail?.vehicle_no) setAutoVehicleNo(record.breakdown_vehicle_detail.vehicle_no);
     if (record.original_driver_detail?.name) setAutoDriver(record.original_driver_detail.name);
     if (record.original_operator_detail?.name) setAutoOperator(record.original_operator_detail.name);
+    setSelectedPendingStops(record.pending_stops ?? null);
   }, [isEdit, record]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ────────────────────────────────────────────────────────────
@@ -189,20 +250,31 @@ export default function VehicleBreakdownForm() {
   useEffect(() => {
     if (!companyUniqueId || !projectId) return;
     setFetchingDropdowns(true);
-    const params = { company_id: companyUniqueId, project_id: projectId };
+    // Only today's trips can have a breakdown reported against them.
+    const params = { company_id: companyUniqueId, project_id: projectId, today: true };
     (dailyTripAssignmentApi.readAll({ params }) as Promise<any[]>)
       .then((res) => {
         const assignments = normalizeList(res);
-        setAssignmentOptions(
-          assignments.map((a: any) => ({
-            value: String(a.unique_id ?? ""),
-            label: `${a.unique_id ?? ""}${a.trip_plan?.display_code ? " — " + a.trip_plan.display_code : ""}${a.trip_date ? " (" + a.trip_date + ")" : ""}`,
-          })).filter((o: any) => o.value),
-        );
+        const opts: SelectOption[] = assignments.map((a: any) => ({
+          value: String(a.unique_id ?? ""),
+          label: `${a.unique_id ?? ""}${a.trip_plan?.display_code ? " — " + a.trip_plan.display_code : ""}${a.trip_date ? " (" + a.trip_date + ")" : ""}`,
+        })).filter((o: any) => o.value);
+
+        // Edit mode: the record's own assignment may no longer be "today" —
+        // keep it selectable (the field is disabled in edit mode anyway) so
+        // the saved value still displays.
+        if (isEdit && record?.trip_assignment_id && !opts.find((o) => o.value === String(record.trip_assignment_id))) {
+          opts.unshift({
+            value: String(record.trip_assignment_id),
+            label: `${record.trip_assignment_id}${record.trip_assignment_detail?.trip_plan_display_code ? " — " + record.trip_assignment_detail.trip_plan_display_code : ""}${record.trip_assignment_detail?.trip_date ? " (" + record.trip_assignment_detail.trip_date + ")" : ""}`,
+          });
+        }
+
+        setAssignmentOptions(opts);
       })
       .catch(() => {})
       .finally(() => setFetchingDropdowns(false));
-  }, [companyUniqueId, projectId]);
+  }, [companyUniqueId, projectId, isEdit, record]);
 
   /* ── flush pending IDs once dropdowns load ── */
   useEffect(() => {
@@ -215,22 +287,20 @@ export default function VehicleBreakdownForm() {
   }, [pendingAssignmentId, assignmentOptions]);
 
   useEffect(() => {
-    if (!pendingDriverId || !driverOptions.length) return;
-    const match = driverOptions.find((o) => o.value === pendingDriverId);
+    if (!pendingStaffTemplateIds || !staffTemplateOptions.length) return;
+    const match = staffTemplateOptions.find(
+      (o) => o.driverId === pendingStaffTemplateIds.driverId && o.operatorId === pendingStaffTemplateIds.operatorId,
+    );
     if (match) {
-      setForm((prev) => ({ ...prev, replacement_driver_id: pendingDriverId }));
-      setPendingDriverId("");
+      setForm((prev) => ({
+        ...prev,
+        replacement_staff_template_id: match.value,
+        replacement_driver_id: match.driverId,
+        replacement_operator_id: match.operatorId,
+      }));
+      setPendingStaffTemplateIds(null);
     }
-  }, [pendingDriverId, driverOptions]);
-
-  useEffect(() => {
-    if (!pendingOperatorId || !operatorOptions.length) return;
-    const match = operatorOptions.find((o) => o.value === pendingOperatorId);
-    if (match) {
-      setForm((prev) => ({ ...prev, replacement_operator_id: pendingOperatorId }));
-      setPendingOperatorId("");
-    }
-  }, [pendingOperatorId, operatorOptions]);
+  }, [pendingStaffTemplateIds, staffTemplateOptions]);
 
   useEffect(() => {
     if (!pendingReplacementVehicleId || !availableVehicleOptions.length) return;
@@ -253,11 +323,18 @@ export default function VehicleBreakdownForm() {
       setAutoVehicleNo("");
       setAutoDriver("");
       setAutoOperator("");
+      setSelectedPendingStops(null);
       setAvailableVehicleOptions([]);
-      setDriverOptions([]);
-      setOperatorOptions([]);
+      setStaffTemplateOptions([]);
       if (!isEdit) {
-        setForm((prev) => ({ ...prev, breakdown_vehicle_id: "", replacement_vehicle_id: "", replacement_driver_id: "", replacement_operator_id: "" }));
+        setForm((prev) => ({
+          ...prev,
+          breakdown_vehicle_id: "",
+          replacement_vehicle_id: "",
+          replacement_staff_template_id: "",
+          replacement_driver_id: "",
+          replacement_operator_id: "",
+        }));
       }
       return;
     }
@@ -288,6 +365,7 @@ export default function VehicleBreakdownForm() {
           "";
         setAutoDriver(driverName);
         setAutoOperator(operatorName);
+        setSelectedPendingStops(pendingStopsFromAssignment(data));
 
         if (!isEdit) {
           setForm((prev) => ({ ...prev, breakdown_vehicle_id: vehicleId }));
@@ -335,44 +413,40 @@ export default function VehicleBreakdownForm() {
             .finally(() => setFetchingVehicles(false));
 
           setFetchingStaff(true);
-          Promise.all([
-            api.get("/schedule-operations/vehicle-breakdowns/available-staff/", { params: { ...params, role: "Company Driver" } }),
-            api.get("/schedule-operations/vehicle-breakdowns/available-staff/", { params: { ...params, role: "Company Operator" } }),
-          ])
-            .then(([driverRes, operatorRes]) => {
-              const toOpts = (list: any[]): SelectOption[] =>
-                (Array.isArray(list) ? list : [])
-                  .map((s: any) => ({
-                    value: String(s.staff_unique_id ?? ""),
-                    label: `${s.employee_name ?? ""} (${s.staff_unique_id ?? ""})`,
-                  }))
-                  .filter((o) => o.value);
+          api
+            .get("/schedule-operations/vehicle-breakdowns/available-staff-templates/", { params })
+            .then((res) => {
+              const list = Array.isArray(res.data) ? res.data : [];
+              const opts: StaffTemplateOption[] = list
+                .map((template: any) => ({
+                  value: String(template.unique_id ?? ""),
+                  label: `${template.display_code ?? template.unique_id ?? ""} — ${template.driver_name ?? "Driver"} / ${template.operator_name ?? "Operator"}`,
+                  driverId: String(template.driver_id ?? ""),
+                  operatorId: String(template.operator_id ?? ""),
+                }))
+                .filter((o) => o.value && o.driverId && o.operatorId);
 
-              const driverOpts = toOpts(driverRes.data);
-              const operatorOpts = toOpts(operatorRes.data);
-
-              // Safety net: if edit mode and the replacement driver/operator is not in
-              // the available list (e.g. already on another trip), inject them so the
-              // dropdown still shows the saved value.
-              if (isEdit && record?.replacement_driver_detail) {
-                const existingId = String(record.replacement_driver_id ?? "");
-                if (existingId && !driverOpts.find((o) => o.value === existingId)) {
-                  const dd = record.replacement_driver_detail;
-                  driverOpts.unshift({ value: existingId, label: `${dd.name ?? ""} (${existingId})` });
-                }
-              }
-              if (isEdit && record?.replacement_operator_detail) {
-                const existingId = String(record.replacement_operator_id ?? "");
-                if (existingId && !operatorOpts.find((o) => o.value === existingId)) {
-                  const od = record.replacement_operator_detail;
-                  operatorOpts.unshift({ value: existingId, label: `${od.name ?? ""} (${existingId})` });
-                }
+              const currentDriverId = String(record?.replacement_driver_id ?? "");
+              const currentOperatorId = String(record?.replacement_operator_id ?? "");
+              if (
+                isEdit &&
+                currentDriverId &&
+                currentOperatorId &&
+                record?.replacement_driver_detail &&
+                record?.replacement_operator_detail &&
+                !opts.find((o) => o.driverId === currentDriverId && o.operatorId === currentOperatorId)
+              ) {
+                opts.unshift({
+                  value: "__current_replacement_staff__",
+                  label: `Current replacement — ${record.replacement_driver_detail.name ?? "Driver"} / ${record.replacement_operator_detail.name ?? "Operator"}`,
+                  driverId: currentDriverId,
+                  operatorId: currentOperatorId,
+                });
               }
 
-              setDriverOptions(driverOpts);
-              setOperatorOptions(operatorOpts);
+              setStaffTemplateOptions(opts);
             })
-            .catch(() => { setDriverOptions([]); setOperatorOptions([]); })
+            .catch(() => setStaffTemplateOptions([]))
             .finally(() => setFetchingStaff(false));
         }
       })
@@ -387,6 +461,22 @@ export default function VehicleBreakdownForm() {
     setFieldErrors((prev) => ({ ...prev, [key]: "" }));
   };
 
+  const setReplacementStaffTemplate = (val: string) => {
+    const selected = staffTemplateOptions.find((option) => option.value === val);
+    setForm((prev) => ({
+      ...prev,
+      replacement_staff_template_id: val,
+      replacement_driver_id: selected?.driverId ?? "",
+      replacement_operator_id: selected?.operatorId ?? "",
+    }));
+    setFieldErrors((prev) => ({
+      ...prev,
+      replacement_staff_template_id: "",
+      replacement_driver_id: "",
+      replacement_operator_id: "",
+    }));
+  };
+
   /* ────────────────────────────────────────────────────────────
      Submit
   ──────────────────────────────────────────────────────────── */
@@ -397,8 +487,7 @@ export default function VehicleBreakdownForm() {
       trip_assignment_id: form.trip_assignment_id,
       breakdown_vehicle_id: form.breakdown_vehicle_id,
       replacement_vehicle_id: form.replacement_vehicle_id,
-      replacement_driver_id: form.replacement_driver_id,
-      replacement_operator_id: form.replacement_operator_id,
+      replacement_staff_template_id: form.replacement_staff_template_id,
       breakdown_reason: form.breakdown_reason,
       breakdown_lat: form.breakdown_lat,
       breakdown_lng: form.breakdown_lng,
@@ -482,7 +571,8 @@ export default function VehicleBreakdownForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="p-5 space-y-5 max-w-4xl mx-auto">
+    <div className="p-3">
+    <form onSubmit={handleSubmit} className="space-y-6">
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
@@ -566,6 +656,44 @@ export default function VehicleBreakdownForm() {
 
           {/* Auto-filled: Original Operator */}
           <InfoRow label="Original Operator (auto-filled)" value={autoOperator} />
+
+          {selectedPendingStops && (
+            <div className="md:col-span-2 rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-semibold text-gray-800">Remaining Collection Work</p>
+                <p className="text-xs text-gray-500">
+                  {selectedPendingStops.collection_points.length} collection point(s),{" "}
+                  {selectedPendingStops.households.length} household(s)
+                </p>
+              </div>
+
+              {selectedPendingStops.collection_points.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs font-medium text-gray-600">
+                    Pending collection points available for manual carry-over at approval
+                  </p>
+                  <div className="mt-2 max-h-36 overflow-y-auto rounded-md border border-gray-200 bg-white">
+                    {selectedPendingStops.collection_points.map((cp) => (
+                      <div key={cp.unique_id} className="flex items-center justify-between gap-3 border-b border-gray-100 px-3 py-2 text-xs last:border-b-0">
+                        <span className="font-medium text-gray-700">{cp.name ?? cp.collection_point_id ?? cp.unique_id}</span>
+                        <span className="shrink-0 text-gray-400">{cp.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedPendingStops.households.length > 0 && (
+                <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                  {selectedPendingStops.households.length} un-collected household stop(s) will automatically carry over to the replacement trip.
+                </div>
+              )}
+
+              {selectedPendingStops.collection_points.length === 0 && selectedPendingStops.households.length === 0 && (
+                <p className="mt-3 text-xs text-amber-600">This trip has no pending stops to carry over.</p>
+              )}
+            </div>
+          )}
 
           {/* Breakdown Reason */}
           <div>
@@ -709,41 +837,33 @@ export default function VehicleBreakdownForm() {
               )}
             </div>
 
-            {/* Replacement Driver */}
-            <div>
-              <Label>Replacement Driver <span className="text-red-500">*</span></Label>
+            {/* Replacement Staff Template */}
+            <div className="md:col-span-2">
+              <Label>Replacement Staff Template <span className="text-red-500">*</span></Label>
               <Select
-                options={driverOptions}
-                value={form.replacement_driver_id}
-                onChange={(val) => setField("replacement_driver_id", val)}
-                placeholder={fetchingStaff ? "Loading available drivers…" : driverOptions.length === 0 ? "No available drivers for this date" : "Select replacement driver"}
+                options={staffTemplateOptions}
+                value={form.replacement_staff_template_id}
+                onChange={setReplacementStaffTemplate}
+                placeholder={
+                  fetchingStaff
+                    ? "Loading available staff templates…"
+                    : staffTemplateOptions.length === 0
+                      ? "No available staff templates for this date"
+                      : "Select replacement staff template"
+                }
                 disabled={fetchingStaff}
               />
-              <FieldError message={fieldErrors.replacement_driver_id} />
-              {!fetchingStaff && driverOptions.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">All drivers are already assigned on {selectedTripDate}.</p>
-              )}
-            </div>
-
-            {/* Replacement Operator */}
-            <div>
-              <Label>Replacement Operator <span className="text-red-500">*</span></Label>
-              <Select
-                options={operatorOptions}
-                value={form.replacement_operator_id}
-                onChange={(val) => setField("replacement_operator_id", val)}
-                placeholder={fetchingStaff ? "Loading available operators…" : operatorOptions.length === 0 ? "No available operators for this date" : "Select replacement operator"}
-                disabled={fetchingStaff}
-              />
-              <FieldError message={fieldErrors.replacement_operator_id} />
-              {!fetchingStaff && operatorOptions.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">All operators are already assigned on {selectedTripDate}.</p>
+              <FieldError message={fieldErrors.replacement_staff_template_id} />
+              {!fetchingStaff && staffTemplateOptions.length === 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  All staff templates are already assigned on {selectedTripDate}.
+                </p>
               )}
             </div>
 
             <div className="md:col-span-2 rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-xs text-blue-800">
-              <strong>Note:</strong> The replacement will only be applied to the trip after a supervisor
-              verifies this breakdown request. The original trip ID remains unchanged.
+              <strong>Note:</strong> The replacement trip will be created after a supervisor verifies this
+              breakdown request, carrying over the remaining stops from the original trip.
             </div>
           </div>
         )}
@@ -774,5 +894,6 @@ export default function VehicleBreakdownForm() {
         </button>
       </div>
     </form>
+    </div>
   );
 }

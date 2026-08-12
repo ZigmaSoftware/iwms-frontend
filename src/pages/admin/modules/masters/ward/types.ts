@@ -124,7 +124,10 @@ export type WardWithRelations = {
   city_name?: string | null;
   zone_name?: string | null;
   panchayat_name?: string | null;
+  coordinates?: Array<{ latitude: number; longitude: number }> | null;
 };
+
+export type WardBoundaryPoint = { latitude: string; longitude: string };
 
 export type WardCityMeta = CityMeta & {
   continentId?: string | null;

@@ -3,7 +3,7 @@ import L from "leaflet";
 import type { Map, LatLngTuple } from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-import { DEFAULT_CENTER, DEFAULT_WARD_STYLE, DISTRICT_COLORS, type MapTabKey } from "./mapUtils";
+import { DEFAULT_CENTER, getWardColor, type MapTabKey } from "./mapUtils";
 import { wardApi } from "@/helpers/admin";
 import { useTranslation } from "react-i18next";
 
@@ -122,8 +122,7 @@ export function SharedMapContainer({
         c.longitude,
       ]);
 
-      const districtName = ward.district_name || "";
-      const style = DISTRICT_COLORS[districtName] || DEFAULT_WARD_STYLE;
+      const style = getWardColor(ward.id);
 
       const polygon = L.polygon(latLngs, {
         fillColor: style.fill,

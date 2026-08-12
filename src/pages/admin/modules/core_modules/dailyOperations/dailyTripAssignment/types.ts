@@ -85,6 +85,7 @@ export type DailyTripAssignmentRecord = {
     replacement_vehicle_no?: string | null;
     replacement_driver?: string | null;
     replacement_operator?: string | null;
+    new_assignment_id?: string | null;
   } | null;
   retrip_info?: {
     unique_id: string;

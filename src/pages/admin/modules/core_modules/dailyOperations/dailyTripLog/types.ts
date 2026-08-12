@@ -8,6 +8,20 @@ export type WasteTypeBreakdownItem = {
   collected_weight_kg?: string | number | null;
 };
 
+export type TripLogCaptureImage = {
+  url: string;
+  waste_type_id?: string;
+  weight?: number | string;
+  collection_id?: string;
+  waste_collection_id?: string;
+  household_collection_id?: string;
+  trip_household_collection_id?: string;
+  collection_point_id?: string;
+  trip_collection_point_id?: string;
+  bin_collection_event_id?: string;
+  [key: string]: unknown;
+};
+
 export type StaffTemplateDetail = {
   unique_id?: string;
   display_code?: string;
@@ -56,6 +70,7 @@ export type DailyTripLogRecord = {
     status?: string;
     collected_weight_kg?: string | number | null;
     waste_type_breakdown?: WasteTypeBreakdownItem[];
+    capture_images?: TripLogCaptureImage[];
   }[];
   waste_type?: NamedRef & { waste_type_name?: string };
   waste_types_detail?: { unique_id?: string; waste_type_name?: string }[];
@@ -83,6 +98,7 @@ export type DailyTripLogRecord = {
     waste_type_breakdown?: WasteTypeBreakdownItem[];
     collected_at?: string | null;
     status?: string;
+    capture_images?: TripLogCaptureImage[];
   }[];
   vehicle?: NamedRef & { vehicle_no?: string };
   bin_ids?: string[];
@@ -92,6 +108,9 @@ export type DailyTripLogRecord = {
   collection_status?: string;
   verified_by_name?: string | null;
   verified_at?: string | null;
+  // Capture photos taken during the trip (from the mobile capture flow),
+  // aggregated trip-wide and allocated back to rows on the frontend.
+  capture_images?: TripLogCaptureImage[];
   breakdown_info?: {
     unique_id: string;
     status: string;

@@ -63,9 +63,10 @@ import TripSummary from "@/pages/admin/modules/reports/tripsummary/tripsummary";
 import MonthlyDistance from "@/pages/admin/modules/reports/monthlydistance/monthlydistance";
 import WasteSummary from "@/pages/admin/modules/reports/wasteCollectedSummary/wastesummary";
 import MonthlyWasteComparisonListPage from "@/pages/admin/modules/reports/wasteReports/monthlyWasteComparison/MonthlyWasteComparisonListPage";
-import ComplaintsList from "@/pages/admin/modules/core_modules/complaintManagement/tickets/complaintsList";
-import ComplaintAddForm from "@/pages/admin/modules/core_modules/complaintManagement/tickets/complaintsForm";
-import ComplaintEditForm from "@/pages/admin/modules/core_modules/complaintManagement/tickets/complaintsEditForm";
+import TicketList from "@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketList";
+import TicketForm from "@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketForm";
+import TicketDetail from "@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketDetail";
+import FeedbackList from "@/pages/admin/modules/core_modules/complaintManagement/feedback/FeedbackList";
 import FeedBackFormList from "@/pages/admin/modules/masters/customerMasters/feedback/feedBackFormListPage";
 import FeedBackForm from "@/pages/admin/modules/masters/customerMasters/feedback/feedBackForm";
 import FuelList from "@/pages/admin/modules/masters/transportMasters/fuel/fuelListPage";
@@ -105,10 +106,22 @@ import WasteCollectedForm from "@/pages/admin/modules/wasteManagementMasters/was
 import StaffUserTypeForm from "@/pages/admin/modules/superadmin/roleManagement/staffUserType/staffUserTypeForm";
 import StaffUserTypeList from "@/pages/admin/modules/superadmin/roleManagement/staffUserType/staffUserTypeList";
 
-import MainComplaintCategoryList from "@/pages/admin/modules/core_modules/complaintManagement/category/main-categoryList";
-import { MainComplaintCategoryForm } from "@/pages/admin/modules/core_modules/complaintManagement/category/main-categoryForm";
-import SubCategoryComplaintList from "@/pages/admin/modules/core_modules/complaintManagement/subcategory/sub-categoryList";
-import SubCategoryComplaintForm from "@/pages/admin/modules/core_modules/complaintManagement/subcategory/sub-categoryForm";
+import CategoryList from "@/pages/admin/modules/core_modules/complaintManagement/category/CategoryList";
+import CategoryForm from "@/pages/admin/modules/core_modules/complaintManagement/category/CategoryForm";
+import SubcategoryList from "@/pages/admin/modules/core_modules/complaintManagement/subcategory/SubcategoryList";
+import SubcategoryForm from "@/pages/admin/modules/core_modules/complaintManagement/subcategory/SubcategoryForm";
+import ModuleList from "@/pages/admin/modules/core_modules/complaintManagement/masters/ModuleList";
+import ModuleForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/ModuleForm";
+import PriorityList from "@/pages/admin/modules/core_modules/complaintManagement/masters/PriorityList";
+import PriorityForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/PriorityForm";
+import StatusList from "@/pages/admin/modules/core_modules/complaintManagement/masters/StatusList";
+import StatusForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/StatusForm";
+import SourceList from "@/pages/admin/modules/core_modules/complaintManagement/masters/SourceList";
+import SourceForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/SourceForm";
+import TeamList from "@/pages/admin/modules/core_modules/complaintManagement/masters/TeamList";
+import TeamForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/TeamForm";
+import SlaRuleList from "@/pages/admin/modules/core_modules/complaintManagement/masters/SlaRuleList";
+import SlaRuleForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/SlaRuleForm";
 import MainScreenTypeList from "@/pages/admin/modules/superadmin/screenManagement/mainScreenType/mainScreenTypeList";
 import MainScreenTypeForm from "@/pages/admin/modules/superadmin/screenManagement/mainScreenType/mainScreenTypeForm";
 import UserScreenActionList from "@/pages/admin/modules/superadmin/screenManagement/userScreenAction/userScreenActionList";
@@ -258,13 +271,18 @@ const ROUTES: RouteMap = {
     "date-report": { component: DateReport },
     "day-report": { component: DayReport },
   },
-  // Renamed from the legacy "citizen-grievance" bucket to match the
-  // backend's "complaint-ticket" router group (tickets/categories/subcategories).
   "complaint-ticket": {
-    tickets: { list: ComplaintsList, form: ComplaintAddForm, editForm: ComplaintEditForm },
-    categories: { list: MainComplaintCategoryList, form: MainComplaintCategoryForm },
-    subcategories: { list: SubCategoryComplaintList, form: SubCategoryComplaintForm },
-    feedback: { list: FeedBackFormList, form: FeedBackForm },
+    complaint: { list: TicketList, form: TicketForm, editForm: TicketDetail },
+    tickets: { list: TicketList, form: TicketForm, editForm: TicketDetail },
+    modules: { list: ModuleList, form: ModuleForm },
+    categories: { list: CategoryList, form: CategoryForm },
+    subcategories: { list: SubcategoryList, form: SubcategoryForm },
+    priorities: { list: PriorityList, form: PriorityForm },
+    statuses: { list: StatusList, form: StatusForm },
+    sources: { list: SourceList, form: SourceForm },
+    teams: { list: TeamList, form: TeamForm },
+    "sla-rules": { list: SlaRuleList, form: SlaRuleForm },
+    feedback: { list: FeedbackList },
   },
   audits: {
     "common-audit": { list: CommonAuditList },
@@ -306,8 +324,16 @@ const MASTER_ALIASES: Record<string, string[]> = {
 const MODULE_ALIASES: Record<string, string[]> = {
   // Pre-rename module names for the complaint-ticket bucket (see MASTER_ALIASES).
   complaint: ["complaints", "tickets"],
+  tickets: ["complaint", "complaints"],
   "main-complaint-category": ["main-category", "categories"],
   "sub-complaint-category": ["sub-category", "subcategories"],
+  teams: ["teams"],
+  "sla-rules": ["sla-rules", "sla-rule", "sla_rules", "slaRules", "slarules", "sla"],
+  "sla-rule": ["sla-rules"],
+  sla_rules: ["sla-rules"],
+  slaRules: ["sla-rules"],
+  slarules: ["sla-rules"],
+  sla: ["sla-rules"],
   feedback: ["feedbacks"],
   fuel: ["fuels"],
   panchayats: ["panchayat"],

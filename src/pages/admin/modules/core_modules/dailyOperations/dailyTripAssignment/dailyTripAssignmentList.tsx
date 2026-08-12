@@ -76,6 +76,11 @@ const BreakdownCell = ({ row }: { row: DailyTripAssignmentRecord }) => {
           {bd.replacement_operator && <span><span className="font-medium">Opr:</span> {bd.replacement_operator}</span>}
         </div>
       )}
+      {isApproved && bd.new_assignment_id && (
+        <div className="text-[10px] text-gray-600 leading-tight">
+          <span className="font-medium">Next:</span> {bd.new_assignment_id}
+        </div>
+      )}
     </div>
   );
 };

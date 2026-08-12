@@ -6,7 +6,7 @@ import { latitudeField, longitudeField, requiredString } from "@/schemas/shared/
  * VehicleBreakdownForm's submit handler guarded, in order: Trip Assignment,
  * Broken Vehicle (auto-filled, blocked on only to catch a trip that
  * resolved no vehicle), Breakdown Reason, Replacement Vehicle, Replacement
- * Driver, Replacement Operator, and Breakdown Latitude/Longitude (both
+ * Staff Template (which supplies driver/operator), and Breakdown Latitude/Longitude (both
  * required and range-checked -90..90 / -180..180). Breakdown Time, Weight
  * Before Breakdown, Location and Remarks were always optional. Company and
  * Project are checked separately in the component (scoping, not a form
@@ -46,8 +46,7 @@ export const vehicleBreakdownSchema = z.object({
   trip_assignment_id: requiredString("Trip Assignment"),
   breakdown_vehicle_id: requiredString("Broken Vehicle"),
   replacement_vehicle_id: requiredString("Replacement Vehicle"),
-  replacement_driver_id: requiredString("Replacement Driver"),
-  replacement_operator_id: requiredString("Replacement Operator"),
+  replacement_staff_template_id: requiredString("Replacement Staff Template"),
   breakdown_reason: requiredString("Breakdown Reason"),
   breakdown_lat: requiredLatitude,
   breakdown_lng: requiredLongitude,

@@ -5,6 +5,7 @@ import { api } from "@/api";
 import { adminApi } from "@/helpers/admin/registry";
 import {
   panchayatApi,
+  zoneApi,
 } from "@/helpers/admin";
 import {
   BarChart3,
@@ -80,6 +81,7 @@ const resolveGeoName = (record: any): string =>
       record?.town_panchayat_name ??
       record?.union_name ??
       record?.panchayat_name ??
+      record?.zone_name ??
       record?.ward_name ??
       resolveGeoId(record),
   );
@@ -242,6 +244,8 @@ export default function MonthlyWasteComparisonListPage({
   } = useCompanyProjectSelection({ isEdit: false, defaultToAll: true });
   const [panchayatIds, setPanchayatIds] = useState<string[]>([]);
   const [panchayatRecords, setPanchayatRecords] = useState<Record<string, unknown>[]>([]);
+  const [zoneIds, setZoneIds] = useState<string[]>([]);
+  const [zoneRecords, setZoneRecords] = useState<Record<string, unknown>[]>([]);
 
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [monthlyTrends, setMonthlyTrends] = useState<
@@ -267,11 +271,18 @@ export default function MonthlyWasteComparisonListPage({
     }).catch(() => {
       if (active) setPanchayatRecords([]);
     });
+    zoneApi.readAll({ params }).then((value) => {
+      if (active) setZoneRecords(toRecordList(value));
+    }).catch(() => {
+      if (active) setZoneRecords([]);
+    });
     setPanchayatIds([]);
+    setZoneIds([]);
     return () => { active = false; };
   }, [companyUniqueId, projectId]);
 
   const panchayatOptions = toGeoOptions(panchayatRecords);
+  const zoneOptions = toGeoOptions(zoneRecords);
 
   /* ── fetch report ── */
   const fetchReport = async () => {
@@ -288,6 +299,7 @@ export default function MonthlyWasteComparisonListPage({
       if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
       if (panchayatIds.length) params.panchayat_id = panchayatIds.join(",");
+      if (zoneIds.length) params.zone_id = zoneIds.join(",");
 
       const { data } = await api.get<ReportResponse>(
         "/reports/monthly-waste-comparison/",
@@ -336,6 +348,7 @@ export default function MonthlyWasteComparisonListPage({
     companyUniqueId,
     projectId,
     panchayatIds,
+    zoneIds,
     detailPage,
     detailPageSize,
   ]);
@@ -346,7 +359,7 @@ export default function MonthlyWasteComparisonListPage({
      immediately snap the user back to page 1. */
   useEffect(() => {
     setDetailPage(1);
-  }, [appliedMonth, sortMode, source, companyUniqueId, projectId, panchayatIds]);
+  }, [appliedMonth, sortMode, source, companyUniqueId, projectId, panchayatIds, zoneIds]);
 
   /* ── derived ── */
   const plbChartData = useMemo(
@@ -391,8 +404,10 @@ export default function MonthlyWasteComparisonListPage({
     return head;
   }, [wasteTypeBreakdown]);
 
-  const selectedLocalBodyLabel = panchayatOptions
-    .filter((option) => panchayatIds.includes(option.value))
+  const selectedLocalBodyLabel = [
+    ...panchayatOptions.filter((option) => panchayatIds.includes(option.value)),
+    ...zoneOptions.filter((option) => zoneIds.includes(option.value)),
+  ]
     .map((option) => option.label)
     .join(", ");
   const detailPageCount = Math.max(1, Math.ceil(totalCount / detailPageSize));
@@ -414,6 +429,7 @@ export default function MonthlyWasteComparisonListPage({
       if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) params.project_id = projectId;
       if (panchayatIds.length) params.panchayat_id = panchayatIds.join(",");
+      if (zoneIds.length) params.zone_id = zoneIds.join(",");
 
       const exportRows = await adminApi.monthlyWasteComparison.readAllForExport(
         { params },
@@ -421,8 +437,8 @@ export default function MonthlyWasteComparisonListPage({
       exportRecordsToExcel(
         exportRows.map((r) => ({
           Month: r.month,
-          "Panchayat Type": r.local_body_type,
-          Panchayat: r.local_body_name,
+          "Location Type": r.local_body_type,
+          Location: r.local_body_name,
           "Waste Type": r.waste_type,
           "Weight Collected (kg)": r.total_actual_weight,
           Trips: r.total_trips,
@@ -443,7 +459,10 @@ export default function MonthlyWasteComparisonListPage({
     }
   };
 
-  const clearLocalBodyFilter = () => setPanchayatIds([]);
+  const clearLocalBodyFilter = () => {
+    setPanchayatIds([]);
+    setZoneIds([]);
+  };
 
   /* ══════════════════════════════════════════════════════════════
       RENDER
@@ -478,7 +497,7 @@ export default function MonthlyWasteComparisonListPage({
                 Monthly Waste Collection
               </h1>
               <p className="mt-2 max-w-xl text-sm leading-6 text-cyan-50/65">
-                Compare collected weight, trips, coverage, and waste composition across months and panchayats.
+                Compare collected weight, trips, coverage, and waste composition across months, panchayats, and zones.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
@@ -559,7 +578,7 @@ export default function MonthlyWasteComparisonListPage({
                 ["Trips", fmtKg(kpis.total_trips, 0)],
                 ["Points covered", fmtKg(kpis.collection_points_covered, 0)],
                 ["Waste types", fmtKg(kpis.waste_type_count, 0)],
-                ["Panchayats", fmtKg(kpis.local_body_count, 0)],
+                ["Locations", fmtKg(kpis.local_body_count, 0)],
               ].map(([label, value]) => (
                 <div key={label}>
                   <p className="text-[10px] uppercase tracking-wider text-cyan-100/50">{label}</p>
@@ -574,13 +593,13 @@ export default function MonthlyWasteComparisonListPage({
         </div>
       </div>
 
-      {/* ── Company / Project / Panchayat filters ── */}
+      {/* ── Company / Project / Panchayat / Zone filters ── */}
       <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
-            <MapPin className="h-4 w-4 text-teal-600" /> Filter by Company, Project and Panchayat
+            <MapPin className="h-4 w-4 text-teal-600" /> Filter by Company, Project, Panchayat and Zone
           </h2>
-          {panchayatIds.length > 0 && (
+          {(panchayatIds.length > 0 || zoneIds.length > 0) && (
             <button
               onClick={clearLocalBodyFilter}
               className="text-xs font-semibold text-teal-700 hover:text-teal-900"
@@ -589,7 +608,7 @@ export default function MonthlyWasteComparisonListPage({
             </button>
           )}
         </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           {isSuperAdmin && (
             <select
               value={companyUniqueId}
@@ -617,8 +636,15 @@ export default function MonthlyWasteComparisonListPage({
             placeholder="All Panchayats"
             ariaLabel="Panchayats"
           />
+          <ReportMultiSelect
+            value={zoneIds}
+            onChange={setZoneIds}
+            options={zoneOptions}
+            placeholder="All Zones"
+            ariaLabel="Zones"
+          />
         </div>
-        {panchayatIds.length > 0 && (
+        {(panchayatIds.length > 0 || zoneIds.length > 0) && (
           <p className="mt-3 text-xs text-gray-500">
             Showing data for{" "}
             <span className="font-semibold text-teal-800">
@@ -662,7 +688,7 @@ export default function MonthlyWasteComparisonListPage({
             icon: <Recycle className="h-4 w-4" />,
           },
           {
-            label: "Panchayats",
+            label: "Locations",
             value: fmtKg(kpis.local_body_count, 0),
             accent: "border-t-teal-700",
             icon: <BarChart3 className="h-4 w-4" />,
@@ -792,17 +818,17 @@ export default function MonthlyWasteComparisonListPage({
           )}
         </div>
 
-        {/* Panchayat weight — progress bars */}
+        {/* Panchayat / zone weight — progress bars */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
           <h2 className="text-sm font-semibold text-gray-800">
-            Weight Collected by Panchayat
+            Weight Collected by Panchayat / Zone
           </h2>
           <p className="text-xs text-gray-400 mt-0.5 mb-4">
-            Corporation / municipality / town panchayat / panchayat union / panchayat
+            Bin-collection trips are panchayat-scoped; household trips are zone-scoped.
           </p>
           {plbComparison.length === 0 ? (
             <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
-              No panchayat data yet.
+              No location data yet.
             </div>
           ) : (
             <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
@@ -813,13 +839,13 @@ export default function MonthlyWasteComparisonListPage({
           )}
         </div>
 
-        {/* Panchayat weight — grouped bar */}
+        {/* Panchayat / zone weight — grouped bar */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
           <h2 className="text-sm font-semibold text-gray-800">
-            Panchayat Comparison
+            Location Comparison
           </h2>
           <p className="text-xs text-gray-400 mt-0.5 mb-4">
-            Total weight collected per panchayat
+            Total weight collected per panchayat / zone
           </p>
           {plbChartData.length === 0 ? (
             <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
@@ -987,7 +1013,7 @@ export default function MonthlyWasteComparisonListPage({
           {plbComparison.length > 0 && (
             <div className="border-t border-gray-100 px-6 py-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                Panchayat Breakdown — {plbComparison.length} Location
+                Location Breakdown — {plbComparison.length} Location
                 {plbComparison.length !== 1 ? "s" : ""}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1036,7 +1062,7 @@ export default function MonthlyWasteComparisonListPage({
           {rows.length > 0 && (
             <div className="border-t border-gray-100 px-6 py-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                Breakdown by Panchayat &amp; Waste Type — {totalCount} row
+                Breakdown by Location &amp; Waste Type — {totalCount} row
                 {totalCount !== 1 ? "s" : ""}
               </p>
               <div className="overflow-x-auto rounded-xl border border-gray-200">
@@ -1047,10 +1073,10 @@ export default function MonthlyWasteComparisonListPage({
                         Month
                       </th>
                       <th className="px-4 py-3 text-left font-semibold">
-                        Panchayat Type
+                        Location Type
                       </th>
                       <th className="px-4 py-3 text-left font-semibold">
-                        Panchayat
+                        Location
                       </th>
                       <th className="px-4 py-3 text-left font-semibold">
                         Waste Type

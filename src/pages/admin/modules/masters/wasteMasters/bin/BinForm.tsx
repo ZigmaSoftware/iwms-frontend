@@ -38,6 +38,8 @@ const BIN_FIELDS: Record<string, string[]> = {
   zone_id: ["zone_id", "zone"],
   ward_id: ["ward_id", "ward"],
   collection_point_id: ["collection_point_id", "collection_point"],
+  latitude: ["latitude"],
+  longitude: ["longitude"],
   bin_capacity: ["bin_capacity", "capacity_liters"],
   bin_type: ["bin_type"],
   wastetype_id: ["wastetype_id", "waste_type_id", "waste_type"],
@@ -146,6 +148,8 @@ export default function BinForm() {
   const [collectionPointId, setCollectionPointId] = useState("");
   const [wasteTypeId, setWasteTypeId] = useState("");
   const [binCapacity, setBinCapacity] = useState<number | "">("");
+  const [latitude, setLatitude] = useState<number | "">("");
+  const [longitude, setLongitude] = useState<number | "">("");
   const [binType, setBinType] = useState("medium");
   const [binImage, setBinImage] = useState("default.png");
   const [isActive, setIsActive] = useState(true);
@@ -347,6 +351,8 @@ export default function BinForm() {
         setBinName(toStringOrEmpty(record.bin_name));
         setBinType(toStringOrEmpty(record.bin_type) || "medium");
         setBinCapacity(toNumberOrEmpty(record.bin_capacity ?? record.capacity_liters));
+        setLatitude(toNumberOrEmpty((record as Record<string, unknown>).latitude));
+        setLongitude(toNumberOrEmpty((record as Record<string, unknown>).longitude));
         setBinImage(toStringOrEmpty(record.bin_image) || "default.png");
         setIsActive(Boolean(record.is_active));
         applyCompanyProjectFromRecord(record);
@@ -619,6 +625,8 @@ export default function BinForm() {
       ward_id: wardId || null,
       collection_point_id: collectionPointId,
       bin_capacity: Number(binCapacity),
+      latitude: latitude === "" ? null : latitude,
+      longitude: longitude === "" ? null : longitude,
       bin_name: binName.trim(),
       bin_type: binType,
       bin_image: binImage.trim() || "default.png",
@@ -832,13 +840,13 @@ export default function BinForm() {
         {/* Ward — editable dropdown, filtered by the selected zone or panchayat */}
         {showField("ward_id") && (
           <div>
-            <Label>{t("common.ward")}</Label>
+            <Label>{t("common.ward")} *</Label>
             <Select
-              value={wardId || "__none__"}
+              value={wardId}
               onValueChange={(value) => {
-                const next = value === "__none__" ? "" : value;
-                setWardId(next);
+                setWardId(value);
                 setCollectionPointId("");
+                setFieldErrors((prev) => ({ ...prev, ward_id: "" }));
               }}
               disabled={!zoneId && !panchayatId}
             >
@@ -846,7 +854,6 @@ export default function BinForm() {
                 <SelectValue placeholder={t("common.select_item_placeholder", { item: t("common.ward") })} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__none__">{t("common.not_available")}</SelectItem>
                 {wardOptions.map((w) => (
                   <SelectItem key={w.value} value={w.value}>
                     {w.label}
@@ -854,6 +861,7 @@ export default function BinForm() {
                 ))}
               </SelectContent>
             </Select>
+            <FieldError message={fieldErrors.ward_id} />
           </div>
         )}
 
@@ -865,6 +873,19 @@ export default function BinForm() {
               onValueChange={(value) => {
                 setCollectionPointId(value);
                 setFieldErrors((prev) => ({ ...prev, collection_point_id: "" }));
+
+                // Default the bin's location from its collection point —
+                // still just a starting point, editable below — but never
+                // overwrite a location the user already entered.
+                if (latitude === "" && longitude === "") {
+                  const cp = allCollectionPoints.find(
+                    (item) => String(item.unique_id) === value
+                  );
+                  const cpLat = toNumberOrEmpty(cp?.latitude);
+                  const cpLng = toNumberOrEmpty(cp?.longitude);
+                  if (cpLat !== "") setLatitude(cpLat);
+                  if (cpLng !== "") setLongitude(cpLng);
+                }
               }}
               disabled={collectionPointOptions.length === 0}
             >
@@ -897,6 +918,36 @@ export default function BinForm() {
               required
             />
             <FieldError message={fieldErrors.bin_capacity} />
+          </div>
+        )}
+
+        {showField("latitude") && (
+          <div>
+            <Label>{t("common.latitude")}</Label>
+            <Input
+              type="number"
+              step="any"
+              value={latitude}
+              onChange={(e) => setLatitude(e.target.value ? Number(e.target.value) : "")}
+              placeholder={t("admin.bin.latitude_placeholder", {
+                defaultValue: "Defaults to the collection point's location",
+              })}
+            />
+          </div>
+        )}
+
+        {showField("longitude") && (
+          <div>
+            <Label>{t("common.longitude")}</Label>
+            <Input
+              type="number"
+              step="any"
+              value={longitude}
+              onChange={(e) => setLongitude(e.target.value ? Number(e.target.value) : "")}
+              placeholder={t("admin.bin.longitude_placeholder", {
+                defaultValue: "Defaults to the collection point's location",
+              })}
+            />
           </div>
         )}
 
