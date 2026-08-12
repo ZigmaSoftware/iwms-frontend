@@ -78,6 +78,160 @@ const extractError = (error: any): string => {
   return "An unexpected error occurred.";
 };
 
+const displayValue = (value: string | number | null | undefined) => {
+  if (value === null || value === undefined || value === "") return "-";
+  return String(value);
+};
+
+function DetailRow({
+  label,
+  before,
+  after,
+  highlight,
+}: {
+  label: string;
+  before: string | null | undefined;
+  after: string | null | undefined;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-2 border-b border-gray-100 py-3 text-sm last:border-b-0 lg:grid-cols-[170px_minmax(0,1fr)_minmax(0,1fr)]">
+      <span className="font-medium text-gray-500">{label}</span>
+      <span className="min-w-0 break-words rounded-md bg-red-50 px-3 py-2 text-gray-800">{displayValue(before)}</span>
+      <span className={`min-w-0 break-words rounded-md px-3 py-2 font-medium ${highlight ? "bg-green-50 text-green-800" : "bg-gray-50 text-gray-800"}`}>
+        {displayValue(after)}
+      </span>
+    </div>
+  );
+}
+
+function ReadOnlyRow({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div className="grid grid-cols-1 gap-1 border-b border-gray-100 py-2.5 text-sm last:border-b-0 sm:grid-cols-[150px_minmax(0,1fr)]">
+      <span className="font-medium text-gray-500">{label}</span>
+      <span className="min-w-0 break-words text-gray-800">{displayValue(value)}</span>
+    </div>
+  );
+}
+
+/* ── View Dialog ─────────────────────────────────────────────── */
+function ViewDialog({
+  row,
+  onClose,
+}: {
+  row: VehicleBreakdownRecord;
+  onClose: () => void;
+}) {
+  const originalVehicle = row.breakdown_vehicle_detail?.vehicle_no ?? row.breakdown_vehicle_id;
+  const replacementVehicle = row.replacement_vehicle_detail?.vehicle_no ?? row.replacement_vehicle_id;
+  const originalDriver = row.original_driver_detail?.name ?? row.original_driver_detail?.unique_id;
+  const replacementDriver = row.replacement_driver_detail?.name ?? row.replacement_driver_id;
+  const originalOperator = row.original_operator_detail?.name ?? row.original_operator_detail?.unique_id;
+  const replacementOperator = row.replacement_operator_detail?.name ?? row.replacement_operator_id;
+  const altTemplate = row.alt_staff_template_detail;
+  const altTemplateLabel = altTemplate
+    ? `${altTemplate.display_code ?? altTemplate.unique_id} (${altTemplate.unique_id})`
+    : row.alt_staff_template_id;
+  const altTemplateCrew = altTemplate
+    ? `${altTemplate.driver?.name ?? altTemplate.driver?.unique_id ?? "Driver"} / ${altTemplate.operator?.name ?? altTemplate.operator?.unique_id ?? "Operator"}`
+    : null;
+  const hasPendingStops = !!row.pending_stops;
+
+  return (
+    <Dialog
+      visible
+      onHide={onClose}
+      header={
+        <div>
+          <p className="text-lg font-bold text-gray-800">Vehicle Breakdown Details</p>
+          <p className="mt-0.5 text-xs font-normal text-gray-400">{row.unique_id}</p>
+        </div>
+      }
+      style={{ width: "1120px", maxWidth: "96vw" }}
+      contentStyle={{ maxHeight: "calc(100vh - 10rem)", overflowY: "auto" }}
+      modal
+      draggable={false}
+      resizable={false}
+      footer={
+        <div className="flex justify-end">
+          <Button label="Close" className="p-button-text p-button-secondary" onClick={onClose} />
+        </div>
+      }
+    >
+      <div className="space-y-5 pt-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-medium text-gray-500">Status</p>
+            <div className="mt-2"><StatusBadge value={row.status} /></div>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-medium text-gray-500">Approval</p>
+            <div className="mt-2"><ApprovalBadge value={row.approval_status} /></div>
+          </div>
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-medium text-gray-500">New Trip</p>
+            <p className="mt-2 break-words font-mono text-sm text-green-700">{displayValue(row.new_assignment_id)}</p>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-gray-200">
+          <div className="grid grid-cols-1 gap-2 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 lg:grid-cols-[170px_minmax(0,1fr)_minmax(0,1fr)]">
+            <span>Field</span>
+            <span>Original</span>
+            <span>Replacement / Changed To</span>
+          </div>
+          <div className="px-4">
+            <DetailRow label="Vehicle" before={originalVehicle} after={replacementVehicle} highlight />
+            <DetailRow label="Driver" before={originalDriver} after={replacementDriver} highlight />
+            <DetailRow label="Operator" before={originalOperator} after={replacementOperator} highlight />
+            <DetailRow label="Trip" before={row.trip_assignment_id} after={row.new_assignment_id} highlight={!!row.new_assignment_id} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="rounded-lg border border-gray-200 px-4 py-3">
+            <p className="mb-2 text-sm font-semibold text-gray-800">Breakdown</p>
+            <ReadOnlyRow label="Trip Date" value={row.trip_assignment_detail?.trip_date} />
+            <ReadOnlyRow label="Panchayat" value={row.trip_assignment_detail?.panchayat_name} />
+            <ReadOnlyRow label="Reason" value={BREAKDOWN_REASON_LABELS[row.breakdown_reason] ?? row.breakdown_reason} />
+            <ReadOnlyRow label="Time" value={row.breakdown_time} />
+            <ReadOnlyRow label="Location" value={row.breakdown_location} />
+            <ReadOnlyRow label="Coordinates" value={row.breakdown_lat && row.breakdown_lng ? `${row.breakdown_lat}, ${row.breakdown_lng}` : null} />
+            <ReadOnlyRow label="Weight Before" value={row.collected_weight_before_breakdown_kg ? `${row.collected_weight_before_breakdown_kg} kg` : null} />
+          </div>
+
+          <div className="rounded-lg border border-gray-200 px-4 py-3">
+            <p className="mb-2 text-sm font-semibold text-gray-800">Approval</p>
+            <ReadOnlyRow label="Approved By" value={row.approved_by_detail?.name ?? row.approved_by} />
+            <ReadOnlyRow label="Approved At" value={row.approved_at} />
+            <ReadOnlyRow label="Alternative Template" value={altTemplateLabel} />
+            <ReadOnlyRow label="Alternative Crew" value={altTemplateCrew} />
+            <ReadOnlyRow label="Change Reason" value={altTemplate?.change_reason} />
+            <ReadOnlyRow label="Change Remarks" value={altTemplate?.change_remarks} />
+            <ReadOnlyRow label="Rejected Reason" value={row.rejection_remarks} />
+            <ReadOnlyRow label="Created At" value={row.created_at} />
+            <ReadOnlyRow label="Updated At" value={row.updated_at} />
+          </div>
+        </div>
+
+        {hasPendingStops && (
+          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            Pending work at view time: {row.pending_stops!.collection_points.length} collection point(s),{" "}
+            {row.pending_stops!.households.length} household(s).
+          </div>
+        )}
+
+        {row.breakdown_remarks && (
+          <div className="rounded-lg border border-gray-200 px-4 py-3">
+            <p className="mb-2 text-sm font-semibold text-gray-800">Remarks</p>
+            <p className="whitespace-pre-wrap text-sm text-gray-700">{row.breakdown_remarks}</p>
+          </div>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
 /* ── Verify Dialog ─────────────────────────────────────────────── */
 function VerifyDialog({
   row,
@@ -87,19 +241,33 @@ function VerifyDialog({
 }: {
   row: VehicleBreakdownRecord;
   onClose: () => void;
-  onConfirm: (remarks: string) => void;
+  onConfirm: (remarks: string, collectionPointIds?: string[]) => void;
   isLoading: boolean;
 }) {
   const [remarks, setRemarks] = useState("");
+  const pending = row.pending_stops;
+  const isBinTrip = !!pending && pending.collection_points.length > 0;
+  const isHouseholdTrip = !!pending && pending.households.length > 0;
+  const [selectedCps, setSelectedCps] = useState<string[]>(
+    () => pending?.collection_points.map((cp) => cp.unique_id) ?? [],
+  );
+
+  const toggleCp = (id: string) => {
+    setSelectedCps((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
+  };
+
+  const canConfirm = !isBinTrip || selectedCps.length > 0;
+
   const footer = (
     <div className="flex justify-end gap-2 pt-2">
       <Button label="Cancel" className="p-button-text p-button-secondary" onClick={onClose} disabled={isLoading} />
       <Button
-        label="Approve & Assign"
+        label="Approve & Start Replacement Trip"
         icon="pi pi-check"
         className="p-button-success"
         loading={isLoading}
-        onClick={() => onConfirm(remarks)}
+        disabled={!canConfirm}
+        onClick={() => onConfirm(remarks, isBinTrip ? selectedCps : undefined)}
       />
     </div>
   );
@@ -114,7 +282,7 @@ function VerifyDialog({
         </div>
       }
       footer={footer}
-      style={{ width: "500px" }}
+      style={{ width: "560px" }}
       modal
       draggable={false}
       resizable={false}
@@ -135,10 +303,43 @@ function VerifyDialog({
             </div>
           ))}
         </div>
+
+        {isBinTrip && (
+          <div className="rounded-lg border border-gray-200 p-3">
+            <p className="text-sm font-medium text-gray-700 mb-2">
+              Remaining collection points ({pending!.collection_points.length}) — select which move to the
+              replacement trip
+            </p>
+            <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+              {pending!.collection_points.map((cp) => (
+                <label key={cp.unique_id} className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={selectedCps.includes(cp.unique_id)}
+                    onChange={() => toggleCp(cp.unique_id)}
+                  />
+                  <span>{cp.name ?? cp.collection_point_id ?? cp.unique_id}</span>
+                  <span className="text-xs text-gray-400">({cp.status})</span>
+                </label>
+              ))}
+            </div>
+            {!canConfirm && (
+              <p className="text-xs text-red-500 mt-2">Select at least one collection point to carry over.</p>
+            )}
+          </div>
+        )}
+
+        {isHouseholdTrip && (
+          <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-xs text-blue-800">
+            <strong>{pending!.households.length}</strong> un-collected house(s) will automatically carry
+            over to the replacement trip.
+          </div>
+        )}
+
         <div className="rounded-lg bg-green-50 border border-green-100 p-3 text-xs text-green-800">
-          <strong>On approval:</strong> Trip{" "}
-          <span className="font-mono">{row.trip_assignment_id}</span> will be updated to use the
-          replacement vehicle and new driver/operator. The original trip ID remains unchanged.
+          <strong>On approval:</strong> Trip <span className="font-mono">{row.trip_assignment_id}</span>{" "}
+          will be closed and a new replacement trip will be created with the new vehicle/driver/operator,
+          carrying over the remaining stops. The new trip ID will be shown on the Daily Trip Plan.
         </div>
         <div>
           <p className="text-sm font-medium text-gray-700 mb-1.5">Remarks (optional)</p>
@@ -266,6 +467,7 @@ export default function VehicleBreakdownList() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<VehicleBreakdownRecord | null>(null);
   const [isRejecting, setIsRejecting] = useState(false);
+  const [viewTarget, setViewTarget] = useState<VehicleBreakdownRecord | null>(null);
 
   /* ── Fetch ─────────────────────────────────────────────────────── */
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
@@ -363,23 +565,31 @@ export default function VehicleBreakdownList() {
   };
 
   /* ── Verify ─────────────────────────────────────────────────────── */
-  const handleVerifyConfirm = async (remarks: string) => {
+  const handleVerifyConfirm = async (remarks: string, collectionPointIds?: string[]) => {
     if (!verifyTarget) return;
     setIsVerifying(true);
     try {
-      await api.patch(
+      const { data } = await api.patch(
         `/schedule-operations/vehicle-breakdowns/${verifyTarget.unique_id}/verify/`,
-        { remarks },
+        { remarks, ...(collectionPointIds ? { collection_point_ids: collectionPointIds } : {}) },
       );
       setRawRows((prev) =>
         prev.map((r) =>
           r.unique_id === verifyTarget.unique_id
-            ? { ...r, status: "REPLACEMENT_ARRANGED", approval_status: "APPROVED" }
+            ? { ...r, status: "REPLACEMENT_ARRANGED", approval_status: "APPROVED", new_assignment_id: data?.new_assignment_id ?? null }
             : r,
         ),
       );
       setVerifyTarget(null);
-      Swal.fire({ icon: "success", title: "Approved", text: "Replacement vehicle assigned to the trip.", timer: 2000, showConfirmButton: false });
+      Swal.fire({
+        icon: "success",
+        title: "Approved",
+        text: data?.new_assignment_id
+          ? `Replacement trip ${data.new_assignment_id} created.`
+          : "Replacement vehicle assigned to the trip.",
+        timer: 2500,
+        showConfirmButton: false,
+      });
     } catch (err: any) {
       Swal.fire(t("common.error"), extractError(err), "error");
     } finally {
@@ -470,6 +680,14 @@ export default function VehicleBreakdownList() {
   /* ── Action column ──────────────────────────────────────────────── */
   const actionTemplate = (row: VehicleBreakdownRecord) => (
     <div className="flex items-center justify-center gap-3">
+      <button
+        title="View Changes"
+        onClick={() => setViewTarget(row)}
+        className="text-slate-600 hover:text-slate-900 transition-colors"
+      >
+        <i className="pi pi-eye" />
+      </button>
+
       {/* Edit — only pending records */}
       {row.approval_status === "PENDING" && (
         <button
@@ -678,11 +896,30 @@ export default function VehicleBreakdownList() {
           body={(r: VehicleBreakdownRecord) => <ApprovalBadge value={r.approval_status} />}
         />
         <Column
+          header="New Trip"
+          style={{ minWidth: 130 }}
+          body={(r: VehicleBreakdownRecord) =>
+            r.new_assignment_id ? (
+              <span className="font-mono text-xs text-green-700">{r.new_assignment_id}</span>
+            ) : (
+              <span className="text-xs text-gray-300">—</span>
+            )
+          }
+        />
+        <Column
           header={t("common.actions")}
           body={actionTemplate}
           style={{ minWidth: 220 }}
         />
       </DataTable>
+
+      {/* View Dialog */}
+      {viewTarget && (
+        <ViewDialog
+          row={viewTarget}
+          onClose={() => setViewTarget(null)}
+        />
+      )}
 
       {/* Verify Dialog */}
       {verifyTarget && (

@@ -1028,6 +1028,7 @@ function VehicleStatusRing({
   parked: number;
   offlineGps: number;
   wasteSegments: Array<{
+    id: string;
     label: string;
     value: number;
     color: string;
@@ -1270,13 +1271,12 @@ export function HomeDashboard() {
     setProjectId,
     onCompanyChange,
   } = useCompanyProjectSelection({ isEdit: false, defaultToAll: true });
-  const [wardId, setWardId] = useState("all");
   const [filterDate, setFilterDate] = useState("");
   const [activeMapTab, setActiveMapTab] = useState<MapTabKey>("vehicle");
   const [mapSize, setMapSize] = useState<"mid" | "max">("mid");
   const [asOf, setAsOf] = useState("");
   const [selectedAlert, setSelectedAlert] = useState<CriticalAlert | null>(null);
-  const [showWardGeofences, setShowWardGeofences] = useState(false);
+  const [showWardGeofences, setShowWardGeofences] = useState(true);
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   // Populated by LeafletMapContainer's own live-GPS polling (independent of
   // loadDashboard below) so the Vehicle Status counts reflect the same feed
@@ -1287,20 +1287,11 @@ export function HomeDashboard() {
     const next: Record<string, string> = {};
     if (companyUniqueId) next.company_id = companyUniqueId;
     if (projectId) next.project_id = projectId;
-    if (wardId !== "all") next.ward_id = wardId;
     if (filterDate) next.date = filterDate;
     return next;
-  }, [companyUniqueId, projectId, wardId, filterDate]);
+  }, [companyUniqueId, projectId, filterDate]);
 
   const { wards: wardGeofences, loading: wardsLoading } = useWardGeofences(params);
-
-  // Ward options are scoped by company/project on the backend — reset back
-  // to "All Wards" whenever the company/project selection changes, since a
-  // ward id from the old scope may no longer be valid (or may silently
-  // resolve to a different ward under the new scope).
-  useEffect(() => {
-    setWardId("all");
-  }, [companyUniqueId, projectId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1401,7 +1392,6 @@ export function HomeDashboard() {
   const handleProjectChange = (value: string) => {
     setProjectId(showAllProjectsOption ? fromSelectValue(value) : value);
   };
-  const wardOptions = dashboard.filters.wards.map((ward) => ({ value: ward.id, label: ward.name }));
   const mapCard = (
     <DataCard
       accent="blue"
@@ -1657,18 +1647,6 @@ export function HomeDashboard() {
                     disabled={!projectsLoaded || (!showAllProjectsOption && projects.length === 0)}
                   />
                 </FilterField>
-                <FilterField label="Wards">
-                  <select
-                    value={wardId}
-                    onChange={(e) => setWardId(e.target.value)}
-                    className={`${dateClass} disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 disabled:opacity-70 dark:disabled:bg-[#101d2c] dark:disabled:text-slate-500`}
-                  >
-                    <option value="all">All Wards</option>
-                    {wardOptions.map((w) => (
-                      <option key={w.value} value={w.value}>{w.label}</option>
-                    ))}
-                  </select>
-                </FilterField>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
@@ -1676,7 +1654,6 @@ export function HomeDashboard() {
                 type="button"
                 onClick={() => {
                   if (isSuperAdmin) onCompanyChange("");
-                  setWardId("all");
                   setFilterDate("");
                 }}
                 className="rounded-md border border-slate-200 px-2 py-1 text-sky-600 transition hover:bg-slate-50 dark:border-[#2a405f] dark:text-sky-300 dark:hover:bg-[#132235]"
