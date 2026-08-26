@@ -55,6 +55,7 @@ export const adminEndpoints = {
      template/plan setup resources)
   ========================= */
   collectionPoints: "schedule-setup/collection-points",
+  dumpYards: "schedule-setup/dump-yards",
   staffTemplateCreation: "schedule-setup/staff-templates",
   alternativeStaffTemplate: "schedule-setup/alternative-staff-templates",
   tripPlans: "schedule-setup/trip-plans",
@@ -66,6 +67,7 @@ export const adminEndpoints = {
   dailyTripAssignment: "schedule-operations/daily-trip-assignments",
   dailyTripLog: "schedule-operations/daily-trip-logs",
   dailyTripCollectionPoint: "schedule-operations/daily-trip-collection-points",
+  routeDetourWaypoints: "schedule-operations/route-detour-waypoints",
   dailyTripHouseholdCollection: "schedule-operations/daily-trip-household-collections",
   binCollectionEvent: "schedule-operations/bin-collection-events",
   vehicleBreakdown: "schedule-operations/vehicle-breakdowns",

@@ -36,6 +36,7 @@ const {
   encCities,
   encWards,
   encCollectionPoints,
+  encDumpYards,
   encWasteTypes,
   encZones,
   encProperties,
@@ -93,6 +94,7 @@ const {
   encDailyTripLog,
   encDailyTripHouseholdCollection,
   encDailyTripTracking,
+  encStaticRouteMap,
   encBinCollectionEvent,
   encLoginAudits,
   encDailyWasteComparison,
@@ -598,6 +600,12 @@ const scheduleSetupItems: NavItem[] = [
         screen: "collection-points",
       },
       {
+        nameKey: "admin.nav.dump_yard",
+        path: `/${encScheduleSetup}/${encDumpYards}`,
+        module: "schedule-setup",
+        screen: "dump-yards",
+      },
+      {
         nameKey: "admin.nav.trip_plans",
         path: `/${encScheduleSetup}/${encTripPlans}`,
         module: "schedule-setup",
@@ -626,6 +634,12 @@ const scheduleOperationsItems: NavItem[] = [
         path: `/${encScheduleOperations}/${encDailyTripTracking}`,
         module: "schedule-operations",
         screen: "daily-trip-collection-points",
+      },
+      {
+        nameKey: "admin.nav.static_route_map",
+        path: `/${encScheduleOperations}/${encStaticRouteMap}`,
+        module: "schedule-operations",
+        screen: "static-route-map",
       },
       // {
       //   nameKey: "admin.nav.daily_trip_household_collection",

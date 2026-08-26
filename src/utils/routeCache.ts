@@ -74,6 +74,7 @@ export type EncryptedRoutes = {
   encWasteManagementMaster: string;
   encWards: string;
   encCollectionPoints: string;
+  encDumpYards: string;
   encWasteTypes: string;
   encDateReport: string;
   encDayReport: string;
@@ -91,6 +92,7 @@ export type EncryptedRoutes = {
   encDailyTripCollectionPoint: string;
   encDailyTripHouseholdCollection: string;
   encDailyTripTracking: string;
+  encStaticRouteMap: string;
   encDailyTripLog: string;
   encBinCollectionEvent: string;
   encDailyWasteComparison: string;
@@ -205,6 +207,7 @@ const plainRoutes: EncryptedRoutes = {
   encWasteManagementMaster: "waste-management",
   encWards: "wards",
   encCollectionPoints: "collection-points",
+  encDumpYards: "dump-yards",
   encWasteTypes: "waste-types",
   encDateReport: "date-report",
   encDayReport: "day-report",
@@ -224,6 +227,7 @@ const plainRoutes: EncryptedRoutes = {
   encDailyTripCollectionPoint: "daily-trip-collection-point",
   encDailyTripHouseholdCollection: "daily-trip-household-collection",
   encDailyTripTracking: "daily-trip-tracking",
+  encStaticRouteMap: "static-route-map",
   encDailyTripLog: "daily-trip-log",
   encBinCollectionEvent: "bin-collection-event",
   encDailyWasteComparison: "daily-waste-comparisons",
