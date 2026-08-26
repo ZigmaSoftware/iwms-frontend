@@ -25,6 +25,8 @@ import DesignationList from "@/pages/admin/modules/masters/designation/Designati
 import DesignationForm from "@/pages/admin/modules/masters/designation/DesignationForm";
 import CollectionPointListPage from "@/pages/admin/modules/core_modules/scheduleSetup/collectionPoint/CollectionPointListPage";
 import CollectionPointForm from "@/pages/admin/modules/core_modules/scheduleSetup/collectionPoint/CollectionPointForm";
+import DumpYardListPage from "@/pages/admin/modules/core_modules/scheduleSetup/dumpYard/DumpYardListPage";
+import DumpYardForm from "@/pages/admin/modules/core_modules/scheduleSetup/dumpYard/DumpYardForm";
 import WasteTypeListPage from "@/pages/admin/modules/masters/wasteMasters/wasteType/WasteTypeListPage";
 import WasteTypeForm from "@/pages/admin/modules/masters/wasteMasters/wasteType/WasteTypeForm";
 import BinListPage from "@/pages/admin/modules/masters/wasteMasters/bin/BinListPage";
@@ -96,6 +98,7 @@ import DailyTripCollectionPointList from "@/pages/admin/modules/core_modules/dai
 import DailyTripCollectionPointForm from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripCollectionPoint/dailyTripCollectionPointForm";
 import DailyTripHouseholdCollectionList from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripHouseholdCollection/dailyTripHouseholdCollectionList";
 import DailyTripTracking from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripTracking/DailyTripTracking";
+import StaticRouteMap from "@/pages/admin/modules/core_modules/dailyOperations/staticRouteMap/StaticRouteMap";
 import SchedulerConfigPage from "@/pages/admin/modules/core_modules/dailyOperations/schedulerConfig/SchedulerConfigPage";
 import DailyTripLogList from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripLog/dailyTripLogList";
 
@@ -230,6 +233,7 @@ const ROUTES: RouteMap = {
     "staff-template": {list: StaffTemplateList, form: StaffTemplateForm},
     "alternative-staff-template": {list: AlternativeStaffTemplateList, form: AlternativeStaffTemplateForm},
     "collection-points": { list: CollectionPointListPage, form: CollectionPointForm },
+    "dump-yards": { list: DumpYardListPage, form: DumpYardForm },
     "trip-plans": { list: TripPlanList, form: TripPlanForm },
   },
   // Split from the legacy "schedule-masters" bucket — day-to-day execution resources.
@@ -238,6 +242,7 @@ const ROUTES: RouteMap = {
     "daily-trip-collection-point": { list: DailyTripCollectionPointList, form: DailyTripCollectionPointForm },
     "daily-trip-household-collection": { list: DailyTripHouseholdCollectionList },
     "daily-trip-tracking": { component: DailyTripTracking },
+    "static-route-map": { component: StaticRouteMap },
     "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
     "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
     "daily-trip-log": { list: DailyTripLogList },
