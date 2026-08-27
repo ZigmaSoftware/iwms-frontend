@@ -36,6 +36,7 @@ export const adminEndpoints = {
   districtLeaders: "masters/district-leaders",
   hierarchies: "masters/hierarchy",
   blockPanchayatUnions: "masters/block-panchayat-unions",
+  plants: "masters/plants",
 
   /* =========================
      WASTE TYPES
@@ -55,7 +56,6 @@ export const adminEndpoints = {
      template/plan setup resources)
   ========================= */
   collectionPoints: "schedule-setup/collection-points",
-  dumpYards: "schedule-setup/dump-yards",
   staffTemplateCreation: "schedule-setup/staff-templates",
   alternativeStaffTemplate: "schedule-setup/alternative-staff-templates",
   tripPlans: "schedule-setup/trip-plans",

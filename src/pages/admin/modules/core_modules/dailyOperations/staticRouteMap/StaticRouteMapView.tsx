@@ -6,13 +6,13 @@ import type { DetourWaypoint, RouteStop, StaticRoute } from "./types";
 const STOP_COLOR: Record<RouteStop["type"], string> = {
   start: "#16a34a",
   collection_point: "#2563eb",
-  dump_yard: "#dc2626",
+  plant: "#dc2626",
 };
 
 const STOP_ICON: Record<RouteStop["type"], string> = {
   start: "🚛",
   collection_point: "",
-  dump_yard: "🗑️",
+  plant: "🗑️",
 };
 
 // One color per route when several routes render together ("all routes"

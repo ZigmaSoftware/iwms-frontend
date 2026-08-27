@@ -1,4 +1,4 @@
-import type { DumpYardRecord } from "./types";
+import type { PlantRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -13,27 +13,27 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { dumpYardApi } from "@/helpers/admin";
+import { plantApi } from "@/helpers/admin";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 const toDisplay = (value: unknown): string =>
   value === null || value === undefined || String(value).trim() === "" ? "-" : String(value);
 
-const toRecordList = (value: unknown): DumpYardRecord[] => {
-  if (Array.isArray(value)) return value as DumpYardRecord[];
+const toRecordList = (value: unknown): PlantRecord[] => {
+  if (Array.isArray(value)) return value as PlantRecord[];
   if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
-    return (value as { results: DumpYardRecord[] }).results;
+    return (value as { results: PlantRecord[] }).results;
   }
   return [];
 };
 
 const SORTABLE_FIELDS = new Set(["name", "is_active"]);
 
-export default function DumpYardListPage() {
+export default function PlantListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
-  const [records, setRecords] = useState<DumpYardRecord[]>([]);
+  const [records, setRecords] = useState<PlantRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -63,10 +63,10 @@ export default function DumpYardListPage() {
     initialProjectId: restoredState?.projectId,
   });
 
-  const { encScheduleSetup, encDumpYards } = getEncryptedRoute();
+  const { encMasters, encPlants } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encScheduleSetup,
-    encDumpYards,
+    encMasters,
+    encPlants,
   );
 
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
@@ -78,7 +78,7 @@ export default function DumpYardListPage() {
     setIsLoading(true);
     setRecords([]);
     try {
-      const response = await dumpYardApi.readAllwithPaginated(page, limit, {
+      const response = await plantApi.readAllwithPaginated(page, limit, {
         params: {
           company_id: companyUniqueId,
           project_id: projectId || undefined,
@@ -93,7 +93,7 @@ export default function DumpYardListPage() {
       );
     } catch (error) {
       if (requestId !== requestIdRef.current) return;
-      console.error("Failed to fetch dump yards", error);
+      console.error("Failed to fetch plants", error);
     } finally {
       if (requestId === requestIdRef.current) setIsLoading(false);
     }
@@ -108,8 +108,8 @@ export default function DumpYardListPage() {
   }, [companyUniqueId, projectId, isSuperAdmin, companies.length, first, rowsPerPage, searchTerm, ordering]);
 
   const rows = (() => {
-    if (isSuperAdmin && companies.length === 0) return [] as DumpYardRecord[];
-    if (!companyUniqueId && !isSuperAdmin) return [] as DumpYardRecord[];
+    if (isSuperAdmin && companies.length === 0) return [] as PlantRecord[];
+    if (!companyUniqueId && !isSuperAdmin) return [] as PlantRecord[];
 
     if (statusValue === "all") return records;
 
@@ -136,9 +136,9 @@ export default function DumpYardListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const indexTemplate = (_: DumpYardRecord, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
+  const indexTemplate = (_: PlantRecord, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
-  const actionTemplate = (row: DumpYardRecord) => (
+  const actionTemplate = (row: PlantRecord) => (
     <div className="flex gap-3 justify-center">
       <button
         onClick={() =>
@@ -154,17 +154,17 @@ export default function DumpYardListPage() {
     </div>
   );
 
-  const statusTemplate = (row: DumpYardRecord) => {
+  const statusTemplate = (row: PlantRecord) => {
     const updateStatus = async (value: boolean) => {
       try {
         setPendingStatusId(String(row.unique_id));
         setIsUpdating(true);
-        await dumpYardApi.update(row.unique_id, { is_active: value });
+        await plantApi.update(row.unique_id, { is_active: value });
         setRecords((current) =>
           current.map((item) => (item.unique_id === row.unique_id ? { ...item, is_active: value } : item)),
         );
       } catch (error) {
-        console.error("Failed to update dump yard status", error);
+        console.error("Failed to update plant status", error);
       } finally {
         setPendingStatusId(null);
         setIsUpdating(false);
@@ -184,12 +184,12 @@ export default function DumpYardListPage() {
     <div className="p-3">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">Dump Yard</h1>
-          <p className="text-sm text-gray-500">Manage dump yard records</p>
+          <h1 className="text-3xl font-bold text-gray-800 mb-1">Plant</h1>
+          <p className="text-sm text-gray-500">Manage plant records</p>
         </div>
         <div className="flex items-center gap-3">
           <Button
-            label="Add Dump Yard"
+            label="Add Plant"
             icon="pi pi-plus"
             className="p-button-success"
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
@@ -200,7 +200,7 @@ export default function DumpYardListPage() {
       <FilterBar
         searchValue={globalFilterValue}
         onSearchChange={setGlobalFilterValue}
-        searchPlaceholder="Search dump yards…"
+        searchPlaceholder="Search plants…"
         statusValue={statusValue}
         onStatusChange={setStatusValue}
         className="mb-4"
@@ -238,22 +238,22 @@ export default function DumpYardListPage() {
         stripedRows
         showGridlines
         className="p-datatable-sm"
-        emptyMessage="No dump yards found"
+        emptyMessage="No plants found"
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
         <Column
           field="name"
-          header="Dump Yard Name"
+          header="Plant Name"
           sortable={SORTABLE_FIELDS.has("name")}
-          body={(row: DumpYardRecord) => toDisplay(row.name)}
+          body={(row: PlantRecord) => toDisplay(row.name)}
         />
         <Column
           field="project_name"
           header={t("admin.nav.project")}
-          body={(row: DumpYardRecord) => toDisplay(row.project_name)}
+          body={(row: PlantRecord) => toDisplay(row.project_name)}
         />
-        <Column field="latitude" header="Latitude" body={(row: DumpYardRecord) => toDisplay(row.latitude)} />
-        <Column field="longitude" header="Longitude" body={(row: DumpYardRecord) => toDisplay(row.longitude)} />
+        <Column field="latitude" header="Latitude" body={(row: PlantRecord) => toDisplay(row.latitude)} />
+        <Column field="longitude" header="Longitude" body={(row: PlantRecord) => toDisplay(row.longitude)} />
         <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: "150px", textAlign: "center" }} />
       </DataTable>

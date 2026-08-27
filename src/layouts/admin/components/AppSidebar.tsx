@@ -36,7 +36,7 @@ const {
   encCities,
   encWards,
   encCollectionPoints,
-  encDumpYards,
+  encPlants,
   encWasteTypes,
   encZones,
   encProperties,
@@ -322,6 +322,12 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "panchayats",
       },
+      {
+        nameKey: "admin.nav.plant",
+        path: `/${encMasters}/${encPlants}`,
+        module: "masters",
+        screen: "plants",
+      },
     ],
   },
 ];
@@ -598,12 +604,6 @@ const scheduleSetupItems: NavItem[] = [
         path: `/${encScheduleSetup}/${encCollectionPoints}`,
         module: "schedule-setup",
         screen: "collection-points",
-      },
-      {
-        nameKey: "admin.nav.dump_yard",
-        path: `/${encScheduleSetup}/${encDumpYards}`,
-        module: "schedule-setup",
-        screen: "dump-yards",
       },
       {
         nameKey: "admin.nav.trip_plans",

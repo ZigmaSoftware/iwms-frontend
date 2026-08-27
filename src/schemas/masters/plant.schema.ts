@@ -28,10 +28,10 @@ const requiredLongitude = z
     return result.data;
   });
 
-export const dumpYardSchema = z.object({
-  name: requiredString("Dump Yard Name"),
+export const plantSchema = z.object({
+  name: requiredString("Plant Name"),
   latitude: requiredLatitude,
   longitude: requiredLongitude,
 });
 
-export type DumpYardFormValues = z.infer<typeof dumpYardSchema>;
+export type PlantFormValues = z.infer<typeof plantSchema>;

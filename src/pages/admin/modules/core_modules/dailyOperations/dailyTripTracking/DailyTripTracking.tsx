@@ -7,7 +7,9 @@ import {
   alternativeStaffTemplateApi,
   dailyTripAssignmentApi,
   dailyTripCollectionPointApi,
+  plantApi,
   projectApi,
+  routeDetourWaypointApi,
   staffTemplateApi,
 } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
@@ -66,15 +68,6 @@ function fmtTime(iso?: string | null) {
   if (!iso) return null;
   const d = new Date(iso);
   return isNaN(d.getTime()) ? iso : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-function formatTravelTime(seconds?: number) {
-  if (!seconds || seconds <= 0) return "Arriving";
-  const minutes = Math.max(1, Math.round(seconds / 60));
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return remainingMinutes ? `${hours} hr ${remainingMinutes} min` : `${hours} hr`;
 }
 
 function locationLabel(cp?: Row["collection_point"]) {
@@ -283,6 +276,13 @@ export default function DailyTripTracking() {
   const [liveGpsReady, setLiveGpsReady] = useState(false);
   const [optimizationCycle, setOptimizationCycle] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [detourWaypoints, setDetourWaypoints] = useState<
+    Array<{ id: string; afterStopId: string; sequence: number; latitude: number; longitude: number }>
+  >([]);
+  const [plant, setPlant] = useState<{ id: string; name: string; latitude: number; longitude: number } | null>(
+    null,
+  );
+  const [routePanelDismissed, setRoutePanelDismissed] = useState(false);
   const mapElement = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRefs = useRef<Record<string, L.Marker>>({});
@@ -339,6 +339,68 @@ export default function DailyTripTracking() {
       active = false;
     };
   }, [projectId]);
+
+  // Same source of truth as the Static Route Map: manual detour points the
+  // route must pass through, and the project's plant as the trip's
+  // final stop.
+  useEffect(() => {
+    if (!assignmentId) {
+      setDetourWaypoints([]);
+      return;
+    }
+    let active = true;
+    routeDetourWaypointApi
+      .readAll({ params: { trip_assignment_id: assignmentId } })
+      .then((result) => {
+        if (!active) return;
+        setDetourWaypoints(
+          (normalizeList(result) as Record<string, unknown>[]).map((item) => ({
+            id: String(item.unique_id ?? ""),
+            afterStopId: String(item.after_stop_id ?? ""),
+            sequence: Number(item.sequence ?? 0),
+            latitude: Number(item.latitude),
+            longitude: Number(item.longitude),
+          })),
+        );
+      })
+      .catch(() => {
+        if (active) setDetourWaypoints([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [assignmentId]);
+
+  useEffect(() => {
+    if (!companyUniqueId || !projectId) {
+      setPlant(null);
+      return;
+    }
+    let active = true;
+    plantApi
+      .readAll({ params: { company_id: companyUniqueId, project_id: projectId, is_active: true } })
+      .then((result) => {
+        if (!active) return;
+        const yards = normalizeList(result) as Record<string, unknown>[];
+        const yard = yards[0];
+        setPlant(
+          yard
+            ? {
+                id: String(yard.unique_id ?? ""),
+                name: String(yard.name ?? "Plant"),
+                latitude: Number(yard.latitude),
+                longitude: Number(yard.longitude),
+              }
+            : null,
+        );
+      })
+      .catch(() => {
+        if (active) setPlant(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [companyUniqueId, projectId]);
 
   // ── Load tracking data ─────────────────────────────────────────────────────
   const load = useCallback(async (silent = false) => {
@@ -462,6 +524,7 @@ export default function DailyTripTracking() {
     setRoutePlan(null);
     setLiveVehicleLocation(null);
     setLiveGpsReady(false);
+    setRoutePanelDismissed(false);
     lastOptimizedVehicleStartRef.current = "";
   }, []);
 
@@ -551,22 +614,21 @@ export default function DailyTripTracking() {
         .addTo(map);
       markerRefs.current[row.unique_id] = marker;
     });
-    if (routePlan?.route_legs?.length) {
-      routePlan.route_legs.forEach((leg, index) => {
-        const destination = points.find((point) => point.unique_id === leg.destination_id);
-        const routeColor = destination?.status === "Collected" ? "#22c55e" : "#2563eb";
-        L.geoJSON(leg.geometry, {
-          style: { color: "#ffffff", weight: 10, opacity: 0.95 },
-        }).addTo(map);
-        L.geoJSON(leg.geometry, {
-          style: { color: routeColor, weight: 6, opacity: 0.95 },
-        })
-          .bindTooltip(
-            `${index === 0 ? "Vehicle" : `Stop ${index}`} → ${destination?.collection_point?.cp_name ?? "collection point"} · ${(leg.distance / 1000).toFixed(2)} km · ${Math.round(leg.duration / 60)} min`,
-          )
-          .addTo(map);
-      });
-    } else if (routeGeoJson) {
+    if (assignmentId && plant) {
+      const plantLatLng = L.latLng(plant.latitude, plant.longitude);
+      latLngs.push(plantLatLng);
+      L.marker(plantLatLng, {
+        icon: L.divIcon({
+          className: "",
+          html: '<div style="width:28px;height:28px;border-radius:9999px;background:#dc2626;border:3px solid white;box-shadow:0 2px 7px #0005;color:white;font-size:14px;display:flex;align-items:center;justify-content:center">🗑️</div>',
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        }),
+      })
+        .bindTooltip(plant.name, { direction: "top", offset: [0, -12] })
+        .addTo(map);
+    }
+    if (routeGeoJson) {
       L.geoJSON(routeGeoJson, {
         style: { color: "#ffffff", weight: 10, opacity: 0.95 },
       }).addTo(map);
@@ -606,71 +668,123 @@ export default function DailyTripTracking() {
       map.remove();
       mapRef.current = null;
     };
-  }, [assignmentId, data, liveVehicleLocation, overview, routeGeoJson, routePlan, selectTrip]);
+  }, [assignmentId, data, liveVehicleLocation, overview, routeGeoJson, routePlan, selectTrip, plant]);
 
-  // ── Route Optimization ─────────────────────────────────────────────────────
-  const optimize = useCallback(async (vehicleStartSignature: string) => {
+  // ── Fixed-order route geometry ─────────────────────────────────────────────
+  // Draws the road path through the trip's real, planned stop order — same
+  // source of truth as the Static Route Map — instead of asking ORS to
+  // reorder stops for efficiency. Never touches route_results' sequence.
+  const buildRoute = useCallback(async (vehicleStartSignature: string) => {
     if (!assignmentId || optimizingRef.current) return;
+    const rawPoints = (data?.route_results ?? data?.results ?? [])
+      .filter((row) => row.collection_point?.latitude && row.collection_point?.longitude)
+      .sort((a, b) => a.sequence - b.sequence);
+    if (rawPoints.length < 1) return;
+
+    // A collection point commonly has several bins (one per waste stream),
+    // each its own row at the exact same coordinate — collapse those into
+    // one stop per physical location so ORS routes between real places
+    // instead of zigzagging between duplicate/near-duplicate points.
+    // Mirrors the Static Route Map's per-collection-point grouping.
+    const seenCoordinates = new Set<string>();
+    const points = rawPoints.filter((row) => {
+      const key = `${Number(row.collection_point!.latitude).toFixed(6)},${Number(row.collection_point!.longitude).toFixed(6)}`;
+      if (seenCoordinates.has(key)) return false;
+      seenCoordinates.add(key);
+      return true;
+    });
+
+    // Live GPS wins when we have it (the vehicle's actual position); with
+    // no GPS the vehicle is assumed to still be at the plant — its
+    // real start and end point for the day — falling back to the first
+    // collection point only when the project has no plant set up.
+    const vehicleStart = liveVehicleLocation ?? data?.vehicle_tracking?.current_location;
+    const startStop = vehicleStart
+      ? { id: "vehicle-start", latitude: Number(vehicleStart.latitude), longitude: Number(vehicleStart.longitude) }
+      : plant
+        ? { id: plant.id, latitude: plant.latitude, longitude: plant.longitude }
+        : {
+            id: points[0].unique_id,
+            latitude: Number(points[0].collection_point!.latitude),
+            longitude: Number(points[0].collection_point!.longitude),
+          };
+    const waypointsByStop = new Map<string, typeof detourWaypoints>();
+    for (const waypoint of detourWaypoints) {
+      const list = waypointsByStop.get(waypoint.afterStopId) ?? [];
+      list.push(waypoint);
+      waypointsByStop.set(waypoint.afterStopId, list);
+    }
+
+    const stops = [
+      startStop,
+      ...points.flatMap((row) => {
+        const stop = {
+          id: row.unique_id,
+          latitude: Number(row.collection_point!.latitude),
+          longitude: Number(row.collection_point!.longitude),
+        };
+        const detours = (waypointsByStop.get(row.unique_id) ?? [])
+          .slice()
+          .sort((a, b) => a.sequence - b.sequence)
+          .map((detour) => ({ id: detour.id, latitude: detour.latitude, longitude: detour.longitude }));
+        return [stop, ...detours];
+      }),
+      ...(plant ? [{ id: plant.id, latitude: plant.latitude, longitude: plant.longitude }] : []),
+    ];
+    if (stops.length < 2) return;
+
     optimizingRef.current = true;
     try {
-      const result = await dailyTripCollectionPointApi.action<OptimizationResult>(
-        "optimize-route",
-        {
-          trip_assignment_id: assignmentId,
-          ...(liveVehicleLocation
-            ? {
-                vehicle_start: [
-                  Number(liveVehicleLocation.longitude),
-                  Number(liveVehicleLocation.latitude),
-                ],
-              }
-            : {}),
-        },
-      );
+      const result = await dailyTripCollectionPointApi.action<{
+        distance_meters: number;
+        duration_seconds: number;
+        route_geojson: GeoJSON.GeoJsonObject | null;
+      }>("route-static", { stops });
       setRouteGeoJson(result.route_geojson ?? null);
-      setRoutePlan(result);
-      if (result.optimized_order?.length) {
-        const order = new Map(result.optimized_order.map((id, index) => [id, index]));
-        setData((current) =>
-          current
-            ? {
-                ...current,
-                route_results: [...(current.route_results ?? current.results)].sort(
-                  (left, right) =>
-                    (order.get(left.unique_id) ?? Number.MAX_SAFE_INTEGER) -
-                    (order.get(right.unique_id) ?? Number.MAX_SAFE_INTEGER),
-                ),
-              }
-            : current,
-        );
-      }
+      setRoutePlan({
+        distance_meters: result.distance_meters,
+        duration_seconds: result.duration_seconds,
+        route_geojson: result.route_geojson ?? undefined,
+        vehicle_no: data?.vehicle_tracking?.vehicle_no,
+        vehicle_start: [startStop.longitude, startStop.latitude],
+        optimized_stop_count: points.filter((row) => row.status !== "Collected").length,
+        completed_stop_count: points.filter((row) => row.status === "Collected").length,
+        vehicle_start_source: vehicleStart
+          ? liveVehicleLocation
+            ? "request"
+            : "latest_gps"
+          : plant
+            ? "plant"
+            : "first_collection_point",
+      });
       lastOptimizedVehicleStartRef.current = vehicleStartSignature;
-    } catch (error: unknown) {
+    } catch {
       lastOptimizedVehicleStartRef.current = vehicleStartSignature;
-      const detail =
-        typeof error === "object" && error && "response" in error
-          ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
-          : undefined;
-      void Swal.fire("Optimization failed", detail ?? "OpenRouteService request failed.", "error");
     } finally {
       optimizingRef.current = false;
       setOptimizationCycle((cycle) => cycle + 1);
     }
-  }, [assignmentId, liveVehicleLocation]);
+  }, [assignmentId, data, liveVehicleLocation, detourWaypoints, plant]);
 
   const vehicleStartSignature = useMemo(() => {
     if (!assignmentId) return "";
     const current = liveVehicleLocation ?? data?.vehicle_tracking?.current_location;
-    if (!current) return `${assignmentId}:default`;
+    const vehicleKey = !current
+      ? "default"
+      : (() => {
+          const latitude = Number(current.latitude);
+          const longitude = Number(current.longitude);
+          return Number.isFinite(latitude) && Number.isFinite(longitude)
+            ? `${latitude.toFixed(6)}:${longitude.toFixed(6)}`
+            : "default";
+        })();
+    const detourKey = detourWaypoints
+      .map((w) => `${w.afterStopId}:${w.sequence}:${w.latitude.toFixed(6)}:${w.longitude.toFixed(6)}`)
+      .join(",");
+    const plantKey = plant ? `${plant.id}` : "none";
 
-    const latitude = Number(current.latitude);
-    const longitude = Number(current.longitude);
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return `${assignmentId}:default`;
-    }
-
-    return `${assignmentId}:${latitude.toFixed(6)}:${longitude.toFixed(6)}`;
-  }, [assignmentId, data?.vehicle_tracking?.current_location, liveVehicleLocation]);
+    return `${assignmentId}:${vehicleKey}:${detourKey}:${plantKey}`;
+  }, [assignmentId, data?.vehicle_tracking?.current_location, liveVehicleLocation, detourWaypoints, plant]);
 
   useEffect(() => {
     if (
@@ -683,7 +797,7 @@ export default function DailyTripTracking() {
       return;
     }
 
-    void optimize(vehicleStartSignature);
+    void buildRoute(vehicleStartSignature);
   }, [
     assignedVehicleNo,
     assignmentId,
@@ -691,7 +805,7 @@ export default function DailyTripTracking() {
     gpsApiUrl,
     liveGpsReady,
     optimizationCycle,
-    optimize,
+    buildRoute,
     vehicleStartSignature,
   ]);
 
@@ -715,21 +829,7 @@ export default function DailyTripTracking() {
   }, [currentIndex, routeRows]);
   const currentRowId = currentIndex >= 0 ? routeRows[currentIndex]?.unique_id : undefined;
   const nextRowId = nextIndex >= 0 ? routeRows[nextIndex]?.unique_id : undefined;
-  const nextRouteLeg = routePlan?.route_legs?.[0];
-  const nextRouteDestination = routeRows.find(
-    (row) => row.unique_id === nextRouteLeg?.destination_id,
-  );
-  const nextStopName =
-    nextRouteDestination?.collection_point?.cp_name ??
-    vehicle?.next_collection_point?.cp_name ??
-    "Next collection point";
-  const nextStopArrivalTime = useMemo(() => {
-    if (!nextRouteLeg?.duration) return null;
-    return new Date(Date.now() + nextRouteLeg.duration * 1000).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }, [nextRouteLeg?.duration]);
+  const nextStopName = vehicle?.next_collection_point?.cp_name ?? "Next collection point";
 
   const focusCollectionPoint = useCallback((row: Row) => {
     const latitude = Number(row.collection_point?.latitude);
@@ -990,14 +1090,22 @@ export default function DailyTripTracking() {
               </div>
             ))}
           </div>
-          {routePlan && (
+          {routePlan && !routePanelDismissed && (
             <div className="absolute right-4 top-4 z-[400] w-64 rounded-xl border bg-white/95 p-3 text-xs shadow-lg backdrop-blur-sm">
-              <p className="font-bold text-gray-800">ORS Vehicle Route</p>
+              <button
+                type="button"
+                onClick={() => setRoutePanelDismissed(true)}
+                aria-label="Close"
+                className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              >
+                ✕
+              </button>
+              <p className="pr-4 font-bold text-gray-800">Vehicle Route</p>
               <p className="mt-1 text-gray-500">{routePlan.vehicle_no ?? vehicle?.vehicle_no ?? "Assigned vehicle"}</p>
               <p className="text-[10px] text-gray-400">
-                Start: {routePlan.vehicle_start_source === "latest_gps" ? "latest collection GPS" : routePlan.vehicle_start_source === "request" ? "live vehicle GPS" : "first collection point fallback"}
+                Start: {routePlan.vehicle_start_source === "latest_gps" ? "latest collection GPS" : routePlan.vehicle_start_source === "request" ? "live vehicle GPS" : routePlan.vehicle_start_source === "plant" ? "plant" : "first collection point fallback"}
               </p>
-              {nextRouteLeg && (
+              {nextStopName !== "Next collection point" && (
                 <div className="mt-2 rounded-lg border border-blue-100 bg-blue-50 p-2.5">
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-500">
                     Next Collection Point
@@ -1005,15 +1113,6 @@ export default function DailyTripTracking() {
                   <p className="mt-0.5 truncate text-sm font-bold text-blue-800" title={nextStopName}>
                     {nextStopName}
                   </p>
-                  <div className="mt-1.5 flex items-center justify-between text-blue-700">
-                    <span>{(nextRouteLeg.distance / 1000).toFixed(2)} km away</span>
-                    <span className="font-bold">{formatTravelTime(nextRouteLeg.duration)}</span>
-                  </div>
-                  {nextStopArrivalTime && (
-                    <p className="mt-1 text-[10px] text-blue-500">
-                      Estimated arrival: {nextStopArrivalTime}
-                    </p>
-                  )}
                 </div>
               )}
               <div className="mt-2 grid grid-cols-2 gap-2">
