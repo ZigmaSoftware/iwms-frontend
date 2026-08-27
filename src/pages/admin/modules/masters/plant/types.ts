@@ -1,4 +1,4 @@
-export type DumpYardRecord = {
+export type PlantRecord = {
   unique_id: string;
   company_id?: string;
   company_name?: string;

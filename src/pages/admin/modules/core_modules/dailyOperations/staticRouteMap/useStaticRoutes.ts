@@ -111,7 +111,7 @@ export interface StaticRouteFilters {
   tripAssignmentId?: string;
 }
 
-// Fetches real trip routes (fixed stop order + project dump yard already
+// Fetches real trip routes (fixed stop order + project plant already
 // appended server-side) and their road-following geometry. Passing
 // tripAssignmentId returns that one trip (with its saved manual detour
 // waypoints spliced into the routed geometry); omitting it returns every

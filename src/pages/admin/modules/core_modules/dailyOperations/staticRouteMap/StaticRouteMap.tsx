@@ -40,7 +40,7 @@ function nearestLegStartStop(stops: RouteStop[], latitude: number, longitude: nu
 const LEGEND: Array<{ label: string; color: string }> = [
   { label: "Start", color: "#16a34a" },
   { label: "Collection Point", color: "#2563eb" },
-  { label: "Dump Yard", color: "#dc2626" },
+  { label: "Plant", color: "#dc2626" },
 ];
 
 export default function StaticRouteMap() {

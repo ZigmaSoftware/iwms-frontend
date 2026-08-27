@@ -1,4 +1,4 @@
-export type StopType = "start" | "collection_point" | "dump_yard";
+export type StopType = "start" | "collection_point" | "plant";
 
 export interface RouteStop {
   id: string;
