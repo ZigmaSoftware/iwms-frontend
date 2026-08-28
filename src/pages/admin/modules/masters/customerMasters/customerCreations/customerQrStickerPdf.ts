@@ -194,9 +194,36 @@ const fitWrappedLines = (
 ): { size: number; lines: string[] } => {
   const wrapAt = (size: number): string[] => {
     context.font = `${weight} ${size}px Arial, sans-serif`;
+    const words = value.split(/\s+/).filter(Boolean);
+    const widthOf = (parts: string[]): number =>
+      context.measureText(parts.join(" ")).width;
+
+    // Balanced split: when the whole label needs two lines, break at the word
+    // that keeps both halves closest in width instead of greedily filling the
+    // first line. "Blue Planet Integrated Waste Management" then reads as
+    // "Blue Planet Integrated" / "Waste Management" rather than orphaning
+    // "Management" on its own line.
+    if (words.length > 1 && widthOf(words) > maxWidth) {
+      let bestAt = -1;
+      let bestDelta = Infinity;
+      for (let split = 1; split < words.length; split += 1) {
+        const first = widthOf(words.slice(0, split));
+        const second = widthOf(words.slice(split));
+        if (first > maxWidth || second > maxWidth) continue;
+        const delta = Math.abs(first - second);
+        if (delta < bestDelta) {
+          bestDelta = delta;
+          bestAt = split;
+        }
+      }
+      if (bestAt > 0) {
+        return [words.slice(0, bestAt).join(" "), words.slice(bestAt).join(" ")];
+      }
+    }
+
     const lines: string[] = [];
     let current = "";
-    for (const word of value.split(/\s+/).filter(Boolean)) {
+    for (const word of words) {
       const candidate = current ? `${current} ${word}` : word;
       if (context.measureText(candidate).width <= maxWidth) current = candidate;
       else {
