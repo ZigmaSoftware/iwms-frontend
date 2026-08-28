@@ -87,9 +87,6 @@ district/
 | `header/`, `map/`, `modules/` | Header pieces, Leaflet maps, module switching |
 | `ProtectedRoute.tsx`, `PermissionProtectedRoute.tsx`, `PermissionSidebar.tsx` | Access control — see [04](04-routing-and-permissions.md) |
 
-`components.json` is the shadcn config that controls where new primitives are
-generated.
-
 ## `src/contexts/`
 
 | Context | Holds |
