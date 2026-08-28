@@ -32,6 +32,7 @@ import {
 } from "@/utils/exportExcel";
 import { createCustomerQrPdfBlob, downloadCustomerQrPdf } from "./customerQrPdf";
 import { downloadAllCustomersPdf } from "./customerAllDetailsPdf";
+import { downloadCustomerQrStickerPdf } from "./customerQrStickerPdf";
 
 
 // Backend `ordering_fields` are ["customer_name", "is_active"]; only
@@ -114,6 +115,7 @@ export default function CustomerCreationListPage() {
   const [isPreviewingQr, setIsPreviewingQr] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isExportingQrStickers, setIsExportingQrStickers] = useState(false);
   const requestIdRef = useRef(0);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -355,6 +357,37 @@ export default function CustomerCreationListPage() {
     }
   };
 
+  // ── QR sticker sheet (A4, 6 stickers per page) ───────────────────────────
+  const handleDownloadQrStickers = async () => {
+    setIsExportingQrStickers(true);
+    try {
+      const rows = (await fetchExportRows()).filter((row) => row.qr_code);
+      if (rows.length === 0) {
+        Swal.fire(
+          t("common.warning") || "Warning",
+          "No customer QR codes are available for the current selection.",
+          "warning",
+        );
+        return;
+      }
+      // Stamp the sheet with whichever company / project is selected above;
+      // an empty value means "All", which the sheet resolves on its own.
+      await downloadCustomerQrStickerPdf(rows, {
+        companyName: companies.find((company) => company.value === companyUniqueId)?.label,
+        projectName: projects.find((project) => project.value === projectId)?.label,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text:
+          error instanceof Error ? error.message : "Failed to generate the QR sticker sheet.",
+      });
+    } finally {
+      setIsExportingQrStickers(false);
+    }
+  };
+
   const header = (
     <div className="flex justify-between items-center">
       <div className="flex items-center gap-3 px-3 py-2">
@@ -391,6 +424,13 @@ export default function CustomerCreationListPage() {
           className="p-button-outlined"
           disabled={isExportingPdf}
           onClick={handleDownloadPdf}
+        />
+        <Button
+          label={isExportingQrStickers ? "Preparing..." : "Download QR"}
+          icon="pi pi-qrcode"
+          className="p-button-outlined"
+          disabled={isExportingQrStickers}
+          onClick={handleDownloadQrStickers}
         />
       </div>
       <div className="flex flex-wrap items-center gap-3">
