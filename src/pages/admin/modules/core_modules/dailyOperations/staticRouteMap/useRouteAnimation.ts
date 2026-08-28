@@ -80,6 +80,12 @@ export function useRouteAnimation(geometry: RouteGeometry | undefined) {
     [coordinates, totalLength],
   );
 
+  const finalPosition = useMemo((): LatLng | null => {
+    if (coordinates.length === 0) return null;
+    const [lng, lat] = coordinates[coordinates.length - 1];
+    return { latitude: lat, longitude: lng };
+  }, [coordinates]);
+
   const stopAnimationFrame = useCallback(() => {
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     frameRef.current = null;
@@ -97,8 +103,18 @@ export function useRouteAnimation(geometry: RouteGeometry | undefined) {
       lastTimestampRef.current = timestamp;
 
       distanceTraveledRef.current += deltaSeconds * BASE_SPEED_DEGREES_PER_SECOND * speed;
-      const traveled = distanceTraveledRef.current % totalLength;
-      setProgress(traveled / totalLength);
+
+      // Play once per click — stop at the final stop instead of wrapping
+      // back to the start.
+      if (distanceTraveledRef.current >= totalLength) {
+        distanceTraveledRef.current = totalLength;
+        setProgress(1);
+        setPosition(finalPosition);
+        setIsPlaying(false);
+        return;
+      }
+
+      setProgress(distanceTraveledRef.current / totalLength);
       setPosition(positionAtDistance(distanceTraveledRef.current));
 
       frameRef.current = requestAnimationFrame(step);
@@ -106,13 +122,23 @@ export function useRouteAnimation(geometry: RouteGeometry | undefined) {
 
     frameRef.current = requestAnimationFrame(step);
     return stopAnimationFrame;
-  }, [isPlaying, speed, coordinates.length, totalLength, positionAtDistance, stopAnimationFrame]);
+  }, [isPlaying, speed, coordinates.length, totalLength, positionAtDistance, finalPosition, stopAnimationFrame]);
 
   const play = useCallback(() => {
     if (coordinates.length < 2) return;
-    if (position === null) setPosition(positionAtDistance(distanceTraveledRef.current));
+    // A finished run sits at the end (distanceTraveled === totalLength) —
+    // starting over on the next Play click reads more naturally than
+    // requiring an explicit Reset first.
+    const restarting = distanceTraveledRef.current >= totalLength;
+    if (restarting) {
+      distanceTraveledRef.current = 0;
+      setProgress(0);
+    }
+    if (restarting || position === null) {
+      setPosition(positionAtDistance(distanceTraveledRef.current));
+    }
     setIsPlaying(true);
-  }, [coordinates.length, position, positionAtDistance]);
+  }, [coordinates.length, totalLength, position, positionAtDistance]);
 
   const pause = useCallback(() => setIsPlaying(false), []);
 

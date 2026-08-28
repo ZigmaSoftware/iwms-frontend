@@ -15,6 +15,7 @@ import {
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useCollectionPointLocationOptions } from "@/hooks/useCollectionPointLocationOptions";
 import { normalizeList } from "@/utils/forms";
+import { buildVehicleTrackingUrl } from "@/config/gpsApiConfig";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -329,7 +330,19 @@ export default function DailyTripTracking() {
     projectApi
       .read(projectId)
       .then((project) => {
-        if (active) setGpsApiUrl(String(project?.gps_api_url ?? ""));
+        if (!active) return;
+        // Live position for one vehicle comes from the tracking feed (all
+        // vehicles' current locations), not getVehicleHistory (a date-range
+        // history query that 400s without from/to params) — same endpoint
+        // vehicletracking.tsx's live map already uses successfully.
+        const url = buildVehicleTrackingUrl(
+          {
+            providerName: String(project?.gps_provider_name ?? ""),
+            fcode: String(project?.gps_fcode ?? ""),
+          },
+          String(project?.gps_vehicle_tracking_api ?? ""),
+        );
+        setGpsApiUrl(url);
       })
       .catch(() => {
         if (active) setGpsApiUrl("");

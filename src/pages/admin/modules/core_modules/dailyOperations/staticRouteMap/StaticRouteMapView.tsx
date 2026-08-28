@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "./staticRouteMap.css";
 import type { DetourWaypoint, RouteStop, StaticRoute } from "./types";
 
 const STOP_COLOR: Record<RouteStop["type"], string> = {
@@ -152,7 +153,9 @@ export default function StaticRouteMapView({
             iconAnchor: [15, 15],
           }),
         })
-          .bindPopup(stopPopupHtml(stop, showRouteName ? route.name : undefined))
+          .bindPopup(stopPopupHtml(stop, showRouteName ? route.name : undefined), {
+            className: "static-route-popup",
+          })
           .bindTooltip(
             `${stop.order}. ${stop.label}${binCountFor(stop) > 1 ? ` (${binCountFor(stop)} bins)` : ""}`,
             { direction: "top", offset: [0, -14] },
