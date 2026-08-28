@@ -528,14 +528,16 @@ const drawSticker = async (
   );
 
   // ── Footer: only used to name the owning company on a mixed sheet ──
-  context.strokeStyle = HAIRLINE;
-  context.lineWidth = 2;
-  context.beginPath();
-  context.moveTo(cardX + CARD_PADDING, footerTop);
-  context.lineTo(cardX + CARD_WIDTH - CARD_PADDING, footerTop);
-  context.stroke();
-
+  // The divider is drawn with the label, never on its own — a bare rule under
+  // the customer id reads as a stray line on a single-company sheet.
   if (showCompany) {
+    context.strokeStyle = HAIRLINE;
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(cardX + CARD_PADDING, footerTop);
+    context.lineTo(cardX + CARD_WIDTH - CARD_PADDING, footerTop);
+    context.stroke();
+
     const owner = ((customer.company_name ?? "").trim() || "Unassigned").toUpperCase();
     const size = fitSingleLine(context, owner, innerWidth, "700", 14, 9);
     context.font = `700 ${size}px Arial, sans-serif`;
