@@ -216,14 +216,27 @@ const DataTableHeaderActions = ({
     discoverImportColumns ? [] : importColumns,
   );
 
+  // `importColumns` is rebuilt on every parent render (it is derived from the
+  // column children), so depending on the array *identity* re-ran this effect
+  // on every re-render — including the one a status toggle causes — which
+  // blanked the Excel buttons and re-issued the metadata request each time.
+  // Keying on the field signature instead keeps it to one fetch per real
+  // column change.
+  const importColumnsKey = useMemo(
+    () => (importColumns ?? []).map((column) => column.field).join("|"),
+    [importColumns],
+  );
+  const importColumnsRef = useRef(importColumns);
+  importColumnsRef.current = importColumns;
+
   useEffect(() => {
+    const fallback = importColumnsRef.current ?? [];
     if (!discoverImportColumns || !importApi) {
-      setResolvedColumns(importColumns);
+      setResolvedColumns(fallback);
       return;
     }
 
     let cancelled = false;
-    setResolvedColumns([]);
     readMetadataImportColumns(importApi)
       .then((columns) => {
         if (!cancelled) {
@@ -231,13 +244,13 @@ const DataTableHeaderActions = ({
         }
       })
       .catch(() => {
-        if (!cancelled) setResolvedColumns(importColumns);
+        if (!cancelled) setResolvedColumns(fallback);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [discoverImportColumns, importApi, importColumns]);
+  }, [discoverImportColumns, importApi, importColumnsKey]);
 
   const handleExport = async () => {
     const exportRows = loadExportRows ? await loadExportRows() : rows;
@@ -629,8 +642,13 @@ export const DataTable = <TValue extends SafeTableRows>(
   }, [columnFilterKey, globalSearch, companyProjectKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rowsForExport = exportRows ?? (serverApi ? serverRows : safeRows);
-  const resolvedImportColumns =
-    importColumns ?? readImportColumns(tableProps.children);
+  // Derived from the column children, so memoise it: a fresh array each render
+  // would re-trigger the header's metadata fetch (see DataTableHeaderActions).
+  const importColumnsFromChildren = useMemo(
+    () => readImportColumns(tableProps.children),
+    [tableProps.children],
+  );
+  const resolvedImportColumns = importColumns ?? importColumnsFromChildren;
   const header =
     exportable && typeof tableProps.header !== "function" ? (
       <DataTableHeaderActions
