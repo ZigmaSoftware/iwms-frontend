@@ -6,11 +6,13 @@ import Swal from "@/lib/notify";
 import { api } from "@/api";
 
 import {
+  blockApi,
   cityApi,
   countryApi,
   customerCreationApi,
   districtApi,
   panchayatApi,
+  projectApi,
   propertiesApi,
   stateApi,
   subPropertiesApi,
@@ -99,6 +101,7 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   is_bulkwaste_generator: ["is_bulkwaste_generator"],
   apartment_name: ["apartment_name"],
   block_no: ["block_no"],
+  block_id: ["block_id"],
   flat_no: ["flat_no"],
   villa_no: ["villa_no"],
   industry_name: ["industry_name"],
@@ -596,6 +599,7 @@ export default function CustomerCreationForm() {
     // Property type specific fields
     apartment_name: "",
     block_no: "",
+    block_id: "",
     flat_no: "",
     villa_no: "",
     industry_name: "",
@@ -736,6 +740,8 @@ export default function CustomerCreationForm() {
   const [rawStates, setRawStates] = useState<any[]>([]);
   const [rawCountries, setRawCountries] = useState<any[]>([]);
   const [rawProperties, setRawProperties] = useState<any[]>([]);
+  const [rawBlocks, setRawBlocks] = useState<any[]>([]);
+  const [projectHasBlocks, setProjectHasBlocks] = useState(false);
   const [rawSubProperties, setRawSubProperties] = useState<any[]>([]);
   const [rawPanchayats, setRawPanchayats] = useState<any[]>([]);
   const [rawWasteTypes, setRawWasteTypes] = useState<any[]>([]);
@@ -803,6 +809,41 @@ export default function CustomerCreationForm() {
     return () => { cancelled = true; };
   }, [companyUniqueId, projectId, showZone, showPanchayat]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!projectId) {
+      setProjectHasBlocks(false);
+      setRawBlocks([]);
+      return () => { cancelled = true; };
+    }
+
+    projectApi
+      .read(projectId)
+      .then((project: any) => {
+        if (cancelled) return;
+        const hasBlocks = Boolean(project?.has_blocks);
+        setProjectHasBlocks(hasBlocks);
+        if (!hasBlocks) {
+          setRawBlocks([]);
+          return;
+        }
+        return blockApi
+          .readAll({ params: { company_id: companyUniqueId, project_id: projectId } })
+          .then((res: any) => {
+            if (cancelled) return;
+            setRawBlocks(Array.isArray(res) ? res : (res?.results ?? []));
+          });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setProjectHasBlocks(false);
+        setRawBlocks([]);
+      });
+
+    return () => { cancelled = true; };
+  }, [companyUniqueId, projectId]);
+
   const dropdowns = useMemo(
     () => ({
       wards: normalize(rawWards),
@@ -815,8 +856,9 @@ export default function CustomerCreationForm() {
       subProperties: normalize(rawSubProperties),
       panchayats: normalize(rawPanchayats),
       wasteTypes: normalize(rawWasteTypes),
+      blocks: normalize(rawBlocks),
     }),
-    [rawWards, rawZones, rawCities, rawDistricts, rawStates, rawCountries, rawProperties, rawSubProperties, rawPanchayats, rawWasteTypes]
+    [rawWards, rawZones, rawCities, rawDistricts, rawStates, rawCountries, rawProperties, rawSubProperties, rawPanchayats, rawWasteTypes, rawBlocks]
   );
 
   /* ===============================
@@ -908,6 +950,7 @@ export default function CustomerCreationForm() {
       is_bulkwaste_generator: Boolean(data.is_bulkwaste_generator),
       apartment_name: String(data.apartment_name ?? ""),
       block_no: String(data.block_no ?? ""),
+      block_id: normalizeEntityId(data.block_id),
       flat_no: String(data.flat_no ?? ""),
       villa_no: String(data.villa_no ?? ""),
       industry_name: String(data.industry_name ?? ""),
@@ -915,6 +958,19 @@ export default function CustomerCreationForm() {
     }));
     setPendingEditData(null);
   }, [pendingEditData, dropdownsLoaded, rawCountries, rawStates, rawDistricts, rawCities, rawZones, rawWards, rawPanchayats, rawProperties, rawSubProperties]);
+
+  /* Block loads on a separate, slower chain (project -> has_blocks -> block
+     list) than the other dropdowns, so its edit-mode value can't be resolved
+     in the effect above — re-resolve once rawBlocks actually arrives. */
+  useEffect(() => {
+    if (!isEdit || rawBlocks.length === 0) return;
+    setFormData((prev) => {
+      if (!prev.block_id) return prev;
+      const resolved = resolveOptionValue(rawBlocks, prev.block_id, "block_name", undefined);
+      if (resolved === prev.block_id) return prev;
+      return { ...prev, block_id: resolved };
+    });
+  }, [isEdit, rawBlocks]);
 
   /* ===============================
      RE-APPLY PROJECT AFTER HOOK LOADS PROJECT LIST
@@ -968,6 +1024,11 @@ export default function CustomerCreationForm() {
       return true;
     }),
     [dropdowns.wards, formData.zone_id, formData.panchayat_id]
+  );
+
+  const filteredBlocks = useMemo(
+    () => dropdowns.blocks.filter((b: any) => !formData.ward_id || normalizeEntityId(b.ward_id ?? b.ward) === formData.ward_id),
+    [dropdowns.blocks, formData.ward_id]
   );
 
   const filteredPanchayats = useMemo(
@@ -1078,6 +1139,12 @@ export default function CustomerCreationForm() {
       return false;
     }
 
+    if (projectHasBlocks && !formData.block_id) {
+      setFieldErrors((prev) => ({ ...prev, block_id: "Block is required for this project" }));
+      Swal.fire(t("common.warning") || "Warning", "Block is required for this project", "warning");
+      return false;
+    }
+
     // Password is required only when creating (edit leaves it blank to keep
     // the current password), so it stays outside the schema above.
     if (showField("password") && !isEdit && formData.password.length < 8) {
@@ -1107,6 +1174,7 @@ export default function CustomerCreationForm() {
       waste_collection_kg_per_day: formData.waste_collection_kg_per_day ? String(parseFloat(formData.waste_collection_kg_per_day)) : null,
       member_count: formData.member_count ? Number.parseInt(formData.member_count, 10) : null,
       family_members: formData.family_members,
+      block_id: formData.block_id || null,
       waste_type_ids: formData.waste_type_ids,
       ...(isEdit && !formData.password ? { password: undefined } : {}), // Only include password for new records
     };
@@ -1642,6 +1710,7 @@ export default function CustomerCreationForm() {
               onChange={(v: string) => {
                 const next = v === "__none__" ? "" : v;
                 update("ward_id", next);
+                update("block_id", "");
               }}
               options={[
                 { value: "__none__", label: t("common.not_available") || "N/A" },
@@ -1652,6 +1721,23 @@ export default function CustomerCreationForm() {
               ]}
               placeholder={t("common.select_item_placeholder", { item: t("common.ward") }) || "Select ward"}
               isRequired={false}
+            />
+          )}
+
+          {/* BLOCK — only when the project has blocks enabled; options scoped to the selected ward */}
+          {projectHasBlocks && (
+            <ShadcnSelect
+              label="Block"
+              value={formData.block_id}
+              onChange={(v: string) => update("block_id", v)}
+              options={filteredBlocks.map((b: any) => ({
+                value: resolveId(b),
+                label: b.block_name,
+              }))}
+              placeholder={formData.ward_id ? "Select block" : "Select ward first"}
+              isRequired={true}
+              disabled={!formData.ward_id}
+              error={fieldErrors.block_id}
             />
           )}
         </FormSection>

@@ -11,6 +11,7 @@ export type ProjectRecord = {
   name: string;
   description: string | null;
   project_logo?: string | null;
+  has_blocks?: boolean;
   gps_api_url: string | null;
   gps_vehicle_history_api: string | null;
   gps_vehicle_tracking_api: string | null;
@@ -41,6 +42,7 @@ export type Project = {
   company_name?: string;
   name: string;
   description: string | null;
+  has_blocks?: boolean;
   is_active: boolean;
 };
 

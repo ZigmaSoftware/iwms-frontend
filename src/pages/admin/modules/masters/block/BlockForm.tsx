@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { blockApi, wardApi } from "@/helpers/admin";
+import { blockApi, projectApi, wardApi } from "@/helpers/admin";
 import type { SelectOption } from "@/types";
 import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
 import { blockSchema } from "@/schemas/masters/block.schema";
@@ -87,9 +87,37 @@ export default function BlockForm() {
   const [pendingWard, setPendingWard] = useState("");
 
   const [allWards, setAllWards] = useState<SelectOption[]>([]);
+  const [projectHasBlocks, setProjectHasBlocks] = useState(true);
+  const [checkingProject, setCheckingProject] = useState(false);
 
   const { encMasters, encBlocks } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encBlocks);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!projectId) {
+      setProjectHasBlocks(true);
+      return () => { cancelled = true; };
+    }
+
+    setCheckingProject(true);
+    projectApi.read(projectId)
+      .then((project: any) => {
+        if (cancelled) return;
+        setProjectHasBlocks(Boolean(project?.has_blocks));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setProjectHasBlocks(false);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setCheckingProject(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,6 +199,10 @@ export default function BlockForm() {
 
     if (!companyUniqueId) { Swal.fire("Error", "Company is required", "error"); return; }
     if (!projectId) { Swal.fire("Error", "Project is required", "error"); return; }
+    if (!projectHasBlocks) {
+      Swal.fire("Error", "This project is not organized into Blocks. Enable it on the project first.", "error");
+      return;
+    }
 
     const rawPayload = {
       block_name: blockName,
@@ -231,7 +263,13 @@ export default function BlockForm() {
           </Select>
         </div>
 
-        {showField("ward_id") && (
+        {projectId && !checkingProject && !projectHasBlocks && (
+          <div className="md:col-span-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+            This project is not organized into Blocks. Enable "This project is organized into Blocks" on the project before creating block records.
+          </div>
+        )}
+
+        {projectHasBlocks && showField("ward_id") && (
           <div>
             <Label>Ward *</Label>
             <Select value={wardId} onValueChange={(value) => { setWardId(value); setFieldErrors((prev) => ({ ...prev, ward_id: "" })); }}>
@@ -244,7 +282,7 @@ export default function BlockForm() {
           </div>
         )}
 
-        {showField("block_name") && (
+        {projectHasBlocks && showField("block_name") && (
           <div>
             <Label>Block Name *</Label>
             <Input value={blockName} onChange={(e) => { setBlockName(e.target.value); setFieldErrors((prev) => ({ ...prev, block_name: "" })); }} required />
@@ -252,21 +290,21 @@ export default function BlockForm() {
           </div>
         )}
 
-        {showField("description") && (
+        {projectHasBlocks && showField("description") && (
           <div>
             <Label>Description</Label>
             <Input value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
         )}
 
-        {showField("latitude") && (
+        {projectHasBlocks && showField("latitude") && (
           <div>
             <Label>Latitude</Label>
             <Input value={latitude} onChange={(e) => setLatitude(e.target.value)} />
           </div>
         )}
 
-        {showField("longitude") && (
+        {projectHasBlocks && showField("longitude") && (
           <div>
             <Label>Longitude</Label>
             <div className="flex items-center gap-2">
@@ -281,7 +319,7 @@ export default function BlockForm() {
           </div>
         )}
 
-        {showField("is_active") && (
+        {projectHasBlocks && showField("is_active") && (
           <div>
             <Label>Status</Label>
             <Select value={isActive ? "true" : "false"} onValueChange={(v) => setIsActive(v === "true")}>
@@ -295,7 +333,7 @@ export default function BlockForm() {
         )}
 
         <div className="md:col-span-2 flex justify-end gap-3">
-          <Button type="submit" disabled={isSubmitting || loadingRecord}>{isEdit ? "Update" : "Save"}</Button>
+          <Button type="submit" disabled={isSubmitting || loadingRecord || !projectHasBlocks || checkingProject}>{isEdit ? "Update" : "Save"}</Button>
           <Button type="button" variant="destructive" onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}>
             Cancel
           </Button>

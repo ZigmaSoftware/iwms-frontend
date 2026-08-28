@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -103,6 +104,7 @@ export default function ProjectForm() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [hasBlocks, setHasBlocks] = useState(false);
   const [gpsApiUrl, setGpsApiUrl] = useState("");
   const [gpsVehicleHistoryApi, setGpsVehicleHistoryApi] = useState("");
   const [gpsVehicleTrackingApi, setGpsVehicleTrackingApi] = useState("");
@@ -181,6 +183,7 @@ export default function ProjectForm() {
         setAttendanceApiConfigured(Boolean(record.attendance_api_configured));
         applyCompanyProjectFromRecord(record as unknown as Record<string, unknown>);
         setIsActive(normalizeIsActive(record.is_active));
+        setHasBlocks(Boolean(record.has_blocks));
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -203,6 +206,7 @@ export default function ProjectForm() {
       name: name.trim(),
       description: description.trim(),
       is_active: isActive,
+      has_blocks: hasBlocks,
       gps_api_url: gpsApiUrl.trim(),
       gps_user_id: gpsUserId.trim(),
       gps_group_name: gpsGroupName.trim(),
@@ -268,6 +272,7 @@ export default function ProjectForm() {
           attendance_api_url: attendanceApiUrl.trim() || null,
           ...(attendanceApiKey.trim() ? { attendance_api_key: attendanceApiKey.trim() } : {}),
           is_active: isActive,
+          has_blocks: hasBlocks,
         };
 
         if (logoFile) {
@@ -299,6 +304,7 @@ export default function ProjectForm() {
           attendance_api_url: attendanceApiUrl.trim() || null,
           attendance_api_key: attendanceApiKey.trim() || null,
           is_active: isActive,
+          has_blocks: hasBlocks,
         };
         if (companyUniqueId.trim()) {
           payload.company_unique_id = companyUniqueId.trim();
@@ -425,6 +431,17 @@ export default function ProjectForm() {
                 <SelectItem value="false">{t("common.inactive")}</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex items-center gap-2 pt-6">
+            <Checkbox
+              id="hasBlocks"
+              checked={hasBlocks}
+              onCheckedChange={(checked) => setHasBlocks(checked === true)}
+            />
+            <Label htmlFor="hasBlocks" className="cursor-pointer">
+              {t("admin.project.has_blocks", { defaultValue: "This project is organized into Blocks" })}
+            </Label>
           </div>
 
           <div className="md:col-span-2">

@@ -76,6 +76,7 @@ export interface FormDataType {
   // Apartment fields
   apartment_name: string;
   block_no: string;
+  block_id: string;
   flat_no: string;
   // Villa fields
   villa_no: string;
@@ -123,6 +124,8 @@ export type Customer = {
   qr_code?: string;
   apartment_name?: string;
   block_no?: string;
+  block_id?: string;
+  block_name?: string;
   flat_no?: string;
   company_id?: string | null;
   company_unique_id?: string | null;
