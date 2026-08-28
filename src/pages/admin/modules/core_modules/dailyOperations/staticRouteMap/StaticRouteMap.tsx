@@ -51,6 +51,7 @@ export default function StaticRouteMap() {
   const [assignmentId, setAssignmentId] = useState("");
   const [assignments, setAssignments] = useState<Array<{ value: string; label: string }>>([]);
   const [selectedRoute, setSelectedRoute] = useState<StaticRoute | null>(null);
+  const [sequencePanelOpen, setSequencePanelOpen] = useState(true);
 
   useEffect(() => {
     if (!companyUniqueId || !projectId) {
@@ -284,9 +285,29 @@ export default function StaticRouteMap() {
           ))}
         </div>
 
-        {displayedRoutes.length === 1 && (
+        {displayedRoutes.length === 1 && !sequencePanelOpen && (
+          <button
+            type="button"
+            onClick={() => setSequencePanelOpen(true)}
+            className="absolute right-4 top-4 z-[400] rounded-xl border bg-white/95 px-3 py-1.5 text-xs font-bold text-gray-800 shadow-lg backdrop-blur-sm hover:bg-gray-50"
+          >
+            Route Sequence
+          </button>
+        )}
+
+        {displayedRoutes.length === 1 && sequencePanelOpen && (
           <div className="absolute right-4 top-4 z-[400] w-72 rounded-xl border bg-white/95 p-3 text-xs shadow-lg backdrop-blur-sm">
-            <p className="mb-2 font-bold text-gray-800">Route Sequence</p>
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <p className="font-bold text-gray-800">Route Sequence</p>
+              <button
+                type="button"
+                onClick={() => setSequencePanelOpen(false)}
+                title="Close"
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              >
+                ×
+              </button>
+            </div>
             <p className="mb-2 text-[11px] text-gray-500">{displayedRoutes[0].name}</p>
             <ol className="max-h-64 space-y-1.5 overflow-y-auto">
               {[...displayedRoutes[0].stops]
