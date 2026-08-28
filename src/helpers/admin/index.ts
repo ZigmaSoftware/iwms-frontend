@@ -25,6 +25,7 @@ export const districtApi = adminApi.districts;
 export const cityApi = adminApi.cities;
 export const zoneApi = adminApi.zones;
 export const wardApi = adminApi.wards;
+export const blockApi = adminApi.blocks;
 export const departmentApi = adminApi.departments;
 export const designationApi = adminApi.designations;
 export const collectionPointApi = adminApi.collectionPoints;

@@ -33,6 +33,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encDistricts,
     encCities,
     encWards,
+    encBlocks,
     encCollectionPoints,
     encPlants,
     encWasteTypes,
@@ -137,6 +138,7 @@ export function buildNavRouteMap(): RouteEntry[] {
 
     // Operational / Field Level
     { path: `/${encMasters}/${encWards}`, nameKey: "admin.nav.ward", parentNameKey: "admin.nav.masters" },
+    { path: `/${encMasters}/${encBlocks}`, nameKey: "admin.nav.block", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encPanchayats}`, nameKey: "admin.nav.panchayat", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encPanchayatLeaders}`, nameKey: "admin.nav.panchayat_leader", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encDistrictLeaders}`, nameKey: "admin.nav.district_leader", parentNameKey: "admin.nav.masters" },
