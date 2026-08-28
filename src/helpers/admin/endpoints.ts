@@ -29,6 +29,7 @@ export const adminEndpoints = {
   cities: "masters/cities",
   zones: "masters/zones",
   wards: "masters/wards",
+  blocks: "masters/blocks",
   departments: "masters/departments",
   designations: "masters/designations",
   panchayats: "masters/panchayat",

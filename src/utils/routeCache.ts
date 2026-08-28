@@ -73,6 +73,7 @@ export type EncryptedRoutes = {
   encMonthlyWasteComparison: string;
   encWasteManagementMaster: string;
   encWards: string;
+  encBlocks: string;
   encCollectionPoints: string;
   encPlants: string;
   encWasteTypes: string;
@@ -206,6 +207,7 @@ const plainRoutes: EncryptedRoutes = {
   encMonthlyWasteComparison: "monthly-waste-comparison",
   encWasteManagementMaster: "waste-management",
   encWards: "wards",
+  encBlocks: "blocks",
   encCollectionPoints: "collection-points",
   encPlants: "plants",
   encWasteTypes: "waste-types",

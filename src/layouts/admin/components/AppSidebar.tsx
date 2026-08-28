@@ -35,6 +35,7 @@ const {
   encDistricts,
   encCities,
   encWards,
+  encBlocks,
   encCollectionPoints,
   encPlants,
   encWasteTypes,
@@ -315,6 +316,12 @@ const masterItems: NavItem[] = [
         path: `/${encMasters}/${encWards}`,
         module: "masters",
         screen: "wards",
+      },
+      {
+        nameKey: "admin.nav.block",
+        path: `/${encMasters}/${encBlocks}`,
+        module: "masters",
+        screen: "blocks",
       },
       {
         nameKey: "admin.nav.panchayat",

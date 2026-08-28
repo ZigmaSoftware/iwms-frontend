@@ -19,6 +19,8 @@ import ZoneList from "@/pages/admin/modules/masters/zone/ZoneListPage";
 import ZoneForm from "@/pages/admin/modules/masters/zone/ZoneForm";
 import WardList from "@/pages/admin/modules/masters/ward/WardListPage";
 import WardForm from "@/pages/admin/modules/masters/ward/WardForm";
+import BlockList from "@/pages/admin/modules/masters/block/BlockListPage";
+import BlockForm from "@/pages/admin/modules/masters/block/BlockForm";
 import DepartmentList from "@/pages/admin/modules/masters/department/DepartmentListPage";
 import DepartmentForm from "@/pages/admin/modules/masters/department/DepartmentForm";
 import DesignationList from "@/pages/admin/modules/masters/designation/DesignationListPage";
@@ -201,6 +203,7 @@ const ROUTES: RouteMap = {
     cities: { list: CityList, form: CityForm },
     zones: { list: ZoneList, form: ZoneForm },
     wards: { list: WardList, form: WardForm },
+    blocks: { list: BlockList, form: BlockForm },
     departments: { list: DepartmentList, form: DepartmentForm },
     designations: { list: DesignationList, form: DesignationForm },
     bins: { list: BinListPage, form: BinForm },

@@ -843,6 +843,7 @@ const taResource = {
           "city": "நகரம்",
           "zone": "மண்டலம்",
           "ward": "வார்டு",
+          "block": "பிளாக்",
           "panchayat": "PLB (பங்கேற்கும் உள்ளாட்சி அமைப்புகள்)",
           "hierarchy": "படிநிலை",
           "department": "துறை மாஸ்டர்",

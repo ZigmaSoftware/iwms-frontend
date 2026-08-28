@@ -843,6 +843,7 @@ const hiResource = {
           "city": "शहर",
           "zone": "ज़ोन",
           "ward": "वार्ड",
+          "block": "ब्लॉक",
           "panchayat": "PLB (भाग लेने वाले स्थानीय निकाय)",
           "hierarchy": "पदानुक्रम",
           "department": "विभाग मास्टर",
