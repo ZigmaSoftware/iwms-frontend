@@ -53,7 +53,7 @@ export type OptimizationResult = {
   vehicle_start?: [number, number] | null;
   optimized_stop_count?: number;
   completed_stop_count?: number;
-  vehicle_start_source?: "request" | "latest_gps" | "first_collection_point";
+  vehicle_start_source?: "request" | "latest_gps" | "plant" | "first_collection_point";
   route_legs?: Array<{
     destination_id: string;
     distance: number;

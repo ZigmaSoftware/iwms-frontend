@@ -34,7 +34,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encCities,
     encWards,
     encCollectionPoints,
-    encDumpYards,
+    encPlants,
     encWasteTypes,
     encZones,
     encProperties,
@@ -147,6 +147,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encMasters}/${encCollectionPoints}`, nameKey: "admin.nav.collection_point", parentNameKey: "admin.nav.assets" },
     { path: `/${encMasters}/${encWasteTypes}`, nameKey: "common.waste_type", parentNameKey: "admin.nav.assets" },
     { path: `/${encMasters}/${encBins}`, nameKey: "common.bins", parentNameKey: "admin.nav.assets" },
+    { path: `/${encMasters}/${encPlants}`, nameKey: "admin.nav.plant", parentNameKey: "admin.nav.masters" },
     // Screen Managements
     { path: `/${encAdmins}/${encMainScreenType}`, nameKey: "admin.nav.main_screen_type", parentNameKey: "admin.nav.screenManagements" },
     { path: `/${encAdmins}/${encMainScreen}`, nameKey: "admin.nav.main_screen", parentNameKey: "admin.nav.screenManagements" },
@@ -188,7 +189,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encScheduleSetup}/${encStaffTemplate}`, nameKey: "admin.nav.staff_template", parentNameKey: "admin.nav.schedule_setup" },
     { path: `/${encScheduleSetup}/${encAlternativeStaffTemplate}`, nameKey: "admin.nav.alternative_staff_template", parentNameKey: "admin.nav.schedule_setup" },
     { path: `/${encScheduleSetup}/${encCollectionPoints}`, nameKey: "admin.nav.collection_point", parentNameKey: "admin.nav.schedule_setup" },
-    { path: `/${encScheduleSetup}/${encDumpYards}`, nameKey: "admin.nav.dump_yard", parentNameKey: "admin.nav.schedule_setup" },
     { path: `/${encScheduleSetup}/${encTripPlans}`, nameKey: "admin.nav.trip_plans", parentNameKey: "admin.nav.schedule_setup" },
     // Schedule Operations (split from the legacy "schedule-masters" group)
     { path: `/${encScheduleOperations}/${encDailyTripAssignment}`, nameKey: "admin.nav.daily_trip_plan", parentNameKey: "admin.nav.schedule_operations" },

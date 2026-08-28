@@ -1,18 +1,19 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "./staticRouteMap.css";
 import type { DetourWaypoint, RouteStop, StaticRoute } from "./types";
 
 const STOP_COLOR: Record<RouteStop["type"], string> = {
   start: "#16a34a",
   collection_point: "#2563eb",
-  dump_yard: "#dc2626",
+  plant: "#dc2626",
 };
 
 const STOP_ICON: Record<RouteStop["type"], string> = {
   start: "🚛",
   collection_point: "",
-  dump_yard: "🗑️",
+  plant: "🗑️",
 };
 
 // One color per route when several routes render together ("all routes"
@@ -152,7 +153,9 @@ export default function StaticRouteMapView({
             iconAnchor: [15, 15],
           }),
         })
-          .bindPopup(stopPopupHtml(stop, showRouteName ? route.name : undefined))
+          .bindPopup(stopPopupHtml(stop, showRouteName ? route.name : undefined), {
+            className: "static-route-popup",
+          })
           .bindTooltip(
             `${stop.order}. ${stop.label}${binCountFor(stop) > 1 ? ` (${binCountFor(stop)} bins)` : ""}`,
             { direction: "top", offset: [0, -14] },

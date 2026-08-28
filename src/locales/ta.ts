@@ -849,7 +849,7 @@ const taResource = {
           "designation": "பதவி மாஸ்டர்",
           "daily_collection_point": "தினசரி சேகரிப்பு இடம்",
           "collection_point": "சேகரிப்பு இடம்",
-          "dump_yard": "குப்பை மேடு",
+          "plant": "ஆலை",
           "panchayat_leader": "PLB தலைவர்",
           "district_leader": "மாநில தலைவர்",
           "leader_management": "தலைவர் மேலாண்மை",

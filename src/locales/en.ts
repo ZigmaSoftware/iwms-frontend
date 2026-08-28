@@ -826,7 +826,7 @@ const enResource = {
           "zone": "Zone",
           "ward": "Ward",
           "collection_point": "Collection Point",
-          "dump_yard": "Dump Yard",
+          "plant": "Plant",
           "daily_collection_point": "Daily Collection Point",
 
 

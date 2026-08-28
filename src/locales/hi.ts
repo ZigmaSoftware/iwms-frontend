@@ -849,7 +849,7 @@ const hiResource = {
           "designation": "पदनाम मास्टर",
           "daily_collection_point": "दैनिक संग्रह बिंदु",
           "collection_point": "कलेक्शन पॉइंट",
-          "dump_yard": "डंप यार्ड",
+          "plant": "प्लांट",
           "panchayat_leader": "PLB नेता",
           "district_leader": "District Leader",
           "leader_management": "लीडर प्रबंधन",

@@ -18,8 +18,8 @@ import {
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocationButton";
-import { dumpYardApi } from "@/helpers/admin";
-import { dumpYardSchema } from "@/schemas/core_modules/scheduleSetup/dumpYard.schema";
+import { plantApi } from "@/helpers/admin";
+import { plantSchema } from "@/schemas/masters/plant.schema";
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
 
@@ -37,10 +37,10 @@ const toBoolean = (value: unknown, fallback = false): boolean => {
   return fallback;
 };
 
-const { encScheduleSetup, encDumpYards } = getEncryptedRoute();
-const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encScheduleSetup, encDumpYards);
+const { encMasters, encPlants } = getEncryptedRoute();
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encPlants);
 
-export default function DumpYardForm() {
+export default function PlantForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -97,7 +97,7 @@ export default function DumpYardForm() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    dumpYardApi
+    plantApi
       .read(id)
       .then((data: unknown) => {
         if (cancelled) return;
@@ -141,7 +141,7 @@ export default function DumpYardForm() {
     if (!companyUniqueId) missingFields.push(t("admin.nav.company"));
     if (!projectId) missingFields.push(t("admin.nav.project"));
 
-    const validation = parseWithSchema(dumpYardSchema, {
+    const validation = parseWithSchema(plantSchema, {
       name: name.trim(),
       latitude: latitude.trim(),
       longitude: longitude.trim(),
@@ -177,9 +177,9 @@ export default function DumpYardForm() {
     try {
       setIsSubmitting(true);
       if (isEdit && id) {
-        await dumpYardApi.update(id, payload);
+        await plantApi.update(id, payload);
       } else {
-        await dumpYardApi.create(payload);
+        await plantApi.create(payload);
       }
 
       Swal.fire(t("common.success"), isEdit ? t("common.updated_success") : t("common.added_success"), "success");
@@ -192,7 +192,7 @@ export default function DumpYardForm() {
   };
 
   return (
-    <ComponentCard title={isEdit ? "Edit Dump Yard" : "Add Dump Yard"}>
+    <ComponentCard title={isEdit ? "Edit Plant" : "Add Plant"}>
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6" noValidate>
         <div>
           <Label>{t("admin.nav.company")} *</Label>
@@ -232,11 +232,11 @@ export default function DumpYardForm() {
               ))}
             </SelectContent>
           </Select>
-          <p className="mt-1 text-xs text-gray-500">Each project can have only one dump yard.</p>
+          <p className="mt-1 text-xs text-gray-500">Each project can have only one plant.</p>
         </div>
 
         <div>
-          <Label>Dump Yard Name *</Label>
+          <Label>Plant Name *</Label>
           <Input
             value={name}
             onChange={(e) => {
