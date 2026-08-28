@@ -10,7 +10,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import Swal from "@/lib/notify";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
-import { blockApi } from "@/helpers/admin";
+import { blockApi, projectApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
@@ -49,6 +49,7 @@ export default function BlockListPage() {
     },
   });
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [projectHasBlocks, setProjectHasBlocks] = useState(true);
 
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
@@ -91,6 +92,22 @@ export default function BlockListPage() {
     void load();
     return () => { mounted = false; };
   }, [t, companyUniqueId, projectId, isSuperAdmin, companies.length]);
+
+  useEffect(() => {
+    if (!projectId) {
+      setProjectHasBlocks(true);
+      return;
+    }
+    let mounted = true;
+    projectApi.read(projectId)
+      .then((project: any) => {
+        if (mounted) setProjectHasBlocks(Boolean(project?.has_blocks));
+      })
+      .catch(() => {
+        if (mounted) setProjectHasBlocks(false);
+      });
+    return () => { mounted = false; };
+  }, [projectId]);
 
   // Company/project scoping is applied server-side (tenant users are
   // scoped automatically by the backend; superadmin scoping is passed via
@@ -184,6 +201,7 @@ export default function BlockListPage() {
             label="Add Block"
             icon="pi pi-plus"
             className="p-button-success"
+            disabled={Boolean(projectId) && !projectHasBlocks}
             onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
           />
         </div>
@@ -221,6 +239,12 @@ export default function BlockListPage() {
           disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
         />
       </FilterBar>
+
+      {projectId && !projectHasBlocks && (
+        <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+          This project is not organized into Blocks. Enable "This project is organized into Blocks" on the project to create or view block records for it.
+        </div>
+      )}
 
       <DataTable
         value={data}
