@@ -501,8 +501,9 @@ export const useUpdateComplaint = () => useUpdate("complaints");
 export const useCreateComplaint = () =>
   useMutationAction<FormData, AdminRecord>(
     (payload) =>
+      // Content-Type undefined lets axios add the multipart boundary itself.
       complaintApi.create(payload, {
-        headers: { "Content-Type": "multipart/form-data" },
+        headers: { "Content-Type": undefined },
       }) as Promise<AdminRecord>,
     ["complaints"]
   );

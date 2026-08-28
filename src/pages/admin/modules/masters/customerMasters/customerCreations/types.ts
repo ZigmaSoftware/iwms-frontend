@@ -130,6 +130,7 @@ export type Customer = {
   project_id?: string | null;
   project_unique_id?: string | null;
   project_name?: string | null;
+  project_logo?: string | null;
 };
 
 import type { FilterMatchMode } from "primereact/api";
