@@ -18,7 +18,10 @@ export const localBody = (customer: Customer): string =>
   "-";
 
 export const loadQrImage = async (source: string): Promise<HTMLImageElement> => {
-  const response = await fetch(source);
+  // mode/credentials are explicit so the response stays CORS-clean: the blob
+  // it produces is same-origin, which is what keeps the export canvas from
+  // being tainted when the QR is served from the API host.
+  const response = await fetch(source, { mode: "cors", credentials: "omit" });
   if (!response.ok) throw new Error("Unable to load the customer QR code.");
 
   const objectUrl = URL.createObjectURL(await response.blob());
