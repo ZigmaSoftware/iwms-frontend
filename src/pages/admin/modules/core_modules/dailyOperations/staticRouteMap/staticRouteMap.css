@@ -1,0 +1,15 @@
+/* The app-wide leaflet override (padding:0 on .leaflet-popup-content-wrapper,
+   margin:0 on .leaflet-popup-content) strips the padding Leaflet's default
+   close-button positioning (top:0; right:0) relies on to stay visible and
+   clickable. Restore it just for this map's popups. */
+.leaflet-popup.static-route-popup .leaflet-popup-content-wrapper {
+  padding: 1px;
+}
+
+.leaflet-popup.static-route-popup .leaflet-popup-content {
+  margin: 13px 24px 13px 20px;
+}
+
+.leaflet-popup.static-route-popup .leaflet-popup-close-button {
+  z-index: 1;
+}

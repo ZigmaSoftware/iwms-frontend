@@ -18,7 +18,10 @@ export const localBody = (customer: Customer): string =>
   "-";
 
 export const loadQrImage = async (source: string): Promise<HTMLImageElement> => {
-  const response = await fetch(source);
+  // mode/credentials are explicit so the response stays CORS-clean: the blob
+  // it produces is same-origin, which is what keeps the export canvas from
+  // being tainted when the QR is served from the API host.
+  const response = await fetch(source, { mode: "cors", credentials: "omit" });
   if (!response.ok) throw new Error("Unable to load the customer QR code.");
 
   const objectUrl = URL.createObjectURL(await response.blob());
@@ -148,10 +151,8 @@ const createCustomerQrPdf = async (customer: Customer): Promise<jsPDF> => {
   context.textAlign = "center";
   context.fillStyle = "#123a63";
   context.font = "700 42px Arial, sans-serif";
-  context.fillText("Customer QR Details", PAGE_WIDTH / 2, 82);
-  context.fillStyle = "#64748b";
-  context.font = "22px Arial, sans-serif";
-  context.fillText("Integrated Waste Management System", PAGE_WIDTH / 2, 118);
+  context.fillText("Blue Planet Integrated", PAGE_WIDTH / 2, 82);
+  context.fillText("Waste Management", PAGE_WIDTH / 2, 130);
 
   const qrSize = 350;
   const qrX = 92;

@@ -1,16 +1,18 @@
 import type { ProjectCreateResponse, ProjectRecord } from "./types";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
+import { ImageIcon, Upload, X } from "lucide-react";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -34,6 +36,23 @@ const normalizeIsActive = (value: unknown): boolean => {
     return normalized === "true" || normalized === "1" || normalized === "yes";
   }
   return true;
+};
+
+const MAX_LOGO_SIZE = 2 * 1024 * 1024;
+
+/** Media paths come back relative; resolve them against the API origin. */
+const resolveMediaUrl = (value?: string | null) => {
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value)) return value;
+  const apiRoot = import.meta.env.VITE_PROD === "true"
+    ? import.meta.env.VITE_API_PROD
+    : import.meta.env.VITE_API_LOCAL;
+  try {
+    const origin = new URL(apiRoot).origin;
+    return `${origin}${value.startsWith("/") ? value : `/${value}`}`;
+  } catch {
+    return value;
+  }
 };
 
 const { encSuperAdminMaster: encSuperAdminMasters, encProjectCreation } = getEncryptedRoute();
@@ -85,6 +104,7 @@ export default function ProjectForm() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [hasBlocks, setHasBlocks] = useState(false);
   const [gpsApiUrl, setGpsApiUrl] = useState("");
   const [gpsVehicleHistoryApi, setGpsVehicleHistoryApi] = useState("");
   const [gpsVehicleTrackingApi, setGpsVehicleTrackingApi] = useState("");
@@ -105,8 +125,19 @@ export default function ProjectForm() {
   const [adminPassword, setAdminPassword] = useState("");
   const [adminEmployeeName, setAdminEmployeeName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState("");
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+
+  // Swap the preview to the newly chosen file, releasing the previous blob.
+  useEffect(() => {
+    if (!logoFile) return;
+    const previewUrl = URL.createObjectURL(logoFile);
+    setLogoPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [logoFile]);
 
   // Convenience default preserved from the pre-shared-hook behavior: if there's
   // only one company to choose from, select it automatically (create mode only).
@@ -134,6 +165,7 @@ export default function ProjectForm() {
         }
         setName(record.name ?? "");
         setDescription(record.description ?? "");
+        setLogoPreview(resolveMediaUrl(record.project_logo));
         setGpsApiUrl(record.gps_api_url ?? "");
         setGpsVehicleHistoryApi(record.gps_vehicle_history_api ?? "");
         setGpsVehicleTrackingApi(record.gps_vehicle_tracking_api ?? "");
@@ -151,6 +183,7 @@ export default function ProjectForm() {
         setAttendanceApiConfigured(Boolean(record.attendance_api_configured));
         applyCompanyProjectFromRecord(record as unknown as Record<string, unknown>);
         setIsActive(normalizeIsActive(record.is_active));
+        setHasBlocks(Boolean(record.has_blocks));
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -173,6 +206,7 @@ export default function ProjectForm() {
       name: name.trim(),
       description: description.trim(),
       is_active: isActive,
+      has_blocks: hasBlocks,
       gps_api_url: gpsApiUrl.trim(),
       gps_user_id: gpsUserId.trim(),
       gps_group_name: gpsGroupName.trim(),
@@ -221,7 +255,7 @@ export default function ProjectForm() {
     setLoading(true);
     try {
       if (isEdit) {
-        await projectApi.update(id as string, {
+        const updateFields: Record<string, string | boolean | null> = {
           name: name.trim(),
           description: description.trim() || null,
           gps_api_url: gpsApiUrl.trim() || null,
@@ -238,7 +272,20 @@ export default function ProjectForm() {
           attendance_api_url: attendanceApiUrl.trim() || null,
           ...(attendanceApiKey.trim() ? { attendance_api_key: attendanceApiKey.trim() } : {}),
           is_active: isActive,
-        });
+          has_blocks: hasBlocks,
+        };
+
+        if (logoFile) {
+          // A file forces multipart; every scalar rides along as a form field.
+          const formData = new FormData();
+          for (const [key, value] of Object.entries(updateFields)) {
+            if (value !== null) formData.append(key, String(value));
+          }
+          formData.append("project_logo", logoFile);
+          await projectApi.uploadUpdate(id as string, formData);
+        } else {
+          await projectApi.update(id as string, updateFields);
+        }
       } else {
         const payload: Record<string, string | null | boolean> = {
           name: name.trim(),
@@ -257,6 +304,7 @@ export default function ProjectForm() {
           attendance_api_url: attendanceApiUrl.trim() || null,
           attendance_api_key: attendanceApiKey.trim() || null,
           is_active: isActive,
+          has_blocks: hasBlocks,
         };
         if (companyUniqueId.trim()) {
           payload.company_unique_id = companyUniqueId.trim();
@@ -271,7 +319,17 @@ export default function ProjectForm() {
           }
         }
 
-        const response = (await projectApi.create(payload)) as ProjectCreateResponse;
+        let response: ProjectCreateResponse;
+        if (logoFile) {
+          const formData = new FormData();
+          for (const [key, value] of Object.entries(payload)) {
+            if (value !== null) formData.append(key, String(value));
+          }
+          formData.append("project_logo", logoFile);
+          response = (await projectApi.upload(formData)) as ProjectCreateResponse;
+        } else {
+          response = (await projectApi.create(payload)) as ProjectCreateResponse;
+        }
         if (response?.company_admin?.username) {
           Swal.fire({
             icon: "success",
@@ -375,6 +433,17 @@ export default function ProjectForm() {
             </Select>
           </div>
 
+          <div className="flex items-center gap-2 pt-6">
+            <Checkbox
+              id="hasBlocks"
+              checked={hasBlocks}
+              onCheckedChange={(checked) => setHasBlocks(checked === true)}
+            />
+            <Label htmlFor="hasBlocks" className="cursor-pointer">
+              {t("admin.project.has_blocks", { defaultValue: "This project is organized into Blocks" })}
+            </Label>
+          </div>
+
           <div className="md:col-span-2">
             <Label htmlFor="projectDescription">{t("common.description_optional")}</Label>
             <Textarea
@@ -384,6 +453,97 @@ export default function ProjectForm() {
               placeholder={t("common.description")}
               rows={4}
             />
+          </div>
+
+          {/* Project / local-body logo — printed on customer QR stickers */}
+          <div className="md:col-span-2">
+            <Label htmlFor="projectLogo">
+              {t("admin.project.logo", { defaultValue: "Project Logo" })}
+            </Label>
+
+            <div className="mt-2 flex flex-col gap-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 md:flex-row md:items-center">
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-white">
+                {logoPreview ? (
+                  <img
+                    src={logoPreview}
+                    alt="Project logo preview"
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <ImageIcon className="h-8 w-8 text-gray-400" />
+                )}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label
+                    htmlFor="projectLogo"
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+                  >
+                    <Upload className="h-4 w-4" />
+                    {logoFile ? "Change Logo" : "Upload Logo"}
+                  </label>
+
+                  {logoFile ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLogoFile(null);
+                        setLogoPreview("");
+                        if (logoInputRef.current) logoInputRef.current.value = "";
+                      }}
+                      className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                    >
+                      <X className="h-4 w-4" />
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+
+                <p className="mt-2 truncate text-sm text-gray-600">
+                  {logoFile?.name || "Shown on customer QR stickers. PNG, JPG, JPEG or WEBP up to 2 MB"}
+                </p>
+              </div>
+
+              <input
+                ref={logoInputRef}
+                id="projectLogo"
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                className="sr-only"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  if (!file) {
+                    setLogoFile(null);
+                    return;
+                  }
+
+                  if (!file.type.startsWith("image/")) {
+                    Swal.fire({
+                      icon: "warning",
+                      title: t("common.warning"),
+                      text: "Please choose a valid image file.",
+                    });
+                    event.target.value = "";
+                    setLogoFile(null);
+                    return;
+                  }
+
+                  if (file.size > MAX_LOGO_SIZE) {
+                    Swal.fire({
+                      icon: "warning",
+                      title: t("common.warning"),
+                      text: "Project logo must be 2 MB or smaller.",
+                    });
+                    event.target.value = "";
+                    setLogoFile(null);
+                    return;
+                  }
+
+                  setLogoFile(file);
+                }}
+              />
+            </div>
           </div>
 
           <div>

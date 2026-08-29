@@ -29,6 +29,7 @@ export const adminEndpoints = {
   cities: "masters/cities",
   zones: "masters/zones",
   wards: "masters/wards",
+  blocks: "masters/blocks",
   departments: "masters/departments",
   designations: "masters/designations",
   panchayats: "masters/panchayat",
@@ -36,6 +37,7 @@ export const adminEndpoints = {
   districtLeaders: "masters/district-leaders",
   hierarchies: "masters/hierarchy",
   blockPanchayatUnions: "masters/block-panchayat-unions",
+  plants: "masters/plants",
 
   /* =========================
      WASTE TYPES
@@ -66,6 +68,7 @@ export const adminEndpoints = {
   dailyTripAssignment: "schedule-operations/daily-trip-assignments",
   dailyTripLog: "schedule-operations/daily-trip-logs",
   dailyTripCollectionPoint: "schedule-operations/daily-trip-collection-points",
+  routeDetourWaypoints: "schedule-operations/route-detour-waypoints",
   dailyTripHouseholdCollection: "schedule-operations/daily-trip-household-collections",
   binCollectionEvent: "schedule-operations/bin-collection-events",
   vehicleBreakdown: "schedule-operations/vehicle-breakdowns",

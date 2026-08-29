@@ -33,7 +33,9 @@ export function buildNavRouteMap(): RouteEntry[] {
     encDistricts,
     encCities,
     encWards,
+    encBlocks,
     encCollectionPoints,
+    encPlants,
     encWasteTypes,
     encZones,
     encProperties,
@@ -106,6 +108,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encDailyTripAssignment,
     encDailyTripCollectionPoint,
     encDailyTripTracking,
+    encStaticRouteMap,
     encBinCollectionEvent,
     encDailyTripLog,
     encDailyWasteComparison,
@@ -135,6 +138,7 @@ export function buildNavRouteMap(): RouteEntry[] {
 
     // Operational / Field Level
     { path: `/${encMasters}/${encWards}`, nameKey: "admin.nav.ward", parentNameKey: "admin.nav.masters" },
+    { path: `/${encMasters}/${encBlocks}`, nameKey: "admin.nav.block", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encPanchayats}`, nameKey: "admin.nav.panchayat", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encPanchayatLeaders}`, nameKey: "admin.nav.panchayat_leader", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encDistrictLeaders}`, nameKey: "admin.nav.district_leader", parentNameKey: "admin.nav.masters" },
@@ -145,6 +149,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encMasters}/${encCollectionPoints}`, nameKey: "admin.nav.collection_point", parentNameKey: "admin.nav.assets" },
     { path: `/${encMasters}/${encWasteTypes}`, nameKey: "common.waste_type", parentNameKey: "admin.nav.assets" },
     { path: `/${encMasters}/${encBins}`, nameKey: "common.bins", parentNameKey: "admin.nav.assets" },
+    { path: `/${encMasters}/${encPlants}`, nameKey: "admin.nav.plant", parentNameKey: "admin.nav.masters" },
     // Screen Managements
     { path: `/${encAdmins}/${encMainScreenType}`, nameKey: "admin.nav.main_screen_type", parentNameKey: "admin.nav.screenManagements" },
     { path: `/${encAdmins}/${encMainScreen}`, nameKey: "admin.nav.main_screen", parentNameKey: "admin.nav.screenManagements" },
@@ -191,6 +196,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encScheduleOperations}/${encDailyTripAssignment}`, nameKey: "admin.nav.daily_trip_plan", parentNameKey: "admin.nav.schedule_operations" },
     { path: `/${encScheduleOperations}/${encDailyTripCollectionPoint}`, nameKey: "admin.nav.daily_trip_collection_point", parentNameKey: "admin.nav.schedule_operations" },
     { path: `/${encScheduleOperations}/${encDailyTripTracking}`, nameKey: "admin.nav.daily_trip_tracking", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encScheduleOperations}/${encStaticRouteMap}`, nameKey: "admin.nav.static_route_map", parentNameKey: "admin.nav.schedule_operations" },
     { path: `/${encScheduleOperations}/${encBinCollectionEvent}`, nameKey: "admin.nav.bin_collection_event", parentNameKey: "admin.nav.schedule_operations" },
     { path: `/${encScheduleOperations}/${encWasteCollectedData}`, nameKey: "admin.nav.waste_collected_data", parentNameKey: "admin.nav.schedule_operations" },
     { path: `/${encScheduleOperations}/${encDailyTripLog}`, nameKey: "admin.nav.daily_trip_log", parentNameKey: "admin.nav.schedule_operations" },

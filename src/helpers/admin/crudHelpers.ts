@@ -89,6 +89,24 @@ export type CrudHelpers<T = any> = {
 /* -----------------------------------------
    Factory
 ----------------------------------------- */
+/**
+ * Headers for a file upload.
+ *
+ * A hand-written "multipart/form-data" is WRONG: the boundary parameter is
+ * missing, so the server cannot split the body and every field — including the
+ * file — is dropped. Setting the header to undefined lets axios detect the
+ * FormData and emit "multipart/form-data; boundary=..." itself.
+ */
+const multipartHeaders = (
+  payload: unknown,
+  overrides?: AxiosRequestConfig["headers"],
+) => ({
+  ...(payload instanceof FormData
+    ? { "Content-Type": undefined }
+    : { "Content-Type": "multipart/form-data" }),
+  ...overrides,
+});
+
 export const createCrudHelpers = <T = any>(
   basePath: string,
 ): CrudHelpers<T> => {
@@ -259,10 +277,7 @@ export const createCrudHelpers = <T = any>(
     upload: async (payload, config) => {
       const { data } = await api.post(resource, payload, {
         ...config,
-        headers: {
-          "Content-Type": "multipart/form-data",
-          ...config?.headers,
-        },
+        headers: multipartHeaders(payload, config?.headers),
       });
       return data;
     },
@@ -270,10 +285,7 @@ export const createCrudHelpers = <T = any>(
     uploadUpdate: async (id, payload, config) => {
       const { data } = await api.patch(`${resource}${id}/`, payload, {
         ...config,
-        headers: {
-          "Content-Type": "multipart/form-data",
-          ...config?.headers,
-        },
+        headers: multipartHeaders(payload, config?.headers),
       });
       return data;
     },

@@ -825,7 +825,9 @@ const enResource = {
           "city": "City",
           "zone": "Zone",
           "ward": "Ward",
+          "block": "Block",
           "collection_point": "Collection Point",
+          "plant": "Plant",
           "daily_collection_point": "Daily Collection Point",
 
 
@@ -909,6 +911,7 @@ const enResource = {
           "daily_trip_collection_point": "Daily Trip Collection Point",
           "daily_trip_household_collection": "Household Collection Points",
           "daily_trip_tracking": "Daily Trip Tracking",
+          "static_route_map": "Static Route Map",
           "bin_collection_event": "Secondary Bin Collection Event",
           "daily_trip_log": "Daily Trip Logs",
           "trip_retrip_request": "Re-Trip Requests",

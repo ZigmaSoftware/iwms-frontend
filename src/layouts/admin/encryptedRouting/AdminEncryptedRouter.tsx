@@ -19,12 +19,16 @@ import ZoneList from "@/pages/admin/modules/masters/zone/ZoneListPage";
 import ZoneForm from "@/pages/admin/modules/masters/zone/ZoneForm";
 import WardList from "@/pages/admin/modules/masters/ward/WardListPage";
 import WardForm from "@/pages/admin/modules/masters/ward/WardForm";
+import BlockList from "@/pages/admin/modules/masters/block/BlockListPage";
+import BlockForm from "@/pages/admin/modules/masters/block/BlockForm";
 import DepartmentList from "@/pages/admin/modules/masters/department/DepartmentListPage";
 import DepartmentForm from "@/pages/admin/modules/masters/department/DepartmentForm";
 import DesignationList from "@/pages/admin/modules/masters/designation/DesignationListPage";
 import DesignationForm from "@/pages/admin/modules/masters/designation/DesignationForm";
 import CollectionPointListPage from "@/pages/admin/modules/core_modules/scheduleSetup/collectionPoint/CollectionPointListPage";
 import CollectionPointForm from "@/pages/admin/modules/core_modules/scheduleSetup/collectionPoint/CollectionPointForm";
+import PlantListPage from "@/pages/admin/modules/masters/plant/PlantListPage";
+import PlantForm from "@/pages/admin/modules/masters/plant/PlantForm";
 import WasteTypeListPage from "@/pages/admin/modules/masters/wasteMasters/wasteType/WasteTypeListPage";
 import WasteTypeForm from "@/pages/admin/modules/masters/wasteMasters/wasteType/WasteTypeForm";
 import BinListPage from "@/pages/admin/modules/masters/wasteMasters/bin/BinListPage";
@@ -96,6 +100,7 @@ import DailyTripCollectionPointList from "@/pages/admin/modules/core_modules/dai
 import DailyTripCollectionPointForm from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripCollectionPoint/dailyTripCollectionPointForm";
 import DailyTripHouseholdCollectionList from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripHouseholdCollection/dailyTripHouseholdCollectionList";
 import DailyTripTracking from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripTracking/DailyTripTracking";
+import StaticRouteMap from "@/pages/admin/modules/core_modules/dailyOperations/staticRouteMap/StaticRouteMap";
 import SchedulerConfigPage from "@/pages/admin/modules/core_modules/dailyOperations/schedulerConfig/SchedulerConfigPage";
 import DailyTripLogList from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripLog/dailyTripLogList";
 
@@ -198,12 +203,14 @@ const ROUTES: RouteMap = {
     cities: { list: CityList, form: CityForm },
     zones: { list: ZoneList, form: ZoneForm },
     wards: { list: WardList, form: WardForm },
+    blocks: { list: BlockList, form: BlockForm },
     departments: { list: DepartmentList, form: DepartmentForm },
     designations: { list: DesignationList, form: DesignationForm },
     bins: { list: BinListPage, form: BinForm },
     "waste-types": { list: WasteTypeListPage, form: WasteTypeForm },
     panchayats: { list: PanchayatListPage, form: PanchayatForm },
     "panchayat-leaders": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
+    plants: { list: PlantListPage, form: PlantForm },
     "district-leaders": { list: DistrictLeaderListPage, form: DistrictLeaderForm },
     hierarchies: { list: HierarchyListPage, form: HierarchyForm },
     properties: { list: PropertyList, form: PropertyForm },
@@ -238,6 +245,7 @@ const ROUTES: RouteMap = {
     "daily-trip-collection-point": { list: DailyTripCollectionPointList, form: DailyTripCollectionPointForm },
     "daily-trip-household-collection": { list: DailyTripHouseholdCollectionList },
     "daily-trip-tracking": { component: DailyTripTracking },
+    "static-route-map": { component: StaticRouteMap },
     "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
     "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
     "daily-trip-log": { list: DailyTripLogList },
