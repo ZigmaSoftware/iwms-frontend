@@ -303,6 +303,24 @@ export default function ZoneForm() {
         FILTER CHAINS
   ========================================================== */
 
+  // Country: filtered by continent when one is selected, otherwise all active countries.
+  useEffect(() => {
+    const filt = allCountries
+      .filter((c) => c.isActive && (!continentId || c.continentId === continentId))
+      .map((c) => ({ value: c.id, label: c.name }));
+
+    const ensureId = pendingCountry || countryId;
+    if (ensureId && !filt.some((o) => o.value === ensureId)) {
+      const found = allCountries.find((c) => c.id === ensureId);
+      if (found) {
+        filt.push({ value: found.id, label: found.name });
+      } else if (zoneData?.country_name) {
+        filt.push({ value: ensureId, label: zoneData.country_name });
+      }
+    }
+    setFilteredCountries(filt);
+  }, [allCountries, continentId, countryId, pendingCountry, zoneData]);
+
   // State: show all active states directly — no continent/country prerequisite.
   // Auto-resolve country + continent when state is selected (see onStateChange).
   useEffect(() => {

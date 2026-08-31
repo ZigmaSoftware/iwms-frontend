@@ -1,14 +1,6 @@
 import { z } from "zod";
 
-import {
-  emailField,
-  latitudeField,
-  longitudeField,
-  mobileField,
-  optionalString,
-  pincodeField,
-  requiredString,
-} from "@/schemas/shared/fields";
+import { optionalString, requiredString } from "@/schemas/shared/fields";
 
 /**
  * Mirrors the manual `validateForm()` checks already in
@@ -39,30 +31,30 @@ const familyMemberSchema = z.object({
 });
 
 export const customerCreationSchema = z.object({
-  customer_name: requiredString("Customer Name"),
-  contact_no: mobileField,
-  username: requiredString("Username"),
-  email: emailField,
-  building_no: optionalString,
+  customer_name: optionalString,
+  contact_no: optionalString,
+  username: optionalString,
+  email: optionalString,
+  building_no: requiredString("House No"),
   street: optionalString,
   area: optionalString,
-  pincode: pincodeField,
-  latitude: latitudeField,
-  longitude: longitudeField,
+  pincode: optionalString,
+  latitude: optionalString,
+  longitude: optionalString,
   sqft: sqftField,
   water_consumption_lpd: nonNegativeIfPresent("Water Consumption"),
   waste_collection_kg_per_day: nonNegativeIfPresent("Waste Collection"),
-  property_id: requiredString("Property"),
-  sub_property_id: requiredString("Sub Property"),
+  property_id: optionalString,
+  sub_property_id: optionalString,
   waste_type_ids: z.array(z.string()),
-  id_proof_type: requiredString("ID Proof Type"),
-  id_no: requiredString("ID Number"),
+  id_proof_type: optionalString,
+  id_no: optionalString,
   member_count: optionalString,
   family_members: z.array(familyMemberSchema),
-  country_id: requiredString("Country"),
-  state_id: requiredString("State"),
-  district_id: requiredString("District"),
-  city_id: requiredString("City"),
+  country_id: optionalString,
+  state_id: optionalString,
+  district_id: optionalString,
+  city_id: optionalString,
   zone_id: optionalString,
   ward_id: optionalString,
   panchayat_id: optionalString,
