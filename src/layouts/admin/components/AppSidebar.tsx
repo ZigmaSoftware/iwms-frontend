@@ -317,12 +317,12 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "wards",
       },
-      {
-        nameKey: "admin.nav.block",
-        path: `/${encMasters}/${encBlocks}`,
-        module: "masters",
-        screen: "blocks",
-      },
+      // {
+      //   nameKey: "admin.nav.block",
+      //   path: `/${encMasters}/${encBlocks}`,
+      //   module: "masters",
+      //   screen: "blocks",
+      // },
       {
         nameKey: "admin.nav.panchayat",
         path: `/${encMasters}/${encPanchayats}`,
