@@ -40,6 +40,17 @@ type SafeDataTableProps<TValue extends SafeTableRows> =
   DataTableProps<TValue> & {
     bulkImportable?: boolean;
     exportable?: boolean;
+    /**
+     * Set on a table whose rows are already in memory (a nested detail table,
+     * a summary panel) rather than paginated from a list endpoint.
+     *
+     * Without it, `getCurrentAdminServerListApi()` resolves an API from the
+     * *URL* — so a nested table on, say, `/daily-trip-log/:id/report` is
+     * silently switched into server mode against the trip-log list endpoint
+     * and paginates the wrong data. `localData` opts out of that, keeping
+     * PrimeReact's own client-side paginator over `value`.
+     */
+    localData?: boolean;
     exportFilename?: string;
     exportRows?: SafeTableRows;
     exportSheetName?: string;
@@ -418,6 +429,7 @@ export const DataTable = <TValue extends SafeTableRows>(
   const {
     exportable = true,
     bulkImportable = true,
+    localData = false,
     exportFilename,
     exportRows,
     exportSheetName,
@@ -439,7 +451,8 @@ export const DataTable = <TValue extends SafeTableRows>(
   // fetch independently and race, with whichever resolves last silently
   // overwriting the other's rows (symptom: table shows "no records found"
   // even though the page's own fetch returned data).
-  const serverApi = tableProps.lazy ? null : getCurrentAdminServerListApi();
+  const serverApi =
+    tableProps.lazy || localData ? null : getCurrentAdminServerListApi();
   const initialPageSize =
     typeof tableProps.rows === "number" && tableProps.rows > 0
       ? tableProps.rows
