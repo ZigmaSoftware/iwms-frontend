@@ -6,13 +6,11 @@ import Swal from "@/lib/notify";
 import { api } from "@/api";
 
 import {
-  blockApi,
   cityApi,
   countryApi,
   customerCreationApi,
   districtApi,
   panchayatApi,
-  projectApi,
   propertiesApi,
   stateApi,
   subPropertiesApi,
@@ -740,8 +738,6 @@ export default function CustomerCreationForm() {
   const [rawStates, setRawStates] = useState<any[]>([]);
   const [rawCountries, setRawCountries] = useState<any[]>([]);
   const [rawProperties, setRawProperties] = useState<any[]>([]);
-  const [rawBlocks, setRawBlocks] = useState<any[]>([]);
-  const [projectHasBlocks, setProjectHasBlocks] = useState(false);
   const [rawSubProperties, setRawSubProperties] = useState<any[]>([]);
   const [rawPanchayats, setRawPanchayats] = useState<any[]>([]);
   const [rawWasteTypes, setRawWasteTypes] = useState<any[]>([]);
@@ -809,41 +805,6 @@ export default function CustomerCreationForm() {
     return () => { cancelled = true; };
   }, [companyUniqueId, projectId, showZone, showPanchayat]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!projectId) {
-      setProjectHasBlocks(false);
-      setRawBlocks([]);
-      return () => { cancelled = true; };
-    }
-
-    projectApi
-      .read(projectId)
-      .then((project: any) => {
-        if (cancelled) return;
-        const hasBlocks = Boolean(project?.has_blocks);
-        setProjectHasBlocks(hasBlocks);
-        if (!hasBlocks) {
-          setRawBlocks([]);
-          return;
-        }
-        return blockApi
-          .readAll({ params: { company_id: companyUniqueId, project_id: projectId } })
-          .then((res: any) => {
-            if (cancelled) return;
-            setRawBlocks(Array.isArray(res) ? res : (res?.results ?? []));
-          });
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setProjectHasBlocks(false);
-        setRawBlocks([]);
-      });
-
-    return () => { cancelled = true; };
-  }, [companyUniqueId, projectId]);
-
   const dropdowns = useMemo(
     () => ({
       wards: normalize(rawWards),
@@ -856,9 +817,8 @@ export default function CustomerCreationForm() {
       subProperties: normalize(rawSubProperties),
       panchayats: normalize(rawPanchayats),
       wasteTypes: normalize(rawWasteTypes),
-      blocks: normalize(rawBlocks),
     }),
-    [rawWards, rawZones, rawCities, rawDistricts, rawStates, rawCountries, rawProperties, rawSubProperties, rawPanchayats, rawWasteTypes, rawBlocks]
+    [rawWards, rawZones, rawCities, rawDistricts, rawStates, rawCountries, rawProperties, rawSubProperties, rawPanchayats, rawWasteTypes]
   );
 
   /* ===============================
@@ -959,19 +919,6 @@ export default function CustomerCreationForm() {
     setPendingEditData(null);
   }, [pendingEditData, dropdownsLoaded, rawCountries, rawStates, rawDistricts, rawCities, rawZones, rawWards, rawPanchayats, rawProperties, rawSubProperties]);
 
-  /* Block loads on a separate, slower chain (project -> has_blocks -> block
-     list) than the other dropdowns, so its edit-mode value can't be resolved
-     in the effect above — re-resolve once rawBlocks actually arrives. */
-  useEffect(() => {
-    if (!isEdit || rawBlocks.length === 0) return;
-    setFormData((prev) => {
-      if (!prev.block_id) return prev;
-      const resolved = resolveOptionValue(rawBlocks, prev.block_id, "block_name", undefined);
-      if (resolved === prev.block_id) return prev;
-      return { ...prev, block_id: resolved };
-    });
-  }, [isEdit, rawBlocks]);
-
   /* ===============================
      RE-APPLY PROJECT AFTER HOOK LOADS PROJECT LIST
      The hook auto-selects options[0] when the stored projectId doesn't match any
@@ -1024,11 +971,6 @@ export default function CustomerCreationForm() {
       return true;
     }),
     [dropdowns.wards, formData.zone_id, formData.panchayat_id]
-  );
-
-  const filteredBlocks = useMemo(
-    () => dropdowns.blocks.filter((b: any) => !formData.ward_id || normalizeEntityId(b.ward_id ?? b.ward) === formData.ward_id),
-    [dropdowns.blocks, formData.ward_id]
   );
 
   const filteredPanchayats = useMemo(
@@ -1139,15 +1081,8 @@ export default function CustomerCreationForm() {
       return false;
     }
 
-    if (projectHasBlocks && !formData.block_id) {
-      setFieldErrors((prev) => ({ ...prev, block_id: "Block is required for this project" }));
-      Swal.fire(t("common.warning") || "Warning", "Block is required for this project", "warning");
-      return false;
-    }
-
-    // Password is required only when creating (edit leaves it blank to keep
-    // the current password), so it stays outside the schema above.
-    if (showField("password") && !isEdit && formData.password.length < 8) {
+    // Password is optional; only validated for strength if the user chooses to set one.
+    if (showField("password") && formData.password && formData.password.length < 8) {
       Swal.fire("Weak Password", "Password must be at least 8 characters", "warning");
       return false;
     }
@@ -1320,6 +1255,7 @@ export default function CustomerCreationForm() {
               onChange={(e) => update("customer_name", e.target.value)}
               placeholder="Enter full name"
               error={fieldErrors.customer_name}
+              isRequired={false}
             />
           )}
           {showField("contact_no") && (
@@ -1334,6 +1270,7 @@ export default function CustomerCreationForm() {
               maxLength={10}
               inputMode="numeric"
               error={fieldErrors.contact_no}
+              isRequired={false}
             />
           )}
           {showField("username") && (
@@ -1343,6 +1280,7 @@ export default function CustomerCreationForm() {
               onChange={(e) => update("username", e.target.value)}
               placeholder="Enter username"
               error={fieldErrors.username}
+              isRequired={false}
             />
           )}
           {showField("email") && (
@@ -1353,6 +1291,7 @@ export default function CustomerCreationForm() {
               placeholder="Enter email address"
               type="email"
               error={fieldErrors.email}
+              isRequired={false}
             />
           )}
 
@@ -1362,7 +1301,7 @@ export default function CustomerCreationForm() {
               value={formData.password}
               onChange={(e) => update("password", e.target.value)}
               placeholder={isEdit ? "Leave blank to keep current password" : "Enter password (min 8 chars)"}
-              isRequired={!isEdit}
+              isRequired={false}
             />
           )}
 
@@ -1428,6 +1367,7 @@ export default function CustomerCreationForm() {
                   value={formData.street}
                   onChange={(e) => update("street", e.target.value)}
                   placeholder="e.g., Main Street"
+                  isRequired={false}
                 />
               )}
               {showField("area") && (
@@ -1436,6 +1376,7 @@ export default function CustomerCreationForm() {
                   value={formData.area}
                   onChange={(e) => update("area", e.target.value)}
                   placeholder="e.g., Village Center"
+                  isRequired={false}
                 />
               )}
             </>
@@ -1483,6 +1424,7 @@ export default function CustomerCreationForm() {
                   value={formData.street}
                   onChange={(e) => update("street", e.target.value)}
                   placeholder="e.g., Main Street"
+                  isRequired={false}
                 />
               )}
               {showField("area") && (
@@ -1491,6 +1433,7 @@ export default function CustomerCreationForm() {
                   value={formData.area}
                   onChange={(e) => update("area", e.target.value)}
                   placeholder="e.g., Village Center"
+                  isRequired={false}
                 />
               )}
               {showField("villa_no") && (
@@ -1532,6 +1475,7 @@ export default function CustomerCreationForm() {
                   value={formData.area}
                   onChange={(e) => update("area", e.target.value)}
                   placeholder="e.g., Industrial Zone"
+                  isRequired={false}
                 />
               )}
             </>
@@ -1549,6 +1493,7 @@ export default function CustomerCreationForm() {
               maxLength={6}
               inputMode="numeric"
               error={fieldErrors.pincode}
+              isRequired={false}
             />
           )}
           {showField("latitude") && (
@@ -1560,6 +1505,7 @@ export default function CustomerCreationForm() {
               type="number"
               step="0.0001"
               error={fieldErrors.latitude}
+              isRequired={false}
             />
           )}
           {showField("longitude") && (
@@ -1571,6 +1517,7 @@ export default function CustomerCreationForm() {
               type="number"
               step="0.0001"
               error={fieldErrors.longitude}
+              isRequired={false}
             />
           )}
           {(showField("latitude") || showField("longitude")) && (
@@ -1600,6 +1547,7 @@ export default function CustomerCreationForm() {
               }))}
               placeholder={t("common.select_item_placeholder", { item: t("common.country") }) || "Select country"}
               error={fieldErrors.country_id}
+              isRequired={false}
             />
           )}
           {showField("state_id") && (
@@ -1620,6 +1568,7 @@ export default function CustomerCreationForm() {
               }))}
               placeholder={t("common.select_item_placeholder", { item: t("common.state") }) || "Select state"}
               error={fieldErrors.state_id}
+              isRequired={false}
             />
           )}
           {showField("district_id") && (
@@ -1639,6 +1588,7 @@ export default function CustomerCreationForm() {
               }))}
               placeholder={t("common.select_item_placeholder", { item: t("common.district") }) || "Select district"}
               error={fieldErrors.district_id}
+              isRequired={false}
             />
           )}
           {showField("city_id") && (
@@ -1657,6 +1607,7 @@ export default function CustomerCreationForm() {
               }))}
               placeholder={t("common.select_item_placeholder", { item: t("common.city") }) || "Select city"}
               error={fieldErrors.city_id}
+              isRequired={false}
             />
           )}
           {showField("zone_id") && showZone && !isPanchayatSelected && (
@@ -1710,7 +1661,6 @@ export default function CustomerCreationForm() {
               onChange={(v: string) => {
                 const next = v === "__none__" ? "" : v;
                 update("ward_id", next);
-                update("block_id", "");
               }}
               options={[
                 { value: "__none__", label: t("common.not_available") || "N/A" },
@@ -1721,23 +1671,6 @@ export default function CustomerCreationForm() {
               ]}
               placeholder={t("common.select_item_placeholder", { item: t("common.ward") }) || "Select ward"}
               isRequired={false}
-            />
-          )}
-
-          {/* BLOCK — only when the project has blocks enabled; options scoped to the selected ward */}
-          {projectHasBlocks && (
-            <ShadcnSelect
-              label="Block"
-              value={formData.block_id}
-              onChange={(v: string) => update("block_id", v)}
-              options={filteredBlocks.map((b: any) => ({
-                value: resolveId(b),
-                label: b.block_name,
-              }))}
-              placeholder={formData.ward_id ? "Select block" : "Select ward first"}
-              isRequired={true}
-              disabled={!formData.ward_id}
-              error={fieldErrors.block_id}
             />
           )}
         </FormSection>
@@ -1790,6 +1723,7 @@ export default function CustomerCreationForm() {
               }))}
               placeholder={t("common.select_item_placeholder", { item: t("admin.customer_creation.property") }) || "Select property"}
               error={fieldErrors.property_id}
+              isRequired={false}
             />
           )}
           {isEdit && showField("sub_property_id") && (
@@ -1810,6 +1744,7 @@ export default function CustomerCreationForm() {
                 }))}
               placeholder={t("common.select_item_placeholder", { item: t("admin.customer_creation.sub_property") }) || "Select sub property"}
               error={fieldErrors.sub_property_id}
+              isRequired={false}
             />
           )}
 
@@ -1923,6 +1858,7 @@ export default function CustomerCreationForm() {
               ]}
               placeholder={t("admin.customer_creation.id_proof_placeholder") || "Select ID proof type"}
               error={fieldErrors.id_proof_type}
+              isRequired={false}
             />
           )}
           {showField("id_no") && (
@@ -1933,6 +1869,7 @@ export default function CustomerCreationForm() {
                 onChange={(e) => update("id_no", e.target.value)}
                 placeholder="Enter identification number"
                 error={fieldErrors.id_no}
+                isRequired={false}
               />
             </div>
           )}
