@@ -462,6 +462,8 @@ export default function DailyTripLogReportPage() {
             value={hhCollections}
             dataKey="unique_id"
             className="p-datatable-sm"
+            localData
+            exportable={false}
             paginator
             rows={10}
             rowsPerPageOptions={[10, 25, 50]}
@@ -510,6 +512,8 @@ export default function DailyTripLogReportPage() {
             value={cps}
             dataKey="unique_id"
             className="p-datatable-sm"
+            localData
+            exportable={false}
             emptyMessage="No collection points."
             paginator
             rows={10}
