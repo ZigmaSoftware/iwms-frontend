@@ -29,6 +29,8 @@ import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { downloadRecordsPdf, drawQrCode } from "@/utils/exportPdf";
 import { formatCollectionTime, formatTimeOnly } from "@/utils/formatTime";
+import { downloadCustomerQrStickerPdf } from "@/pages/admin/modules/masters/customerMasters/customerCreations/customerQrStickerPdf";
+import type { Customer } from "@/pages/admin/modules/masters/customerMasters/customerCreations/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -255,6 +257,8 @@ export default function DailyTripAssignmentList() {
   const [isSavingSchedulerConfig, setIsSavingSchedulerConfig] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingDetailed, setIsExportingDetailed] = useState(false);
+  // unique_id of the trip whose QR sheet is being built, so only that row spins.
+  const [qrTripId, setQrTripId] = useState<string | null>(null);
   const [retripRow, setRetripRow] = useState<DailyTripAssignmentRecord | null>(null);
   const [retripRemarks, setRetripRemarks] = useState("");
   const [retripSelectedCps, setRetripSelectedCps] = useState<Set<string>>(new Set());
@@ -569,6 +573,73 @@ export default function DailyTripAssignmentList() {
     }
   };
 
+  /**
+   * Per-trip customer QR sticker sheet, reusing Customer Creation's template
+   * so a sheet printed from here is identical to one printed from there.
+   *
+   * The stops on this row (`household_collection_points`) carry only a thin
+   * customer ref, while the sticker needs the QR image plus project/ward and
+   * address fields — so each customer is re-read in full, the same way
+   * "Detailed Report (QR)" already does. Bin-only trips have no household
+   * customers and are handled before we fetch anything.
+   */
+  const handleTripQrDownload = async (row: DailyTripAssignmentRecord) => {
+    const stops = row.household_collection_points ?? [];
+    if (stops.length === 0) {
+      Swal.fire({
+        icon: "info",
+        title: "No household stops",
+        text: "This trip has no household or bulk-waste stops, so there are no customer QRs to print.",
+      });
+      return;
+    }
+
+    setQrTripId(row.unique_id);
+    try {
+      // De-duplicate: the same customer can appear on more than one stop.
+      const seen = new Set<string>();
+      const customers: Customer[] = [];
+      for (const stop of stops) {
+        const customerId = stop.customer_id ?? stop.customer?.unique_id;
+        if (!customerId || seen.has(String(customerId))) continue;
+        seen.add(String(customerId));
+        try {
+          const customer = (await customerCreationApi.read(
+            String(customerId),
+          )) as unknown as Customer;
+          if (customer?.qr_code) customers.push(customer);
+        } catch {
+          // Skip a customer that cannot be read; the rest of the sheet still prints.
+        }
+      }
+
+      if (customers.length === 0) {
+        Swal.fire({
+          icon: "warning",
+          title: t("common.warning") || "Warning",
+          text: "None of this trip's customers have a generated QR code yet.",
+        });
+        return;
+      }
+
+      await downloadCustomerQrStickerPdf(customers, {
+        companyName: row.company_name as string | undefined,
+        projectName: row.project_name as string | undefined,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate the QR sticker sheet for this trip.",
+      });
+    } finally {
+      setQrTripId(null);
+    }
+  };
+
   const actionTemplate = (row: DailyTripAssignmentRecord) => {
     const rowId = row.unique_id ?? String((row as any).id ?? "");
     return (
@@ -588,6 +659,27 @@ export default function DailyTripAssignmentList() {
         >
           <PencilIcon className="size-5" />
         </button>
+        {(() => {
+          const stopCount = (row.household_collection_points ?? []).length;
+          const isBusy = qrTripId === row.unique_id;
+          return (
+            <button
+              title={
+                stopCount === 0
+                  ? "No household stops on this trip — nothing to print"
+                  : `Download customer QR stickers (${stopCount} stop${stopCount === 1 ? "" : "s"})`
+              }
+              onClick={() => void handleTripQrDownload(row)}
+              disabled={stopCount === 0 || isBusy}
+              className="ml-2 text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed"
+            >
+              <i
+                className={isBusy ? "pi pi-spin pi-spinner" : "pi pi-print"}
+                style={{ fontSize: "1.05rem" }}
+              />
+            </button>
+          );
+        })()}
         {row.status === "In Progress" && (
           <button
             title="Close & Start Next Trip"
@@ -1276,7 +1368,7 @@ export default function DailyTripAssignmentList() {
           body={(row: DailyTripAssignmentRecord) => <RetripCell retrip={row.retrip_info} />}
           style={{ minWidth: 150 }}
         />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 80 }} />
+        <Column header={t("common.actions")} body={actionTemplate} exportable={false} style={{ width: 130 }} />
       </DataTable>
 
       <Dialog open={Boolean(retripRow)} onOpenChange={(open) => !open && closeRetripModal()}>
