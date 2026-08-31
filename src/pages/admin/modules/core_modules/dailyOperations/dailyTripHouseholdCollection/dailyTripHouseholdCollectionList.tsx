@@ -9,9 +9,12 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Column } from "primereact/column";
 
-import { dailyTripHouseholdCollectionApi } from "@/helpers/admin";
+import { customerCreationApi, dailyTripHouseholdCollectionApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { Button } from "primereact/button";
+import { downloadCustomerQrStickerPdf } from "@/pages/admin/modules/masters/customerMasters/customerCreations/customerQrStickerPdf";
+import type { Customer } from "@/pages/admin/modules/masters/customerMasters/customerCreations/types";
 
 
 // A5: DailyTripHouseholdCollection.STATUS_CHOICES — Pending/Collected/Collect
@@ -128,6 +131,9 @@ export default function DailyTripHouseholdCollectionList() {
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  // unique_id of the stop whose QR is being prepared, so only that row's
+  // button shows a spinner.
+  const [qrDownloadingId, setQrDownloadingId] = useState<string | null>(null);
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<string>("");
   const [filteredRows, setFilteredRows] = useState<DailyTripHouseholdCollectionRecord[]>([]);
   const requestIdRef = useRef(0);
@@ -283,6 +289,60 @@ export default function DailyTripHouseholdCollectionList() {
         rec.project_id
     ),
   }));
+
+  /**
+   * Per-stop QR sticker download, using the same A4 sticker template as
+   * Customer Creation.
+   *
+   * The stop row only carries four customer fields (unique_id, name,
+   * building_no, street) — the sticker needs the QR image plus the project /
+   * ward / address fields — so the full customer is fetched on click. That
+   * also keeps the sheet in step with any customer edit made since this list
+   * was loaded.
+   */
+  const handleDownloadQr = async (row: DailyTripHouseholdCollectionRecord) => {
+    const customerRef = row.customer as Record<string, unknown> | null | undefined;
+    const customerUniqueId =
+      (customerRef?.unique_id as string | undefined) ??
+      (typeof row.customer_id === "string" ? row.customer_id : undefined);
+
+    if (!customerUniqueId) {
+      Swal.fire({
+        icon: "warning",
+        title: t("common.warning") || "Warning",
+        text: "This stop has no linked customer, so there is no QR to download.",
+      });
+      return;
+    }
+
+    setQrDownloadingId(String(row.unique_id));
+    try {
+      const customer = (await customerCreationApi.read(customerUniqueId)) as Customer;
+      if (!customer?.qr_code) {
+        Swal.fire({
+          icon: "warning",
+          title: t("common.warning") || "Warning",
+          text: "No QR code has been generated for this customer yet.",
+        });
+        return;
+      }
+      await downloadCustomerQrStickerPdf([customer], {
+        companyName: customer.company_name,
+        projectName: customer.project_name,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate the QR sticker for this stop.",
+      });
+    } finally {
+      setQrDownloadingId(null);
+    }
+  };
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -527,6 +587,30 @@ export default function DailyTripHouseholdCollectionList() {
               <span className="text-gray-400">-</span>
             )
           }
+        />
+        <Column
+          field="_qr"
+          header="Download QR"
+          exportable={false}
+          style={{ minWidth: 140 }}
+          body={(row: DailyTripHouseholdCollectionRecord) => {
+            const isBusy = qrDownloadingId === String(row.unique_id);
+            const hasCustomer = Boolean(
+              (row.customer as Record<string, unknown> | null)?.unique_id ??
+                row.customer_id,
+            );
+            return (
+              <Button
+                type="button"
+                label={isBusy ? "Preparing..." : "Download QR"}
+                icon={isBusy ? "pi pi-spin pi-spinner" : "pi pi-qrcode"}
+                className="p-button-sm p-button-outlined"
+                disabled={isBusy || !hasCustomer}
+                tooltip={hasCustomer ? undefined : "No customer linked to this stop"}
+                onClick={() => void handleDownloadQr(row)}
+              />
+            );
+          }}
         />
       </DataTable>
     </div>
