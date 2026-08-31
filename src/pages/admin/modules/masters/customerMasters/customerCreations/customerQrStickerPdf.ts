@@ -23,35 +23,35 @@ import { loadQrImage, safeFilename, text } from "./customerQrPdf";
 
 // Canvas render surface: A4 at ~150 DPI, which keeps the QR modules crisp
 // without producing an unreasonably large PDF payload.
-const SHEET_WIDTH = 1240;
-const SHEET_HEIGHT = 1754;
+export const SHEET_WIDTH = 1240;
+export const SHEET_HEIGHT = 1754;
 
-const COLUMNS = 2;
-const ROWS = 2;
+export const COLUMNS = 2;
+export const ROWS = 2;
 export const STICKERS_PER_PAGE = COLUMNS * ROWS;
 
 // Outer page margin and the gutter between neighbouring cards.
-const MARGIN_X = 88;
-const MARGIN_Y = 116;
-const GUTTER_X = 48;
-const GUTTER_Y = 44;
+export const MARGIN_X = 88;
+export const MARGIN_Y = 116;
+export const GUTTER_X = 48;
+export const GUTTER_Y = 44;
 
-const CARD_WIDTH = (SHEET_WIDTH - MARGIN_X * 2 - GUTTER_X * (COLUMNS - 1)) / COLUMNS;
-const CARD_HEIGHT = (SHEET_HEIGHT - MARGIN_Y * 2 - GUTTER_Y * (ROWS - 1)) / ROWS;
+export const CARD_WIDTH = (SHEET_WIDTH - MARGIN_X * 2 - GUTTER_X * (COLUMNS - 1)) / COLUMNS;
+export const CARD_HEIGHT = (SHEET_HEIGHT - MARGIN_Y * 2 - GUTTER_Y * (ROWS - 1)) / ROWS;
 
-const FOOTER_HEIGHT = 40;
-const CARD_RADIUS = 14;
-const CARD_PADDING = 36;
+export const FOOTER_HEIGHT = 40;
+export const CARD_RADIUS = 14;
+export const CARD_PADDING = 36;
 
 /** Programme description printed under the local-body name. */
-const BRAND_NAVY = "#123a63";
-const INK = "#0f172a";
-const MUTED = "#5b6b7d";
-const HAIRLINE = "#c8d3de";
+export const BRAND_NAVY = "#123a63";
+export const INK = "#0f172a";
+export const MUTED = "#5b6b7d";
+export const HAIRLINE = "#c8d3de";
 
 const COMPANY_LOGO_URL = "/logos/bpLogo.png";
 
-type LoadedLogos = {
+export type LoadedLogos = {
   company: HTMLImageElement | null;
 };
 
@@ -64,7 +64,7 @@ type LoadedLogos = {
  * Fetching to a blob URL keeps the image same-origin; a `crossOrigin` retry
  * covers servers that send CORS headers but block the plain fetch.
  */
-const loadLogo = async (source: string): Promise<HTMLImageElement | null> => {
+export const loadLogo = async (source: string): Promise<HTMLImageElement | null> => {
   const decodeFrom = async (src: string, useCors: boolean) => {
     const image = new Image();
     if (useCors) image.crossOrigin = "anonymous";
@@ -93,7 +93,7 @@ const loadLogo = async (source: string): Promise<HTMLImageElement | null> => {
   }
 };
 
-const loadLogos = async (): Promise<LoadedLogos> => ({
+export const loadLogos = async (): Promise<LoadedLogos> => ({
   company: await loadLogo(COMPANY_LOGO_URL),
 });
 
@@ -101,7 +101,7 @@ const loadLogos = async (): Promise<LoadedLogos> => ({
  * Project emblems are uploaded per project, so a mixed sheet needs several.
  * Each URL is fetched once and reused across every sticker that shares it.
  */
-const createProjectLogoLoader = () => {
+export const createProjectLogoLoader = () => {
   const cache = new Map<string, Promise<HTMLImageElement | null>>();
   return (source?: string | null): Promise<HTMLImageElement | null> => {
     const url = (source ?? "").trim();
@@ -116,7 +116,7 @@ const createProjectLogoLoader = () => {
 };
 
 /** Draws an image scaled to *fit* inside the box, centred, preserving aspect. */
-const drawContainedImage = (
+export const drawContainedImage = (
   context: CanvasRenderingContext2D,
   image: HTMLImageElement,
   boxX: number,
@@ -136,7 +136,7 @@ const drawContainedImage = (
   );
 };
 
-const roundedRectPath = (
+export const roundedRectPath = (
   context: CanvasRenderingContext2D,
   x: number,
   y: number,
@@ -159,7 +159,7 @@ const roundedRectPath = (
 };
 
 /** Shrinks the font until the single-line label fits, then clips if still long. */
-const fitSingleLine = (
+export const fitSingleLine = (
   context: CanvasRenderingContext2D,
   value: string,
   maxWidth: number,
@@ -183,7 +183,7 @@ const fitSingleLine = (
  * A long project name would otherwise hit the minimum size and still be
  * ellipsized, which is how "Blue Planet's Integrated Waste Managemen…" happened.
  */
-const fitWrappedLines = (
+export const fitWrappedLines = (
   context: CanvasRenderingContext2D,
   value: string,
   maxWidth: number,
@@ -248,7 +248,7 @@ const fitWrappedLines = (
   return { size: minSize, lines: wrapAt(minSize).slice(0, maxLines) };
 };
 
-const ellipsize = (
+export const ellipsize = (
   context: CanvasRenderingContext2D,
   value: string,
   maxWidth: number,
@@ -262,7 +262,7 @@ const ellipsize = (
 };
 
 /** Crop marks at the four corners of a card, drawn just outside its bounds. */
-const drawCropMarks = (
+export const drawCropMarks = (
   context: CanvasRenderingContext2D,
   x: number,
   y: number,
@@ -392,22 +392,32 @@ const stickerBuilding = (customer: Customer): string =>
   (customer.street ?? "").trim();
 
 /**
- * Ward headline, e.g. "GNO (Ward No 18)". Uses the local-body acronym when the
- * ward name does not already carry one.
+ * Zone + ward headline on one line, e.g. "Zone 2 · GNO (Ward No 18)".
+ *
+ * A crew standing at the door needs both: the zone narrows the round and the
+ * ward pins the street. Either half may be missing, in which case whichever is
+ * present stands alone rather than leaving a dangling separator.
  */
 const stickerWardHeadline = (customer: Customer): string => {
   const ward = (customer.ward_name ?? "").trim();
   const zone = (customer.zone_name ?? "").trim();
-  if (!ward) return zone;
 
   // "GNO Ward 1" → "GNO (Ward No 1)"
+  let wardLabel = ward;
   const match = ward.match(/^(.*?)\s*ward\s*(?:no\.?\s*)?(\S+)$/i);
   if (match) {
     const prefix = match[1].trim();
     const number = match[2];
-    return prefix ? `${prefix} (Ward No ${number})` : `Ward No ${number}`;
+    wardLabel = prefix ? `${prefix} (Ward No ${number})` : `Ward No ${number}`;
   }
-  return ward;
+
+  // Skip a zone that the ward label already names, so a ward carrying its
+  // local-body acronym does not read as "GNO · GNO (Ward No 1)".
+  const zoneIsRedundant =
+    Boolean(zone) &&
+    wardLabel.toLowerCase().includes(zone.toLowerCase());
+
+  return [zoneIsRedundant ? "" : zone, wardLabel].filter(Boolean).join(" · ");
 };
 
 const drawSticker = async (
