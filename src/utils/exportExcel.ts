@@ -10,6 +10,12 @@ export type ExcelTemplateColumn = {
   header: string;
   required?: boolean;
   sample?: ExportValue;
+  /**
+   * Extra guidance shown in the template's "Column Help" sheet — e.g. the
+   * allowed values for a lookup column, so the uploader does not have to
+   * guess the exact spelling.
+   */
+  notes?: string;
 };
 
 export type ExcelDownloadType = "template" | "all";
@@ -126,6 +132,7 @@ export const exportTemplateToExcel = (
     Column: column.header,
     Field: column.field,
     Required: column.required ? "Yes" : "No",
+    Notes: column.notes ?? "",
   }));
 
   const workbook = XLSX.utils.book_new();
