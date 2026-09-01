@@ -1,7 +1,7 @@
 import type { SupervisorZoneMapRecord, TableFilters } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -16,7 +16,11 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar";
+import { FilterBarSelect } from "@/components/common/FilterBar";
+import {
+  FilterBar,
+  type StatusFilterValue,
+} from "@/components/common/FilterBar";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -32,13 +36,12 @@ const SUPERVISOR_ZONE_MAP_COLUMN_FIELDS: Record<string, string[]> = {
   created_at: ["created_at"],
 };
 
-
 const normalizeList = (payload: unknown): any[] =>
   Array.isArray(payload)
     ? payload
     : Array.isArray((payload as any)?.data)
-    ? (payload as any).data
-    : (payload as any)?.results ?? [];
+      ? (payload as any).data
+      : ((payload as any)?.results ?? []);
 
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
@@ -46,11 +49,15 @@ const normalizeId = (value: unknown): string =>
 const filterByCompanyProject = (
   items: any[],
   companyId: string,
-  projectId: string
+  projectId: string,
 ) => {
   const hasContextFields = items.some((item) => {
-    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
-    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    const rowCompanyId = normalizeId(
+      item?.company_id ?? item?.company_unique_id,
+    );
+    const rowProjectId = normalizeId(
+      item?.project_id ?? item?.project_unique_id,
+    );
     return Boolean(rowCompanyId || rowProjectId);
   });
 
@@ -59,8 +66,12 @@ const filterByCompanyProject = (
   }
 
   return items.filter((item) => {
-    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
-    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    const rowCompanyId = normalizeId(
+      item?.company_id ?? item?.company_unique_id,
+    );
+    const rowProjectId = normalizeId(
+      item?.project_id ?? item?.project_unique_id,
+    );
     const companyMatches = !companyId || rowCompanyId === companyId;
     const projectMatches = !projectId || rowProjectId === projectId;
     return companyMatches && projectMatches;
@@ -82,10 +93,13 @@ export default function SupervisorZoneMapList() {
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "staff-masters",
     "supervisor-zone-map",
-    SUPERVISOR_ZONE_MAP_COLUMN_FIELDS
+    SUPERVISOR_ZONE_MAP_COLUMN_FIELDS,
   );
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -97,13 +111,16 @@ export default function SupervisorZoneMapList() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
   const [records, setRecords] = useState<SupervisorZoneMapRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [statusFilterValue, setStatusFilterValue] = useState<StatusFilterValue>("all");
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [statusFilterValue, setStatusFilterValue] =
+    useState<StatusFilterValue>("all");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     unique_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -113,16 +130,18 @@ export default function SupervisorZoneMapList() {
     _zone_names: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  const [districtLookup, setDistrictLookup] = useState<Record<string, string>>({});
+  const [districtLookup, setDistrictLookup] = useState<Record<string, string>>(
+    {},
+  );
   const [cityLookup, setCityLookup] = useState<Record<string, string>>({});
   const [zoneLookup, setZoneLookup] = useState<Record<string, string>>({});
-  const [supervisorLookup, setSupervisorLookup] = useState<Record<string, string>>({});
+  const [supervisorLookup, setSupervisorLookup] = useState<
+    Record<string, string>
+  >({});
 
   const { encStaffMasters, encSupervisorZoneMap } = getEncryptedRoute();
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encStaffMasters,
-    encSupervisorZoneMap,
-  );
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
+    createCrudRoutePaths(encStaffMasters, encSupervisorZoneMap);
 
   useEffect(() => {
     let mounted = true;
@@ -147,40 +166,74 @@ export default function SupervisorZoneMapList() {
       if (mounted) setIsLoading(true);
 
       try {
-        const [mapRes, districtRes, cityRes, zoneRes, userRes] = await Promise.all([
-          adminApi.supervisorZoneMap.readAll(),
-          adminApi.districts.readAll(),
-          adminApi.cities.readAll(),
-          adminApi.zones.readAll(),
-          adminApi.usersCreation.readAll(),
-        ]);
+        const [mapRes, districtRes, cityRes, zoneRes, userRes] =
+          await Promise.all([
+            adminApi.supervisorZoneMap.readAll(),
+            adminApi.districts.readAll(),
+            adminApi.cities.readAll(),
+            adminApi.zones.readAll(),
+            adminApi.usersCreation.readAll(),
+          ]);
 
         if (!mounted) return;
 
-        const mapRows = filterByCompanyProject(normalizeList(mapRes), companyUniqueId, projectId);
-        const districtRows = filterByCompanyProject(normalizeList(districtRes), companyUniqueId, projectId);
-        const cityRows = filterByCompanyProject(normalizeList(cityRes), companyUniqueId, projectId);
-        const zoneRows = filterByCompanyProject(normalizeList(zoneRes), companyUniqueId, projectId);
-        const userRows = filterByCompanyProject(normalizeList(userRes), companyUniqueId, projectId);
+        const mapRows = filterByCompanyProject(
+          normalizeList(mapRes),
+          companyUniqueId,
+          projectId,
+        );
+        const districtRows = filterByCompanyProject(
+          normalizeList(districtRes),
+          companyUniqueId,
+          projectId,
+        );
+        const cityRows = filterByCompanyProject(
+          normalizeList(cityRes),
+          companyUniqueId,
+          projectId,
+        );
+        const zoneRows = filterByCompanyProject(
+          normalizeList(zoneRes),
+          companyUniqueId,
+          projectId,
+        );
+        const userRows = filterByCompanyProject(
+          normalizeList(userRes),
+          companyUniqueId,
+          projectId,
+        );
 
         const users = userRows.filter(
           (u: any) =>
             u?.user_type_name?.toLowerCase() === "staff" &&
-            String(u?.staffusertype_name ?? "").trim().toLowerCase() === "supervisor"
+            String(u?.staffusertype_name ?? "")
+              .trim()
+              .toLowerCase() === "supervisor",
         );
 
         const dLookup = buildLookup(districtRows, "unique_id", "name");
         const cLookup = buildLookup(cityRows, "unique_id", "name");
         const zLookup = buildLookup(zoneRows, "unique_id", "zone_name");
-        const sLookup = buildLookup(normalizeList(users), "unique_id", "employee_name");
+        const sLookup = buildLookup(
+          normalizeList(users),
+          "unique_id",
+          "employee_name",
+        );
 
         const enriched = mapRows.map((rec: any) => ({
           ...rec,
-          _supervisor_name: sLookup[rec.supervisor_id] ?? rec.supervisor_id ?? "",
-          _district_name: rec.district_id ? (dLookup[String(rec.district_id)] ?? rec.district_id) : "",
-          _city_name: rec.city_id ? (cLookup[String(rec.city_id)] ?? rec.city_id) : "",
+          _supervisor_name:
+            sLookup[rec.supervisor_id] ?? rec.supervisor_id ?? "",
+          _district_name: rec.district_id
+            ? (dLookup[String(rec.district_id)] ?? rec.district_id)
+            : "",
+          _city_name: rec.city_id
+            ? (cLookup[String(rec.city_id)] ?? rec.city_id)
+            : "",
           _zone_names: Array.isArray(rec.zone_ids)
-            ? rec.zone_ids.map((z: string) => zLookup[String(z)] ?? z).join(", ")
+            ? rec.zone_ids
+                .map((z: string) => zLookup[String(z)] ?? z)
+                .join(", ")
             : "",
         }));
 
@@ -219,24 +272,36 @@ export default function SupervisorZoneMapList() {
   };
 
   const onSearchValueChange = (value: string) =>
-    onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>);
+    onGlobalFilterChange({
+      target: { value },
+    } as React.ChangeEvent<HTMLInputElement>);
 
   const onStatusFilterChange = (value: StatusFilterValue) => {
     setStatusFilterValue(value);
-    setFilters((prev) => ({
-      ...prev,
-      status: {
-        value: value === "all" ? null : value === "active" ? "ACTIVE" : "INACTIVE",
-        matchMode: FilterMatchMode.EQUALS,
-      },
-    } as TableFilters));
+    setFilters(
+      (prev) =>
+        ({
+          ...prev,
+          status: {
+            value:
+              value === "all"
+                ? null
+                : value === "active"
+                  ? "ACTIVE"
+                  : "INACTIVE",
+            matchMode: FilterMatchMode.EQUALS,
+          },
+        }) as TableFilters,
+    );
   };
 
   const resolveDistrict = (row: SupervisorZoneMapRecord) =>
-    row.district_id ? districtLookup[String(row.district_id)] ?? row.district_id : "-";
+    row.district_id
+      ? (districtLookup[String(row.district_id)] ?? row.district_id)
+      : "-";
 
   const resolveCity = (row: SupervisorZoneMapRecord) =>
-    row.city_id ? cityLookup[String(row.city_id)] ?? row.city_id : "-";
+    row.city_id ? (cityLookup[String(row.city_id)] ?? row.city_id) : "-";
 
   const resolveSupervisor = (row: SupervisorZoneMapRecord) =>
     supervisorLookup[row.supervisor_id] ?? row.supervisor_id ?? "-";
@@ -244,17 +309,24 @@ export default function SupervisorZoneMapList() {
   const resolveZones = (row: SupervisorZoneMapRecord) => {
     const zones = Array.isArray(row.zone_ids) ? row.zone_ids : [];
     if (!zones.length) return "-";
-    return zones.map((zoneId) => zoneLookup[String(zoneId)] ?? zoneId).join(", ");
+    return zones
+      .map((zoneId) => zoneLookup[String(zoneId)] ?? zoneId)
+      .join(", ");
   };
 
   const statusBodyTemplate = (row: SupervisorZoneMapRecord) => {
     const updateStatus = async (checked: boolean) => {
       try {
-        await adminApi.supervisorZoneMap.update(row.id, filterPayload({ status: checked ? "ACTIVE" : "INACTIVE" }));
+        await adminApi.supervisorZoneMap.update(
+          row.id,
+          filterPayload({ status: checked ? "ACTIVE" : "INACTIVE" }),
+        );
         setRecords((current) =>
           current.map((item) =>
-            item.id === row.id ? { ...item, status: checked ? "ACTIVE" : "INACTIVE" } : item
-          )
+            item.id === row.id
+              ? { ...item, status: checked ? "ACTIVE" : "INACTIVE" }
+              : item,
+          ),
         );
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
@@ -287,7 +359,9 @@ export default function SupervisorZoneMapList() {
       statusFilterValue === "all"
         ? records
         : records.filter((record) =>
-            statusFilterValue === "active" ? record.status === "ACTIVE" : record.status !== "ACTIVE"
+            statusFilterValue === "active"
+              ? record.status === "ACTIVE"
+              : record.status !== "ACTIVE",
           );
     if (!search) return statusFiltered;
     return statusFiltered.filter((record) =>
@@ -299,86 +373,20 @@ export default function SupervisorZoneMapList() {
         resolveZones(record),
       ]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(search))
+        .some((value) => String(value).toLowerCase().includes(search)),
     );
-  };
-
-  const handleDownloadExcel = () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = filteredExportRows();
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "SupervisorZoneMap");
-    } finally {
-      setIsExportingExcel(false);
-    }
   };
 
   return (
     <div className="p-3">
-      <div className="flex justify-between items-center mb-6">
-        <div>
+      <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold text-gray-800">
             {t("admin.supervisor_zone_map.list_title")}
           </h1>
           <p className="text-sm text-gray-500">
             {t("admin.supervisor_zone_map.list_subtitle")}
           </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
-          <Button
-            label={isExportingExcel ? "Downloading..." : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined"
-            disabled={isExportingExcel}
-            onClick={handleDownloadExcel}
-          />
-
-          <Button
-            label={t("admin.supervisor_zone_map.create_button")}
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-
-            onClick={() =>
-              navigate(
-                `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
-                  companyUniqueId
-                )}&project_id=${encodeURIComponent(projectId)}`
-              )
-            }
-          />
         </div>
       </div>
 
@@ -389,10 +397,40 @@ export default function SupervisorZoneMapList() {
           searchPlaceholder={t("common.search_placeholder")}
           statusValue={showCol("status") ? statusFilterValue : undefined}
           onStatusChange={showCol("status") ? onStatusFilterChange : undefined}
-        />
+        >
+          <FilterBarSelect
+            value={companyUniqueId || ""}
+            onChange={(value) => onCompanyChange(value)}
+            options={companies}
+            placeholder={"All Companies"}
+            disabled={!isSuperAdmin || companies.length === 0}
+          />
+          <FilterBarSelect
+            value={projectId || ""}
+            onChange={(value) => setProjectId(value)}
+            options={projects}
+            placeholder={showAllProjectsOption ? "All Projects" : undefined}
+            disabled={
+              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+            }
+          />
+          <Button
+            label={t("admin.supervisor_zone_map.create_button")}
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            onClick={() =>
+              navigate(
+                `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
+                  companyUniqueId,
+                )}&project_id=${encodeURIComponent(projectId)}`,
+              )
+            }
+          />
+        </FilterBar>
       </div>
 
       <DataTable
+        loadExportRows={async () => filteredExportRows()}
         value={records}
         dataKey="unique_id"
         paginator

@@ -184,9 +184,9 @@ export default function DailyTripCollectionPointList() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">Daily Trip Collection Points</h1>
+      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">Daily Trip Collection Points</h1>
           <p className="text-sm text-gray-500">Manage collection points assigned to daily trips</p>
         </div>
         <div className="flex items-center gap-3">
@@ -233,21 +233,15 @@ export default function DailyTripCollectionPointList() {
               options={projects}
               disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
             />
-            <select
+            <FilterBarSelect
               value={(filters.status as { value?: string | null } | undefined)?.value ?? ""}
-              onChange={(e) =>
-                setFilters((f) => ({
+              onChange={(value) => setFilters((f) => ({
                   ...f,
-                  status: { value: e.target.value || null, matchMode: FilterMatchMode.CONTAINS },
-                }))
-              }
-              className="p-inputtext-sm rounded border px-3 py-2 text-sm"
-            >
-              <option value="">All Statuses</option>
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
+                  status: { value: value || null, matchMode: FilterMatchMode.CONTAINS },
+                }))}
+              options={STATUS_OPTIONS}
+              placeholder={"All Statuses"}
+            />
           </FilterBar>
         }
         stripedRows

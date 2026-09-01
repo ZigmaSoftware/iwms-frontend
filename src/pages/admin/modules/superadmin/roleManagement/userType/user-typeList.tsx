@@ -44,7 +44,6 @@ export default function UserTypePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
@@ -182,8 +181,10 @@ export default function UserTypePage() {
     );
   };
 
-  const handleDownloadExcel = async () => {
-    setIsExportingExcel(true);
+  // Feeds the table's single "Download Excel" button: the "All data" option
+  // fetches every row matching the current filters, while "Current page"
+  // uses the rows already on screen.
+  const loadAllExportRows = async () => {
     try {
       const response = await userTypeApi.readAllForExport({
         params: {
@@ -192,18 +193,11 @@ export default function UserTypePage() {
         },
       });
       const rows = toRecordList(response);
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", t("common.no_items_found", {
-          item: t("admin.nav.user_type"),
-        }), "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "UserTypes");
+      return rows;
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-    } finally {
-      setIsExportingExcel(false);
     }
+    return [];
   };
 
   const header = (
@@ -215,27 +209,18 @@ export default function UserTypePage() {
       })}
       statusValue={statusValue}
       onStatusChange={onStatusFilterChange}
-      trailing={
-        <Button
-          label={isExportingExcel ? t("common.downloading") || "Downloading..." : t("common.download_excel") || "Download Excel"}
-          icon="pi pi-file-excel"
-          className="p-button-outlined"
-          disabled={isExportingExcel}
-          onClick={handleDownloadExcel}
-        />
-      }
     />
   );
 
   return (
     <div className="px-3 py-3 w-full ">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-1">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 mb-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-semibold text-gray-800 mb-1">
               {t("admin.nav.user_type")}
             </h1>
-            <p className="text-gray-500 text-sm">
+            <p className="text-sm text-gray-500">
               {t("common.manage_item_records", {
                 item: t("admin.nav.user_type"),
               })}
@@ -251,6 +236,7 @@ export default function UserTypePage() {
         </div>
 
         <DataTable
+          loadExportRows={loadAllExportRows}
           value={userTypes}
           dataKey="unique_id"
           lazy

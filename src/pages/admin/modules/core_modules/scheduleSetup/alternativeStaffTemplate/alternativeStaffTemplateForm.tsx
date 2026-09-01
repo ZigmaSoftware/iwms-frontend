@@ -731,7 +731,7 @@ export default function AlternativeStaffTemplateForm() {
   ============================ */
 
   return (
-    <div className="p-6">
+    <div className="p-3">
       <ComponentCard
         title={isEdit ? "Edit Alternative Staff" : "Add Alternative Staff"}
         desc="Configure temporary or permanent staff substitution"

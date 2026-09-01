@@ -189,7 +189,7 @@ export default function DateReport() {
     return (
       <>
         <ProjectSelectorBar />
-        <div className="p-4">
+        <div className="p-3">
           <div className="flex justify-end mb-4">
             <Button
               icon="pi pi-arrow-left"
@@ -210,7 +210,7 @@ export default function DateReport() {
   return (
     <>
       <ProjectSelectorBar />
-      <div className="p-4">
+      <div className="p-3">
       <div className="bg-white p-6 rounded-lg shadow-lg">
         {/* Header with Back button */}
         <div className="flex justify-between items-center mb-4">

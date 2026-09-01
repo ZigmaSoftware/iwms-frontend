@@ -16,7 +16,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar";
+import { FilterBar, FilterBarSelect, type StatusFilterValue } from "@/components/common/FilterBar";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -77,7 +78,6 @@ export default function StaffTemplateList() {
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [globalSearchTerm, setGlobalSearchTerm] = useState("");
   const [statusFilterValue, setStatusFilterValue] = useState<StatusFilterValue>("all");
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const requestIdRef = useRef(0);
 
   const { encScheduleSetup, encStaffTemplate } = getEncryptedRoute();
@@ -204,19 +204,10 @@ export default function StaffTemplateList() {
     return Array.isArray(payload) ? payload : payload?.results ?? [];
   };
 
-  const handleDownloadExcel = async () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = await fetchExportRows();
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "StaffTemplate");
-    } finally {
-      setIsExportingExcel(false);
-    }
-  };
+  // Feeds the table's single "Download Excel" button: the "All data" option
+  // fetches every row matching the current filters, while "Current page"
+  // uses the rows already on screen.
+  const loadAllExportRows = async () => fetchExportRows();
 
   /* ================= STATUS TOGGLE ================= */
 
@@ -272,75 +263,45 @@ export default function StaffTemplateList() {
   /* ================= HEADER ================= */
 
   const header = (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">
-            {t("admin.staff_template.list_title")}
-          </h1>
-          <p className="text-sm text-gray-500">
-            {t("admin.staff_template.list_subtitle")}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={selectedProjectId}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label || project.value}
-              </option>
-            ))}
-          </select>
-
-          <Button
-            label={isExportingExcel ? "Downloading..." : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined"
-            disabled={isExportingExcel}
-            onClick={handleDownloadExcel}
-          />
-
+    <ListPageHeader
+      title={t("admin.staff_template.list_title")}
+      subtitle={t("admin.staff_template.list_subtitle")}
+      actions={
           <Button
             label={t("admin.staff_template.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            onClick={() =>
-              navigate(ENC_NEW_PATH, { state: selectedContext })
-            }
+            onClick={() => navigate(ENC_NEW_PATH, { state: selectedContext })}
           />
-        </div>
-      </div>
-
-      <div className="flex justify-end">
+      }
+      filters={
         <FilterBar
           searchValue={globalFilterValue}
           onSearchChange={onSearchValueChange}
           searchPlaceholder={t("admin.staff_template.search_placeholder")}
           statusValue={showCol("status") ? statusFilterValue : undefined}
           onStatusChange={showCol("status") ? onStatusFilterChange : undefined}
-        />
-      </div>
-    </div>
+        >
+          <FilterBarSelect
+            value={companyUniqueId || ""}
+            onChange={(value) => onCompanyChange(value)}
+            options={companies}
+            placeholder="All Companies"
+            disabled={!isSuperAdmin || companies.length === 0}
+          />
+          <FilterBarSelect
+            value={selectedProjectId}
+            onChange={(value) => setProjectId(value)}
+            options={projects.map((project) => ({
+              value: String(project.value),
+              label: project.label || project.value,
+            }))}
+            placeholder={showAllProjectsOption ? "All Projects" : undefined}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+          />
+        </FilterBar>
+      }
+    />
   );
 
   /* ================= RENDER ================= */
@@ -348,6 +309,7 @@ export default function StaffTemplateList() {
   return (
     <div className="p-3">
       <DataTable
+        loadExportRows={loadAllExportRows}
         value={templates}
         lazy
         paginator

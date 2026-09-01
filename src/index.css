@@ -562,3 +562,24 @@ html[lang="ta"] {
     transform: rotate(360deg);
   }
 }
+
+/* ─── Toolbar control sizing ────────────────────────────────────────────
+   List-page headers mix PrimeReact <Button>, the Radix select trigger and
+   plain <button> elements on one row. They set their height three
+   different ways (p-button-sm vs default, py-1 vs py-2, h-10), so the row
+   rendered ragged. Pinning the PrimeReact button to the same 40px the
+   other controls use lines them all up, without editing ~90 call sites
+   that pass p-button-sm inconsistently.
+   Scoped to list headers so form dialogs keep their own button sizing. */
+.admin-shell .p-datatable-header .p-button,
+.admin-shell .iwms-list-header .p-button,
+/* Many list pages render the title + Add button above the table rather than
+   inside its header, so :has() catches that row too: any flex row that
+   contains an <h1> is a page title row. */
+.admin-shell div[class*="flex"]:has(> div > h1) > .p-button,
+.admin-shell div[class*="flex"]:has(> h1) > .p-button {
+  height: 2.5rem; /* 40px — matches CONTROL_HEIGHT */
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 0.875rem;
+}

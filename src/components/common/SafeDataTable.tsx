@@ -14,6 +14,11 @@ import {
   type ReactNode,
 } from "react";
 import Swal from "@/lib/notify";
+import { cn } from "@/lib/utils";
+import { CONTROL_BUTTON } from "@/components/common/controlSizing";
+
+/** Which rows an Excel export covers. */
+type ExportScope = "page" | "all";
 import {
   getCurrentAdminBulkImportApi,
   getCurrentAdminServerListApi,
@@ -190,7 +195,10 @@ const mapExcelRowsToPayloads = (
 
 type DataTableHeaderActionsProps = {
   header: ReactNode;
+  /** Every row the export can cover (all pages / server-side full set). */
   rows: SafeTableRows;
+  /** Just the rows currently rendered, for the "Current page" scope. */
+  pageRows?: SafeTableRows;
   importColumns: ExcelTemplateColumn[];
   discoverImportColumns: boolean;
   bulkImportable: boolean;
@@ -208,6 +216,7 @@ type DataTableHeaderActionsProps = {
 const DataTableHeaderActions = ({
   header,
   rows,
+  pageRows,
   importColumns,
   discoverImportColumns,
   bulkImportable,
@@ -263,13 +272,68 @@ const DataTableHeaderActions = ({
     };
   }, [discoverImportColumns, importApi, importColumnsKey]);
 
-  const handleExport = async () => {
-    const exportRows = loadExportRows ? await loadExportRows() : rows;
-    exportRecordsToExcel(
-      exportRows,
-      toExportFilename(filename),
-      sheetName || "Data",
-    );
+  // Export scope is chosen in a popup rather than split across two buttons:
+  // pages previously showed their own "Download Excel" next to this one's
+  // "Download All Excel", which read as two unrelated actions.
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Close the scope menu on an outside click or Escape, so it behaves like
+  // any other popover rather than sticking open.
+  useEffect(() => {
+    if (!exportOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!exportMenuRef.current?.contains(event.target as Node)) {
+        setExportOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExportOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [exportOpen]);
+
+  const handleExport = async (scope: ExportScope) => {
+    setExportOpen(false);
+    setExporting(true);
+    try {
+      // "all" prefers an explicit fetcher, else the full row set already
+      // held by the table; "page" uses only what is on screen.
+      const visibleRows = pageRows ?? rows;
+      const exportRows =
+        scope === "all"
+          ? loadExportRows
+            ? await loadExportRows()
+            : rows
+          : visibleRows;
+
+      if (exportRows.length === 0) {
+        Swal.fire("Nothing to export", "There are no rows to export.", "info");
+        return;
+      }
+
+      exportRecordsToExcel(
+        exportRows,
+        toExportFilename(filename),
+        sheetName || "Data",
+      );
+      recordExcelAudit("download_all_excel", {
+        scope,
+        row_count: exportRows.length,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Export failed.";
+      Swal.fire("Export failed", message, "error");
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleTemplate = () => {
@@ -369,16 +433,65 @@ const DataTableHeaderActions = ({
     }
   };
 
+  // One button, two scopes. "Current page" always works from rows already
+  // on screen; "All data" needs loadExportRows, so it is only offered when
+  // the page supplied it.
+  // Offer the scope menu when "all" can yield more than the visible page —
+  // either via an explicit fetcher, or because `rows` already holds every
+  // record while only one page is rendered.
+  const visibleCount = (pageRows ?? rows).length;
+  const canExportAll = Boolean(loadExportRows) || rows.length > visibleCount;
   const exportButton = (
-    <button
-      type="button"
-      onClick={() => void handleExport()}
-      disabled={rows.length === 0}
-      className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-green-200 bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-    >
-      <i className="pi pi-download" />
-      Download All Excel
-    </button>
+    <div className="relative w-full sm:w-auto" ref={exportMenuRef}>
+      <button
+        type="button"
+        onClick={() =>
+          canExportAll ? setExportOpen((open) => !open) : void handleExport("page")
+        }
+        disabled={rows.length === 0 || exporting}
+        aria-haspopup={canExportAll ? "menu" : undefined}
+        aria-expanded={canExportAll ? exportOpen : undefined}
+        className={cn(CONTROL_BUTTON, "border border-green-200 bg-green-600 text-white hover:bg-green-700")}
+      >
+        <i className={exporting ? "pi pi-spin pi-spinner" : "pi pi-download"} />
+        {exporting ? "Downloading..." : "Download Excel"}
+        {canExportAll ? <i className="pi pi-chevron-down text-xs" /> : null}
+      </button>
+
+      {canExportAll && exportOpen ? (
+        <div
+          role="menu"
+          className="absolute right-0 z-50 mt-1 w-60 overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void handleExport("page")}
+            className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+          >
+            <span className="font-medium text-gray-800 dark:text-gray-100">
+              Current page
+            </span>
+            <span className="text-xs text-gray-500">
+              {visibleCount} row{visibleCount === 1 ? "" : "s"} shown
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void handleExport("all")}
+            className="flex w-full flex-col items-start gap-0.5 border-t border-gray-100 px-3 py-2 text-left text-sm hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800"
+          >
+            <span className="font-medium text-gray-800 dark:text-gray-100">
+              All data
+            </span>
+            <span className="text-xs text-gray-500">
+              Every record matching current filters
+            </span>
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
   const canImport =
     bulkImportable &&
@@ -386,15 +499,18 @@ const DataTableHeaderActions = ({
     (Boolean(onImportRows) || Boolean(importApi));
 
   return (
-    <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-      <div className="min-w-0 flex-1">{header}</div>
+    <div className="iwms-list-header flex min-w-0 flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between">
+      {/* basis-full below lg keeps the page header on its own row: side by
+          side with the Excel buttons it was being squeezed narrow enough to
+          break long titles one word per line. */}
+      <div className="min-w-0 flex-1 lg:basis-auto">{header}</div>
       <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:auto-cols-max sm:grid-flow-col sm:grid-cols-none sm:items-center">
         {canImport && (
           <>
             <button
               type="button"
               onClick={handleTemplate}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto"
+              className={cn(CONTROL_BUTTON, "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50")}
             >
               <i className="pi pi-file-excel" />
               Download Template
@@ -403,7 +519,7 @@ const DataTableHeaderActions = ({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={importing}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              className={cn(CONTROL_BUTTON, "border border-blue-200 bg-blue-600 text-white hover:bg-blue-700")}
             >
               <i className="pi pi-upload" />
               {importing ? "Uploading..." : "Upload Excel"}
@@ -667,6 +783,7 @@ export const DataTable = <TValue extends SafeTableRows>(
       <DataTableHeaderActions
         header={tableProps.header as ReactNode}
         rows={rowsForExport}
+        pageRows={safeRows}
         importColumns={resolvedImportColumns}
         discoverImportColumns={!importColumns}
         bulkImportable={bulkImportable}

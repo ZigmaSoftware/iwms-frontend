@@ -20,6 +20,7 @@ import { buildComplaintMasterSchema } from "@/schemas/core_modules/complaintMana
 import { toSwalMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 import { MASTER_CONFIG, type MasterKind } from "./masterConfig";
+import { FormSelect } from "@/components/common/FormSelect";
 
 type Props = {
   kind: MasterKind;
@@ -231,27 +232,36 @@ export default function MasterForm({ kind }: Props) {
           <>
             <div>
               <Label>Category</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.category} onChange={(e) => setValue("category", e.target.value)} required>
-                <option value="">Select category</option>
-                {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.category_name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.category}
+                onChange={(v) => setValue("category", v)}
+                options={categories.map((item) => ({ value: String(item.unique_id), label: capitalize(item.category_name) }))}
+                required
+                placeholder={"Select category"}
+              />
             </div>
             <div>
               <Label>Priority</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.priority} onChange={(e) => setValue("priority", e.target.value)} required>
-                <option value="">Select priority</option>
-                {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.priority_name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.priority}
+                onChange={(v) => setValue("priority", v)}
+                options={priorities.map((item) => ({ value: String(item.unique_id), label: capitalize(item.priority_name) }))}
+                required
+                placeholder={"Select priority"}
+              />
             </div>
           </>
         )}
         {kind === "subcategory" && (
           <div>
             <Label>Category</Label>
-            <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.category} onChange={(e) => setValue("category", e.target.value)} required>
-              <option value="">Select category</option>
-              {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.category_name)}</option>)}
-            </select>
+            <FormSelect
+              value={form.category}
+              onChange={(v) => setValue("category", v)}
+              options={categories.map((item) => ({ value: String(item.unique_id), label: capitalize(item.category_name) }))}
+              required
+              placeholder={"Select category"}
+            />
           </div>
         )}
         {kind !== "slaRule" && <div>
@@ -265,45 +275,57 @@ export default function MasterForm({ kind }: Props) {
         {kind === "category" && (
           <div>
             <Label>Module</Label>
-            <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.module} onChange={(e) => setValue("module", e.target.value)}>
-              <option value="">None</option>
-              {modules.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.module_name)}</option>)}
-            </select>
+            <FormSelect
+              value={form.module}
+              onChange={(v) => setValue("module", v)}
+              options={modules.map((item) => ({ value: String(item.unique_id), label: capitalize(item.module_name) }))}
+              placeholder={"None"}
+            />
           </div>
         )}
         {["category", "subcategory"].includes(kind) && (
           <div>
             <Label>Default Priority</Label>
-            <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.default_priority} onChange={(e) => setValue("default_priority", e.target.value)}>
-              <option value="">None</option>
-              {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.priority_name)}</option>)}
-            </select>
+            <FormSelect
+              value={form.default_priority}
+              onChange={(v) => setValue("default_priority", v)}
+              options={priorities.map((item) => ({ value: String(item.unique_id), label: capitalize(item.priority_name) }))}
+              placeholder={"None"}
+            />
           </div>
         )}
         {kind === "category" && (
           <div>
             <Label>Default Team</Label>
-            <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.default_team} onChange={(e) => setValue("default_team", e.target.value)}>
-              <option value="">None</option>
-              {teams.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.team_name)}</option>)}
-            </select>
+            <FormSelect
+              value={form.default_team}
+              onChange={(v) => setValue("default_team", v)}
+              options={teams.map((item) => ({ value: String(item.unique_id), label: capitalize(item.team_name) }))}
+              placeholder={"None"}
+            />
           </div>
         )}
         {kind === "slaRule" && (
           <>
             <div>
               <Label>Subcategory</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.subcategory} onChange={(e) => setValue("subcategory", e.target.value)}>
-                <option value="">Any</option>
-                {subcategories.filter((item) => !form.category || idOf(item.category) === form.category).map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.subcategory_name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.subcategory}
+                onChange={(v) => setValue("subcategory", v)}
+                options={subcategories
+                  .filter((item) => !form.category || idOf(item.category) === form.category)
+                  .map((item) => ({ value: String(item.unique_id), label: capitalize(item.subcategory_name) }))}
+                placeholder="Any"
+              />
             </div>
             <div>
               <Label>Source</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.source} onChange={(e) => setValue("source", e.target.value)}>
-                <option value="">Any</option>
-                {sources.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.source_name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.source}
+                onChange={(v) => setValue("source", v)}
+                options={sources.map((item) => ({ value: String(item.unique_id), label: capitalize(item.source_name) }))}
+                placeholder={"Any"}
+              />
             </div>
             <div>
               <Label>Assign Within Minutes</Label>
@@ -319,10 +341,12 @@ export default function MasterForm({ kind }: Props) {
             </div>
             <div>
               <Label>Escalation Team</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.escalation_team} onChange={(e) => setValue("escalation_team", e.target.value)}>
-                <option value="">None</option>
-                {teams.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.team_name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.escalation_team}
+                onChange={(v) => setValue("escalation_team", v)}
+                options={teams.map((item) => ({ value: String(item.unique_id), label: capitalize(item.team_name) }))}
+                placeholder={"None"}
+              />
             </div>
           </>
         )}
@@ -330,28 +354,32 @@ export default function MasterForm({ kind }: Props) {
           <>
             <div>
               <Label>Department</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.department} onChange={(e) => setValue("department", e.target.value)}>
-                <option value="">None</option>
-                {departments.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.department_name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.department}
+                onChange={(v) => setValue("department", v)}
+                options={departments.map((item) => ({ value: String(item.unique_id), label: capitalize(item.department_name) }))}
+                placeholder={"None"}
+              />
             </div>
             <div>
               <Label>Lead Staff</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.lead_staff} onChange={(e) => setValue("lead_staff", e.target.value)}>
-                <option value="">None</option>
-                {staffOptions.map((item) => (
-                  <option key={item.staff_unique_id ?? item.unique_id} value={item.staff_unique_id ?? item.unique_id}>
-                    {item.employee_name ?? item.staff_name ?? item.username ?? item.staff_unique_id}
-                  </option>
-                ))}
-              </select>
+              <FormSelect
+                value={form.lead_staff}
+                onChange={(v) => setValue("lead_staff", v)}
+                options={staffOptions}
+                placeholder={"None"}
+              />
             </div>
             <div>
               <Label>Escalates To</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.escalates_to} onChange={(e) => setValue("escalates_to", e.target.value)}>
-                <option value="">None</option>
-                {teams.filter((team) => team.unique_id !== id).map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.team_name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.escalates_to}
+                onChange={(v) => setValue("escalates_to", v)}
+                options={teams
+                  .filter((team) => team.unique_id !== id)
+                  .map((item) => ({ value: String(item.unique_id), label: capitalize(item.team_name) }))}
+                placeholder="None"
+              />
             </div>
             <div>
               <Label>Escalation Level</Label>

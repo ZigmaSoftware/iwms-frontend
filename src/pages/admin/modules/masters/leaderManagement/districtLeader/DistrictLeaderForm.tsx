@@ -201,7 +201,7 @@ export default function DistrictLeaderForm() {
   const projectOptions = projects.map((p) => ({ value: p.value, label: p.label }));
 
   return (
-    <div className="p-6">
+    <div className="p-3">
       <ComponentCard
         title={isEdit ? "Edit District Leader" : "Add District Leader"}
         desc="Create and maintain district leader login credentials."

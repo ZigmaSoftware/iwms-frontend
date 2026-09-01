@@ -1,12 +1,16 @@
 import type { Staff } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
+import type {
+  DataTablePageEvent,
+  DataTableSortEvent,
+  SortOrder,
+} from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { useTranslation } from "react-i18next";
@@ -18,7 +22,11 @@ import { Switch } from "@/components/ui/switch";
 import QrPreviewDialog from "@/components/common/QrPreviewDialog";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar";
+import {
+  FilterBar,
+  FilterBarSelect,
+  type StatusFilterValue,
+} from "@/components/common/FilterBar";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -36,7 +44,6 @@ const STAFF_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   qr_code: ["qr_code"],
 };
 
-
 const cap = (val?: string | number | null) => {
   if (val === undefined || val === null || val === "") return "";
   const s = String(val);
@@ -49,7 +56,11 @@ const normalizeId = (value: unknown): string =>
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const toRecordList = (value: unknown): Staff[] => {
   if (Array.isArray(value)) return value as Staff[];
-  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+  if (
+    value &&
+    typeof value === "object" &&
+    Array.isArray((value as { results?: unknown }).results)
+  ) {
     return (value as { results: Staff[] }).results;
   }
   return [];
@@ -70,7 +81,7 @@ export default function StaffCreationList() {
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "staff-masters",
     "staff-creation",
-    STAFF_CREATION_COLUMN_FIELDS
+    STAFF_CREATION_COLUMN_FIELDS,
   );
   const [staffs, setStaffs] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +92,10 @@ export default function StaffCreationList() {
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [selectedQrStaff, setSelectedQrStaff] = useState<Staff | null>(null);
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -93,7 +107,10 @@ export default function StaffCreationList() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
   const [filterParams, setFilterParams] = useState({
     salary_type: "",
@@ -106,10 +123,8 @@ export default function StaffCreationList() {
   const [globalSearchTerm, setGlobalSearchTerm] = useState("");
 
   const { encStaffMasters, encStaffCreation } = getEncryptedRoute();
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encStaffMasters,
-    encStaffCreation,
-  );
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
+    createCrudRoutePaths(encStaffMasters, encStaffCreation);
 
   const globalFilterFields = [
     "unique_id",
@@ -136,7 +151,9 @@ export default function StaffCreationList() {
     ...(projectId ? { project_id: projectId } : {}),
   };
 
-  const mappedSortField = sortField ? BACKEND_ORDER_FIELD[sortField] ?? sortField : undefined;
+  const mappedSortField = sortField
+    ? (BACKEND_ORDER_FIELD[sortField] ?? sortField)
+    : undefined;
   const ordering =
     mappedSortField && SORTABLE_FIELDS.has(mappedSortField)
       ? `${sortOrder === -1 ? "-" : ""}${mappedSortField}`
@@ -152,26 +169,42 @@ export default function StaffCreationList() {
     setLoading(true);
     setStaffs([]);
     try {
-      const response = await adminApi.staffCreation.readAllwithPaginated(page, limit, {
-        params: { ...params, ...(orderingParam ? { ordering: orderingParam } : {}) },
-      });
+      const response = await adminApi.staffCreation.readAllwithPaginated(
+        page,
+        limit,
+        {
+          params: {
+            ...params,
+            ...(orderingParam ? { ordering: orderingParam } : {}),
+          },
+        },
+      );
       if (requestId !== requestIdRef.current) return;
 
       const rows = toRecordList(response);
 
       const hasContextFields = rows.some((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+        const rowCompanyId = normalizeId(
+          row.company_id || row.company_unique_id,
+        );
+        const rowProjectId = normalizeId(
+          row.project_id || row.project_unique_id,
+        );
         return Boolean(rowCompanyId || rowProjectId);
       });
 
       const filtered = !hasContextFields
         ? rows
         : rows.filter((row) => {
-            const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-            const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
+            const rowCompanyId = normalizeId(
+              row.company_id || row.company_unique_id,
+            );
+            const rowProjectId = normalizeId(
+              row.project_id || row.project_unique_id,
+            );
 
-            const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+            const companyMatches =
+              !companyUniqueId || rowCompanyId === companyUniqueId;
             const projectMatches = !projectId || rowProjectId === projectId;
 
             return companyMatches && projectMatches;
@@ -231,7 +264,7 @@ export default function StaffCreationList() {
   };
 
   const handleFilterChange = (
-    ev: ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    ev: ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = ev.target;
     setFilterParams((prev) => ({ ...prev, [name]: value }));
@@ -276,12 +309,12 @@ export default function StaffCreationList() {
     setRefetchTrigger((n) => n + 1);
   };
 
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
-
   const fetchExportRows = async (): Promise<Staff[]> => {
     const exportParams: Record<string, unknown> = { ...requestParams };
     if (globalSearchTerm) exportParams.search = globalSearchTerm;
-    const response = await adminApi.staffCreation.readAllForExport({ params: exportParams });
+    const response = await adminApi.staffCreation.readAllForExport({
+      params: exportParams,
+    });
     const rows = toRecordList(response);
 
     const hasContextFields = rows.some((row) => {
@@ -296,26 +329,18 @@ export default function StaffCreationList() {
       const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
 
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+      const companyMatches =
+        !companyUniqueId || rowCompanyId === companyUniqueId;
       const projectMatches = !projectId || rowProjectId === projectId;
 
       return companyMatches && projectMatches;
     });
   };
 
-  const handleDownloadExcel = async () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = await fetchExportRows();
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No staff records to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Staff");
-    } finally {
-      setIsExportingExcel(false);
-    }
-  };
+  // Feeds the table's single "Download Excel" button: the "All data" option
+  // fetches every row matching the current filters, while "Current page"
+  // uses the rows already on screen.
+  const loadAllExportRows = async () => fetchExportRows();
 
   const statusTemplate = (row: Staff) => {
     const updateStatus = async (value: boolean) => {
@@ -329,8 +354,8 @@ export default function StaffCreationList() {
         await adminApi.staffCreation.update(row.unique_id, formData);
         setStaffs((prev) =>
           prev.map((s) =>
-            s.unique_id === row.unique_id ? { ...s, active_status: value } : s
-          )
+            s.unique_id === row.unique_id ? { ...s, active_status: value } : s,
+          ),
         );
       } catch (err) {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
@@ -386,47 +411,10 @@ export default function StaffCreationList() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="h-10 rounded-lg border px-3 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="h-10 rounded-lg border px-3 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
-          <Button
-            label={isExportingExcel ? "Downloading..." : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined"
-            disabled={isExportingExcel}
-            onClick={handleDownloadExcel}
-          />
-
           <Button
             label={t("admin.staff_creation.create")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-
             onClick={() =>
               navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
             }
@@ -437,52 +425,64 @@ export default function StaffCreationList() {
       {/* Filters Row */}
       <div className="grid gap-3 md:grid-cols-5">
         {showCol("salary_type") && (
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold">
-            {t("admin.staff_creation.salary_type")}
-          </span>
-          <select
-            name="salary_type"
-            value={filterParams.salary_type}
-            onChange={handleFilterChange}
-            className="h-10 rounded-lg border px-3 text-sm"
-          >
-            <option value="">{t("common.all")}</option>
-            <option value="Monthly">{t("admin.staff_creation.salary_monthly")}</option>
-            <option value="Daily">{t("admin.staff_creation.salary_daily")}</option>
-            <option value="Contract">{t("admin.staff_creation.salary_contract")}</option>
-          </select>
-        </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold">
+              {t("admin.staff_creation.salary_type")}
+            </span>
+            <FilterBarSelect
+              value={filterParams.salary_type}
+              onChange={(value) =>
+                handleFilterChange({
+                  target: { name: "salary_type", value },
+                } as ChangeEvent<HTMLInputElement>)
+              }
+              options={[
+                {
+                  value: "Monthly",
+                  label: t("admin.staff_creation.salary_monthly"),
+                },
+                {
+                  value: "Daily",
+                  label: t("admin.staff_creation.salary_daily"),
+                },
+                {
+                  value: "Contract",
+                  label: t("admin.staff_creation.salary_contract"),
+                },
+              ]}
+              placeholder={t("common.all")}
+            />
+          </div>
         )}
 
         {showCol("site_name") && (
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold">
-            {t("admin.staff_creation.site_name")}
-          </span>
-          <input
-            name="site_name"
-            value={filterParams.site_name}
-            onChange={handleFilterChange}
-            placeholder={t("admin.staff_creation.site_placeholder")}
-            className="h-10 rounded-lg border px-3 text-sm"
-          />
-        </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold">
+              {t("admin.staff_creation.site_name")}
+            </span>
+            <input
+              name="site_name"
+              value={filterParams.site_name}
+              onChange={handleFilterChange}
+              placeholder={t("admin.staff_creation.site_placeholder")}
+              className="h-10 rounded-lg border px-3 text-sm"
+            />
+          </div>
         )}
 
         {showCol("employee_name") && (
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold">
-            {t("admin.staff_creation.employee_name")}
-          </span>
-          <input
-            name="employee_name"
-            value={filterParams.employee_name}
-            onChange={handleFilterChange}
-            placeholder={t("admin.staff_creation.employee_placeholder")}
-            className="h-10 rounded-lg border px-3 text-sm"
-          />
-        </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold">
+              {t("admin.staff_creation.employee_name")}
+            </span>
+            <input
+              name="employee_name"
+              value={filterParams.employee_name}
+              onChange={handleFilterChange}
+              placeholder={t("admin.staff_creation.employee_placeholder")}
+              className="h-10 rounded-lg border px-3 text-sm"
+            />
+          </div>
         )}
 
         <div className="flex items-end">
@@ -500,12 +500,33 @@ export default function StaffCreationList() {
         <FilterBar
           searchValue={globalFilterValue}
           onSearchChange={(value) =>
-            onGlobalFilterChange({ target: { value } } as ChangeEvent<HTMLInputElement>)
+            onGlobalFilterChange({
+              target: { value },
+            } as ChangeEvent<HTMLInputElement>)
           }
           searchPlaceholder={t("admin.staff_creation.search_placeholder")}
           statusValue={showCol("active_status") ? statusFilterValue : undefined}
-          onStatusChange={showCol("active_status") ? onStatusFilterChange : undefined}
-        />
+          onStatusChange={
+            showCol("active_status") ? onStatusFilterChange : undefined
+          }
+        >
+          <FilterBarSelect
+            value={companyUniqueId || ""}
+            onChange={(value) => onCompanyChange(value)}
+            options={companies}
+            placeholder="All Companies"
+            disabled={!isSuperAdmin || companies.length === 0}
+          />
+          <FilterBarSelect
+            value={projectId || ""}
+            onChange={(value) => setProjectId(value)}
+            options={projects}
+            placeholder={showAllProjectsOption ? "All Projects" : undefined}
+            disabled={
+              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+            }
+          />
+        </FilterBar>
       </div>
     </div>
   );
@@ -514,6 +535,7 @@ export default function StaffCreationList() {
     <>
       <div className="p-3">
         <DataTable
+          loadExportRows={loadAllExportRows}
           value={staffs}
           lazy
           paginator
@@ -533,7 +555,11 @@ export default function StaffCreationList() {
           showGridlines
           className="p-datatable-sm"
         >
-          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 70 }} />
+          <Column
+            header={t("common.s_no")}
+            body={indexTemplate}
+            style={{ width: 70 }}
+          />
 
           <Column
             field="unique_id"
@@ -566,10 +592,7 @@ export default function StaffCreationList() {
           )}
 
           {showCol("doj") && (
-            <Column
-              field="doj"
-              header={t("admin.staff_creation.doj")}
-            />
+            <Column field="doj" header={t("admin.staff_creation.doj")} />
           )}
 
           {showCol("site_name") && (
@@ -619,7 +642,9 @@ export default function StaffCreationList() {
         description={
           selectedQrStaff && (
             <>
-              <p className="font-semibold text-gray-800">{selectedQrStaff.employee_name}</p>
+              <p className="font-semibold text-gray-800">
+                {selectedQrStaff.employee_name}
+              </p>
               <p className="text-sm text-gray-500">
                 {selectedQrStaff.staff_id || "-"}
               </p>

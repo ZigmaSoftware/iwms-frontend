@@ -21,7 +21,6 @@ import {
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
 
-
 const buildLookup = (items: any[], key: string, label: string) =>
   items.reduce<Record<string, string>>((acc, item) => {
     const lookupKey = item?.[key];
@@ -41,29 +40,28 @@ export default function SupervisorZoneAccessAuditList() {
 
   const [records, setRecords] = useState<SupervisorZoneAccessAuditRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
-  const {
-    filters,
-    globalFilterValue,
-    onGlobalFilterChange,
-  } = useFilterBarFilters({
-    withStatusFilter: false,
-    initialFilters: {
-      supervisor_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      performed_by: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      performed_role: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      remarks: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      old_zone_ids: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      new_zone_ids: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    } as TableFilters,
-  });
+  const { filters, globalFilterValue, onGlobalFilterChange } =
+    useFilterBarFilters({
+      withStatusFilter: false,
+      initialFilters: {
+        supervisor_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+        performed_by: { value: null, matchMode: FilterMatchMode.CONTAINS },
+        performed_role: { value: null, matchMode: FilterMatchMode.CONTAINS },
+        remarks: { value: null, matchMode: FilterMatchMode.CONTAINS },
+        old_zone_ids: { value: null, matchMode: FilterMatchMode.CONTAINS },
+        new_zone_ids: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      } as TableFilters,
+    });
 
   const [zoneLookup, setZoneLookup] = useState<Record<string, string>>({});
   const [userLookup, setUserLookup] = useState<Record<string, string>>({});
 
   const { encStaffMasters, encSupervisorZoneAccessAudit } = getEncryptedRoute();
-  const { editPath: ENC_VIEW_PATH } = createCrudRoutePaths(encStaffMasters, encSupervisorZoneAccessAudit);
+  const { editPath: ENC_VIEW_PATH } = createCrudRoutePaths(
+    encStaffMasters,
+    encSupervisorZoneAccessAudit,
+  );
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -75,7 +73,7 @@ export default function SupervisorZoneAccessAuditList() {
       ]);
 
       const users = normalizeList(userRes).filter(
-        (u: any) => u?.user_type_name?.toLowerCase() === "staff"
+        (u: any) => u?.user_type_name?.toLowerCase() === "staff",
       );
 
       setRecords(normalizeList(auditRes));
@@ -96,7 +94,9 @@ export default function SupervisorZoneAccessAuditList() {
 
   const resolveZones = (zoneIds?: Array<number | string> | null) => {
     if (!Array.isArray(zoneIds) || zoneIds.length === 0) return "-";
-    return zoneIds.map((zoneId) => zoneLookup[String(zoneId)] ?? zoneId).join(", ");
+    return zoneIds
+      .map((zoneId) => zoneLookup[String(zoneId)] ?? zoneId)
+      .join(", ");
   };
 
   const filteredExportRows = (): SupervisorZoneAccessAuditRecord[] => {
@@ -110,22 +110,8 @@ export default function SupervisorZoneAccessAuditList() {
         record.remarks,
       ]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(search))
+        .some((value) => String(value).toLowerCase().includes(search)),
     );
-  };
-
-  const handleDownloadExcel = () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = filteredExportRows();
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "SupervisorZoneAccessAudit");
-    } finally {
-      setIsExportingExcel(false);
-    }
   };
 
   const actionTemplate = (row: SupervisorZoneAccessAuditRecord) => (
@@ -142,8 +128,8 @@ export default function SupervisorZoneAccessAuditList() {
 
   return (
     <div className="p-3">
-      <div className="flex justify-between items-center mb-6">
-        <div>
+      <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold text-gray-800">
             {t("admin.supervisor_zone_access_audit.list_title")}
           </h1>
@@ -151,13 +137,6 @@ export default function SupervisorZoneAccessAuditList() {
             {t("admin.supervisor_zone_access_audit.list_subtitle")}
           </p>
         </div>
-        <Button
-          label={isExportingExcel ? "Downloading..." : "Download Excel"}
-          icon="pi pi-file-excel"
-          className="p-button-outlined"
-          disabled={isExportingExcel}
-          onClick={handleDownloadExcel}
-        />
       </div>
 
       <div className="flex justify-end mb-4">
@@ -169,13 +148,19 @@ export default function SupervisorZoneAccessAuditList() {
       </div>
 
       <DataTable
+        loadExportRows={async () => filteredExportRows()}
         value={records}
         dataKey="unique_id"
         paginator
         rows={10}
         loading={loading}
         filters={filters}
-        globalFilterFields={["unique_id", "supervisor_id", "performed_by", "performed_role"]}
+        globalFilterFields={[
+          "unique_id",
+          "supervisor_id",
+          "performed_by",
+          "performed_role",
+        ]}
         stripedRows
         showGridlines
         className="p-datatable-sm"
@@ -187,49 +172,64 @@ export default function SupervisorZoneAccessAuditList() {
           style={{ width: 70 }}
         />
         <Column
-        field="supervisor_id"
+          field="supervisor_id"
           header={t("admin.supervisor_zone_access_audit.supervisor")}
-          body={(r: SupervisorZoneAccessAuditRecord) => resolveUser(r.supervisor_id)}
+          body={(r: SupervisorZoneAccessAuditRecord) =>
+            resolveUser(r.supervisor_id)
+          }
           filter
           showFilterMatchModes={false}
         />
         <Column
-        field="performed_by"
+          field="performed_by"
           header={t("admin.supervisor_zone_access_audit.performed_by")}
-          body={(r: SupervisorZoneAccessAuditRecord) => resolveUser(r.performed_by)}
+          body={(r: SupervisorZoneAccessAuditRecord) =>
+            resolveUser(r.performed_by)
+          }
           filter
           showFilterMatchModes={false}
         />
         <Column
           field="performed_role"
           header={t("admin.supervisor_zone_access_audit.performed_role")}
-          filter  
+          filter
           showFilterMatchModes={false}
         />
         <Column
-        field="old_zone_ids"
+          field="old_zone_ids"
           header={t("admin.supervisor_zone_access_audit.old_zones")}
-          body={(r: SupervisorZoneAccessAuditRecord) => resolveZones(r.old_zone_ids)}
+          body={(r: SupervisorZoneAccessAuditRecord) =>
+            resolveZones(r.old_zone_ids)
+          }
           filter
           showFilterMatchModes={false}
-
         />
         <Column
           field="new_zone_ids"
           header={t("admin.supervisor_zone_access_audit.new_zones")}
-          body={(r: SupervisorZoneAccessAuditRecord) => resolveZones(r.new_zone_ids)}
+          body={(r: SupervisorZoneAccessAuditRecord) =>
+            resolveZones(r.new_zone_ids)
+          }
           filter
           showFilterMatchModes={false}
-
         />
-        <Column field="remarks" header={t("admin.supervisor_zone_access_audit.remarks")} filter showFilterMatchModes={false} />
+        <Column
+          field="remarks"
+          header={t("admin.supervisor_zone_access_audit.remarks")}
+          filter
+          showFilterMatchModes={false}
+        />
         <Column
           header={t("common.created_at")}
           body={(r: SupervisorZoneAccessAuditRecord) =>
             r.created_at ? new Date(r.created_at).toLocaleDateString() : "-"
           }
         />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
+        <Column
+          header={t("common.actions")}
+          body={actionTemplate}
+          style={{ width: 120 }}
+        />
       </DataTable>
     </div>
   );
