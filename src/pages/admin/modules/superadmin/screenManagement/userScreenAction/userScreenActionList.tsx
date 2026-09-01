@@ -46,7 +46,6 @@ export default function UserScreenActionList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   const {
     globalFilterValue,
@@ -127,8 +126,10 @@ export default function UserScreenActionList() {
     setSortOrder(event.sortOrder);
   };
 
-  const handleDownloadExcel = async () => {
-    setIsExportingExcel(true);
+  // Feeds the table's single "Download Excel" button: the "All data" option
+  // fetches every row matching the current filters, while "Current page"
+  // uses the rows already on screen.
+  const loadAllExportRows = async () => {
     try {
       const response = await userScreenActionApi.readAllForExport({
         params: {
@@ -137,18 +138,11 @@ export default function UserScreenActionList() {
         },
       });
       const rows = toRecordList(response);
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", t("common.no_items_found", {
-          item: t("admin.user_screen_action.action_label"),
-        }), "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "UserScreenActions");
+      return rows;
     } catch {
       Swal.fire(t("common.error"), t("common.load_failed"), "error");
-    } finally {
-      setIsExportingExcel(false);
     }
+    return [];
   };
 
   const indexTemplate = (
@@ -213,15 +207,6 @@ export default function UserScreenActionList() {
       })}
       statusValue={statusValue}
       onStatusChange={onStatusFilterChange}
-      trailing={
-        <Button
-          label={isExportingExcel ? "Downloading..." : "Download Excel"}
-          icon="pi pi-file-excel"
-          className="p-button-outlined"
-          disabled={isExportingExcel}
-          onClick={handleDownloadExcel}
-        />
-      }
     />
   );
 
@@ -229,12 +214,12 @@ export default function UserScreenActionList() {
     <div className="px-3 py-3 w-full">
 
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-1">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 mb-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-semibold text-gray-800 mb-1">
               {t("admin.nav.user_screen_action")}
             </h1>
-            <p className="text-gray-500 text-sm">
+            <p className="text-sm text-gray-500">
               {t("common.manage_item_records", {
                 item: t("admin.nav.user_screen_action"),
               })}
@@ -253,6 +238,7 @@ export default function UserScreenActionList() {
 
         {/* Table */}
         <DataTable
+          loadExportRows={loadAllExportRows}
           value={records}
           dataKey="unique_id"
           lazy

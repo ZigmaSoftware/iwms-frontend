@@ -1,5 +1,12 @@
 import type { TableFilters } from "./types";
-import type { ApartmentRow, BlockRow, CustomerCreationRecord, FlatRow, UserRow, ViewLevel } from "./types";
+import type {
+  ApartmentRow,
+  BlockRow,
+  CustomerCreationRecord,
+  FlatRow,
+  UserRow,
+  ViewLevel,
+} from "./types";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -17,12 +24,11 @@ import "primeicons/primeicons.css";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useTranslation } from "react-i18next";
 import { customerCreationApi } from "@/helpers/admin";
-import { FilterBar } from "@/components/common/FilterBar";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
-
 
 /* ---------------- HELPERS ---------------- */
 
@@ -31,7 +37,7 @@ const normalizeId = (value: unknown): string =>
 
 const readCustomerText = (
   row: CustomerCreationRecord,
-  key: keyof CustomerCreationRecord
+  key: keyof CustomerCreationRecord,
 ): string => normalizeId(row[key]);
 
 type ApartmentQrApiRow = {
@@ -44,20 +50,36 @@ type ApartmentQrApiRow = {
 export default function ApartmentListPage() {
   const { t } = useTranslation();
 
-  const [allCustomers, setAllCustomers] = useState<CustomerCreationRecord[]>([])
-  const [customersLoading, setCustomersLoading] = useState(false)
+  const [allCustomers, setAllCustomers] = useState<CustomerCreationRecord[]>(
+    [],
+  );
+  const [customersLoading, setCustomersLoading] = useState(false);
   useEffect(() => {
-    let mounted = true
-    setCustomersLoading(true)
-    customerCreationApi.readAll()
-      .then((data: unknown) => { if (mounted) setAllCustomers(Array.isArray(data) ? data as CustomerCreationRecord[] : []) })
-      .catch((error: unknown) => { if (mounted) Swal.fire({ icon: 'error', title: 'Error', text: String(error) }) })
-      .finally(() => { if (mounted) setCustomersLoading(false) })
-    return () => { mounted = false }
-  }, [t])
+    let mounted = true;
+    setCustomersLoading(true);
+    customerCreationApi
+      .readAll()
+      .then((data: unknown) => {
+        if (mounted)
+          setAllCustomers(
+            Array.isArray(data) ? (data as CustomerCreationRecord[]) : [],
+          );
+      })
+      .catch((error: unknown) => {
+        if (mounted)
+          Swal.fire({ icon: "error", title: "Error", text: String(error) });
+      })
+      .finally(() => {
+        if (mounted) setCustomersLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [t]);
 
   const [viewLevel, setViewLevel] = useState<ViewLevel>("apartment");
-  const [selectedQrApartment, setSelectedQrApartment] = useState<ApartmentRow | null>(null);
+  const [selectedQrApartment, setSelectedQrApartment] =
+    useState<ApartmentRow | null>(null);
 
   const [selectedApartment, setSelectedApartment] = useState("");
   const [selectedBlock, setSelectedBlock] = useState("");
@@ -69,7 +91,10 @@ export default function ApartmentListPage() {
   });
 
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -81,9 +106,14 @@ export default function ApartmentListPage() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
-  const [apartmentQrByName, setApartmentQrByName] = useState<Record<string, string>>({});
+  const [apartmentQrByName, setApartmentQrByName] = useState<
+    Record<string, string>
+  >({});
 
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) return;
@@ -128,7 +158,8 @@ export default function ApartmentListPage() {
       const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
       const apartmentName = readCustomerText(row, "apartment_name");
 
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
+      const companyMatches =
+        !companyUniqueId || rowCompanyId === companyUniqueId;
       const projectMatches = !projectId || rowProjectId === projectId;
 
       return Boolean(apartmentName) && companyMatches && projectMatches;
@@ -154,9 +185,11 @@ export default function ApartmentListPage() {
 
       const blockNo = readCustomerText(row, "block_no");
       const flatNo = readCustomerText(row, "flat_no");
-      const current =
-        byApartment.get(apartmentName) ??
-        { blocks: new Set<string>(), flats: new Set<string>(), users: 0 };
+      const current = byApartment.get(apartmentName) ?? {
+        blocks: new Set<string>(),
+        flats: new Set<string>(),
+        users: 0,
+      };
 
       if (blockNo) current.blocks.add(blockNo);
       if (flatNo) current.flats.add(`${blockNo}::${flatNo}`);
@@ -179,7 +212,9 @@ export default function ApartmentListPage() {
     const byBlock = new Map<string, Set<string>>();
 
     filteredCustomers
-      .filter((row) => readCustomerText(row, "apartment_name") === selectedApartment)
+      .filter(
+        (row) => readCustomerText(row, "apartment_name") === selectedApartment,
+      )
       .forEach((row) => {
         const blockNo = readCustomerText(row, "block_no");
         if (!blockNo) return;
@@ -202,7 +237,7 @@ export default function ApartmentListPage() {
       .filter(
         (row) =>
           readCustomerText(row, "apartment_name") === selectedApartment &&
-          readCustomerText(row, "block_no") === selectedBlock
+          readCustomerText(row, "block_no") === selectedBlock,
       )
       .forEach((row) => {
         const flatNo = readCustomerText(row, "flat_no");
@@ -221,7 +256,7 @@ export default function ApartmentListPage() {
         (row) =>
           readCustomerText(row, "apartment_name") === selectedApartment &&
           readCustomerText(row, "block_no") === selectedBlock &&
-          readCustomerText(row, "flat_no") === selectedFlat
+          readCustomerText(row, "flat_no") === selectedFlat,
       )
       .map((row) => ({
         customer_name: readCustomerText(row, "customer_name"),
@@ -252,7 +287,9 @@ export default function ApartmentListPage() {
 
   const resetFilter = () => {
     setGlobalFilterValue("");
-    setFilters({ global: { value: null, matchMode: FilterMatchMode.CONTAINS } });
+    setFilters({
+      global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    });
   };
 
   /* ---- drill-down navigation ---- */
@@ -300,8 +337,6 @@ export default function ApartmentListPage() {
 
   /* ---- export current drill-level rows (respecting the active search) ---- */
 
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
-
   const currentLevelRows = (): Array<Record<string, unknown>> => {
     switch (viewLevel) {
       case "apartment":
@@ -322,42 +357,45 @@ export default function ApartmentListPage() {
     if (!search) return rows;
     const fields = globalFilterFields[viewLevel];
     return rows.filter((row) =>
-      fields.some((field) => String(row[field] ?? "").toLowerCase().includes(search))
+      fields.some((field) =>
+        String(row[field] ?? "")
+          .toLowerCase()
+          .includes(search),
+      ),
     );
-  };
-
-  const handleDownloadExcel = () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = filteredExportRows();
-      if (rows.length === 0) {
-        Swal.fire({ icon: "warning", title: "Warning", text: "No records to export" });
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Apartments");
-    } finally {
-      setIsExportingExcel(false);
-    }
   };
 
   /* ---- table search header ---- */
 
   const tableHeader = (
     <div className="flex justify-between items-center">
-      <Button
-        label={isExportingExcel ? "Downloading..." : "Download Excel"}
-        icon="pi pi-file-excel"
-        className="p-button-outlined"
-        disabled={isExportingExcel}
-        onClick={handleDownloadExcel}
-      />
       <FilterBar
         searchValue={globalFilterValue}
         onSearchChange={(value) =>
-          onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+          onGlobalFilterChange({
+            target: { value },
+          } as React.ChangeEvent<HTMLInputElement>)
         }
         searchPlaceholder="Search…"
-      />
+      >
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={(value) => onCompanyChange(value)}
+          options={companies}
+          placeholder={"All Companies"}
+          disabled={!isSuperAdmin || companies.length === 0}
+        />
+
+        <FilterBarSelect
+          value={projectId || ""}
+          onChange={(value) => setProjectId(value)}
+          options={projects}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          disabled={
+            (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+          }
+        />
+      </FilterBar>
     </div>
   );
 
@@ -377,11 +415,7 @@ export default function ApartmentListPage() {
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
         onClick={() => setSelectedQrApartment(row)}
       >
-        <img
-          src={row.qr_code}
-          alt="QR"
-          className="w-12 h-12 object-contain"
-        />
+        <img src={row.qr_code} alt="QR" className="w-12 h-12 object-contain" />
       </button>
     );
   };
@@ -410,10 +444,14 @@ export default function ApartmentListPage() {
 
   /* ---- title / subtitle / empty message per level ---- */
 
-  const levelMeta: Record<ViewLevel, { title: string; subtitle: string; emptyMessage: string }> = {
+  const levelMeta: Record<
+    ViewLevel,
+    { title: string; subtitle: string; emptyMessage: string }
+  > = {
     apartment: {
       title: "Apartment List",
-      subtitle: "Browse all apartments and drill down into blocks, flats and residents.",
+      subtitle:
+        "Browse all apartments and drill down into blocks, flats and residents.",
       emptyMessage: "No apartments found.",
     },
     block: {
@@ -450,38 +488,11 @@ export default function ApartmentListPage() {
 
   return (
     <div className="p-3">
-
       {/* PAGE HEADER */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">{title}</h1>
-          <p className="text-gray-500 text-sm">{subtitle}</p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">{title}</h1>
+          <p className="text-sm text-gray-500">{subtitle}</p>
         </div>
       </div>
 
@@ -516,6 +527,7 @@ export default function ApartmentListPage() {
       {/* ---- APARTMENT TABLE ---- */}
       {viewLevel === "apartment" && (
         <DataTable
+          loadExportRows={async () => filteredExportRows()}
           value={apartments}
           dataKey="apartment_name"
           paginator
@@ -530,7 +542,11 @@ export default function ApartmentListPage() {
           showGridlines
           className="p-datatable-sm"
         >
-          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+          <Column
+            header={t("common.s_no")}
+            body={indexTemplate}
+            style={{ width: "80px" }}
+          />
           <Column field="apartment_name" header="Apartment" sortable />
 
           {/* ✅ QR CODE COLUMN */}
@@ -540,13 +556,30 @@ export default function ApartmentListPage() {
             style={{ width: "100px", textAlign: "center" }}
           />
 
-          <Column field="total_blocks" header="Blocks" sortable style={{ width: "100px" }} />
-          <Column field="total_flats" header="Flats" sortable style={{ width: "100px" }} />
-          <Column field="total_users" header="Residents" sortable style={{ width: "120px" }} />
+          <Column
+            field="total_blocks"
+            header="Blocks"
+            sortable
+            style={{ width: "100px" }}
+          />
+          <Column
+            field="total_flats"
+            header="Flats"
+            sortable
+            style={{ width: "100px" }}
+          />
+          <Column
+            field="total_users"
+            header="Residents"
+            sortable
+            style={{ width: "120px" }}
+          />
           <Column
             header={t("common.actions")}
             style={{ textAlign: "center", width: "100px" }}
-            body={(row: ApartmentRow) => viewActionTemplate(() => drillToBlock(row))}
+            body={(row: ApartmentRow) =>
+              viewActionTemplate(() => drillToBlock(row))
+            }
           />
         </DataTable>
       )}
@@ -569,13 +602,24 @@ export default function ApartmentListPage() {
             showGridlines
             className="p-datatable-sm"
           >
-            <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+            <Column
+              header={t("common.s_no")}
+              body={indexTemplate}
+              style={{ width: "80px" }}
+            />
             <Column field="block" header="Block No." sortable />
-            <Column field="flat_count" header="Flats" sortable style={{ width: "100px" }} />
+            <Column
+              field="flat_count"
+              header="Flats"
+              sortable
+              style={{ width: "100px" }}
+            />
             <Column
               header={t("common.actions")}
               style={{ textAlign: "center", width: "100px" }}
-              body={(row: BlockRow) => viewActionTemplate(() => drillToFlat(row))}
+              body={(row: BlockRow) =>
+                viewActionTemplate(() => drillToFlat(row))
+              }
             />
           </DataTable>
           {backButton}
@@ -600,13 +644,24 @@ export default function ApartmentListPage() {
             showGridlines
             className="p-datatable-sm"
           >
-            <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+            <Column
+              header={t("common.s_no")}
+              body={indexTemplate}
+              style={{ width: "80px" }}
+            />
             <Column field="flat_no" header="Flat No." sortable />
-            <Column field="user_count" header="Residents" sortable style={{ width: "120px" }} />
+            <Column
+              field="user_count"
+              header="Residents"
+              sortable
+              style={{ width: "120px" }}
+            />
             <Column
               header={t("common.actions")}
               style={{ textAlign: "center", width: "100px" }}
-              body={(row: FlatRow) => viewActionTemplate(() => drillToUser(row))}
+              body={(row: FlatRow) =>
+                viewActionTemplate(() => drillToUser(row))
+              }
             />
           </DataTable>
           {backButton}
@@ -631,10 +686,19 @@ export default function ApartmentListPage() {
             showGridlines
             className="p-datatable-sm"
           >
-            <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+            <Column
+              header={t("common.s_no")}
+              body={indexTemplate}
+              style={{ width: "80px" }}
+            />
             <Column field="customer_name" header="Resident Name" sortable />
             <Column field="contact_no" header={t("common.mobile")} sortable />
-            <Column field="flat_no" header="Flat No." sortable style={{ width: "120px" }} />
+            <Column
+              field="flat_no"
+              header="Flat No."
+              sortable
+              style={{ width: "120px" }}
+            />
           </DataTable>
           {backButton}
         </div>
@@ -648,7 +712,9 @@ export default function ApartmentListPage() {
         fileName={`${selectedQrApartment?.apartment_name || "apartment"}_qr`}
         description={
           selectedQrApartment && (
-            <p className="font-semibold text-gray-800">{selectedQrApartment.apartment_name}</p>
+            <p className="font-semibold text-gray-800">
+              {selectedQrApartment.apartment_name}
+            </p>
           )
         }
       />

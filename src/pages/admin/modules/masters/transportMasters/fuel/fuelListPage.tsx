@@ -281,12 +281,12 @@ export default function FuelList() {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="p-3">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
             {t("admin.fuel.title")}
           </h1>
-          <p className="text-gray-500 text-sm">{t("admin.fuel.subtitle")}</p>
+          <p className="text-sm text-gray-500">{t("admin.fuel.subtitle")}</p>
         </div>
 
         <div className="flex items-center gap-3">

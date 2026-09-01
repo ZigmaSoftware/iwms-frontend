@@ -1,7 +1,7 @@
 import type { TableFilters, UnassignedStaffPoolRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -17,7 +17,11 @@ import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar";
+import { FilterBarSelect } from "@/components/common/FilterBar";
+import {
+  FilterBar,
+  type StatusFilterValue,
+} from "@/components/common/FilterBar";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -40,18 +44,21 @@ const UNASSIGNED_STAFF_POOL_COLUMN_FIELDS: Record<string, string[]> = {
   created_at: ["created_at"],
 };
 
-
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
 const filterByCompanyProject = (
   items: any[],
   companyId: string,
-  projectId: string
+  projectId: string,
 ) => {
   const hasContextFields = items.some((item) => {
-    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
-    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    const rowCompanyId = normalizeId(
+      item?.company_id ?? item?.company_unique_id,
+    );
+    const rowProjectId = normalizeId(
+      item?.project_id ?? item?.project_unique_id,
+    );
     return Boolean(rowCompanyId || rowProjectId);
   });
 
@@ -60,20 +67,29 @@ const filterByCompanyProject = (
   }
 
   return items.filter((item) => {
-    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
-    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
+    const rowCompanyId = normalizeId(
+      item?.company_id ?? item?.company_unique_id,
+    );
+    const rowProjectId = normalizeId(
+      item?.project_id ?? item?.project_unique_id,
+    );
     const companyMatches = !companyId || rowCompanyId === companyId;
     const projectMatches = !projectId || rowProjectId === projectId;
     return companyMatches && projectMatches;
   });
 };
 
-const buildLookup = (items: any[], key: string, label: string, fallbackKey?: string) =>
+const buildLookup = (
+  items: any[],
+  key: string,
+  label: string,
+  fallbackKey?: string,
+) =>
   items.reduce<Record<string, string>>((acc, item) => {
     const lookupKey = item?.[key];
     if (lookupKey !== undefined && lookupKey !== null) {
       acc[String(lookupKey)] = String(
-        item?.[label] ?? item?.[fallbackKey ?? ""] ?? lookupKey
+        item?.[label] ?? item?.[fallbackKey ?? ""] ?? lookupKey,
       );
     }
     return acc;
@@ -85,10 +101,13 @@ export default function UnassignedStaffPoolList() {
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "staff-masters",
     "unassigned-staff-pool",
-    UNASSIGNED_STAFF_POOL_COLUMN_FIELDS
+    UNASSIGNED_STAFF_POOL_COLUMN_FIELDS,
   );
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -100,7 +119,10 @@ export default function UnassignedStaffPoolList() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
   const [records, setRecords] = useState<UnassignedStaffPoolRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,11 +132,13 @@ export default function UnassignedStaffPoolList() {
   const [userLookup, setUserLookup] = useState<Record<string, string>>({});
   const [zoneLookup, setZoneLookup] = useState<Record<string, string>>({});
   const [wardLookup, setWardLookup] = useState<Record<string, string>>({});
-  const [dailyTripAssignmentLookup, setDailyTripAssignmentLookup] = useState<Record<string, string>>({});
+  const [dailyTripAssignmentLookup, setDailyTripAssignmentLookup] = useState<
+    Record<string, string>
+  >({});
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [statusFilterValue, setStatusFilterValue] = useState<StatusFilterValue>("all");
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [statusFilterValue, setStatusFilterValue] =
+    useState<StatusFilterValue>("all");
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     status: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -122,26 +146,33 @@ export default function UnassignedStaffPoolList() {
     _driver_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _zone_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _ward_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _daily_trip_assignment_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    _daily_trip_assignment_name: {
+      value: null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
   });
 
   const { encStaffMasters, encUnassignedStaffPool } = getEncryptedRoute();
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encStaffMasters,
-    encUnassignedStaffPool,
-  );
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
+    createCrudRoutePaths(encStaffMasters, encUnassignedStaffPool);
 
   useEffect(() => {
     let mounted = true;
 
     const fetchRecords = async () => {
       if (isSuperAdmin && companies.length === 0) {
-        if (mounted) { setRecords([]); setLoading(false); }
+        if (mounted) {
+          setRecords([]);
+          setLoading(false);
+        }
         return;
       }
 
       if (!companyUniqueId && !isSuperAdmin) {
-        if (mounted) { setRecords([]); setLoading(false); }
+        if (mounted) {
+          setRecords([]);
+          setLoading(false);
+        }
         return;
       }
 
@@ -151,32 +182,66 @@ export default function UnassignedStaffPoolList() {
         if (companyUniqueId) listParams.company_id = companyUniqueId;
         if (projectId) listParams.project_id = projectId;
 
-        const [poolRes, userRes, zoneRes, wardRes, tripRes] = await Promise.all([
-          unassignedStaffPoolApi.readAll({ params: listParams }),
-          userCreationApi.readAll({ params: listParams }),
-          zoneApi.readAll({ params: listParams }),
-          wardApi.readAll({ params: listParams }),
-          dailyTripAssignmentApi.readAll({ params: listParams }),
-        ]);
+        const [poolRes, userRes, zoneRes, wardRes, tripRes] = await Promise.all(
+          [
+            unassignedStaffPoolApi.readAll({ params: listParams }),
+            userCreationApi.readAll({ params: listParams }),
+            zoneApi.readAll({ params: listParams }),
+            wardApi.readAll({ params: listParams }),
+            dailyTripAssignmentApi.readAll({ params: listParams }),
+          ],
+        );
 
-        const poolRows = filterByCompanyProject(normalizeList(poolRes), companyUniqueId, projectId);
-        const userRows = filterByCompanyProject(normalizeList(userRes), companyUniqueId, projectId);
-        const zoneRows = filterByCompanyProject(normalizeList(zoneRes), companyUniqueId, projectId);
-        const wardRows = filterByCompanyProject(normalizeList(wardRes), companyUniqueId, projectId);
-        const tripRows = filterByCompanyProject(normalizeList(tripRes), companyUniqueId, projectId);
+        const poolRows = filterByCompanyProject(
+          normalizeList(poolRes),
+          companyUniqueId,
+          projectId,
+        );
+        const userRows = filterByCompanyProject(
+          normalizeList(userRes),
+          companyUniqueId,
+          projectId,
+        );
+        const zoneRows = filterByCompanyProject(
+          normalizeList(zoneRes),
+          companyUniqueId,
+          projectId,
+        );
+        const wardRows = filterByCompanyProject(
+          normalizeList(wardRes),
+          companyUniqueId,
+          projectId,
+        );
+        const tripRows = filterByCompanyProject(
+          normalizeList(tripRes),
+          companyUniqueId,
+          projectId,
+        );
 
-        const uLookup = buildLookup(userRows, "unique_id", "staff_name", "unique_id");
+        const uLookup = buildLookup(
+          userRows,
+          "unique_id",
+          "staff_name",
+          "unique_id",
+        );
         const znLookup = buildLookup(zoneRows, "unique_id", "name");
         const wLookup = buildLookup(wardRows, "unique_id", "name");
         const tLookup = buildLookup(tripRows, "unique_id", "trip_no");
 
         const enriched = poolRows.map((rec: any) => ({
           ...rec,
-          _operator_name: rec.operator_id ? (uLookup[rec.operator_id] ?? rec.operator_id) : "",
-          _driver_name: rec.driver_id ? (uLookup[rec.driver_id] ?? rec.driver_id) : "",
+          _operator_name: rec.operator_id
+            ? (uLookup[rec.operator_id] ?? rec.operator_id)
+            : "",
+          _driver_name: rec.driver_id
+            ? (uLookup[rec.driver_id] ?? rec.driver_id)
+            : "",
           _zone_name: znLookup[rec.zone_id] ?? rec.zone_id,
           _ward_name: wLookup[rec.ward_id] ?? rec.ward_id,
-          _daily_trip_assignment_name: rec.daily_trip_assignment_id ? (tLookup[rec.daily_trip_assignment_id] ?? rec.daily_trip_assignment_id) : "",
+          _daily_trip_assignment_name: rec.daily_trip_assignment_id
+            ? (tLookup[rec.daily_trip_assignment_id] ??
+              rec.daily_trip_assignment_id)
+            : "",
         }));
 
         if (mounted) {
@@ -187,7 +252,8 @@ export default function UnassignedStaffPoolList() {
           setDailyTripAssignmentLookup(tLookup);
         }
       } catch {
-        if (mounted) Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+        if (mounted)
+          Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -195,7 +261,9 @@ export default function UnassignedStaffPoolList() {
 
     void fetchRecords();
 
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [companyUniqueId, companies.length, isSuperAdmin, projectId, t]);
 
   const onFilter = (e: DataTableFilterEvent) => {
@@ -212,17 +280,27 @@ export default function UnassignedStaffPoolList() {
   };
 
   const onSearchValueChange = (value: string) =>
-    onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>);
+    onGlobalFilterChange({
+      target: { value },
+    } as React.ChangeEvent<HTMLInputElement>);
 
   const onStatusFilterChange = (value: StatusFilterValue) => {
     setStatusFilterValue(value);
-    setFilters((prev) => ({
-      ...prev,
-      status: {
-        value: value === "all" ? null : value === "active" ? "AVAILABLE" : "ASSIGNED",
-        matchMode: FilterMatchMode.EQUALS,
-      },
-    } as TableFilters));
+    setFilters(
+      (prev) =>
+        ({
+          ...prev,
+          status: {
+            value:
+              value === "all"
+                ? null
+                : value === "active"
+                  ? "AVAILABLE"
+                  : "ASSIGNED",
+            matchMode: FilterMatchMode.EQUALS,
+          },
+        }) as TableFilters,
+    );
   };
 
   const statusBodyTemplate = (row: UnassignedStaffPoolRecord) => {
@@ -230,11 +308,16 @@ export default function UnassignedStaffPoolList() {
       setPendingStatusId(row.id);
       setIsUpdating(true);
       try {
-        await unassignedStaffPoolApi.update(row.id, filterPayload({ status: checked ? "AVAILABLE" : "ASSIGNED" }));
+        await unassignedStaffPoolApi.update(
+          row.id,
+          filterPayload({ status: checked ? "AVAILABLE" : "ASSIGNED" }),
+        );
         setRecords((current) =>
           current.map((item) =>
-            item.id === row.id ? { ...item, status: checked ? "AVAILABLE" : "ASSIGNED" } : item
-          )
+            item.id === row.id
+              ? { ...item, status: checked ? "AVAILABLE" : "ASSIGNED" }
+              : item,
+          ),
         );
       } catch {
         Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
@@ -264,7 +347,7 @@ export default function UnassignedStaffPoolList() {
         : records.filter((record) =>
             statusFilterValue === "active"
               ? record.status === "AVAILABLE"
-              : record.status !== "AVAILABLE"
+              : record.status !== "AVAILABLE",
           );
     if (!search) return statusFiltered;
     return statusFiltered.filter((record) =>
@@ -277,28 +360,14 @@ export default function UnassignedStaffPoolList() {
         record._daily_trip_assignment_name,
       ]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(search))
+        .some((value) => String(value).toLowerCase().includes(search)),
     );
-  };
-
-  const handleDownloadExcel = () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = filteredExportRows();
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "UnassignedStaffPool");
-    } finally {
-      setIsExportingExcel(false);
-    }
   };
 
   const header = (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold text-gray-800">
             {t("admin.unassigned_staff_pool.list_title")}
           </h1>
@@ -306,69 +375,48 @@ export default function UnassignedStaffPoolList() {
             {t("admin.unassigned_staff_pool.list_subtitle")}
           </p>
         </div>
-
-        <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
-          <Button
-            label={isExportingExcel ? "Downloading..." : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined"
-            disabled={isExportingExcel}
-            onClick={handleDownloadExcel}
-          />
-
-          <Button
-            label={t("admin.unassigned_staff_pool.create_button")}
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-
-            onClick={() =>
-              navigate(
-                `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
-                  companyUniqueId
-                )}&project_id=${encodeURIComponent(projectId)}`
-              )
-            }
-          />
-        </div>
       </div>
 
       <div className="flex justify-end">
         <FilterBar
           searchValue={globalFilterValue}
           onSearchChange={onSearchValueChange}
-          searchPlaceholder={t("admin.unassigned_staff_pool.search_placeholder")}
+          searchPlaceholder={t(
+            "admin.unassigned_staff_pool.search_placeholder",
+          )}
           statusValue={showCol("status") ? statusFilterValue : undefined}
           onStatusChange={showCol("status") ? onStatusFilterChange : undefined}
           statusLabels={{ active: "Available", inactive: "Assigned" }}
-        />
+        >
+          <FilterBarSelect
+            value={companyUniqueId || ""}
+            onChange={(value) => onCompanyChange(value)}
+            options={companies}
+            placeholder={"All Companies"}
+            disabled={!isSuperAdmin || companies.length === 0}
+          />
+          <FilterBarSelect
+            value={projectId || ""}
+            onChange={(value) => setProjectId(value)}
+            options={projects}
+            placeholder={showAllProjectsOption ? "All Projects" : undefined}
+            disabled={
+              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+            }
+          />
+          <Button
+            label={t("admin.unassigned_staff_pool.create_button")}
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            onClick={() =>
+              navigate(
+                `${ENC_NEW_PATH}?company_unique_id=${encodeURIComponent(
+                  companyUniqueId,
+                )}&project_id=${encodeURIComponent(projectId)}`,
+              )
+            }
+          />
+        </FilterBar>
       </div>
     </div>
   );
@@ -377,7 +425,9 @@ export default function UnassignedStaffPoolList() {
     <div className="flex justify-center">
       <button
         title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.id), { state: { record: row } })}
+        onClick={() =>
+          navigate(ENC_EDIT_PATH(row.id), { state: { record: row } })
+        }
         className="text-blue-600 hover:text-blue-800"
       >
         <PencilIcon className="size-5" />
@@ -388,6 +438,7 @@ export default function UnassignedStaffPoolList() {
   return (
     <div className="p-3">
       <DataTable
+        loadExportRows={async () => filteredExportRows()}
         value={records}
         dataKey="id"
         paginator
@@ -401,7 +452,9 @@ export default function UnassignedStaffPoolList() {
           ...(showCol("zone") ? ["_zone_name"] : []),
           ...(showCol("ward") ? ["_ward_name"] : []),
           ...(showCol("status") ? ["status"] : []),
-          ...(showCol("daily_trip_assignment") ? ["_daily_trip_assignment_name"] : []),
+          ...(showCol("daily_trip_assignment")
+            ? ["_daily_trip_assignment_name"]
+            : []),
           "company_name",
           "project_name",
         ]}
@@ -422,7 +475,9 @@ export default function UnassignedStaffPoolList() {
             field="_operator_name"
             header={t("admin.unassigned_staff_pool.operator")}
             body={(row: UnassignedStaffPoolRecord) =>
-              row.operator_id ? userLookup[row.operator_id] ?? row.operator_id : "-"
+              row.operator_id
+                ? (userLookup[row.operator_id] ?? row.operator_id)
+                : "-"
             }
             filter
             showFilterMatchModes={false}
@@ -434,7 +489,7 @@ export default function UnassignedStaffPoolList() {
             field="_driver_name"
             header={t("admin.unassigned_staff_pool.driver")}
             body={(row: UnassignedStaffPoolRecord) =>
-              row.driver_id ? userLookup[row.driver_id] ?? row.driver_id : "-"
+              row.driver_id ? (userLookup[row.driver_id] ?? row.driver_id) : "-"
             }
             filter
             showFilterMatchModes={false}
@@ -480,7 +535,8 @@ export default function UnassignedStaffPoolList() {
             header={t("admin.unassigned_staff_pool.daily_trip_assignment")}
             body={(row: UnassignedStaffPoolRecord) =>
               row.daily_trip_assignment_id
-                ? dailyTripAssignmentLookup[row.daily_trip_assignment_id] ?? row.daily_trip_assignment_id
+                ? (dailyTripAssignmentLookup[row.daily_trip_assignment_id] ??
+                  row.daily_trip_assignment_id)
                 : "-"
             }
             filter
@@ -491,7 +547,9 @@ export default function UnassignedStaffPoolList() {
         {showCol("created_at") && (
           <Column
             header={t("admin.unassigned_staff_pool.created_at")}
-            body={(row: UnassignedStaffPoolRecord) => resolveDateTime(row.created_at)}
+            body={(row: UnassignedStaffPoolRecord) =>
+              resolveDateTime(row.created_at)
+            }
           />
         )}
 

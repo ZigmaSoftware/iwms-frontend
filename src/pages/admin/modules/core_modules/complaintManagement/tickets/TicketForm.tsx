@@ -25,6 +25,7 @@ import { ticketSchema } from "@/schemas/core_modules/complaintManagement/ticket.
 import { toSwalMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 import { scopeFieldState } from "@/pages/admin/modules/masters/shared/dataScopeOptions";
+import { FormSelect } from "@/components/common/FormSelect";
 
 const STEPS = [
   { label: "Citizen", icon: UserRound },
@@ -509,19 +510,23 @@ export default function TicketWizardForm() {
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
             <div>
               <Label>Customer</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.customer} onChange={(e) => onCustomer(e.target.value)}>
-                <option value="">Walk-in / unknown</option>
-                {customers.map((item) => <option key={item.unique_id ?? item.id} value={item.unique_id ?? item.id}>{capitalize(item.customer_name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.customer}
+                onChange={(v) => onCustomer(v)}
+                options={customers.map((item) => ({ value: String(item.unique_id ?? item.id), label: capitalize(item.customer_name) }))}
+                placeholder={"Walk-in / unknown"}
+              />
             </div>
             <div><Label>Phone</Label><Input value={form.wa_phone} onChange={(e) => setValue("wa_phone", e.target.value)} /></div>
             <div><Label>Profile Name</Label><Input value={form.profile_name} onChange={(e) => setValue("profile_name", e.target.value)} /></div>
             <div>
               <Label>Source</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.source} onChange={(e) => setValue("source", e.target.value)}>
-                <option value="">None</option>
-                {sources.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.source_name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.source}
+                onChange={(v) => setValue("source", v)}
+                options={sources.map((item) => ({ value: String(item.unique_id), label: capitalize(item.source_name) }))}
+                placeholder={"None"}
+              />
             </div>
           </div>
         )}
@@ -530,31 +535,42 @@ export default function TicketWizardForm() {
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
             <div>
               <Label>Category</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.category} onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value, subcategory: "" }))} required>
-                <option value="">Select category</option>
-                {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.category_name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.category}
+                onChange={(v) => setForm((prev) => ({ ...prev, category: v, subcategory: "" }))}
+                options={categories.map((item) => ({ value: String(item.unique_id), label: capitalize(item.category_name) }))}
+                required
+                placeholder={"Select category"}
+              />
             </div>
             <div>
               <Label>Subcategory</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.subcategory} onChange={(e) => setValue("subcategory", e.target.value)}>
-                <option value="">None</option>
-                {filteredSubcategories.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.subcategory_name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.subcategory}
+                onChange={(v) => setValue("subcategory", v)}
+                options={filteredSubcategories.map((item) => ({ value: String(item.unique_id), label: capitalize(item.subcategory_name) }))}
+                placeholder={"None"}
+              />
             </div>
             <div>
               <Label>Priority</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.priority} onChange={(e) => setValue("priority", e.target.value)} required>
-                <option value="">Select priority</option>
-                {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.priority_name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.priority}
+                onChange={(v) => setValue("priority", v)}
+                options={priorities.map((item) => ({ value: String(item.unique_id), label: capitalize(item.priority_name) }))}
+                required
+                placeholder={"Select priority"}
+              />
             </div>
             <div>
               <Label>Status</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.status} onChange={(e) => setValue("status", e.target.value)} required>
-                <option value="">Select status</option>
-                {statuses.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.status_name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.status}
+                onChange={(v) => setValue("status", v)}
+                options={statuses.map((item) => ({ value: String(item.unique_id), label: capitalize(item.status_name) }))}
+                required
+                placeholder={"Select status"}
+              />
             </div>
             <div className="md:col-span-3">
               <Label>Waste Type</Label>
@@ -584,18 +600,12 @@ export default function TicketWizardForm() {
             <div className="md:col-span-3"><Label>Description</Label><textarea className="w-full rounded-md border px-3 py-2 text-sm" rows={4} value={form.description} onChange={(e) => setValue("description", e.target.value)} /></div>
             <div>
               <Label>Complaint / Incident Type</Label>
-              <select
-                className="h-11 w-full rounded-md border px-3 text-sm"
+              <FormSelect
                 value={form.incident_type}
-                onChange={(e) => setValue("incident_type", e.target.value)}
-              >
-                <option value="public">Public Grievance</option>
-                <option value="trip">Trip Related</option>
-                <option value="driver">Driver Related</option>
-                <option value="operator">Operator Related</option>
-                <option value="vehicle">Vehicle Related</option>
-                <option value="other">Other</option>
-              </select>
+                onChange={(v) => setValue("incident_type", v)}
+                options={[{ value: "public", label: "Public Grievance" }, { value: "trip", label: "Trip Related" }, { value: "driver", label: "Driver Related" }, { value: "operator", label: "Operator Related" }, { value: "vehicle", label: "Vehicle Related" }, { value: "other", label: "Other" }]}
+                placeholder={null}
+              />
             </div>
             <div><Label>Trip Reference</Label><Input placeholder="Trip ID / trip plan code" value={form.trip_reference} onChange={(e) => setValue("trip_reference", e.target.value)} /></div>
             <div><Label>Vehicle Reference</Label><Input placeholder="Vehicle number / ID" value={form.vehicle_reference} onChange={(e) => setValue("vehicle_reference", e.target.value)} /></div>
@@ -609,38 +619,52 @@ export default function TicketWizardForm() {
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
             <div>
               <Label>State</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.state} onChange={(e) => onStateChange(e.target.value)}>
-                <option value="">Select state</option>
-                {states.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.state}
+                onChange={(v) => onStateChange(v)}
+                options={states.map((item) => ({ value: String(item.unique_id), label: capitalize(item.name) }))}
+                placeholder={"Select state"}
+              />
             </div>
             <div>
               <Label>District</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.district} onChange={(e) => onDistrictChange(e.target.value)} disabled={!form.state}>
-                <option value="">{form.state ? "Select district" : "Select a state first"}</option>
-                {filteredDistricts.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.district}
+                onChange={(v) => onDistrictChange(v)}
+                options={filteredDistricts.map((item) => ({ value: String(item.unique_id), label: capitalize(item.name) }))}
+                disabled={!form.state}
+                placeholder={form.state ? "Select district" : "Select a state first"}
+              />
             </div>
             <div>
               <Label>Panchayat</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.panchayat} onChange={(e) => onPanchayatChange(e.target.value)} disabled={!form.district}>
-                <option value="">{form.district ? "Select panchayat" : "Select a district first"}</option>
-                {filteredPanchayats.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.panchayat}
+                onChange={(v) => onPanchayatChange(v)}
+                options={filteredPanchayats.map((item) => ({ value: String(item.unique_id), label: capitalize(item.name) }))}
+                disabled={!form.district}
+                placeholder={form.district ? "Select panchayat" : "Select a district first"}
+              />
             </div>
             <div>
               <Label>Zone</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.zone} onChange={(e) => onZoneChange(e.target.value)} disabled={!form.district}>
-                <option value="">{form.district ? "Select zone" : "Select a district first"}</option>
-                {filteredZones.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.zone}
+                onChange={(v) => onZoneChange(v)}
+                options={filteredZones.map((item) => ({ value: String(item.unique_id), label: capitalize(item.name) }))}
+                disabled={!form.district}
+                placeholder={form.district ? "Select zone" : "Select a district first"}
+              />
             </div>
             <div>
               <Label>Ward</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.ward} onChange={(e) => onWardChange(e.target.value)} disabled={!form.zone && !form.panchayat}>
-                <option value="">{form.zone || form.panchayat ? "Select ward" : "Select zone or panchayat first"}</option>
-                {filteredWards.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.name)}</option>)}
-              </select>
+              <FormSelect
+                value={form.ward}
+                onChange={(v) => onWardChange(v)}
+                options={filteredWards.map((item) => ({ value: String(item.unique_id), label: capitalize(item.name) }))}
+                disabled={!form.zone && !form.panchayat}
+                placeholder={form.zone || form.panchayat ? "Select ward" : "Select zone or panchayat first"}
+              />
             </div>
             <div className="md:col-span-3"><Label>Location</Label><Input value={form.location_text} onChange={(e) => setValue("location_text", e.target.value)} /></div>
             <div><Label>Latitude</Label><Input value={form.latitude} onChange={(e) => setValue("latitude", e.target.value)} /></div>

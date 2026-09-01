@@ -198,9 +198,9 @@ export default function PanchayatLeaderListPage() {
     <div className="p-3">
 
       {/* ── Title + company/project + Add button — outside DataTable (matches PanchayatListPage) ── */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
+      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
             {t("admin.nav.panchayat_leader")}
           </h1>
           <p className="text-sm text-gray-500">

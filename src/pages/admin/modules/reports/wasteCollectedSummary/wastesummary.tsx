@@ -394,10 +394,10 @@ export default function WasteSummary() {
       <ProjectSelectorBar />
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
             {t("admin.reports.waste_summary.title")}
           </h1>
-          <p className="text-gray-500 text-sm">
+          <p className="text-sm text-gray-500">
             {t("admin.reports.waste_summary.subtitle")}
           </p>
         </div>

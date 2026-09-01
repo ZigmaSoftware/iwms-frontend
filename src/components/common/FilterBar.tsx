@@ -1,6 +1,8 @@
 import type { ChangeEvent, ReactNode } from "react";
 import { InputText } from "primereact/inputtext";
 import { cn } from "@/lib/utils";
+import { CONTROL_HEIGHT, CONTROL_WIDTH } from "@/components/common/controlSizing";
+import { FormSelect, type FormSelectOption } from "@/components/common/FormSelect";
 
 /**
  * FilterBar
@@ -110,7 +112,10 @@ const DEFAULT_STATUS_LABELS: Required<StatusFilterLabels> = {
 };
 
 const selectClassName =
-  "border rounded px-3 py-2 text-sm bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100";
+  `${CONTROL_HEIGHT} border rounded px-3 text-sm bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100`;
+
+/** Filter dropdowns share the toolbar control width. */
+const FILTER_SELECT_WIDTH = CONTROL_WIDTH;
 
 export function FilterBar({
   searchValue,
@@ -138,7 +143,13 @@ export function FilterBar({
     >
       <div className="flex flex-1 flex-wrap items-center gap-3">
         {!hideSearch && (
-          <div className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+          <div
+            className={cn(
+              "flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 shadow-sm dark:border-gray-700 dark:bg-gray-900",
+              CONTROL_HEIGHT,
+              CONTROL_WIDTH,
+            )}
+          >
             <i className="pi pi-search text-gray-500" />
             <InputText
               value={searchValue}
@@ -147,22 +158,26 @@ export function FilterBar({
               }
               placeholder={searchPlaceholder}
               aria-label={searchAriaLabel ?? searchPlaceholder}
-              className="p-inputtext-sm !border-0 !shadow-none !outline-none"
+              className="p-inputtext-sm h-full w-full !border-0 !bg-transparent !p-0 !shadow-none !outline-none"
             />
           </div>
         )}
 
         {showStatusFilter && (
-          <select
-            value={statusValue}
-            onChange={(e) => onStatusChange?.(e.target.value as StatusFilterValue)}
-            className={selectClassName}
+          <FormSelect
+            value={statusValue ?? "all"}
+            onChange={(value) => onStatusChange?.(value as StatusFilterValue)}
+            placeholder={null}
+            fullWidth={false}
+            className={FILTER_SELECT_WIDTH}
+            triggerClassName={cn(selectClassName, "w-full")}
             aria-label={statusAriaLabel ?? "Status filter"}
-          >
-            <option value="all">{labels.all}</option>
-            <option value="active">{labels.active}</option>
-            <option value="inactive">{labels.inactive}</option>
-          </select>
+            options={[
+              { value: "all", label: labels.all },
+              { value: "active", label: labels.active },
+              { value: "inactive", label: labels.inactive },
+            ]}
+          />
         )}
 
         {children}
@@ -181,14 +196,13 @@ export function FilterBar({
  * FilterBarSelect
  * ===============
  * Presentational helper for the entity-specific dropdown slots (company,
- * project, hierarchy, city, ...). It only standardizes markup/styling to
- * match the plain `<select>` elements already used in ZoneListPage.tsx —
- * it does NOT fetch options or own selection state; pages keep using
- * whatever hook already supplies that (e.g. useCompanyProjectSelection).
+ * project, hierarchy, city, ...). Built on FormSelect so list-page filters
+ * and entry-form fields are the same control — it does NOT fetch options or
+ * own selection state; pages keep using whatever hook already supplies that
+ * (e.g. useCompanyProjectSelection).
  *
- * Passing `children` instead of `options` (e.g. to insert custom <option>
- * groups) is also supported — `options` is simply skipped when `children`
- * is provided.
+ * Options are passed via `options`; raw <option> children are not supported
+ * because the underlying control is Radix-based, not a native <select>.
  */
 export interface FilterBarSelectOption {
   value: string;
@@ -203,7 +217,6 @@ export interface FilterBarSelectProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
-  children?: ReactNode;
   "aria-label"?: string;
 }
 
@@ -214,24 +227,22 @@ export function FilterBarSelect({
   placeholder,
   disabled,
   className,
-  children,
   ...rest
 }: FilterBarSelectProps) {
   return (
-    <select
+    <FormSelect
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={onChange}
+      options={(options ?? []) as FormSelectOption[]}
+      // A filter bar dropdown is never "required", so the placeholder row is
+      // the how a filter is cleared back to "all". `undefined` means the
+      // caller wants a real selection, so no clearing row is offered.
+      placeholder={placeholder ?? null}
       disabled={disabled}
-      className={cn(selectClassName, className)}
+      fullWidth={false}
+      className={cn(FILTER_SELECT_WIDTH, className)}
+      triggerClassName={cn(selectClassName, "w-full")}
       {...rest}
-    >
-      {placeholder !== undefined && <option value="">{placeholder}</option>}
-      {children ??
-        options?.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-    </select>
+    />
   );
 }

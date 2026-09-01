@@ -170,8 +170,8 @@ export default function TripExceptionLogList() {
 
   const header = (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold text-gray-800">
             {t("admin.trip_exception_log.list_title")}
           </h1>

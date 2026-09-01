@@ -80,9 +80,9 @@ export default function CategoryManagementScreen() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">Categories &amp; Subcategories</h1>
+      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3 gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800">Categories &amp; Subcategories</h1>
           <p className="text-sm text-gray-500">Complaint ticketing setup</p>
         </div>
         <Button label="Add Category" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(categoryRoutes.newPath)} />

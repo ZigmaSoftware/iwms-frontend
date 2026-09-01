@@ -48,7 +48,6 @@ export default function BlockListPage() {
       ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     },
   });
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [projectHasBlocks, setProjectHasBlocks] = useState(true);
 
   const location = useLocation();
@@ -132,19 +131,6 @@ export default function BlockListPage() {
     });
   };
 
-  const handleDownloadExcel = () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = getFilteredExportRows();
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Blocks");
-    } finally {
-      setIsExportingExcel(false);
-    }
-  };
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -191,9 +177,9 @@ export default function BlockListPage() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">Block</h1>
+      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">Block</h1>
           <p className="text-sm text-gray-500">Manage Block records</p>
         </div>
         <div className="flex items-center gap-3">
@@ -214,15 +200,6 @@ export default function BlockListPage() {
         statusValue={statusValue}
         onStatusChange={onStatusFilterChange}
         className="mb-4"
-        trailing={
-          <Button
-            label={isExportingExcel ? "Downloading..." : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined"
-            disabled={isExportingExcel}
-            onClick={handleDownloadExcel}
-          />
-        }
       >
         <FilterBarSelect
           value={companyUniqueId || ""}
@@ -247,6 +224,7 @@ export default function BlockListPage() {
       )}
 
       <DataTable
+        loadExportRows={async () => getFilteredExportRows()}
         value={data}
         dataKey="unique_id"
         paginator

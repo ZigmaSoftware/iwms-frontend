@@ -11,6 +11,7 @@ import { adminApi } from "@/helpers/admin/registry";
 import { userTypeSchema } from "@/schemas/superadmin/roleManagement/userType.schema";
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
+import { FormSelect } from "@/components/common/FormSelect";
 
 const { encAdmins, encUserType } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encAdmins, encUserType);
@@ -183,14 +184,16 @@ export default function UserTypeForm() {
                 {t("common.status")} <span className="text-red-500">*</span>
               </label>
 
-              <select
+              <FormSelect
                 value={isActive ? "true" : "false"}
-                onChange={(e) => setIsActive(e.target.value === "true")}
-                className="w-full px-3 py-2 border border-green-400 rounded-sm focus:outline-none focus:ring-2 focus:ring-green-200"
-              >
-                <option value="true">{t("common.active")}</option>
-                <option value="false">{t("common.inactive")}</option>
-              </select>
+                onChange={(v) => setIsActive(v === "true")}
+                placeholder={null}
+                required
+                options={[
+                  { label: t("common.active"), value: "true" },
+                  { label: t("common.inactive"), value: "false" },
+                ]}
+              />
             </div>
 
           </div>

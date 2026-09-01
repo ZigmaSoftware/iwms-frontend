@@ -21,34 +21,31 @@ import {
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
 
-
 export default function StaffTemplateAuditList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
   const [records, setRecords] = useState<StaffTemplateAuditRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
-  const {
-    filters,
-    globalFilterValue,
-    onGlobalFilterChange,
-  } = useFilterBarFilters({
-    withStatusFilter: false,
-    initialFilters: {
-      entity_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      entity_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      action: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      performed_by: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      performed_role: { value: null, matchMode: FilterMatchMode.CONTAINS },
-      change_remarks: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    } as TableFilters,
-  });
-
+  const { filters, globalFilterValue, onGlobalFilterChange } =
+    useFilterBarFilters({
+      withStatusFilter: false,
+      initialFilters: {
+        entity_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
+        entity_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
+        action: { value: null, matchMode: FilterMatchMode.CONTAINS },
+        performed_by: { value: null, matchMode: FilterMatchMode.CONTAINS },
+        performed_role: { value: null, matchMode: FilterMatchMode.CONTAINS },
+        change_remarks: { value: null, matchMode: FilterMatchMode.CONTAINS },
+      } as TableFilters,
+    });
 
   const { encStaffMasters, encStaffTemplateAudit } = getEncryptedRoute();
-  const { editPath: ENC_VIEW_PATH } = createCrudRoutePaths(encStaffMasters, encStaffTemplateAudit);
+  const { editPath: ENC_VIEW_PATH } = createCrudRoutePaths(
+    encStaffMasters,
+    encStaffTemplateAudit,
+  );
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -80,22 +77,8 @@ export default function StaffTemplateAuditList() {
         record.change_remarks,
       ]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(search))
+        .some((value) => String(value).toLowerCase().includes(search)),
     );
-  };
-
-  const handleDownloadExcel = () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = filteredExportRows();
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "StaffTemplateAudit");
-    } finally {
-      setIsExportingExcel(false);
-    }
   };
 
   const actionTemplate = (row: StaffTemplateAuditRecord) => (
@@ -112,8 +95,8 @@ export default function StaffTemplateAuditList() {
 
   return (
     <div className="p-3">
-      <div className="flex justify-between items-center mb-6">
-        <div>
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold text-gray-800">
             {t("admin.staff_template_audit.list_title")}
           </h1>
@@ -121,13 +104,6 @@ export default function StaffTemplateAuditList() {
             {t("admin.staff_template_audit.list_subtitle")}
           </p>
         </div>
-        <Button
-          label={isExportingExcel ? "Downloading..." : "Download Excel"}
-          icon="pi pi-file-excel"
-          className="p-button-outlined"
-          disabled={isExportingExcel}
-          onClick={handleDownloadExcel}
-        />
       </div>
 
       <div className="flex justify-end mb-4">
@@ -139,6 +115,7 @@ export default function StaffTemplateAuditList() {
       </div>
 
       <DataTable
+        loadExportRows={async () => filteredExportRows()}
         value={records}
         dataKey="id"
         paginator
@@ -188,10 +165,11 @@ export default function StaffTemplateAuditList() {
         <Column
           field="performed_by"
           header={t("admin.staff_template_audit.performed_by")}
-          body={(r: StaffTemplateAuditRecord) => r.performed_by_name ?? r.performed_by ?? "-"}
+          body={(r: StaffTemplateAuditRecord) =>
+            r.performed_by_name ?? r.performed_by ?? "-"
+          }
           filter
           showFilterMatchModes={false}
-
         />
         <Column
           field="performed_role"
@@ -199,7 +177,6 @@ export default function StaffTemplateAuditList() {
           body={(r: StaffTemplateAuditRecord) => r.performed_role ?? "-"}
           filter
           showFilterMatchModes={false}
-
         />
         <Column
           field="change_remarks"
@@ -214,7 +191,11 @@ export default function StaffTemplateAuditList() {
             r.performed_at ? new Date(r.performed_at).toLocaleString() : "-"
           }
         />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
+        <Column
+          header={t("common.actions")}
+          body={actionTemplate}
+          style={{ width: 120 }}
+        />
       </DataTable>
     </div>
   );

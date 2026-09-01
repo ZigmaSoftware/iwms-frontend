@@ -985,25 +985,25 @@ export default function MonthlyWasteComparisonListPage({
           <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 flex flex-col gap-1">
               <span className="text-xs font-medium text-gray-500">Total Weight Collected</span>
-              <span className="text-2xl font-bold text-gray-800 leading-none">
+              <span className="text-2xl font-semibold text-gray-800 leading-none">
                 {fmtKg(kpis.total_actual_weight)} kg
               </span>
             </div>
             <div className="rounded-xl border border-teal-100 bg-teal-50 p-4 flex flex-col gap-1">
               <span className="text-xs font-medium text-gray-500">Total Trips</span>
-              <span className="text-2xl font-bold text-gray-800 leading-none">
+              <span className="text-2xl font-semibold text-gray-800 leading-none">
                 {fmtKg(kpis.total_trips, 0)}
               </span>
             </div>
             <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 flex flex-col gap-1">
               <span className="text-xs font-medium text-gray-500">Points Covered</span>
-              <span className="text-2xl font-bold text-gray-800 leading-none">
+              <span className="text-2xl font-semibold text-gray-800 leading-none">
                 {fmtKg(kpis.collection_points_covered, 0)}
               </span>
             </div>
             <div className="rounded-xl border border-violet-100 bg-violet-50 p-4 flex flex-col gap-1">
               <span className="text-xs font-medium text-gray-500">Avg Weight / Trip</span>
-              <span className="text-2xl font-bold text-gray-800 leading-none">
+              <span className="text-2xl font-semibold text-gray-800 leading-none">
                 {fmtKg(kpis.average_weight_per_trip)} kg
               </span>
             </div>
