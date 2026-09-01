@@ -143,6 +143,7 @@ export const binCollectionEventApi = adminApi.binCollectionEvent;
 export const dailyWasteComparisonApi = adminApi.dailyWasteComparison;
 export const vehicleBreakdownApi = adminApi.vehicleBreakdown;
 export const retripRequestApi = adminApi.retripRequests;
+export const tripDelayReportApi = adminApi.tripDelayReports;
 
 /* =========================
    AUDITS
