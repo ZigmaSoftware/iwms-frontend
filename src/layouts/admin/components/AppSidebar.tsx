@@ -35,7 +35,6 @@ const {
   encDistricts,
   encCities,
   encWards,
-  encBlocks,
   encCollectionPoints,
   encPlants,
   encWasteTypes,
@@ -217,6 +216,8 @@ const attendanceItems: NavItem[] = [
     nameKey: "admin.nav.attendance",
     icon: <CalendarCheck size={18} />,
     path: `/${encAttendance}/${encAttendance}`,
+    module: "attendance",
+    screen: "attendance",
   },
 ];
 
@@ -318,12 +319,6 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "wards",
       },
-      // {
-      //   nameKey: "admin.nav.block",
-      //   path: `/${encMasters}/${encBlocks}`,
-      //   module: "masters",
-      //   screen: "blocks",
-      // },
       {
         nameKey: "admin.nav.panchayat",
         path: `/${encMasters}/${encPanchayats}`,
@@ -740,30 +735,6 @@ const auditItems: NavItem[] = [
         module: "audits",
         screen: "login-audit",
       },
-      // {
-      //   nameKey: "admin.nav.vehicle_trip_audit",
-      //   path: `/${encTransportMaster}/${encVehicleTripAudit}`,
-      //   module: "audits",
-      //   screen: "vehicle-trip-audit",
-      // },
-      // {
-      //   nameKey: "admin.nav.trip_exception_log",
-      //   path: `/${encTransportMaster}/${encTripExceptionLog}`,
-      //   module: "audits",
-      //   screen: "trip-exception-log",
-      // },
-      // {
-      //   nameKey: "admin.nav.supervisor_zone_access_audit",
-      //   path: `/${encStaffMasters}/${encSupervisorZoneAccessAudit}`,
-      //   module: "audits",
-      //   screen: "supervisor-zone-access-audit",
-      // },
-      // {
-      //   nameKey: "admin.nav.staff_template_audit",
-      //   path: `/${encStaffMasters}/${encStaffTemplateAudit}`,
-      //   module: "audits",
-      //   screen: "stafftemplate-audit-log",
-      // },
     ],
   },
 ];
@@ -881,10 +852,6 @@ const AppSidebar: React.FC = () => {
     item: NavItem,
     filteredSubItems: NavItem["subItems"]
   ): boolean => {
-    if (item.nameKey === "admin.nav.dashboard") {
-      return true;
-    }
-
     // If no subItems, check direct permission or show if no permission needed
     if (!item.subItems || item.subItems.length === 0) {
       if (!item.module || !item.screen) return true;

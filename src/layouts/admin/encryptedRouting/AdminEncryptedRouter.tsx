@@ -19,8 +19,6 @@ import ZoneList from "@/pages/admin/modules/masters/zone/ZoneListPage";
 import ZoneForm from "@/pages/admin/modules/masters/zone/ZoneForm";
 import WardList from "@/pages/admin/modules/masters/ward/WardListPage";
 import WardForm from "@/pages/admin/modules/masters/ward/WardForm";
-import BlockList from "@/pages/admin/modules/masters/block/BlockListPage";
-import BlockForm from "@/pages/admin/modules/masters/block/BlockForm";
 import DepartmentList from "@/pages/admin/modules/masters/department/DepartmentListPage";
 import DepartmentForm from "@/pages/admin/modules/masters/department/DepartmentForm";
 import DesignationList from "@/pages/admin/modules/masters/designation/DesignationListPage";
@@ -41,10 +39,6 @@ import PanchayatLeaderListPage from "@/pages/admin/modules/masters/leaderManagem
 import PanchayatLeaderForm from "@/pages/admin/modules/masters/leaderManagement/panchayatLeader/PanchayatLeaderForm";
 import DistrictLeaderListPage from "@/pages/admin/modules/masters/leaderManagement/districtLeader/DistrictLeaderListPage";
 import DistrictLeaderForm from "@/pages/admin/modules/masters/leaderManagement/districtLeader/DistrictLeaderForm";
-import HierarchyListPage from "@/pages/admin/modules/masters/hierarchy/HierarchyListPage";
-import HierarchyForm from "@/pages/admin/modules/masters/hierarchy/HierarchyForm";
-
-
 
 import PropertyList from "@/pages/admin/modules/masters/wasteMasters/property/PropertyListPage";
 import PropertyForm from "@/pages/admin/modules/masters/wasteMasters/property/PropertyForm";
@@ -71,8 +65,6 @@ import TicketList from "@/pages/admin/modules/core_modules/complaintManagement/t
 import TicketForm from "@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketForm";
 import TicketDetail from "@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketDetail";
 import FeedbackList from "@/pages/admin/modules/core_modules/complaintManagement/feedback/FeedbackList";
-import FeedBackFormList from "@/pages/admin/modules/masters/customerMasters/feedback/feedBackFormListPage";
-import FeedBackForm from "@/pages/admin/modules/masters/customerMasters/feedback/feedBackForm";
 import FuelList from "@/pages/admin/modules/masters/transportMasters/fuel/fuelListPage";
 import FuelForm from "@/pages/admin/modules/masters/transportMasters/fuel/fuelForm";
 import VehicleTypeCreation from "@/pages/admin/modules/masters/transportMasters/vehicleTypecreation/vehicle-typeCreationList";
@@ -81,14 +73,6 @@ import VehicleCreationListPage from "@/pages/admin/modules/masters/transportMast
 import VehicleCreationForm from "@/pages/admin/modules/masters/transportMasters/vehicleCreation/vehicleCreationForm";
 import TripPlanList from "@/pages/admin/modules/core_modules/scheduleSetup/tripPlan/tripPlanList";
 import TripPlanForm from "@/pages/admin/modules/core_modules/scheduleSetup/tripPlan/tripPlanForm";
-import ZonePropertyLoadTrackerList from "@/pages/admin/modules/transportMasters/zonePropertyLoadTracker/zonePropertyLoadTrackerList";
-import ZonePropertyLoadTrackerForm from "@/pages/admin/modules/transportMasters/zonePropertyLoadTracker/zonePropertyLoadTrackerForm";
-import TripAttendanceList from "@/pages/admin/modules/masters/transportMasters/tripAttendance/tripAttendanceList";
-import TripAttendanceForm from "@/pages/admin/modules/masters/transportMasters/tripAttendance/tripAttendanceForm";
-import VehicleTripAuditList from "@/pages/admin/modules/masters/transportMasters/vehicleTripAudit/vehicleTripAuditList";
-import VehicleTripAuditForm from "@/pages/admin/modules/masters/transportMasters/vehicleTripAudit/vehicleTripAuditForm";
-import TripExceptionLogList from "@/pages/admin/modules/masters/transportMasters/tripExceptionLog/tripExceptionLogList";
-import TripExceptionLogForm from "@/pages/admin/modules/masters/transportMasters/tripExceptionLog/tripExceptionLogForm";
 import VehicleTracking from "@/pages/admin/modules/vehicletracking/vehicletrack/vehicletracking";
 import VehicleHistory from "@/pages/admin/modules/vehicletracking/vehiclehistory/vehiclehistory";
 import WorkforceManagement from "@/pages/admin/modules/workforcemanagement/workforcemanagement";
@@ -150,16 +134,8 @@ import TripDelayReportList from "@/pages/admin/modules/core_modules/dailyOperati
 import TripRetripRequestList from "@/pages/admin/modules/core_modules/dailyOperations/tripRetripRequest/tripRetripRequestList";
 import VehicleBreakdownForm from "@/pages/admin/modules/core_modules/dailyOperations/vehicleBreakdown/vehicleBreakdownForm";
 import DailyWasteComparisonList from "@/pages/admin/modules/reports/wasteReports/dailyWasteComparison/dailyWasteComparisonList";
-import StaffTemplateAuditList from "@/pages/admin/modules/superadmin/audits/staffTemplateAudit/staffTemplateAuditList";
-import StaffTemplateAuditForm from "@/pages/admin/modules/superadmin/audits/staffTemplateAudit/staffTemplateAuditForm";
-import SupervisorZoneMapList from "@/pages/admin/modules/staffMasters/supervisorZoneMap/supervisorZoneMapList";
-import SupervisorZoneMapForm from "@/pages/admin/modules/staffMasters/supervisorZoneMap/supervisorZoneMapForm";
-import SupervisorZoneAccessAuditList from "@/pages/admin/modules/staffMasters/supervisorZoneAccessAudit/supervisorZoneAccessAuditList";
-import SupervisorZoneAccessAuditForm from "@/pages/admin/modules/staffMasters/supervisorZoneAccessAudit/supervisorZoneAccessAuditForm";
 import CommonAuditList from "@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList";
 import LoginAuditList from "@/pages/admin/modules/superadmin/audits/loginAudit/loginAuditList";
-import UnassignedStaffPoolList from "@/pages/admin/modules/superadmin/userManagement/unassignedStaffPool/unassignedStaffPoolList";
-import UnassignedStaffPoolForm from "@/pages/admin/modules/superadmin/userManagement/unassignedStaffPool/unassignedStaffPoolForm";
 import CompanyList from "@/pages/admin/modules/superadminMasters/company/companyListPage";
 import CompanyListForm from "@/pages/admin/modules/superadminMasters/company/companyForm";
 import ProjectList from "@/pages/admin/modules/superadminMasters/project/projectListPage";
@@ -204,7 +180,6 @@ const ROUTES: RouteMap = {
     cities: { list: CityList, form: CityForm },
     zones: { list: ZoneList, form: ZoneForm },
     wards: { list: WardList, form: WardForm },
-    blocks: { list: BlockList, form: BlockForm },
     departments: { list: DepartmentList, form: DepartmentForm },
     designations: { list: DesignationList, form: DesignationForm },
     bins: { list: BinListPage, form: BinForm },
@@ -213,25 +188,16 @@ const ROUTES: RouteMap = {
     "panchayat-leaders": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
     plants: { list: PlantListPage, form: PlantForm },
     "district-leaders": { list: DistrictLeaderListPage, form: DistrictLeaderForm },
-    hierarchies: { list: HierarchyListPage, form: HierarchyForm },
     properties: { list: PropertyList, form: PropertyForm },
     "sub-properties": { list: SubPropertyList, form: SubPropertyForm },
   },
   "staff-masters": {
     "staff-creation": { list: StaffCreationList, form: StaffCreationForm },
-    "staff-template-audit": { list: StaffTemplateAuditList, form: StaffTemplateAuditForm },
-    "supervisor-zone-map": { list: SupervisorZoneMapList, form: SupervisorZoneMapForm },
-    "supervisor-zone-access-audit": { list: SupervisorZoneAccessAuditList, form: SupervisorZoneAccessAuditForm },
-    "unassigned-staff-pool": { list: UnassignedStaffPoolList, form: UnassignedStaffPoolForm },
   },
   "transport-master": {
     fuel: { list: FuelList, form: FuelForm },
     "vehicle-type": { list: VehicleTypeCreation, form: VehicleTypeCreationForm },
     "vehicle-creation": { list: VehicleCreationListPage, form: VehicleCreationForm },
-    "zone-property-load-tracker": { list: ZonePropertyLoadTrackerList, form: ZonePropertyLoadTrackerForm },
-    "trip-attendance": { list: TripAttendanceList, form: TripAttendanceForm },
-    "vehicle-trip-audit": { list: VehicleTripAuditList, form: VehicleTripAuditForm },
-    "trip-exception-log": { list: TripExceptionLogList, form: TripExceptionLogForm },
   },
   // Split from the legacy "schedule-masters" bucket — template/plan setup resources.
   "schedule-setup": {
@@ -348,7 +314,6 @@ const MODULE_ALIASES: Record<string, string[]> = {
   feedback: ["feedbacks"],
   fuel: ["fuels"],
   panchayats: ["panchayat"],
-  hierarchies: ["hierarchy"],
   "collection-points": ["collection-point"],
   "sub-properties": ["subproperties"],
   "staff-user-type": ["staffusertypes"],

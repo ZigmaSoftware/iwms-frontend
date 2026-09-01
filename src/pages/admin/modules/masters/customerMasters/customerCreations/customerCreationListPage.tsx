@@ -24,7 +24,7 @@ import QrPreviewDialog from "@/components/common/QrPreviewDialog";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { customerCreationApi } from "@/helpers/admin";
+import { customerCreationApi, wasteTypeApi } from "@/helpers/admin";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import {
   FilterBar,
@@ -71,7 +71,12 @@ const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   city_name: ["city_id", "city_name"],
   state_name: ["state_id", "state_name"],
   panchayat_name: ["panchayat_id", "panchayat_name"],
-  waste_types: ["waste_type_ids", "waste_types", "waste_type"],
+  waste_types: [
+    "waste_type_names",
+    "waste_type_ids",
+    "waste_types",
+    "waste_type",
+  ],
   qr_code: ["qr_code"],
   is_active: ["is_active"],
 };
@@ -147,9 +152,13 @@ const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
     sample: "Apartment",
   },
   {
-    field: "waste_type_ids",
-    header: "waste_type_ids",
-    sample: "WST-001,WST-002",
+    // Waste types are entered by NAME, like every other lookup column here
+    // ("Residential", "Ward 10"). The backend resolves names to ids and
+    // scopes the match to the selected company/project, so raw WST- ids are
+    // still accepted but are no longer what the template asks for.
+    field: "waste_type_names",
+    header: "waste_type_names",
+    sample: "Wet Waste, Dry Waste",
   },
   { field: "member_count", header: "member_count", sample: "4" },
   { field: "apartment_name", header: "apartment_name", sample: "Sunrise Apt" },
@@ -344,9 +353,40 @@ export default function CustomerCreationListPage() {
   };
 
   // ── Download template ─────────────────────────────────────────────────────
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    // List the project's real waste type names in the template's "Column
+    // Help" sheet, so the uploader types a name that actually resolves
+    // instead of guessing the spelling. Falls back to the plain template if
+    // the lookup fails — a template with no hint still uploads fine.
+    let columns = CUSTOMER_BULK_TEMPLATE_COLUMNS;
+    try {
+      const params: Record<string, string> = {};
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+
+      const names = toRecordList(
+        await wasteTypeApi.readAllForExport({ params }),
+      )
+        .map((row) => String(row.waste_type_name ?? "").trim())
+        .filter(Boolean);
+
+      const allowed = Array.from(new Set(names)).sort();
+      if (allowed.length) {
+        columns = CUSTOMER_BULK_TEMPLATE_COLUMNS.map((column) =>
+          column.field === "waste_type_names"
+            ? {
+                ...column,
+                notes: `Comma-separated names. Allowed: ${allowed.join(", ")}`,
+              }
+            : column,
+        );
+      }
+    } catch {
+      // non-fatal — ship the template without the allowed-values hint
+    }
+
     exportTemplateToExcel(
-      CUSTOMER_BULK_TEMPLATE_COLUMNS,
+      columns,
       getAdminScreenExcelFilename("template"),
       "Customers",
     );
@@ -414,7 +454,18 @@ export default function CustomerCreationListPage() {
     if (activeStatusParam) params.active_status = activeStatusParam;
 
     const response = await customerCreationApi.readAllForExport({ params });
-    return toRecordList(response);
+    // waste_types comes back as an array of objects, which the Excel writer
+    // would JSON.stringify into an unusable blob. Emit the same
+    // comma-separated names the bulk-upload template asks for, so an
+    // exported file can be edited and re-uploaded as-is.
+    return toRecordList(response).map((row) => ({
+      ...row,
+      waste_type_names:
+        row.waste_types
+          ?.map((wasteType) => wasteType.waste_type_name)
+          .join(", ") ?? "",
+      waste_types: undefined,
+    }));
   };
 
   // Feeds the table's single "Download Excel" button: the "All data" option
@@ -500,7 +551,7 @@ export default function CustomerCreationListPage() {
           label="Download Template"
           icon="pi pi-download"
           className="p-button-secondary"
-          onClick={downloadTemplate}
+          onClick={() => void downloadTemplate()}
         />
         <Button
           label="Upload Excel"
