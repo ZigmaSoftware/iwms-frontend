@@ -1,11 +1,15 @@
 import type { Customer } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
+import type {
+  DataTablePageEvent,
+  DataTableSortEvent,
+  SortOrder,
+} from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 
@@ -22,7 +26,11 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { customerCreationApi } from "@/helpers/admin";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
-import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar";
+import {
+  FilterBar,
+  FilterBarSelect,
+  type StatusFilterValue,
+} from "@/components/common/FilterBar";
 import {
   excelFileToCsvFile,
   exportRecordsToExcel,
@@ -30,10 +38,12 @@ import {
   getAdminScreenExcelFilename,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
-import { createCustomerQrPdfBlob, downloadCustomerQrPdf } from "./customerQrPdf";
+import {
+  createCustomerQrPdfBlob,
+  downloadCustomerQrPdf,
+} from "./customerQrPdf";
 import { downloadAllCustomersPdf } from "./customerAllDetailsPdf";
 import { downloadCustomerQrStickerPdf } from "./customerQrStickerPdf";
-
 
 // Backend `ordering_fields` are ["customer_name", "is_active"]; only
 // customer_name maps to a visible, sortable column here.
@@ -41,7 +51,11 @@ const SORTABLE_FIELDS = new Set(["customer_name"]);
 
 const toRecordList = (value: unknown): Customer[] => {
   if (Array.isArray(value)) return value as Customer[];
-  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+  if (
+    value &&
+    typeof value === "object" &&
+    Array.isArray((value as { results?: unknown }).results)
+  ) {
     return (value as { results: Customer[] }).results;
   }
   return [];
@@ -63,8 +77,18 @@ const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
 };
 
 const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
-  { field: "customer_name", header: "customer_name", required: true, sample: "John Doe" },
-  { field: "contact_no", header: "contact_no", required: true, sample: "9876543210" },
+  {
+    field: "customer_name",
+    header: "customer_name",
+    required: true,
+    sample: "John Doe",
+  },
+  {
+    field: "contact_no",
+    header: "contact_no",
+    required: true,
+    sample: "9876543210",
+  },
   { field: "id_proof_type", header: "id_proof_type", sample: "Aadhaar" },
   { field: "id_no", header: "id_no", sample: "1234-5678-9012" },
   { field: "building_no", header: "building_no", sample: "12" },
@@ -74,17 +98,59 @@ const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   { field: "latitude", header: "latitude", sample: "13.0827" },
   { field: "longitude", header: "longitude", sample: "80.2707" },
   { field: "sqft", header: "sqft", sample: "1200" },
-  { field: "water_consumption_lpd", header: "water_consumption_lpd", sample: "200" },
-  { field: "waste_collection_kg_per_day", header: "waste_collection_kg_per_day", sample: "5" },
+  {
+    field: "water_consumption_lpd",
+    header: "water_consumption_lpd",
+    sample: "200",
+  },
+  {
+    field: "waste_collection_kg_per_day",
+    header: "waste_collection_kg_per_day",
+    sample: "5",
+  },
   { field: "ward_name", header: "ward_name", sample: "Ward 10" },
   { field: "zone_name", header: "zone_name", sample: "North Zone" },
-  { field: "city_name", header: "city_name", required: true, sample: "Chennai" },
-  { field: "district_name", header: "district_name", required: true, sample: "Chennai" },
-  { field: "state_name", header: "state_name", required: true, sample: "Tamil Nadu" },
-  { field: "country_name", header: "country_name", required: true, sample: "India" },
-  { field: "property_name", header: "property_name", required: true, sample: "Residential" },
-  { field: "sub_property_name", header: "sub_property_name", required: true, sample: "Apartment" },
-  { field: "waste_type_ids", header: "waste_type_ids", sample: "WST-001,WST-002" },
+  {
+    field: "city_name",
+    header: "city_name",
+    required: true,
+    sample: "Chennai",
+  },
+  {
+    field: "district_name",
+    header: "district_name",
+    required: true,
+    sample: "Chennai",
+  },
+  {
+    field: "state_name",
+    header: "state_name",
+    required: true,
+    sample: "Tamil Nadu",
+  },
+  {
+    field: "country_name",
+    header: "country_name",
+    required: true,
+    sample: "India",
+  },
+  {
+    field: "property_name",
+    header: "property_name",
+    required: true,
+    sample: "Residential",
+  },
+  {
+    field: "sub_property_name",
+    header: "sub_property_name",
+    required: true,
+    sample: "Apartment",
+  },
+  {
+    field: "waste_type_ids",
+    header: "waste_type_ids",
+    sample: "WST-001,WST-002",
+  },
   { field: "member_count", header: "member_count", sample: "4" },
   { field: "apartment_name", header: "apartment_name", sample: "Sunrise Apt" },
   { field: "block_no", header: "block_no", sample: "A" },
@@ -110,23 +176,28 @@ export default function CustomerCreationListPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
-  const [selectedQrCustomer, setSelectedQrCustomer] = useState<Customer | null>(null);
+  const [selectedQrCustomer, setSelectedQrCustomer] = useState<Customer | null>(
+    null,
+  );
   const [isPrintingQr, setIsPrintingQr] = useState(false);
   const [isPreviewingQr, setIsPreviewingQr] = useState(false);
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingQrStickers, setIsExportingQrStickers] = useState(false);
   const requestIdRef = useRef(0);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [globalSearchTerm, setGlobalSearchTerm] = useState("");
-  const [statusFilterValue, setStatusFilterValue] = useState<StatusFilterValue>("all");
+  const [statusFilterValue, setStatusFilterValue] =
+    useState<StatusFilterValue>("all");
 
   const navigate = useNavigate();
   const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
 
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -138,20 +209,26 @@ export default function CustomerCreationListPage() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encCustomerMaster,
-    encCustomerCreation,
-  );
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
+    createCrudRoutePaths(encCustomerMaster, encCustomerCreation);
 
-  const mappedSortField = sortField && SORTABLE_FIELDS.has(sortField) ? sortField : undefined;
+  const mappedSortField =
+    sortField && SORTABLE_FIELDS.has(sortField) ? sortField : undefined;
   const ordering = mappedSortField
     ? `${sortOrder === -1 ? "-" : ""}${mappedSortField}`
     : undefined;
 
   const activeStatusParam =
-    statusFilterValue === "all" ? "" : statusFilterValue === "active" ? "1" : "0";
+    statusFilterValue === "all"
+      ? ""
+      : statusFilterValue === "active"
+        ? "1"
+        : "0";
 
   // ── Load data (server-side pagination) ──────────────────────────────────
   const loadRows = async (
@@ -171,7 +248,11 @@ export default function CustomerCreationListPage() {
       if (activeStatus) params.active_status = activeStatus;
       if (orderingParam) params.ordering = orderingParam;
 
-      const response = await customerCreationApi.readAllwithPaginated(page, limit, { params });
+      const response = await customerCreationApi.readAllwithPaginated(
+        page,
+        limit,
+        { params },
+      );
       if (requestId !== requestIdRef.current) return;
 
       const rows = toRecordList(response);
@@ -186,7 +267,9 @@ export default function CustomerCreationListPage() {
       Swal.fire({
         icon: "error",
         title: t("common.error"),
-        text: String((error as { response?: { data?: unknown } })?.response?.data ?? error),
+        text: String(
+          (error as { response?: { data?: unknown } })?.response?.data ?? error,
+        ),
       });
     } finally {
       if (requestId === requestIdRef.current) setIsLoading(false);
@@ -209,7 +292,13 @@ export default function CustomerCreationListPage() {
       return;
     }
 
-    void loadRows(first / rowsPerPage + 1, rowsPerPage, globalSearchTerm, activeStatusParam, ordering);
+    void loadRows(
+      first / rowsPerPage + 1,
+      rowsPerPage,
+      globalSearchTerm,
+      activeStatusParam,
+      ordering,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     t,
@@ -266,13 +355,18 @@ export default function CustomerCreationListPage() {
   // ── Bulk upload ───────────────────────────────────────────────────────────
   const [isUploading, setIsUploading] = useState(false);
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
     try {
-      const csvFile = await excelFileToCsvFile(file, "customer_bulk_upload.csv");
+      const csvFile = await excelFileToCsvFile(
+        file,
+        "customer_bulk_upload.csv",
+      );
       const formDataObj = new FormData();
       formDataObj.append("file", csvFile);
       formDataObj.append("company_id", companyUniqueId || "");
@@ -323,26 +417,21 @@ export default function CustomerCreationListPage() {
     return toRecordList(response);
   };
 
-  const handleDownloadExcel = async () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = await fetchExportRows();
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No customers to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Customers");
-    } finally {
-      setIsExportingExcel(false);
-    }
-  };
+  // Feeds the table's single "Download Excel" button: the "All data" option
+  // fetches every row matching the current filters, while "Current page"
+  // uses the rows already on screen.
+  const loadAllExportRows = async () => fetchExportRows();
 
   const handleDownloadPdf = async () => {
     setIsExportingPdf(true);
     try {
       const rows = await fetchExportRows();
       if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No customers to export", "warning");
+        Swal.fire(
+          t("common.warning") || "Warning",
+          "No customers to export",
+          "warning",
+        );
         return;
       }
       await downloadAllCustomersPdf(rows);
@@ -350,7 +439,10 @@ export default function CustomerCreationListPage() {
       Swal.fire({
         icon: "error",
         title: t("common.error"),
-        text: error instanceof Error ? error.message : "Failed to generate the customers PDF.",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate the customers PDF.",
       });
     } finally {
       setIsExportingPdf(false);
@@ -373,15 +465,20 @@ export default function CustomerCreationListPage() {
       // Stamp the sheet with whichever company / project is selected above;
       // an empty value means "All", which the sheet resolves on its own.
       await downloadCustomerQrStickerPdf(rows, {
-        companyName: companies.find((company) => company.value === companyUniqueId)?.label,
-        projectName: projects.find((project) => project.value === projectId)?.label,
+        companyName: companies.find(
+          (company) => company.value === companyUniqueId,
+        )?.label,
+        projectName: projects.find((project) => project.value === projectId)
+          ?.label,
       });
     } catch (error) {
       Swal.fire({
         icon: "error",
         title: t("common.error"),
         text:
-          error instanceof Error ? error.message : "Failed to generate the QR sticker sheet.",
+          error instanceof Error
+            ? error.message
+            : "Failed to generate the QR sticker sheet.",
       });
     } finally {
       setIsExportingQrStickers(false);
@@ -395,8 +492,9 @@ export default function CustomerCreationListPage() {
           label={t("admin.customer_creation.add")}
           icon="pi pi-plus"
           className="p-button-success"
-         
-          onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+          onClick={() =>
+            navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+          }
         />
         <Button
           label="Download Template"
@@ -410,13 +508,6 @@ export default function CustomerCreationListPage() {
           className="p-button-info"
           disabled={!companyUniqueId || !projectId || isUploading}
           onClick={() => document.getElementById("excelUpload")?.click()}
-        />
-        <Button
-          label={isExportingExcel ? "Downloading..." : "Download Excel"}
-          icon="pi pi-file-excel"
-          className="p-button-outlined"
-          disabled={isExportingExcel}
-          onClick={handleDownloadExcel}
         />
         <Button
           label={isExportingPdf ? "Preparing..." : "Download PDF"}
@@ -439,8 +530,27 @@ export default function CustomerCreationListPage() {
           onSearchChange={onSearchValueChange}
           searchPlaceholder={t("admin.customer_creation.search_placeholder")}
           statusValue={showCol("is_active") ? statusFilterValue : undefined}
-          onStatusChange={showCol("is_active") ? onStatusFilterChange : undefined}
-        />
+          onStatusChange={
+            showCol("is_active") ? onStatusFilterChange : undefined
+          }
+        >
+          <FilterBarSelect
+            value={companyUniqueId || ""}
+            onChange={(value) => onCompanyChange(value)}
+            options={companies}
+            placeholder="All Companies"
+            disabled={!isSuperAdmin || companies.length === 0}
+          />
+          <FilterBarSelect
+            value={projectId || ""}
+            onChange={(value) => setProjectId(value)}
+            options={projects}
+            placeholder={showAllProjectsOption ? "All Projects" : undefined}
+            disabled={
+              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+            }
+          />
+        </FilterBar>
         <input
           id="excelUpload"
           type="file"
@@ -462,7 +572,11 @@ export default function CustomerCreationListPage() {
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
         onClick={() => setSelectedQrCustomer(customer)}
       >
-        <img src={customer.qr_code} alt="QR" className="w-12 h-12 object-contain" />
+        <img
+          src={customer.qr_code}
+          alt="QR"
+          className="w-12 h-12 object-contain"
+        />
       </button>
     );
   };
@@ -494,7 +608,10 @@ export default function CustomerCreationListPage() {
       Swal.fire({
         icon: "error",
         title: t("common.error"),
-        text: error instanceof Error ? error.message : "Failed to preview the customer QR PDF.",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Failed to preview the customer QR PDF.",
       });
     } finally {
       setIsPreviewingQr(false);
@@ -510,7 +627,10 @@ export default function CustomerCreationListPage() {
       Swal.fire({
         icon: "error",
         title: t("common.error"),
-        text: error instanceof Error ? error.message : "Failed to generate the customer QR PDF.",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate the customer QR PDF.",
       });
     } finally {
       setIsPrintingQr(false);
@@ -525,12 +645,17 @@ export default function CustomerCreationListPage() {
         const rawPayload = { ...row, is_active: value };
         await customerCreationApi.update(
           row.unique_id,
-          filterPayload(rawPayload, ["company_id", "project_id"]) as Record<string, unknown>
+          filterPayload(rawPayload, ["company_id", "project_id"]) as Record<
+            string,
+            unknown
+          >,
         );
         setCustomers((current) =>
           current.map((item) =>
-            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
-          )
+            item.unique_id === row.unique_id
+              ? { ...item, is_active: value }
+              : item,
+          ),
         );
       } catch (err) {
         console.error("Status update failed:", err);
@@ -557,7 +682,8 @@ export default function CustomerCreationListPage() {
         onClick={() =>
           navigate(ENC_EDIT_PATH(customer.unique_id), {
             state: {
-              companyUniqueId: customer.company_unique_id ?? customer.company_id,
+              companyUniqueId:
+                customer.company_unique_id ?? customer.company_id,
               projectId: customer.project_unique_id ?? customer.project_id,
             },
           })
@@ -574,186 +700,199 @@ export default function CustomerCreationListPage() {
 
   return (
     <>
-    <div className="p-3 ">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            {t("admin.customer_creation.title")}
-          </h1>
-          <p className="text-gray-500 text-sm">
-            {t("admin.customer_creation.subtitle")}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <DataTable
-        value={customers}
-        bulkImportable={false}
-        exportable={false}
-        dataKey="unique_id"
-        lazy
-        paginator
-        first={first}
-        rows={rowsPerPage}
-        totalRecords={totalRecords}
-        onPage={onPage}
-        sortField={sortField}
-        sortOrder={sortOrder}
-        onSort={onSort}
-        rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && customers.length === 0}
-        globalFilterFields={[
-          "unique_id", "customer_id", "customer_name", "contact_no", "apartment_name",
-          "block_no", "flat_no", "ward_name", "zone_name",
-          "city_name", "company_name", "project_name", "waste_types",
-        ]}
-        header={header}
-        emptyMessage={t("admin.customer_creation.empty_message")}
-        stripedRows
-        showGridlines
-        className="p-datatable-sm"
-      >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
-        <Column field="unique_id" header="Unique ID" sortable />
-        <Column
-          field="customer_id"
-          header="Customer ID"
-          sortable
-          body={(row: Customer) => row.customer_id || "-"}
-        />
-        {showCol("customer_name") && (
-          <Column
-            field="customer_name"
-            header={t("admin.customer_creation.customer")}
-            sortable={SORTABLE_FIELDS.has("customer_name")}
-          />
-        )}
-        {showCol("contact_no") && (
-          <Column field="contact_no" header={t("common.mobile")} />
-        )}
-        {showCol("apartment_name") && (
-          <Column
-            field="apartment_name"
-            header="Apartment"
-            body={(row: Customer) =>
-              row.apartment_name && row.apartment_name.trim() !== "" ? cap(row.apartment_name) : "-"
-            }
-          />
-        )}
-        {showCol("unit") && (
-          <Column
-            header="Unit"
-            body={(row: Customer) =>
-              row.block_no && row.flat_no ? `${row.block_no}-${row.flat_no}` : "-"
-            }
-          />
-        )}
-        {showCol("ward_name") && (
-          <Column field="ward_name" header={t("common.ward")} body={(row: Customer) => row.ward_name || "-"} />
-        )}
-        {showCol("zone_name") && (
-          <Column field="zone_name" header={t("common.zone")} body={(row: Customer) => row.zone_name || "-"} />
-        )}
-        {showCol("city_name") && (
-          <Column field="city_name" header={t("common.city")} />
-        )}
-        {showCol("state_name") && (
-          <Column field="state_name" header={t("common.state")} />
-        )}
-        {showCol("panchayat_name") && (
-          <Column
-            field="panchayat_name"
-            header={t("admin.nav.panchayat")}
-            body={(row: Customer) => row.panchayat_name || "-"}
-          />
-        )}
-        {showCol("waste_types") && (
-          <Column
-            field="waste_types"
-            header={t("common.waste_type")}
-            body={(row: Customer) =>
-              row.waste_types?.length
-                ? row.waste_types.map((wasteType) => wasteType.waste_type_name).join(", ")
-                : "-"
-            }
-          />
-        )}
-        {showCol("qr_code") && (
-          <Column header={t("admin.customer_creation.qr_label")} body={qrTemplate} style={{ width: "100px" }} />
-        )}
-        {showCol("is_active") && (
-          <Column field="is_active" header={t("common.status")} body={statusTemplate} />
-        )}
-        <Column header={t("common.actions")} body={actionTemplate} style={{ textAlign: "center" }} />
-      </DataTable>
-    </div>
-    <QrPreviewDialog
-      open={Boolean(selectedQrCustomer)}
-      onOpenChange={(open) => !open && setSelectedQrCustomer(null)}
-      title={t("admin.customer_creation.qr_title")}
-      qrImageUrl={selectedQrCustomer?.qr_code}
-      fileName={`${selectedQrCustomer?.customer_id || selectedQrCustomer?.unique_id || selectedQrCustomer?.customer_name || "customer"}_qr`}
-      description={
-        selectedQrCustomer && (
-          <>
-            <p className="font-semibold text-gray-800">{selectedQrCustomer.customer_name}</p>
+      <div className="p-3 ">
+        <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 mb-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-semibold text-gray-800 mb-1">
+              {t("admin.customer_creation.title")}
+            </h1>
             <p className="text-sm text-gray-500">
-              {selectedQrCustomer.customer_id || "-"}
+              {t("admin.customer_creation.subtitle")}
             </p>
+          </div>
+        </div>
+
+        <DataTable
+          loadExportRows={loadAllExportRows}
+          value={customers}
+          bulkImportable={false}
+          exportable={false}
+          dataKey="unique_id"
+          lazy
+          paginator
+          first={first}
+          rows={rowsPerPage}
+          totalRecords={totalRecords}
+          onPage={onPage}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={onSort}
+          rowsPerPageOptions={[5, 10, 25, 50]}
+          loading={isLoading && customers.length === 0}
+          globalFilterFields={[
+            "unique_id",
+            "customer_id",
+            "customer_name",
+            "contact_no",
+            "apartment_name",
+            "block_no",
+            "flat_no",
+            "ward_name",
+            "zone_name",
+            "city_name",
+            "company_name",
+            "project_name",
+            "waste_types",
+          ]}
+          header={header}
+          emptyMessage={t("admin.customer_creation.empty_message")}
+          stripedRows
+          showGridlines
+          className="p-datatable-sm"
+        >
+          <Column
+            header={t("common.s_no")}
+            body={indexTemplate}
+            style={{ width: "80px" }}
+          />
+          <Column field="unique_id" header="Unique ID" sortable />
+          <Column
+            field="customer_id"
+            header="Customer ID"
+            sortable
+            body={(row: Customer) => row.customer_id || "-"}
+          />
+          {showCol("customer_name") && (
+            <Column
+              field="customer_name"
+              header={t("admin.customer_creation.customer")}
+              sortable={SORTABLE_FIELDS.has("customer_name")}
+            />
+          )}
+          {showCol("contact_no") && (
+            <Column field="contact_no" header={t("common.mobile")} />
+          )}
+          {showCol("apartment_name") && (
+            <Column
+              field="apartment_name"
+              header="Apartment"
+              body={(row: Customer) =>
+                row.apartment_name && row.apartment_name.trim() !== ""
+                  ? cap(row.apartment_name)
+                  : "-"
+              }
+            />
+          )}
+          {showCol("unit") && (
+            <Column
+              header="Unit"
+              body={(row: Customer) =>
+                row.block_no && row.flat_no
+                  ? `${row.block_no}-${row.flat_no}`
+                  : "-"
+              }
+            />
+          )}
+          {showCol("ward_name") && (
+            <Column
+              field="ward_name"
+              header={t("common.ward")}
+              body={(row: Customer) => row.ward_name || "-"}
+            />
+          )}
+          {showCol("zone_name") && (
+            <Column
+              field="zone_name"
+              header={t("common.zone")}
+              body={(row: Customer) => row.zone_name || "-"}
+            />
+          )}
+          {showCol("city_name") && (
+            <Column field="city_name" header={t("common.city")} />
+          )}
+          {showCol("state_name") && (
+            <Column field="state_name" header={t("common.state")} />
+          )}
+          {showCol("panchayat_name") && (
+            <Column
+              field="panchayat_name"
+              header={t("admin.nav.panchayat")}
+              body={(row: Customer) => row.panchayat_name || "-"}
+            />
+          )}
+          {showCol("waste_types") && (
+            <Column
+              field="waste_types"
+              header={t("common.waste_type")}
+              body={(row: Customer) =>
+                row.waste_types?.length
+                  ? row.waste_types
+                      .map((wasteType) => wasteType.waste_type_name)
+                      .join(", ")
+                  : "-"
+              }
+            />
+          )}
+          {showCol("qr_code") && (
+            <Column
+              header={t("admin.customer_creation.qr_label")}
+              body={qrTemplate}
+              style={{ width: "100px" }}
+            />
+          )}
+          {showCol("is_active") && (
+            <Column
+              field="is_active"
+              header={t("common.status")}
+              body={statusTemplate}
+            />
+          )}
+          <Column
+            header={t("common.actions")}
+            body={actionTemplate}
+            style={{ textAlign: "center" }}
+          />
+        </DataTable>
+      </div>
+      <QrPreviewDialog
+        open={Boolean(selectedQrCustomer)}
+        onOpenChange={(open) => !open && setSelectedQrCustomer(null)}
+        title={t("admin.customer_creation.qr_title")}
+        qrImageUrl={selectedQrCustomer?.qr_code}
+        fileName={`${selectedQrCustomer?.customer_id || selectedQrCustomer?.unique_id || selectedQrCustomer?.customer_name || "customer"}_qr`}
+        description={
+          selectedQrCustomer && (
+            <>
+              <p className="font-semibold text-gray-800">
+                {selectedQrCustomer.customer_name}
+              </p>
+              <p className="text-sm text-gray-500">
+                {selectedQrCustomer.customer_id || "-"}
+              </p>
+            </>
+          )
+        }
+        extraActions={
+          <>
+            <Button
+              label={isPreviewingQr ? "Preparing..." : "Preview"}
+              icon="pi pi-eye"
+              loading={isPreviewingQr}
+              disabled={isPreviewingQr || isPrintingQr}
+              onClick={handlePreviewQr}
+              className="flex-1 p-button-outlined"
+            />
+            <Button
+              label={isPrintingQr ? "Preparing..." : "Print"}
+              icon="pi pi-print"
+              loading={isPrintingQr}
+              disabled={isPrintingQr || isPreviewingQr}
+              onClick={handlePrintQr}
+              className="flex-1"
+            />
           </>
-        )
-      }
-      extraActions={
-        <>
-          <Button
-            label={isPreviewingQr ? "Preparing..." : "Preview"}
-            icon="pi pi-eye"
-            loading={isPreviewingQr}
-            disabled={isPreviewingQr || isPrintingQr}
-            onClick={handlePreviewQr}
-            className="flex-1 p-button-outlined"
-          />
-          <Button
-            label={isPrintingQr ? "Preparing..." : "Print"}
-            icon="pi pi-print"
-            loading={isPrintingQr}
-            disabled={isPrintingQr || isPreviewingQr}
-            onClick={handlePrintQr}
-            className="flex-1"
-          />
-        </>
-      }
-    />
+        }
+      />
     </>
   );
 }

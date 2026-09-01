@@ -1,6 +1,6 @@
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -21,7 +21,10 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
-import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 import type { ZoneListRecord } from "./types";
 
 const ZONE_COLUMN_FIELDS: Record<string, string[]> = {
@@ -60,7 +63,10 @@ export default function ZoneList() {
     },
   });
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -72,17 +78,21 @@ export default function ZoneList() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
   const navigate = useNavigate();
 
   const { encMasters, encZones } = getEncryptedRoute();
 
-  const { newPath: zoneNewPath, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encMasters,
-    encZones,
-  );
-  const ENC_NEW_PATH = (companyId?: string | null, selectedProjectId?: string | null) =>
+  const { newPath: zoneNewPath, editPath: ENC_EDIT_PATH } =
+    createCrudRoutePaths(encMasters, encZones);
+  const ENC_NEW_PATH = (
+    companyId?: string | null,
+    selectedProjectId?: string | null,
+  ) =>
     appendRouteQuery(zoneNewPath, {
       company_unique_id: companyId,
       project_id: selectedProjectId,
@@ -116,8 +126,13 @@ export default function ZoneList() {
         if (mounted) setAllZones(data as ZoneListRecord[]);
       } catch (error) {
         if (mounted) {
-          const errorData = (error as { response?: { data?: unknown } })?.response?.data;
-          Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
+          const errorData = (error as { response?: { data?: unknown } })
+            ?.response?.data;
+          Swal.fire({
+            icon: "error",
+            title: t("common.error"),
+            text: String(errorData ?? error),
+          });
         }
       } finally {
         if (mounted) setIsLoading(false);
@@ -135,7 +150,8 @@ export default function ZoneList() {
   // scoped automatically by the backend; superadmin scoping is passed via
   // company_id/project_id params above) — no client-side narrowing needed.
   const zones: ZoneListRecord[] =
-    (isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)
+    (isSuperAdmin && companies.length === 0) ||
+    (!companyUniqueId && !isSuperAdmin)
       ? []
       : Array.isArray(allZones)
         ? (allZones as unknown as ZoneListRecord[])
@@ -144,7 +160,6 @@ export default function ZoneList() {
   // ===========================
   //   Export (respects current search/status filters)
   // ===========================
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   const getFilteredExportRows = (): ZoneListRecord[] => {
     const search = globalFilterValue.trim().toLowerCase();
@@ -165,20 +180,6 @@ export default function ZoneList() {
     });
   };
 
-  const handleDownloadExcel = () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = getFilteredExportRows();
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No zones to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Zones");
-    } finally {
-      setIsExportingExcel(false);
-    }
-  };
-
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
@@ -192,11 +193,13 @@ export default function ZoneList() {
 
     try {
       await zoneApi.update(row.unique_id, { is_active: checked });
-      
+
       setAllZones((current) =>
         current.map((item) =>
-          item.unique_id === row.unique_id ? { ...item, is_active: checked } : item
-        )
+          item.unique_id === row.unique_id
+            ? { ...item, is_active: checked }
+            : item,
+        ),
       );
     } catch (error) {
       console.error("Status update failed:", error);
@@ -205,10 +208,13 @@ export default function ZoneList() {
       setIsUpdating(false);
     }
   };
-  
 
   const statusTemplate = (row: ZoneListRecord) => (
-    <Switch checked={row.is_active} disabled={isUpdating && pendingStatusId === String(row.unique_id)} onCheckedChange={(checked) => void updateStatus(row, checked)} />
+    <Switch
+      checked={row.is_active}
+      disabled={isUpdating && pendingStatusId === String(row.unique_id)}
+      onCheckedChange={(checked) => void updateStatus(row, checked)}
+    />
   );
 
   // ===========================
@@ -232,133 +238,138 @@ export default function ZoneList() {
     </div>
   );
 
-  const indexTemplate = (_: ZoneListRecord, { rowIndex }: { rowIndex: number }) =>
-    rowIndex + 1;
+  const indexTemplate = (
+    _: ZoneListRecord,
+    { rowIndex }: { rowIndex: number },
+  ) => rowIndex + 1;
 
   // ===========================
   //   UI
   // ===========================
   return (
     <div className="p-3">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-1">
-              {t("admin.nav.zone")}
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {t("common.manage_item_records", { item: t("admin.nav.zone") })}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Button
-              label={t("common.add_item", { item: t("admin.nav.zone") })}
-              icon="pi pi-plus"
-              className="p-button-success"
-
-              onClick={() =>
-                navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
-                  state: {
-                    companyUniqueId,
-                    projectId,
-                  },
-                })
-              }
-            />
-          </div>
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
+            {t("admin.nav.zone")}
+          </h1>
+          <p className="text-sm text-gray-500">
+            {t("common.manage_item_records", { item: t("admin.nav.zone") })}
+          </p>
         </div>
 
-        <FilterBar
-          searchValue={globalFilterValue}
-          onSearchChange={onGlobalFilterChange}
-          searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.zone") })}
-          statusValue={statusValue}
-          onStatusChange={onStatusFilterChange}
-          className="mb-4"
-          trailing={
-            <Button
-              label={isExportingExcel ? "Downloading..." : "Download Excel"}
-              icon="pi pi-file-excel"
-              className="p-button-outlined"
-              disabled={isExportingExcel}
-              onClick={handleDownloadExcel}
-            />
-          }
-        >
-          <FilterBarSelect
-            value={companyUniqueId || ""}
-            onChange={onFilterCompanyChange}
-            options={companies}
-            placeholder="All Companies"
-            disabled={!isSuperAdmin || companies.length === 0}
+        <div className="flex items-center gap-3">
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.zone") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() =>
+              navigate(ENC_NEW_PATH(companyUniqueId, projectId), {
+                state: {
+                  companyUniqueId,
+                  projectId,
+                },
+              })
+            }
           />
-          <FilterBarSelect
-            value={projectId || ""}
-            onChange={onFilterProjectChange}
-            options={projects}
-            placeholder={showAllProjectsOption ? "All Projects" : undefined}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-          />
-        </FilterBar>
+        </div>
+      </div>
 
-        <DataTable
-          value={zones}
-          dataKey="unique_id"
-          paginator
-          rows={10}
-          rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={isLoading && zones.length === 0}
-          filters={filters}
-          onFilter={onFilter}
-          stripedRows
-          showGridlines
-          emptyMessage={t("common.no_items_found", {
-            item: t("admin.nav.zone"),
-          })}
-          globalFilterFields={[
-            "zone_name",
-            "city_name",
-            "district_name",
-            "state_name",
-            "company_name",
-            "project_name",
-          ]}
-          className="p-datatable-sm"
-        >
-          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
-
-          {showCol("city_name") && (
-            <Column
-              field="city_name"
-              header={t("admin.nav.city")}
-              sortable
-              filter
-              showFilterMatchModes={false}
-              body={(row) => cap(row.city_name)}
+      <DataTable
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder", {
+              item: t("admin.nav.zone"),
+            })}
+            statusValue={statusValue}
+            onStatusChange={onStatusFilterChange}
+          >
+            <FilterBarSelect
+              value={companyUniqueId || ""}
+              onChange={onFilterCompanyChange}
+              options={companies}
+              placeholder="All Companies"
+              disabled={!isSuperAdmin || companies.length === 0}
             />
-          )}
-
-          {showCol("zone_name") && (
-            <Column
-              field="zone_name"
-              header={t("admin.nav.zone")}
-              sortable
-              filter
-              showFilterMatchModes={false}
-              body={(row) => cap(row.zone_name)}
+            <FilterBarSelect
+              value={projectId || ""}
+              onChange={onFilterProjectChange}
+              options={projects}
+              placeholder={showAllProjectsOption ? "All Projects" : undefined}
+              disabled={
+                (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+              }
             />
-          )}
+          </FilterBar>
+        }
+        loadExportRows={async () => getFilteredExportRows()}
+        value={zones}
+        dataKey="unique_id"
+        paginator
+        rows={10}
+        rowsPerPageOptions={[5, 10, 25, 50]}
+        loading={isLoading && zones.length === 0}
+        filters={filters}
+        onFilter={onFilter}
+        stripedRows
+        showGridlines
+        emptyMessage={t("common.no_items_found", {
+          item: t("admin.nav.zone"),
+        })}
+        globalFilterFields={[
+          "zone_name",
+          "city_name",
+          "district_name",
+          "state_name",
+          "company_name",
+          "project_name",
+        ]}
+        className="p-datatable-sm"
+      >
+        <Column
+          header={t("common.s_no")}
+          body={indexTemplate}
+          style={{ width: "80px" }}
+        />
 
-          {showCol("is_active") && (
-            <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />
-          )}
-
+        {showCol("city_name") && (
           <Column
-            header={t("common.actions")}
-            body={actionTemplate}
-            style={{ width: "150px", textAlign: "center" }}
+            field="city_name"
+            header={t("admin.nav.city")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row) => cap(row.city_name)}
           />
-        </DataTable>
+        )}
+
+        {showCol("zone_name") && (
+          <Column
+            field="zone_name"
+            header={t("admin.nav.zone")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row) => cap(row.zone_name)}
+          />
+        )}
+
+        {showCol("is_active") && (
+          <Column
+            header={t("common.status")}
+            body={statusTemplate}
+            style={{ width: "140px" }}
+          />
+        )}
+
+        <Column
+          header={t("common.actions")}
+          body={actionTemplate}
+          style={{ width: "150px", textAlign: "center" }}
+        />
+      </DataTable>
     </div>
   );
 }

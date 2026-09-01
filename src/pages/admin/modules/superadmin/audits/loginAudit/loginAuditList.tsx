@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { adminApi } from "@/helpers/admin/registry";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
-import { FilterBar } from "@/components/common/FilterBar";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import { filterRowsForExport } from "@/utils/adminListExport";
 
 const LOGIN_AUDIT_SEARCH_FIELDS = ["unique_id", "username", "ip_address", "user_agent", "reason"];
@@ -120,37 +120,21 @@ export default function LoginAuditList() {
         onSearchChange={(value) => onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)}
         searchPlaceholder={t("admin.login_audit.search", "Search login audits...")}
       >
-        <select
+        <FilterBarSelect
           value={companyUniqueId || ""}
-          onChange={(e) => onCompanyChange(e.target.value)}
+          onChange={(value) => onCompanyChange(value)}
+          options={companies}
+          placeholder={t("common.select_item_placeholder", { item: t("admin.nav.company") })}
           disabled={!isSuperAdmin || companies.length === 0}
-          className="border rounded px-3 py-2 text-sm"
-        >
-          <option value="" disabled>
-            {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-          </option>
-          {companies.map((c) => (
-            <option key={c.value} value={c.value}>
-              {c.label}
-            </option>
-          ))}
-        </select>
+        />
 
-        <select
+        <FilterBarSelect
           value={projectId || ""}
-          onChange={(e) => setProjectId(e.target.value)}
+          onChange={(value) => setProjectId(value)}
+          options={projects}
+          placeholder={t("common.select_item_placeholder", { item: t("admin.nav.project") })}
           disabled={!companyUniqueId || projects.length === 0}
-          className="border rounded px-3 py-2 text-sm"
-        >
-          <option value="" disabled>
-            {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-          </option>
-          {projects.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
-            </option>
-          ))}
-        </select>
+        />
       </FilterBar>
     </div>
   );

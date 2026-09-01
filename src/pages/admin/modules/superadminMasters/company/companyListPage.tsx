@@ -20,10 +20,13 @@ import { companyApi } from "@/helpers/admin";
 import { PencilIcon } from "@/icons";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
-import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
-
-const { encSuperAdminMaster: encSuperAdminMasters, encCompanyCreation } = getEncryptedRoute();
+const { encSuperAdminMaster: encSuperAdminMasters, encCompanyCreation } =
+  getEncryptedRoute();
 
 const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
   encSuperAdminMasters,
@@ -34,7 +37,6 @@ export default function CompanyList() {
   const { t } = useTranslation();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(false);
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   const {
     filters,
@@ -75,22 +77,10 @@ export default function CompanyList() {
         if (Boolean(company.is_active) !== wantActive) return false;
       }
       if (!search) return true;
-      return String(company.name ?? "").toLowerCase().includes(search);
+      return String(company.name ?? "")
+        .toLowerCase()
+        .includes(search);
     });
-  };
-
-  const handleDownloadExcel = () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = getFilteredExportRows();
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning"), t("common.no_items_found", { item: t("admin.nav.company") }), "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Companies");
-    } finally {
-      setIsExportingExcel(false);
-    }
   };
 
   const statusBodyTemplate = (row: Company) => {
@@ -127,12 +117,12 @@ export default function CompanyList() {
 
   return (
     <div className="p-3">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800">
             {t("admin.nav.company")}
           </h1>
-          <p className="text-gray-500 text-sm">
+          <p className="text-sm text-gray-500">
             {t("common.manage_item_records", {
               item: t("admin.nav.company"),
             })}
@@ -147,27 +137,19 @@ export default function CompanyList() {
         />
       </div>
 
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={onGlobalFilterChange}
-        searchPlaceholder={t("common.search_placeholder", {
-          item: t("admin.nav.company"),
-        })}
-        statusValue={statusValue}
-        onStatusChange={onStatusFilterChange}
-        className="mb-4"
-        trailing={
-          <Button
-            label={isExportingExcel ? "Downloading..." : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined"
-            disabled={isExportingExcel}
-            onClick={handleDownloadExcel}
+      <DataTable
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder", {
+              item: t("admin.nav.company"),
+            })}
+            statusValue={statusValue}
+            onStatusChange={onStatusFilterChange}
           />
         }
-      />
-
-      <DataTable
+        loadExportRows={async () => getFilteredExportRows()}
         value={companies}
         dataKey="unique_id"
         paginator

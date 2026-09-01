@@ -115,6 +115,43 @@ export const createProjectLogoLoader = () => {
   };
 };
 
+/**
+ * Pre-loads every QR image in bounded-concurrency batches.
+ *
+ * drawSticker used to await its own `loadQrImage` mid-draw, so a 48-sticker
+ * sheet performed 48 serial image fetches *after* the customer reads had
+ * already finished — the export looked hung for a long time on big trips.
+ * Warming a cache first means the draw loop is synchronous per card.
+ */
+const prefetchQrImages = async (
+  customers: Customer[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<Map<string, HTMLImageElement>> => {
+  const sources = [
+    ...new Set(customers.map((customer) => customer.qr_code).filter(Boolean)),
+  ] as string[];
+  const cache = new Map<string, HTMLImageElement>();
+  const CONCURRENCY = 8;
+  let done = 0;
+
+  for (let start = 0; start < sources.length; start += CONCURRENCY) {
+    const batch = sources.slice(start, start + CONCURRENCY);
+    await Promise.all(
+      batch.map(async (source) => {
+        try {
+          cache.set(source, await loadQrImage(source));
+        } catch {
+          // Leave it out of the cache; the card renders "QR unavailable".
+        } finally {
+          done += 1;
+          onProgress?.(done, sources.length);
+        }
+      }),
+    );
+  }
+  return cache;
+};
+
 /** Draws an image scaled to *fit* inside the box, centred, preserving aspect. */
 export const drawContainedImage = (
   context: CanvasRenderingContext2D,
@@ -299,6 +336,8 @@ export const drawCropMarks = (
 export type StickerScope = {
   companyName?: string | null;
   projectName?: string | null;
+  /** Reports QR-image prefetch progress so a caller can show "12 / 48". */
+  onProgress?: (done: number, total: number) => void;
 };
 
 /**
@@ -429,6 +468,7 @@ const drawSticker = async (
   showCompany = false,
   projectName = "",
   projectLogo: HTMLImageElement | null = null,
+  qrCache?: Map<string, HTMLImageElement>,
 ) => {
   drawCropMarks(context, cardX, cardY, CARD_WIDTH, CARD_HEIGHT);
 
@@ -535,7 +575,8 @@ const drawSticker = async (
 
   if (customer.qr_code) {
     try {
-      const qrImage = await loadQrImage(customer.qr_code);
+      const qrImage =
+        qrCache?.get(customer.qr_code) ?? (await loadQrImage(customer.qr_code));
       // Nearest-neighbour keeps the QR modules square-edged when scaled.
       context.imageSmoothingEnabled = false;
       context.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
@@ -662,6 +703,9 @@ const createCustomerQrStickerPdf = async (
 
   const logos = await loadLogos();
   const loadProjectLogo = createProjectLogoLoader();
+  // Warm every QR image up front, in parallel, so the draw loop below never
+  // blocks on a network fetch per card.
+  const qrCache = await prefetchQrImages(orderedCustomers, scope?.onProgress);
   const documentPdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageCount = Math.ceil(customers.length / STICKERS_PER_PAGE);
 
@@ -692,6 +736,7 @@ const createCustomerQrStickerPdf = async (
         (pageCustomer.project_name ?? "").trim() ||
           (resolvedScope.projectName === "All Projects" ? "" : resolvedScope.projectName),
         await loadProjectLogo(pageCustomer.project_logo),
+        qrCache,
       );
     }
 

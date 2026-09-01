@@ -266,7 +266,7 @@ export default function PanchayatLeaderForm() {
   const projectOptions = projects.map((p) => ({ value: p.value, label: p.label }));
 
   return (
-    <div className="p-6">
+    <div className="p-3">
       <ComponentCard
         title={isEdit ? "Edit PLB Leader" : "Add PLB Leader"}
         desc="Manage login credentials for a PLB (Participating Local Bodies) leader."

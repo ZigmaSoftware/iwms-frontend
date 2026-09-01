@@ -19,6 +19,7 @@ import { normalizeList } from "@/utils/forms";
 import { wasteCollectedDataSchema } from "@/schemas/wasteManagementMasters/wasteCollectedData/wasteCollectedData.schema";
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
+import { FormSelect } from "@/components/common/FormSelect";
 
 
 type WasteTypeOption = { unique_id: string; waste_type_name: string };
@@ -522,41 +523,33 @@ export default function WasteCollectedForm() {
             {/* Company */}
             <div>
               <Label>{t("admin.nav.company")}</Label>
-              <select
+              <FormSelect
                 value={companyUniqueId}
-                onChange={(e) => { onCompanyChange(e.target.value); setCustomerId(""); setTripAssignmentId(""); }}
+                onChange={(v) => { onCompanyChange(v); setCustomerId(""); setTripAssignmentId(""); }}
+                options={companies}
                 disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId) || companies.length === 0}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">
-                  {loggedInCompanyUniqueId
+                placeholder={
+                  loggedInCompanyUniqueId
                     ? t("common.company_from_profile")
-                    : t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-                </option>
-                {companies.map((c) => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
+                    : t("common.select_item_placeholder", { item: t("admin.nav.company") })
+                }
+              />
             </div>
 
             {/* Project */}
             <div>
               <Label>{t("admin.nav.project")}</Label>
-              <select
+              <FormSelect
                 value={projectId}
-                onChange={(e) => { setProjectId(e.target.value); setCustomerId(""); setTripAssignmentId(""); }}
+                onChange={(v) => { setProjectId(v); setCustomerId(""); setTripAssignmentId(""); }}
+                options={projects}
                 disabled={!companyUniqueId || projects.length === 0}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">
-                  {companyUniqueId
+                placeholder={
+                  companyUniqueId
                     ? t("common.select_item_placeholder", { item: t("admin.nav.project") })
-                    : "Select a company first"}
-                </option>
-                {projects.map((p) => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
-              </select>
+                    : "Select a company first"
+                }
+              />
             </div>
 
             {/* Collection Date */}

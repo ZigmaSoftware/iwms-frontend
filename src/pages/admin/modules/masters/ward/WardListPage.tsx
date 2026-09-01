@@ -294,17 +294,17 @@ export default function WardList() {
   return (
     <div className="p-3">
 
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-1">
+        <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-semibold text-gray-800 mb-1">
               {t("admin.nav.ward")}
             </h1>
-            <p className="text-gray-500 text-sm">
+            <p className="text-sm text-gray-500">
               {t("common.manage_item_records", { item: t("admin.nav.ward") })}
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
             <Button
               label={t("common.add_item", { item: t("admin.nav.ward") })}
               icon="pi pi-plus"

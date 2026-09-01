@@ -1,4 +1,11 @@
-import type { BaseCollectionScope, CollectionApiResponse, CollectionRecord, Props, SummaryRow, ViewLevel } from "./types";
+import type {
+  BaseCollectionScope,
+  CollectionApiResponse,
+  CollectionRecord,
+  Props,
+  SummaryRow,
+  ViewLevel,
+} from "./types";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
@@ -10,7 +17,10 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useTranslation } from "react-i18next";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
-import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 import Swal from "@/lib/notify";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -59,7 +69,10 @@ export default function BaseCollectionListPage({ scope }: Props) {
       ? adminApi.panchayatWiseCollections
       : adminApi.wardWiseCollections;
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -71,7 +84,10 @@ export default function BaseCollectionListPage({ scope }: Props) {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
   const [summaryRows, setSummaryRows] = useState<SummaryRow[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<SummaryRow | null>(
@@ -80,10 +96,10 @@ export default function BaseCollectionListPage({ scope }: Props) {
   const [viewLevel, setViewLevel] = useState<ViewLevel>("summary");
   const [loading, setLoading] = useState(true);
 
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
-  const { filters, globalFilterValue, onGlobalFilterChange } = useFilterBarFilters({
-    withStatusFilter: false,
-  });
+  const { filters, globalFilterValue, onGlobalFilterChange } =
+    useFilterBarFilters({
+      withStatusFilter: false,
+    });
 
   /* ================= FETCH ================= */
 
@@ -103,7 +119,7 @@ export default function BaseCollectionListPage({ scope }: Props) {
     try {
       setLoading(true);
       const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
+      if (companyUniqueId) params.company_id = companyUniqueId;
       if (projectId) {
         params.project_id = projectId;
       }
@@ -256,7 +272,10 @@ export default function BaseCollectionListPage({ scope }: Props) {
   const getFilteredExportRows = (): Record<string, unknown>[] => {
     const search = globalFilterValue.trim().toLowerCase();
     const matches = (values: Array<unknown>) =>
-      !search || values.filter(Boolean).some((value) => String(value).toLowerCase().includes(search));
+      !search ||
+      values
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search));
 
     if (viewLevel === "records") {
       return selectedRecords
@@ -273,7 +292,10 @@ export default function BaseCollectionListPage({ scope }: Props) {
             row.project_name,
           ]),
         )
-        .map((row) => ({ ...row, weight: getRecordWeight(row, scope).toFixed(2) }));
+        .map((row) => ({
+          ...row,
+          weight: getRecordWeight(row, scope).toFixed(2),
+        }));
     }
 
     return summaryRows.filter((row) =>
@@ -285,24 +307,6 @@ export default function BaseCollectionListPage({ scope }: Props) {
         row.collection_dates.join(", "),
       ]),
     );
-  };
-
-  const handleDownloadExcel = () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = getFilteredExportRows();
-      if (rows.length === 0) {
-        Swal.fire("Warning", "No records to export.", "warning");
-        return;
-      }
-      exportRecordsToExcel(
-        rows,
-        getAdminScreenExcelFilename("all"),
-        viewLevel === "records" ? `${scopeLabel} Records` : `${scopeLabel} Summary`,
-      );
-    } finally {
-      setIsExportingExcel(false);
-    }
   };
 
   /* ================= NAVIGATION ================= */
@@ -324,7 +328,8 @@ export default function BaseCollectionListPage({ scope }: Props) {
   const indexTemplate = (_: unknown, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
-  const scopeLabel = scope === "panchayat" ? "PLB (Participating Local Bodies)" : "Ward";
+  const scopeLabel =
+    scope === "panchayat" ? "PLB (Participating Local Bodies)" : "Ward";
   const isWard = scope === "ward";
   const locationField = scope === "panchayat" ? "panchayat_name" : "ward_name";
   const weightField =
@@ -336,16 +341,22 @@ export default function BaseCollectionListPage({ scope }: Props) {
       onSearchChange={onGlobalFilterChange}
       searchPlaceholder="Search..."
       className="mb-4"
-      trailing={
-        <Button
-          label={isExportingExcel ? "Downloading..." : "Download Excel"}
-          icon="pi pi-file-excel"
-          className="p-button-outlined"
-          disabled={isExportingExcel}
-          onClick={handleDownloadExcel}
-        />
-      }
-    />
+    >
+      <FilterBarSelect
+        value={companyUniqueId || ""}
+        onChange={onCompanyChange}
+        options={companies}
+        placeholder="All Companies"
+        disabled={!isSuperAdmin || companies.length === 0}
+      />
+      <FilterBarSelect
+        value={projectId || ""}
+        onChange={setProjectId}
+        options={projects}
+        placeholder={showAllProjectsOption ? "All Projects" : undefined}
+        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+      />
+    </FilterBar>
   );
 
   const viewActionTemplate = (onClick: () => void) => (
@@ -387,25 +398,8 @@ export default function BaseCollectionListPage({ scope }: Props) {
     <div className="p-3">
       <div className="flex justify-between items-start mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">{title}</h1>
-          <p className="text-gray-500 text-sm">{subtitle}</p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <FilterBarSelect
-            value={companyUniqueId || ""}
-            onChange={onCompanyChange}
-            options={companies}
-            placeholder="All Companies"
-            disabled={!isSuperAdmin || companies.length === 0}
-          />
-          <FilterBarSelect
-            value={projectId || ""}
-            onChange={setProjectId}
-            options={projects}
-            placeholder={showAllProjectsOption ? "All Projects" : undefined}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-          />
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">{title}</h1>
+          <p className="text-sm text-gray-500">{subtitle}</p>
         </div>
       </div>
 
@@ -437,6 +431,7 @@ export default function BaseCollectionListPage({ scope }: Props) {
 
       {viewLevel === "summary" && (
         <DataTable
+          loadExportRows={async () => getFilteredExportRows()}
           value={summaryRows}
           dataKey="id"
           paginator

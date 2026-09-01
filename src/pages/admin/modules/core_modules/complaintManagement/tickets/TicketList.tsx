@@ -4,14 +4,27 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
-import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
+import type {
+  DataTablePageEvent,
+  DataTableSortEvent,
+  SortOrder,
+} from "primereact/datatable";
 import { Eye, LayoutGrid, List as ListIcon } from "lucide-react";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { complaintFeedbackApi, complaintTicketApi, geoApi } from "@/features/complaintTicketing/api";
-import type { ComplaintFeedback, ComplaintTicket, GeoOption, LocalBodyOption } from "@/features/complaintTicketing/types";
+import {
+  complaintFeedbackApi,
+  complaintTicketApi,
+  geoApi,
+} from "@/features/complaintTicketing/api";
+import type {
+  ComplaintFeedback,
+  ComplaintTicket,
+  GeoOption,
+  LocalBodyOption,
+} from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime } from "../utils";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 const PUBLIC_SOURCE_CODE = "PUBLIC_GRIEVANCE";
 
@@ -21,7 +34,7 @@ const STATUS_COLUMN_ORDER = [
   "ASSIGNED",
   "IN_PROGRESS",
   "ESCALATED",
-  "RESOLVED", 
+  "RESOLVED",
   "REOPENED",
   "CLOSED",
   "REJECTED",
@@ -31,11 +44,16 @@ const STATUS_COLUMN_ORDER = [
 type SourceFilter = "all" | "public" | "internal" | "feedback";
 type ViewMode = "table" | "kanban";
 
-const isPublic = (row: ComplaintTicket) => row.source_code === PUBLIC_SOURCE_CODE;
+const isPublic = (row: ComplaintTicket) =>
+  row.source_code === PUBLIC_SOURCE_CODE;
 
 const toRecordList = (value: unknown): ComplaintTicket[] => {
   if (Array.isArray(value)) return value as ComplaintTicket[];
-  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+  if (
+    value &&
+    typeof value === "object" &&
+    Array.isArray((value as { results?: unknown }).results)
+  ) {
     return (value as { results: ComplaintTicket[] }).results;
   }
   return [];
@@ -49,7 +67,10 @@ const SORTABLE_FIELDS = new Set(["ticket_no", "created"]);
 export default function TicketList() {
   const navigate = useNavigate();
   const { encComplaintTicket, encComplaint } = getEncryptedRoute();
-  const { newPath, editPath } = createCrudRoutePaths(encComplaintTicket, encComplaint);
+  const { newPath, editPath } = createCrudRoutePaths(
+    encComplaintTicket,
+    encComplaint,
+  );
   // Table view: one server-paginated page of raw ticket rows.
   const [tableRows, setTableRows] = useState<ComplaintTicket[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -68,7 +89,11 @@ export default function TicketList() {
 
   // Tab counts (All / Public Grievances / Internal) - sourced from the
   // backend so all three are correct regardless of page/sort/source tab.
-  const [counts, setCounts] = useState<{ all: number; public: number; internal: number }>({
+  const [counts, setCounts] = useState<{
+    all: number;
+    public: number;
+    internal: number;
+  }>({
     all: 0,
     public: 0,
     internal: 0,
@@ -79,7 +104,9 @@ export default function TicketList() {
   // Feedback used to be its own top-level screen; it's read-only and
   // ticket-scoped (also viewable per-ticket via the Detail screen's Feedback
   // tab), so it lives here now as a column + quick-filter instead.
-  const [feedbackByTicket, setFeedbackByTicket] = useState<Map<string, ComplaintFeedback>>(new Map());
+  const [feedbackByTicket, setFeedbackByTicket] = useState<
+    Map<string, ComplaintFeedback>
+  >(new Map());
 
   const [states, setStates] = useState<GeoOption[]>([]);
   const [districts, setDistricts] = useState<GeoOption[]>([]);
@@ -93,16 +120,21 @@ export default function TicketList() {
   const [wardFilter, setWardFilter] = useState("");
 
   useEffect(() => {
-    complaintFeedbackApi.readAll({ params: { all: 1 } })
+    complaintFeedbackApi
+      .readAll({ params: { all: 1 } })
       .then((response) => {
         const rows = asArray<ComplaintFeedback>(response);
-        setFeedbackByTicket(new Map(rows.map((row) => [String(row.ticket), row])));
+        setFeedbackByTicket(
+          new Map(rows.map((row) => [String(row.ticket), row])),
+        );
       })
       .catch(() => setFeedbackByTicket(new Map()));
-    geoApi.states()
+    geoApi
+      .states()
       .then(setStates)
       .catch(() => setStates([]));
-    geoApi.districts()
+    geoApi
+      .districts()
       .then(setDistricts)
       .catch(() => setDistricts([]));
   }, []);
@@ -116,23 +148,35 @@ export default function TicketList() {
     ...(wardFilter ? { ward: wardFilter } : {}),
   });
 
-  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
-    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
-    : undefined;
+  const ordering =
+    sortField && SORTABLE_FIELDS.has(sortField)
+      ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+      : undefined;
 
-  const loadTableRows = async (page: number, limit: number, search: string, orderingParam?: string) => {
+  const loadTableRows = async (
+    page: number,
+    limit: number,
+    search: string,
+    orderingParam?: string,
+  ) => {
     setTableLoading(true);
     try {
-      const response = await complaintTicketApi.readAllwithPaginated(page, limit, {
-        params: {
-          ...buildTicketParams(),
-          ...(search ? { search } : {}),
-          ...(orderingParam ? { ordering: orderingParam } : {}),
+      const response = await complaintTicketApi.readAllwithPaginated(
+        page,
+        limit,
+        {
+          params: {
+            ...buildTicketParams(),
+            ...(search ? { search } : {}),
+            ...(orderingParam ? { ordering: orderingParam } : {}),
+          },
         },
-      });
+      );
       setTableRows(toRecordList(response));
       setTotalRecords(
-        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+        typeof response?.count === "number"
+          ? response.count
+          : toRecordList(response).length,
       );
     } catch (err) {
       Swal.fire("Error", errorText(err, "Unable to load tickets"), "error");
@@ -145,12 +189,37 @@ export default function TicketList() {
   // itself changes, so the user isn't left stranded on an out-of-range page.
   useEffect(() => {
     setFirst(0);
-  }, [searchTerm, ordering, sourceFilter, stateFilter, districtFilter, panchayatFilter, zoneFilter, wardFilter]);
+  }, [
+    searchTerm,
+    ordering,
+    sourceFilter,
+    stateFilter,
+    districtFilter,
+    panchayatFilter,
+    zoneFilter,
+    wardFilter,
+  ]);
 
   useEffect(() => {
-    void loadTableRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    void loadTableRows(
+      first / rowsPerPage + 1,
+      rowsPerPage,
+      searchTerm,
+      ordering,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, sourceFilter, stateFilter, districtFilter, panchayatFilter, zoneFilter, wardFilter]);
+  }, [
+    first,
+    rowsPerPage,
+    searchTerm,
+    ordering,
+    sourceFilter,
+    stateFilter,
+    districtFilter,
+    panchayatFilter,
+    zoneFilter,
+    wardFilter,
+  ]);
 
   useEffect(() => {
     const timeout = setTimeout(() => setSearchTerm(query), 400);
@@ -170,26 +239,30 @@ export default function TicketList() {
 
   const loadCounts = async () => {
     try {
-      const response = await complaintTicketApi.action<{ all: number; public: number; internal: number }>(
-        "counts",
-        undefined,
-        {
-          params: {
-            ...(stateFilter ? { state: stateFilter } : {}),
-            ...(districtFilter ? { district: districtFilter } : {}),
-            ...(panchayatFilter ? { panchayat: panchayatFilter } : {}),
-            ...(zoneFilter ? { zone: zoneFilter } : {}),
-            ...(wardFilter ? { ward: wardFilter } : {}),
-          },
+      const response = await complaintTicketApi.action<{
+        all: number;
+        public: number;
+        internal: number;
+      }>("counts", undefined, {
+        params: {
+          ...(stateFilter ? { state: stateFilter } : {}),
+          ...(districtFilter ? { district: districtFilter } : {}),
+          ...(panchayatFilter ? { panchayat: panchayatFilter } : {}),
+          ...(zoneFilter ? { zone: zoneFilter } : {}),
+          ...(wardFilter ? { ward: wardFilter } : {}),
         },
-      );
+      });
       setCounts({
         all: response?.all ?? 0,
         public: response?.public ?? 0,
         internal: response?.internal ?? 0,
       });
     } catch (err) {
-      Swal.fire("Error", errorText(err, "Unable to load ticket counts"), "error");
+      Swal.fire(
+        "Error",
+        errorText(err, "Unable to load ticket counts"),
+        "error",
+      );
     }
   };
 
@@ -201,7 +274,9 @@ export default function TicketList() {
   const loadKanbanRows = async () => {
     setKanbanLoading(true);
     try {
-      const response = await complaintTicketApi.readAllForExport({ params: buildTicketParams() });
+      const response = await complaintTicketApi.readAllForExport({
+        params: buildTicketParams(),
+      });
       setKanbanRows(toRecordList(response));
     } catch (err) {
       Swal.fire("Error", errorText(err, "Unable to load tickets"), "error");
@@ -213,24 +288,42 @@ export default function TicketList() {
   useEffect(() => {
     if (viewMode === "kanban") void loadKanbanRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, sourceFilter, stateFilter, districtFilter, panchayatFilter, zoneFilter, wardFilter]);
+  }, [
+    viewMode,
+    sourceFilter,
+    stateFilter,
+    districtFilter,
+    panchayatFilter,
+    zoneFilter,
+    wardFilter,
+  ]);
 
   const filteredDistricts = useMemo(
-    () => districts.filter((item) => !stateFilter || item.state_id === stateFilter),
+    () =>
+      districts.filter((item) => !stateFilter || item.state_id === stateFilter),
     [districts, stateFilter],
   );
   const filteredPanchayats = useMemo(
-    () => panchayats.filter((item) => !districtFilter || !item.district_id || item.district_id === districtFilter),
+    () =>
+      panchayats.filter(
+        (item) =>
+          !districtFilter ||
+          !item.district_id ||
+          item.district_id === districtFilter,
+      ),
     [panchayats, districtFilter],
   );
   const filteredZones = useMemo(
-    () => zones.filter((item) => !panchayatFilter || !item.panchayat_id || item.panchayat_id === panchayatFilter),
+    () =>
+      zones.filter(
+        (item) =>
+          !panchayatFilter ||
+          !item.panchayat_id ||
+          item.panchayat_id === panchayatFilter,
+      ),
     [zones, panchayatFilter],
   );
-  const filteredWards = useMemo(
-    () => wards,
-    [wards],
-  );
+  const filteredWards = useMemo(() => wards, [wards]);
 
   const onStateFilterChange = (value: string) => {
     setStateFilter(value);
@@ -267,7 +360,9 @@ export default function TicketList() {
     setPanchayatFilter(value);
     setZoneFilter("");
     setWardFilter("");
-    const zoneRows = await geoApi.zones(districtFilter || undefined, value || undefined).catch(() => []);
+    const zoneRows = await geoApi
+      .zones(districtFilter || undefined, value || undefined)
+      .catch(() => []);
     setZones(zoneRows);
     setWards([]);
   };
@@ -275,7 +370,9 @@ export default function TicketList() {
   const onZoneFilterChange = async (value: string) => {
     setZoneFilter(value);
     setWardFilter("");
-    const wardRows = await geoApi.wards(value || undefined, panchayatFilter || undefined).catch(() => []);
+    const wardRows = await geoApi
+      .wards(value || undefined, panchayatFilter || undefined)
+      .catch(() => []);
     setWards(wardRows);
   };
 
@@ -289,7 +386,9 @@ export default function TicketList() {
         className="whitespace-nowrap rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700"
         title={feedback.feedback_text ?? undefined}
       >
-        {typeof feedback.rating === "number" ? `★ ${feedback.rating}` : "Feedback"}
+        {typeof feedback.rating === "number"
+          ? `★ ${feedback.rating}`
+          : "Feedback"}
       </span>
     );
   };
@@ -302,19 +401,38 @@ export default function TicketList() {
 
   const sourceTemplate = (row: ComplaintTicket) =>
     isPublic(row) ? (
-      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Public</span>
+      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+        Public
+      </span>
     ) : (
-      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">Internal</span>
+      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+        Internal
+      </span>
     );
 
   const slaTemplate = (row: ComplaintTicket) => {
     if (row.sla_breached) {
-      return <span className="whitespace-nowrap rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">Breached</span>;
+      return (
+        <span className="whitespace-nowrap rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
+          Breached
+        </span>
+      );
     }
-    if (typeof row.sla_time_remaining_seconds === "number" && row.sla_time_remaining_seconds < 0) {
-      return <span className="whitespace-nowrap rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">Overdue</span>;
+    if (
+      typeof row.sla_time_remaining_seconds === "number" &&
+      row.sla_time_remaining_seconds < 0
+    ) {
+      return (
+        <span className="whitespace-nowrap rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
+          Overdue
+        </span>
+      );
     }
-    return <span className="whitespace-nowrap rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">On Track</span>;
+    return (
+      <span className="whitespace-nowrap rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+        On Track
+      </span>
+    );
   };
 
   const contextTemplate = (row: ComplaintTicket) => {
@@ -333,7 +451,10 @@ export default function TicketList() {
           {context.incident_type || "other"}
         </span>
         {references.length > 0 && (
-          <p className="mt-1 max-w-56 truncate text-xs text-slate-500" title={references.join(" · ")}>
+          <p
+            className="mt-1 max-w-56 truncate text-xs text-slate-500"
+            title={references.join(" · ")}
+          >
             {references.join(" · ")}
           </p>
         )}
@@ -342,7 +463,10 @@ export default function TicketList() {
   };
 
   const kanbanColumns = useMemo(() => {
-    const byCode = new Map<string, { code: string; name: string; tickets: ComplaintTicket[] }>();
+    const byCode = new Map<
+      string,
+      { code: string; name: string; tickets: ComplaintTicket[] }
+    >();
     kanbanRows.forEach((row) => {
       const code = row.status_code || "UNKNOWN";
       if (!byCode.has(code)) {
@@ -350,7 +474,9 @@ export default function TicketList() {
       }
       byCode.get(code)!.tickets.push(row);
     });
-    const ordered = STATUS_COLUMN_ORDER.filter((code) => byCode.has(code)).map((code) => byCode.get(code)!);
+    const ordered = STATUS_COLUMN_ORDER.filter((code) => byCode.has(code)).map(
+      (code) => byCode.get(code)!,
+    );
     const extras = [...byCode.keys()]
       .filter((code) => !STATUS_COLUMN_ORDER.includes(code))
       .sort()
@@ -358,14 +484,32 @@ export default function TicketList() {
     return [...ordered, ...extras];
   }, [kanbanRows]);
 
+  // "All data" re-fetches every ticket matching the active filters, since the
+  // table is lazily paginated and only holds one page.
+  const loadAllExportRows = async () =>
+    toRecordList(
+      await complaintTicketApi.readAllForExport({
+        params: buildTicketParams(),
+      }),
+    ) as unknown as Record<string, unknown>[];
+
   return (
     <div className="p-3">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Complaint Tickets</h1>
-          <p className="text-sm text-gray-500">Track submitted complaints and operational actions</p>
+          <h1 className="text-2xl font-semibold text-gray-800">
+            Complaint Tickets
+          </h1>
+          <p className="text-sm text-gray-500">
+            Track submitted complaints and operational actions
+          </p>
         </div>
-        <Button label="Add Ticket" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
+        <Button
+          label="Add Ticket"
+          icon="pi pi-plus"
+          className="p-button-success"
+          onClick={() => navigate(newPath)}
+        />
       </div>
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -391,66 +535,67 @@ export default function TicketList() {
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            className="h-9 rounded-md border px-2 text-sm"
+        <FilterBar
+          searchValue={query}
+          onSearchChange={(value) => setQuery(value)}
+          searchPlaceholder="Search tickets"
+        >
+          <FilterBarSelect
             value={stateFilter}
-            onChange={(e) => onStateFilterChange(e.target.value)}
-          >
-            <option value="">All states</option>
-            {states.map((item) => (
-              <option key={item.unique_id} value={item.unique_id}>{item.name}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-md border px-2 text-sm"
+            onChange={(value) => onStateFilterChange(value)}
+            options={states.map((item) => ({
+              value: String(item.unique_id),
+              label: item.name,
+            }))}
+            placeholder={"All states"}
+          />
+          <FilterBarSelect
             value={districtFilter}
-            onChange={(e) => onDistrictFilterChange(e.target.value)}
-          >
-            <option value="">All districts</option>
-            {filteredDistricts.map((item) => (
-              <option key={item.unique_id} value={item.unique_id}>{item.name}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-md border px-2 text-sm"
+            onChange={(value) => onDistrictFilterChange(value)}
+            options={filteredDistricts.map((item) => ({
+              value: String(item.unique_id),
+              label: item.name,
+            }))}
+            placeholder={"All districts"}
+          />
+          <FilterBarSelect
             value={panchayatFilter}
-            onChange={(e) => onPanchayatFilterChange(e.target.value)}
+            onChange={(value) => onPanchayatFilterChange(value)}
+            options={filteredPanchayats.map((item) => ({
+              value: String(item.unique_id),
+              label: item.name,
+            }))}
+            placeholder={"All panchayats"}
             disabled={!districtFilter}
-          >
-            <option value="">All panchayats</option>
-            {filteredPanchayats.map((item) => (
-              <option key={item.unique_id} value={item.unique_id}>{item.name}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-md border px-2 text-sm"
+          />
+          <FilterBarSelect
             value={zoneFilter}
-            onChange={(e) => onZoneFilterChange(e.target.value)}
+            onChange={(value) => onZoneFilterChange(value)}
+            options={filteredZones.map((item) => ({
+              value: String(item.unique_id),
+              label: item.name,
+            }))}
+            placeholder={"All zones"}
             disabled={!districtFilter}
-          >
-            <option value="">All zones</option>
-            {filteredZones.map((item) => (
-              <option key={item.unique_id} value={item.unique_id}>{item.name}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-md border px-2 text-sm"
+          />
+          <FilterBarSelect
             value={wardFilter}
-            onChange={(e) => setWardFilter(e.target.value)}
+            onChange={(value) => setWardFilter(value)}
+            options={filteredWards.map((item) => ({
+              value: String(item.unique_id),
+              label: item.name,
+            }))}
+            placeholder={"All wards"}
             disabled={!zoneFilter && !panchayatFilter}
-          >
-            <option value="">All wards</option>
-            {filteredWards.map((item) => (
-              <option key={item.unique_id} value={item.unique_id}>{item.name}</option>
-            ))}
-          </select>
-        </div>
+          />
+        </FilterBar>
         <div className="flex gap-2">
           <button
             onClick={() => setViewMode("table")}
             className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${
-              viewMode === "table" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              viewMode === "table"
+                ? "bg-slate-900 text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
             <ListIcon className="h-4 w-4" /> Table
@@ -458,7 +603,9 @@ export default function TicketList() {
           <button
             onClick={() => setViewMode("kanban")}
             className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${
-              viewMode === "kanban" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              viewMode === "kanban"
+                ? "bg-slate-900 text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
             <LayoutGrid className="h-4 w-4" /> Kanban
@@ -468,6 +615,7 @@ export default function TicketList() {
 
       {viewMode === "table" ? (
         <DataTable
+          loadExportRows={loadAllExportRows}
           value={tableRows}
           dataKey="unique_id"
           lazy
@@ -481,45 +629,57 @@ export default function TicketList() {
           onSort={onSort}
           rowsPerPageOptions={[5, 10, 25, 50]}
           loading={tableLoading}
-          header={
-            <div className="flex justify-end">
-              <InputText
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search tickets"
-                className="p-inputtext-sm"
-              />
-            </div>
-          }
           stripedRows
           showGridlines
           emptyMessage="No tickets found"
           className="p-datatable-sm"
         >
-          <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
+          <Column
+            header="S.No"
+            body={(_, options) => options.rowIndex + 1}
+            style={{ width: "80px" }}
+          />
           <Column field="ticket_no" header="Ticket No" sortable />
-          <Column field="created" header="Created" body={(row) => formatDateTime(row.created)} sortable />
+          <Column
+            field="created"
+            header="Created"
+            body={(row) => formatDateTime(row.created)}
+            sortable
+          />
           <Column header="Source" body={sourceTemplate} />
-          <Column header="Customer" body={(row) => row.customer_name || row.profile_name || "-"} />
+          <Column
+            header="Customer"
+            body={(row) => row.customer_name || row.profile_name || "-"}
+          />
           <Column field="wa_phone" header="Phone" />
           <Column field="category_name" header="Category" />
           <Column header="Operational Context" body={contextTemplate} />
           <Column field="waste_type_name" header="Waste Type" />
           <Column field="subcategory_name" header="Subcategory" />
           <Column header="District" body={(row) => row.district_name || "-"} />
-          <Column header="Panchayat" body={(row) => row.panchayat_name || "-"} />
+          <Column
+            header="Panchayat"
+            body={(row) => row.panchayat_name || "-"}
+          />
           <Column header="Zone" body={(row) => row.zone_name || "-"} />
           <Column header="Ward" body={(row) => row.ward_name || "-"} />
           <Column field="priority_code" header="Priority" />
           <Column header="Status" body={statusTemplate} />
           <Column field="assigned_team_name" header="Assigned Team" />
-          <Column header="SLA Due" body={(row) => formatDateTime(row.sla_due_at)} />
-          <Column header="SLA" body={slaTemplate}  style={{ width: "120px" }}/>
+          <Column
+            header="SLA Due"
+            body={(row) => formatDateTime(row.sla_due_at)}
+          />
+          <Column header="SLA" body={slaTemplate} style={{ width: "120px" }} />
           <Column header="Feedback" body={feedbackTemplate} />
           <Column
             header="Actions"
             body={(row) => (
-              <button className="inline-flex text-blue-600" onClick={() => navigate(editPath(row.unique_id))} title="Open ticket">
+              <button
+                className="inline-flex text-blue-600"
+                onClick={() => navigate(editPath(row.unique_id))}
+                title="Open ticket"
+              >
                 <Eye className="h-5 w-5" />
               </button>
             )}
@@ -528,12 +688,21 @@ export default function TicketList() {
         </DataTable>
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {kanbanLoading && kanbanRows.length === 0 && <p className="text-sm text-gray-500">Loading tickets…</p>}
-          {!kanbanLoading && kanbanColumns.length === 0 && <p className="text-sm text-gray-500">No tickets found</p>}
+          {kanbanLoading && kanbanRows.length === 0 && (
+            <p className="text-sm text-gray-500">Loading tickets…</p>
+          )}
+          {!kanbanLoading && kanbanColumns.length === 0 && (
+            <p className="text-sm text-gray-500">No tickets found</p>
+          )}
           {kanbanColumns.map((column) => (
-            <div key={column.code} className="flex w-72 shrink-0 flex-col rounded-lg border border-slate-200 bg-slate-50">
+            <div
+              key={column.code}
+              className="flex w-72 shrink-0 flex-col rounded-lg border border-slate-200 bg-slate-50"
+            >
               <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-                <span className="text-sm font-semibold text-slate-700">{column.name}</span>
+                <span className="text-sm font-semibold text-slate-700">
+                  {column.name}
+                </span>
                 <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
                   {column.tickets.length}
                 </span>
@@ -546,14 +715,18 @@ export default function TicketList() {
                     className="rounded-md border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-slate-400 hover:shadow"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-slate-900">{row.ticket_no || row.unique_id}</span>
+                      <span className="text-sm font-semibold text-slate-900">
+                        {row.ticket_no || row.unique_id}
+                      </span>
                       {isPublic(row) && (
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                           Public
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 line-clamp-2 text-xs text-slate-600">{row.description || row.title || "-"}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-slate-600">
+                      {row.description || row.title || "-"}
+                    </p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {row.category_name && (
                         <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
@@ -585,20 +758,34 @@ export default function TicketList() {
                           ★ Feedback
                         </span>
                       )}
-                      {(row.ward_name || row.zone_name || row.panchayat_name || row.district_name) && (
+                      {(row.ward_name ||
+                        row.zone_name ||
+                        row.panchayat_name ||
+                        row.district_name) && (
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                          {[row.ward_name, row.zone_name, row.panchayat_name, row.district_name].filter(Boolean).join(", ")}
+                          {[
+                            row.ward_name,
+                            row.zone_name,
+                            row.panchayat_name,
+                            row.district_name,
+                          ]
+                            .filter(Boolean)
+                            .join(", ")}
                         </span>
                       )}
                     </div>
                     <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-                      <span>{row.customer_name || row.profile_name || "-"}</span>
+                      <span>
+                        {row.customer_name || row.profile_name || "-"}
+                      </span>
                       <span>{formatDateTime(row.created)}</span>
                     </div>
                   </button>
                 ))}
                 {column.tickets.length === 0 && (
-                  <p className="px-1 py-2 text-center text-xs text-slate-400">No tickets</p>
+                  <p className="px-1 py-2 text-center text-xs text-slate-400">
+                    No tickets
+                  </p>
                 )}
               </div>
             </div>

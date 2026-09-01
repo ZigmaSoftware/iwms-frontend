@@ -16,6 +16,7 @@ import { useCollectionPointLocationOptions } from "@/hooks/useCollectionPointLoc
 import { dailyTripCollectionPointSchema } from "@/schemas/core_modules/dailyOperations/dailyTripCollectionPoint.schema";
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
+import { FormSelect } from "@/components/common/FormSelect";
 
 
 const STATUS_OPTIONS: SelectOption[] = [
@@ -384,28 +385,24 @@ export default function DailyTripCollectionPointForm() {
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <div>
               <Label>{t("admin.nav.company")}</Label>
-              <select
+              <FormSelect
                 value={companyUniqueId}
-                onChange={(event) => onCompanyChange(event.target.value)}
+                onChange={(v) => onCompanyChange(v)}
+                options={companies}
                 disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId) || companies.length === 0}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">{t("common.select_item_placeholder", { item: t("admin.nav.company") })}</option>
-                {companies.map((company) => <option key={company.value} value={company.value}>{company.label}</option>)}
-              </select>
+                placeholder={t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+              />
             </div>
 
             <div>
               <Label>{t("admin.nav.project")}</Label>
-              <select
+              <FormSelect
                 value={projectId}
-                onChange={(event) => setProjectId(event.target.value)}
+                onChange={(v) => setProjectId(v)}
+                options={projects}
                 disabled={!companyUniqueId || projects.length === 0}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="">{companyUniqueId ? t("common.select_item_placeholder", { item: t("admin.nav.project") }) : "Select a company first"}</option>
-                {projects.map((project) => <option key={project.value} value={project.value}>{project.label}</option>)}
-              </select>
+                placeholder={companyUniqueId ? t("common.select_item_placeholder", { item: t("admin.nav.project") }) : "Select a company first"}
+              />
             </div>
 
             <div>
