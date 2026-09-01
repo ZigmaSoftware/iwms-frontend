@@ -138,7 +138,6 @@ const SCREEN_ALIASES: Record<string, string[]> = {
   feedback: ["feedbacks"],
   fuel: ["fuels"],
   panchayats: ["panchayat"],
-  hierarchies: ["hierarchy"],
   "collection-points": ["collection-point"],
   "staff-templates": ["staff-template", "stafftemplatecreation", "stafftemplate", "staff template"],
   "alternative-staff-templates": [
@@ -169,9 +168,6 @@ const SCREEN_ALIASES: Record<string, string[]> = {
     "alternative-stafftemplate",
     "alternative staff template",
   ],
-  "supervisor-zone-map": ["supervisorzonemap", "supervisor-zone-map", "supervisor zone map"],
-  "unassigned-staff-pool": ["unassignedstaffpool", "unassigned-staff-pool", "unassigned staff pool"],
-  "trip-attendance": ["tripattendance", "tripattendances", "trip-attendance", "trip attendance"],
   "collection-monitoring": ["collectionmonitoring", "collection-monitoring", "collection monitoring"],
   "vehicle-type": ["vehicletype", "vehicletypes", "vehicle-type", "vehicle type"],
   "vehicle-creation": ["vehiclecreation", "vehiclecreations", "vehicle-creation", "vehicle creation"],

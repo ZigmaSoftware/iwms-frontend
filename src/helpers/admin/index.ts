@@ -25,7 +25,6 @@ export const districtApi = adminApi.districts;
 export const cityApi = adminApi.cities;
 export const zoneApi = adminApi.zones;
 export const wardApi = adminApi.wards;
-export const blockApi = adminApi.blocks;
 export const departmentApi = adminApi.departments;
 export const designationApi = adminApi.designations;
 export const collectionPointApi = adminApi.collectionPoints;
@@ -34,7 +33,6 @@ export const wasteTypeApi = adminApi.wasteTypes;
 export const panchayatApi = adminApi.panchayats;
 export const panchayatLeaderApi = adminApi.panchayatLeaders;
 export const districtLeaderApi = adminApi.districtLeaders;
-export const hierarchyApi = adminApi.hierarchies;
 export const blockPanchayatUnionApi = adminApi.blockPanchayatUnions;
 
 
@@ -71,18 +69,10 @@ export const contractorRoleTypesApi = adminApi.contractorRoleTypes;
 /* =========================
    USER CREATION
 ========================= */
-export const userCreationApi = adminApi.usersCreation;
 export const staffCreationApi = adminApi.staffCreation;
 export const staffTemplateApi = adminApi.staffTemplateCreation;
 export const alternativeStaffTemplateApi = adminApi.alternativeStaffTemplate;
-export const supervisorZoneMapApi = adminApi.supervisorZoneMap;
-export const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
 export const staffAccessConfigurationApi = adminApi.staffAccessConfiguration;
-
-/* =========================
-   PROCESS
-========================= */
-export const zonePropertyLoadTrackerApi = adminApi.zonePropertyLoadTrackers;
 
 /* =========================
    AUTHENTICATION
@@ -132,7 +122,6 @@ export const subCategoryApi = adminApi.complaintSubcategories;
 export const vehicleTypeApi = adminApi.vehicleTypes;
 export const vehicleCreationApi = adminApi.vehicleCreations;
 export const tripPlanApi = adminApi.tripPlans;
-export const tripAttendanceApi = adminApi.tripAttendances;
 export const fuelApi = adminApi.fuels;
 export const dailyTripAssignmentApi = adminApi.dailyTripAssignment;
 export const dailyTripLogApi = adminApi.dailyTripLog;
@@ -148,11 +137,6 @@ export const tripDelayReportApi = adminApi.tripDelayReports;
 /* =========================
    AUDITS
 ========================= */
-export const vehicleTripAuditApi = adminApi.vehicleTripAudits;
-export const tripExceptionLogApi = adminApi.tripExceptionLogs;
-export const binLoadLogApi = adminApi.binLoadLogs;
-export const supervisorZoneAccessAuditApi = adminApi.supervisorZoneAccessAudits;
-export const staffTemplateAuditLogApi = adminApi.staffTemplateAuditLogs;
 export const commonAuditApi = adminApi.commonAudits;
 export const monthlyWasteComparisonApi = adminApi.monthlyWasteComparison;
 

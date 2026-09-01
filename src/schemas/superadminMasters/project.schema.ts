@@ -13,7 +13,6 @@ export const projectSchema = z.object({
   name: requiredString("Project name"),
   description: optionalString,
   is_active: z.boolean(),
-  has_blocks: z.boolean(),
   gps_api_url: optionalString,
   gps_user_id: optionalString,
   gps_group_name: optionalString,

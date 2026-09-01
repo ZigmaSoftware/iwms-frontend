@@ -62,7 +62,6 @@ export const customerCreationSchema = z.object({
   is_bulkwaste_generator: z.boolean(),
   apartment_name: optionalString,
   block_no: optionalString,
-  block_id: optionalString,
   flat_no: optionalString,
   villa_no: optionalString,
   industry_name: optionalString,

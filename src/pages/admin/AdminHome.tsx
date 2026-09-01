@@ -11,7 +11,6 @@ import {
   ClipboardList,
   Database,
   Flag,
-  GitBranch,
   Globe,
   Home,
   Key,
@@ -42,9 +41,7 @@ import {
   departmentApi,
   designationApi,
   districtApi,
-  feedbackApi,
   fuelApi,
-  hierarchyApi,
   mainCategoryApi,
   mainScreenApi,
   mainScreenTypeApi,
@@ -56,7 +53,6 @@ import {
   stateApi,
   subCategoryApi,
   subPropertiesApi,
-  userCreationApi,
   userScreenActionApi,
   userScreenApi,
   userScreenPermissionApi,
@@ -84,7 +80,6 @@ type EntityKey =
   | "panchayats"
   | "departments"
   | "designations"
-  | "hierarchies"
   | "properties"
   | "subProperties"
   | "collectionPoints"
@@ -100,7 +95,6 @@ type EntityKey =
   | "fuels"
   | "wasteCollections"
   | "complaints"
-  | "feedbacks"
   | "mainCategories"
   | "subCategories"
   | "mainScreenTypes"
@@ -232,13 +226,6 @@ const MASTER_CATEGORIES: Array<{
     group: "Organisation",
   },
   {
-    label: "Hierarchies",
-    key: "hierarchies",
-    color: "#8b5cf6",
-    icon: GitBranch,
-    group: "Organisation",
-  },
-  {
     label: "Properties",
     key: "properties",
     color: "#a855f7",
@@ -339,7 +326,6 @@ const emptyData = (): DashboardData => ({
   panchayats: [],
   departments: [],
   designations: [],
-  hierarchies: [],
   properties: [],
   subProperties: [],
   collectionPoints: [],
@@ -355,7 +341,6 @@ const emptyData = (): DashboardData => ({
   fuels: [],
   wasteCollections: [],
   complaints: [],
-  feedbacks: [],
   mainCategories: [],
   subCategories: [],
   mainScreenTypes: [],
@@ -424,13 +409,12 @@ const entityRequests: Array<[EntityKey, () => Promise<unknown>]> = [
   ["panchayats", () => panchayatApi.readAll()],
   ["departments", () => departmentApi.readAll()],
   ["designations", () => designationApi.readAll()],
-  ["hierarchies", () => hierarchyApi.readAll()],
   ["properties", () => propertiesApi.readAll()],
   ["subProperties", () => subPropertiesApi.readAll()],
   ["collectionPoints", () => collectionPointApi.readAll()],
   ["wasteTypes", () => wasteTypeApi.readAll()],
   ["bins", () => binApi.readAll()],
-  ["users", () => userCreationApi.readAll()],
+  ["users", () => staffCreationApi.readAll()],
   ["userTypes", () => userTypeApi.readAll()],
   ["staffUserTypes", () => staffUserTypeApi.readAll()],
   ["staff", () => staffCreationApi.readAll()],
@@ -440,7 +424,6 @@ const entityRequests: Array<[EntityKey, () => Promise<unknown>]> = [
   ["fuels", () => fuelApi.readAll()],
   ["wasteCollections", () => wasteCollectionApi.readAll()],
   ["complaints", () => complaintApi.readAll()],
-  ["feedbacks", () => feedbackApi.readAll()],
   ["mainCategories", () => mainCategoryApi.readAll()],
   ["subCategories", () => subCategoryApi.readAll()],
   ["mainScreenTypes", () => mainScreenTypeApi.readAll()],
@@ -519,8 +502,7 @@ export default function AdminHome() {
       data.panchayats.length;
     const orgTotal =
       data.departments.length +
-      data.designations.length +
-      data.hierarchies.length;
+      data.designations.length;
     const wasteTotal = data.properties.length + data.subProperties.length;
     const masterTotal = geographyTotal + orgTotal + wasteTotal;
     const assetTotal =
@@ -531,7 +513,6 @@ export default function AdminHome() {
       data.vehicleTypes.length + data.vehicles.length + data.fuels.length;
     const grievanceTotal =
       data.complaints.length +
-      data.feedbacks.length +
       data.mainCategories.length +
       data.subCategories.length;
     const screenTotal =
@@ -596,13 +577,11 @@ export default function AdminHome() {
     const grievanceCategories = [
       "Complaints",
       "Open/Active",
-      "Feedback",
       "Categories",
     ];
     const grievanceSeries = [
       data.complaints.length,
       activeComplaints,
-      data.feedbacks.length,
       data.mainCategories.length + data.subCategories.length,
     ];
 
@@ -697,7 +676,6 @@ export default function AdminHome() {
         { label: "Panchayats", value: data.panchayats.length, sub: "Geography" },
         { label: "Departments", value: data.departments.length, sub: "Organisation" },
         { label: "Designations", value: data.designations.length, sub: "Organisation" },
-        { label: "Hierarchies", value: data.hierarchies.length, sub: "Organisation" },
         { label: "Properties", value: data.properties.length, sub: "Waste" },
         { label: "Sub Properties", value: data.subProperties.length, sub: "Waste" },
       ],
@@ -725,7 +703,6 @@ export default function AdminHome() {
       "Open Grievances": [
         { label: "Total Complaints", value: data.complaints.length, sub: "All time" },
         { label: "Open / Active", value: activeComplaints, sub: "Pending resolution" },
-        { label: "Total Feedbacks", value: data.feedbacks.length, sub: "Submitted" },
         { label: "Main Categories", value: data.mainCategories.length, sub: "Complaint types" },
         { label: "Sub Categories", value: data.subCategories.length, sub: "Detailed types" },
       ],
@@ -821,7 +798,7 @@ export default function AdminHome() {
     {
       title: "Open Grievances",
       value: dashboard.totals.activeComplaints,
-      detail: `${data.complaints.length} total complaints · ${data.feedbacks.length} feedbacks`,
+      detail: `${data.complaints.length} total complaints`,
       icon: AlertTriangle,
       gradient: "from-rose-600 to-red-500",
       bg: "bg-rose-50",
@@ -1184,7 +1161,7 @@ export default function AdminHome() {
         <div className="grid gap-6 lg:grid-cols-3">
           <Panel
             title="Grievance Pulse"
-            subtitle="Complaints, open cases, feedback & categories"
+            subtitle="Complaints, open cases & categories"
             icon={ClipboardList}
           >
             {loading ? (
