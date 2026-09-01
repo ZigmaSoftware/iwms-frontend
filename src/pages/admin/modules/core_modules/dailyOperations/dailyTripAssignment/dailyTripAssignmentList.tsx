@@ -29,6 +29,9 @@ import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { downloadRecordsPdf, drawQrCode } from "@/utils/exportPdf";
 import { formatCollectionTime, formatTimeOnly } from "@/utils/formatTime";
+import { downloadCustomerQrStickerPdf } from "@/pages/admin/modules/masters/customerMasters/customerCreations/customerQrStickerPdf";
+import type { Customer } from "@/pages/admin/modules/masters/customerMasters/customerCreations/types";
+import { downloadBinQrSheetPdf, type BinQrEntry } from "./binQrSheetPdf";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -255,6 +258,8 @@ export default function DailyTripAssignmentList() {
   const [isSavingSchedulerConfig, setIsSavingSchedulerConfig] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingDetailed, setIsExportingDetailed] = useState(false);
+  // unique_id of the trip whose QR sheet is being built, so only that row spins.
+  const [qrTripId, setQrTripId] = useState<string | null>(null);
   const [retripRow, setRetripRow] = useState<DailyTripAssignmentRecord | null>(null);
   const [retripRemarks, setRetripRemarks] = useState("");
   const [retripSelectedCps, setRetripSelectedCps] = useState<Set<string>>(new Set());
@@ -569,6 +574,176 @@ export default function DailyTripAssignmentList() {
     }
   };
 
+  /**
+   * Per-trip secondary-bin QR sheet.
+   *
+   * Bins carry their own `bin_qr` image, but the QR payload is just
+   * `{"id": unique_id}` (app/utils/bin_qr.py), so the sheet re-encodes it
+   * locally instead of fetching each image — no network round-trip per bin and
+   * no canvas-tainting concerns. Bin name / collection point come from the
+   * assignment's inline stop, with a full read only when the inline ref is
+   * missing a name.
+   */
+  const handleTripBinQrDownload = async (row: DailyTripAssignmentRecord) => {
+    const stops = row.collection_points ?? [];
+    if (stops.length === 0) {
+      Swal.fire({
+        icon: "info",
+        title: "No bin stops",
+        text: "This trip has no secondary-bin stops, so there are no bin QRs to print.",
+      });
+      return;
+    }
+
+    try {
+      const seen = new Set<string>();
+      const entries: BinQrEntry[] = [];
+      for (const stop of stops) {
+        const binId = stop.bin_id ?? stop.bin?.unique_id;
+        if (!binId || seen.has(String(binId))) continue;
+        seen.add(String(binId));
+
+        let binName = stop.bin?.bin_name;
+        if (!binName) {
+          try {
+            const bin = (await binApi.read(String(binId))) as Record<string, unknown>;
+            binName = bin?.bin_name as string | undefined;
+          } catch {
+            // Keep the stop: the id alone still prints a scannable code.
+          }
+        }
+        entries.push({
+          unique_id: String(binId),
+          bin_name: binName ?? String(binId),
+          cp_name: stop.collection_point?.cp_name,
+          sequence: stop.sequence ?? null,
+        });
+      }
+
+      if (entries.length === 0) {
+        Swal.fire({
+          icon: "warning",
+          title: t("common.warning") || "Warning",
+          text: "None of this trip's stops have a bin linked to them.",
+        });
+        return;
+      }
+
+      await downloadBinQrSheetPdf(entries, {
+        companyName: row.company_name as string | undefined,
+        projectName: row.project_name as string | undefined,
+        tripCode: (row.trip_plan?.display_code ?? row.unique_id) as string | undefined,
+        tripDate: row.trip_date,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate the bin QR sheet for this trip.",
+      });
+    }
+  };
+
+  /**
+   * Per-trip customer QR sticker sheet, reusing Customer Creation's template
+   * so a sheet printed from here is identical to one printed from there.
+   *
+   * The stops on this row (`household_collection_points`) carry only a thin
+   * customer ref, while the sticker needs the QR image plus project/ward and
+   * address fields — so each customer is re-read in full, the same way
+   * "Detailed Report (QR)" already does. Bin-only trips have no household
+   * customers and are handled before we fetch anything.
+   */
+  const handleTripQrDownload = async (row: DailyTripAssignmentRecord) => {
+    const stops = row.household_collection_points ?? [];
+    if (stops.length === 0) {
+      Swal.fire({
+        icon: "info",
+        title: "No household stops",
+        text: "This trip has no household or bulk-waste stops, so there are no customer QRs to print.",
+      });
+      return;
+    }
+
+    try {
+      // De-duplicate: the same customer can appear on more than one stop.
+      const seen = new Set<string>();
+      const customers: Customer[] = [];
+      for (const stop of stops) {
+        const customerId = stop.customer_id ?? stop.customer?.unique_id;
+        if (!customerId || seen.has(String(customerId))) continue;
+        seen.add(String(customerId));
+        try {
+          const customer = (await customerCreationApi.read(
+            String(customerId),
+          )) as unknown as Customer;
+          if (customer?.qr_code) customers.push(customer);
+        } catch {
+          // Skip a customer that cannot be read; the rest of the sheet still prints.
+        }
+      }
+
+      if (customers.length === 0) {
+        Swal.fire({
+          icon: "warning",
+          title: t("common.warning") || "Warning",
+          text: "None of this trip's customers have a generated QR code yet.",
+        });
+        return;
+      }
+
+      await downloadCustomerQrStickerPdf(customers, {
+        companyName: row.company_name as string | undefined,
+        projectName: row.project_name as string | undefined,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate the QR sticker sheet for this trip.",
+      });
+    }
+  };
+
+  /**
+   * Single entry point behind the row's print icon.
+   *
+   * A trip may collect from households, from secondary bins, or both, so this
+   * prints whichever sheets the row actually has rather than making the user
+   * pick. A mixed trip produces both sheets (two downloads) — the household
+   * stickers and the bin stickers use the same card design, so they interleave
+   * cleanly once printed.
+   */
+  const handleTripPrint = async (row: DailyTripAssignmentRecord) => {
+    const hasHousehold = (row.household_collection_points ?? []).length > 0;
+    const hasBins = (row.collection_points ?? []).length > 0;
+
+    if (!hasHousehold && !hasBins) {
+      Swal.fire({
+        icon: "info",
+        title: "No stops",
+        text: "This trip has no stops, so there are no QR stickers to print.",
+      });
+      return;
+    }
+
+    // The spinner is owned here, not in the two sheet builders, so a mixed
+    // trip shows one continuous spinner instead of flickering between sheets.
+    setQrTripId(row.unique_id);
+    try {
+      if (hasHousehold) await handleTripQrDownload(row);
+      if (hasBins) await handleTripBinQrDownload(row);
+    } finally {
+      setQrTripId(null);
+    }
+  };
+
   const actionTemplate = (row: DailyTripAssignmentRecord) => {
     const rowId = row.unique_id ?? String((row as any).id ?? "");
     return (
@@ -588,6 +763,32 @@ export default function DailyTripAssignmentList() {
         >
           <PencilIcon className="size-5" />
         </button>
+        {(() => {
+          // One print icon for every row, whatever the trip collects: the
+          // handler prints household customer stickers, bin stickers, or both,
+          // so the crew does not have to know which kind of trip this is.
+          const householdCount = (row.household_collection_points ?? []).length;
+          const binCount = (row.collection_points ?? []).length;
+          const total = householdCount + binCount;
+          const isBusy = qrTripId === row.unique_id;
+          return (
+            <button
+              title={
+                total === 0
+                  ? "No stops on this trip — nothing to print"
+                  : `Download QR stickers (${total} stop${total === 1 ? "" : "s"})`
+              }
+              onClick={() => void handleTripPrint(row)}
+              disabled={total === 0 || isBusy}
+              className="ml-2 text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed"
+            >
+              <i
+                className={isBusy ? "pi pi-spin pi-spinner" : "pi pi-print"}
+                style={{ fontSize: "1.05rem" }}
+              />
+            </button>
+          );
+        })()}
         {row.status === "In Progress" && (
           <button
             title="Close & Start Next Trip"
@@ -1276,7 +1477,7 @@ export default function DailyTripAssignmentList() {
           body={(row: DailyTripAssignmentRecord) => <RetripCell retrip={row.retrip_info} />}
           style={{ minWidth: 150 }}
         />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 80 }} />
+        <Column header={t("common.actions")} body={actionTemplate} exportable={false} style={{ width: 170 }} />
       </DataTable>
 
       <Dialog open={Boolean(retripRow)} onOpenChange={(open) => !open && closeRetripModal()}>
