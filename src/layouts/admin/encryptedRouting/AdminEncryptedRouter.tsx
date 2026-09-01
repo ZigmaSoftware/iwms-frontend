@@ -130,6 +130,7 @@ import AlternativeStaffTemplateForm from "@/pages/admin/modules/core_modules/sch
 import BinCollectionEventList from "@/pages/admin/modules/core_modules/dailyOperations/binCollectionEvent/binCollectionEventList";
 import BinCollectionEventForm from "@/pages/admin/modules/core_modules/dailyOperations/binCollectionEvent/binCollectionEventForm";
 import VehicleBreakdownList from "@/pages/admin/modules/core_modules/dailyOperations/vehicleBreakdown/vehicleBreakdownList";
+import TripDelayReportList from "@/pages/admin/modules/core_modules/dailyOperations/tripDelayReport/tripDelayReportList";
 import TripRetripRequestList from "@/pages/admin/modules/core_modules/dailyOperations/tripRetripRequest/tripRetripRequestList";
 import VehicleBreakdownForm from "@/pages/admin/modules/core_modules/dailyOperations/vehicleBreakdown/vehicleBreakdownForm";
 import DailyWasteComparisonList from "@/pages/admin/modules/reports/wasteReports/dailyWasteComparison/dailyWasteComparisonList";
@@ -217,6 +218,8 @@ const ROUTES: RouteMap = {
     "daily-trip-log": { list: DailyTripLogList },
     "vehicle-breakdowns": { list: VehicleBreakdownList, form: VehicleBreakdownForm },
     "retrip-requests": { list: TripRetripRequestList },
+    // List-only: a delay is filed from the driver app, never created here.
+    "trip-delay-reports": { list: TripDelayReportList },
     "scheduler-config": { component: SchedulerConfigPage },
   },
   // Legacy name — kept alive only for the reporting sub-resources, matching

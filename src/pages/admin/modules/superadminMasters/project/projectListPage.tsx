@@ -19,8 +19,10 @@ import { Switch } from "@/components/ui/switch";
 import { PencilIcon } from "@/icons";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
-import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
-
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 const normalizeIsActive = (value: unknown): boolean => {
   if (typeof value === "boolean") return value;
@@ -32,7 +34,8 @@ const normalizeIsActive = (value: unknown): boolean => {
   return true;
 };
 
-const { encSuperAdminMaster: encSuperAdminMasters, encProjectCreation } = getEncryptedRoute();
+const { encSuperAdminMaster: encSuperAdminMasters, encProjectCreation } =
+  getEncryptedRoute();
 
 const {
   listPath: ENC_LIST_PATH,
@@ -57,7 +60,6 @@ export default function ProjectListPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const {
     filters,
     onFilter,
@@ -78,7 +80,9 @@ export default function ProjectListPage() {
     setLoading(true);
     try {
       const data = await projectApi.readAll({
-        params: companyUniqueId ? { company_unique_id: companyUniqueId } : undefined,
+        params: companyUniqueId
+          ? { company_unique_id: companyUniqueId }
+          : undefined,
       });
       const normalized = Array.isArray(data)
         ? data.map((project) => ({
@@ -112,20 +116,6 @@ export default function ProjectListPage() {
     });
   };
 
-  const handleDownloadExcel = () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = getFilteredExportRows();
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning"), t("common.no_items_found", { item: t("admin.nav.project") }), "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Projects");
-    } finally {
-      setIsExportingExcel(false);
-    }
-  };
-
   const actionBodyTemplate = (row: Project) => (
     <div className="flex gap-3 justify-center">
       <button
@@ -147,8 +137,8 @@ export default function ProjectListPage() {
           prev.map((project) =>
             project.unique_id === row.unique_id
               ? { ...project, is_active: checked }
-              : project
-          )
+              : project,
+          ),
         );
       } catch (error: unknown) {
         const axiosError = error as { response?: { data?: unknown } };
@@ -173,16 +163,20 @@ export default function ProjectListPage() {
     );
   };
 
-  const indexTemplate = (_: unknown, options: { rowIndex: number }) => options.rowIndex + 1;
+  const indexTemplate = (_: unknown, options: { rowIndex: number }) =>
+    options.rowIndex + 1;
 
-  const descriptionTemplate = (row: Project) => row.description || t("common.not_available");
+  const descriptionTemplate = (row: Project) =>
+    row.description || t("common.not_available");
 
   return (
     <div className="p-3">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">{t("admin.nav.project")}</h1>
-          <p className="text-gray-500 text-sm">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800">
+            {t("admin.nav.project")}
+          </h1>
+          <p className="text-sm text-gray-500">
             {t("common.manage_item_records", {
               item: t("admin.nav.project"),
             })}
@@ -197,39 +191,39 @@ export default function ProjectListPage() {
         />
       </div>
 
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={onGlobalFilterChange}
-        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.project") })}
-        statusValue={statusValue}
-        onStatusChange={onStatusFilterChange}
-        className="mb-4"
-        trailing={
-          <div className="flex items-center gap-3">
-            {companyUniqueId ? (
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <span>{t("admin.project.filtered_company", { id: companyUniqueId })}</span>
-                <button
-                  type="button"
-                  className="text-blue-600 hover:text-blue-800 font-medium"
-                  onClick={() => navigate(ENC_LIST_PATH)}
-                >
-                  {t("common.view_all")}
-                </button>
-              </div>
-            ) : null}
-            <Button
-              label={isExportingExcel ? "Downloading..." : "Download Excel"}
-              icon="pi pi-file-excel"
-              className="p-button-outlined"
-              disabled={isExportingExcel}
-              onClick={handleDownloadExcel}
-            />
-          </div>
-        }
-      />
-
       <DataTable
+        loadExportRows={async () => getFilteredExportRows()}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder", {
+              item: t("admin.nav.project"),
+            })}
+            statusValue={statusValue}
+            onStatusChange={onStatusFilterChange}
+            trailing={
+              <div className="flex items-center gap-3">
+                {companyUniqueId ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <span>
+                      {t("admin.project.filtered_company", {
+                        id: companyUniqueId,
+                      })}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-blue-600 hover:text-blue-800 font-medium"
+                      onClick={() => navigate(ENC_LIST_PATH)}
+                    >
+                      {t("common.view_all")}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            }
+          />
+        }
         value={projects}
         dataKey="unique_id"
         paginator
@@ -238,12 +232,21 @@ export default function ProjectListPage() {
         loading={loading}
         filters={filters}
         onFilter={onFilter}
-        globalFilterFields={["name", "company_name", "company_unique_id", "description"]}
+        globalFilterFields={[
+          "name",
+          "company_name",
+          "company_unique_id",
+          "description",
+        ]}
         stripedRows
         showGridlines
         className="p-datatable-sm"
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+        <Column
+          header={t("common.s_no")}
+          body={indexTemplate}
+          style={{ width: "80px" }}
+        />
 
         <Column
           field="name"

@@ -177,7 +177,7 @@ const AppHeader: React.FC = () => {
               </div>
 
               {/* LIVE pill */}
-              <div
+              {/* <div
                 className="hidden xl:flex items-center gap-1.5 rounded-full border px-2.5 py-0.5"
                 style={{ borderColor: `${PRIMARY}30`, backgroundColor: `${PRIMARY}10` }}
               >
@@ -188,7 +188,7 @@ const AppHeader: React.FC = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: PRIMARY }}>
                   Live
                 </span>
-              </div>
+              </div> */}
             </motion.div>
 
             {/* Brand — mobile */}

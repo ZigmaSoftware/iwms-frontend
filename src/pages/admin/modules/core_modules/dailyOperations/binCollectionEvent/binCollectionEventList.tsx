@@ -16,7 +16,7 @@ import { PencilIcon } from "@/icons";
 import { binCollectionEventApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { FilterBar } from "@/components/common/FilterBar";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -24,7 +24,6 @@ import {
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatCollectionTime } from "@/utils/formatTime";
 import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
-
 
 const extractError = (error: unknown): string | null => {
   const data = (error as any)?.response?.data;
@@ -44,15 +43,19 @@ const BreakdownCell = ({ row }: { row: BinCERecord }) => {
   if (!bd) return <span className="text-xs text-gray-300">—</span>;
 
   const isApproved = bd.approval_status === "APPROVED";
-  const isPending  = bd.approval_status === "PENDING";
+  const isPending = bd.approval_status === "PENDING";
 
   return (
     <div className="space-y-1">
-      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-        isApproved ? "bg-green-100 text-green-700" :
-        isPending  ? "bg-orange-100 text-orange-700" :
-                     "bg-red-100 text-red-700"
-      }`}>
+      <span
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+          isApproved
+            ? "bg-green-100 text-green-700"
+            : isPending
+              ? "bg-orange-100 text-orange-700"
+              : "bg-red-100 text-red-700"
+        }`}
+      >
         {isApproved ? "✓ Replaced" : isPending ? "⚠ Pending" : "✕ Rejected"}
       </span>
       {isApproved && bd.replacement_vehicle_no && (
@@ -62,9 +65,20 @@ const BreakdownCell = ({ row }: { row: BinCERecord }) => {
       )}
       {isApproved && (bd.replacement_driver || bd.replacement_operator) && (
         <div className="text-[10px] text-gray-600 leading-tight">
-          {bd.replacement_driver && <span><span className="font-medium">Drv:</span> {bd.replacement_driver}</span>}
-          {bd.replacement_driver && bd.replacement_operator && <span className="mx-1">·</span>}
-          {bd.replacement_operator && <span><span className="font-medium">Opr:</span> {bd.replacement_operator}</span>}
+          {bd.replacement_driver && (
+            <span>
+              <span className="font-medium">Drv:</span> {bd.replacement_driver}
+            </span>
+          )}
+          {bd.replacement_driver && bd.replacement_operator && (
+            <span className="mx-1">·</span>
+          )}
+          {bd.replacement_operator && (
+            <span>
+              <span className="font-medium">Opr:</span>{" "}
+              {bd.replacement_operator}
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -73,7 +87,11 @@ const BreakdownCell = ({ row }: { row: BinCERecord }) => {
 
 const formatDate = (val?: string) => {
   if (!val) return "-";
-  return new Date(val).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  return new Date(val).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 };
 
 // A5: BinCollectionEvent.STATUS_CHOICES.
@@ -90,7 +108,9 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const StatusBadge = ({ value }: { value?: string }) => (
-  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[value ?? ""] ?? "bg-gray-100 text-gray-600"}`}>
+  <span
+    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[value ?? ""] ?? "bg-gray-100 text-gray-600"}`}
+  >
     {value ?? "Collected"}
   </span>
 );
@@ -101,11 +121,20 @@ export default function BinCollectionEventList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
 
   const {
-    companyUniqueId, projectId, projects, companies,
-    isSuperAdmin, showAllProjectsOption, setProjectId, onCompanyChange,
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    showAllProjectsOption,
+    setProjectId,
+    onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
     defaultToAll: true,
@@ -114,7 +143,10 @@ export default function BinCollectionEventList() {
   });
 
   const { encScheduleOperations, encBinCollectionEvent } = getEncryptedRoute();
-  const { newPath: NEW_PATH } = createCrudRoutePaths(encScheduleOperations, encBinCollectionEvent);
+  const { newPath: NEW_PATH } = createCrudRoutePaths(
+    encScheduleOperations,
+    encBinCollectionEvent,
+  );
   const { editPath: VIEW_PATH } = createCrudRoutePaths(
     encScheduleOperations,
     encBinCollectionEvent,
@@ -137,8 +169,14 @@ export default function BinCollectionEventList() {
   });
 
   const loadRecords = useCallback(() => {
-    if (isSuperAdmin && companies.length === 0) { setRecords([]); return; }
-    if (!companyUniqueId && !isSuperAdmin) { setRecords([]); return; }
+    if (isSuperAdmin && companies.length === 0) {
+      setRecords([]);
+      return;
+    }
+    if (!companyUniqueId && !isSuperAdmin) {
+      setRecords([]);
+      return;
+    }
     setLoading(true);
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
@@ -150,28 +188,48 @@ export default function BinCollectionEventList() {
     if (statusFilter) params.status = statusFilter;
     binCollectionEventApi
       .readAll({ params })
-      .then((data) => setRecords(Array.isArray(data) ? (data as BinCERecord[]) : []))
+      .then((data) =>
+        setRecords(Array.isArray(data) ? (data as BinCERecord[]) : []),
+      )
       .catch((error) => {
         setRecords([]);
-        Swal.fire(t("common.error"), extractError(error) ?? t("common.fetch_failed"), "error");
+        Swal.fire(
+          t("common.error"),
+          extractError(error) ?? t("common.fetch_failed"),
+          "error",
+        );
       })
       .finally(() => setLoading(false));
-  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, filters.collection_date, filters.status, t]);
+  }, [
+    companyUniqueId,
+    projectId,
+    isSuperAdmin,
+    companies.length,
+    filters.collection_date,
+    filters.status,
+    t,
+  ]);
 
-  useEffect(() => { loadRecords(); }, [loadRecords]);
+  useEffect(() => {
+    loadRecords();
+  }, [loadRecords]);
 
   const rows = useMemo(
     () =>
       records.map((r) => ({
         ...r,
         _trip_plan: r.trip_plan?.display_code ?? r.trip_assignment_id ?? "-",
-        _collection_point: r.collection_point?.cp_name ?? r.collection_point_id ?? "-",
+        _collection_point:
+          r.collection_point?.cp_name ?? r.collection_point_id ?? "-",
         _bin: r.bin?.bin_name ?? "-",
         _waste_type: r.waste_type?.waste_type_name ?? "-",
         _vehicle: r.vehicle?.vehicle_no ?? "-",
         _panchayat: r.panchayat_name ?? r.panchayat_id ?? "-",
         _ward: r.ward_name ?? r.ward_id ?? "-",
-        _zone: typeof r.zone_name === "object" && r.zone_name !== null ? (r.zone_name as Record<string, unknown>).zone_name ?? "-" : r.zone_name ?? "-",
+        _zone:
+          typeof r.zone_name === "object" && r.zone_name !== null
+            ? ((r.zone_name as Record<string, unknown>).zone_name ?? "-")
+            : (r.zone_name ?? "-"),
         collection_date: r.collection_date ?? "",
         status: r.status ?? "Collected",
       })),
@@ -181,7 +239,17 @@ export default function BinCollectionEventList() {
   /* ── apply filters locally to get the visible subset ─────────────────────
      PrimeReact filters internally but doesn't expose the result. We replicate
      the same CONTAINS logic so the summary pills always match what's on screen. */
-  const GLOBAL_FIELDS = ["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "_ward", "_zone", "collection_date", "status"] as const;
+  const GLOBAL_FIELDS = [
+    "_trip_plan",
+    "_collection_point",
+    "_bin",
+    "_waste_type",
+    "_panchayat",
+    "_ward",
+    "_zone",
+    "collection_date",
+    "status",
+  ] as const;
   type FilterableField = (typeof GLOBAL_FIELDS)[number];
   const isFilterableField = (field: string): field is FilterableField =>
     (GLOBAL_FIELDS as readonly string[]).includes(field);
@@ -193,10 +261,19 @@ export default function BinCollectionEventList() {
         if (!val) continue;
         const needle = String(val).toLowerCase();
         if (field === "global") {
-          const hit = GLOBAL_FIELDS.some((f) => String(row[f] ?? "").toLowerCase().includes(needle));
+          const hit = GLOBAL_FIELDS.some((f) =>
+            String(row[f] ?? "")
+              .toLowerCase()
+              .includes(needle),
+          );
           if (!hit) return false;
         } else if (isFilterableField(field)) {
-          if (!String(row[field] ?? "").toLowerCase().includes(needle)) return false;
+          if (
+            !String(row[field] ?? "")
+              .toLowerCase()
+              .includes(needle)
+          )
+            return false;
         }
       }
       return true;
@@ -222,11 +299,19 @@ export default function BinCollectionEventList() {
   const handleDownload = (format: "excel" | "pdf") => {
     const exportRows = buildExportRows();
     if (exportRows.length === 0) {
-      Swal.fire({ icon: "warning", title: "No records", text: "There are no secondary bin collection events to export." });
+      Swal.fire({
+        icon: "warning",
+        title: "No records",
+        text: "There are no secondary bin collection events to export.",
+      });
       return;
     }
     if (format === "excel") {
-      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Secondary Bin Collection Events");
+      exportRecordsToExcel(
+        exportRows,
+        getAdminScreenExcelFilename("all"),
+        "Secondary Bin Collection Events",
+      );
     } else {
       downloadRecordsPdf({
         title: "Secondary Bin Collection Events",
@@ -256,63 +341,73 @@ export default function BinCollectionEventList() {
   const header = (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-800">Secondary Bin Collection Events</h1>
-        <p className="text-sm text-gray-500">Scan audit log — one record per operator bin scan</p>
+        <h1 className="text-2xl font-semibold text-gray-800">
+          Secondary Bin Collection Events
+        </h1>
+        <p className="text-sm text-gray-500">
+          Scan audit log — one record per operator bin scan
+        </p>
       </div>
 
       {/* Daily / Overall / Records — same pattern as Panchayat Base Collection */}
       <div className="flex gap-3 text-sm">
-        <span className="bg-slate-100 px-4 py-2 rounded-full">Daily: {dailyWeight}</span>
-        <span className="bg-slate-100 px-4 py-2 rounded-full">Overall: {overallWeight}</span>
-        <span className="bg-slate-100 px-4 py-2 rounded-full">Records: {totalRecords}</span>
+        <span className="bg-slate-100 px-4 py-2 rounded-full">
+          Daily: {dailyWeight}
+        </span>
+        <span className="bg-slate-100 px-4 py-2 rounded-full">
+          Overall: {overallWeight}
+        </span>
+        <span className="bg-slate-100 px-4 py-2 rounded-full">
+          Records: {totalRecords}
+        </span>
       </div>
 
       {/* All filter dropdowns in a single line */}
       <FilterBar hideSearch searchValue="" onSearchChange={() => {}}>
-        <select
+        <FilterBarSelect
           value={companyUniqueId || ""}
-          onChange={(e) => onCompanyChange(e.target.value)}
+          onChange={(value) => onCompanyChange(value)}
+          options={companies}
+          placeholder={"All Companies"}
           disabled={!isSuperAdmin || companies.length === 0}
-          className="rounded border px-3 py-2 text-sm"
-        >
-          <option value="">All Companies</option>
-          {companies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-        </select>
-        <select
+        />
+        <FilterBarSelect
           value={projectId || ""}
-          onChange={(e) => setProjectId(e.target.value)}
-          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-          className="rounded border px-3 py-2 text-sm"
-        >
-          {showAllProjectsOption && <option value="">All Projects</option>}
-          {projects.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-        </select>
+          onChange={(value) => setProjectId(value)}
+          options={projects}
+          placeholder={showAllProjectsOption ? "All Projects" : undefined}
+          disabled={
+            (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+          }
+        />
         <InputText
           type="date"
           value={filters.collection_date.value ?? ""}
           onChange={(e) =>
             setFilters((f) => ({
               ...f,
-              collection_date: { value: e.target.value, matchMode: FilterMatchMode.CONTAINS },
+              collection_date: {
+                value: e.target.value,
+                matchMode: FilterMatchMode.CONTAINS,
+              },
             }))
           }
-          className="p-inputtext-sm rounded border px-3 py-2 text-sm"
+          className="h-10 rounded border px-3 text-sm"
         />
-        <select
+        <FilterBarSelect
           value={filters.status.value ?? ""}
-          onChange={(e) =>
+          onChange={(value) =>
             setFilters((f) => ({
               ...f,
-              status: { value: e.target.value || null, matchMode: FilterMatchMode.CONTAINS },
+              status: {
+                value: value || null,
+                matchMode: FilterMatchMode.CONTAINS,
+              },
             }))
           }
-          className="rounded border px-3 py-2 text-sm"
-        >
-          <option value="">All Statuses</option>
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s.value} value={s.value}>{s.label}</option>
-          ))}
-        </select>
+          options={STATUS_OPTIONS}
+          placeholder={"All Statuses"}
+        />
       </FilterBar>
 
       {/* Global search + Add button + export actions */}
@@ -320,7 +415,10 @@ export default function BinCollectionEventList() {
         searchValue={globalFilterValue}
         onSearchChange={(value) => {
           setGlobalFilterValue(value);
-          setFilters((f) => ({ ...f, global: { value, matchMode: FilterMatchMode.CONTAINS } }));
+          setFilters((f) => ({
+            ...f,
+            global: { value, matchMode: FilterMatchMode.CONTAINS },
+          }));
         }}
         searchPlaceholder={t("common.search_placeholder")}
         trailing={
@@ -329,16 +427,10 @@ export default function BinCollectionEventList() {
               label="Add Secondary Bin Collection Event"
               icon="pi pi-plus"
               className="p-button-success p-button-sm"
-              onClick={() => navigate(NEW_PATH, { state: { companyUniqueId, projectId } })}
+              onClick={() =>
+                navigate(NEW_PATH, { state: { companyUniqueId, projectId } })
+              }
             />
-            <button
-              type="button"
-              onClick={() => handleDownload("excel")}
-              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-            >
-              <i className="pi pi-file-excel mr-1.5 text-green-600" />
-              {t("common.export_excel", "Export to Excel")}
-            </button>
             <button
               type="button"
               onClick={() => handleDownload("pdf")}
@@ -356,14 +448,28 @@ export default function BinCollectionEventList() {
   return (
     <div className="p-3">
       <DataTable
+        loadExportRows={async () =>
+          buildExportRows(filteredRows.length > 0 ? filteredRows : rows)
+        }
         value={rows}
         dataKey="unique_id"
         paginator
         rows={10}
         loading={loading}
         filters={filters}
-        onFilter={(e: DataTableFilterEvent) => setFilters(e.filters as TableFilters)}
-        globalFilterFields={["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "_ward", "_zone", "collection_date"]}
+        onFilter={(e: DataTableFilterEvent) =>
+          setFilters(e.filters as TableFilters)
+        }
+        globalFilterFields={[
+          "_trip_plan",
+          "_collection_point",
+          "_bin",
+          "_waste_type",
+          "_panchayat",
+          "_ward",
+          "_zone",
+          "collection_date",
+        ]}
         header={header}
         exportable={false}
         stripedRows
@@ -371,12 +477,41 @@ export default function BinCollectionEventList() {
         className="p-datatable-sm"
         emptyMessage="No secondary bin collection events found"
       >
-        <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 60 }} />
-        <Column field="_trip_plan" header="Trip Plan" filter showFilterMatchModes={false} />
-        <Column field="_collection_point" header="Collection Point" filter showFilterMatchModes={false} />
-        <Column field="_panchayat" header="PLB" filter showFilterMatchModes={false} />
-        <Column field="_ward" header="Ward" filter showFilterMatchModes={false} />
-        <Column field="_zone" header="Zone" filter showFilterMatchModes={false} />
+        <Column
+          header={t("common.s_no")}
+          body={(_, { rowIndex }) => rowIndex + 1}
+          style={{ width: 60 }}
+        />
+        <Column
+          field="_trip_plan"
+          header="Trip Plan"
+          filter
+          showFilterMatchModes={false}
+        />
+        <Column
+          field="_collection_point"
+          header="Collection Point"
+          filter
+          showFilterMatchModes={false}
+        />
+        <Column
+          field="_panchayat"
+          header="PLB"
+          filter
+          showFilterMatchModes={false}
+        />
+        <Column
+          field="_ward"
+          header="Ward"
+          filter
+          showFilterMatchModes={false}
+        />
+        <Column
+          field="_zone"
+          header="Zone"
+          filter
+          showFilterMatchModes={false}
+        />
         <Column field="_bin" header="Bin" filter showFilterMatchModes={false} />
         <Column
           field="_waste_type"
@@ -384,7 +519,9 @@ export default function BinCollectionEventList() {
           filter
           showFilterMatchModes={false}
           body={(row: BinCERecord & { _waste_type?: string }) => (
-            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${wasteTypeColorClass(row._waste_type)}`}>
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${wasteTypeColorClass(row._waste_type)}`}
+            >
               {row._waste_type ?? "-"}
             </span>
           )}
@@ -427,9 +564,11 @@ export default function BinCollectionEventList() {
           body={(row: BinCERecord) => (
             <button
               title="Edit"
-          onClick={() =>
-            navigate(VIEW_PATH(row.unique_id ?? ""), { state: { companyUniqueId, projectId } })
-          }
+              onClick={() =>
+                navigate(VIEW_PATH(row.unique_id ?? ""), {
+                  state: { companyUniqueId, projectId },
+                })
+              }
               className="text-blue-600 hover:text-blue-800"
             >
               <PencilIcon className="size-5" />

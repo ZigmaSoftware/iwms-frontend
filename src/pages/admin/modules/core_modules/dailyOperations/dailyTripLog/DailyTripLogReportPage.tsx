@@ -341,7 +341,7 @@ export default function DailyTripLogReportPage() {
 
   if (!row) {
     return (
-      <div className="p-6">
+      <div className="p-3">
         <p className="text-sm text-gray-500 mb-4">Trip log not found.</p>
         <Button label="Back to list" icon="pi pi-arrow-left" onClick={() => navigate(listPath)} />
       </div>
@@ -377,7 +377,7 @@ export default function DailyTripLogReportPage() {
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Trip Log Report</h1>
+          <h1 className="text-2xl font-semibold text-gray-800">Trip Log Report</h1>
           <p className="text-sm text-gray-500">{row.unique_id}</p>
         </div>
         <div className="flex items-center gap-2">

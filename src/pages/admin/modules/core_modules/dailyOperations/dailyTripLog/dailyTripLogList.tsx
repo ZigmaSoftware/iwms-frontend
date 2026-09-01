@@ -11,18 +11,24 @@ import { Button } from "primereact/button";
 import { InputTextarea } from "primereact/inputtextarea";
 import { Dialog } from "primereact/dialog";
 import { Divider } from "primereact/divider";
-import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
+import type {
+  DataTablePageEvent,
+  DataTableSortEvent,
+  SortOrder,
+} from "primereact/datatable";
 
 import { MultiSelect } from "primereact/multiselect";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { dailyTripLogApi, wasteTypeApi } from "@/helpers/admin";
 import { api } from "@/api";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatTimeOnly } from "@/utils/formatTime";
 import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
-
 
 const STATUS_STYLES: Record<string, string> = {
   Unverified: "bg-gray-100 text-gray-700",
@@ -32,7 +38,7 @@ const STATUS_STYLES: Record<string, string> = {
 const COLLECTION_STATUS_STYLES: Record<string, string> = {
   "Not Started": "bg-red-50 text-red-600",
   "In Progress": "bg-yellow-50 text-yellow-700",
-  "Completed": "bg-green-100 text-green-700",
+  Completed: "bg-green-100 text-green-700",
 };
 
 const Badge = ({ value }: { value?: string }) => (
@@ -60,15 +66,19 @@ const BreakdownCell = ({ row }: { row: DailyTripLogRecord }) => {
   if (!bd) return <span className="text-xs text-gray-300">—</span>;
 
   const isApproved = bd.approval_status === "APPROVED";
-  const isPending  = bd.approval_status === "PENDING";
+  const isPending = bd.approval_status === "PENDING";
 
   return (
     <div className="space-y-1">
-      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-        isApproved ? "bg-green-100 text-green-700" :
-        isPending  ? "bg-orange-100 text-orange-700" :
-                     "bg-red-100 text-red-700"
-      }`}>
+      <span
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+          isApproved
+            ? "bg-green-100 text-green-700"
+            : isPending
+              ? "bg-orange-100 text-orange-700"
+              : "bg-red-100 text-red-700"
+        }`}
+      >
         {isApproved ? "✓ Replaced" : isPending ? "⚠ Pending" : "✕ Rejected"}
       </span>
       {isApproved && bd.replacement_vehicle_no && (
@@ -78,25 +88,55 @@ const BreakdownCell = ({ row }: { row: DailyTripLogRecord }) => {
       )}
       {isApproved && (bd.replacement_driver || bd.replacement_operator) && (
         <div className="text-[10px] text-gray-600 leading-tight">
-          {bd.replacement_driver && <span><span className="font-medium">Drv:</span> {bd.replacement_driver}</span>}
-          {bd.replacement_driver && bd.replacement_operator && <span className="mx-1">·</span>}
-          {bd.replacement_operator && <span><span className="font-medium">Opr:</span> {bd.replacement_operator}</span>}
+          {bd.replacement_driver && (
+            <span>
+              <span className="font-medium">Drv:</span> {bd.replacement_driver}
+            </span>
+          )}
+          {bd.replacement_driver && bd.replacement_operator && (
+            <span className="mx-1">·</span>
+          )}
+          {bd.replacement_operator && (
+            <span>
+              <span className="font-medium">Opr:</span>{" "}
+              {bd.replacement_operator}
+            </span>
+          )}
         </div>
       )}
     </div>
   );
 };
 
+/**
+ * A trip assignment can carry several waste types, so show all of them
+ * (`waste_types_detail`, sourced from the assignment) rather than the single
+ * legacy `waste_type` field, which only ever holds the first one.
+ */
+const wasteTypesLabel = (row: DailyTripLogRecord): string => {
+  const names = Array.isArray(row.waste_types_detail)
+    ? row.waste_types_detail.map((wt) => wt?.waste_type_name).filter(Boolean)
+    : [];
+  if (names.length > 0) return names.join(", ");
+  return (row.waste_type as any)?.waste_type_name ?? row.waste_type_id ?? "-";
+};
+
 const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">{children}</p>
+  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+    {children}
+  </p>
 );
 
 const WasteChips = ({
   items,
 }: {
-  items?: { waste_type_name?: string | null; collected_weight_kg?: string | number | null }[];
+  items?: {
+    waste_type_name?: string | null;
+    collected_weight_kg?: string | number | null;
+  }[];
 }) => {
-  if (!items || items.length === 0) return <span className="text-xs text-gray-400">—</span>;
+  if (!items || items.length === 0)
+    return <span className="text-xs text-gray-400">—</span>;
   return (
     <div className="flex flex-wrap gap-1">
       {items.map((item, index) => (
@@ -106,7 +146,9 @@ const WasteChips = ({
         >
           {item.waste_type_name ?? "—"}
           <span className="font-semibold">
-            {item.collected_weight_kg != null ? `${Number(item.collected_weight_kg).toFixed(2)} kg` : "—"}
+            {item.collected_weight_kg != null
+              ? `${Number(item.collected_weight_kg).toFixed(2)} kg`
+              : "—"}
           </span>
         </span>
       ))}
@@ -114,7 +156,13 @@ const WasteChips = ({
   );
 };
 
-const InfoRow = ({ label, value }: { label: string; value?: string | number | null }) => (
+const InfoRow = ({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | number | null;
+}) => (
   <div className="flex gap-2 text-sm">
     <span className="text-gray-500 w-36 shrink-0">{label}</span>
     <span className="font-medium text-gray-800">{value ?? "-"}</span>
@@ -122,11 +170,20 @@ const InfoRow = ({ label, value }: { label: string; value?: string | number | nu
 );
 
 /* ── backend's manual `?ordering=` allowlist (see daily_trip_log_viewset.py) ── */
-const SORTABLE_FIELDS = new Set(["unique_id", "trip_date", "collected_weight_kg", "log_status"]);
+const SORTABLE_FIELDS = new Set([
+  "unique_id",
+  "trip_date",
+  "collected_weight_kg",
+  "log_status",
+]);
 
 const toRecordList = (value: unknown): DailyTripLogRecord[] => {
   if (Array.isArray(value)) return value as DailyTripLogRecord[];
-  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+  if (
+    value &&
+    typeof value === "object" &&
+    Array.isArray((value as { results?: unknown }).results)
+  ) {
     return (value as { results: DailyTripLogRecord[] }).results;
   }
   return [];
@@ -156,8 +213,13 @@ const wardNameOf = (row: DailyTripLogRecord): string | null => {
 const locationText = (row: DailyTripLogRecord): string => {
   const ward = wardNameOf(row);
   const panchayat = row.panchayat?.panchayat_name ?? null;
-  const zone = row.zone?.zone_name ?? row.trip_assignment?.zone?.zone_name ?? null;
-  const parent = panchayat ? `Panchayat: ${panchayat}` : zone ? `Zone: ${zone}` : null;
+  const zone =
+    row.zone?.zone_name ?? row.trip_assignment?.zone?.zone_name ?? null;
+  const parent = panchayat
+    ? `Panchayat: ${panchayat}`
+    : zone
+      ? `Zone: ${zone}`
+      : null;
 
   if (ward && parent) return `${ward} (${parent})`;
   if (ward) return ward;
@@ -166,9 +228,14 @@ const locationText = (row: DailyTripLogRecord): string => {
   return "-";
 };
 
-const computeCollectedWeight = (collectionPoints?: DailyTripLogRecord["collection_points"]): number => {
+const computeCollectedWeight = (
+  collectionPoints?: DailyTripLogRecord["collection_points"],
+): number => {
   return (collectionPoints ?? []).reduce((sum, cp) => {
-    if (cp?.collected_weight_kg === null || cp?.collected_weight_kg === undefined) {
+    if (
+      cp?.collected_weight_kg === null ||
+      cp?.collected_weight_kg === undefined
+    ) {
       return sum;
     }
     const weight = Number(cp.collected_weight_kg);
@@ -186,16 +253,22 @@ const computeCollectedWeight = (collectionPoints?: DailyTripLogRecord["collectio
 const computeTotalWeight = (row: DailyTripLogRecord): number => {
   const cps = row.collection_points ?? [];
   const hasPointWeights = cps.some(
-    (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+    (cp) =>
+      cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined,
   );
   const binWeight = hasPointWeights
     ? computeCollectedWeight(cps)
     : row.collected_weight_kg != null
-    ? Number(row.collected_weight_kg)
-    : 0;
+      ? Number(row.collected_weight_kg)
+      : 0;
   const householdWeight =
-    row.household_collected_weight_kg != null ? Number(row.household_collected_weight_kg) : 0;
-  return (Number.isFinite(binWeight) ? binWeight : 0) + (Number.isFinite(householdWeight) ? householdWeight : 0);
+    row.household_collected_weight_kg != null
+      ? Number(row.household_collected_weight_kg)
+      : 0;
+  return (
+    (Number.isFinite(binWeight) ? binWeight : 0) +
+    (Number.isFinite(householdWeight) ? householdWeight : 0)
+  );
 };
 
 /* ─────────────────────────────────────────────────────
@@ -220,16 +293,17 @@ function TripLogModal({
   const hhCollections = row.household_collections ?? [];
   const hhCollectedCount = hhCollections.filter((hh) => hh.is_collected).length;
   const st = row.staff_template;
-  const wasteTypeName = (row.waste_type as any)?.waste_type_name ?? row.waste_type_id ?? "-";
+  const wasteTypeName = wasteTypesLabel(row);
   const collectedWeightFromPoints = computeCollectedWeight(cps);
   const hasPointWeights = cps.some(
-    (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+    (cp) =>
+      cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined,
   );
   const weight = hasPointWeights
     ? `${collectedWeightFromPoints.toFixed(2)} kg`
     : row.collected_weight_kg != null
-    ? `${Number(row.collected_weight_kg).toFixed(2)} kg`
-    : "-";
+      ? `${Number(row.collected_weight_kg).toFixed(2)} kg`
+      : "-";
   const totalWeight = computeTotalWeight(row);
 
   const footer = (
@@ -267,7 +341,9 @@ function TripLogModal({
         <div className="flex items-start justify-between gap-4 pr-4">
           <div>
             <p className="text-lg font-bold text-gray-800">{title}</p>
-            <p className="text-xs text-gray-400 font-normal mt-0.5">{row.unique_id}</p>
+            <p className="text-xs text-gray-400 font-normal mt-0.5">
+              {row.unique_id}
+            </p>
           </div>
           <span
             className={`mt-1 text-xs font-semibold uppercase tracking-wide ${
@@ -291,11 +367,15 @@ function TripLogModal({
           <div className="flex flex-col gap-1.5">
             <InfoRow
               label="Trip Assignment"
-              value={row.trip_assignment?.display_code ?? row.trip_assignment_id}
+              value={
+                row.trip_assignment?.display_code ?? row.trip_assignment_id
+              }
             />
             <InfoRow label="Date" value={row.trip_date} />
             <div className="flex gap-2 text-sm">
-              <span className="text-gray-500 w-36 shrink-0">Collection Status</span>
+              <span className="text-gray-500 w-36 shrink-0">
+                Collection Status
+              </span>
               <CollectionStatusBadge value={row.collection_status} />
             </div>
             <InfoRow label="Waste Type" value={wasteTypeName} />
@@ -306,29 +386,51 @@ function TripLogModal({
                 value={`${Number(row.household_collected_weight_kg).toFixed(2)} kg`}
               />
             )}
-            <InfoRow label="Total Weight" value={`${totalWeight.toFixed(2)} kg`} />
-            {Array.isArray(row.waste_type_breakdown) && row.waste_type_breakdown.length > 0 && (
-              <div className="flex gap-2 text-sm">
-                <span className="text-gray-500 w-36 shrink-0">Waste Breakdown</span>
-                <WasteChips items={row.waste_type_breakdown} />
-              </div>
-            )}
+            <InfoRow
+              label="Total Weight"
+              value={`${totalWeight.toFixed(2)} kg`}
+            />
+            {Array.isArray(row.waste_type_breakdown) &&
+              row.waste_type_breakdown.length > 0 && (
+                <div className="flex gap-2 text-sm">
+                  <span className="text-gray-500 w-36 shrink-0">
+                    Waste Breakdown
+                  </span>
+                  <WasteChips items={row.waste_type_breakdown} />
+                </div>
+              )}
             {row.actual_start_time && (
-              <InfoRow label="Start Time" value={formatTimeOnly(row.actual_start_time)} />
+              <InfoRow
+                label="Start Time"
+                value={formatTimeOnly(row.actual_start_time)}
+              />
             )}
             {row.actual_end_time && (
-              <InfoRow label="End Time" value={formatTimeOnly(row.actual_end_time)} />
+              <InfoRow
+                label="End Time"
+                value={formatTimeOnly(row.actual_end_time)}
+              />
             )}
             {(row.vehicle as any)?.vehicle_no && (
-              <InfoRow label="Vehicle" value={(row.vehicle as any).vehicle_no} />
+              <InfoRow
+                label="Vehicle"
+                value={(row.vehicle as any).vehicle_no}
+              />
             )}
 
             {/* Location — panchayat or ward */}
             {(() => {
               const ward = wardNameOf(row);
               const panchayat = row.panchayat?.panchayat_name ?? null;
-              const zone = row.zone?.zone_name ?? row.trip_assignment?.zone?.zone_name ?? null;
-              const parentLabel = panchayat ? "Panchayat" : zone ? "Zone" : null;
+              const zone =
+                row.zone?.zone_name ??
+                row.trip_assignment?.zone?.zone_name ??
+                null;
+              const parentLabel = panchayat
+                ? "Panchayat"
+                : zone
+                  ? "Zone"
+                  : null;
               const parentName = panchayat ?? zone ?? null;
 
               if (!ward && !parentName) return null;
@@ -340,7 +442,9 @@ function TripLogModal({
                     {ward && parentName && (
                       <span
                         className={`ml-1.5 text-xs font-semibold ${
-                          parentLabel === "Panchayat" ? "text-indigo-500" : "text-teal-500"
+                          parentLabel === "Panchayat"
+                            ? "text-indigo-500"
+                            : "text-teal-500"
                         }`}
                       >
                         ({parentLabel}: {parentName})
@@ -362,11 +466,16 @@ function TripLogModal({
             <div className="mb-3">
               <p className="text-xs text-gray-500 mb-1.5">
                 Base Template:{" "}
-                <span className="font-semibold text-gray-700">{st.base.display_code}</span>
+                <span className="font-semibold text-gray-700">
+                  {st.base.display_code}
+                </span>
               </p>
               <div className="flex flex-col gap-1 pl-3 border-l-2 border-gray-200">
                 <InfoRow label="Driver" value={st.base.driver?.employee_name} />
-                <InfoRow label="Operator" value={st.base.operator?.employee_name} />
+                <InfoRow
+                  label="Operator"
+                  value={st.base.operator?.employee_name}
+                />
               </div>
             </div>
           ) : (
@@ -378,12 +487,18 @@ function TripLogModal({
           {st?.alt && (
             <div>
               <p className="text-xs text-orange-500 mb-1.5">
-                Alt Template <span className="text-orange-400">(Substitute)</span>:{" "}
-                <span className="font-semibold text-orange-700">{st.alt.display_code}</span>
+                Alt Template{" "}
+                <span className="text-orange-400">(Substitute)</span>:{" "}
+                <span className="font-semibold text-orange-700">
+                  {st.alt.display_code}
+                </span>
               </p>
               <div className="flex flex-col gap-1 pl-3 border-l-2 border-orange-200">
                 <InfoRow label="Driver" value={st.alt.driver?.employee_name} />
-                <InfoRow label="Operator" value={st.alt.operator?.employee_name} />
+                <InfoRow
+                  label="Operator"
+                  value={st.alt.operator?.employee_name}
+                />
               </div>
             </div>
           )}
@@ -400,12 +515,30 @@ function TripLogModal({
                 </span>
               </div>
               <div className="flex flex-col gap-1.5">
-                <InfoRow label="Reason" value={row.breakdown_info.breakdown_reason} />
-                <InfoRow label="Reported At" value={row.breakdown_info.breakdown_time} />
-                <InfoRow label="Broken Vehicle" value={row.breakdown_info.breakdown_vehicle_no} />
-                <InfoRow label="Replacement Vehicle" value={row.breakdown_info.replacement_vehicle_no} />
-                <InfoRow label="Replacement Driver" value={row.breakdown_info.replacement_driver} />
-                <InfoRow label="Replacement Operator" value={row.breakdown_info.replacement_operator} />
+                <InfoRow
+                  label="Reason"
+                  value={row.breakdown_info.breakdown_reason}
+                />
+                <InfoRow
+                  label="Reported At"
+                  value={row.breakdown_info.breakdown_time}
+                />
+                <InfoRow
+                  label="Broken Vehicle"
+                  value={row.breakdown_info.breakdown_vehicle_no}
+                />
+                <InfoRow
+                  label="Replacement Vehicle"
+                  value={row.breakdown_info.replacement_vehicle_no}
+                />
+                <InfoRow
+                  label="Replacement Driver"
+                  value={row.breakdown_info.replacement_driver}
+                />
+                <InfoRow
+                  label="Replacement Operator"
+                  value={row.breakdown_info.replacement_operator}
+                />
               </div>
             </div>
           </>
@@ -424,7 +557,9 @@ function TripLogModal({
             )}
           </SectionLabel>
           {cps.length === 0 ? (
-            <p className="text-sm text-gray-400">No collection points recorded.</p>
+            <p className="text-sm text-gray-400">
+              No collection points recorded.
+            </p>
           ) : (
             <ul className="flex flex-col gap-2">
               {cps.map((cp) => (
@@ -438,16 +573,23 @@ function TripLogModal({
                     ) : (
                       <i className="pi pi-times-circle text-red-400 text-base" />
                     )}
-                    <span className={cp.is_collected ? "text-gray-800" : "text-gray-400"}>
+                    <span
+                      className={
+                        cp.is_collected ? "text-gray-800" : "text-gray-400"
+                      }
+                    >
                       {cp.sequence != null ? `${cp.sequence}. ` : ""}
                       {cp.cp_name ?? cp.unique_id}
                     </span>
                     {!cp.is_collected && (
-                      <span className="text-xs text-red-400">(Not collected)</span>
+                      <span className="text-xs text-red-400">
+                        (Not collected)
+                      </span>
                     )}
-                    {Array.isArray(cp.waste_type_breakdown) && cp.waste_type_breakdown.length > 0 && (
-                      <WasteChips items={cp.waste_type_breakdown} />
-                    )}
+                    {Array.isArray(cp.waste_type_breakdown) &&
+                      cp.waste_type_breakdown.length > 0 && (
+                        <WasteChips items={cp.waste_type_breakdown} />
+                      )}
                   </div>
                   {cp.collected_weight_kg != null ? (
                     <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full shrink-0">
@@ -485,16 +627,25 @@ function TripLogModal({
                       ) : (
                         <i className="pi pi-times-circle text-red-400 text-base" />
                       )}
-                      <span className={hh.is_collected ? "text-gray-800" : "text-gray-400"}>
+                      <span
+                        className={
+                          hh.is_collected ? "text-gray-800" : "text-gray-400"
+                        }
+                      >
                         {hh.sequence != null ? `${hh.sequence}. ` : ""}
-                        {hh.customer_name ?? hh.customer_unique_id ?? hh.unique_id}
+                        {hh.customer_name ??
+                          hh.customer_unique_id ??
+                          hh.unique_id}
                       </span>
                       {!hh.is_collected && (
-                        <span className="text-xs text-red-400">(Not collected)</span>
+                        <span className="text-xs text-red-400">
+                          (Not collected)
+                        </span>
                       )}
-                      {Array.isArray(hh.waste_type_breakdown) && hh.waste_type_breakdown.length > 0 && (
-                        <WasteChips items={hh.waste_type_breakdown} />
-                      )}
+                      {Array.isArray(hh.waste_type_breakdown) &&
+                        hh.waste_type_breakdown.length > 0 && (
+                          <WasteChips items={hh.waste_type_breakdown} />
+                        )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {hh.collected_weight_kg != null ? (
@@ -525,7 +676,9 @@ function TripLogModal({
           <>
             <Divider className="!my-0" />
             <div>
-              <SectionLabel>{mode === "verify" ? "Remarks (optional)" : "Remarks"}</SectionLabel>
+              <SectionLabel>
+                {mode === "verify" ? "Remarks (optional)" : "Remarks"}
+              </SectionLabel>
               {mode === "verify" ? (
                 <InputTextarea
                   value={remarks}
@@ -543,18 +696,23 @@ function TripLogModal({
         )}
 
         {/* Verified by */}
-        {mode === "view" && row.log_status === "Verified" && row.verified_by_name && (
-          <>
-            <Divider className="!my-0" />
-            <div>
-              <SectionLabel>Verification</SectionLabel>
-              <div className="flex flex-col gap-1.5">
-                <InfoRow label="Verified by" value={row.verified_by_name} />
-                <InfoRow label="Verified at" value={row.verified_at ?? undefined} />
+        {mode === "view" &&
+          row.log_status === "Verified" &&
+          row.verified_by_name && (
+            <>
+              <Divider className="!my-0" />
+              <div>
+                <SectionLabel>Verification</SectionLabel>
+                <div className="flex flex-col gap-1.5">
+                  <InfoRow label="Verified by" value={row.verified_by_name} />
+                  <InfoRow
+                    label="Verified at"
+                    value={row.verified_at ?? undefined}
+                  />
+                </div>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          )}
       </div>
     </Dialog>
   );
@@ -567,7 +725,10 @@ export default function DailyTripLogList() {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
 
   const {
     companyUniqueId,
@@ -591,10 +752,14 @@ export default function DailyTripLogList() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
-  const [collectionType, setCollectionType] = useState<"all" | "bin" | "household">("all");
+  const [collectionType, setCollectionType] = useState<
+    "all" | "bin" | "household"
+  >("all");
   const [dateFilter, setDateFilter] = useState("");
   const [wasteTypeFilter, setWasteTypeFilter] = useState<string[]>([]);
-  const [wasteTypeOptions, setWasteTypeOptions] = useState<{ label: string; value: string }[]>([]);
+  const [wasteTypeOptions, setWasteTypeOptions] = useState<
+    { label: string; value: string }[]
+  >([]);
   const [isLoading, setIsLoading] = useState(false);
   const [modalState, setModalState] = useState<{
     row: DailyTripLogRecord;
@@ -614,7 +779,7 @@ export default function DailyTripLogList() {
           (Array.isArray(data) ? data : []).map((wt) => ({
             label: wt.waste_type_name ?? wt.name ?? wt.unique_id,
             value: wt.unique_id,
-          }))
+          })),
         );
       })
       .catch(() => setWasteTypeOptions([]));
@@ -629,15 +794,17 @@ export default function DailyTripLogList() {
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     if (dateFilter) params.date = dateFilter;
-    if (wasteTypeFilter.length > 0) params.waste_type_id = wasteTypeFilter.join(",");
+    if (wasteTypeFilter.length > 0)
+      params.waste_type_id = wasteTypeFilter.join(",");
     return params;
   }, [companyUniqueId, projectId, dateFilter, wasteTypeFilter]);
 
   /* ── ordering param, from the sortField/sortOrder state, mapped through the
      backend's own manual `?ordering=` allowlist ── */
-  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
-    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
-    : undefined;
+  const ordering =
+    sortField && SORTABLE_FIELDS.has(sortField)
+      ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+      : undefined;
 
   /* ── load logs (re-runs whenever pagination/sort/search/company/project/date/waste-type filters change) ── */
   useEffect(() => {
@@ -661,27 +828,35 @@ export default function DailyTripLogList() {
       setIsLoading(true);
       if (mounted) setRawRows([]);
       try {
-        const response = await dailyTripLogApi.readAllwithPaginated(page, limit, {
-          params: {
-            ...buildParams(),
-            ...(searchTerm ? { search: searchTerm } : {}),
-            ...(ordering ? { ordering } : {}),
+        const response = await dailyTripLogApi.readAllwithPaginated(
+          page,
+          limit,
+          {
+            params: {
+              ...buildParams(),
+              ...(searchTerm ? { search: searchTerm } : {}),
+              ...(ordering ? { ordering } : {}),
+            },
           },
-        });
+        );
         if (requestId !== requestIdRef.current) return;
         if (mounted) {
           const list = toRecordList(response);
           setRawRows(list);
           setTotalRecords(
             typeof (response as { count?: number })?.count === "number"
-              ? (response as { count?: number }).count as number
+              ? ((response as { count?: number }).count as number)
               : list.length,
           );
         }
       } catch (err: any) {
         if (requestId !== requestIdRef.current) return;
         if (mounted)
-          Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
+          Swal.fire({
+            icon: "error",
+            title: t("common.error"),
+            text: extractError(err) ?? String(err),
+          });
       } finally {
         if (requestId === requestIdRef.current && mounted) setIsLoading(false);
       }
@@ -693,7 +868,19 @@ export default function DailyTripLogList() {
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, dateFilter, wasteTypeFilter, first, rowsPerPage, searchTerm, ordering, t]);
+  }, [
+    companyUniqueId,
+    projectId,
+    isSuperAdmin,
+    companies.length,
+    dateFilter,
+    wasteTypeFilter,
+    first,
+    rowsPerPage,
+    searchTerm,
+    ordering,
+    t,
+  ]);
 
   /* ── reset to first page whenever a non-pagination filter changes ── */
   useEffect(() => {
@@ -733,13 +920,15 @@ export default function DailyTripLogList() {
         rec.trip_assignment?.unique_id ??
         rec.trip_assignment_id ??
         "",
-      _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
+      _waste: wasteTypesLabel(rec),
       _base_template: rec.staff_template?.base?.display_code ?? "",
       _alt_template: rec.staff_template?.alt?.display_code ?? "",
       _location: locationText(rec),
       _computed_weight: computeCollectedWeight(rec.collection_points),
       _has_point_weights: (rec.collection_points ?? []).some(
-        (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+        (cp) =>
+          cp?.collected_weight_kg !== null &&
+          cp?.collected_weight_kg !== undefined,
       ),
     };
   });
@@ -755,7 +944,8 @@ export default function DailyTripLogList() {
       if (collectionType === "bin") {
         const hasBinWeight =
           (row._has_point_weights && (row._computed_weight ?? 0) > 0) ||
-          (row.collected_weight_kg != null && Number(row.collected_weight_kg) > 0);
+          (row.collected_weight_kg != null &&
+            Number(row.collected_weight_kg) > 0);
         return hasBinWeight;
       }
       if (collectionType === "household") {
@@ -779,14 +969,14 @@ export default function DailyTripLogList() {
     try {
       await api.patch(
         `/schedule-operations/daily-trip-logs/${modalState.row.unique_id}/verify/`,
-        { remarks }
+        { remarks },
       );
       setRawRows((current) =>
         current.map((item) =>
           item.unique_id === modalState.row.unique_id
             ? { ...item, log_status: "Verified" }
-            : item
-        )
+            : item,
+        ),
       );
       setModalState(null);
       Swal.fire({
@@ -797,7 +987,11 @@ export default function DailyTripLogList() {
         showConfirmButton: false,
       });
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err) ?? "Failed to verify trip log", "error");
+      Swal.fire(
+        t("common.error"),
+        extractError(err) ?? "Failed to verify trip log",
+        "error",
+      );
     } finally {
       setIsVerifying(false);
     }
@@ -813,7 +1007,11 @@ export default function DailyTripLogList() {
         {/* View — full trip detail report page */}
         <button
           title="View details"
-          onClick={() => navigate(`${location.pathname.replace(/\/$/, "")}/${row.unique_id}/report`)}
+          onClick={() =>
+            navigate(
+              `${location.pathname.replace(/\/$/, "")}/${row.unique_id}/report`,
+            )
+          }
           className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
         >
           <i className="pi pi-eye text-xs" />
@@ -848,31 +1046,43 @@ export default function DailyTripLogList() {
   /* ── build one detailed export row per collection point / household
      collection (row explosion) — mirrors the reference tniwms report shape,
      falling back to a single trip-level row when a log has no line items ── */
-  const buildExportRows = (source: DailyTripLogRecord[]): Record<string, unknown>[] => {
+  const buildExportRows = (
+    source: DailyTripLogRecord[],
+  ): Record<string, unknown>[] => {
     const out: Record<string, unknown>[] = [];
     source.forEach((row) => {
       const base = {
         "Trip ID": row.unique_id,
-        "Trip Assignment": row.trip_assignment?.display_code ?? row.trip_assignment_id ?? "-",
+        "Trip Assignment":
+          row.trip_assignment?.display_code ?? row.trip_assignment_id ?? "-",
         "Trip Date": row.trip_date ?? "-",
         Location:
           row.panchayat?.panchayat_name ??
-          (Array.isArray(row.ward) ? row.ward[0]?.ward_name : row.ward?.ward_name) ??
+          (Array.isArray(row.ward)
+            ? row.ward[0]?.ward_name
+            : row.ward?.ward_name) ??
           "-",
         Zone: row.trip_assignment?.zone?.zone_name ?? "-",
         Driver:
-          row.staff_template?.base?.driver?.employee_name ?? row.driver?.employee_name ?? "-",
+          row.staff_template?.base?.driver?.employee_name ??
+          row.driver?.employee_name ??
+          "-",
         Operator:
-          row.staff_template?.base?.operator?.employee_name ?? row.operator?.employee_name ?? "-",
+          row.staff_template?.base?.operator?.employee_name ??
+          row.operator?.employee_name ??
+          "-",
         Vehicle: row.vehicle?.vehicle_no ?? "-",
         "Log Status": row.log_status ?? "-",
         "Collection Status": row.collection_status ?? "-",
-        "Collection Time": [
-          row.actual_start_time ? formatTimeOnly(row.actual_start_time) : null,
-          row.actual_end_time ? formatTimeOnly(row.actual_end_time) : null,
-        ]
-          .filter(Boolean)
-          .join(" - ") || "-",
+        "Collection Time":
+          [
+            row.actual_start_time
+              ? formatTimeOnly(row.actual_start_time)
+              : null,
+            row.actual_end_time ? formatTimeOnly(row.actual_end_time) : null,
+          ]
+            .filter(Boolean)
+            .join(" - ") || "-",
       };
 
       const cps = row.collection_points ?? [];
@@ -883,7 +1093,7 @@ export default function DailyTripLogList() {
           ...base,
           "Point Type": "Collection Point",
           "Collection Point / Customer": cp.cp_name ?? cp.unique_id ?? "-",
-          "Waste Type": (row.waste_type as any)?.waste_type_name ?? row.waste_type_id ?? "-",
+          "Waste Type": wasteTypesLabel(row),
           "Collected Weight (kg)": cp.collected_weight_kg ?? "-",
           "Is Collected": cp.is_collected ? "Yes" : "No",
         });
@@ -893,8 +1103,9 @@ export default function DailyTripLogList() {
         out.push({
           ...base,
           "Point Type": "Household",
-          "Collection Point / Customer": hh.customer_name ?? hh.customer_unique_id ?? "-",
-          "Waste Type": (row.waste_type as any)?.waste_type_name ?? row.waste_type_id ?? "-",
+          "Collection Point / Customer":
+            hh.customer_name ?? hh.customer_unique_id ?? "-",
+          "Waste Type": wasteTypesLabel(row),
           "Collected Weight (kg)": hh.collected_weight_kg ?? "-",
           "Is Collected": hh.is_collected ? "Yes" : "No",
           "Collection Time": hh.collected_at
@@ -908,7 +1119,7 @@ export default function DailyTripLogList() {
           ...base,
           "Point Type": "-",
           "Collection Point / Customer": "-",
-          "Waste Type": (row.waste_type as any)?.waste_type_name ?? row.waste_type_id ?? "-",
+          "Waste Type": wasteTypesLabel(row),
           "Collected Weight (kg)": computeTotalWeight(row).toFixed(2),
           "Is Collected": "-",
         });
@@ -926,19 +1137,25 @@ export default function DailyTripLogList() {
     try {
       const exportRaw = toRecordList(
         await dailyTripLogApi.readAllForExport({
-          params: { ...buildParams(), ...(searchTerm ? { search: searchTerm } : {}) },
+          params: {
+            ...buildParams(),
+            ...(searchTerm ? { search: searchTerm } : {}),
+          },
         }),
       );
       const exportSourceRows = exportRaw.filter((row) => {
         const cps = row.collection_points ?? [];
         const hasPointWeights = cps.some(
-          (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+          (cp) =>
+            cp?.collected_weight_kg !== null &&
+            cp?.collected_weight_kg !== undefined,
         );
         const computedWeight = computeCollectedWeight(cps);
         if (collectionType === "bin") {
           const hasBinWeight =
             (hasPointWeights && computedWeight > 0) ||
-            (row.collected_weight_kg != null && Number(row.collected_weight_kg) > 0);
+            (row.collected_weight_kg != null &&
+              Number(row.collected_weight_kg) > 0);
           return hasBinWeight;
         }
         if (collectionType === "household") {
@@ -952,21 +1169,36 @@ export default function DailyTripLogList() {
 
       const exportRows = buildExportRows(exportSourceRows);
       if (exportRows.length === 0) {
-        Swal.fire({ icon: "warning", title: "No records", text: "There are no trip logs to export." });
+        Swal.fire({
+          icon: "warning",
+          title: "No records",
+          text: "There are no trip logs to export.",
+        });
         return;
       }
       if (format === "excel") {
-        exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Daily Trip Logs");
+        exportRecordsToExcel(
+          exportRows,
+          getAdminScreenExcelFilename("all"),
+          "Daily Trip Logs",
+        );
       } else {
         downloadRecordsPdf({
           title: "Daily Trip Logs",
           filename: "daily_trip_logs.pdf",
           rows: exportRows,
-          columns: Object.keys(exportRows[0]).map((key) => ({ key, label: key })),
+          columns: Object.keys(exportRows[0]).map((key) => ({
+            key,
+            label: key,
+          })),
         });
       }
     } catch (err: any) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? err?.message ?? String(err) });
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: extractError(err) ?? err?.message ?? String(err),
+      });
     } finally {
       setIsExporting(false);
     }
@@ -987,11 +1219,15 @@ export default function DailyTripLogList() {
           onChange={setProjectId}
           placeholder={showAllProjectsOption ? "All Projects" : undefined}
           options={projects}
-          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+          disabled={
+            (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+          }
         />
         <FilterBarSelect
           value={collectionType}
-          onChange={(value) => setCollectionType(value as "all" | "bin" | "household")}
+          onChange={(value) =>
+            setCollectionType(value as "all" | "bin" | "household")
+          }
           options={[
             { value: "all", label: "All Collections" },
             { value: "bin", label: "Bin Collection" },
@@ -1002,7 +1238,7 @@ export default function DailyTripLogList() {
           type="date"
           value={dateFilter}
           onChange={(e) => setDateFilter(e.target.value)}
-          className="h-9 rounded-md border border-gray-300 px-2 text-sm text-gray-700"
+          className="h-10 rounded-md border border-gray-300 px-3 text-sm text-gray-700"
           title="Filter by trip date"
         />
         <MultiSelect
@@ -1011,7 +1247,7 @@ export default function DailyTripLogList() {
           options={wasteTypeOptions}
           placeholder="Waste Type"
           display="chip"
-          className="h-9 text-sm"
+          className="h-10 text-sm"
           style={{ minWidth: 180 }}
         />
       </FilterBar>
@@ -1019,18 +1255,13 @@ export default function DailyTripLogList() {
       <FilterBar
         searchValue={globalFilterValue}
         onSearchChange={(value) =>
-          onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+          onGlobalFilterChange({
+            target: { value },
+          } as React.ChangeEvent<HTMLInputElement>)
         }
         searchPlaceholder="Search trip logs..."
         trailing={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              label={isExporting ? "Exporting..." : "Download Excel"}
-              icon="pi pi-file-excel"
-              className="p-button-outlined p-button-sm"
-              disabled={isExporting}
-              onClick={() => handleDownload("excel")}
-            />
             <Button
               label={isExporting ? "Exporting..." : "Download PDF"}
               icon="pi pi-file-pdf"
@@ -1050,31 +1281,47 @@ export default function DailyTripLogList() {
      implying dataset-wide totals. ── */
   const kpiRecordCount = data.length;
   const kpiOverallWeight = data.reduce(
-    (sum, row) => sum + (row._computed_weight ?? 0) + Number(row.household_collected_weight_kg ?? 0),
-    0
+    (sum, row) =>
+      sum +
+      (row._computed_weight ?? 0) +
+      Number(row.household_collected_weight_kg ?? 0),
+    0,
   );
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">Daily Trip Logs</h1>
-          <p className="text-sm text-gray-500">Capture and verify actual collection trip results</p>
+      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
+            Daily Trip Logs
+          </h1>
+          <p className="text-sm text-gray-500">
+            Capture and verify actual collection trip results
+          </p>
         </div>
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-white p-3">
         <div>
-          <p className="text-xs text-gray-400 uppercase tracking-wide">Records (page)</p>
+          <p className="text-xs text-gray-400 uppercase tracking-wide">
+            Records (page)
+          </p>
           <p className="text-lg font-bold text-gray-900">{kpiRecordCount}</p>
         </div>
         <div>
-          <p className="text-xs text-gray-400 uppercase tracking-wide">Overall Weight (page)</p>
-          <p className="text-lg font-bold text-gray-900">{kpiOverallWeight.toFixed(2)} kg</p>
+          <p className="text-xs text-gray-400 uppercase tracking-wide">
+            Overall Weight (page)
+          </p>
+          <p className="text-lg font-bold text-gray-900">
+            {kpiOverallWeight.toFixed(2)} kg
+          </p>
         </div>
       </div>
 
       <DataTable
+        loadExportRows={async () =>
+          buildExportRows(filteredRows.length > 0 ? filteredRows : rows)
+        }
         value={data}
         dataKey="unique_id"
         lazy
@@ -1118,7 +1365,10 @@ export default function DailyTripLogList() {
           body={(row: DailyTripLogRecord) => {
             const ward = wardNameOf(row);
             const panchayat = row.panchayat?.panchayat_name ?? null;
-            const zone = row.zone?.zone_name ?? row.trip_assignment?.zone?.zone_name ?? null;
+            const zone =
+              row.zone?.zone_name ??
+              row.trip_assignment?.zone?.zone_name ??
+              null;
             const parentLabel = panchayat ? "Panchayat" : zone ? "Zone" : null;
             const parentName = panchayat ?? zone ?? null;
 
@@ -1131,7 +1381,9 @@ export default function DailyTripLogList() {
                 {ward && parentName && (
                   <span
                     className={`ml-1 text-xs font-medium ${
-                      parentLabel === "Panchayat" ? "text-indigo-500" : "text-teal-500"
+                      parentLabel === "Panchayat"
+                        ? "text-indigo-500"
+                        : "text-teal-500"
                     }`}
                   >
                     ({parentLabel}: {parentName})
@@ -1173,22 +1425,40 @@ export default function DailyTripLogList() {
         <Column
           field="_waste"
           header="Waste Type"
-          body={(row: DailyTripLogRecord & { _waste?: string }) =>
-            row._waste ? (
-              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${wasteTypeColorClass(row._waste)}`}>
-                {row._waste}
-              </span>
-            ) : (
-              <span className="text-sm text-gray-400">-</span>
-            )
-          }
+          style={{ minWidth: 160 }}
+          body={(row: DailyTripLogRecord & { _waste?: string }) => {
+            // One chip per waste type on the assignment, each with its own colour.
+            const names = (row._waste ?? "")
+              .split(",")
+              .map((n) => n.trim())
+              .filter(Boolean);
+            if (names.length === 0)
+              return <span className="text-sm text-gray-400">-</span>;
+            return (
+              <div className="flex flex-wrap gap-1">
+                {names.map((name) => (
+                  <span
+                    key={name}
+                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${wasteTypeColorClass(name)}`}
+                  >
+                    {name}
+                  </span>
+                ))}
+              </div>
+            );
+          }}
         />
         <Column
           field="collected_weight_kg"
           header="Bin Weight (kg)"
           sortable
           style={{ minWidth: 130 }}
-          body={(row: DailyTripLogRecord & { _computed_weight?: number; _has_point_weights?: boolean }) => {
+          body={(
+            row: DailyTripLogRecord & {
+              _computed_weight?: number;
+              _has_point_weights?: boolean;
+            },
+          ) => {
             const weight = row._has_point_weights
               ? row._computed_weight
               : row.collected_weight_kg;
@@ -1219,7 +1489,9 @@ export default function DailyTripLogList() {
           header="Total Weight (kg)"
           style={{ minWidth: 140 }}
           body={(row: DailyTripLogRecord) => (
-            <span className="font-semibold text-gray-800">{computeTotalWeight(row).toFixed(2)}</span>
+            <span className="font-semibold text-gray-800">
+              {computeTotalWeight(row).toFixed(2)}
+            </span>
           )}
         />
         <Column
@@ -1227,7 +1499,9 @@ export default function DailyTripLogList() {
           header="Start Time"
           style={{ minWidth: 110 }}
           body={(row: DailyTripLogRecord) => (
-            <span className="text-sm text-gray-700">{formatTimeOnly(row.actual_start_time)}</span>
+            <span className="text-sm text-gray-700">
+              {formatTimeOnly(row.actual_start_time)}
+            </span>
           )}
         />
         <Column
@@ -1235,7 +1509,9 @@ export default function DailyTripLogList() {
           header="End Time"
           style={{ minWidth: 110 }}
           body={(row: DailyTripLogRecord) => (
-            <span className="text-sm text-gray-700">{formatTimeOnly(row.actual_end_time)}</span>
+            <span className="text-sm text-gray-700">
+              {formatTimeOnly(row.actual_end_time)}
+            </span>
           )}
         />
         <Column
@@ -1248,7 +1524,9 @@ export default function DailyTripLogList() {
         <Column
           field="collection_status"
           header="Collection Status"
-          body={(row: DailyTripLogRecord) => <CollectionStatusBadge value={row.collection_status} />}
+          body={(row: DailyTripLogRecord) => (
+            <CollectionStatusBadge value={row.collection_status} />
+          )}
           style={{ minWidth: 145 }}
         />
         <Column

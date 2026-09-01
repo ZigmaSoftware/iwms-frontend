@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
+import type {
+  DataTablePageEvent,
+  DataTableSortEvent,
+  SortOrder,
+} from "primereact/datatable";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { complaintFeedbackApi } from "@/features/complaintTicketing/api";
 import type { ComplaintFeedback } from "@/features/complaintTicketing/types";
@@ -21,22 +25,34 @@ export default function FeedbackList() {
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
-  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
-    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
-    : undefined;
+  const ordering =
+    sortField && SORTABLE_FIELDS.has(sortField)
+      ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+      : undefined;
 
-  const loadRows = async (page: number, limit: number, search: string, orderingParam?: string) => {
+  const loadRows = async (
+    page: number,
+    limit: number,
+    search: string,
+    orderingParam?: string,
+  ) => {
     setIsLoading(true);
     try {
-      const response = await complaintFeedbackApi.readAllwithPaginated(page, limit, {
-        params: {
-          ...(search ? { search } : {}),
-          ...(orderingParam ? { ordering: orderingParam } : {}),
+      const response = await complaintFeedbackApi.readAllwithPaginated(
+        page,
+        limit,
+        {
+          params: {
+            ...(search ? { search } : {}),
+            ...(orderingParam ? { ordering: orderingParam } : {}),
+          },
         },
-      });
+      );
       setRows(asArray<ComplaintFeedback>(response));
       setTotalRecords(
-        typeof response?.count === "number" ? response.count : asArray<ComplaintFeedback>(response).length,
+        typeof response?.count === "number"
+          ? response.count
+          : asArray<ComplaintFeedback>(response).length,
       );
     } catch (err) {
       Swal.fire("Error", errorText(err, "Unable to load feedback"), "error");
@@ -73,13 +89,27 @@ export default function FeedbackList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
+  // "All data" re-fetches every feedback row matching the active search,
+  // since the table is lazily paginated and only holds one page.
+  const loadAllExportRows = async () =>
+    asArray<ComplaintFeedback>(
+      await complaintFeedbackApi.readAllForExport({
+        params: { ...(searchTerm ? { search: searchTerm } : {}) },
+      }),
+    ) as unknown as Record<string, unknown>[];
+
   return (
     <div className="p-3">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Complaint Feedback</h1>
-        <p className="text-sm text-gray-500">Citizen feedback captured after resolution</p>
+        <h1 className="text-2xl font-semibold text-gray-800">
+          Complaint Feedback
+        </h1>
+        <p className="text-sm text-gray-500">
+          Citizen feedback captured after resolution
+        </p>
       </div>
       <DataTable
+        loadExportRows={loadAllExportRows}
         value={rows}
         dataKey="unique_id"
         lazy
@@ -102,13 +132,33 @@ export default function FeedbackList() {
         emptyMessage="No feedback found"
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
-        <Column field="ticket_no" header="Ticket" body={(row) => row.ticket_no || row.ticket || "-"} />
-        <Column field="customer_name" header="Customer" body={(row) => row.customer_name || row.customer || "-"} />
+        <Column
+          header="S.No"
+          body={(_, options) => options.rowIndex + 1}
+          style={{ width: "80px" }}
+        />
+        <Column
+          field="ticket_no"
+          header="Ticket"
+          body={(row) => row.ticket_no || row.ticket || "-"}
+        />
+        <Column
+          field="customer_name"
+          header="Customer"
+          body={(row) => row.customer_name || row.customer || "-"}
+        />
         <Column field="rating" header="Rating" sortable />
-        <Column header="Issue Solved" body={(row) => yesNo(row.is_issue_solved)} />
+        <Column
+          header="Issue Solved"
+          body={(row) => yesNo(row.is_issue_solved)}
+        />
         <Column field="feedback_text" header="Feedback" />
-        <Column field="submitted_at" header="Submitted" sortable={SORTABLE_FIELDS.has("submitted_at")} body={(row) => formatDateTime(row.submitted_at)} />
+        <Column
+          field="submitted_at"
+          header="Submitted"
+          sortable={SORTABLE_FIELDS.has("submitted_at")}
+          body={(row) => formatDateTime(row.submitted_at)}
+        />
       </DataTable>
     </div>
   );

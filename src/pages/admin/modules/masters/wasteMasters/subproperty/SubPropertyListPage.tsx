@@ -1,6 +1,6 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState, useRef } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -36,8 +36,9 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 
   if (data && typeof data === "object") {
     return Object.entries(data as Record<string, unknown>)
-      .map(([key, value]) =>
-        `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
+      .map(
+        ([key, value]) =>
+          `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`,
       )
       .join("\n");
   }
@@ -58,18 +59,28 @@ export default function SubPropertyList() {
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const {
-    filters, onFilter, globalFilterValue, onGlobalFilterChange,
-    statusValue, onStatusFilterChange,
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
   } = useFilterBarFilters({
     initialFilters: {
       property_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-      sub_property_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+      sub_property_name: {
+        value: null,
+        matchMode: FilterMatchMode.STARTS_WITH,
+      },
     },
   });
 
   const navigate = useNavigate();
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -81,13 +92,14 @@ export default function SubPropertyList() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
   const { encMasters, encSubProperties } = getEncryptedRoute();
 
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encMasters,
-    encSubProperties,
-  );
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
+    createCrudRoutePaths(encMasters, encSubProperties);
 
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
@@ -108,14 +120,15 @@ export default function SubPropertyList() {
       setSubProperties(
         (Array.isArray(response)
           ? response
-          : ((response as { results?: SubPropertyRecord[] })?.results ?? [])) as SubPropertyRecord[]
+          : ((response as { results?: SubPropertyRecord[] })?.results ??
+            [])) as SubPropertyRecord[],
       );
     } catch (error) {
       if (requestId !== requestIdRef.current) return;
       Swal.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.fetch_failed")),
-        "error"
+        "error",
       );
     } finally {
       if (requestId === requestIdRef.current) setIsLoading(false);
@@ -133,15 +146,23 @@ export default function SubPropertyList() {
   // scoped automatically by the backend; superadmin scoping is passed via
   // company_id/project_id params above) — no client-side narrowing needed.
   const filteredSubProperties: SubPropertyRecord[] =
-    (isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)
+    (isSuperAdmin && companies.length === 0) ||
+    (!companyUniqueId && !isSuperAdmin)
       ? []
       : subProperties;
 
   const exportRows = filteredSubProperties.filter((row) => {
-    if (statusValue !== "all" && row.is_active !== (statusValue === "active")) return false;
+    if (statusValue !== "all" && row.is_active !== (statusValue === "active"))
+      return false;
     const search = globalFilterValue.trim().toLowerCase();
-    return !search || [row.sub_property_name, row.property_name]
-      .some((value) => String(value ?? "").toLowerCase().includes(search));
+    return (
+      !search ||
+      [row.sub_property_name, row.property_name].some((value) =>
+        String(value ?? "")
+          .toLowerCase()
+          .includes(search),
+      )
+    );
   });
 
   const cap = (s?: string | null) =>
@@ -153,14 +174,14 @@ export default function SubPropertyList() {
         setUpdatingStatusId(String(row.unique_id));
         await adminApi.subProperties.update(
           row.unique_id,
-          filterPayload({ is_active: value })
+          filterPayload({ is_active: value }),
         );
         setSubProperties((current) =>
           current.map((subProperty) =>
             subProperty.unique_id === row.unique_id
               ? { ...subProperty, is_active: value }
-              : subProperty
-          )
+              : subProperty,
+          ),
         );
       } catch (err) {
         Swal.fire({
@@ -191,109 +212,133 @@ export default function SubPropertyList() {
     </div>
   );
 
-  const indexTemplate = (_: SubPropertyRecord, { rowIndex }: { rowIndex: number }) =>
-    rowIndex + 1;
+  const indexTemplate = (
+    _: SubPropertyRecord,
+    { rowIndex }: { rowIndex: number },
+  ) => rowIndex + 1;
 
   /* ================= UI ================= */
   return (
     <div className="p-3">
-
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-1">
-              {t("admin.nav.sub_property")}
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {t("common.manage_item_records", {
-                item: t("admin.nav.sub_property"),
-              })}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Button
-              label={t("common.add_item", { item: t("admin.nav.sub_property") })}
-              icon="pi pi-plus"
-              className="p-button-success"
-             
-              onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
-            />
-          </div>
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
+            {t("admin.nav.sub_property")}
+          </h1>
+          <p className="text-sm text-gray-500">
+            {t("common.manage_item_records", {
+              item: t("admin.nav.sub_property"),
+            })}
+          </p>
         </div>
 
-        <FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
-          searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.sub_property") })}
-          statusValue={statusValue} onStatusChange={onStatusFilterChange} className="mb-4">
-          <FilterBarSelect value={companyUniqueId || ""} onChange={onCompanyChange} options={companies}
-            placeholder="All Companies" disabled={!isSuperAdmin || companies.length === 0} />
-          <FilterBarSelect value={projectId || ""} onChange={setProjectId} options={projects}
-            placeholder={showAllProjectsOption ? "All Projects" : undefined}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} />
-        </FilterBar>
-
-        <DataTable
-          value={filteredSubProperties}
-          exportRows={exportRows}
-          exportSheetName="SubProperties"
-          dataKey="unique_id"
-          paginator
-          rows={10}
-          rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={isLoading}
-          filters={filters}
-          onFilter={onFilter}
-          stripedRows
-          showGridlines
-          emptyMessage={t("common.no_items_found", {
-            item: t("admin.nav.sub_property"),
-          })}
-          globalFilterFields={[
-            "sub_property_name",
-            "property_name",
-            "company_name",
-            "project_name",
-          ]}
-          className="p-datatable-sm"
-        >
-          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
-
-          {showCol("property_name") && (
-            <Column
-              field="property_name"
-              header={t("admin.nav.property")}
-              sortable
-              filter
-              showFilterMatchModes={false}
-              body={(row: SubPropertyRecord) => cap(row.property_name)}
-            />
-          )}
-
-          {showCol("sub_property_name") && (
-            <Column
-              field="sub_property_name"
-              header={t("admin.nav.sub_property")}
-              sortable
-              filter
-              showFilterMatchModes={false}
-              body={(row: SubPropertyRecord) => cap(row.sub_property_name)}
-            />
-          )}
-
-          {showCol("is_active") && (
-            <Column
-              header={t("common.status")}
-              body={statusTemplate}
-              style={{ width: "140px" }}
-            />
-          )}
-
-          <Column
-            header={t("common.actions")}
-            body={actionTemplate}
-            style={{ width: "150px", textAlign: "center" }}
+        <div className="flex items-center gap-3">
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.sub_property") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() =>
+              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+            }
           />
-        </DataTable>
-    
+        </div>
+      </div>
+
+      <DataTable
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder", {
+              item: t("admin.nav.sub_property"),
+            })}
+            statusValue={statusValue}
+            onStatusChange={onStatusFilterChange}
+            className="mb-4"
+          >
+            <FilterBarSelect
+              value={companyUniqueId || ""}
+              onChange={onCompanyChange}
+              options={companies}
+              placeholder="All Companies"
+              disabled={!isSuperAdmin || companies.length === 0}
+            />
+            <FilterBarSelect
+              value={projectId || ""}
+              onChange={setProjectId}
+              options={projects}
+              placeholder={showAllProjectsOption ? "All Projects" : undefined}
+              disabled={
+                (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+              }
+            />
+          </FilterBar>
+        }
+        value={filteredSubProperties}
+        exportRows={exportRows}
+        exportSheetName="SubProperties"
+        dataKey="unique_id"
+        paginator
+        rows={10}
+        rowsPerPageOptions={[5, 10, 25, 50]}
+        loading={isLoading}
+        filters={filters}
+        onFilter={onFilter}
+        stripedRows
+        showGridlines
+        emptyMessage={t("common.no_items_found", {
+          item: t("admin.nav.sub_property"),
+        })}
+        globalFilterFields={[
+          "sub_property_name",
+          "property_name",
+          "company_name",
+          "project_name",
+        ]}
+        className="p-datatable-sm"
+      >
+        <Column
+          header={t("common.s_no")}
+          body={indexTemplate}
+          style={{ width: "80px" }}
+        />
+
+        {showCol("property_name") && (
+          <Column
+            field="property_name"
+            header={t("admin.nav.property")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: SubPropertyRecord) => cap(row.property_name)}
+          />
+        )}
+
+        {showCol("sub_property_name") && (
+          <Column
+            field="sub_property_name"
+            header={t("admin.nav.sub_property")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: SubPropertyRecord) => cap(row.sub_property_name)}
+          />
+        )}
+
+        {showCol("is_active") && (
+          <Column
+            header={t("common.status")}
+            body={statusTemplate}
+            style={{ width: "140px" }}
+          />
+        )}
+
+        <Column
+          header={t("common.actions")}
+          body={actionTemplate}
+          style={{ width: "150px", textAlign: "center" }}
+        />
+      </DataTable>
     </div>
   );
 }

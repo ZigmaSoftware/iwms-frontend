@@ -98,6 +98,7 @@ export type EncryptedRoutes = {
   encHouseholdPickupEvent: string;
   encVehicleBreakdown: string;
   encTripRetripRequest: string;
+  encTripDelayReport: string;
 
   // dashboard
   encDashboardOverall: string;
@@ -223,6 +224,7 @@ const plainRoutes: EncryptedRoutes = {
   encHouseholdPickupEvent: "household-pickup-event",
   encVehicleBreakdown: "vehicle-breakdowns",
   encTripRetripRequest: "retrip-requests",
+  encTripDelayReport: "trip-delay-reports",
 
   // palakkad
 

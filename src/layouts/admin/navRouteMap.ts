@@ -108,6 +108,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encSchedulerConfig,
     encVehicleBreakdown,
     encTripRetripRequest,
+    encTripDelayReport,
   } = getEncryptedRoute();
 
   _cache = [
@@ -191,6 +192,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encScheduleOperations}/${encDailyTripLog}`, nameKey: "admin.nav.daily_trip_log", parentNameKey: "admin.nav.schedule_operations" },
     { path: `/${encScheduleOperations}/${encVehicleBreakdown}`, nameKey: "Vehicle Breakdown", parentNameKey: "admin.nav.schedule_operations" },
     { path: `/${encScheduleOperations}/${encTripRetripRequest}`, nameKey: "admin.nav.trip_retrip_request", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encScheduleOperations}/${encTripDelayReport}`, nameKey: "Trip Delays", parentNameKey: "admin.nav.schedule_operations" },
     { path: `/${encScheduleOperations}/${encSchedulerConfig}`, nameKey: "admin.nav.scheduler_config", parentNameKey: "admin.nav.schedule_operations" },
     // Waste reports still use the legacy encrypted schedule-masters route.
     // Keep both entries in the breadcrumb map because these are the paths used

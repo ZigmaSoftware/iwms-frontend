@@ -471,17 +471,17 @@ export default function UserScreenPermissionList() {
 
   return (
     <div className="p-3">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800">
             {t("admin.user_screen_permission.title")}
           </h1>
-          <p className="text-gray-500 text-sm">
+          <p className="text-sm text-gray-500">
             {t("admin.user_screen_permission.subtitle")}
           </p>
         </div>
 
-        <div className="flex gap-3 items-center">
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
           <Button
             label={t("admin.user_screen_permission.download_template")}
             icon="pi pi-download"
@@ -517,6 +517,11 @@ export default function UserScreenPermissionList() {
       <DataTable
         value={records}
         exportRows={exportRows}
+        // This page ships its own Download Template / Upload Excel in the
+        // title row: the template uses BULK_TEMPLATE_COLUMNS and the upload
+        // posts CSV to the dedicated bulk-upload endpoint. Opt out of the
+        // generic pair so they are not rendered twice.
+        bulkImportable={false}
         dataKey="composite_key"
         paginator
         rows={10}

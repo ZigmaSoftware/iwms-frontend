@@ -2124,7 +2124,7 @@ export default function StaffCreationForm() {
   );
 
   return (
-    <div className="p-6">
+    <div className="p-3">
       {showChangePassword && id && (
         <ChangePasswordModal
           targetType="staff"

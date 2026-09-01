@@ -19,6 +19,7 @@ import { vehicleCreationSchema } from "@/schemas/masters/transportMasters/vehicl
 import { requireWhenVisible } from "@/schemas/shared/visibility";
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
+import { FormSelect } from "@/components/common/FormSelect";
 
 
 const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
@@ -510,32 +511,23 @@ export default function VehicleCreationForm() {
               {t("admin.nav.company")}{" "}
               <span className="text-red-500">*</span>
             </Label>
-            <select
+            <FormSelect
               id="company"
               value={companyUniqueId}
-              onChange={(e) => onCompanyChange(e.target.value)}
+              onChange={onCompanyChange}
+              options={companies}
+              required
               disabled={
                 Boolean(loggedInCompanyUniqueId) ||
                 (!isSuperAdmin && !loggedInCompanyUniqueId) ||
                 companies.length === 0
               }
-              className={`w-full px-3 py-2 border rounded-sm focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                !companyUniqueId
-                  ? "border-red-400 focus:ring-red-200"
-                  : "border-green-400 focus:ring-green-200"
-              }`}
-            >
-              <option value="">
-                {loggedInCompanyUniqueId
+              placeholder={
+                loggedInCompanyUniqueId
                   ? t("common.company_from_profile")
-                  : t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-              </option>
-              {companies.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+                  : t("common.select_item_placeholder", { item: t("admin.nav.company") })
+              }
+            />
           </div>
           )}
 
@@ -546,28 +538,19 @@ export default function VehicleCreationForm() {
               {t("admin.nav.project")}{" "}
               <span className="text-red-500">*</span>
             </Label>
-            <select
+            <FormSelect
               id="project"
               value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
+              onChange={setProjectId}
+              options={projects}
+              required
               disabled={!companyUniqueId || projects.length === 0}
-              className={`w-full px-3 py-2 border rounded-sm focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                !projectId
-                  ? "border-red-400 focus:ring-red-200"
-                  : "border-green-400 focus:ring-green-200"
-              }`}
-            >
-              <option value="">
-                {companyUniqueId
+              placeholder={
+                companyUniqueId
                   ? t("common.select_item_placeholder", { item: t("admin.nav.project") })
-                  : t("common.select_company_first", { defaultValue: "Select a company first" })}
-              </option>
-              {projects.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
+                  : t("common.select_company_first", { defaultValue: "Select a company first" })
+              }
+            />
             {companyUniqueId && projects.length === 0 && (
               <p className="text-xs text-amber-600 mt-1">
                 {t("common.no_projects_found", {

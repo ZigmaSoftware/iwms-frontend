@@ -1,7 +1,7 @@
 import type { FormDataType, Option } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState, useMemo } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { api } from "@/api";
 
@@ -39,13 +39,16 @@ import { AutoDetectLocationButton } from "@/components/common/AutoDetectLocation
 import type { DetectedCoordinates } from "@/utils/geolocation";
 import { customerCreationSchema } from "@/schemas/masters/customerMasters/customerCreation.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
-import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import {
+  parseWithSchema,
+  type FieldErrors,
+} from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
+import { FormSelect } from "@/components/common/FormSelect";
 
 /* ===============================
    TYPES
 ================================ */
-
 
 const normalizeEntityId = (value: unknown): string => {
   if (value === null || value === undefined) return "";
@@ -61,7 +64,15 @@ const BULK_WASTE_WATER_LPD_THRESHOLD = 40000;
 const BULK_WASTE_COLLECTION_KG_THRESHOLD = 100;
 const RESIDENTIAL_WASTE_KEYWORDS = ["dry", "wet", "mixed", "sanitary"];
 const RESIDENTIAL_PROPERTY_KEYWORDS = ["residential", "residental"];
-const RESIDENTIAL_SUB_PROPERTY_KEYWORDS = ["residential", "residental", "individual", "house", "apartment", "villa", "townhouse"];
+const RESIDENTIAL_SUB_PROPERTY_KEYWORDS = [
+  "residential",
+  "residental",
+  "individual",
+  "house",
+  "apartment",
+  "villa",
+  "townhouse",
+];
 const isResidentialName = (value: string) =>
   RESIDENTIAL_PROPERTY_KEYWORDS.some((keyword) => value.includes(keyword)) ||
   RESIDENTIAL_SUB_PROPERTY_KEYWORDS.some((keyword) => value.includes(keyword));
@@ -105,10 +116,14 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   industry_type: ["industry_type"],
 };
 
-
 /* ===============================
    REUSABLE COMPONENTS (OUTSIDE)
 ================================ */
+/**
+ * Thin adapter over the shared FormSelect so this form's dropdowns match the
+ * rest of the admin UI (same 40px trigger, placeholder handling and
+ * required/error styling) without touching all 19 call sites below.
+ */
 const ShadcnSelect = ({
   label,
   value,
@@ -128,29 +143,19 @@ const ShadcnSelect = ({
   disabled?: boolean;
   error?: string;
 }) => (
-  <div className="space-y-2">
-    <Label className="text-sm font-medium text-gray-700">
-      {label}
-      {isRequired && <span className="text-red-500 ml-1">*</span>}
-    </Label>
-    <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        {options.length > 0 ? (
-          options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))
-        ) : (
-          <div className="p-2 text-sm text-gray-500">No options available</div>
-        )}
-      </SelectContent>
-    </Select>
-    <FieldError message={error} />
-  </div>
+  <FormSelect
+    label={label}
+    value={value}
+    onChange={onChange}
+    options={options.map((o) => ({
+      value: String(o.value),
+      label: String(o.label),
+    }))}
+    placeholder={placeholder}
+    required={isRequired}
+    disabled={disabled}
+    error={error}
+  />
 );
 
 const FormSection = ({
@@ -248,14 +253,41 @@ const PasswordInput = ({
         >
           {show ? (
             // Eye-off icon
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 4.411m0 0L21 21" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 4.411m0 0L21 21"
+              />
             </svg>
           ) : (
             // Eye icon
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              />
             </svg>
           )}
         </button>
@@ -305,7 +337,9 @@ const PropertySelectionStep = ({
   loggedInCompanyUniqueId?: string | null;
 }) => {
   const filteredSubProps = subProperties.filter(
-    (sp: any) => !selectedProperty || normalizeEntityId(sp.property_id ?? sp.property) === selectedProperty
+    (sp: any) =>
+      !selectedProperty ||
+      normalizeEntityId(sp.property_id ?? sp.property) === selectedProperty,
   );
 
   const isStepComplete =
@@ -315,11 +349,18 @@ const PropertySelectionStep = ({
     (!showField("sub_property_id") || selectedSubProperty);
 
   return (
-    <ComponentCard title={t("admin.customer_creation.select_property_subproperty") || "Select Property & Sub-Property"}>
+    <ComponentCard
+      title={
+        t("admin.customer_creation.select_property_subproperty") ||
+        "Select Property & Sub-Property"
+      }
+    >
       <div className="space-y-6">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
           <p className="text-sm text-blue-800">
-            📌 {t("admin.customer_creation.step_1_info") || "Step 1 of 2: Please select a Property and Sub-Property to proceed"}
+            📌{" "}
+            {t("admin.customer_creation.step_1_info") ||
+              "Step 1 of 2: Please select a Property and Sub-Property to proceed"}
           </p>
         </div>
 
@@ -331,7 +372,10 @@ const PropertySelectionStep = ({
             options={companies}
             placeholder={t("admin.nav.company_placeholder") || "Select company"}
             isRequired={true}
-            disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId)}
+            disabled={
+              Boolean(loggedInCompanyUniqueId) ||
+              (!isSuperAdmin && !loggedInCompanyUniqueId)
+            }
           />
           <ShadcnSelect
             label={t("admin.nav.project") || "Project"}
@@ -351,20 +395,28 @@ const PropertySelectionStep = ({
                 value: String(p?.unique_id ?? p?.id ?? ""),
                 label: p.property_name,
               }))}
-              placeholder={t("admin.customer_creation.property_placeholder") || "Select property"}
+              placeholder={
+                t("admin.customer_creation.property_placeholder") ||
+                "Select property"
+              }
             />
           )}
 
           {showField("sub_property_id") && (
             <ShadcnSelect
-              label={t("admin.customer_creation.sub_property") || "Sub Property"}
+              label={
+                t("admin.customer_creation.sub_property") || "Sub Property"
+              }
               value={selectedSubProperty}
               onChange={onSubPropertyChange}
               options={filteredSubProps.map((sp: any) => ({
                 value: String(sp?.unique_id ?? sp?.id ?? ""),
                 label: sp.sub_property_name,
               }))}
-              placeholder={t("admin.customer_creation.sub_property_placeholder") || "Select sub property"}
+              placeholder={
+                t("admin.customer_creation.sub_property_placeholder") ||
+                "Select sub property"
+              }
             />
           )}
         </div>
@@ -453,7 +505,11 @@ function CustomerChangePasswordModal({
         new_password: newPassword,
         confirm_new_password: confirmPassword,
       });
-      Swal.fire({ icon: "success", title: "Password Changed", text: "Password updated successfully." });
+      Swal.fire({
+        icon: "success",
+        title: "Password Changed",
+        text: "Password updated successfully.",
+      });
       onSuccess(new Date().toISOString());
       onClose();
     } catch (err: any) {
@@ -467,12 +523,22 @@ function CustomerChangePasswordModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-900">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Change Password</h3>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+            Change Password
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            ✕
+          </button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              New Password
+            </label>
             <div className="relative">
               <Input
                 type={showNew ? "text" : "password"}
@@ -481,14 +547,20 @@ function CustomerChangePasswordModal({
                 placeholder="Min 6 chars, upper + lower + number"
                 className="w-full pr-10"
               />
-              <button type="button" onClick={() => setShowNew((p) => !p)}
-                className="absolute inset-y-0 right-2 text-gray-400 hover:text-gray-600" tabIndex={-1}>
+              <button
+                type="button"
+                onClick={() => setShowNew((p) => !p)}
+                className="absolute inset-y-0 right-2 text-gray-400 hover:text-gray-600"
+                tabIndex={-1}
+              >
                 {showNew ? "🙈" : "👁"}
               </button>
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Confirm New Password
+            </label>
             <div className="relative">
               <Input
                 type={showConfirm ? "text" : "password"}
@@ -497,23 +569,34 @@ function CustomerChangePasswordModal({
                 placeholder="Repeat new password"
                 className="w-full pr-10"
               />
-              <button type="button" onClick={() => setShowConfirm((p) => !p)}
-                className="absolute inset-y-0 right-2 text-gray-400 hover:text-gray-600" tabIndex={-1}>
+              <button
+                type="button"
+                onClick={() => setShowConfirm((p) => !p)}
+                className="absolute inset-y-0 right-2 text-gray-400 hover:text-gray-600"
+                tabIndex={-1}
+              >
                 {showConfirm ? "🙈" : "👁"}
               </button>
             </div>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <p className="text-xs text-gray-500">
-            Password must be at least 6 characters with uppercase, lowercase, and a number.
+            Password must be at least 6 characters with uppercase, lowercase,
+            and a number.
           </p>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600"
+            >
               Cancel
             </button>
-            <button type="submit" disabled={loading}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
               {loading ? "Changing..." : "Change Password"}
             </button>
           </div>
@@ -538,10 +621,16 @@ export default function CustomerCreationForm() {
   const isEdit = Boolean(id);
 
   const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
-  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCustomerMaster, encCustomerCreation);
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
+    encCustomerMaster,
+    encCustomerCreation,
+  );
 
   const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const routeState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -552,7 +641,11 @@ export default function CustomerCreationForm() {
     setProjectId,
     onCompanyChange,
     applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
+  } = useCompanyProjectSelection({
+    isEdit,
+    initialCompanyId: routeState?.companyUniqueId,
+    initialProjectId: routeState?.projectId,
+  });
 
   const [step, setStep] = useState(isEdit ? 1 : 0); // 0 = property selection, 1 = form
   const tOrFallback = (key: string, fallback: string) => {
@@ -609,7 +702,9 @@ export default function CustomerCreationForm() {
   const [dropdownsLoaded, setDropdownsLoaded] = useState(false);
   const [pendingEditData, setPendingEditData] = useState<any>(null);
   const [passwordCrtDate, setPasswordCrtDate] = useState<string | null>(null);
-  const [customerCreatedAt, setCustomerCreatedAt] = useState<string | null>(null);
+  const [customerCreatedAt, setCustomerCreatedAt] = useState<string | null>(
+    null,
+  );
   const [showChangePassword, setShowChangePassword] = useState(false);
   // Holds the raw project candidates from the record so we can re-apply after the
   // hook finishes loading the project list (the hook may auto-select options[0] otherwise)
@@ -625,10 +720,15 @@ export default function CustomerCreationForm() {
 
   const update = (key: keyof FormDataType, value: any) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
-    setFieldErrors((prev) => (prev[key as string] ? { ...prev, [key as string]: "" } : prev));
+    setFieldErrors((prev) =>
+      prev[key as string] ? { ...prev, [key as string]: "" } : prev,
+    );
   };
 
-  const handleLocationDetected = ({ latitude, longitude }: DetectedCoordinates) => {
+  const handleLocationDetected = ({
+    latitude,
+    longitude,
+  }: DetectedCoordinates) => {
     setFormData((prev) => ({
       ...prev,
       latitude: String(latitude),
@@ -670,7 +770,7 @@ export default function CustomerCreationForm() {
     setFormData((prev) => ({
       ...prev,
       family_members: prev.family_members.map((member, memberIndex) =>
-        memberIndex === index ? { ...member, [key]: value } : member
+        memberIndex === index ? { ...member, [key]: value } : member,
       ),
     }));
   };
@@ -678,17 +778,23 @@ export default function CustomerCreationForm() {
   const removeFamilyMember = (index: number) => {
     setFormData((prev) => ({
       ...prev,
-      family_members: prev.family_members.filter((_, memberIndex) => memberIndex !== index),
+      family_members: prev.family_members.filter(
+        (_, memberIndex) => memberIndex !== index,
+      ),
     }));
   };
 
   const addFamilyMember = () => {
     setFormData((prev) => {
       const maxCount = Number.parseInt(prev.member_count || "0", 10);
-      if (!isNaN(maxCount) && prev.family_members.length >= maxCount) return prev;
+      if (!isNaN(maxCount) && prev.family_members.length >= maxCount)
+        return prev;
       return {
         ...prev,
-        family_members: [...prev.family_members, { member_name: "", id_proof_type: "", id_no: "" }],
+        family_members: [
+          ...prev.family_members,
+          { member_name: "", id_proof_type: "", id_no: "" },
+        ],
       };
     });
   };
@@ -709,18 +815,28 @@ export default function CustomerCreationForm() {
   };
 
   /* resolve a raw API id (integer PK or unique_id) to the option value used in dropdowns */
-  const resolveOptionValue = (items: any[], rawId: any, nameField: string, nameValue?: string): string => {
+  const resolveOptionValue = (
+    items: any[],
+    rawId: any,
+    nameField: string,
+    nameValue?: string,
+  ): string => {
     const strId = String(rawId ?? "").trim();
     if (!strId && !nameValue) return "";
     if (strId) {
-      const byUniqueId = items.find((item) => String(item.unique_id ?? "") === strId);
-      if (byUniqueId) return String(byUniqueId.unique_id ?? byUniqueId.id ?? "");
+      const byUniqueId = items.find(
+        (item) => String(item.unique_id ?? "") === strId,
+      );
+      if (byUniqueId)
+        return String(byUniqueId.unique_id ?? byUniqueId.id ?? "");
       const byId = items.find((item) => String(item.id ?? "") === strId);
       if (byId) return String(byId.unique_id ?? byId.id ?? "");
     }
     if (nameValue) {
       const lower = nameValue.toLowerCase();
-      const byName = items.find((item) => String(item[nameField] ?? "").toLowerCase() === lower);
+      const byName = items.find(
+        (item) => String(item[nameField] ?? "").toLowerCase() === lower,
+      );
       if (byName) return String(byName.unique_id ?? byName.id ?? "");
     }
     return strId;
@@ -756,7 +872,9 @@ export default function CustomerCreationForm() {
       setRawPanchayats([]);
       setRawWasteTypes([]);
       setDropdownsLoaded(true);
-      return () => { cancelled = true; };
+      return () => {
+        cancelled = true;
+      };
     }
 
     const scopeParams = { company_id: companyUniqueId, project_id: projectId };
@@ -775,10 +893,23 @@ export default function CustomerCreationForm() {
       countryApi.readAll({ params: scopeParams }),
       propertiesApi.readAll({ params: scopeParams }),
       subPropertiesApi.readAll({ params: scopeParams }),
-      showPanchayat ? panchayatApi.readAll({ params: scopeParams }) : Promise.resolve([]),
+      showPanchayat
+        ? panchayatApi.readAll({ params: scopeParams })
+        : Promise.resolve([]),
       wasteTypeApi.readAll({ params: scopeParams }),
-    ])
-      .then(([wardsR, zonesR, citiesR, districtsR, statesR, countriesR, propertiesR, subPropertiesR, panchayatsR, wasteTypesR]) => {
+    ]).then(
+      ([
+        wardsR,
+        zonesR,
+        citiesR,
+        districtsR,
+        statesR,
+        countriesR,
+        propertiesR,
+        subPropertiesR,
+        panchayatsR,
+        wasteTypesR,
+      ]) => {
         if (cancelled) return;
 
         const settled = (result: PromiseSettledResult<any>): any[] => {
@@ -798,9 +929,12 @@ export default function CustomerCreationForm() {
         setRawPanchayats(settled(panchayatsR));
         setRawWasteTypes(settled(wasteTypesR));
         setDropdownsLoaded(true);
-      });
+      },
+    );
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [companyUniqueId, projectId, showZone, showPanchayat]);
 
   const dropdowns = useMemo(
@@ -816,7 +950,18 @@ export default function CustomerCreationForm() {
       panchayats: normalize(rawPanchayats),
       wasteTypes: normalize(rawWasteTypes),
     }),
-    [rawWards, rawZones, rawCities, rawDistricts, rawStates, rawCountries, rawProperties, rawSubProperties, rawPanchayats, rawWasteTypes]
+    [
+      rawWards,
+      rawZones,
+      rawCities,
+      rawDistricts,
+      rawStates,
+      rawCountries,
+      rawProperties,
+      rawSubProperties,
+      rawPanchayats,
+      rawWasteTypes,
+    ],
   );
 
   /* ===============================
@@ -826,15 +971,20 @@ export default function CustomerCreationForm() {
   useEffect(() => {
     if (!isEdit || !id) return;
     let cancelled = false;
-    customerCreationApi.read(id)
+    customerCreationApi
+      .read(id)
       .then((data: any) => {
         if (cancelled) return;
-        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
+        applyCompanyProjectFromRecord(
+          data as unknown as Record<string, unknown>,
+        );
         setPendingEditData(data);
         // Store all project identifiers so we can re-apply the correct one after
         // the hook finishes loading the project list for this company
         setPendingProjectCandidates({
-          projectUniqueId: String(data.project_unique_id ?? data.project?.unique_id ?? ""),
+          projectUniqueId: String(
+            data.project_unique_id ?? data.project?.unique_id ?? "",
+          ),
           projectId: String(data.project_id ?? ""),
           projectName: String(data.project_name ?? data.project?.name ?? ""),
         });
@@ -842,9 +992,15 @@ export default function CustomerCreationForm() {
       .catch((err: any) => {
         if (cancelled) return;
         console.error("Failed to load customer:", err);
-        Swal.fire(t("common.error") || "Error", t("admin.customer_creation.save_failed") || "Failed to load customer", "error");
+        Swal.fire(
+          t("common.error") || "Error",
+          t("admin.customer_creation.save_failed") || "Failed to load customer",
+          "error",
+        );
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [id, isEdit, applyCompanyProjectFromRecord, t]);
 
   /* ===============================
@@ -855,15 +1011,60 @@ export default function CustomerCreationForm() {
     if (!pendingEditData || !dropdownsLoaded) return;
     const data = pendingEditData;
 
-    const countryId  = resolveOptionValue(rawCountries,  data.country_id,  "name",          data.country_name);
-    const stateId    = resolveOptionValue(rawStates,     data.state_id,    "name",          data.state_name);
-    const districtId = resolveOptionValue(rawDistricts,  data.district_id, "name",          data.district_name);
-    const cityId     = resolveOptionValue(rawCities,     data.city_id,     "name",          data.city_name ?? data.city);
-    const zoneId     = resolveOptionValue(rawZones,      data.zone_id,     "zone_name",     data.zone_name);
-    const wardId     = resolveOptionValue(rawWards,      data.ward_id,     "ward_name",     data.ward_name);
-    const panchayatId = resolveOptionValue(rawPanchayats, data.panchayat_id, "panchayat_name", data.panchayat_name);
-    const propertyId    = resolveOptionValue(rawProperties,    data.property_id,     "property_name",     data.property_name);
-    const subPropertyId = resolveOptionValue(rawSubProperties, data.sub_property_id, "sub_property_name", data.sub_property_name);
+    const countryId = resolveOptionValue(
+      rawCountries,
+      data.country_id,
+      "name",
+      data.country_name,
+    );
+    const stateId = resolveOptionValue(
+      rawStates,
+      data.state_id,
+      "name",
+      data.state_name,
+    );
+    const districtId = resolveOptionValue(
+      rawDistricts,
+      data.district_id,
+      "name",
+      data.district_name,
+    );
+    const cityId = resolveOptionValue(
+      rawCities,
+      data.city_id,
+      "name",
+      data.city_name ?? data.city,
+    );
+    const zoneId = resolveOptionValue(
+      rawZones,
+      data.zone_id,
+      "zone_name",
+      data.zone_name,
+    );
+    const wardId = resolveOptionValue(
+      rawWards,
+      data.ward_id,
+      "ward_name",
+      data.ward_name,
+    );
+    const panchayatId = resolveOptionValue(
+      rawPanchayats,
+      data.panchayat_id,
+      "panchayat_name",
+      data.panchayat_name,
+    );
+    const propertyId = resolveOptionValue(
+      rawProperties,
+      data.property_id,
+      "property_name",
+      data.property_name,
+    );
+    const subPropertyId = resolveOptionValue(
+      rawSubProperties,
+      data.sub_property_id,
+      "sub_property_name",
+      data.sub_property_name,
+    );
 
     setPasswordCrtDate(data.password_crt_date ?? null);
     setCustomerCreatedAt(data.created_at ?? null);
@@ -883,18 +1084,26 @@ export default function CustomerCreationForm() {
       longitude: String(data.longitude ?? ""),
       sqft: String(data.sqft ?? ""),
       water_consumption_lpd: String(data.water_consumption_lpd ?? ""),
-      waste_collection_kg_per_day: String(data.waste_collection_kg_per_day ?? ""),
+      waste_collection_kg_per_day: String(
+        data.waste_collection_kg_per_day ?? "",
+      ),
       property_id: propertyId,
       sub_property_id: subPropertyId,
       waste_type_ids: Array.isArray(data.waste_type_ids)
-        ? data.waste_type_ids.map((item: unknown) => normalizeEntityId(item)).filter(Boolean)
+        ? data.waste_type_ids
+            .map((item: unknown) => normalizeEntityId(item))
+            .filter(Boolean)
         : Array.isArray(data.waste_types)
-          ? data.waste_types.map((item: unknown) => normalizeEntityId(item)).filter(Boolean)
+          ? data.waste_types
+              .map((item: unknown) => normalizeEntityId(item))
+              .filter(Boolean)
           : [],
       id_proof_type: String(data.id_proof_type ?? ""),
       id_no: String(data.id_no ?? ""),
       member_count: String(data.member_count ?? ""),
-      family_members: Array.isArray(data.family_members) ? data.family_members : [],
+      family_members: Array.isArray(data.family_members)
+        ? data.family_members
+        : [],
       country_id: countryId,
       state_id: stateId,
       district_id: districtId,
@@ -914,7 +1123,19 @@ export default function CustomerCreationForm() {
       industry_type: String(data.industry_type ?? ""),
     }));
     setPendingEditData(null);
-  }, [pendingEditData, dropdownsLoaded, rawCountries, rawStates, rawDistricts, rawCities, rawZones, rawWards, rawPanchayats, rawProperties, rawSubProperties]);
+  }, [
+    pendingEditData,
+    dropdownsLoaded,
+    rawCountries,
+    rawStates,
+    rawDistricts,
+    rawCities,
+    rawZones,
+    rawWards,
+    rawPanchayats,
+    rawProperties,
+    rawSubProperties,
+  ]);
 
   /* ===============================
      RE-APPLY PROJECT AFTER HOOK LOADS PROJECT LIST
@@ -924,15 +1145,24 @@ export default function CustomerCreationForm() {
   ================================ */
   useEffect(() => {
     if (!pendingProjectCandidates || projects.length === 0) return;
-    const { projectUniqueId, projectId: rawProjectId, projectName } = pendingProjectCandidates;
+    const {
+      projectUniqueId,
+      projectId: rawProjectId,
+      projectName,
+    } = pendingProjectCandidates;
 
     // Try unique_id match first (most reliable)
-    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
+    let match = projects.find(
+      (p) => projectUniqueId && p.value === projectUniqueId,
+    );
     // Then try integer PK match
-    if (!match) match = projects.find((p) => rawProjectId && p.value === rawProjectId);
+    if (!match)
+      match = projects.find((p) => rawProjectId && p.value === rawProjectId);
     // Finally fall back to name match
     if (!match && projectName)
-      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
+      match = projects.find(
+        (p) => p.label.toLowerCase() === projectName.toLowerCase(),
+      );
 
     if (match) setProjectId(match.value);
     setPendingProjectCandidates(null);
@@ -942,61 +1172,96 @@ export default function CustomerCreationForm() {
      FILTERS
   ================================ */
   const filteredStates = useMemo(
-    () => dropdowns.states.filter((s: any) => !formData.country_id || normalizeEntityId(s.country_id ?? s.country) === formData.country_id),
-    [dropdowns.states, formData.country_id]
+    () =>
+      dropdowns.states.filter(
+        (s: any) =>
+          !formData.country_id ||
+          normalizeEntityId(s.country_id ?? s.country) === formData.country_id,
+      ),
+    [dropdowns.states, formData.country_id],
   );
 
   const filteredDistricts = useMemo(
-    () => dropdowns.districts.filter((d: any) => !formData.state_id || normalizeEntityId(d.state_id ?? d.state) === formData.state_id),
-    [dropdowns.districts, formData.state_id]
+    () =>
+      dropdowns.districts.filter(
+        (d: any) =>
+          !formData.state_id ||
+          normalizeEntityId(d.state_id ?? d.state) === formData.state_id,
+      ),
+    [dropdowns.districts, formData.state_id],
   );
 
   const filteredCities = useMemo(
-    () => dropdowns.cities.filter((c: any) => !formData.district_id || normalizeEntityId(c.district_id ?? c.district) === formData.district_id),
-    [dropdowns.cities, formData.district_id]
+    () =>
+      dropdowns.cities.filter(
+        (c: any) =>
+          !formData.district_id ||
+          normalizeEntityId(c.district_id ?? c.district) ===
+            formData.district_id,
+      ),
+    [dropdowns.cities, formData.district_id],
   );
 
   const filteredZones = useMemo(
-    () => dropdowns.zones.filter((z: any) => !formData.city_id || normalizeEntityId(z.city_id ?? z.city) === formData.city_id),
-    [dropdowns.zones, formData.city_id]
+    () =>
+      dropdowns.zones.filter(
+        (z: any) =>
+          !formData.city_id ||
+          normalizeEntityId(z.city_id ?? z.city) === formData.city_id,
+      ),
+    [dropdowns.zones, formData.city_id],
   );
 
   const filteredWards = useMemo(
-    () => dropdowns.wards.filter((w: any) => {
-      if (formData.zone_id) return normalizeEntityId(w.zone_id ?? w.zone) === formData.zone_id;
-      if (formData.panchayat_id) return normalizeEntityId(w.panchayat_id ?? w.panchayat) === formData.panchayat_id;
-      return true;
-    }),
-    [dropdowns.wards, formData.zone_id, formData.panchayat_id]
+    () =>
+      dropdowns.wards.filter((w: any) => {
+        if (formData.zone_id)
+          return normalizeEntityId(w.zone_id ?? w.zone) === formData.zone_id;
+        if (formData.panchayat_id)
+          return (
+            normalizeEntityId(w.panchayat_id ?? w.panchayat) ===
+            formData.panchayat_id
+          );
+        return true;
+      }),
+    [dropdowns.wards, formData.zone_id, formData.panchayat_id],
   );
 
   const filteredPanchayats = useMemo(
     () =>
       dropdowns.panchayats.filter(
         (p: any) =>
-          (!formData.district_id || normalizeEntityId(p.district_id ?? p.district) === formData.district_id) &&
-          (!formData.city_id || normalizeEntityId(p.city_id ?? p.city) === formData.city_id)
+          (!formData.district_id ||
+            normalizeEntityId(p.district_id ?? p.district) ===
+              formData.district_id) &&
+          (!formData.city_id ||
+            normalizeEntityId(p.city_id ?? p.city) === formData.city_id),
       ),
-    [dropdowns.panchayats, formData.district_id, formData.city_id]
+    [dropdowns.panchayats, formData.district_id, formData.city_id],
   );
 
   /* ===============================
      SUB_PROPERTY TYPE DETECTION
   ================================ */
   const selectedSubProperty = useMemo(
-    () => dropdowns.subProperties.find(
-      (sp: any) => resolveId(sp) === formData.sub_property_id
-    ),
-    [formData.sub_property_id, dropdowns.subProperties]
+    () =>
+      dropdowns.subProperties.find(
+        (sp: any) => resolveId(sp) === formData.sub_property_id,
+      ),
+    [formData.sub_property_id, dropdowns.subProperties],
   );
 
   const selectedPropertyRecord = useMemo(
-    () => dropdowns.properties.find((property: any) => resolveId(property) === formData.property_id),
-    [formData.property_id, dropdowns.properties]
+    () =>
+      dropdowns.properties.find(
+        (property: any) => resolveId(property) === formData.property_id,
+      ),
+    [formData.property_id, dropdowns.properties],
   );
 
   const subName = selectedSubProperty?.sub_property_name?.toLowerCase() || "";
-  const isIndividual = subName.includes("individual") || subName.includes("house");
+  const isIndividual =
+    subName.includes("individual") || subName.includes("house");
   const isApartment = subName.includes("apartment");
   const isVilla = subName.includes("villa");
   const isIndustry = subName.includes("industry");
@@ -1010,16 +1275,21 @@ export default function CustomerCreationForm() {
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
-  const isResidentialProperty = !isIndustry && isResidentialName(`${propertyName} ${subName}`);
+  const isResidentialProperty =
+    !isIndustry && isResidentialName(`${propertyName} ${subName}`);
   const visibleWasteTypes = useMemo(
     () =>
       dropdowns.wasteTypes.filter((wasteType: any) => {
         if (!isResidentialProperty) return true;
-        const wasteTypeName = String(wasteType.waste_type_name ?? wasteType.name ?? "").toLowerCase();
+        const wasteTypeName = String(
+          wasteType.waste_type_name ?? wasteType.name ?? "",
+        ).toLowerCase();
         if (wasteTypeName.includes("organic")) return false;
-        return RESIDENTIAL_WASTE_KEYWORDS.some((keyword) => wasteTypeName.includes(keyword));
+        return RESIDENTIAL_WASTE_KEYWORDS.some((keyword) =>
+          wasteTypeName.includes(keyword),
+        );
       }),
-    [dropdowns.wasteTypes, isResidentialProperty]
+    [dropdowns.wasteTypes, isResidentialProperty],
   );
   const isBulkWasteThresholdMatched = useMemo(() => {
     const sqft = Number(formData.sqft || 0);
@@ -1030,7 +1300,11 @@ export default function CustomerCreationForm() {
       waterConsumption > BULK_WASTE_WATER_LPD_THRESHOLD ||
       wasteCollection > BULK_WASTE_COLLECTION_KG_THRESHOLD
     );
-  }, [formData.sqft, formData.water_consumption_lpd, formData.waste_collection_kg_per_day]);
+  }, [
+    formData.sqft,
+    formData.water_consumption_lpd,
+    formData.waste_collection_kg_per_day,
+  ]);
 
   // const zoneOrWardSelected  = Boolean(formData.zone_id || formData.ward_id);
   // const panchayatSelected   = Boolean(formData.panchayat_id);
@@ -1039,17 +1313,23 @@ export default function CustomerCreationForm() {
 
   useEffect(() => {
     if (!isResidentialProperty) return;
-    const allowedWasteTypeIds = new Set(visibleWasteTypes.map((wasteType: any) => resolveId(wasteType)));
+    const allowedWasteTypeIds = new Set(
+      visibleWasteTypes.map((wasteType: any) => resolveId(wasteType)),
+    );
     setFormData((prev) => {
-      const filteredWasteTypeIds = prev.waste_type_ids.filter((wasteTypeId) => allowedWasteTypeIds.has(wasteTypeId));
-      if (filteredWasteTypeIds.length === prev.waste_type_ids.length) return prev;
+      const filteredWasteTypeIds = prev.waste_type_ids.filter((wasteTypeId) =>
+        allowedWasteTypeIds.has(wasteTypeId),
+      );
+      if (filteredWasteTypeIds.length === prev.waste_type_ids.length)
+        return prev;
       return { ...prev, waste_type_ids: filteredWasteTypeIds };
     });
   }, [isResidentialProperty, visibleWasteTypes]);
 
   useEffect(() => {
     setFormData((prev) => {
-      if (prev.is_bulkwaste_generator === isBulkWasteThresholdMatched) return prev;
+      if (prev.is_bulkwaste_generator === isBulkWasteThresholdMatched)
+        return prev;
       return { ...prev, is_bulkwaste_generator: isBulkWasteThresholdMatched };
     });
   }, [isBulkWasteThresholdMatched]);
@@ -1068,19 +1348,35 @@ export default function CustomerCreationForm() {
     if (!validation.success) {
       setFieldErrors(validation.errors);
       const firstError = Object.values(validation.errors)[0];
-      Swal.fire(t("common.warning") || "Warning", firstError ?? "Please fill in all required fields", "warning");
+      Swal.fire(
+        t("common.warning") || "Warning",
+        firstError ?? "Please fill in all required fields",
+        "warning",
+      );
       return false;
     }
     setFieldErrors({});
 
     if (!companyUniqueId || !projectId) {
-      Swal.fire(t("common.warning") || "Warning", "Company and project are required", "warning");
+      Swal.fire(
+        t("common.warning") || "Warning",
+        "Company and project are required",
+        "warning",
+      );
       return false;
     }
 
     // Password is optional; only validated for strength if the user chooses to set one.
-    if (showField("password") && formData.password && formData.password.length < 8) {
-      Swal.fire("Weak Password", "Password must be at least 8 characters", "warning");
+    if (
+      showField("password") &&
+      formData.password &&
+      formData.password.length < 8
+    ) {
+      Swal.fire(
+        "Weak Password",
+        "Password must be at least 8 characters",
+        "warning",
+      );
       return false;
     }
 
@@ -1099,12 +1395,24 @@ export default function CustomerCreationForm() {
       ...formData,
       company_id: companyUniqueId,
       project_id: projectId,
-      latitude: showField("latitude") ? String(parseFloat(formData.latitude)) : formData.latitude,
-      longitude: showField("longitude") ? String(parseFloat(formData.longitude)) : formData.longitude,
-      sqft: showField("sqft") ? String(parseFloat(formData.sqft)) : formData.sqft,
-      water_consumption_lpd: formData.water_consumption_lpd ? String(parseFloat(formData.water_consumption_lpd)) : null,
-      waste_collection_kg_per_day: formData.waste_collection_kg_per_day ? String(parseFloat(formData.waste_collection_kg_per_day)) : null,
-      member_count: formData.member_count ? Number.parseInt(formData.member_count, 10) : null,
+      latitude: showField("latitude")
+        ? String(parseFloat(formData.latitude))
+        : formData.latitude,
+      longitude: showField("longitude")
+        ? String(parseFloat(formData.longitude))
+        : formData.longitude,
+      sqft: showField("sqft")
+        ? String(parseFloat(formData.sqft))
+        : formData.sqft,
+      water_consumption_lpd: formData.water_consumption_lpd
+        ? String(parseFloat(formData.water_consumption_lpd))
+        : null,
+      waste_collection_kg_per_day: formData.waste_collection_kg_per_day
+        ? String(parseFloat(formData.waste_collection_kg_per_day))
+        : null,
+      member_count: formData.member_count
+        ? Number.parseInt(formData.member_count, 10)
+        : null,
       family_members: formData.family_members,
       waste_type_ids: formData.waste_type_ids,
       ...(isEdit && !formData.password ? { password: undefined } : {}), // Only include password for new records
@@ -1122,12 +1430,16 @@ export default function CustomerCreationForm() {
       Swal.fire(
         t("common.success") || "Success",
         t("admin.customer_creation.save_success") || "Saved successfully",
-        "success"
+        "success",
       );
       navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
     } catch (err) {
       console.error("Submit error:", err);
-      Swal.fire(t("common.error") || "Error", t("admin.customer_creation.save_failed") || "Failed to save", "error");
+      Swal.fire(
+        t("common.error") || "Error",
+        t("admin.customer_creation.save_failed") || "Failed to save",
+        "error",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -1175,834 +1487,1058 @@ export default function CustomerCreationForm() {
           onSuccess={(newDate) => setPasswordCrtDate(newDate)}
         />
       )}
-    <ComponentCard
-      title={
-        isEdit
-          ? t("admin.customer_creation.title_edit") || "Edit Customer"
-          : t("admin.customer_creation.title_add") || "Add Customer"
-      }
-    >
-      {/* Step indicator for new records */}
-      {!isEdit && (
-        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-800">
-            📍 {t("admin.customer_creation.step_2_info") || "Step 2 of 2: Fill in the customer details"}
-          </p>
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <FormSection title={t("admin.customer_creation.company_project_info") || "Company & Project Information"}>
-          {!isEdit ? (
-            <div className="md:col-span-3 bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm text-gray-600">
-                    {t("admin.customer_creation.selected_company") || "Selected Company"}:{" "}
-                    <span className="font-semibold text-gray-800">
-                      {companies.find((c) => c.value === companyUniqueId)?.label || "-"}
-                    </span>
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {t("admin.customer_creation.selected_project") || "Selected Project"}:{" "}
-                    <span className="font-semibold text-gray-800">
-                      {projects.find((p) => p.value === projectId)?.label || "-"}
-                    </span>
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setStep(0)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium transition"
-                >
-                  {t("common.change") || "Change"}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <ShadcnSelect
-                label={t("admin.nav.company") || "Company"}
-                value={companyUniqueId}
-                onChange={handleCompanyScopeChange}
-                options={companies}
-                placeholder={t("admin.nav.company_placeholder") || "Select company"}
-                isRequired={true}
-                disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId)}
-              />
-              <ShadcnSelect
-                label={t("admin.nav.project") || "Project"}
-                value={projectId}
-                onChange={handleProjectScopeChange}
-                options={projects}
-                placeholder={t("admin.nav.project_placeholder") || "Select project"}
-                isRequired={true}
-                disabled={!companyUniqueId || projects.length === 0}
-              />
-            </>
-          )}
-        </FormSection>
-
-        <FormSection title={t("admin.customer_creation.personal_info") || "Personal Information"}>
-          {showField("customer_name") && (
-            <FormInput
-              label={t("admin.customer_creation.customer_name") || "Customer Name"}
-              value={formData.customer_name}
-              onChange={(e) => update("customer_name", e.target.value)}
-              placeholder="Enter full name"
-              error={fieldErrors.customer_name}
-              isRequired={false}
-            />
-          )}
-          {showField("contact_no") && (
-            <FormInput
-              label={t("admin.customer_creation.contact_no") || "Contact Number"}
-              value={formData.contact_no}
-              onChange={(e) => {
-                const numericValue = e.target.value.replace(/[^0-9]/g, "");
-                update("contact_no", numericValue);
-              }}
-              placeholder="10 digit mobile number"
-              maxLength={10}
-              inputMode="numeric"
-              error={fieldErrors.contact_no}
-              isRequired={false}
-            />
-          )}
-          {showField("username") && (
-            <FormInput
-              label={t("login.username") || "Username"}
-              value={formData.username}
-              onChange={(e) => update("username", e.target.value)}
-              placeholder="Enter username"
-              error={fieldErrors.username}
-              isRequired={false}
-            />
-          )}
-          {showField("email") && (
-            <FormInput
-              label={t("admin.customer_creation.email") || "Email Address"}
-              value={formData.email}
-              onChange={(e) => update("email", e.target.value)}
-              placeholder="Enter email address"
-              type="email"
-              error={fieldErrors.email}
-              isRequired={false}
-            />
-          )}
-
-          {(showField("password") || isEdit) && (
-            <PasswordInput
-              label={t("login.password") || "Password"}
-              value={formData.password}
-              onChange={(e) => update("password", e.target.value)}
-              placeholder={isEdit ? "Leave blank to keep current password" : "Enter password (min 8 chars)"}
-              isRequired={false}
-            />
-          )}
-
-          {/* ── Password Security Info (edit mode only) ── */}
-          {isEdit && (
-            <div className="md:col-span-3">
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/40">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                    Password Security
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setShowChangePassword(true)}
-                    className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
-                  >
-                    Change Password
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-                  <div>
-                    <span className="text-gray-500">Account Created:</span>{" "}
-                    <span className="font-medium text-gray-800 dark:text-gray-100">
-                      {customerCreatedAt ? new Date(customerCreatedAt).toLocaleString() : "—"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Last Password Changed:</span>{" "}
-                    <span className="font-medium text-gray-800 dark:text-gray-100">
-                      {passwordCrtDate ? new Date(passwordCrtDate).toLocaleString() : "Never changed"}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-2">
-                  {passwordCrtDate ? (
-                    <PasswordPriorityBadge ageDays={getPasswordAgeDays(passwordCrtDate)} />
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
-                      Password has never been changed — consider updating
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </FormSection>
-
-        <FormSection title={t("admin.customer_creation.address_info") || "Address & Location Information"}>
-          {/* INDIVIDUAL HOUSE */}
-          {isIndividual && (
-            <>
-              {showField("building_no") && (
-                <FormInput
-                  label={t("common.building_no") || "Building No"}
-                  value={formData.building_no}
-                  onChange={(e) => update("building_no", e.target.value)}
-                  placeholder="e.g., 13A"
-                />
-              )}
-              {showField("street") && (
-                <FormInput
-                  label={t("common.street") || "Street"}
-                  value={formData.street}
-                  onChange={(e) => update("street", e.target.value)}
-                  placeholder="e.g., Main Street"
-                  isRequired={false}
-                />
-              )}
-              {showField("area") && (
-                <FormInput
-                  label={t("common.area") || "Area"}
-                  value={formData.area}
-                  onChange={(e) => update("area", e.target.value)}
-                  placeholder="e.g., Village Center"
-                  isRequired={false}
-                />
-              )}
-            </>
-          )}
-
-          {/* APARTMENT */}
-          {isApartment && (
-            <>
-              {showField("apartment_name") && (
-                <FormInput
-                  label="Apartment Name"
-                  value={formData.apartment_name}
-                  onChange={(e) => update("apartment_name", e.target.value)}
-                  placeholder="Enter apartment name"
-                  isRequired={false}
-                />
-              )}
-              {showField("block_no") && (
-                <FormInput
-                  label="Block No"
-                  value={formData.block_no}
-                  onChange={(e) => update("block_no", e.target.value)}
-                  placeholder="Enter block number"
-                  isRequired={false}
-                />
-              )}
-              {showField("flat_no") && (
-                <FormInput
-                  label="Flat No"
-                  value={formData.flat_no}
-                  onChange={(e) => update("flat_no", e.target.value)}
-                  placeholder="Enter flat number"
-                  isRequired={false}
-                />
-              )}
-            </>
-          )}
-
-          {/* VILLA */}
-          {isVilla && (
-            <>
-              {showField("street") && (
-                <FormInput
-                  label={t("common.street") || "Street"}
-                  value={formData.street}
-                  onChange={(e) => update("street", e.target.value)}
-                  placeholder="e.g., Main Street"
-                  isRequired={false}
-                />
-              )}
-              {showField("area") && (
-                <FormInput
-                  label={t("common.area") || "Area"}
-                  value={formData.area}
-                  onChange={(e) => update("area", e.target.value)}
-                  placeholder="e.g., Village Center"
-                  isRequired={false}
-                />
-              )}
-              {showField("villa_no") && (
-                <FormInput
-                  label="Villa No"
-                  value={formData.villa_no}
-                  onChange={(e) => update("villa_no", e.target.value)}
-                  placeholder="Enter villa number"
-                  isRequired={false}
-                />
-              )}
-            </>
-          )}
-
-          {/* INDUSTRY */}
-          {isIndustry && (
-            <>
-              {showField("industry_name") && (
-                <FormInput
-                  label="Industry Name"
-                  value={formData.industry_name}
-                  onChange={(e) => update("industry_name", e.target.value)}
-                  placeholder="Enter industry name"
-                  isRequired={false}
-                />
-              )}
-              {showField("industry_type") && (
-                <FormInput
-                  label="Industry Type"
-                  value={formData.industry_type}
-                  onChange={(e) => update("industry_type", e.target.value)}
-                  placeholder="Enter industry type"
-                  isRequired={false}
-                />
-              )}
-              {showField("area") && (
-                <FormInput
-                  label={t("common.area") || "Area"}
-                  value={formData.area}
-                  onChange={(e) => update("area", e.target.value)}
-                  placeholder="e.g., Industrial Zone"
-                  isRequired={false}
-                />
-              )}
-            </>
-          )}
-
-          {showField("pincode") && (
-            <FormInput
-              label={t("common.pincode") || "Pincode"}
-              value={formData.pincode}
-              onChange={(e) => {
-                const numericValue = e.target.value.replace(/[^0-9]/g, "");
-                update("pincode", numericValue);
-              }}
-              placeholder="6 digit pincode"
-              maxLength={6}
-              inputMode="numeric"
-              error={fieldErrors.pincode}
-              isRequired={false}
-            />
-          )}
-          {showField("latitude") && (
-            <FormInput
-              label={t("common.latitude") || "Latitude"}
-              value={formData.latitude}
-              onChange={(e) => update("latitude", e.target.value)}
-              placeholder="e.g., 13.0827"
-              type="number"
-              step="0.0001"
-              error={fieldErrors.latitude}
-              isRequired={false}
-            />
-          )}
-          {showField("longitude") && (
-            <FormInput
-              label={t("common.longitude") || "Longitude"}
-              value={formData.longitude}
-              onChange={(e) => update("longitude", e.target.value)}
-              placeholder="e.g., 80.2707"
-              type="number"
-              step="0.0001"
-              error={fieldErrors.longitude}
-              isRequired={false}
-            />
-          )}
-          {(showField("latitude") || showField("longitude")) && (
-            <div className="flex items-end">
-              <AutoDetectLocationButton
-                onDetected={handleLocationDetected}
-                label={t("common.detect_current_location") || "Detect current location"}
-              />
-            </div>
-          )}
-          {showField("country_id") && (
-            <ShadcnSelect
-              label={t("common.country") || "Country"}
-              value={formData.country_id}
-              onChange={(v: string) => {
-                update("country_id", v);
-                update("state_id", "");
-                update("district_id", "");
-                update("city_id", "");
-                update("zone_id", "");
-                update("ward_id", "");
-                update("panchayat_id", "");
-              }}
-              options={dropdowns.countries.map((c: any) => ({
-                value: resolveId(c),
-                label: c.name,
-              }))}
-              placeholder={t("common.select_item_placeholder", { item: t("common.country") }) || "Select country"}
-              error={fieldErrors.country_id}
-              isRequired={false}
-            />
-          )}
-          {showField("state_id") && (
-            <ShadcnSelect
-              label={t("common.state") || "State"}
-              value={formData.state_id}
-              onChange={(v: string) => {
-                update("state_id", v);
-                update("district_id", "");
-                update("city_id", "");
-                update("zone_id", "");
-                update("ward_id", "");
-                update("panchayat_id", "");
-              }}
-              options={filteredStates.map((s: any) => ({
-                value: resolveId(s),
-                label: s.name,
-              }))}
-              placeholder={t("common.select_item_placeholder", { item: t("common.state") }) || "Select state"}
-              error={fieldErrors.state_id}
-              isRequired={false}
-            />
-          )}
-          {showField("district_id") && (
-            <ShadcnSelect
-              label={t("common.district") || "District"}
-              value={formData.district_id}
-              onChange={(v: string) => {
-                update("district_id", v);
-                update("city_id", "");
-                update("zone_id", "");
-                update("ward_id", "");
-                update("panchayat_id", "");
-              }}
-              options={filteredDistricts.map((d: any) => ({
-                value: resolveId(d),
-                label: d.name,
-              }))}
-              placeholder={t("common.select_item_placeholder", { item: t("common.district") }) || "Select district"}
-              error={fieldErrors.district_id}
-              isRequired={false}
-            />
-          )}
-          {showField("city_id") && (
-            <ShadcnSelect
-              label={t("common.city") || "City"}
-              value={formData.city_id}
-              onChange={(v: string) => {
-                update("city_id", v);
-                update("zone_id", "");
-                update("ward_id", "");
-                update("panchayat_id", "");
-              }}
-              options={filteredCities.map((c: any) => ({
-                value: resolveId(c),
-                label: c.name,
-              }))}
-              placeholder={t("common.select_item_placeholder", { item: t("common.city") }) || "Select city"}
-              error={fieldErrors.city_id}
-              isRequired={false}
-            />
-          )}
-          {showField("zone_id") && showZone && !isPanchayatSelected && (
-            <ShadcnSelect
-              label={t("common.zone") || "Zone"}
-              value={formData.zone_id || "__none__"}
-              onChange={(v: string) => {
-                const next = v === "__none__" ? "" : v;
-                update("zone_id", next);
-                update("ward_id", "");
-                update("panchayat_id", "");
-              }}
-              options={[
-                { value: "__none__", label: t("common.not_available") || "N/A" },
-                ...filteredZones.map((z: any) => ({
-                  value: resolveId(z),
-                  label: z.zone_name || z.name,
-                })),
-              ]}
-              placeholder={t("common.select_item_placeholder", { item: t("common.zone") }) || "Select zone"}
-              isRequired={false}
-            />
-          )}
-          {showField("panchayat_id") && showPanchayat && !isZoneSelected && (
-            <ShadcnSelect
-              label={t("admin.nav.panchayat") || "PLB (Participating Local Bodies)"}
-              value={formData.panchayat_id || "__none__"}
-              onChange={(v: string) => {
-                const next = v === "__none__" ? "" : v;
-                update("panchayat_id", next);
-                if (next) {
-                  update("zone_id", "");
-                  update("ward_id", "");
-                }
-              }}
-              options={[
-                { value: "__none__", label: t("common.not_available") || "N/A" },
-                ...filteredPanchayats.map((p: any) => ({
-                  value: resolveId(p),
-                  label: p.panchayat_name || p.name,
-                })),
-              ]}
-              placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") }) || "Select panchayat"}
-              isRequired={false}
-            />
-          )}
-          {showField("ward_id") && (isPanchayatSelected || Boolean(formData.zone_id)) && (
-            <ShadcnSelect
-              label={t("common.ward") || "Ward"}
-              value={formData.ward_id || "__none__"}
-              onChange={(v: string) => {
-                const next = v === "__none__" ? "" : v;
-                update("ward_id", next);
-              }}
-              options={[
-                { value: "__none__", label: t("common.not_available") || "N/A" },
-                ...filteredWards.map((w: any) => ({
-                  value: resolveId(w),
-                  label: w.ward_name || w.name,
-                })),
-              ]}
-              placeholder={t("common.select_item_placeholder", { item: t("common.ward") }) || "Select ward"}
-              isRequired={false}
-            />
-          )}
-        </FormSection>
-
-        <FormSection title={t("admin.customer_creation.property_info") || "Property Information"}>
-          {/* Display selected property and sub-property (read-only in form step) */}
-          {!isEdit && (showField("property_id") || showField("sub_property_id")) && (
-            <div className="md:col-span-3 bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  {showField("property_id") && (
-                    <p className="text-sm text-gray-600">
-                      {t("admin.customer_creation.selected_property") || "Selected Property"}:{" "}
-                      <span className="font-semibold text-gray-800">
-                        {dropdowns.properties.find((p: any) => resolveId(p) === formData.property_id)?.property_name || "-"}
-                      </span>
-                    </p>
-                  )}
-                  {showField("sub_property_id") && (
-                    <p className="text-sm text-gray-600">
-                      {t("admin.customer_creation.selected_sub_property") || "Selected Sub-Property"}:{" "}
-                      <span className="font-semibold text-gray-800">
-                        {dropdowns.subProperties.find((sp: any) => resolveId(sp) === formData.sub_property_id)?.sub_property_name || "-"}
-                      </span>
-                    </p>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setStep(0)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium transition"
-                >
-                  {t("common.change") || "Change"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {isEdit && showField("property_id") && (
-            <ShadcnSelect
-              label={t("admin.customer_creation.property") || "Property"}
-              value={formData.property_id}
-              onChange={(v) => {
-                update("property_id", v);
-                update("sub_property_id", "");
-              }}
-              options={dropdowns.properties.map((p: any) => ({
-                value: resolveId(p),
-                label: p.property_name,
-              }))}
-              placeholder={t("common.select_item_placeholder", { item: t("admin.customer_creation.property") }) || "Select property"}
-              error={fieldErrors.property_id}
-              isRequired={false}
-            />
-          )}
-          {isEdit && showField("sub_property_id") && (
-            <ShadcnSelect
-              label={t("admin.customer_creation.sub_property") || "Sub Property"}
-              value={formData.sub_property_id}
-              onChange={(v) => update("sub_property_id", v)}
-              options={dropdowns.subProperties
-                .filter(
-                  (sp: any) =>
-                    !formData.property_id ||
-                    normalizeEntityId(sp.property_id ?? sp.property) === formData.property_id ||
-                    resolveId(sp) === formData.sub_property_id,
-                )
-                .map((sp: any) => ({
-                  value: resolveId(sp),
-                  label: sp.sub_property_name,
-                }))}
-              placeholder={t("common.select_item_placeholder", { item: t("admin.customer_creation.sub_property") }) || "Select sub property"}
-              error={fieldErrors.sub_property_id}
-              isRequired={false}
-            />
-          )}
-
-          {showField("sqft") && (
-            <FormInput
-              label={t("admin.customer_creation.sqft") || "Square Feet (Sqft)"}
-              value={formData.sqft}
-              onChange={(e) => update("sqft", e.target.value)}
-              placeholder="e.g., 1200.50"
-              type="number"
-              step="0.01"
-              error={fieldErrors.sqft}
-            />
-          )}
-          {showField("water_consumption_lpd") && (
-            <FormInput
-              label="Water Consumption (L/day)"
-              value={formData.water_consumption_lpd}
-              onChange={(e) => update("water_consumption_lpd", e.target.value)}
-              placeholder="e.g., 40000"
-              type="number"
-              step="0.01"
-              isRequired={false}
-              error={fieldErrors.water_consumption_lpd}
-            />
-          )}
-          {showField("waste_collection_kg_per_day") && (
-            <FormInput
-              label="Waste Collection (kg/day)"
-              value={formData.waste_collection_kg_per_day}
-              onChange={(e) => update("waste_collection_kg_per_day", e.target.value)}
-              placeholder="e.g., 100"
-              type="number"
-              step="0.01"
-              error={fieldErrors.waste_collection_kg_per_day}
-              isRequired={false}
-            />
-          )}
-          {showField("waste_type_ids") && (
-            <div className="space-y-2 md:col-span-3">
-              <Label className="text-sm font-medium text-gray-700">Waste Types</Label>
-              <div className="grid grid-cols-1 gap-2 rounded-md border border-gray-200 p-3 sm:grid-cols-2 lg:grid-cols-4">
-                {visibleWasteTypes.length > 0 ? (
-                  visibleWasteTypes.map((wasteType: any) => {
-                    const value = resolveId(wasteType);
-                    return (
-                      <label key={value} className="flex items-center gap-2 text-sm text-gray-700">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 accent-blue-600"
-                          checked={formData.waste_type_ids.includes(value)}
-                          onChange={(event) => {
-                            update(
-                              "waste_type_ids",
-                              event.target.checked
-                                ? Array.from(new Set([...formData.waste_type_ids, value]))
-                                : formData.waste_type_ids.filter((item) => item !== value),
-                            );
-                          }}
-                        />
-                        {wasteType.waste_type_name ?? wasteType.name ?? value}
-                      </label>
-                    );
-                  })
-                ) : (
-                  <span className="text-sm text-gray-500">
-                    {isResidentialProperty
-                      ? "Residential property allows only Dry, Wet, Mixed, and Sanitary Waste."
-                      : "No waste types available"}
-                  </span>
-                )}
-              </div>
-              {isResidentialProperty && visibleWasteTypes.length > 0 && (
-                <p className="text-xs text-gray-500">
-                  Residential property allows only Dry, Wet, Mixed, and Sanitary Waste.
-                </p>
-              )}
-            </div>
-          )}
-          {showField("is_bulkwaste_generator") && (
-            <ShadcnSelect
-              label={tOrFallback("admin.customer_creation.bulk_waste_generator", "Bulk Waste Generator")}
-              value={formData.is_bulkwaste_generator ? "true" : "false"}
-              onChange={(v: string) => update("is_bulkwaste_generator", v === "true")}
-              options={[
-                { value: "true", label: tOrFallback("common.yes", "Yes") },
-                { value: "false", label: tOrFallback("common.no", "No") },
-              ]}
-              placeholder={tOrFallback("admin.customer_creation.bulk_waste_generator_placeholder", "Select option")}
-              isRequired={false}
-              disabled={true}
-            />
-          )}
-          <div className="md:col-span-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-            Bulk waste generator is auto-enabled when Sqft &gt; 20000, water consumption &gt; 40000 L/day, or waste collection &gt; 100 kg/day.
+      <ComponentCard
+        title={
+          isEdit
+            ? t("admin.customer_creation.title_edit") || "Edit Customer"
+            : t("admin.customer_creation.title_add") || "Add Customer"
+        }
+      >
+        {/* Step indicator for new records */}
+        {!isEdit && (
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-800">
+              📍{" "}
+              {t("admin.customer_creation.step_2_info") ||
+                "Step 2 of 2: Fill in the customer details"}
+            </p>
           </div>
-        </FormSection>
-
-        <FormSection title={t("admin.customer_creation.identification") || "Identification"}>
-          {showField("id_proof_type") && (
-            <ShadcnSelect
-              label={t("admin.customer_creation.id_proof_type") || "ID Proof Type"}
-              value={formData.id_proof_type}
-              onChange={(v: string) => update("id_proof_type", v)}
-              options={[
-                { value: "AADHAAR", label: t("admin.customer_creation.id_proof_aadhaar") || "Aadhaar" },
-                { value: "VOTER_ID", label: t("admin.customer_creation.id_proof_voter") || "Voter ID" },
-                { value: "PAN_CARD", label: t("admin.customer_creation.id_proof_pan") || "PAN Card" },
-                { value: "DL", label: t("admin.customer_creation.id_proof_dl") || "Driving License" },
-                { value: "PASSPORT", label: t("admin.customer_creation.id_proof_passport") || "Passport" },
-              ]}
-              placeholder={t("admin.customer_creation.id_proof_placeholder") || "Select ID proof type"}
-              error={fieldErrors.id_proof_type}
-              isRequired={false}
-            />
-          )}
-          {showField("id_no") && (
-            <div className="md:col-span-2">
-              <FormInput
-                label={t("admin.customer_creation.id_no") || "ID Number"}
-                value={formData.id_no}
-                onChange={(e) => update("id_no", e.target.value)}
-                placeholder="Enter identification number"
-                error={fieldErrors.id_no}
-                isRequired={false}
-              />
-            </div>
-          )}
-          {showField("member_count") && (
-            <FormInput
-              label="Family Member Count"
-              value={formData.member_count}
-              onChange={(e) => syncFamilyMemberCount(e.target.value.replace(/[^0-9]/g, ""))}
-              placeholder="e.g., 4"
-              inputMode="numeric"
-              isRequired={false}
-            />
-          )}
-          {showField("family_members") && (() => {
-            const maxCount = Number.parseInt(formData.member_count || "", 10);
-            const hasMaxCount = !isNaN(maxCount) && maxCount >= 0;
-            const atLimit = hasMaxCount && formData.family_members.length >= maxCount;
-            return (
-            <div className="md:col-span-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium text-gray-700">Family Members ID Proof</Label>
-                <button
-                  type="button"
-                  onClick={addFamilyMember}
-                  disabled={atLimit}
-                  title={atLimit ? "Reached the Family Member Count limit" : undefined}
-                  className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
-                >
-                  + Add Member
-                </button>
-              </div>
-              {hasMaxCount && (
-                <p className="text-xs text-gray-500">
-                  {formData.family_members.length}/{maxCount} member(s) added — set Family Member Count above to add more rows.
-                </p>
-              )}
-              {formData.family_members.length === 0 && (
-                <p className="text-sm text-gray-500">No family members added.</p>
-              )}
-              {formData.family_members.map((member, index) => (
-                <div key={index} className="grid grid-cols-1 gap-3 rounded-md border border-gray-200 p-3 md:grid-cols-[1fr_1fr_1fr_auto]">
-                  <Input
-                    value={member.member_name}
-                    onChange={(e) => updateFamilyMember(index, "member_name", e.target.value)}
-                    placeholder={`Member ${index + 1} name`}
-                  />
-                  <Select
-                    value={member.id_proof_type || undefined}
-                    onValueChange={(value) => updateFamilyMember(index, "id_proof_type", value)}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="ID proof type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="AADHAAR">Aadhaar</SelectItem>
-                      <SelectItem value="VOTER_ID">Voter ID</SelectItem>
-                      <SelectItem value="PAN_CARD">PAN Card</SelectItem>
-                      <SelectItem value="DL">Driving License</SelectItem>
-                      <SelectItem value="PASSPORT">Passport</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    value={member.id_no}
-                    onChange={(e) => updateFamilyMember(index, "id_no", e.target.value)}
-                    placeholder="ID number"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeFamilyMember(index)}
-                    className="rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-            );
-          })()}
-        </FormSection>
-
-        {showField("is_active") && (
-          <FormSection title={t("common.status") || "Status"}>
-            <ShadcnSelect
-              label={t("common.status") || "Status"}
-              value={formData.is_active ? "true" : "false"}
-              onChange={(v: string) => update("is_active", v === "true")}
-              options={[
-                { value: "true", label: t("common.active") || "Active" },
-                { value: "false", label: t("common.inactive") || "Inactive" },
-              ]}
-              placeholder={t("common.select_status") || "Select status"}
-            />
-          </FormSection>
         )}
 
-        {/* ACTION BUTTONS */}
-        <div className="flex justify-between gap-3 mt-8 pt-6 border-t border-gray-200">
-          <div className="flex gap-3">
-            {!isEdit && (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <FormSection
+            title={
+              t("admin.customer_creation.company_project_info") ||
+              "Company & Project Information"
+            }
+          >
+            {!isEdit ? (
+              <div className="md:col-span-3 bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-600">
+                      {t("admin.customer_creation.selected_company") ||
+                        "Selected Company"}
+                      :{" "}
+                      <span className="font-semibold text-gray-800">
+                        {companies.find((c) => c.value === companyUniqueId)
+                          ?.label || "-"}
+                      </span>
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {t("admin.customer_creation.selected_project") ||
+                        "Selected Project"}
+                      :{" "}
+                      <span className="font-semibold text-gray-800">
+                        {projects.find((p) => p.value === projectId)?.label ||
+                          "-"}
+                      </span>
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStep(0)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium transition"
+                  >
+                    {t("common.change") || "Change"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <ShadcnSelect
+                  label={t("admin.nav.company") || "Company"}
+                  value={companyUniqueId}
+                  onChange={handleCompanyScopeChange}
+                  options={companies}
+                  placeholder={
+                    t("admin.nav.company_placeholder") || "Select company"
+                  }
+                  isRequired={true}
+                  disabled={
+                    Boolean(loggedInCompanyUniqueId) ||
+                    (!isSuperAdmin && !loggedInCompanyUniqueId)
+                  }
+                />
+                <ShadcnSelect
+                  label={t("admin.nav.project") || "Project"}
+                  value={projectId}
+                  onChange={handleProjectScopeChange}
+                  options={projects}
+                  placeholder={
+                    t("admin.nav.project_placeholder") || "Select project"
+                  }
+                  isRequired={true}
+                  disabled={!companyUniqueId || projects.length === 0}
+                />
+              </>
+            )}
+          </FormSection>
+
+          <FormSection
+            title={
+              t("admin.customer_creation.personal_info") ||
+              "Personal Information"
+            }
+          >
+            {showField("customer_name") && (
+              <FormInput
+                label={
+                  t("admin.customer_creation.customer_name") || "Customer Name"
+                }
+                value={formData.customer_name}
+                onChange={(e) => update("customer_name", e.target.value)}
+                placeholder="Enter full name"
+                error={fieldErrors.customer_name}
+                isRequired={false}
+              />
+            )}
+            {showField("contact_no") && (
+              <FormInput
+                label={
+                  t("admin.customer_creation.contact_no") || "Contact Number"
+                }
+                value={formData.contact_no}
+                onChange={(e) => {
+                  const numericValue = e.target.value.replace(/[^0-9]/g, "");
+                  update("contact_no", numericValue);
+                }}
+                placeholder="10 digit mobile number"
+                maxLength={10}
+                inputMode="numeric"
+                error={fieldErrors.contact_no}
+                isRequired={false}
+              />
+            )}
+            {showField("username") && (
+              <FormInput
+                label={t("login.username") || "Username"}
+                value={formData.username}
+                onChange={(e) => update("username", e.target.value)}
+                placeholder="Enter username"
+                error={fieldErrors.username}
+                isRequired={false}
+              />
+            )}
+            {showField("email") && (
+              <FormInput
+                label={t("admin.customer_creation.email") || "Email Address"}
+                value={formData.email}
+                onChange={(e) => update("email", e.target.value)}
+                placeholder="Enter email address"
+                type="email"
+                error={fieldErrors.email}
+                isRequired={false}
+              />
+            )}
+
+            {(showField("password") || isEdit) && (
+              <PasswordInput
+                label={t("login.password") || "Password"}
+                value={formData.password}
+                onChange={(e) => update("password", e.target.value)}
+                placeholder={
+                  isEdit
+                    ? "Leave blank to keep current password"
+                    : "Enter password (min 8 chars)"
+                }
+                isRequired={false}
+              />
+            )}
+
+            {/* ── Password Security Info (edit mode only) ── */}
+            {isEdit && (
+              <div className="md:col-span-3">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/40">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                      Password Security
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowChangePassword(true)}
+                      className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                    >
+                      Change Password
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                    <div>
+                      <span className="text-gray-500">Account Created:</span>{" "}
+                      <span className="font-medium text-gray-800 dark:text-gray-100">
+                        {customerCreatedAt
+                          ? new Date(customerCreatedAt).toLocaleString()
+                          : "—"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">
+                        Last Password Changed:
+                      </span>{" "}
+                      <span className="font-medium text-gray-800 dark:text-gray-100">
+                        {passwordCrtDate
+                          ? new Date(passwordCrtDate).toLocaleString()
+                          : "Never changed"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    {passwordCrtDate ? (
+                      <PasswordPriorityBadge
+                        ageDays={getPasswordAgeDays(passwordCrtDate)}
+                      />
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
+                        Password has never been changed — consider updating
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </FormSection>
+
+          <FormSection
+            title={
+              t("admin.customer_creation.address_info") ||
+              "Address & Location Information"
+            }
+          >
+            {/* INDIVIDUAL HOUSE */}
+            {isIndividual && (
+              <>
+                {showField("building_no") && (
+                  <FormInput
+                    label={t("common.building_no") || "Building No"}
+                    value={formData.building_no}
+                    onChange={(e) => update("building_no", e.target.value)}
+                    placeholder="e.g., 13A"
+                  />
+                )}
+                {showField("street") && (
+                  <FormInput
+                    label={t("common.street") || "Street"}
+                    value={formData.street}
+                    onChange={(e) => update("street", e.target.value)}
+                    placeholder="e.g., Main Street"
+                    isRequired={false}
+                  />
+                )}
+                {showField("area") && (
+                  <FormInput
+                    label={t("common.area") || "Area"}
+                    value={formData.area}
+                    onChange={(e) => update("area", e.target.value)}
+                    placeholder="e.g., Village Center"
+                    isRequired={false}
+                  />
+                )}
+              </>
+            )}
+
+            {/* APARTMENT */}
+            {isApartment && (
+              <>
+                {showField("apartment_name") && (
+                  <FormInput
+                    label="Apartment Name"
+                    value={formData.apartment_name}
+                    onChange={(e) => update("apartment_name", e.target.value)}
+                    placeholder="Enter apartment name"
+                    isRequired={false}
+                  />
+                )}
+                {showField("block_no") && (
+                  <FormInput
+                    label="Block No"
+                    value={formData.block_no}
+                    onChange={(e) => update("block_no", e.target.value)}
+                    placeholder="Enter block number"
+                    isRequired={false}
+                  />
+                )}
+                {showField("flat_no") && (
+                  <FormInput
+                    label="Flat No"
+                    value={formData.flat_no}
+                    onChange={(e) => update("flat_no", e.target.value)}
+                    placeholder="Enter flat number"
+                    isRequired={false}
+                  />
+                )}
+              </>
+            )}
+
+            {/* VILLA */}
+            {isVilla && (
+              <>
+                {showField("street") && (
+                  <FormInput
+                    label={t("common.street") || "Street"}
+                    value={formData.street}
+                    onChange={(e) => update("street", e.target.value)}
+                    placeholder="e.g., Main Street"
+                    isRequired={false}
+                  />
+                )}
+                {showField("area") && (
+                  <FormInput
+                    label={t("common.area") || "Area"}
+                    value={formData.area}
+                    onChange={(e) => update("area", e.target.value)}
+                    placeholder="e.g., Village Center"
+                    isRequired={false}
+                  />
+                )}
+                {showField("villa_no") && (
+                  <FormInput
+                    label="Villa No"
+                    value={formData.villa_no}
+                    onChange={(e) => update("villa_no", e.target.value)}
+                    placeholder="Enter villa number"
+                    isRequired={false}
+                  />
+                )}
+              </>
+            )}
+
+            {/* INDUSTRY */}
+            {isIndustry && (
+              <>
+                {showField("industry_name") && (
+                  <FormInput
+                    label="Industry Name"
+                    value={formData.industry_name}
+                    onChange={(e) => update("industry_name", e.target.value)}
+                    placeholder="Enter industry name"
+                    isRequired={false}
+                  />
+                )}
+                {showField("industry_type") && (
+                  <FormInput
+                    label="Industry Type"
+                    value={formData.industry_type}
+                    onChange={(e) => update("industry_type", e.target.value)}
+                    placeholder="Enter industry type"
+                    isRequired={false}
+                  />
+                )}
+                {showField("area") && (
+                  <FormInput
+                    label={t("common.area") || "Area"}
+                    value={formData.area}
+                    onChange={(e) => update("area", e.target.value)}
+                    placeholder="e.g., Industrial Zone"
+                    isRequired={false}
+                  />
+                )}
+              </>
+            )}
+
+            {showField("pincode") && (
+              <FormInput
+                label={t("common.pincode") || "Pincode"}
+                value={formData.pincode}
+                onChange={(e) => {
+                  const numericValue = e.target.value.replace(/[^0-9]/g, "");
+                  update("pincode", numericValue);
+                }}
+                placeholder="6 digit pincode"
+                maxLength={6}
+                inputMode="numeric"
+                error={fieldErrors.pincode}
+                isRequired={false}
+              />
+            )}
+            {showField("latitude") && (
+              <FormInput
+                label={t("common.latitude") || "Latitude"}
+                value={formData.latitude}
+                onChange={(e) => update("latitude", e.target.value)}
+                placeholder="e.g., 13.0827"
+                type="number"
+                step="0.0001"
+                error={fieldErrors.latitude}
+                isRequired={false}
+              />
+            )}
+            {showField("longitude") && (
+              <FormInput
+                label={t("common.longitude") || "Longitude"}
+                value={formData.longitude}
+                onChange={(e) => update("longitude", e.target.value)}
+                placeholder="e.g., 80.2707"
+                type="number"
+                step="0.0001"
+                error={fieldErrors.longitude}
+                isRequired={false}
+              />
+            )}
+            {(showField("latitude") || showField("longitude")) && (
+              <div className="flex items-end">
+                <AutoDetectLocationButton
+                  onDetected={handleLocationDetected}
+                  label={
+                    t("common.detect_current_location") ||
+                    "Detect current location"
+                  }
+                />
+              </div>
+            )}
+            {showField("country_id") && (
+              <ShadcnSelect
+                label={t("common.country") || "Country"}
+                value={formData.country_id}
+                onChange={(v: string) => {
+                  update("country_id", v);
+                  update("state_id", "");
+                  update("district_id", "");
+                  update("city_id", "");
+                  update("zone_id", "");
+                  update("ward_id", "");
+                  update("panchayat_id", "");
+                }}
+                options={dropdowns.countries.map((c: any) => ({
+                  value: resolveId(c),
+                  label: c.name,
+                }))}
+                placeholder={
+                  t("common.select_item_placeholder", {
+                    item: t("common.country"),
+                  }) || "Select country"
+                }
+                error={fieldErrors.country_id}
+                isRequired={false}
+              />
+            )}
+            {showField("state_id") && (
+              <ShadcnSelect
+                label={t("common.state") || "State"}
+                value={formData.state_id}
+                onChange={(v: string) => {
+                  update("state_id", v);
+                  update("district_id", "");
+                  update("city_id", "");
+                  update("zone_id", "");
+                  update("ward_id", "");
+                  update("panchayat_id", "");
+                }}
+                options={filteredStates.map((s: any) => ({
+                  value: resolveId(s),
+                  label: s.name,
+                }))}
+                placeholder={
+                  t("common.select_item_placeholder", {
+                    item: t("common.state"),
+                  }) || "Select state"
+                }
+                error={fieldErrors.state_id}
+                isRequired={false}
+              />
+            )}
+            {showField("district_id") && (
+              <ShadcnSelect
+                label={t("common.district") || "District"}
+                value={formData.district_id}
+                onChange={(v: string) => {
+                  update("district_id", v);
+                  update("city_id", "");
+                  update("zone_id", "");
+                  update("ward_id", "");
+                  update("panchayat_id", "");
+                }}
+                options={filteredDistricts.map((d: any) => ({
+                  value: resolveId(d),
+                  label: d.name,
+                }))}
+                placeholder={
+                  t("common.select_item_placeholder", {
+                    item: t("common.district"),
+                  }) || "Select district"
+                }
+                error={fieldErrors.district_id}
+                isRequired={false}
+              />
+            )}
+            {showField("city_id") && (
+              <ShadcnSelect
+                label={t("common.city") || "City"}
+                value={formData.city_id}
+                onChange={(v: string) => {
+                  update("city_id", v);
+                  update("zone_id", "");
+                  update("ward_id", "");
+                  update("panchayat_id", "");
+                }}
+                options={filteredCities.map((c: any) => ({
+                  value: resolveId(c),
+                  label: c.name,
+                }))}
+                placeholder={
+                  t("common.select_item_placeholder", {
+                    item: t("common.city"),
+                  }) || "Select city"
+                }
+                error={fieldErrors.city_id}
+                isRequired={false}
+              />
+            )}
+            {showField("zone_id") && showZone && !isPanchayatSelected && (
+              <ShadcnSelect
+                label={t("common.zone") || "Zone"}
+                value={formData.zone_id || "__none__"}
+                onChange={(v: string) => {
+                  const next = v === "__none__" ? "" : v;
+                  update("zone_id", next);
+                  update("ward_id", "");
+                  update("panchayat_id", "");
+                }}
+                options={[
+                  {
+                    value: "__none__",
+                    label: t("common.not_available") || "N/A",
+                  },
+                  ...filteredZones.map((z: any) => ({
+                    value: resolveId(z),
+                    label: z.zone_name || z.name,
+                  })),
+                ]}
+                placeholder={
+                  t("common.select_item_placeholder", {
+                    item: t("common.zone"),
+                  }) || "Select zone"
+                }
+                isRequired={false}
+              />
+            )}
+            {showField("panchayat_id") && showPanchayat && !isZoneSelected && (
+              <ShadcnSelect
+                label={
+                  t("admin.nav.panchayat") || "PLB (Participating Local Bodies)"
+                }
+                value={formData.panchayat_id || "__none__"}
+                onChange={(v: string) => {
+                  const next = v === "__none__" ? "" : v;
+                  update("panchayat_id", next);
+                  if (next) {
+                    update("zone_id", "");
+                    update("ward_id", "");
+                  }
+                }}
+                options={[
+                  {
+                    value: "__none__",
+                    label: t("common.not_available") || "N/A",
+                  },
+                  ...filteredPanchayats.map((p: any) => ({
+                    value: resolveId(p),
+                    label: p.panchayat_name || p.name,
+                  })),
+                ]}
+                placeholder={
+                  t("common.select_item_placeholder", {
+                    item: t("admin.nav.panchayat"),
+                  }) || "Select panchayat"
+                }
+                isRequired={false}
+              />
+            )}
+            {showField("ward_id") &&
+              (isPanchayatSelected || Boolean(formData.zone_id)) && (
+                <ShadcnSelect
+                  label={t("common.ward") || "Ward"}
+                  value={formData.ward_id || "__none__"}
+                  onChange={(v: string) => {
+                    const next = v === "__none__" ? "" : v;
+                    update("ward_id", next);
+                  }}
+                  options={[
+                    {
+                      value: "__none__",
+                      label: t("common.not_available") || "N/A",
+                    },
+                    ...filteredWards.map((w: any) => ({
+                      value: resolveId(w),
+                      label: w.ward_name || w.name,
+                    })),
+                  ]}
+                  placeholder={
+                    t("common.select_item_placeholder", {
+                      item: t("common.ward"),
+                    }) || "Select ward"
+                  }
+                  isRequired={false}
+                />
+              )}
+          </FormSection>
+
+          <FormSection
+            title={
+              t("admin.customer_creation.property_info") ||
+              "Property Information"
+            }
+          >
+            {/* Display selected property and sub-property (read-only in form step) */}
+            {!isEdit &&
+              (showField("property_id") || showField("sub_property_id")) && (
+                <div className="md:col-span-3 bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      {showField("property_id") && (
+                        <p className="text-sm text-gray-600">
+                          {t("admin.customer_creation.selected_property") ||
+                            "Selected Property"}
+                          :{" "}
+                          <span className="font-semibold text-gray-800">
+                            {dropdowns.properties.find(
+                              (p: any) => resolveId(p) === formData.property_id,
+                            )?.property_name || "-"}
+                          </span>
+                        </p>
+                      )}
+                      {showField("sub_property_id") && (
+                        <p className="text-sm text-gray-600">
+                          {t("admin.customer_creation.selected_sub_property") ||
+                            "Selected Sub-Property"}
+                          :{" "}
+                          <span className="font-semibold text-gray-800">
+                            {dropdowns.subProperties.find(
+                              (sp: any) =>
+                                resolveId(sp) === formData.sub_property_id,
+                            )?.sub_property_name || "-"}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setStep(0)}
+                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium transition"
+                    >
+                      {t("common.change") || "Change"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+            {isEdit && showField("property_id") && (
+              <ShadcnSelect
+                label={t("admin.customer_creation.property") || "Property"}
+                value={formData.property_id}
+                onChange={(v) => {
+                  update("property_id", v);
+                  update("sub_property_id", "");
+                }}
+                options={dropdowns.properties.map((p: any) => ({
+                  value: resolveId(p),
+                  label: p.property_name,
+                }))}
+                placeholder={
+                  t("common.select_item_placeholder", {
+                    item: t("admin.customer_creation.property"),
+                  }) || "Select property"
+                }
+                error={fieldErrors.property_id}
+                isRequired={false}
+              />
+            )}
+            {isEdit && showField("sub_property_id") && (
+              <ShadcnSelect
+                label={
+                  t("admin.customer_creation.sub_property") || "Sub Property"
+                }
+                value={formData.sub_property_id}
+                onChange={(v) => update("sub_property_id", v)}
+                options={dropdowns.subProperties
+                  .filter(
+                    (sp: any) =>
+                      !formData.property_id ||
+                      normalizeEntityId(sp.property_id ?? sp.property) ===
+                        formData.property_id ||
+                      resolveId(sp) === formData.sub_property_id,
+                  )
+                  .map((sp: any) => ({
+                    value: resolveId(sp),
+                    label: sp.sub_property_name,
+                  }))}
+                placeholder={
+                  t("common.select_item_placeholder", {
+                    item: t("admin.customer_creation.sub_property"),
+                  }) || "Select sub property"
+                }
+                error={fieldErrors.sub_property_id}
+                isRequired={false}
+              />
+            )}
+
+            {showField("sqft") && (
+              <FormInput
+                label={
+                  t("admin.customer_creation.sqft") || "Square Feet (Sqft)"
+                }
+                value={formData.sqft}
+                onChange={(e) => update("sqft", e.target.value)}
+                placeholder="e.g., 1200.50"
+                type="number"
+                step="0.01"
+                error={fieldErrors.sqft}
+              />
+            )}
+            {showField("water_consumption_lpd") && (
+              <FormInput
+                label="Water Consumption (L/day)"
+                value={formData.water_consumption_lpd}
+                onChange={(e) =>
+                  update("water_consumption_lpd", e.target.value)
+                }
+                placeholder="e.g., 40000"
+                type="number"
+                step="0.01"
+                isRequired={false}
+                error={fieldErrors.water_consumption_lpd}
+              />
+            )}
+            {showField("waste_collection_kg_per_day") && (
+              <FormInput
+                label="Waste Collection (kg/day)"
+                value={formData.waste_collection_kg_per_day}
+                onChange={(e) =>
+                  update("waste_collection_kg_per_day", e.target.value)
+                }
+                placeholder="e.g., 100"
+                type="number"
+                step="0.01"
+                error={fieldErrors.waste_collection_kg_per_day}
+                isRequired={false}
+              />
+            )}
+            {showField("waste_type_ids") && (
+              <div className="space-y-2 md:col-span-3">
+                <Label className="text-sm font-medium text-gray-700">
+                  Waste Types
+                </Label>
+                <div className="grid grid-cols-1 gap-2 rounded-md border border-gray-200 p-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {visibleWasteTypes.length > 0 ? (
+                    visibleWasteTypes.map((wasteType: any) => {
+                      const value = resolveId(wasteType);
+                      return (
+                        <label
+                          key={value}
+                          className="flex items-center gap-2 text-sm text-gray-700"
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-blue-600"
+                            checked={formData.waste_type_ids.includes(value)}
+                            onChange={(event) => {
+                              update(
+                                "waste_type_ids",
+                                event.target.checked
+                                  ? Array.from(
+                                      new Set([
+                                        ...formData.waste_type_ids,
+                                        value,
+                                      ]),
+                                    )
+                                  : formData.waste_type_ids.filter(
+                                      (item) => item !== value,
+                                    ),
+                              );
+                            }}
+                          />
+                          {wasteType.waste_type_name ?? wasteType.name ?? value}
+                        </label>
+                      );
+                    })
+                  ) : (
+                    <span className="text-sm text-gray-500">
+                      {isResidentialProperty
+                        ? "Residential property allows only Dry, Wet, Mixed, and Sanitary Waste."
+                        : "No waste types available"}
+                    </span>
+                  )}
+                </div>
+                {isResidentialProperty && visibleWasteTypes.length > 0 && (
+                  <p className="text-xs text-gray-500">
+                    Residential property allows only Dry, Wet, Mixed, and
+                    Sanitary Waste.
+                  </p>
+                )}
+              </div>
+            )}
+            {showField("is_bulkwaste_generator") && (
+              <ShadcnSelect
+                label={tOrFallback(
+                  "admin.customer_creation.bulk_waste_generator",
+                  "Bulk Waste Generator",
+                )}
+                value={formData.is_bulkwaste_generator ? "true" : "false"}
+                onChange={(v: string) =>
+                  update("is_bulkwaste_generator", v === "true")
+                }
+                options={[
+                  { value: "true", label: tOrFallback("common.yes", "Yes") },
+                  { value: "false", label: tOrFallback("common.no", "No") },
+                ]}
+                placeholder={tOrFallback(
+                  "admin.customer_creation.bulk_waste_generator_placeholder",
+                  "Select option",
+                )}
+                isRequired={false}
+                disabled={true}
+              />
+            )}
+            <div className="md:col-span-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              Bulk waste generator is auto-enabled when Sqft &gt; 20000, water
+              consumption &gt; 40000 L/day, or waste collection &gt; 100 kg/day.
+            </div>
+          </FormSection>
+
+          <FormSection
+            title={
+              t("admin.customer_creation.identification") || "Identification"
+            }
+          >
+            {showField("id_proof_type") && (
+              <ShadcnSelect
+                label={
+                  t("admin.customer_creation.id_proof_type") || "ID Proof Type"
+                }
+                value={formData.id_proof_type}
+                onChange={(v: string) => update("id_proof_type", v)}
+                options={[
+                  {
+                    value: "AADHAAR",
+                    label:
+                      t("admin.customer_creation.id_proof_aadhaar") ||
+                      "Aadhaar",
+                  },
+                  {
+                    value: "VOTER_ID",
+                    label:
+                      t("admin.customer_creation.id_proof_voter") || "Voter ID",
+                  },
+                  {
+                    value: "PAN_CARD",
+                    label:
+                      t("admin.customer_creation.id_proof_pan") || "PAN Card",
+                  },
+                  {
+                    value: "DL",
+                    label:
+                      t("admin.customer_creation.id_proof_dl") ||
+                      "Driving License",
+                  },
+                  {
+                    value: "PASSPORT",
+                    label:
+                      t("admin.customer_creation.id_proof_passport") ||
+                      "Passport",
+                  },
+                ]}
+                placeholder={
+                  t("admin.customer_creation.id_proof_placeholder") ||
+                  "Select ID proof type"
+                }
+                error={fieldErrors.id_proof_type}
+                isRequired={false}
+              />
+            )}
+            {showField("id_no") && (
+              <div className="md:col-span-2">
+                <FormInput
+                  label={t("admin.customer_creation.id_no") || "ID Number"}
+                  value={formData.id_no}
+                  onChange={(e) => update("id_no", e.target.value)}
+                  placeholder="Enter identification number"
+                  error={fieldErrors.id_no}
+                  isRequired={false}
+                />
+              </div>
+            )}
+            {showField("member_count") && (
+              <FormInput
+                label="Family Member Count"
+                value={formData.member_count}
+                onChange={(e) =>
+                  syncFamilyMemberCount(e.target.value.replace(/[^0-9]/g, ""))
+                }
+                placeholder="e.g., 4"
+                inputMode="numeric"
+                isRequired={false}
+              />
+            )}
+            {showField("family_members") &&
+              (() => {
+                const maxCount = Number.parseInt(
+                  formData.member_count || "",
+                  10,
+                );
+                const hasMaxCount = !isNaN(maxCount) && maxCount >= 0;
+                const atLimit =
+                  hasMaxCount && formData.family_members.length >= maxCount;
+                return (
+                  <div className="md:col-span-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium text-gray-700">
+                        Family Members ID Proof
+                      </Label>
+                      <button
+                        type="button"
+                        onClick={addFamilyMember}
+                        disabled={atLimit}
+                        title={
+                          atLimit
+                            ? "Reached the Family Member Count limit"
+                            : undefined
+                        }
+                        className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+                      >
+                        + Add Member
+                      </button>
+                    </div>
+                    {hasMaxCount && (
+                      <p className="text-xs text-gray-500">
+                        {formData.family_members.length}/{maxCount} member(s)
+                        added — set Family Member Count above to add more rows.
+                      </p>
+                    )}
+                    {formData.family_members.length === 0 && (
+                      <p className="text-sm text-gray-500">
+                        No family members added.
+                      </p>
+                    )}
+                    {formData.family_members.map((member, index) => (
+                      <div
+                        key={index}
+                        className="grid grid-cols-1 gap-3 rounded-md border border-gray-200 p-3 md:grid-cols-[1fr_1fr_1fr_auto]"
+                      >
+                        <Input
+                          value={member.member_name}
+                          onChange={(e) =>
+                            updateFamilyMember(
+                              index,
+                              "member_name",
+                              e.target.value,
+                            )
+                          }
+                          placeholder={`Member ${index + 1} name`}
+                        />
+                        <Select
+                          value={member.id_proof_type || undefined}
+                          onValueChange={(value) =>
+                            updateFamilyMember(index, "id_proof_type", value)
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="ID proof type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="AADHAAR">Aadhaar</SelectItem>
+                            <SelectItem value="VOTER_ID">Voter ID</SelectItem>
+                            <SelectItem value="PAN_CARD">PAN Card</SelectItem>
+                            <SelectItem value="DL">Driving License</SelectItem>
+                            <SelectItem value="PASSPORT">Passport</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          value={member.id_no}
+                          onChange={(e) =>
+                            updateFamilyMember(index, "id_no", e.target.value)
+                          }
+                          placeholder="ID number"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeFamilyMember(index)}
+                          className="rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+          </FormSection>
+
+          {showField("is_active") && (
+            <FormSection title={t("common.status") || "Status"}>
+              <ShadcnSelect
+                label={t("common.status") || "Status"}
+                value={formData.is_active ? "true" : "false"}
+                onChange={(v: string) => update("is_active", v === "true")}
+                options={[
+                  { value: "true", label: t("common.active") || "Active" },
+                  { value: "false", label: t("common.inactive") || "Inactive" },
+                ]}
+                placeholder={t("common.select_status") || "Select status"}
+              />
+            </FormSection>
+          )}
+
+          {/* ACTION BUTTONS */}
+          <div className="flex justify-between gap-3 mt-8 pt-6 border-t border-gray-200">
+            <div className="flex gap-3">
+              {!isEdit && (
+                <button
+                  type="button"
+                  onClick={() => setStep(0)}
+                  className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
+                >
+                  {t("common.back") || "Back"}
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setStep(0)}
-                className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
+                onClick={() =>
+                  navigate(ENC_LIST_PATH, {
+                    state: { companyUniqueId, projectId },
+                  })
+                }
+                className="bg-red-500 hover:bg-red-600 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
               >
-                {t("common.back") || "Back"}
+                {t("common.cancel") || "Cancel"}
               </button>
-            )}
+            </div>
             <button
-              type="button"
-              onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
-              className="bg-red-500 hover:bg-red-600 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
+              type="submit"
+              disabled={isSubmitting}
+              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-2.5 rounded-md font-medium transition duration-200 flex items-center justify-center min-w-[120px]"
             >
-              {t("common.cancel") || "Cancel"}
+              {isSubmitting ? (
+                <>
+                  <svg
+                    className="animate-spin h-4 w-4 mr-2"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  {t("common.saving") || "Saving..."}
+                </>
+              ) : isEdit ? (
+                t("common.update") || "Update"
+              ) : (
+                t("common.save") || "Save"
+              )}
             </button>
           </div>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-2.5 rounded-md font-medium transition duration-200 flex items-center justify-center min-w-[120px]"
-          >
-            {isSubmitting ? (
-              <>
-                <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                {t("common.saving") || "Saving..."}
-              </>
-            ) : isEdit ? (
-              t("common.update") || "Update"
-            ) : (
-              t("common.save") || "Save"
-            )}
-          </button>
-        </div>
-      </form>
-    </ComponentCard>
+        </form>
+      </ComponentCard>
     </>
   );
 }
