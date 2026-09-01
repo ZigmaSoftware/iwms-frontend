@@ -108,6 +108,7 @@ export type EncryptedRoutes = {
   encTripExceptionLog: string;
   encVehicleBreakdown: string;
   encTripRetripRequest: string;
+  encTripDelayReport: string;
 
   // dashboard
   encDashboardOverall: string;
@@ -244,6 +245,7 @@ const plainRoutes: EncryptedRoutes = {
   encTripExceptionLog: "trip-exception-log",
   encVehicleBreakdown: "vehicle-breakdowns",
   encTripRetripRequest: "retrip-requests",
+  encTripDelayReport: "trip-delay-reports",
 
   // palakkad
 
