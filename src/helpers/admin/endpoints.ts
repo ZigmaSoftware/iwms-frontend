@@ -29,13 +29,11 @@ export const adminEndpoints = {
   cities: "masters/cities",
   zones: "masters/zones",
   wards: "masters/wards",
-  blocks: "masters/blocks",
   departments: "masters/departments",
   designations: "masters/designations",
   panchayats: "masters/panchayat",
   panchayatLeaders: "masters/panchayat-leaders",
   districtLeaders: "masters/district-leaders",
-  hierarchies: "masters/hierarchy",
   blockPanchayatUnions: "masters/block-panchayat-unions",
   plants: "masters/plants",
 
@@ -106,16 +104,8 @@ export const adminEndpoints = {
   /* =========================
      USER CREATION
   ========================= */
-  usersCreation: "user-creations/users-creation",
   staffCreation: "user-creations/staffcreation",
-  supervisorZoneMap: "user-creations/supervisor-zone-map",
-  unassignedStaffPool: "user-creations/unassigned-staff-pool",
   staffAccessConfiguration: "user-creations/staff-access-configuration",
-
-  /* =========================
-     PROCESS
-  ========================= */
-  zonePropertyLoadTrackers: "process-items/zone-property-load-tracker",
 
   /* =========================
      CUSTOMERS
@@ -158,7 +148,6 @@ export const adminEndpoints = {
   ========================= */
   vehicleTypes: "transport-masters/vehicle-type",
   vehicleCreations: "transport-masters/vehicle-creation",
-  tripAttendances: "transport-masters/trip-attendance",
   fuels: "transport-masters/fuels",
 
   /* =========================
@@ -169,11 +158,6 @@ export const adminEndpoints = {
   /* =========================
      AUDITS
   ========================= */
-  vehicleTripAudits: "audits/vehicle-trip-audit",
-  tripExceptionLogs: "audits/trip-exception-log",
-  binLoadLogs: "audits/bin-load-log",
-  supervisorZoneAccessAudits: "audits/supervisor-zone-access-audit",
-  staffTemplateAuditLogs: "audits/stafftemplate-audit-log",
    loginAudits: "audits/login-audit",
    commonAudits: "audits/common-audit",
 } as const;

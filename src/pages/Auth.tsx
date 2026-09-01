@@ -17,6 +17,7 @@ import {
 import {
   getStoredColumnPermissions,
   getStoredPermissions,
+  hasAnyPermission,
 } from "@/utils/permissions";
 import {
   persistLoginSession,
@@ -129,8 +130,9 @@ export default function Auth() {
 
       // Route based on role:
       //   Admin-type roles (Company Admin, superadmin, etc.) → /admin
-      //   All other staff (Driver, Operator, Supervisor, User) → /dashboard
-      const hasAdminRole = isAdmin(normalizedRole);
+      //   Any other role granted module/screen permissions → /admin
+      //   Everyone else (no admin-module access) → /dashboard
+      const hasAdminRole = isAdmin(normalizedRole, hasAnyPermission("view", freshPermissions));
 
       if (hasAdminRole) {
         setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);

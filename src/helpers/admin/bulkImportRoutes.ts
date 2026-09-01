@@ -35,7 +35,6 @@ const routeEntityBySlug: Record<string, AdminEntity> = {
   "staff-creation": "staffCreation",
   "staff-template": "staffTemplateCreation",
   "alternative-staff-template": "alternativeStaffTemplate",
-  "supervisor-zone-map": "supervisorZoneMap",
   "customer-creation": "customerCreations",
   "apartment-list": "customerCreations",
   feedback: "feedbacks",
@@ -62,12 +61,6 @@ const routeEntityBySlug: Record<string, AdminEntity> = {
   "monthly-waste-comparison": "monthlyWasteComparison",
   "vehicle-breakdowns": "vehicleBreakdown",
   "waste-collected-data": "wasteCollections",
-  "zone-property-load-tracker": "zonePropertyLoadTrackers",
-  "unassigned-staff-pool": "unassignedStaffPool",
-  "trip-attendance": "tripAttendances",
-  "vehicle-trip-audit": "vehicleTripAudits",
-  "trip-exception-log": "tripExceptionLogs",
-  "bin-load-log": "binLoadLogs",
   "common-audit": "commonAudits",
   "login-audit": "loginAudits",
   "login-audits": "loginAudits",
@@ -100,10 +93,6 @@ const STAFF_EXCLUDED_SLUGS = new Set([
   "alternative-staff-template",
   "staff-template-audit",
   "staff-access-configuration",
-  "supervisor-zone-map",
-  "supervisor-zone-access-audit",
-  "unassigned-staff-pool",
-  "trip-attendance",
   // Bin Collection Event owns its own client-side fetch/filter/pagination
   // (binCollectionEventList.tsx). Letting SafeDataTable also drive it in
   // server/lazy mode races two independent fetches against the same

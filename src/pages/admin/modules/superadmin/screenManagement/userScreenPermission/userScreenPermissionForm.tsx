@@ -30,6 +30,7 @@ import {
 } from "@/helpers/admin/columnPermissionService";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
+import { api } from "@/api";
 import PermissionSection, { type PermissionSectionData } from "./PermissionSection";
 import { userScreenPermissionSchema } from "@/schemas/superadmin/screenManagement/userScreenPermission.schema";
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
@@ -148,6 +149,11 @@ export default function UserScreenPermissionForm() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const sectionDataRef = useRef<Record<string, PermissionSectionData>>({});
+  // Snapshot of mainScreenIds as loaded from the backend (edit mode), so we can
+  // diff against the current mainScreenIds on submit and delete any sections
+  // the user removed — otherwise a removed section is simply never re-sent and
+  // its old DB rows stay untouched, reappearing on the next load.
+  const loadedMainScreenIdsRef = useRef<string[]>([]);
 
   const effectiveCompanyId = companyIdFromQuery || companyUniqueId;
   const effectiveProjectId = isEdit
@@ -244,6 +250,7 @@ export default function UserScreenPermissionForm() {
       setProjectId(String(routeProjectId));
       sectionDataRef.current = {};
       setMainScreenIds([]);
+      loadedMainScreenIdsRef.current = [];
     }
   }, [isEdit, routeProjectId, isCompanyWideRoute, projectId, setProjectId]);
 
@@ -268,6 +275,7 @@ export default function UserScreenPermissionForm() {
           (Array.isArray(rows) ? rows : []).map((r: any) => r.mainscreen_id)
         );
         sectionDataRef.current = {};
+        loadedMainScreenIdsRef.current = ids;
         setMainScreenIds(ids);
       })
       .catch(() => {
@@ -360,6 +368,27 @@ export default function UserScreenPermissionForm() {
 
     try {
       const actionPath = `bulk-sync-multi-project/${effectiveProjectIdParam}`;
+
+      // Sections present when the form loaded but removed by the user before
+      // save must be explicitly deleted server-side — they're simply skipped
+      // by the sync loop below, which would otherwise leave their old rows
+      // untouched in the DB and have them reappear on the next load.
+      const currentIds = new Set(mainScreenIds);
+      const removedMainScreenIds = loadedMainScreenIdsRef.current.filter(
+        (id) => !currentIds.has(id)
+      );
+      for (const removedMainScreenId of removedMainScreenIds) {
+        await api.delete(
+          `/screen-managements/companywisescreenpermissions/delete-by-project/${effectiveProjectIdParam}/`,
+          {
+            params: {
+              company_id: effectiveCompanyId,
+              mainscreen_id: removedMainScreenId,
+              permission_type: permissionType,
+            },
+          }
+        );
+      }
 
       for (const mainScreenId of mainScreenIds) {
         const sectionData = sectionDataRef.current[mainScreenId];
