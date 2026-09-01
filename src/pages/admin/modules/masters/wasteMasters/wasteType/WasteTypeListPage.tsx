@@ -1,6 +1,6 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -34,8 +34,12 @@ export default function WasteTypeListPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const requestIdRef = useRef(0);
   const {
-    filters, onFilter, globalFilterValue, onGlobalFilterChange,
-    statusValue, onStatusFilterChange,
+    filters,
+    onFilter,
+    globalFilterValue,
+    onGlobalFilterChange,
+    statusValue,
+    onStatusFilterChange,
   } = useFilterBarFilters({
     initialFilters: {
       waste_type_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -44,7 +48,10 @@ export default function WasteTypeListPage() {
     },
   });
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -56,13 +63,14 @@ export default function WasteTypeListPage() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
   const { encMasters, encWasteTypes } = getEncryptedRoute();
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encMasters,
-    encWasteTypes,
-  );
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
+    createCrudRoutePaths(encMasters, encWasteTypes);
 
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
@@ -81,7 +89,10 @@ export default function WasteTypeListPage() {
       setIsLoading(true);
       try {
         const data = await wasteTypeApi.readAll({
-          params: { company_id: companyUniqueId, project_id: projectId || undefined },
+          params: {
+            company_id: companyUniqueId,
+            project_id: projectId || undefined,
+          },
         });
         if (!mounted || requestId !== requestIdRef.current) return;
         setAllWasteTypes(data as WasteTypeListRecord[]);
@@ -101,17 +112,28 @@ export default function WasteTypeListPage() {
   // scoped automatically by the backend; superadmin scoping is passed via
   // company_id/project_id params above) — no client-side narrowing needed.
   const rows: WasteTypeListRecord[] =
-    (isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)
+    (isSuperAdmin && companies.length === 0) ||
+    (!companyUniqueId && !isSuperAdmin)
       ? []
       : Array.isArray(allWasteTypes)
         ? allWasteTypes
         : [];
 
   const exportRows = rows.filter((row) => {
-    if (statusValue !== "all" && Boolean(row.is_active) !== (statusValue === "active")) return false;
+    if (
+      statusValue !== "all" &&
+      Boolean(row.is_active) !== (statusValue === "active")
+    )
+      return false;
     const search = globalFilterValue.trim().toLowerCase();
-    return !search || Object.values(row).some((value) =>
-      String(value ?? "").toLowerCase().includes(search));
+    return (
+      !search ||
+      Object.values(row).some((value) =>
+        String(value ?? "")
+          .toLowerCase()
+          .includes(search),
+      )
+    );
   });
 
   const indexTemplate = (
@@ -142,12 +164,14 @@ export default function WasteTypeListPage() {
         setIsUpdating(true);
         await wasteTypeApi.update(
           row.unique_id,
-          filterPayload({ is_active: value }) as { is_active: boolean }
+          filterPayload({ is_active: value }) as { is_active: boolean },
         );
         setAllWasteTypes((current) =>
           current.map((item) =>
-            item.unique_id === row.unique_id ? { ...item, is_active: value } : item
-          )
+            item.unique_id === row.unique_id
+              ? { ...item, is_active: value }
+              : item,
+          ),
         );
       } catch (error) {
         console.error("Failed to update waste type status", error);
@@ -171,9 +195,9 @@ export default function WasteTypeListPage() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
+      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
             {t("common.waste_type")}
           </h1>
           <p className="text-sm text-gray-500">
@@ -185,23 +209,43 @@ export default function WasteTypeListPage() {
             label={t("common.add_item", { item: t("common.waste_type") })}
             icon="pi pi-plus"
             className="p-button-success"
-           
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() =>
+              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+            }
           />
         </div>
       </div>
 
-      <FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
-        searchPlaceholder={t("common.search_placeholder", { item: t("common.waste_type") })}
-        statusValue={statusValue} onStatusChange={onStatusFilterChange} className="mb-4">
-        <FilterBarSelect value={companyUniqueId || ""} onChange={onCompanyChange} options={companies}
-          placeholder="All Companies" disabled={!isSuperAdmin || companies.length === 0} />
-        <FilterBarSelect value={projectId || ""} onChange={setProjectId} options={projects}
-          placeholder={showAllProjectsOption ? "All Projects" : undefined}
-          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} />
-      </FilterBar>
-
       <DataTable
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder", {
+              item: t("common.waste_type"),
+            })}
+            statusValue={statusValue}
+            onStatusChange={onStatusFilterChange}
+            className="mb-4"
+          >
+            <FilterBarSelect
+              value={companyUniqueId || ""}
+              onChange={onCompanyChange}
+              options={companies}
+              placeholder="All Companies"
+              disabled={!isSuperAdmin || companies.length === 0}
+            />
+            <FilterBarSelect
+              value={projectId || ""}
+              onChange={setProjectId}
+              options={projects}
+              placeholder={showAllProjectsOption ? "All Projects" : undefined}
+              disabled={
+                (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+              }
+            />
+          </FilterBar>
+        }
         value={rows}
         exportRows={exportRows}
         exportSheetName="WasteTypes"

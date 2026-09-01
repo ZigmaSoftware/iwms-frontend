@@ -8,7 +8,11 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
+import type {
+  DataTablePageEvent,
+  DataTableSortEvent,
+  SortOrder,
+} from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -22,8 +26,10 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { countryApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
-import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
-
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 const COUNTRY_COLUMN_FIELDS: Record<string, string[]> = {
   continent_name: ["continent_id"],
@@ -49,8 +55,9 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 
   if (data && typeof data === "object") {
     return Object.entries(data as Record<string, unknown>)
-      .map(([key, value]) =>
-        `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
+      .map(
+        ([key, value]) =>
+          `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`,
       )
       .join("\n");
   }
@@ -77,7 +84,6 @@ export default function CountryList() {
     COUNTRY_COLUMN_FIELDS,
   );
 
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
@@ -93,14 +99,13 @@ export default function CountryList() {
 
   const { encMasters, encCountries } = getEncryptedRoute();
 
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encMasters,
-    encCountries,
-  );
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
+    createCrudRoutePaths(encMasters, encCountries);
 
-  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
-    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
-    : undefined;
+  const ordering =
+    sortField && SORTABLE_FIELDS.has(sortField)
+      ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+      : undefined;
 
   const loadRows = async (
     page: number,
@@ -134,7 +139,7 @@ export default function CountryList() {
       Swal.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.fetch_failed")),
-        "error"
+        "error",
       );
     } finally {
       if (requestId === requestIdRef.current) setIsLoading(false);
@@ -142,7 +147,13 @@ export default function CountryList() {
   };
 
   useEffect(() => {
-    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, statusValue, ordering);
+    void loadRows(
+      first / rowsPerPage + 1,
+      rowsPerPage,
+      searchTerm,
+      statusValue,
+      ordering,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [first, rowsPerPage, searchTerm, statusValue, ordering]);
 
@@ -165,30 +176,29 @@ export default function CountryList() {
     setSortOrder(event.sortOrder);
   };
 
-  const handleDownloadExcel = async () => {
-    setIsExportingExcel(true);
+  // Feeds the table's single "Download Excel" button: the "All data" option
+  // fetches every row matching the current filters, while "Current page"
+  // uses the rows already on screen.
+  const loadAllExportRows = async () => {
     try {
       const response = await countryApi.readAllForExport({
         params: {
           ...(searchTerm ? { search: searchTerm } : {}),
-          ...(statusValue !== "all" ? { is_active: statusValue === "active" } : {}),
+          ...(statusValue !== "all"
+            ? { is_active: statusValue === "active" }
+            : {}),
         },
       });
       const rows = unwrapRows(response);
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No countries to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Countries");
+      return rows;
     } catch (error) {
       Swal.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.fetch_failed")),
-        "error"
+        "error",
       );
-    } finally {
-      setIsExportingExcel(false);
     }
+    return [];
   };
 
   const cap = (str?: string) =>
@@ -204,12 +214,14 @@ export default function CountryList() {
         row.unique_id,
         filterPayload({ is_active: checked }) as {
           is_active: boolean;
-        }
+        },
       );
       setCountries((current) =>
         current.map((item) =>
-          item.unique_id === row.unique_id ? { ...item, is_active: checked } : item
-        )
+          item.unique_id === row.unique_id
+            ? { ...item, is_active: checked }
+            : item,
+        ),
       );
     } catch {
       Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
@@ -246,15 +258,13 @@ export default function CountryList() {
 
   return (
     <div className="p-3">
-
-      <div className="flex justify-between items-center mb-6">
-
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
             {t("admin.nav.country")}
           </h1>
 
-          <p className="text-gray-500 text-sm">
+          <p className="text-sm text-gray-500">
             {t("common.manage_item_records", {
               item: t("admin.nav.country"),
             })}
@@ -267,28 +277,21 @@ export default function CountryList() {
           className="p-button-success"
           onClick={() => navigate(ENC_NEW_PATH)}
         />
-
       </div>
 
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={onGlobalFilterChange}
-        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.country") })}
-        statusValue={statusValue}
-        onStatusChange={onStatusFilterChange}
-        className="mb-4"
-        trailing={
-          <Button
-            label={isExportingExcel ? "Downloading..." : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined"
-            disabled={isExportingExcel}
-            onClick={handleDownloadExcel}
+      <DataTable
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder", {
+              item: t("admin.nav.country"),
+            })}
+            statusValue={statusValue}
+            onStatusChange={onStatusFilterChange}
           />
         }
-      />
-
-      <DataTable
+        loadExportRows={loadAllExportRows}
         value={countries}
         dataKey="unique_id"
         lazy
@@ -306,7 +309,6 @@ export default function CountryList() {
         showGridlines
         className="p-datatable-sm"
       >
-
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
@@ -331,33 +333,19 @@ export default function CountryList() {
         )}
 
         {showCol("currency") && (
-          <Column
-            field="currency"
-            header={t("common.currency")}
-          />
+          <Column field="currency" header={t("common.currency")} />
         )}
 
         {showCol("mob_code") && (
-          <Column
-            field="mob_code"
-            header={t("common.mobile_code")}
-          />
+          <Column field="mob_code" header={t("common.mobile_code")} />
         )}
 
         {showCol("is_active") && (
-          <Column
-            header={t("common.status")}
-            body={statusTemplate}
-          />
+          <Column header={t("common.status")} body={statusTemplate} />
         )}
 
-        <Column
-          header={t("common.actions")}
-          body={actionTemplate}
-        />
-
+        <Column header={t("common.actions")} body={actionTemplate} />
       </DataTable>
-
     </div>
   );
 }

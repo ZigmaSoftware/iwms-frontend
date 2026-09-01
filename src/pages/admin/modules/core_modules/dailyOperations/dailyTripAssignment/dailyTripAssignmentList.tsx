@@ -12,21 +12,39 @@ import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta, DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
+import type {
+  DataTableFilterMeta,
+  DataTablePageEvent,
+  DataTableSortEvent,
+  SortOrder,
+} from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { dailyTripAssignmentApi, binApi, customerCreationApi } from "@/helpers/admin";
+import {
+  dailyTripAssignmentApi,
+  binApi,
+  customerCreationApi,
+} from "@/helpers/admin";
 import { jsPDF } from "jspdf";
 import { api } from "@/api";
 import { adminEndpoints } from "@/helpers/admin/endpoints";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 import { downloadRecordsPdf, drawQrCode } from "@/utils/exportPdf";
 import { formatCollectionTime, formatTimeOnly } from "@/utils/formatTime";
 import { downloadCustomerQrStickerPdf } from "@/pages/admin/modules/masters/customerMasters/customerCreations/customerQrStickerPdf";
@@ -34,7 +52,6 @@ import type { Customer } from "@/pages/admin/modules/masters/customerMasters/cus
 import { downloadBinQrSheetPdf, type BinQrEntry } from "./binQrSheetPdf";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
 
 // ─── Badge helpers ────────────────────────────────────────────────────────────
 
@@ -45,8 +62,16 @@ const STATUS_STYLES: Record<string, string> = {
   Cancelled: "bg-red-100 text-red-800",
 };
 
-const Badge = ({ value, styleMap }: { value?: string; styleMap: Record<string, string> }) => (
-  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${styleMap[value ?? ""] ?? "bg-gray-100 text-gray-600"}`}>
+const Badge = ({
+  value,
+  styleMap,
+}: {
+  value?: string;
+  styleMap: Record<string, string>;
+}) => (
+  <span
+    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${styleMap[value ?? ""] ?? "bg-gray-100 text-gray-600"}`}
+  >
     {value ?? "—"}
   </span>
 );
@@ -56,15 +81,19 @@ const BreakdownCell = ({ row }: { row: DailyTripAssignmentRecord }) => {
   if (!bd) return <span className="text-xs text-gray-300">—</span>;
 
   const isApproved = bd.approval_status === "APPROVED";
-  const isPending  = bd.approval_status === "PENDING";
+  const isPending = bd.approval_status === "PENDING";
 
   return (
     <div className="space-y-1">
-      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-        isApproved ? "bg-green-100 text-green-700" :
-        isPending  ? "bg-orange-100 text-orange-700" :
-                     "bg-red-100 text-red-700"
-      }`}>
+      <span
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+          isApproved
+            ? "bg-green-100 text-green-700"
+            : isPending
+              ? "bg-orange-100 text-orange-700"
+              : "bg-red-100 text-red-700"
+        }`}
+      >
         {isApproved ? "✓ Replaced" : isPending ? "⚠ Pending" : "✕ Rejected"}
       </span>
       {isApproved && bd.replacement_vehicle_no && (
@@ -74,9 +103,20 @@ const BreakdownCell = ({ row }: { row: DailyTripAssignmentRecord }) => {
       )}
       {isApproved && (bd.replacement_driver || bd.replacement_operator) && (
         <div className="text-[10px] text-gray-600 leading-tight">
-          {bd.replacement_driver && <span><span className="font-medium">Drv:</span> {bd.replacement_driver}</span>}
-          {bd.replacement_driver && bd.replacement_operator && <span className="mx-1">·</span>}
-          {bd.replacement_operator && <span><span className="font-medium">Opr:</span> {bd.replacement_operator}</span>}
+          {bd.replacement_driver && (
+            <span>
+              <span className="font-medium">Drv:</span> {bd.replacement_driver}
+            </span>
+          )}
+          {bd.replacement_driver && bd.replacement_operator && (
+            <span className="mx-1">·</span>
+          )}
+          {bd.replacement_operator && (
+            <span>
+              <span className="font-medium">Opr:</span>{" "}
+              {bd.replacement_operator}
+            </span>
+          )}
         </div>
       )}
       {isApproved && bd.new_assignment_id && (
@@ -92,7 +132,11 @@ const BreakdownCell = ({ row }: { row: DailyTripAssignmentRecord }) => {
 // early to carry leftover stops to a continuation trip, vs. swapping the
 // vehicle/crew on the same trip) — driven by unrelated events, so this is
 // its own cell/column, never merged with BreakdownCell above.
-const RetripCell = ({ retrip }: { retrip?: DailyTripAssignmentRecord["retrip_info"] }) => {
+const RetripCell = ({
+  retrip,
+}: {
+  retrip?: DailyTripAssignmentRecord["retrip_info"];
+}) => {
   if (!retrip) return <span className="text-xs text-gray-300">—</span>;
 
   const isApproved = retrip.status === "Approved";
@@ -121,26 +165,28 @@ const RetripCell = ({ retrip }: { retrip?: DailyTripAssignmentRecord["retrip_inf
 };
 
 const COLLECTION_TYPE_STYLES: Record<CollectionTypeKey, string> = {
-  bin:       "bg-blue-100 text-blue-800",
+  bin: "bg-blue-100 text-blue-800",
   household: "bg-green-100 text-green-800",
-  both:      "bg-purple-100 text-purple-800",
-  unknown:   "bg-gray-100 text-gray-500",
+  both: "bg-purple-100 text-purple-800",
+  unknown: "bg-gray-100 text-gray-500",
 };
 
 const COLLECTION_TYPE_LABELS: Record<CollectionTypeKey, string> = {
-  bin:       "Bin Collection",
+  bin: "Bin Collection",
   household: "Household",
-  both:      "Bin + Household",
-  unknown:   "Unknown",
+  both: "Bin + Household",
+  unknown: "Unknown",
 };
 
-const getCollectionTypeKey = (rec: DailyTripAssignmentRecord): CollectionTypeKey => {
+const getCollectionTypeKey = (
+  rec: DailyTripAssignmentRecord,
+): CollectionTypeKey => {
   const ct = rec.collection_types ?? {
-    has_bin:       rec.trip_plan?.has_bin  ?? false,
+    has_bin: rec.trip_plan?.has_bin ?? false,
     has_household: rec.trip_plan?.has_household ?? false,
   };
   if (ct.has_bin && ct.has_household) return "both";
-  if (ct.has_bin)       return "bin";
+  if (ct.has_bin) return "bin";
   if (ct.has_household) return "household";
   return "unknown";
 };
@@ -148,7 +194,9 @@ const getCollectionTypeKey = (rec: DailyTripAssignmentRecord): CollectionTypeKey
 const CollectionTypeBadge = ({ rec }: { rec: DailyTripAssignmentRecord }) => {
   const key = getCollectionTypeKey(rec);
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${COLLECTION_TYPE_STYLES[key]}`}>
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${COLLECTION_TYPE_STYLES[key]}`}
+    >
       {COLLECTION_TYPE_LABELS[key]}
     </span>
   );
@@ -191,7 +239,9 @@ const zoneText = (record: DailyTripAssignmentRecord): string =>
   "—";
 
 const wardText = (record: DailyTripAssignmentRecord): string =>
-  record.wards?.[0]?.ward_name ?? record.trip_plan?.wards?.[0]?.ward_name ?? "—";
+  record.wards?.[0]?.ward_name ??
+  record.trip_plan?.wards?.[0]?.ward_name ??
+  "—";
 
 const locationText = (record: DailyTripAssignmentRecord): string =>
   record.panchayat?.panchayat_name ??
@@ -210,11 +260,20 @@ type SchedulerStatus = {
 };
 
 /* ── backend's DRF `ordering_fields` allowlist (see daily_trip_assignment_viewset.py) ── */
-const SORTABLE_FIELDS = new Set(["trip_date", "scheduled_time", "status", "approval_status"]);
+const SORTABLE_FIELDS = new Set([
+  "trip_date",
+  "scheduled_time",
+  "status",
+  "approval_status",
+]);
 
 const toRecordList = (value: unknown): DailyTripAssignmentRecord[] => {
   if (Array.isArray(value)) return value as DailyTripAssignmentRecord[];
-  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+  if (
+    value &&
+    typeof value === "object" &&
+    Array.isArray((value as { results?: unknown }).results)
+  ) {
     return (value as { results: DailyTripAssignmentRecord[] }).results;
   }
   return [];
@@ -226,17 +285,24 @@ export default function DailyTripAssignmentList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
 
   const { encScheduleOperations, encDailyTripAssignment } = getEncryptedRoute();
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encScheduleOperations,
-    encDailyTripAssignment,
-  );
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
+    createCrudRoutePaths(encScheduleOperations, encDailyTripAssignment);
 
   const {
-    companyUniqueId, projectId, projects, companies,
-    isSuperAdmin, showAllProjectsOption, setProjectId, onCompanyChange,
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    showAllProjectsOption,
+    setProjectId,
+    onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
     defaultToAll: true,
@@ -244,15 +310,20 @@ export default function DailyTripAssignmentList() {
     initialProjectId: restoredState?.projectId,
   });
 
-  const [rawAssignments, setRawAssignments] = useState<DailyTripAssignmentRecord[]>([]);
-  const [filteredRows, setFilteredRows] = useState<DailyTripAssignmentRecord[]>([]);
+  const [rawAssignments, setRawAssignments] = useState<
+    DailyTripAssignmentRecord[]
+  >([]);
+  const [filteredRows, setFilteredRows] = useState<DailyTripAssignmentRecord[]>(
+    [],
+  );
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isLoading, setIsLoading] = useState(false);
-  const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
+  const [schedulerStatus, setSchedulerStatus] =
+    useState<SchedulerStatus | null>(null);
   const [isSchedulerRunning, setIsSchedulerRunning] = useState(false);
   const [isGeneratingDaily, setIsGeneratingDaily] = useState(false);
   const [isSavingSchedulerConfig, setIsSavingSchedulerConfig] = useState(false);
@@ -260,44 +331,104 @@ export default function DailyTripAssignmentList() {
   const [isExportingDetailed, setIsExportingDetailed] = useState(false);
   // unique_id of the trip whose QR sheet is being built, so only that row spins.
   const [qrTripId, setQrTripId] = useState<string | null>(null);
-  const [retripRow, setRetripRow] = useState<DailyTripAssignmentRecord | null>(null);
+  // "12 / 48" style progress for the print button, so a long trip does not
+  // look hung while its customers are being fetched.
+  const [qrProgress, setQrProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  const [retripRow, setRetripRow] = useState<DailyTripAssignmentRecord | null>(
+    null,
+  );
   const [retripRemarks, setRetripRemarks] = useState("");
-  const [retripSelectedCps, setRetripSelectedCps] = useState<Set<string>>(new Set());
+  const [retripSelectedCps, setRetripSelectedCps] = useState<Set<string>>(
+    new Set(),
+  );
   const [isRetripSubmitting, setIsRetripSubmitting] = useState(false);
   const requestIdRef = useRef(0);
   const [schedulerDate, setSchedulerDate] = useState(toDateInputValue());
   const [schedulerRunTime, setSchedulerRunTime] = useState("04:00");
   const [schedulerEnabled, setSchedulerEnabled] = useState(true);
-  const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | CollectionTypeKey>("all");
+  const [collectionTypeFilter, setCollectionTypeFilter] = useState<
+    "all" | CollectionTypeKey
+  >("all");
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _trip_plan: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _staff: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _zone: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _ward: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _location: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _waste: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _collection_type_label: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _collection_point_count: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    approval_status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    trip_date: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    scheduled_time: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    global: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    unique_id: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    _trip_plan: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    _staff: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    _zone: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    _ward: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    _location: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    _waste: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    _collection_type_label: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    _collection_point_count: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    status: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    approval_status: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    trip_date: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    scheduled_time: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
   });
 
   /* ── ordering param, from the sortField/sortOrder state, mapped through the
      backend's `ordering_fields` allowlist ── */
-  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
-    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
-    : undefined;
+  const ordering =
+    sortField && SORTABLE_FIELDS.has(sortField)
+      ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+      : undefined;
 
   /* ── load ONE page of assignments (server-side pagination + search + ordering)
      instead of fetching the entire table client-side ── */
   const loadRows = useCallback(
-    async (page: number, limit: number, search: string, orderingParam?: string) => {
+    async (
+      page: number,
+      limit: number,
+      search: string,
+      orderingParam?: string,
+    ) => {
       if (!companyUniqueId && !isSuperAdmin) return;
       const requestId = ++requestIdRef.current;
       setIsLoading(true);
@@ -309,18 +440,26 @@ export default function DailyTripAssignmentList() {
         if (schedulerDate) params.date = schedulerDate;
         if (search) params.search = search;
         if (orderingParam) params.ordering = orderingParam;
-        const response = await dailyTripAssignmentApi.readAllwithPaginated(page, limit, { params });
+        const response = await dailyTripAssignmentApi.readAllwithPaginated(
+          page,
+          limit,
+          { params },
+        );
         if (requestId !== requestIdRef.current) return;
         const list = toRecordList(response);
         setRawAssignments(list);
         setTotalRecords(
           typeof (response as { count?: number })?.count === "number"
-            ? (response as { count?: number }).count as number
+            ? ((response as { count?: number }).count as number)
             : list.length,
         );
       } catch (err) {
         if (requestId !== requestIdRef.current) return;
-        Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
+        Swal.fire({
+          icon: "error",
+          title: t("common.error"),
+          text: extractError(err) ?? String(err),
+        });
       } finally {
         if (requestId === requestIdRef.current) setIsLoading(false);
       }
@@ -334,8 +473,10 @@ export default function DailyTripAssignmentList() {
       .then((status) => {
         setSchedulerStatus(status);
         if (status.run_time) setSchedulerRunTime(status.run_time.slice(0, 5));
-        if (typeof status.enabled === "boolean") setSchedulerEnabled(status.enabled);
-        else if (typeof status.is_enabled === "boolean") setSchedulerEnabled(status.is_enabled);
+        if (typeof status.enabled === "boolean")
+          setSchedulerEnabled(status.enabled);
+        else if (typeof status.is_enabled === "boolean")
+          setSchedulerEnabled(status.is_enabled);
       })
       .catch(() => setSchedulerStatus(null));
   }, []);
@@ -359,7 +500,16 @@ export default function DailyTripAssignmentList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, companyUniqueId, projectId, schedulerDate, isSuperAdmin]);
+  }, [
+    first,
+    rowsPerPage,
+    searchTerm,
+    ordering,
+    companyUniqueId,
+    projectId,
+    schedulerDate,
+    isSuperAdmin,
+  ]);
 
   useEffect(() => loadSchedulerStatus(), [loadSchedulerStatus]);
 
@@ -377,10 +527,10 @@ export default function DailyTripAssignmentList() {
   const runSchedulerNow = async () => {
     setIsSchedulerRunning(true);
     try {
-      const result = await dailyTripAssignmentApi.action<Record<string, unknown>, { date: string }>(
-        "run-scheduler",
-        { date: schedulerDate },
-      );
+      const result = await dailyTripAssignmentApi.action<
+        Record<string, unknown>,
+        { date: string }
+      >("run-scheduler", { date: schedulerDate });
       Swal.fire({
         icon: "success",
         title: "Scheduler completed",
@@ -389,7 +539,11 @@ export default function DailyTripAssignmentList() {
       loadSchedulerStatus();
       void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     } catch (err) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Scheduler failed" });
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: extractError(err) ?? "Scheduler failed",
+      });
     } finally {
       setIsSchedulerRunning(false);
     }
@@ -402,18 +556,25 @@ export default function DailyTripAssignmentList() {
   const runGenerateDailyNow = async () => {
     setIsGeneratingDaily(true);
     try {
-      const result = await dailyTripAssignmentApi.action<Record<string, unknown>, { date?: string }>(
-        "generate-daily",
-        schedulerDate ? { date: schedulerDate } : {},
-      );
+      const result = await dailyTripAssignmentApi.action<
+        Record<string, unknown>,
+        { date?: string }
+      >("generate-daily", schedulerDate ? { date: schedulerDate } : {});
       Swal.fire({
         icon: "success",
         title: "Generate Daily completed",
-        text: String(result.message ?? `Created: ${result.created ?? 0}, skipped: ${result.skipped ?? 0}`),
+        text: String(
+          result.message ??
+            `Created: ${result.created ?? 0}, skipped: ${result.skipped ?? 0}`,
+        ),
       });
       void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     } catch (err) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Generate Daily failed" });
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: extractError(err) ?? "Generate Daily failed",
+      });
     } finally {
       setIsGeneratingDaily(false);
     }
@@ -430,7 +591,9 @@ export default function DailyTripAssignmentList() {
         run_time: schedulerRunTime,
         is_enabled: schedulerEnabled,
       });
-      setSchedulerRunTime(String(data.run_time ?? schedulerRunTime).slice(0, 5));
+      setSchedulerRunTime(
+        String(data.run_time ?? schedulerRunTime).slice(0, 5),
+      );
       setSchedulerEnabled(Boolean(data.is_enabled ?? schedulerEnabled));
       loadSchedulerStatus();
       Swal.fire({
@@ -439,7 +602,11 @@ export default function DailyTripAssignmentList() {
         text: `Daily trip plans will auto-generate at ${String(data.run_time ?? schedulerRunTime).slice(0, 5)}.`,
       });
     } catch (err) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Failed to update scheduler time" });
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: extractError(err) ?? "Failed to update scheduler time",
+      });
     } finally {
       setIsSavingSchedulerConfig(false);
     }
@@ -455,22 +622,35 @@ export default function DailyTripAssignmentList() {
     return rawAssignments
       .filter((row) => {
         if (schedulerDate && row.trip_date !== schedulerDate) return false;
-        if (collectionTypeFilter !== "all" && getCollectionTypeKey(row) !== collectionTypeFilter) return false;
+        if (
+          collectionTypeFilter !== "all" &&
+          getCollectionTypeKey(row) !== collectionTypeFilter
+        )
+          return false;
         return true;
       })
       .map((rec) => ({
         ...rec,
         _trip_plan: rec.trip_plan?.display_code ?? rec.trip_plan_id ?? "",
-        _staff: rec.effective_staff?.display_code ?? rec.staff_template?.display_code ?? rec.staff_template_id ?? "",
+        _staff:
+          rec.effective_staff?.display_code ??
+          rec.staff_template?.display_code ??
+          rec.staff_template_id ??
+          "",
         _zone: zoneText(rec),
         _ward: wardText(rec),
         _location: locationText(rec),
         _waste: wasteTypeText(rec),
         _collection_type: getCollectionTypeKey(rec),
-        _collection_type_label: COLLECTION_TYPE_LABELS[getCollectionTypeKey(rec)],
+        _collection_type_label:
+          COLLECTION_TYPE_LABELS[getCollectionTypeKey(rec)],
         _collection_point_count: String(
-          (Array.isArray(rec.collection_points) ? rec.collection_points.length : 0) +
-          (Array.isArray(rec.household_collection_points) ? rec.household_collection_points.length : 0)
+          (Array.isArray(rec.collection_points)
+            ? rec.collection_points.length
+            : 0) +
+            (Array.isArray(rec.household_collection_points)
+              ? rec.household_collection_points.length
+              : 0),
         ),
       }));
   })();
@@ -482,9 +662,16 @@ export default function DailyTripAssignmentList() {
   useEffect(() => {
     setFilteredRows(rows);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawAssignments, companyUniqueId, isSuperAdmin, schedulerDate, collectionTypeFilter]);
+  }, [
+    rawAssignments,
+    companyUniqueId,
+    isSuperAdmin,
+    schedulerDate,
+    collectionTypeFilter,
+  ]);
 
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
+  const onFilter = (e: DataTableFilterEvent) =>
+    setFilters(e.filters as DataTableFilterMeta);
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -512,7 +699,9 @@ export default function DailyTripAssignmentList() {
     );
     setRetripRow(row);
     setRetripRemarks("");
-    setRetripSelectedCps(new Set(pending.map((cp) => cp.unique_id).filter(Boolean) as string[]));
+    setRetripSelectedCps(
+      new Set(pending.map((cp) => cp.unique_id).filter(Boolean) as string[]),
+    );
   };
 
   const closeRetripModal = () => {
@@ -536,7 +725,11 @@ export default function DailyTripAssignmentList() {
 
     const remarks = retripRemarks.trim();
     if (!remarks) {
-      Swal.fire({ icon: "warning", title: t("common.warning"), text: "Please enter a reason." });
+      Swal.fire({
+        icon: "warning",
+        title: t("common.warning"),
+        text: "Please enter a reason.",
+      });
       return;
     }
     if (retripIsBinTrip && retripSelectedCps.size === 0) {
@@ -552,7 +745,9 @@ export default function DailyTripAssignmentList() {
     try {
       await dailyTripAssignmentApi.action(`${rowId}/proceed-next-trip`, {
         remarks,
-        collection_point_ids: retripIsBinTrip ? Array.from(retripSelectedCps) : undefined,
+        collection_point_ids: retripIsBinTrip
+          ? Array.from(retripSelectedCps)
+          : undefined,
       });
       Swal.fire({
         icon: "success",
@@ -572,6 +767,26 @@ export default function DailyTripAssignmentList() {
     } finally {
       setIsRetripSubmitting(false);
     }
+  };
+
+  /**
+   * Company / project display names for one assignment.
+   *
+   * Assignments carry only IDs, so the labels come from the already-loaded
+   * company/project dropdown options, falling back to the current context
+   * selection when the row itself is unscoped. Used by the detailed PDF report
+   * and by both QR sticker sheets, so a sheet printed from here is stamped with
+   * the same names the screen is filtered by.
+   */
+  const resolveCompanyProject = (row: DailyTripAssignmentRecord) => {
+    const rowCompanyId =
+      row.company_unique_id ?? row.company_id ?? companyUniqueId;
+    const rowProjectId = row.project_unique_id ?? row.project_id ?? projectId;
+    const companyLabel =
+      companies.find((c) => c.value === rowCompanyId)?.label ?? "-";
+    const projectLabel =
+      projects.find((p) => p.value === rowProjectId)?.label ?? "-";
+    return { companyLabel, projectLabel };
   };
 
   /**
@@ -606,7 +821,10 @@ export default function DailyTripAssignmentList() {
         let binName = stop.bin?.bin_name;
         if (!binName) {
           try {
-            const bin = (await binApi.read(String(binId))) as Record<string, unknown>;
+            const bin = (await binApi.read(String(binId))) as Record<
+              string,
+              unknown
+            >;
             binName = bin?.bin_name as string | undefined;
           } catch {
             // Keep the stop: the id alone still prints a scannable code.
@@ -629,10 +847,13 @@ export default function DailyTripAssignmentList() {
         return;
       }
 
+      const { companyLabel, projectLabel } = resolveCompanyProject(row);
       await downloadBinQrSheetPdf(entries, {
-        companyName: row.company_name as string | undefined,
-        projectName: row.project_name as string | undefined,
-        tripCode: (row.trip_plan?.display_code ?? row.unique_id) as string | undefined,
+        companyName: companyLabel === "-" ? undefined : companyLabel,
+        projectName: projectLabel === "-" ? undefined : projectLabel,
+        tripCode: (row.trip_plan?.display_code ?? row.unique_id) as
+          | string
+          | undefined,
         tripDate: row.trip_date,
       });
     } catch (error) {
@@ -671,20 +892,48 @@ export default function DailyTripAssignmentList() {
     try {
       // De-duplicate: the same customer can appear on more than one stop.
       const seen = new Set<string>();
-      const customers: Customer[] = [];
+      const customerIds: string[] = [];
       for (const stop of stops) {
         const customerId = stop.customer_id ?? stop.customer?.unique_id;
         if (!customerId || seen.has(String(customerId))) continue;
         seen.add(String(customerId));
-        try {
-          const customer = (await customerCreationApi.read(
-            String(customerId),
-          )) as unknown as Customer;
-          if (customer?.qr_code) customers.push(customer);
-        } catch {
-          // Skip a customer that cannot be read; the rest of the sheet still prints.
-        }
+        customerIds.push(String(customerId));
       }
+
+      // Fetch in bounded-concurrency batches rather than one at a time: a
+      // 48-stop trip was 48 serial round-trips before the sheet even began
+      // rendering, which read as a hung button. The customer list endpoint has
+      // no `unique_id__in` filter, so per-id reads are still needed — but they
+      // no longer queue up behind each other. Order is preserved so the sheet
+      // follows stop order.
+      const CONCURRENCY = 8;
+      const fetched: (Customer | null)[] = new Array(customerIds.length).fill(
+        null,
+      );
+      setQrProgress({ done: 0, total: customerIds.length });
+      let completed = 0;
+
+      for (let start = 0; start < customerIds.length; start += CONCURRENCY) {
+        const batch = customerIds.slice(start, start + CONCURRENCY);
+        await Promise.all(
+          batch.map(async (customerId, offset) => {
+            try {
+              fetched[start + offset] = (await customerCreationApi.read(
+                customerId,
+              )) as unknown as Customer;
+            } catch {
+              // Skip a customer that cannot be read; the rest still prints.
+            } finally {
+              completed += 1;
+              setQrProgress({ done: completed, total: customerIds.length });
+            }
+          }),
+        );
+      }
+
+      const customers = fetched.filter((customer): customer is Customer =>
+        Boolean(customer?.qr_code),
+      );
 
       if (customers.length === 0) {
         Swal.fire({
@@ -695,9 +944,11 @@ export default function DailyTripAssignmentList() {
         return;
       }
 
+      const { companyLabel, projectLabel } = resolveCompanyProject(row);
       await downloadCustomerQrStickerPdf(customers, {
-        companyName: row.company_name as string | undefined,
-        projectName: row.project_name as string | undefined,
+        companyName: companyLabel === "-" ? undefined : companyLabel,
+        projectName: projectLabel === "-" ? undefined : projectLabel,
+        onProgress: (done, total) => setQrProgress({ done, total }),
       });
     } catch (error) {
       Swal.fire({
@@ -741,6 +992,7 @@ export default function DailyTripAssignmentList() {
       if (hasBins) await handleTripBinQrDownload(row);
     } finally {
       setQrTripId(null);
+      setQrProgress(null);
     }
   };
 
@@ -753,8 +1005,12 @@ export default function DailyTripAssignmentList() {
           onClick={() =>
             navigate(ENC_EDIT_PATH(rowId), {
               state: {
-                companyUniqueId: (row.company_unique_id ?? row.company_id) as string | undefined,
-                projectId: (row.project_unique_id ?? row.project_id) as string | undefined,
+                companyUniqueId: (row.company_unique_id ?? row.company_id) as
+                  | string
+                  | undefined,
+                projectId: (row.project_unique_id ?? row.project_id) as
+                  | string
+                  | undefined,
               },
             })
           }
@@ -776,7 +1032,9 @@ export default function DailyTripAssignmentList() {
               title={
                 total === 0
                   ? "No stops on this trip — nothing to print"
-                  : `Download QR stickers (${total} stop${total === 1 ? "" : "s"})`
+                  : isBusy && qrProgress
+                    ? `Preparing ${qrProgress.done} / ${qrProgress.total}...`
+                    : `Download QR stickers (${total} stop${total === 1 ? "" : "s"})`
               }
               onClick={() => void handleTripPrint(row)}
               disabled={total === 0 || isBusy}
@@ -786,6 +1044,11 @@ export default function DailyTripAssignmentList() {
                 className={isBusy ? "pi pi-spin pi-spinner" : "pi pi-print"}
                 style={{ fontSize: "1.05rem" }}
               />
+              {isBusy && qrProgress && qrProgress.total > 0 && (
+                <span className="ml-1 align-middle text-[10px] font-semibold tabular-nums">
+                  {qrProgress.done}/{qrProgress.total}
+                </span>
+              )}
             </button>
           );
         })()}
@@ -805,7 +1068,9 @@ export default function DailyTripAssignmentList() {
   /* ── build one detailed export row per collection point / household
      collection point, falling back to a single plan-level row when a trip
      plan has no line items ── */
-  const buildExportRows = (source: DailyTripAssignmentRecord[]): Record<string, unknown>[] => {
+  const buildExportRows = (
+    source: DailyTripAssignmentRecord[],
+  ): Record<string, unknown>[] => {
     const out: Record<string, unknown>[] = [];
     source.forEach((row) => {
       const base = {
@@ -835,10 +1100,13 @@ export default function DailyTripAssignmentList() {
         out.push({
           ...base,
           "Point Type": "Collection Point",
-          "Collection Point / Customer": cp.collection_point?.cp_name ?? cp.collection_point_id ?? "-",
+          "Collection Point / Customer":
+            cp.collection_point?.cp_name ?? cp.collection_point_id ?? "-",
           Bin: cp.bin?.bin_name ?? cp.bin_id ?? "-",
           "Collected Weight (kg)": cp.collected_weight_kg ?? "-",
-          "Collection Time": cp.collected_at ? formatCollectionTime(cp.collected_at) : defaultCollectionTime,
+          "Collection Time": cp.collected_at
+            ? formatCollectionTime(cp.collected_at)
+            : defaultCollectionTime,
           "Is Collected": cp.is_collected ? "Yes" : "No",
         });
       });
@@ -847,10 +1115,13 @@ export default function DailyTripAssignmentList() {
         out.push({
           ...base,
           "Point Type": "Household",
-          "Collection Point / Customer": hh.customer?.customer_name ?? hh.customer_id ?? "-",
+          "Collection Point / Customer":
+            hh.customer?.customer_name ?? hh.customer_id ?? "-",
           Bin: "-",
           "Collected Weight (kg)": hh.collected_weight_kg ?? "-",
-          "Collection Time": hh.collected_at ? formatCollectionTime(hh.collected_at) : defaultCollectionTime,
+          "Collection Time": hh.collected_at
+            ? formatCollectionTime(hh.collected_at)
+            : defaultCollectionTime,
           "Is Collected": hh.is_collected ? "Yes" : "No",
         });
       });
@@ -873,23 +1144,40 @@ export default function DailyTripAssignmentList() {
   const handleDownload = (format: "excel" | "pdf") => {
     setIsExporting(true);
     try {
-      const exportRows = buildExportRows(filteredRows.length > 0 ? filteredRows : rows);
+      const exportRows = buildExportRows(
+        filteredRows.length > 0 ? filteredRows : rows,
+      );
       if (exportRows.length === 0) {
-        Swal.fire({ icon: "warning", title: "No records", text: "There are no daily trip plans to export." });
+        Swal.fire({
+          icon: "warning",
+          title: "No records",
+          text: "There are no daily trip plans to export.",
+        });
         return;
       }
       if (format === "excel") {
-        exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Daily Trip Plans");
+        exportRecordsToExcel(
+          exportRows,
+          getAdminScreenExcelFilename("all"),
+          "Daily Trip Plans",
+        );
       } else {
         downloadRecordsPdf({
           title: "Daily Trip Plans",
           filename: "daily_trip_plans.pdf",
           rows: exportRows,
-          columns: Object.keys(exportRows[0]).map((key) => ({ key, label: key })),
+          columns: Object.keys(exportRows[0]).map((key) => ({
+            key,
+            label: key,
+          })),
         });
       }
     } catch (err: any) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: err?.message ?? String(err) });
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: err?.message ?? String(err),
+      });
     } finally {
       setIsExporting(false);
     }
@@ -904,25 +1192,23 @@ export default function DailyTripAssignmentList() {
     try {
       const source = filteredRows.length > 0 ? filteredRows : rows;
       if (source.length === 0) {
-        Swal.fire({ icon: "warning", title: "No records", text: "There are no daily trip plans to export." });
+        Swal.fire({
+          icon: "warning",
+          title: "No records",
+          text: "There are no daily trip plans to export.",
+        });
         return;
       }
 
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
       let hasPage = false;
       const addPage = () => {
         if (hasPage) pdf.addPage();
         hasPage = true;
-      };
-
-      // Company/project names for the current assignment — resolved from the
-      // already-loaded dropdown option lists (assignments only carry IDs).
-      const resolveCompanyProject = (row: DailyTripAssignmentRecord) => {
-        const rowCompanyId = row.company_unique_id ?? row.company_id ?? companyUniqueId;
-        const rowProjectId = row.project_unique_id ?? row.project_id ?? projectId;
-        const companyLabel = companies.find((c) => c.value === rowCompanyId)?.label ?? "-";
-        const projectLabel = projects.find((p) => p.value === rowProjectId)?.label ?? "-";
-        return { companyLabel, projectLabel };
       };
 
       const drawDetails = (
@@ -954,12 +1240,19 @@ export default function DailyTripAssignmentList() {
             rawValue === null || rawValue === undefined || rawValue === ""
               ? "-"
               : String(rawValue);
-          const wrapWidth = qrValue && y < qrBottom ? narrowValueWidth : fullValueWidth;
+          const wrapWidth =
+            qrValue && y < qrBottom ? narrowValueWidth : fullValueWidth;
           pdf.setFont("helvetica", "bold");
-          const labelLines = pdf.splitTextToSize(`${label}:`, labelWidth) as string[];
+          const labelLines = pdf.splitTextToSize(
+            `${label}:`,
+            labelWidth,
+          ) as string[];
           pdf.setFont("helvetica", "normal");
           const valueLines = pdf.splitTextToSize(value, wrapWidth) as string[];
-          const rowHeight = Math.max(8, Math.max(labelLines.length, valueLines.length) * lineHeight + 3);
+          const rowHeight = Math.max(
+            8,
+            Math.max(labelLines.length, valueLines.length) * lineHeight + 3,
+          );
           if (y + rowHeight > 282) {
             pdf.addPage();
             y = 20;
@@ -978,13 +1271,19 @@ export default function DailyTripAssignmentList() {
           "Daily Trip Plan — Route Summary",
           row.unique_id,
           [
-            ["Trip Plan", row.trip_plan?.display_code ?? row.trip_plan_id ?? "-"],
+            [
+              "Trip Plan",
+              row.trip_plan?.display_code ?? row.trip_plan_id ?? "-",
+            ],
             ["Company", companyLabel],
             ["Project", projectLabel],
             ["Panchayat / Local Body", locationText(row)],
             ["Zone", zoneText(row)],
             ["Ward", wardText(row)],
-            ["Collection Type", COLLECTION_TYPE_LABELS[getCollectionTypeKey(row)]],
+            [
+              "Collection Type",
+              COLLECTION_TYPE_LABELS[getCollectionTypeKey(row)],
+            ],
             ["Waste Types", wasteTypeText(row)],
             [
               "Effective Staff",
@@ -993,9 +1292,16 @@ export default function DailyTripAssignmentList() {
                 row.staff_template_id ??
                 "-",
             ],
-            ["Total Route Stops", (row.collection_points?.length ?? 0) + (row.household_collection_points?.length ?? 0)],
+            [
+              "Total Route Stops",
+              (row.collection_points?.length ?? 0) +
+                (row.household_collection_points?.length ?? 0),
+            ],
             ["Bin Stops", row.collection_points?.length ?? 0],
-            ["Household / Bulk Stops", row.household_collection_points?.length ?? 0],
+            [
+              "Household / Bulk Stops",
+              row.household_collection_points?.length ?? 0,
+            ],
             ["Trip Date", row.trip_date ?? "-"],
             ["Scheduled Time", formatTimeOnly(row.scheduled_time)],
             ["Actual Start", formatTimeOnly(row.actual_start_time)],
@@ -1012,24 +1318,38 @@ export default function DailyTripAssignmentList() {
           const customerId = stop.customer_id ?? stop.customer?.unique_id;
           if (customerId) {
             try {
-              customer = (await customerCreationApi.read(customerId)) as Record<string, any>;
+              customer = (await customerCreationApi.read(customerId)) as Record<
+                string,
+                any
+              >;
             } catch {
               // The inline assignment payload still provides the essential fallback details.
             }
           }
-          const address = [customer.building_no, customer.street, customer.area, customer.pincode]
+          const address = [
+            customer.building_no,
+            customer.street,
+            customer.area,
+            customer.pincode,
+          ]
             .filter(Boolean)
             .join(", ");
           const localBody = customer.panchayat_name ?? locationText(row);
           const familyMembers = Array.isArray(customer.family_members)
             ? customer.family_members
-                .map((member: Record<string, unknown>) => member.member_name ?? member.name)
+                .map(
+                  (member: Record<string, unknown>) =>
+                    member.member_name ?? member.name,
+                )
                 .filter(Boolean)
                 .join(", ")
             : "-";
           const customerWasteTypes = Array.isArray(customer.waste_types)
             ? customer.waste_types
-                .map((wasteType: Record<string, unknown>) => wasteType.waste_type_name ?? wasteType.name)
+                .map(
+                  (wasteType: Record<string, unknown>) =>
+                    wasteType.waste_type_name ?? wasteType.name,
+                )
                 .filter(Boolean)
                 .join(", ")
             : "-";
@@ -1056,10 +1376,17 @@ export default function DailyTripAssignmentList() {
               ["Address", address],
               [
                 "Apartment / Block / Flat",
-                [customer.apartment_name, customer.block_no, customer.flat_no].filter(Boolean).join(" / "),
+                [customer.apartment_name, customer.block_no, customer.flat_no]
+                  .filter(Boolean)
+                  .join(" / "),
               ],
               ["Local Body", localBody],
-              ["Latitude / Longitude", [customer.latitude, customer.longitude].filter(Boolean).join(", ")],
+              [
+                "Latitude / Longitude",
+                [customer.latitude, customer.longitude]
+                  .filter(Boolean)
+                  .join(", "),
+              ],
               ["ID Proof Type", customer.id_proof_type],
               ["ID Number", customer.id_no],
               ["Property Area (sq. ft.)", customer.sqft],
@@ -1068,7 +1395,10 @@ export default function DailyTripAssignmentList() {
               ["Waste Types", customerWasteTypes],
               ["Member Count", customer.member_count],
               ["Family Members", familyMembers],
-              ["Bulk-Waste Generator", customer.is_bulkwaste_generator ? "Yes" : "No"],
+              [
+                "Bulk-Waste Generator",
+                customer.is_bulkwaste_generator ? "Yes" : "No",
+              ],
               ["Sequence", stop.sequence],
               ["Collection Status", stop.status],
               ["Collected", stop.is_collected ? "Yes" : "No"],
@@ -1088,12 +1418,16 @@ export default function DailyTripAssignmentList() {
               // Fall back to the assignment's inline bin and collection-point details.
             }
           }
-          const collectionPoint: Record<string, any> = stop.collection_point ?? {};
+          const collectionPoint: Record<string, any> =
+            stop.collection_point ?? {};
           drawDetails(
             "Secondary Bin Collection Stop",
             `${stop.sequence ?? "-"}. ${collectionPoint.cp_name ?? "Collection Point"}`,
             [
-              ["Collection Point ID", collectionPoint.unique_id ?? stop.collection_point_id],
+              [
+                "Collection Point ID",
+                collectionPoint.unique_id ?? stop.collection_point_id,
+              ],
               ["Collection Point", collectionPoint.cp_name],
               ["Bin ID", bin.unique_id ?? binId],
               ["Bin Name", bin.bin_name ?? stop.bin?.bin_name],
@@ -1115,10 +1449,21 @@ export default function DailyTripAssignmentList() {
               ["Collection Status", stop.status],
               ["Collected", stop.is_collected ? "Yes" : "No"],
               ["Collected Weight (kg)", stop.collected_weight_kg],
-              ["Collected At", stop.collected_at ? formatCollectionTime(stop.collected_at) : "-"],
+              [
+                "Collected At",
+                stop.collected_at
+                  ? formatCollectionTime(stop.collected_at)
+                  : "-",
+              ],
               ["Status Reason", (stop as any).status_reason],
             ],
-            String(bin.unique_id ?? binId ?? collectionPoint.unique_id ?? stop.collection_point_id ?? ""),
+            String(
+              bin.unique_id ??
+                binId ??
+                collectionPoint.unique_id ??
+                stop.collection_point_id ??
+                "",
+            ),
           );
         }
       }
@@ -1150,11 +1495,15 @@ export default function DailyTripAssignmentList() {
           onChange={setProjectId}
           placeholder={showAllProjectsOption ? "All Projects" : undefined}
           options={projects}
-          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+          disabled={
+            (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+          }
         />
         <FilterBarSelect
           value={collectionTypeFilter}
-          onChange={(value) => setCollectionTypeFilter(value as "all" | CollectionTypeKey)}
+          onChange={(value) =>
+            setCollectionTypeFilter(value as "all" | CollectionTypeKey)
+          }
           options={[
             { value: "all", label: "All Types" },
             { value: "bin", label: "Bin Collection" },
@@ -1167,18 +1516,13 @@ export default function DailyTripAssignmentList() {
       <FilterBar
         searchValue={globalFilterValue}
         onSearchChange={(value) =>
-          onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
+          onGlobalFilterChange({
+            target: { value },
+          } as React.ChangeEvent<HTMLInputElement>)
         }
         searchPlaceholder="Search assignments..."
         trailing={
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              label={isExporting ? "Exporting..." : "Download Excel"}
-              icon="pi pi-file-excel"
-              className="p-button-outlined p-button-sm"
-              disabled={isExporting}
-              onClick={() => handleDownload("excel")}
-            />
             <Button
               label={isExporting ? "Exporting..." : "Download PDF"}
               icon="pi pi-file-pdf"
@@ -1187,7 +1531,9 @@ export default function DailyTripAssignmentList() {
               onClick={() => handleDownload("pdf")}
             />
             <Button
-              label={isExportingDetailed ? "Generating..." : "Detailed Report (QR)"}
+              label={
+                isExportingDetailed ? "Generating..." : "Detailed Report (QR)"
+              }
               icon="pi pi-qrcode"
               className="p-button-outlined p-button-sm"
               disabled={isExportingDetailed}
@@ -1202,10 +1548,14 @@ export default function DailyTripAssignmentList() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">Daily Trip Plans</h1>
-          <p className="text-sm text-gray-500">Manage daily trip plans with assigned collection points</p>
+      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
+            Daily Trip Plans
+          </h1>
+          <p className="text-sm text-gray-500">
+            Manage daily trip plans with assigned collection points
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <label className="inline-flex items-center gap-2 text-sm text-gray-600">
@@ -1231,14 +1581,18 @@ export default function DailyTripAssignmentList() {
             label="New Daily Trip Plan"
             icon="pi pi-plus"
             className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() =>
+              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+            }
           />
         </div>
       </div>
 
       <div className="mb-4 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="font-semibold text-gray-800">Auto Generate Daily Trips</span>
+          <span className="font-semibold text-gray-800">
+            Auto Generate Daily Trips
+          </span>
           <label className="inline-flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -1273,32 +1627,50 @@ export default function DailyTripAssignmentList() {
             title="Manually run the approved, repeat-day-matched auto-assign plans for the selected date (generate-daily action)"
           />
           <span className="text-gray-400">|</span>
-          <span>Job: {schedulerStatus?.enabled ? "Enabled" : "Disabled"} at {schedulerStatus?.run_time ?? schedulerRunTime}</span>
+          <span>
+            Job: {schedulerStatus?.enabled ? "Enabled" : "Disabled"} at{" "}
+            {schedulerStatus?.run_time ?? schedulerRunTime}
+          </span>
           {schedulerStatus?.next_run_at && (
-            <span>Next run: {new Date(schedulerStatus.next_run_at).toLocaleString()}</span>
+            <span>
+              Next run: {new Date(schedulerStatus.next_run_at).toLocaleString()}
+            </span>
           )}
           {schedulerStatus?.last_run_at && (
             <span>
               Last run: {new Date(schedulerStatus.last_run_at).toLocaleString()}
-              {schedulerStatus.last_run_mode ? ` (${schedulerStatus.last_run_mode})` : ""}
+              {schedulerStatus.last_run_mode
+                ? ` (${schedulerStatus.last_run_mode})`
+                : ""}
             </span>
           )}
           {schedulerStatus?.last_auto_run_at && (
-            <span>Last auto: {new Date(schedulerStatus.last_auto_run_at).toLocaleString()}</span>
+            <span>
+              Last auto:{" "}
+              {new Date(schedulerStatus.last_auto_run_at).toLocaleString()}
+            </span>
           )}
         </div>
         <p className="mt-2 text-xs text-gray-500">
-          This is the cron-like generation time. Trip start time is managed separately on the Trip Plan or Daily Trip record.
+          This is the cron-like generation time. Trip start time is managed
+          separately on the Trip Plan or Daily Trip record.
         </p>
         {schedulerStatus?.last_error && (
-          <p className="mt-2 font-medium text-red-600">{schedulerStatus.last_error}</p>
+          <p className="mt-2 font-medium text-red-600">
+            {schedulerStatus.last_error}
+          </p>
         )}
       </div>
 
       <DataTable
+        loadExportRows={async () =>
+          buildExportRows(filteredRows.length > 0 ? filteredRows : rows)
+        }
         value={rows}
         exportRows={filteredRows}
-        onValueChange={(value) => setFilteredRows(value as DailyTripAssignmentRecord[])}
+        onValueChange={(value) =>
+          setFilteredRows(value as DailyTripAssignmentRecord[])
+        }
         dataKey="unique_id"
         lazy
         paginator
@@ -1349,43 +1721,68 @@ export default function DailyTripAssignmentList() {
             _location: locationText(rec),
             _waste: wasteTypeText(rec),
             _collection_type: getCollectionTypeKey(rec),
-            _collection_type_label: COLLECTION_TYPE_LABELS[getCollectionTypeKey(rec)],
+            _collection_type_label:
+              COLLECTION_TYPE_LABELS[getCollectionTypeKey(rec)],
             _collection_point_count: String(
-              (Array.isArray(rec.collection_points) ? rec.collection_points.length : 0) +
-              (Array.isArray(rec.household_collection_points) ? rec.household_collection_points.length : 0),
+              (Array.isArray(rec.collection_points)
+                ? rec.collection_points.length
+                : 0) +
+                (Array.isArray(rec.household_collection_points)
+                  ? rec.household_collection_points.length
+                  : 0),
             ),
           }));
         }}
       >
-        <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 60 }} />
-        <Column field="unique_id" header="ID" filter showFilterMatchModes={false} style={{ minWidth: 160 }} />
+        <Column
+          header={t("common.s_no")}
+          body={(_: any, { rowIndex }: any) => rowIndex + 1}
+          style={{ width: 60 }}
+        />
+        <Column
+          field="unique_id"
+          header="ID"
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 160 }}
+        />
         <Column
           field="_trip_plan"
           header="Trip Plan"
-          body={(row: DailyTripAssignmentRecord) => row.trip_plan?.display_code ?? row.trip_plan_id ?? "—"}
-          filter showFilterMatchModes={false}
+          body={(row: DailyTripAssignmentRecord) =>
+            row.trip_plan?.display_code ?? row.trip_plan_id ?? "—"
+          }
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           field="_staff"
           header="Effective Staff"
           body={(row: DailyTripAssignmentRecord) =>
-            row.effective_staff?.display_code
-              ? <span className="font-medium text-amber-700">{row.effective_staff.display_code}</span>
-              : (row.staff_template?.display_code ?? row.staff_template_id ?? "—")
+            row.effective_staff?.display_code ? (
+              <span className="font-medium text-amber-700">
+                {row.effective_staff.display_code}
+              </span>
+            ) : (
+              (row.staff_template?.display_code ?? row.staff_template_id ?? "—")
+            )
           }
-          filter showFilterMatchModes={false}
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           field="_zone"
           header="Zone"
           body={(row: any) => row._zone || "—"}
-          filter showFilterMatchModes={false}
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           field="_ward"
           header="Ward"
           body={(row: any) => row._ward || "—"}
-          filter showFilterMatchModes={false}
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           field="_location"
@@ -1398,7 +1795,9 @@ export default function DailyTripAssignmentList() {
               return (
                 <span className="text-sm text-gray-800">
                   {row.panchayat.panchayat_name}
-                  <span className="ml-1 text-xs text-indigo-500 font-medium">(PLB)</span>
+                  <span className="ml-1 text-xs text-indigo-500 font-medium">
+                    (PLB)
+                  </span>
                 </span>
               );
             }
@@ -1406,18 +1805,22 @@ export default function DailyTripAssignmentList() {
               return (
                 <span className="text-sm text-gray-800">
                   {(row.ward as any).ward_name}
-                  <span className="ml-1 text-xs text-teal-500 font-medium">(Ward)</span>
+                  <span className="ml-1 text-xs text-teal-500 font-medium">
+                    (Ward)
+                  </span>
                 </span>
               );
             }
             return <span className="text-sm text-gray-400">—</span>;
           }}
         />
- 
+
         <Column
           field="_collection_type_label"
           header="Collection Type"
-          body={(row: DailyTripAssignmentRecord) => <CollectionTypeBadge rec={row} />}
+          body={(row: DailyTripAssignmentRecord) => (
+            <CollectionTypeBadge rec={row} />
+          )}
           filter
           showFilterMatchModes={false}
           style={{ minWidth: 150 }}
@@ -1426,8 +1829,12 @@ export default function DailyTripAssignmentList() {
           field="_collection_point_count"
           header="Collection Points"
           body={(row: DailyTripAssignmentRecord) =>
-            (Array.isArray(row.collection_points) ? row.collection_points.length : 0) +
-            (Array.isArray(row.household_collection_points) ? row.household_collection_points.length : 0)
+            (Array.isArray(row.collection_points)
+              ? row.collection_points.length
+              : 0) +
+            (Array.isArray(row.household_collection_points)
+              ? row.household_collection_points.length
+              : 0)
           }
           filter
           showFilterMatchModes={false}
@@ -1436,14 +1843,16 @@ export default function DailyTripAssignmentList() {
         <Column
           field="trip_date"
           header="Trip Date"
-          filter showFilterMatchModes={false}
+          filter
+          showFilterMatchModes={false}
           sortable={SORTABLE_FIELDS.has("trip_date")}
           style={{ minWidth: 110 }}
         />
         <Column
           field="scheduled_time"
           header="Start Time"
-          filter showFilterMatchModes={false}
+          filter
+          showFilterMatchModes={false}
           sortable={SORTABLE_FIELDS.has("scheduled_time")}
           style={{ minWidth: 110 }}
         />
@@ -1451,20 +1860,25 @@ export default function DailyTripAssignmentList() {
           field="status"
           header="Status"
           body={statusTemplate}
-          filter showFilterMatchModes={false}
+          filter
+          showFilterMatchModes={false}
           sortable={SORTABLE_FIELDS.has("status")}
           style={{ minWidth: 160 }}
         />
         <Column
           field="actual_start_time"
           header="Actual Start"
-          body={(row: DailyTripAssignmentRecord) => formatTimeOnly(row.actual_start_time)}
+          body={(row: DailyTripAssignmentRecord) =>
+            formatTimeOnly(row.actual_start_time)
+          }
           style={{ minWidth: 110 }}
         />
         <Column
           field="actual_end_time"
           header="Actual End"
-          body={(row: DailyTripAssignmentRecord) => formatTimeOnly(row.actual_end_time)}
+          body={(row: DailyTripAssignmentRecord) =>
+            formatTimeOnly(row.actual_end_time)
+          }
           style={{ minWidth: 110 }}
         />
         <Column
@@ -1474,13 +1888,23 @@ export default function DailyTripAssignmentList() {
         />
         <Column
           header="Re-Trip"
-          body={(row: DailyTripAssignmentRecord) => <RetripCell retrip={row.retrip_info} />}
+          body={(row: DailyTripAssignmentRecord) => (
+            <RetripCell retrip={row.retrip_info} />
+          )}
           style={{ minWidth: 150 }}
         />
-        <Column header={t("common.actions")} body={actionTemplate} exportable={false} style={{ width: 170 }} />
+        <Column
+          header={t("common.actions")}
+          body={actionTemplate}
+          exportable={false}
+          style={{ width: 170 }}
+        />
       </DataTable>
 
-      <Dialog open={Boolean(retripRow)} onOpenChange={(open) => !open && closeRetripModal()}>
+      <Dialog
+        open={Boolean(retripRow)}
+        onOpenChange={(open) => !open && closeRetripModal()}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Close &amp; Start Next Trip</DialogTitle>
@@ -1488,8 +1912,9 @@ export default function DailyTripAssignmentList() {
           {retripRow && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                This ends <span className="font-medium">{retripRow.unique_id}</span> now and opens
-                a new trip carrying the remaining stops.
+                This ends{" "}
+                <span className="font-medium">{retripRow.unique_id}</span> now
+                and opens a new trip carrying the remaining stops.
               </p>
               <div className="space-y-1.5">
                 <Label htmlFor="retrip-remarks">Reason *</Label>
@@ -1507,7 +1932,9 @@ export default function DailyTripAssignmentList() {
                   <Label>Stops to carry over to the next trip</Label>
                   <div className="max-h-48 space-y-1 overflow-y-auto rounded border p-2">
                     {retripPendingCps.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">No pending stops left.</p>
+                      <p className="text-xs text-muted-foreground">
+                        No pending stops left.
+                      </p>
                     ) : (
                       retripPendingCps.map((cp) => (
                         <label
@@ -1515,13 +1942,20 @@ export default function DailyTripAssignmentList() {
                           className="flex items-center gap-2 py-1 text-sm"
                         >
                           <Checkbox
-                            checked={cp.unique_id ? retripSelectedCps.has(cp.unique_id) : false}
+                            checked={
+                              cp.unique_id
+                                ? retripSelectedCps.has(cp.unique_id)
+                                : false
+                            }
                             onCheckedChange={(checked) =>
-                              cp.unique_id && toggleRetripCp(cp.unique_id, checked === true)
+                              cp.unique_id &&
+                              toggleRetripCp(cp.unique_id, checked === true)
                             }
                             disabled={isRetripSubmitting}
                           />
-                          {cp.collection_point?.cp_name ?? cp.collection_point_id ?? cp.unique_id}
+                          {cp.collection_point?.cp_name ??
+                            cp.collection_point_id ??
+                            cp.unique_id}
                         </label>
                       ))
                     )}
@@ -1538,7 +1972,11 @@ export default function DailyTripAssignmentList() {
               disabled={isRetripSubmitting}
             />
             <Button
-              label={isRetripSubmitting ? t("common.saving") : "Close & Start Next Trip"}
+              label={
+                isRetripSubmitting
+                  ? t("common.saving")
+                  : "Close & Start Next Trip"
+              }
               onClick={submitRetrip}
               disabled={isRetripSubmitting}
             />

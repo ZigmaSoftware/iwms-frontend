@@ -17,17 +17,22 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
-import { FilterBar } from "@/components/common/FilterBar";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import { applyTableFilters } from "@/utils/tableFilterMatch";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
 
-const GLOBAL_FIELDS = ["customer_name", "category", "feedback_details", "zone_name", "city_name"];
+const GLOBAL_FIELDS = [
+  "customer_name",
+  "category",
+  "feedback_details",
+  "zone_name",
+  "city_name",
+];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,17 +45,24 @@ export default function FeedBackFormList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
 
   const { encComplaintTicket, encFeedback } = getEncryptedRoute();
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encComplaintTicket,
-    encFeedback,
-  );
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
+    createCrudRoutePaths(encComplaintTicket, encFeedback);
 
   const {
-    companyUniqueId, projectId, projects, companies,
-    isSuperAdmin, showAllProjectsOption, setProjectId, onCompanyChange,
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    showAllProjectsOption,
+    setProjectId,
+    onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
     defaultToAll: true,
@@ -62,37 +74,68 @@ export default function FeedBackFormList() {
   const [isLoading, setIsLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    customer_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    category: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    zone_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    city_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    global: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.CONTAINS,
+    },
+    customer_name: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    category: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    zone_name: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
+    city_name: {
+      value: null as string | null,
+      matchMode: FilterMatchMode.STARTS_WITH,
+    },
   });
 
   /* ── load feedbacks ── */
   useEffect(() => {
-    if (!companyUniqueId && !isSuperAdmin) { setFeedbackList([]); return; }
+    if (!companyUniqueId && !isSuperAdmin) {
+      setFeedbackList([]);
+      return;
+    }
     let mounted = true;
     setIsLoading(true);
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
-    adminApi.feedbacks.readAll({ params })
+    adminApi.feedbacks
+      .readAll({ params })
       .then((res: any) => {
         if (!mounted) return;
-        const rows: FeedbackRecord[] = Array.isArray(res) ? res : res?.results ?? [];
+        const rows: FeedbackRecord[] = Array.isArray(res)
+          ? res
+          : (res?.results ?? []);
         // Company/project scoping is applied server-side via the params above
         // — no client-side narrowing needed.
         setFeedbackList(rows);
       })
       .catch((err) => {
-        if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: String(err) });
+        if (mounted)
+          Swal.fire({
+            icon: "error",
+            title: t("common.error"),
+            text: String(err),
+          });
       })
-      .finally(() => { if (mounted) setIsLoading(false); });
-    return () => { mounted = false; };
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, [companyUniqueId, projectId, isSuperAdmin, t]);
 
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
+  const onFilter = (e: DataTableFilterEvent) =>
+    setFilters(e.filters as DataTableFilterMeta);
 
   const onGlobalFilterChange = (value: string) => {
     setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
@@ -103,14 +146,6 @@ export default function FeedBackFormList() {
     () => applyTableFilters(feedbackList, filters, GLOBAL_FIELDS),
     [feedbackList, filters],
   );
-
-  const handleExport = () => {
-    exportRecordsToExcel(
-      filteredForExport,
-      getAdminScreenExcelFilename("all"),
-      "Feedback",
-    );
-  };
 
   const actionTemplate = (row: FeedbackRecord) => (
     <div className="flex gap-3 justify-center">
@@ -128,73 +163,61 @@ export default function FeedBackFormList() {
     </div>
   );
 
-  const indexTemplate = (_: FeedbackRecord, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
+  const indexTemplate = (
+    _: FeedbackRecord,
+    { rowIndex }: { rowIndex: number },
+  ) => rowIndex + 1;
 
   const renderHeader = () => (
     <FilterBar
       searchValue={globalFilterValue}
       onSearchChange={onGlobalFilterChange}
-      searchPlaceholder={t("admin.citizen_grievance.feedback.search_placeholder")}
-      trailing={
-        <button
-          type="button"
-          onClick={handleExport}
-          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-        >
-          <i className="pi pi-file-excel mr-1.5 text-green-600" />
-          {t("common.export_excel", "Export to Excel")}
-        </button>
-      }
-    />
+      searchPlaceholder={t(
+        "admin.citizen_grievance.feedback.search_placeholder",
+      )}
+    >
+      <FilterBarSelect
+        value={companyUniqueId || ""}
+        onChange={(value) => onCompanyChange(value)}
+        options={companies}
+        placeholder={"All Companies"}
+        disabled={!isSuperAdmin || companies.length === 0}
+      />
+
+      <FilterBarSelect
+        value={projectId || ""}
+        onChange={(value) => setProjectId(value)}
+        options={projects}
+        placeholder={showAllProjectsOption ? "All Projects" : undefined}
+        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+      />
+
+      <Button
+        label={t("common.add_new")}
+        icon="pi pi-plus"
+        className="p-button-success"
+        onClick={() =>
+          navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+        }
+      />
+    </FilterBar>
   );
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
+      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
             {t("admin.citizen_grievance.feedback.title")}
           </h1>
           <p className="text-sm text-gray-500">
             {t("admin.citizen_grievance.feedback.subtitle")}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            {showAllProjectsOption && <option value="">All Projects</option>}
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-
-          <Button
-            label={t("common.add_new")}
-            icon="pi pi-plus"
-            className="p-button-success"
-           
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
-          />
-        </div>
       </div>
 
       <DataTable
+        loadExportRows={async () => filteredForExport}
         value={feedbackList}
         dataKey="unique_id"
         paginator
@@ -208,24 +231,40 @@ export default function FeedBackFormList() {
         showGridlines
         emptyMessage={t("admin.citizen_grievance.feedback.empty_message")}
         className="p-datatable-sm"
-        globalFilterFields={["customer_name", "category", "feedback_details", "zone_name", "city_name"]}
+        globalFilterFields={[
+          "customer_name",
+          "category",
+          "feedback_details",
+          "zone_name",
+          "city_name",
+        ]}
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "60px" }} />
+        <Column
+          header={t("common.s_no")}
+          body={indexTemplate}
+          style={{ width: "60px" }}
+        />
         <Column
           field="customer_name"
           header={t("admin.citizen_grievance.feedback.columns.customer_name")}
           body={(row: FeedbackRecord) => cap(row.customer_name)}
-          sortable filter showFilterMatchModes={false}
+          sortable
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           field="category"
           header={t("admin.citizen_grievance.feedback.columns.category")}
           body={(row: FeedbackRecord) => cap(row.category)}
-          sortable filter showFilterMatchModes={false}
+          sortable
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           field="feedback_details"
-          header={t("admin.citizen_grievance.feedback.columns.feedback_details")}
+          header={t(
+            "admin.citizen_grievance.feedback.columns.feedback_details",
+          )}
           body={(row: FeedbackRecord) => cap(row.feedback_details)}
           sortable
         />
@@ -233,13 +272,17 @@ export default function FeedBackFormList() {
           field="zone_name"
           header={t("common.zone")}
           body={(row: FeedbackRecord) => cap(row.zone_name)}
-          sortable filter showFilterMatchModes={false}
+          sortable
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           field="city_name"
           header={t("common.city")}
           body={(row: FeedbackRecord) => cap(row.city_name)}
-          sortable filter showFilterMatchModes={false}
+          sortable
+          filter
+          showFilterMatchModes={false}
         />
         <Column
           header={t("common.actions")}

@@ -1,7 +1,7 @@
 import type { HierarchyRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -16,7 +16,6 @@ import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
-
 
 const HIERARCHY_COLUMN_FIELDS: Record<string, string[]> = {
   level_name: ["level_name", "name"],
@@ -36,8 +35,9 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 
   if (data && typeof data === "object") {
     return Object.entries(data as Record<string, unknown>)
-      .map(([key, value]) =>
-        `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
+      .map(
+        ([key, value]) =>
+          `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`,
       )
       .join("\n");
   }
@@ -67,7 +67,10 @@ export default function HierarchyListPage() {
     },
   });
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -79,7 +82,10 @@ export default function HierarchyListPage() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "hierarchies",
@@ -88,16 +94,15 @@ export default function HierarchyListPage() {
   const navigate = useNavigate();
   const { encMasters, encHierarchies } = getEncryptedRoute();
 
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encMasters,
-    encHierarchies,
-  );
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
+    createCrudRoutePaths(encMasters, encHierarchies);
 
   // Company/project scoping is now applied server-side (tenant users are
   // scoped automatically by the backend; superadmin scoping is passed via
   // company_id/project_id params below) — no client-side narrowing needed.
   const records: HierarchyRecord[] =
-    (isSuperAdmin && companies.length === 0) || (!companyUniqueId && !isSuperAdmin)
+    (isSuperAdmin && companies.length === 0) ||
+    (!companyUniqueId && !isSuperAdmin)
       ? []
       : hierarchies;
 
@@ -114,7 +119,7 @@ export default function HierarchyListPage() {
       Swal.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.fetch_failed")),
-        "error"
+        "error",
       );
     } finally {
       setIsLoading(false);
@@ -129,12 +134,21 @@ export default function HierarchyListPage() {
   }, [companyUniqueId, projectId, isSuperAdmin, companies.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const exportRows = records.filter((row) => {
-    if (statusValue !== "all" && Boolean(row.is_active) !== (statusValue === "active")) {
+    if (
+      statusValue !== "all" &&
+      Boolean(row.is_active) !== (statusValue === "active")
+    ) {
       return false;
     }
     const search = globalFilterValue.trim().toLowerCase();
-    return !search || [row.level_name]
-      .some((value) => String(value ?? "").toLowerCase().includes(search));
+    return (
+      !search ||
+      [row.level_name].some((value) =>
+        String(value ?? "")
+          .toLowerCase()
+          .includes(search),
+      )
+    );
   });
 
   const statusTemplate = (row: HierarchyRecord) => {
@@ -145,20 +159,20 @@ export default function HierarchyListPage() {
       try {
         await adminApi.hierarchies.update(
           row.unique_id as string | number,
-          filterPayload({ is_active: value })
+          filterPayload({ is_active: value }),
         );
         setHierarchies((current) =>
           current.map((item) =>
             item.unique_id === row.unique_id
               ? { ...item, is_active: value }
-              : item
-          )
+              : item,
+          ),
         );
       } catch (error) {
         Swal.fire(
           t("common.error"),
           extractErrorMessage(error, t("common.update_status_failed")),
-          "error"
+          "error",
         );
       } finally {
         setPendingStatusId(null);
@@ -168,9 +182,7 @@ export default function HierarchyListPage() {
     return (
       <Switch
         checked={Boolean(row.is_active)}
-        disabled={
-          pendingStatusId === String(row.unique_id)
-        }
+        disabled={pendingStatusId === String(row.unique_id)}
         onCheckedChange={updateStatus}
       />
     );
@@ -190,7 +202,7 @@ export default function HierarchyListPage() {
 
   const indexTemplate = (
     _: HierarchyRecord,
-    { rowIndex }: { rowIndex: number }
+    { rowIndex }: { rowIndex: number },
   ) => rowIndex + 1;
 
   const cap = (str?: string) =>
@@ -198,9 +210,9 @@ export default function HierarchyListPage() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
+      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
             {t("admin.nav.hierarchy")}
           </h1>
           <p className="text-sm text-gray-500">
@@ -215,28 +227,42 @@ export default function HierarchyListPage() {
             label={t("common.add_item", { item: t("admin.nav.hierarchy") })}
             icon="pi pi-plus"
             className="p-button-success"
-           
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() =>
+              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+            }
           />
         </div>
       </div>
 
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={onGlobalFilterChange}
-        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.hierarchy") })}
-        statusValue={statusValue}
-        onStatusChange={onStatusFilterChange}
-        className="mb-4"
-      >
-        <FilterBarSelect value={companyUniqueId || ""} onChange={onCompanyChange} options={companies}
-          placeholder="All Companies" disabled={!isSuperAdmin || companies.length === 0} />
-        <FilterBarSelect value={projectId || ""} onChange={setProjectId} options={projects}
-          placeholder={showAllProjectsOption ? "All Projects" : undefined}
-          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} />
-      </FilterBar>
-
       <DataTable
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder", {
+              item: t("admin.nav.hierarchy"),
+            })}
+            statusValue={statusValue}
+            onStatusChange={onStatusFilterChange}
+          >
+            <FilterBarSelect
+              value={companyUniqueId || ""}
+              onChange={onCompanyChange}
+              options={companies}
+              placeholder="All Companies"
+              disabled={!isSuperAdmin || companies.length === 0}
+            />
+            <FilterBarSelect
+              value={projectId || ""}
+              onChange={setProjectId}
+              options={projects}
+              placeholder={showAllProjectsOption ? "All Projects" : undefined}
+              disabled={
+                (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+              }
+            />
+          </FilterBar>
+        }
         value={records}
         exportRows={exportRows}
         exportSheetName="Hierarchies"

@@ -7,7 +7,11 @@ import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
+import type {
+  DataTablePageEvent,
+  DataTableSortEvent,
+  SortOrder,
+} from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -17,11 +21,17 @@ import { plantApi } from "@/helpers/admin";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 const toDisplay = (value: unknown): string =>
-  value === null || value === undefined || String(value).trim() === "" ? "-" : String(value);
+  value === null || value === undefined || String(value).trim() === ""
+    ? "-"
+    : String(value);
 
 const toRecordList = (value: unknown): PlantRecord[] => {
   if (Array.isArray(value)) return value as PlantRecord[];
-  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+  if (
+    value &&
+    typeof value === "object" &&
+    Array.isArray((value as { results?: unknown }).results)
+  ) {
     return (value as { results: PlantRecord[] }).results;
   }
   return [];
@@ -41,12 +51,17 @@ export default function PlantListPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusValue, setStatusValue] = useState<"all" | "active" | "inactive">("all");
+  const [statusValue, setStatusValue] = useState<"all" | "active" | "inactive">(
+    "all",
+  );
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const requestIdRef = useRef(0);
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -64,16 +79,20 @@ export default function PlantListPage() {
   });
 
   const { encMasters, encPlants } = getEncryptedRoute();
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encMasters,
-    encPlants,
-  );
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
+    createCrudRoutePaths(encMasters, encPlants);
 
-  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
-    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
-    : undefined;
+  const ordering =
+    sortField && SORTABLE_FIELDS.has(sortField)
+      ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+      : undefined;
 
-  const loadRows = async (page: number, limit: number, search: string, order?: string) => {
+  const loadRows = async (
+    page: number,
+    limit: number,
+    search: string,
+    order?: string,
+  ) => {
     const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setRecords([]);
@@ -89,7 +108,9 @@ export default function PlantListPage() {
       if (requestId !== requestIdRef.current) return;
       setRecords(toRecordList(response));
       setTotalRecords(
-        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+        typeof response?.count === "number"
+          ? response.count
+          : toRecordList(response).length,
       );
     } catch (error) {
       if (requestId !== requestIdRef.current) return;
@@ -105,7 +126,16 @@ export default function PlantListPage() {
 
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyUniqueId, projectId, isSuperAdmin, companies.length, first, rowsPerPage, searchTerm, ordering]);
+  }, [
+    companyUniqueId,
+    projectId,
+    isSuperAdmin,
+    companies.length,
+    first,
+    rowsPerPage,
+    searchTerm,
+    ordering,
+  ]);
 
   const rows = (() => {
     if (isSuperAdmin && companies.length === 0) return [] as PlantRecord[];
@@ -136,7 +166,8 @@ export default function PlantListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const indexTemplate = (_: PlantRecord, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
+  const indexTemplate = (_: PlantRecord, { rowIndex }: { rowIndex: number }) =>
+    rowIndex + 1;
 
   const actionTemplate = (row: PlantRecord) => (
     <div className="flex gap-3 justify-center">
@@ -161,7 +192,11 @@ export default function PlantListPage() {
         setIsUpdating(true);
         await plantApi.update(row.unique_id, { is_active: value });
         setRecords((current) =>
-          current.map((item) => (item.unique_id === row.unique_id ? { ...item, is_active: value } : item)),
+          current.map((item) =>
+            item.unique_id === row.unique_id
+              ? { ...item, is_active: value }
+              : item,
+          ),
         );
       } catch (error) {
         console.error("Failed to update plant status", error);
@@ -180,11 +215,24 @@ export default function PlantListPage() {
     );
   };
 
+  // "All data" re-fetches every plant matching the active filters, since the
+  // table is lazily paginated and only holds one page.
+  const loadAllExportRows = async () =>
+    toRecordList(
+      await plantApi.readAllForExport({
+        params: {
+          company_id: companyUniqueId,
+          project_id: projectId || undefined,
+          ...(searchTerm ? { search: searchTerm } : {}),
+        },
+      }),
+    ) as unknown as Record<string, unknown>[];
+
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">Plant</h1>
+      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">Plant</h1>
           <p className="text-sm text-gray-500">Manage plant records</p>
         </div>
         <div className="flex items-center gap-3">
@@ -192,36 +240,41 @@ export default function PlantListPage() {
             label="Add Plant"
             icon="pi pi-plus"
             className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() =>
+              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+            }
           />
         </div>
       </div>
 
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={setGlobalFilterValue}
-        searchPlaceholder="Search plants…"
-        statusValue={statusValue}
-        onStatusChange={setStatusValue}
-        className="mb-4"
-      >
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={onCompanyChange}
-          options={companies}
-          placeholder="All Companies"
-          disabled={!isSuperAdmin || companies.length === 0}
-        />
-        <FilterBarSelect
-          value={projectId || ""}
-          onChange={setProjectId}
-          options={projects}
-          placeholder={showAllProjectsOption ? "All Projects" : undefined}
-          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-        />
-      </FilterBar>
-
       <DataTable
+        loadExportRows={loadAllExportRows}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder="Search plants…"
+            statusValue={statusValue}
+            onStatusChange={setStatusValue}
+          >
+            <FilterBarSelect
+              value={companyUniqueId || ""}
+              onChange={onCompanyChange}
+              options={companies}
+              placeholder="All Companies"
+              disabled={!isSuperAdmin || companies.length === 0}
+            />
+            <FilterBarSelect
+              value={projectId || ""}
+              onChange={setProjectId}
+              options={projects}
+              placeholder={showAllProjectsOption ? "All Projects" : undefined}
+              disabled={
+                (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+              }
+            />
+          </FilterBar>
+        }
         value={rows}
         dataKey="unique_id"
         lazy
@@ -240,7 +293,11 @@ export default function PlantListPage() {
         className="p-datatable-sm"
         emptyMessage="No plants found"
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+        <Column
+          header={t("common.s_no")}
+          body={indexTemplate}
+          style={{ width: "80px" }}
+        />
         <Column
           field="name"
           header="Plant Name"
@@ -252,10 +309,26 @@ export default function PlantListPage() {
           header={t("admin.nav.project")}
           body={(row: PlantRecord) => toDisplay(row.project_name)}
         />
-        <Column field="latitude" header="Latitude" body={(row: PlantRecord) => toDisplay(row.latitude)} />
-        <Column field="longitude" header="Longitude" body={(row: PlantRecord) => toDisplay(row.longitude)} />
-        <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: "150px", textAlign: "center" }} />
+        <Column
+          field="latitude"
+          header="Latitude"
+          body={(row: PlantRecord) => toDisplay(row.latitude)}
+        />
+        <Column
+          field="longitude"
+          header="Longitude"
+          body={(row: PlantRecord) => toDisplay(row.longitude)}
+        />
+        <Column
+          header={t("common.status")}
+          body={statusTemplate}
+          style={{ width: "140px" }}
+        />
+        <Column
+          header={t("common.actions")}
+          body={actionTemplate}
+          style={{ width: "150px", textAlign: "center" }}
+        />
       </DataTable>
     </div>
   );

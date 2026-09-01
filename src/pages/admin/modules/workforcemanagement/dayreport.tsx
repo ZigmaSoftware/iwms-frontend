@@ -194,7 +194,7 @@ export default function DayReport() {
     return (
       <>
         <ProjectSelectorBar />
-        <div className="p-4">
+        <div className="p-3">
           <div className="flex justify-end mb-4">
             <Button
               icon="pi pi-arrow-left"
@@ -215,13 +215,13 @@ export default function DayReport() {
   return (
     <>
       <ProjectSelectorBar />
-      <div className="p-4">
+      <div className="p-3">
         <div className="flex justify-between items-center mb-4">
           <div>
             <h1 className="text-2xl font-bold">
               {t("admin.workforce_management.day_report.title")}
             </h1>
-            <p className="text-gray-500 text-sm">
+            <p className="text-sm text-gray-500">
               {t("admin.workforce_management.day_report.subtitle")}
             </p>
           </div>

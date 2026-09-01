@@ -9,12 +9,16 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputTextarea } from "primereact/inputtextarea";
 import { Dialog } from "primereact/dialog";
-import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
+import type {
+  DataTablePageEvent,
+  DataTableSortEvent,
+  SortOrder,
+} from "primereact/datatable";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { api } from "@/api";
 import { retripRequestApi } from "@/helpers/admin";
-import { FilterBar } from "@/components/common/FilterBar";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 /* ── Badge helpers ─────────────────────────────────────────────── */
 
@@ -25,7 +29,9 @@ const STATUS_STYLES: Record<RetripStatus, string> = {
 };
 
 const StatusBadge = ({ value }: { value: RetripStatus }) => (
-  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[value] ?? "bg-gray-100 text-gray-600"}`}>
+  <span
+    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLES[value] ?? "bg-gray-100 text-gray-600"}`}
+  >
     {RETRIP_STATUS_LABELS[value] ?? value}
   </span>
 );
@@ -45,7 +51,11 @@ const extractError = (error: any): string => {
 
 const toRecordList = (value: unknown): TripRetripRequestRecord[] => {
   if (Array.isArray(value)) return value as TripRetripRequestRecord[];
-  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+  if (
+    value &&
+    typeof value === "object" &&
+    Array.isArray((value as { results?: unknown }).results)
+  ) {
     return (value as { results: TripRetripRequestRecord[] }).results;
   }
   return [];
@@ -64,13 +74,19 @@ function ApproveDialog({
 }: {
   row: TripRetripRequestRecord;
   onClose: () => void;
-  onConfirm: (collectionPointIds: string[] | undefined, remarks: string) => void;
+  onConfirm: (
+    collectionPointIds: string[] | undefined,
+    remarks: string,
+  ) => void;
   isLoading: boolean;
 }) {
-  const isHousehold = row.collection_type === "household" || row.collection_type === "bulk";
+  const isHousehold =
+    row.collection_type === "household" || row.collection_type === "bulk";
   const bins = row.live_pending?.collection_points ?? [];
   const households = row.live_pending?.households ?? [];
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(bins.map((b) => b.unique_id)));
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(bins.map((b) => b.unique_id)),
+  );
   const [remarks, setRemarks] = useState("");
 
   const toggle = (id: string) => {
@@ -86,13 +102,20 @@ function ApproveDialog({
 
   const footer = (
     <div className="flex justify-end gap-2 pt-2">
-      <Button label="Cancel" className="p-button-text p-button-secondary" onClick={onClose} disabled={isLoading} />
+      <Button
+        label="Cancel"
+        className="p-button-text p-button-secondary"
+        onClick={onClose}
+        disabled={isLoading}
+      />
       <Button
         label="Approve Re-Trip"
         icon="pi pi-check"
         className="p-button-success"
         loading={isLoading}
-        onClick={() => onConfirm(isHousehold ? undefined : Array.from(selected), remarks)}
+        onClick={() =>
+          onConfirm(isHousehold ? undefined : Array.from(selected), remarks)
+        }
       />
     </div>
   );
@@ -103,8 +126,12 @@ function ApproveDialog({
       onHide={onClose}
       header={
         <div>
-          <p className="text-lg font-bold text-gray-800">Approve Re-Trip Request</p>
-          <p className="text-xs text-gray-400 font-normal mt-0.5">{row.unique_id}</p>
+          <p className="text-lg font-bold text-gray-800">
+            Approve Re-Trip Request
+          </p>
+          <p className="text-xs text-gray-400 font-normal mt-0.5">
+            {row.unique_id}
+          </p>
         </div>
       }
       footer={footer}
@@ -131,17 +158,21 @@ function ApproveDialog({
 
         {isHousehold ? (
           <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-xs text-blue-800">
-            <strong>On approval:</strong> all {households.length} remaining household(s) will be
-            reassigned to a new trip for the same driver. The current trip will be closed.
+            <strong>On approval:</strong> all {households.length} remaining
+            household(s) will be reassigned to a new trip for the same driver.
+            The current trip will be closed.
           </div>
         ) : (
           <div>
             <p className="text-sm font-medium text-gray-700 mb-1.5">
-              Select the collection points to carry over to the new trip ({selected.size} of {bins.length} selected)
+              Select the collection points to carry over to the new trip (
+              {selected.size} of {bins.length} selected)
             </p>
             <div className="max-h-52 overflow-y-auto rounded-lg border border-gray-200 divide-y">
               {bins.length === 0 && (
-                <div className="p-3 text-xs text-gray-400">No pending collection points left.</div>
+                <div className="p-3 text-xs text-gray-400">
+                  No pending collection points left.
+                </div>
               )}
               {bins.map((stop) => (
                 <label
@@ -154,7 +185,9 @@ function ApproveDialog({
                     onChange={() => toggle(stop.unique_id)}
                     className="h-4 w-4"
                   />
-                  <span className="flex-1 text-gray-800">{stop.name ?? stop.unique_id}</span>
+                  <span className="flex-1 text-gray-800">
+                    {stop.name ?? stop.unique_id}
+                  </span>
                   <span className="text-xs text-gray-400">{stop.status}</span>
                 </label>
               ))}
@@ -163,12 +196,14 @@ function ApproveDialog({
         )}
 
         <div className="rounded-lg bg-green-50 border border-green-100 p-3 text-xs text-green-800">
-          A new trip will be created with {carriedCount} stop(s); the current trip
-          ({row.assignment_unique_id}) will be marked ended.
+          A new trip will be created with {carriedCount} stop(s); the current
+          trip ({row.assignment_unique_id}) will be marked ended.
         </div>
 
         <div>
-          <p className="text-sm font-medium text-gray-700 mb-1.5">Remarks (optional)</p>
+          <p className="text-sm font-medium text-gray-700 mb-1.5">
+            Remarks (optional)
+          </p>
           <InputTextarea
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
@@ -198,7 +233,12 @@ function RejectDialog({
   const [remarks, setRemarks] = useState("");
   const footer = (
     <div className="flex justify-end gap-2 pt-2">
-      <Button label="Cancel" className="p-button-text p-button-secondary" onClick={onClose} disabled={isLoading} />
+      <Button
+        label="Cancel"
+        className="p-button-text p-button-secondary"
+        onClick={onClose}
+        disabled={isLoading}
+      />
       <Button
         label="Reject"
         icon="pi pi-times"
@@ -214,8 +254,12 @@ function RejectDialog({
       onHide={onClose}
       header={
         <div>
-          <p className="text-lg font-bold text-gray-800">Reject Re-Trip Request</p>
-          <p className="text-xs text-gray-400 font-normal mt-0.5">{row.unique_id}</p>
+          <p className="text-lg font-bold text-gray-800">
+            Reject Re-Trip Request
+          </p>
+          <p className="text-xs text-gray-400 font-normal mt-0.5">
+            {row.unique_id}
+          </p>
         </div>
       }
       footer={footer}
@@ -226,11 +270,17 @@ function RejectDialog({
     >
       <div className="flex flex-col gap-4 pt-2">
         <p className="text-sm text-gray-600">
-          Trip <strong className="font-mono text-blue-700">{row.assignment_unique_id}</strong> stays{" "}
-          <strong>In Progress</strong> — the driver will need to continue the remaining stops.
+          Trip{" "}
+          <strong className="font-mono text-blue-700">
+            {row.assignment_unique_id}
+          </strong>{" "}
+          stays <strong>In Progress</strong> — the driver will need to continue
+          the remaining stops.
         </p>
         <div>
-          <p className="text-sm font-medium text-gray-700 mb-1.5">Remarks (optional)</p>
+          <p className="text-sm font-medium text-gray-700 mb-1.5">
+            Remarks (optional)
+          </p>
           <InputTextarea
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
@@ -268,18 +318,23 @@ export default function TripRetripRequestList() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [statusFilter, setStatusFilter] = useState<RetripStatus | "">("Pending");
+  const [statusFilter, setStatusFilter] = useState<RetripStatus | "">(
+    "Pending",
+  );
   const requestIdRef = useRef(0);
 
-  const [approveTarget, setApproveTarget] = useState<TripRetripRequestRecord | null>(null);
+  const [approveTarget, setApproveTarget] =
+    useState<TripRetripRequestRecord | null>(null);
   const [isApproving, setIsApproving] = useState(false);
-  const [rejectTarget, setRejectTarget] = useState<TripRetripRequestRecord | null>(null);
+  const [rejectTarget, setRejectTarget] =
+    useState<TripRetripRequestRecord | null>(null);
   const [isRejecting, setIsRejecting] = useState(false);
 
   /* ── Fetch ─────────────────────────────────────────────────────── */
-  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
-    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
-    : undefined;
+  const ordering =
+    sortField && SORTABLE_FIELDS.has(sortField)
+      ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+      : undefined;
 
   const loadRows = async (page: number, limit: number) => {
     const requestId = ++requestIdRef.current;
@@ -292,13 +347,17 @@ export default function TripRetripRequestList() {
       if (ordering) params.ordering = ordering;
       if (statusFilter) params.status = statusFilter;
 
-      const response = await retripRequestApi.readAllwithPaginated(page, limit, { params });
+      const response = await retripRequestApi.readAllwithPaginated(
+        page,
+        limit,
+        { params },
+      );
       if (requestId !== requestIdRef.current) return;
       const list = toRecordList(response);
       setRawRows(list);
       setTotalRecords(
         typeof (response as { count?: number })?.count === "number"
-          ? (response as { count?: number }).count as number
+          ? ((response as { count?: number }).count as number)
           : list.length,
       );
     } catch {
@@ -310,12 +369,33 @@ export default function TripRetripRequestList() {
   };
 
   useEffect(() => {
-    if (isSuperAdmin && companies.length === 0) { requestIdRef.current += 1; setRawRows([]); setTotalRecords(0); return; }
-    if (!companyUniqueId && !isSuperAdmin) { requestIdRef.current += 1; setRawRows([]); setTotalRecords(0); return; }
+    if (isSuperAdmin && companies.length === 0) {
+      requestIdRef.current += 1;
+      setRawRows([]);
+      setTotalRecords(0);
+      return;
+    }
+    if (!companyUniqueId && !isSuperAdmin) {
+      requestIdRef.current += 1;
+      setRawRows([]);
+      setTotalRecords(0);
+      return;
+    }
 
     void loadRows(first / rowsPerPage + 1, rowsPerPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyUniqueId, projectId, companies.length, isSuperAdmin, first, rowsPerPage, searchTerm, ordering, statusFilter, t]);
+  }, [
+    companyUniqueId,
+    projectId,
+    companies.length,
+    isSuperAdmin,
+    first,
+    rowsPerPage,
+    searchTerm,
+    ordering,
+    statusFilter,
+    t,
+  ]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -337,15 +417,25 @@ export default function TripRetripRequestList() {
   };
 
   /* ── Approve ────────────────────────────────────────────────────── */
-  const handleApproveConfirm = async (collectionPointIds: string[] | undefined, remarks: string) => {
+  const handleApproveConfirm = async (
+    collectionPointIds: string[] | undefined,
+    remarks: string,
+  ) => {
     if (!approveTarget) return;
     setIsApproving(true);
     try {
-      await api.post(`/schedule-operations/retrip-requests/${approveTarget.unique_id}/approve/`, {
-        ...(collectionPointIds !== undefined ? { collection_point_ids: collectionPointIds } : {}),
-        ...(remarks ? { remarks } : {}),
-      });
-      setRawRows((prev) => prev.filter((r) => r.unique_id !== approveTarget.unique_id));
+      await api.post(
+        `/schedule-operations/retrip-requests/${approveTarget.unique_id}/approve/`,
+        {
+          ...(collectionPointIds !== undefined
+            ? { collection_point_ids: collectionPointIds }
+            : {}),
+          ...(remarks ? { remarks } : {}),
+        },
+      );
+      setRawRows((prev) =>
+        prev.filter((r) => r.unique_id !== approveTarget.unique_id),
+      );
       setTotalRecords((prev) => Math.max(0, prev - 1));
       setApproveTarget(null);
       Swal.fire({
@@ -367,10 +457,15 @@ export default function TripRetripRequestList() {
     if (!rejectTarget) return;
     setIsRejecting(true);
     try {
-      await api.post(`/schedule-operations/retrip-requests/${rejectTarget.unique_id}/reject/`, {
-        ...(remarks ? { remarks } : {}),
-      });
-      setRawRows((prev) => prev.filter((r) => r.unique_id !== rejectTarget.unique_id));
+      await api.post(
+        `/schedule-operations/retrip-requests/${rejectTarget.unique_id}/reject/`,
+        {
+          ...(remarks ? { remarks } : {}),
+        },
+      );
+      setRawRows((prev) =>
+        prev.filter((r) => r.unique_id !== rejectTarget.unique_id),
+      );
       setTotalRecords((prev) => Math.max(0, prev - 1));
       setRejectTarget(null);
       Swal.fire({
@@ -412,6 +507,18 @@ export default function TripRetripRequestList() {
   );
 
   /* ── Header ─────────────────────────────────────────────────────── */
+  // Feeds the table's "Download Excel" button: "All data" re-fetches every
+  // request matching the current filters, since the table itself is lazily
+  // paginated and only holds one page.
+  const loadAllExportRows = async () => {
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
+    if (projectId) params.project_id = projectId;
+    if (searchTerm.trim()) params.search = searchTerm.trim();
+    if (statusFilter) params.status = statusFilter;
+    return toRecordList(await retripRequestApi.readAllForExport({ params }));
+  };
+
   const header = (
     <FilterBar
       searchValue={globalFilterValue}
@@ -438,7 +545,24 @@ export default function TripRetripRequestList() {
           ))}
         </div>
       }
-    />
+    >
+      {isSuperAdmin && (
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={(value) => onCompanyChange(value)}
+          options={companies}
+          placeholder="All Companies"
+          disabled={companies.length === 0}
+        />
+      )}
+      <FilterBarSelect
+        value={projectId || ""}
+        onChange={(value) => setProjectId(value)}
+        options={projects}
+        placeholder="All Projects"
+        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+      />
+    </FilterBar>
   );
 
   /* ════════════════════════════════════════════════════════════════
@@ -447,43 +571,20 @@ export default function TripRetripRequestList() {
   return (
     <div className="p-3">
       {/* Title row */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">Re-Trip Requests</h1>
+      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800">
+            Re-Trip Requests
+          </h1>
           <p className="text-sm text-gray-500">
             Drivers asking to end a trip early with stops still remaining
           </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {isSuperAdmin && (
-            <select
-              value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
-              disabled={companies.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Companies</option>
-              {companies.map((c) => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
-          )}
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
         </div>
       </div>
 
       {/* DataTable */}
       <DataTable
+        loadExportRows={loadAllExportRows}
         value={rawRows as unknown as Record<string, unknown>[]}
         dataKey="unique_id"
         lazy
@@ -508,7 +609,11 @@ export default function TripRetripRequestList() {
           body={(_: any, { rowIndex }: any) => rowIndex + 1}
           style={{ width: 60 }}
         />
-        <Column field="unique_id" header="Request ID" style={{ minWidth: 150 }} />
+        <Column
+          field="unique_id"
+          header="Request ID"
+          style={{ minWidth: 150 }}
+        />
         <Column
           field="assignment_unique_id"
           header="Trip"
@@ -516,12 +621,24 @@ export default function TripRetripRequestList() {
           body={(r: TripRetripRequestRecord) => (
             <div className="text-sm text-gray-800">
               {r.assignment_unique_id}
-              {r.trip_date && <div className="text-xs text-gray-400">{r.trip_date}</div>}
+              {r.trip_date && (
+                <div className="text-xs text-gray-400">{r.trip_date}</div>
+              )}
             </div>
           )}
         />
-        <Column field="area_name" header="Area" style={{ minWidth: 140 }} body={(r: any) => r.area_name || "-"} />
-        <Column field="vehicle_no" header="Vehicle" style={{ minWidth: 110 }} body={(r: any) => r.vehicle_no || "-"} />
+        <Column
+          field="area_name"
+          header="Area"
+          style={{ minWidth: 140 }}
+          body={(r: any) => r.area_name || "-"}
+        />
+        <Column
+          field="vehicle_no"
+          header="Vehicle"
+          style={{ minWidth: 110 }}
+          body={(r: any) => r.vehicle_no || "-"}
+        />
         <Column
           field="collection_type"
           header="Type"
@@ -541,18 +658,34 @@ export default function TripRetripRequestList() {
             </span>
           )}
         />
-        <Column field="reason" header="Reason" style={{ minWidth: 220 }} body={(r: any) => (
-          <span className="text-xs text-gray-700">{r.reason}</span>
-        )} />
-        <Column field="requested_by_name" header="Requested By" style={{ minWidth: 140 }} body={(r: any) => r.requested_by_name || "-"} />
+        <Column
+          field="reason"
+          header="Reason"
+          style={{ minWidth: 220 }}
+          body={(r: any) => (
+            <span className="text-xs text-gray-700">{r.reason}</span>
+          )}
+        />
+        <Column
+          field="requested_by_name"
+          header="Requested By"
+          style={{ minWidth: 140 }}
+          body={(r: any) => r.requested_by_name || "-"}
+        />
         <Column
           field="status"
           header="Status"
           sortable
           style={{ minWidth: 110 }}
-          body={(r: TripRetripRequestRecord) => <StatusBadge value={r.status} />}
+          body={(r: TripRetripRequestRecord) => (
+            <StatusBadge value={r.status} />
+          )}
         />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ minWidth: 110 }} />
+        <Column
+          header={t("common.actions")}
+          body={actionTemplate}
+          style={{ minWidth: 110 }}
+        />
       </DataTable>
 
       {/* Approve Dialog */}

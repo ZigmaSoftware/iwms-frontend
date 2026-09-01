@@ -1,12 +1,16 @@
 import type { DistrictApiRow } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
+import type {
+  DataTablePageEvent,
+  DataTableSortEvent,
+  SortOrder,
+} from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -15,7 +19,10 @@ import { districtApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 import type { DistrictListRecord } from "./types";
 
 /**
@@ -59,10 +66,12 @@ export default function DistrictListPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const requestIdRef = useRef(0);
   const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
   const {
     companyUniqueId,
     projectId,
@@ -74,14 +83,15 @@ export default function DistrictListPage() {
     onCompanyChange,
   } = useCompanyProjectSelection({
     isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
   const navigate = useNavigate();
   const { encMasters, encDistricts } = getEncryptedRoute();
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encMasters,
-    encDistricts,
-  );
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
+    createCrudRoutePaths(encMasters, encDistricts);
 
   const mapRow = (d: DistrictApiRow): DistrictListRecord => ({
     unique_id: String(d.unique_id ?? ""),
@@ -90,18 +100,28 @@ export default function DistrictListPage() {
     name: String(d.name ?? ""),
     is_active: Boolean(d.is_active),
     company_id: d.company_id ? String(d.company_id) : undefined,
-    company_unique_id: d.company_unique_id ? String(d.company_unique_id) : undefined,
+    company_unique_id: d.company_unique_id
+      ? String(d.company_unique_id)
+      : undefined,
     company_name: d.company_name ? String(d.company_name) : undefined,
     project_id: d.project_id ? String(d.project_id) : undefined,
-    project_unique_id: d.project_unique_id ? String(d.project_unique_id) : undefined,
+    project_unique_id: d.project_unique_id
+      ? String(d.project_unique_id)
+      : undefined,
     project_name: d.project_name ? String(d.project_name) : undefined,
   });
 
-  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
-    ? `${sortOrder === -1 ? "-" : ""}${BACKEND_ORDER_FIELD[sortField] ?? sortField}`
-    : undefined;
+  const ordering =
+    sortField && SORTABLE_FIELDS.has(sortField)
+      ? `${sortOrder === -1 ? "-" : ""}${BACKEND_ORDER_FIELD[sortField] ?? sortField}`
+      : undefined;
 
-  const loadRows = async (page: number, limit: number, search: string, order?: string) => {
+  const loadRows = async (
+    page: number,
+    limit: number,
+    search: string,
+    order?: string,
+  ) => {
     if (isSuperAdmin && companies.length === 0) {
       requestIdRef.current += 1;
       setDistricts([]);
@@ -134,11 +154,18 @@ export default function DistrictListPage() {
         ? (response.results as unknown as DistrictApiRow[])
         : [];
       setDistricts(rows.map(mapRow));
-      setTotalRecords(typeof response?.count === "number" ? response.count : rows.length);
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : rows.length,
+      );
     } catch (error) {
       if (requestId !== requestIdRef.current) return;
-      const errorData = (error as { response?: { data?: unknown } })?.response?.data;
-      Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
+      const errorData = (error as { response?: { data?: unknown } })?.response
+        ?.data;
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: String(errorData ?? error),
+      });
     } finally {
       if (requestId === requestIdRef.current) setIsLoading(false);
     }
@@ -147,7 +174,16 @@ export default function DistrictListPage() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, companies.length, companyUniqueId, isSuperAdmin, projectId]);
+  }, [
+    first,
+    rowsPerPage,
+    searchTerm,
+    ordering,
+    companies.length,
+    companyUniqueId,
+    isSuperAdmin,
+    projectId,
+  ]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -175,28 +211,20 @@ export default function DistrictListPage() {
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
-  const handleDownloadExcel = async () => {
-    setIsExportingExcel(true);
-    try {
-      const params: Record<string, string> = {};
-      if (companyUniqueId) params.company_id = companyUniqueId;
-      if (projectId) params.project_id = projectId;
+  // Feeds the table's single "Download Excel" button: "All data" re-fetches
+  // every row matching the current company/project scope, while "Current
+  // page" uses the rows already on screen.
+  const loadAllExportRows = async () => {
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
+    if (projectId) params.project_id = projectId;
 
-      const allRows = await districtApi.readAllForExport(
-        Object.keys(params).length ? { params } : undefined,
-      );
-      const rows = (Array.isArray(allRows) ? (allRows as unknown as DistrictApiRow[]) : []).map(mapRow);
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No districts to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Districts");
-    } catch (error) {
-      const errorData = (error as { response?: { data?: unknown } })?.response?.data;
-      Swal.fire({ icon: "error", title: t("common.error"), text: String(errorData ?? error) });
-    } finally {
-      setIsExportingExcel(false);
-    }
+    const allRows = await districtApi.readAllForExport(
+      Object.keys(params).length ? { params } : undefined,
+    );
+    return (
+      Array.isArray(allRows) ? (allRows as unknown as DistrictApiRow[]) : []
+    ).map(mapRow);
   };
 
   const updateStatus = async (row: DistrictListRecord, checked: boolean) => {
@@ -208,8 +236,10 @@ export default function DistrictListPage() {
       await districtApi.update(row.unique_id, { is_active: checked });
       setDistricts((current) =>
         current.map((item) =>
-          item.unique_id === row.unique_id ? { ...item, is_active: checked } : item
-        )
+          item.unique_id === row.unique_id
+            ? { ...item, is_active: checked }
+            : item,
+        ),
       );
     } catch (e) {
       console.error("Toggle update failed:", e);
@@ -220,9 +250,12 @@ export default function DistrictListPage() {
   };
 
   const statusTemplate = (row: DistrictListRecord) => (
-    <Switch checked={row.is_active} disabled={isUpdating && pendingStatusId === String(row.unique_id)} onCheckedChange={(checked) => void updateStatus(row, checked)} />
+    <Switch
+      checked={row.is_active}
+      disabled={isUpdating && pendingStatusId === String(row.unique_id)}
+      onCheckedChange={(checked) => void updateStatus(row, checked)}
+    />
   );
-
 
   const actionTemplate = (row: DistrictListRecord) => (
     <div className="flex gap-3 justify-center">
@@ -243,17 +276,19 @@ export default function DistrictListPage() {
     </div>
   );
 
-  const indexTemplate = (_: DistrictListRecord, { rowIndex }: { rowIndex: number }) =>
-    rowIndex + 1;
+  const indexTemplate = (
+    _: DistrictListRecord,
+    { rowIndex }: { rowIndex: number },
+  ) => rowIndex + 1;
 
   return (
     <div className="p-3">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
             {t("admin.nav.district")}
           </h1>
-          <p className="text-gray-500 text-sm">
+          <p className="text-sm text-gray-500">
             {t("common.manage_item_records", { item: t("admin.nav.district") })}
           </p>
         </div>
@@ -262,7 +297,6 @@ export default function DistrictListPage() {
             label={t("common.add_item", { item: t("admin.nav.district") })}
             icon="pi pi-plus"
             className="p-button-success"
-
             onClick={() =>
               navigate(ENC_NEW_PATH, {
                 state: {
@@ -275,38 +309,34 @@ export default function DistrictListPage() {
         </div>
       </div>
 
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={onGlobalFilterChange}
-        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.district") })}
-        className="mb-4"
-        trailing={
-          <Button
-            label={isExportingExcel ? "Downloading..." : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined"
-            disabled={isExportingExcel}
-            onClick={() => void handleDownloadExcel()}
-          />
-        }
-      >
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={onCompanyChange}
-          options={companies}
-          placeholder="All Companies"
-          disabled={!isSuperAdmin || companies.length === 0}
-        />
-        <FilterBarSelect
-          value={projectId || ""}
-          onChange={setProjectId}
-          options={projects}
-          placeholder={showAllProjectsOption ? "All Projects" : undefined}
-          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-        />
-      </FilterBar>
-
       <DataTable
+        loadExportRows={loadAllExportRows}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder", {
+              item: t("admin.nav.district"),
+            })}
+          >
+            <FilterBarSelect
+              value={companyUniqueId || ""}
+              onChange={onCompanyChange}
+              options={companies}
+              placeholder="All Companies"
+              disabled={!isSuperAdmin || companies.length === 0}
+            />
+            <FilterBarSelect
+              value={projectId || ""}
+              onChange={setProjectId}
+              options={projects}
+              placeholder={showAllProjectsOption ? "All Projects" : undefined}
+              disabled={
+                (!companyUniqueId && !isSuperAdmin) || projects.length === 0
+              }
+            />
+          </FilterBar>
+        }
         value={districts}
         dataKey="unique_id"
         lazy
@@ -322,7 +352,9 @@ export default function DistrictListPage() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         stripedRows
         showGridlines
-        emptyMessage={t("common.no_items_found", { item: t("admin.nav.district") })}
+        emptyMessage={t("common.no_items_found", {
+          item: t("admin.nav.district"),
+        })}
         className="p-datatable-sm"
       >
         <Column

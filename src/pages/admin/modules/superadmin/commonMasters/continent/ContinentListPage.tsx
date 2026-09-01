@@ -15,22 +15,22 @@ import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
-import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import type { ContinentRecord } from "./types";
 
-
 const { encMasters, encContinents } = getEncryptedRoute();
 
 const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-
   encMasters,
 
   encContinents,
-
 );
 
 const CONTINENT_COLUMN_FIELDS: Record<string, string[]> = {
@@ -51,8 +51,9 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 
   if (data && typeof data === "object") {
     return Object.entries(data as Record<string, unknown>)
-      .map(([key, value]) =>
-        `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
+      .map(
+        ([key, value]) =>
+          `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`,
       )
       .join("\n");
   }
@@ -70,7 +71,6 @@ export default function ContinentList() {
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [continents, setContinents] = useState<ContinentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const {
     filters,
     onFilter,
@@ -98,7 +98,7 @@ export default function ContinentList() {
       Swal.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.fetch_failed")),
-        "error"
+        "error",
       );
     } finally {
       setIsLoading(false);
@@ -117,28 +117,13 @@ export default function ContinentList() {
         if (Boolean(row.is_active) !== wantActive) return false;
       }
       if (!search) return true;
-      return String(row.name ?? "").toLowerCase().includes(search);
+      return String(row.name ?? "")
+        .toLowerCase()
+        .includes(search);
     });
   };
 
-  const handleDownloadExcel = () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = getFilteredExportRows();
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No continents to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Continents");
-    } finally {
-      setIsExportingExcel(false);
-    }
-  };
-
-  const updateStatus = async (
-    continent: ContinentRecord,
-    checked: boolean
-  ) => {
+  const updateStatus = async (continent: ContinentRecord, checked: boolean) => {
     const continentId = String(continent.unique_id);
 
     setPendingStatusId(continentId);
@@ -146,20 +131,20 @@ export default function ContinentList() {
     try {
       await adminApi.continents.update(
         continent.unique_id,
-        filterPayload({ is_active: checked })
+        filterPayload({ is_active: checked }),
       );
       setContinents((current) =>
         current.map((row) =>
           row.unique_id === continent.unique_id
             ? { ...row, is_active: checked }
-            : row
-        )
+            : row,
+        ),
       );
     } catch (error) {
       Swal.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.update_status_failed")),
-        "error"
+        "error",
       );
     } finally {
       setPendingStatusId(null);
@@ -172,9 +157,7 @@ export default function ContinentList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={
-          pendingStatusId === continentId
-        }
+        disabled={pendingStatusId === continentId}
         onCheckedChange={(checked) => {
           void updateStatus(row, checked);
         }}
@@ -194,16 +177,14 @@ export default function ContinentList() {
     </div>
   );
 
-  const indexTemplate = (
-    _: ContinentRecord,
-    options: { rowIndex: number }
-  ) => options.rowIndex + 1;
+  const indexTemplate = (_: ContinentRecord, options: { rowIndex: number }) =>
+    options.rowIndex + 1;
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">
+      <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold text-gray-800">
             {t("admin.nav.continent")}
           </h1>
 
@@ -222,25 +203,19 @@ export default function ContinentList() {
         />
       </div>
 
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={onGlobalFilterChange}
-        searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.continent") })}
-        statusValue={statusValue}
-        onStatusChange={onStatusFilterChange}
-        className="mb-4"
-        trailing={
-          <Button
-            label={isExportingExcel ? "Downloading..." : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined"
-            disabled={isExportingExcel}
-            onClick={handleDownloadExcel}
+      <DataTable
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder", {
+              item: t("admin.nav.continent"),
+            })}
+            statusValue={statusValue}
+            onStatusChange={onStatusFilterChange}
           />
         }
-      />
-
-      <DataTable
+        loadExportRows={async () => getFilteredExportRows()}
         value={continents}
         dataKey="unique_id"
         paginator

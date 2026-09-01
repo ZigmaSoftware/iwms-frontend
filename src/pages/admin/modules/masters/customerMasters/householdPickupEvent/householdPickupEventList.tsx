@@ -29,9 +29,8 @@ import {
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
 
-
 const householdPickupEventApi = createCrudHelpers<HouseholdPickupEventRecord>(
-  "customer-masters/household-pickup-events"
+  "customer-masters/household-pickup-events",
 );
 
 const buildLookup = (items: any[], key: string, label: string) =>
@@ -67,23 +66,31 @@ export default function HouseholdPickupEventList() {
   const [records, setRecords] = useState<HouseholdPickupEventRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [customerLookup, setCustomerLookup] = useState<Record<string, string>>({});
+  const [customerLookup, setCustomerLookup] = useState<Record<string, string>>(
+    {},
+  );
   const [zoneLookup, setZoneLookup] = useState<Record<string, string>>({});
-  const [propertyLookup, setPropertyLookup] = useState<Record<string, string>>({});
-  const [subPropertyLookup, setSubPropertyLookup] = useState<Record<string, string>>({});
-  const [collectorLookup, setCollectorLookup] = useState<Record<string, string>>({});
-  const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>({});
+  const [propertyLookup, setPropertyLookup] = useState<Record<string, string>>(
+    {},
+  );
+  const [subPropertyLookup, setSubPropertyLookup] = useState<
+    Record<string, string>
+  >({});
+  const [collectorLookup, setCollectorLookup] = useState<
+    Record<string, string>
+  >({});
+  const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>(
+    {},
+  );
 
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
-  const { filters, globalFilterValue, onGlobalFilterChange } = useFilterBarFilters({
-    withStatusFilter: false,
-  });
+  const { filters, globalFilterValue, onGlobalFilterChange } =
+    useFilterBarFilters({
+      withStatusFilter: false,
+    });
 
   const { encCustomerMaster, encHouseholdPickupEvent } = getEncryptedRoute();
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encCustomerMaster,
-    encHouseholdPickupEvent,
-  );
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
+    createCrudRoutePaths(encCustomerMaster, encHouseholdPickupEvent);
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -107,16 +114,28 @@ export default function HouseholdPickupEventList() {
       ]);
 
       const staffUsers = normalizeList(userRes).filter(
-        (u: any) => String(u?.user_type_name ?? "").toLowerCase() === "staff"
+        (u: any) => String(u?.user_type_name ?? "").toLowerCase() === "staff",
       );
 
       setRecords(normalizeList(pickupRes));
-      setCustomerLookup(buildLookup(normalizeList(customerRes), "unique_id", "customer_name"));
+      setCustomerLookup(
+        buildLookup(normalizeList(customerRes), "unique_id", "customer_name"),
+      );
       setZoneLookup(buildLookup(normalizeList(zoneRes), "unique_id", "name"));
-      setPropertyLookup(buildLookup(normalizeList(propertyRes), "unique_id", "property_name"));
-      setSubPropertyLookup(buildLookup(normalizeList(subPropertyRes), "unique_id", "sub_property_name"));
+      setPropertyLookup(
+        buildLookup(normalizeList(propertyRes), "unique_id", "property_name"),
+      );
+      setSubPropertyLookup(
+        buildLookup(
+          normalizeList(subPropertyRes),
+          "unique_id",
+          "sub_property_name",
+        ),
+      );
       setCollectorLookup(buildLookup(staffUsers, "unique_id", "staff_name"));
-      setVehicleLookup(buildLookup(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
+      setVehicleLookup(
+        buildLookup(normalizeList(vehicleRes), "unique_id", "vehicle_no"),
+      );
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
@@ -145,28 +164,14 @@ export default function HouseholdPickupEventList() {
         record.source,
       ]
         .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(search))
+        .some((value) => String(value).toLowerCase().includes(search)),
     );
-  };
-
-  const handleDownloadExcel = () => {
-    setIsExportingExcel(true);
-    try {
-      const rows = filteredExportRows();
-      if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No records to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "HouseholdPickupEvents");
-    } finally {
-      setIsExportingExcel(false);
-    }
   };
 
   const header = (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold text-gray-800">
             {t("admin.household_pickup_event.list_title")}
           </h1>
@@ -176,13 +181,6 @@ export default function HouseholdPickupEventList() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            label={isExportingExcel ? "Downloading..." : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined"
-            disabled={isExportingExcel}
-            onClick={handleDownloadExcel}
-          />
           <Button
             label={t("admin.household_pickup_event.create_button")}
             icon="pi pi-plus"
@@ -196,7 +194,9 @@ export default function HouseholdPickupEventList() {
         <FilterBar
           searchValue={globalFilterValue}
           onSearchChange={onGlobalFilterChange}
-          searchPlaceholder={t("admin.household_pickup_event.search_placeholder")}
+          searchPlaceholder={t(
+            "admin.household_pickup_event.search_placeholder",
+          )}
         />
       </div>
     </div>
@@ -206,7 +206,9 @@ export default function HouseholdPickupEventList() {
     <div className="flex justify-center">
       <button
         title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.id), { state: { record: row } })}
+        onClick={() =>
+          navigate(ENC_EDIT_PATH(row.id), { state: { record: row } })
+        }
         className="text-blue-600 hover:text-blue-800"
       >
         <PencilIcon className="size-5" />
@@ -217,6 +219,7 @@ export default function HouseholdPickupEventList() {
   return (
     <div className="p-3">
       <DataTable
+        loadExportRows={async () => filteredExportRows()}
         value={records}
         dataKey="id"
         paginator
@@ -238,7 +241,11 @@ export default function HouseholdPickupEventList() {
         className="p-datatable-sm"
         emptyMessage={t("admin.household_pickup_event.empty_message")}
       >
-        <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
+        <Column
+          header={t("common.s_no")}
+          body={(_, { rowIndex }) => rowIndex + 1}
+          style={{ width: 70 }}
+        />
         {showCol("customer_id") && (
           <Column
             header={t("admin.household_pickup_event.customer")}
@@ -250,7 +257,9 @@ export default function HouseholdPickupEventList() {
         {showCol("zone_id") && (
           <Column
             header={t("admin.household_pickup_event.zone")}
-            body={(row: HouseholdPickupEventRecord) => zoneLookup[row.zone_id] ?? row.zone_id}
+            body={(row: HouseholdPickupEventRecord) =>
+              zoneLookup[row.zone_id] ?? row.zone_id
+            }
           />
         )}
         {showCol("property_id") && (
@@ -288,16 +297,28 @@ export default function HouseholdPickupEventList() {
         {showCol("pickup_time") && (
           <Column
             header={t("admin.household_pickup_event.pickup_time")}
-            body={(row: HouseholdPickupEventRecord) => formatDate(row.pickup_time)}
+            body={(row: HouseholdPickupEventRecord) =>
+              formatDate(row.pickup_time)
+            }
           />
         )}
         {showCol("weight_kg") && (
-          <Column field="weight_kg" header={t("admin.household_pickup_event.weight_kg")} />
+          <Column
+            field="weight_kg"
+            header={t("admin.household_pickup_event.weight_kg")}
+          />
         )}
         {showCol("source") && (
-          <Column field="source" header={t("admin.household_pickup_event.source")} />
+          <Column
+            field="source"
+            header={t("admin.household_pickup_event.source")}
+          />
         )}
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
+        <Column
+          header={t("common.actions")}
+          body={actionTemplate}
+          style={{ width: 120 }}
+        />
       </DataTable>
     </div>
   );

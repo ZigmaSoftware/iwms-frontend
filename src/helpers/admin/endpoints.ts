@@ -73,6 +73,7 @@ export const adminEndpoints = {
   binCollectionEvent: "schedule-operations/bin-collection-events",
   vehicleBreakdown: "schedule-operations/vehicle-breakdowns",
   retripRequests: "schedule-operations/retrip-requests",
+  tripDelayReports: "schedule-operations/trip-delay-reports",
   schedulerConfig: "schedule-operations/daily-trip-assignments/scheduler-config/",
   wasteCollections: "schedule-operations/wastecollections",
 
