@@ -305,6 +305,10 @@ export default function TripPlanForm() {
     setPendingRecord(null);
   }, [pendingRecord, lookups]);
 
+  // Company/project-scoped lookups — fetched once per company/project change.
+  // None of these depend on the district/zone/panchayat drill-down, so they
+  // must NOT be in this effect's deps (previously they were, causing all of
+  // these to refetch on every geo selection).
   useEffect(() => {
     if (!companyUniqueId || !projectId) {
       setLookups({});
@@ -313,18 +317,6 @@ export default function TripPlanForm() {
     }
     let cancelled = false;
     setLoading(true);
-    // Build geo params for collection points (filtered by local body)
-    const geoParams: Record<string, string> = {
-      company_id: companyUniqueId,
-      company_unique_id: companyUniqueId,
-      project_id: projectId,
-      project: projectId,
-      project_unique_id: projectId,
-    };
-    if (formData.district_id) geoParams.district_id = formData.district_id;
-    if (formData.zone_id) geoParams.zone_id = formData.zone_id;
-    if (formData.panchayat_id) geoParams.panchayat_id = formData.panchayat_id;
-    // Base params for bins (no geo filtering - backend may not support it)
     const baseParams = {
       company_id: companyUniqueId,
       company_unique_id: companyUniqueId,
@@ -339,23 +331,21 @@ export default function TripPlanForm() {
     // Zone/Panchayat are additionally skipped entirely up front when the
     // login-scoped data shows the staff has no access to that resource.
     Promise.allSettled([
-      adminApi.districts.readAll({ params: geoParams }),
-      adminApi.cities.readAll({ params: geoParams }),
-      showZone ? adminApi.zones.readAll({ params: geoParams }) : Promise.resolve([]),
-      showPanchayat ? adminApi.panchayats.readAll({ params: geoParams }) : Promise.resolve([]),
-      adminApi.wards.readAll({ params: geoParams }),
-      adminApi.staffTemplateCreation.readAll({ params: geoParams }),
-      adminApi.vehicleCreations.readAll({ params: geoParams }),
-      adminApi.staffCreation.readAll({ params: geoParams }),
-      adminApi.wasteTypes.readAll({ params: geoParams }),
-      adminApi.collectionPoints.readAll({ params: geoParams }),
+      adminApi.districts.readAll({ params: baseParams }),
+      adminApi.cities.readAll({ params: baseParams }),
+      showZone ? adminApi.zones.readAll({ params: baseParams }) : Promise.resolve([]),
+      showPanchayat ? adminApi.panchayats.readAll({ params: baseParams }) : Promise.resolve([]),
+      adminApi.staffTemplateCreation.readAll({ params: baseParams }),
+      adminApi.vehicleCreations.readAll({ params: baseParams }),
+      adminApi.staffCreation.readAll({ params: baseParams }),
+      adminApi.wasteTypes.readAll({ params: baseParams }),
       adminApi.bins.readAll({ params: baseParams }),
-      adminApi.customerCreations.readAll({ params: geoParams }),
+      adminApi.customerCreations.readAll({ params: baseParams }),
       // Unscoped by geo: a collection point can serve multiple wards/zones, so a
       // bin's reservation by a trip plan in another zone/panchayat must still count.
       tripPlanApi.readAll({ params: baseParams }),
     ])
-      .then(([districtsR, citiesR, zonesR, panchayatsR, wardsR, staffTemplatesR, vehiclesR, staffR, wasteTypesR, collectionPointsR, binsR, customersR, existingTripPlansR]) => {
+      .then(([districtsR, citiesR, zonesR, panchayatsR, staffTemplatesR, vehiclesR, staffR, wasteTypesR, binsR, customersR, existingTripPlansR]) => {
         if (cancelled) return;
 
         const settled = (result: PromiseSettledResult<unknown>): unknown =>
@@ -365,12 +355,10 @@ export default function TripPlanForm() {
         const cities = settled(citiesR);
         const zones = settled(zonesR);
         const panchayats = settled(panchayatsR);
-        const wards = settled(wardsR);
         const staffTemplates = settled(staffTemplatesR);
         const vehicles = settled(vehiclesR);
         const staff = settled(staffR);
         const wasteTypes = settled(wasteTypesR);
-        const collectionPoints = settled(collectionPointsR);
         const bins = settled(binsR);
         const customers = settled(customersR);
         const existingTripPlans = settled(existingTripPlansR);
@@ -393,26 +381,60 @@ export default function TripPlanForm() {
           waste_type_id: String(bin?.wastetype_id ?? bin?.waste_type_id ?? bin?.waste_type ?? ""),
         }));
 
-        setLookups({
+        setLookups((prev) => ({
+          ...prev,
           districts: normalizeList(districts),
           cities: normalizeList(cities),
           zones: normalizeList(zones),
           panchayats: normalizeList(panchayats),
-          wards: normalizeList(wards),
           staffTemplates: normalizeList(staffTemplates),
           vehicles: normalizeList(vehicles),
           staff: normalizeList(staff),
           wasteTypes: normalizeList(wasteTypes),
-          collectionPoints: normalizeList(collectionPoints),
           bins: normalizedBins,
           customers: normalizeList(customers),
-        });
+        }));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [companyUniqueId, projectId, formData.district_id, formData.zone_id, formData.panchayat_id, formData.collection_type, id, t, showZone, showPanchayat]);
+  }, [companyUniqueId, projectId, id, showZone, showPanchayat]);
+
+  // Geo-scoped lookups — wards and collection points genuinely narrow by the
+  // district/zone/panchayat drill-down, so only these two refetch on that change.
+  useEffect(() => {
+    if (!companyUniqueId || !projectId) {
+      return;
+    }
+    let cancelled = false;
+    const geoParams: Record<string, string> = {
+      company_id: companyUniqueId,
+      company_unique_id: companyUniqueId,
+      project_id: projectId,
+      project: projectId,
+      project_unique_id: projectId,
+    };
+    if (formData.district_id) geoParams.district_id = formData.district_id;
+    if (formData.zone_id) geoParams.zone_id = formData.zone_id;
+    if (formData.panchayat_id) geoParams.panchayat_id = formData.panchayat_id;
+
+    Promise.allSettled([
+      adminApi.wards.readAll({ params: geoParams }),
+      adminApi.collectionPoints.readAll({ params: geoParams }),
+    ])
+      .then(([wardsR, collectionPointsR]) => {
+        if (cancelled) return;
+        const settled = (result: PromiseSettledResult<unknown>): unknown =>
+          result.status === "fulfilled" ? result.value : [];
+        setLookups((prev) => ({
+          ...prev,
+          wards: normalizeList(settled(wardsR)),
+          collectionPoints: normalizeList(settled(collectionPointsR)),
+        }));
+      });
+    return () => { cancelled = true; };
+  }, [companyUniqueId, projectId, formData.district_id, formData.zone_id, formData.panchayat_id]);
 
   const options = useMemo(() => {
     const districts = scopedItems(lookups.districts ?? [], companyUniqueId, projectId);
