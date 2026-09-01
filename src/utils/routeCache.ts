@@ -48,7 +48,6 @@ export type EncryptedRoutes = {
   encScheduleOperations: string;
   encStaffTemplate: string;
   encAlternativeStaffTemplate: string;
-  encStaffTemplateAudit: string;
   encMonthlyDistance: string;
   encProperties: string;
   encReport: string;
@@ -73,7 +72,6 @@ export type EncryptedRoutes = {
   encMonthlyWasteComparison: string;
   encWasteManagementMaster: string;
   encWards: string;
-  encBlocks: string;
   encCollectionPoints: string;
   encPlants: string;
   encWasteTypes: string;
@@ -81,8 +79,6 @@ export type EncryptedRoutes = {
   encDayReport: string;
   encWorkforceManagement: string;
   encZones: string;
-  encSupervisorZoneMap: string;
-  encSupervisorZoneAccessAudit: string;
   encTransportMaster: string;
   encMainScreenType: string;
   encUserScreenAction: string;
@@ -98,14 +94,8 @@ export type EncryptedRoutes = {
   encBinCollectionEvent: string;
   encDailyWasteComparison: string;
   encSchedulerConfig: string;
-  encBinLoadLog: string;
   encCustomerTag: string;
   encHouseholdPickupEvent: string;
-  encZonePropertyLoadTracker: string;
-  encUnassignedStaffPool: string;
-  encTripAttendance: string;
-  encVehicleTripAudit: string;
-  encTripExceptionLog: string;
   encVehicleBreakdown: string;
   encTripRetripRequest: string;
 
@@ -130,7 +120,6 @@ export type EncryptedRoutes = {
 
   encPanchayats: string;
   encBlockPanchayatUnions: string;
-  encHierarchies: string;
   encPanchayatLeaders: string;
   encDistrictLeaders: string;
 
@@ -184,7 +173,6 @@ const plainRoutes: EncryptedRoutes = {
   encScheduleOperations: "schedule-operations",
   encStaffTemplate: "staff-template",
   encAlternativeStaffTemplate: "alternative-staff-template",
-  encStaffTemplateAudit: "staff-template-audit",
   encMonthlyDistance: "monthly-distance",
   encProperties: "properties",
   encReport: "reports",
@@ -207,7 +195,6 @@ const plainRoutes: EncryptedRoutes = {
   encMonthlyWasteComparison: "monthly-waste-comparison",
   encWasteManagementMaster: "waste-management",
   encWards: "wards",
-  encBlocks: "blocks",
   encCollectionPoints: "collection-points",
   encPlants: "plants",
   encWasteTypes: "waste-types",
@@ -215,8 +202,6 @@ const plainRoutes: EncryptedRoutes = {
   encDayReport: "day-report",
   encWorkforceManagement: "workforce-management",
   encZones: "zones",
-  encSupervisorZoneMap: "supervisor-zone-map",
-  encSupervisorZoneAccessAudit: "supervisor-zone-access-audit",
   encTransportMaster: "transport-master",
   encMainScreenType: "mainscreen-type",
   encUserScreenAction: "userscreen-action",
@@ -234,14 +219,8 @@ const plainRoutes: EncryptedRoutes = {
   encBinCollectionEvent: "bin-collection-event",
   encDailyWasteComparison: "daily-waste-comparisons",
   encSchedulerConfig: "scheduler-config",
-  encBinLoadLog: "bin-load-log",
   encCustomerTag: "customer-tag",
   encHouseholdPickupEvent: "household-pickup-event",
-  encZonePropertyLoadTracker: "zone-property-load-tracker",
-  encUnassignedStaffPool: "unassigned-staff-pool",
-  encTripAttendance: "trip-attendance",
-  encVehicleTripAudit: "vehicle-trip-audit",
-  encTripExceptionLog: "trip-exception-log",
   encVehicleBreakdown: "vehicle-breakdowns",
   encTripRetripRequest: "retrip-requests",
 
@@ -249,7 +228,6 @@ const plainRoutes: EncryptedRoutes = {
 
   encPanchayats: "panchayats",
   encBlockPanchayatUnions: "block-panchayat-unions",
-  encHierarchies: "hierarchies",
   encPanchayatLeaders: "panchayat-leaders",
   encDistrictLeaders: "district-leaders",
 

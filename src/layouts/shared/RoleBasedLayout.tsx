@@ -6,8 +6,10 @@ import {
   DEFAULT_ROLE,
   USER_ROLE_STORAGE_KEY,
   getAdminViewPreference,
+  isAdmin,
   normalizeRole,
 } from "@/types/roles";
+import { hasAnyPermission } from "@/utils/permissions";
 
 const getStoredRole = (): UserRole | null => {
   if (typeof window === "undefined") {
@@ -23,7 +25,7 @@ export function RoleBasedLayout({
 }: RoleBasedLayoutProps) {
   const resolvedRole = roleOverride ?? getStoredRole() ?? DEFAULT_ROLE;
 
-  if (resolvedRole === DEFAULT_ROLE) {
+  if (resolvedRole === DEFAULT_ROLE || isAdmin(resolvedRole, hasAnyPermission("view"))) {
     const adminPreference = getAdminViewPreference();
     if (adminPreference === ADMIN_VIEW_MODE_DASHBOARD) {
       return <DashboardLayout>{children}</DashboardLayout>;

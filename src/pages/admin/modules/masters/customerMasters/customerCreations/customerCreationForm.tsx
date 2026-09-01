@@ -99,7 +99,6 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   is_bulkwaste_generator: ["is_bulkwaste_generator"],
   apartment_name: ["apartment_name"],
   block_no: ["block_no"],
-  block_id: ["block_id"],
   flat_no: ["flat_no"],
   villa_no: ["villa_no"],
   industry_name: ["industry_name"],
@@ -597,7 +596,6 @@ export default function CustomerCreationForm() {
     // Property type specific fields
     apartment_name: "",
     block_no: "",
-    block_id: "",
     flat_no: "",
     villa_no: "",
     industry_name: "",
@@ -910,7 +908,6 @@ export default function CustomerCreationForm() {
       is_bulkwaste_generator: Boolean(data.is_bulkwaste_generator),
       apartment_name: String(data.apartment_name ?? ""),
       block_no: String(data.block_no ?? ""),
-      block_id: normalizeEntityId(data.block_id),
       flat_no: String(data.flat_no ?? ""),
       villa_no: String(data.villa_no ?? ""),
       industry_name: String(data.industry_name ?? ""),
@@ -1109,7 +1106,6 @@ export default function CustomerCreationForm() {
       waste_collection_kg_per_day: formData.waste_collection_kg_per_day ? String(parseFloat(formData.waste_collection_kg_per_day)) : null,
       member_count: formData.member_count ? Number.parseInt(formData.member_count, 10) : null,
       family_members: formData.family_members,
-      block_id: formData.block_id || null,
       waste_type_ids: formData.waste_type_ids,
       ...(isEdit && !formData.password ? { password: undefined } : {}), // Only include password for new records
     };

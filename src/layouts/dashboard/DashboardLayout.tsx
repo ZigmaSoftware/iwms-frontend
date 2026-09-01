@@ -23,6 +23,7 @@ import {
   type UserRole,
 } from "@/types/roles";
 import { clearAuthSession } from "@/utils/authStorage";
+import { hasAnyPermission } from "@/utils/permissions";
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate();
@@ -63,7 +64,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     navigate("/admin", { replace: true });
   };
 
-  const canSwitchToAdmin = role === DEFAULT_ROLE || isAdmin(role);
+  const canSwitchToAdmin = role === DEFAULT_ROLE || isAdmin(role, hasAnyPermission("view"));
   const AdminViewIcon = role === "superadmin" ? Crown : ShieldCheck;
 
   return (

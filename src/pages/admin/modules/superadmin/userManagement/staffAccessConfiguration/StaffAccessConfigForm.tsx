@@ -304,6 +304,13 @@ export default function StaffAccessConfigForm() {
   }, [isEdit, staffUniqueIdParam]);
 
   useEffect(() => {
+    // In edit mode, companyUniqueId starts out seeded from the list page's
+    // own filter selection (routeState), which may not match the row being
+    // edited — wait for the staff record fetch to correct it via
+    // applyCompanyProjectFromRecord before loading its permission catalog,
+    // otherwise this can race against that correction and lose.
+    if (isEdit && fetching) return;
+
     if (!companyUniqueId) {
       setAvailablePermissions(null);
       return;
@@ -338,7 +345,7 @@ export default function StaffAccessConfigForm() {
     return () => {
       cancelled = true;
     };
-  }, [companyUniqueId, projectIds, t]);
+  }, [isEdit, fetching, companyUniqueId, projectIds, t]);
 
   useEffect(() => {
     if (!availablePermissions) return;

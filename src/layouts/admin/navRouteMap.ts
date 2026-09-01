@@ -33,7 +33,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     encDistricts,
     encCities,
     encWards,
-    encBlocks,
     encCollectionPoints,
     encPlants,
     encWasteTypes,
@@ -85,15 +84,9 @@ export function buildNavRouteMap(): RouteEntry[] {
     encStaffMasters,
     encStaffTemplate,
     encAlternativeStaffTemplate,
-    encStaffTemplateAudit,
     encCommonAudit,
     encLoginAudits,
-    encSupervisorZoneMap,
-    encSupervisorZoneAccessAudit,
     encTripPlans,
-    encZonePropertyLoadTracker,
-    encVehicleTripAudit,
-    encTripExceptionLog,
     encCompanyCreation,
     encProjectCreation,
     encSuperAdminMaster,
@@ -138,7 +131,6 @@ export function buildNavRouteMap(): RouteEntry[] {
 
     // Operational / Field Level
     { path: `/${encMasters}/${encWards}`, nameKey: "admin.nav.ward", parentNameKey: "admin.nav.masters" },
-    { path: `/${encMasters}/${encBlocks}`, nameKey: "admin.nav.block", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encPanchayats}`, nameKey: "admin.nav.panchayat", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encPanchayatLeaders}`, nameKey: "admin.nav.panchayat_leader", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encDistrictLeaders}`, nameKey: "admin.nav.district_leader", parentNameKey: "admin.nav.masters" },
@@ -163,10 +155,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encStaffMasters}/${encStaffCreation}`, nameKey: "admin.nav.staff_creation", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encStaffTemplate}`, nameKey: "admin.nav.staff_template", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encAlternativeStaffTemplate}`, nameKey: "admin.nav.alternative_staff_template", parentNameKey: "admin.nav.user_creations" },
-    { path: `/${encStaffMasters}/${encSupervisorZoneMap}`, nameKey: "admin.nav.supervisor_zone_map", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encAdmins}/${encStaffAccessConfiguration}`, nameKey: "admin.nav.staff_access_configuration", parentNameKey: "admin.nav.user_creations" },
-    // Process Items
-    { path: `/${encTransportMaster}/${encZonePropertyLoadTracker}`, nameKey: "admin.nav.zone_property_load_tracker", parentNameKey: "admin.nav.process_items" },
     // Customer Masters
     { path: `/${encCustomerMaster}/${encCustomerCreation}`, nameKey: "admin.nav.customer_creation", parentNameKey: "admin.nav.customer_masters" },
     { path: `/${encCustomerMaster}/${encApartmentList}`, nameKey: "admin.nav.apartment_list", parentNameKey: "admin.nav.customer_masters" },
@@ -211,10 +200,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     // Audits
     { path: `/${encAudits}/${encCommonAudit}`, nameKey: "admin.nav.common_audit", parentNameKey: "admin.nav.audit_items" },
     { path: `/${encAudits}/${encLoginAudits}`, nameKey: "admin.nav.login_audit", parentNameKey: "admin.nav.audit_items" },
-    { path: `/${encTransportMaster}/${encVehicleTripAudit}`, nameKey: "admin.nav.vehicle_trip_audit", parentNameKey: "admin.nav.audit_items" },
-    { path: `/${encTransportMaster}/${encTripExceptionLog}`, nameKey: "admin.nav.trip_exception_log", parentNameKey: "admin.nav.audit_items" },
-    { path: `/${encStaffMasters}/${encSupervisorZoneAccessAudit}`, nameKey: "admin.nav.supervisor_zone_access_audit", parentNameKey: "admin.nav.audit_items" },
-    { path: `/${encStaffMasters}/${encStaffTemplateAudit}`, nameKey: "admin.nav.staff_template_audit", parentNameKey: "admin.nav.audit_items" },
     // Vehicle Tracking
     { path: `/${encVehicleTracking}/${encVehicleTrack}`, nameKey: "admin.nav.vehicle_tracking", parentNameKey: "admin.nav.vehicle_tracking" },
     { path: `/${encVehicleTracking}/${encVehicleHistory}`, nameKey: "admin.nav.vehicle_history", parentNameKey: "admin.nav.vehicle_tracking" },

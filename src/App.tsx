@@ -33,6 +33,7 @@ import {
   normalizeRole,
   isAdmin,
 } from "@/types/roles";
+import { hasAnyPermission } from "@/utils/permissions";
 
 const ADMIN_ACCESS_ROLES: UserRole[] = [DEFAULT_ROLE, ...ADMIN_ROLES];
 
@@ -62,7 +63,7 @@ function HomeRedirect() {
   const storedRole = normalizeRole(localStorage.getItem(USER_ROLE_STORAGE_KEY));
   const preference = getAdminViewPreference();
 
-  if (isAdmin(storedRole)) {
+  if (isAdmin(storedRole, hasAnyPermission("view"))) {
     if (preference === ADMIN_VIEW_MODE_DASHBOARD) {
       return <Navigate to="/dashboard" replace />;
     }
@@ -102,7 +103,7 @@ function DashboardRouteGuard({ children }: { children: ReactNode }) {
 
   const preference = adminViewPreference ?? ADMIN_VIEW_MODE_ADMIN;
 
-  if (isAdmin(role) && preference === ADMIN_VIEW_MODE_ADMIN) {
+  if (isAdmin(role, hasAnyPermission("view")) && preference === ADMIN_VIEW_MODE_ADMIN) {
     return <Navigate to="/admin" replace />;
   }
 

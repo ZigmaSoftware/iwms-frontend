@@ -16,8 +16,8 @@ import {
   createCrudHelpers,
   customerCreationApi,
   propertiesApi,
+  staffCreationApi,
   subPropertiesApi,
-  userCreationApi,
   vehicleCreationApi,
   zoneApi,
 } from "@/helpers/admin";
@@ -128,7 +128,7 @@ export default function HouseholdPickupEventForm() {
       showZone ? zoneApi.readAll() : Promise.resolve([]),
       propertiesApi.readAll(),
       subPropertiesApi.readAll(),
-      userCreationApi.readAll(),
+      staffCreationApi.readAll(),
       vehicleCreationApi.readAll(),
     ])
       .then(([customerR, zoneR, propertyR, subPropertyR, userR, vehicleR]) => {

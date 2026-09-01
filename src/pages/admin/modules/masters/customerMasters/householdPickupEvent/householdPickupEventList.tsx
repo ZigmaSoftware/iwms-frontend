@@ -14,8 +14,8 @@ import {
   createCrudHelpers,
   customerCreationApi,
   propertiesApi,
+  staffCreationApi,
   subPropertiesApi,
-  userCreationApi,
   vehicleCreationApi,
   zoneApi,
 } from "@/helpers/admin";
@@ -102,7 +102,7 @@ export default function HouseholdPickupEventList() {
         zoneApi.readAll(),
         propertiesApi.readAll(),
         subPropertiesApi.readAll(),
-        userCreationApi.readAll(),
+        staffCreationApi.readAll(),
         vehicleCreationApi.readAll(),
       ]);
 

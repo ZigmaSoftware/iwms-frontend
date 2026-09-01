@@ -60,9 +60,23 @@ export function normalizeRole(
   return normalized as UserRole;
 }
 
-export function isAdmin(role: UserRole | null | undefined): boolean {
+/**
+ * True if the role should land in the admin panel (AdminLayout/AppSidebar).
+ *
+ * Roles named "admin"/"superadmin"/etc. always qualify. Any other role
+ * (e.g. "supervisor", "driver") also qualifies once a superadmin has granted
+ * it at least one module/screen permission via Role Management — pass the
+ * caller's currently stored `hasAnyPermission("view")` result as
+ * `hasGrantedPermissions` to enable that. Without it, only name-matched
+ * admin roles qualify (existing behavior).
+ */
+export function isAdmin(
+  role: UserRole | null | undefined,
+  hasGrantedPermissions = false
+): boolean {
+  if (hasGrantedPermissions) return true;
   if (!role) return false;
-  
+
   const normalized = String(role).toLowerCase();
   return (
     FALLBACK_ADMIN_ROLES.some(r => normalized === r.toLowerCase()) ||
