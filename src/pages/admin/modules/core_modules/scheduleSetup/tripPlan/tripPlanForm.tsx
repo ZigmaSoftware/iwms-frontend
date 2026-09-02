@@ -780,12 +780,23 @@ export default function TripPlanForm() {
     const mode = value as StopRow["collection_type"];
     setFormData((prev) => ({ ...prev, collection_type: mode }));
     if (mode === "household_collection") {
-      // Auto-select the 4 standard household waste types
       const householdTypes = (lookups.wasteTypes ?? [])
         .filter((wt) => HOUSEHOLD_WASTE_TYPE_NAMES.includes(String(wt?.waste_type_name ?? wt?.name ?? "").trim()))
         .map((wt) => recordId(wt))
         .filter(Boolean);
-      setFormData((prev) => ({ ...prev, waste_type_ids: householdTypes }));
+      setFormData((prev) => {
+        // Only pre-fill the standard household types when nothing has been
+        // picked yet. An explicit selection must survive the mode switch —
+        // overwriting it silently turned "just Wet Waste" into all three.
+        if (prev.waste_type_ids.length > 0) {
+          // Keep the chosen types, minus any the household mode can't offer.
+          const allowed = prev.waste_type_ids.filter((id: string) =>
+            householdTypes.includes(id),
+          );
+          return { ...prev, waste_type_ids: allowed.length ? allowed : prev.waste_type_ids };
+        }
+        return { ...prev, waste_type_ids: householdTypes };
+      });
       setStops([autoAssignStop(mode)]);
     } else if (mode === "bulk_waste_collection") {
       setStops([autoAssignStop(mode)]);

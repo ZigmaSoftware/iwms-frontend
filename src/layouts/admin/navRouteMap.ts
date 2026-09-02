@@ -122,9 +122,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encMasters}/${encCountries}`, nameKey: "admin.nav.country", parentNameKey: "admin.nav.common_masters" },
     { path: `/${encMasters}/${encStates}`, nameKey: "admin.nav.state", parentNameKey: "admin.nav.common_masters" },
     // Masters — CRT hierarchy order (SWM Rules 2026)
-    // Org / Department Setup
-    { path: `/${encMasters}/${encDepartments}`, nameKey: "admin.nav.department", parentNameKey: "admin.nav.masters" },
-    { path: `/${encMasters}/${encDesignations}`, nameKey: "admin.nav.designation", parentNameKey: "admin.nav.masters" },
+
     // Administrative / Geographic Hierarchy
     { path: `/${encMasters}/${encDistricts}`, nameKey: "admin.nav.district", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encZones}`, nameKey: "admin.nav.zone", parentNameKey: "admin.nav.masters" },
@@ -153,6 +151,9 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encAdmins}/${encUserType}`, nameKey: "admin.nav.user_type", parentNameKey: "admin.nav.roleAssigns" },
     { path: `/${encAdmins}/${encStaffUserType}`, nameKey: "admin.nav.staff_user_type", parentNameKey: "admin.nav.roleAssigns" },
     // User Creations
+    // Org / Department Setup
+    { path: `/${encStaffMasters}/${encDepartments}`, nameKey: "admin.nav.department", parentNameKey: "admin.nav.user_creations" },
+    { path: `/${encStaffMasters}/${encDesignations}`, nameKey: "admin.nav.designation", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encStaffCreation}`, nameKey: "admin.nav.staff_creation", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encStaffTemplate}`, nameKey: "admin.nav.staff_template", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encAlternativeStaffTemplate}`, nameKey: "admin.nav.alternative_staff_template", parentNameKey: "admin.nav.user_creations" },

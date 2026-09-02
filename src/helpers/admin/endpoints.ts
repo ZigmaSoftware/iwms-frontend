@@ -29,8 +29,8 @@ export const adminEndpoints = {
   cities: "masters/cities",
   zones: "masters/zones",
   wards: "masters/wards",
-  departments: "masters/departments",
-  designations: "masters/designations",
+  departments: "staff-creations/departments",
+  designations: "staff-creations/designations",
   panchayats: "masters/panchayat",
   panchayatLeaders: "masters/panchayat-leaders",
   districtLeaders: "masters/district-leaders",
@@ -104,8 +104,8 @@ export const adminEndpoints = {
   /* =========================
      USER CREATION
   ========================= */
-  staffCreation: "user-creations/staffcreation",
-  staffAccessConfiguration: "user-creations/staff-access-configuration",
+  staffCreation: "staff-creations/staffcreation",
+  staffAccessConfiguration: "staff-creations/staff-access-configuration",
 
   /* =========================
      CUSTOMERS

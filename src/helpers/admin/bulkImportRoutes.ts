@@ -14,7 +14,6 @@ const routeEntityBySlug: Record<string, AdminEntity> = {
   zones: "zones",
   wards: "wards",
   panchayats: "panchayats",
-  hierarchies: "hierarchies",
   "block-panchayat-unions": "blockPanchayatUnions",
   "panchayat-leaders": "panchayatLeaders",
   "district-leaders": "districtLeaders",

@@ -423,13 +423,14 @@ export default function StaffCreationList() {
       </div>
 
       {/* Filters Row */}
-      <div className="grid gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {showCol("salary_type") && (
           <div className="flex flex-col gap-1">
             <span className="text-xs font-semibold">
               {t("admin.staff_creation.salary_type")}
             </span>
             <FilterBarSelect
+              className="w-full sm:w-full"
               value={filterParams.salary_type}
               onChange={(value) =>
                 handleFilterChange({
@@ -465,7 +466,7 @@ export default function StaffCreationList() {
               value={filterParams.site_name}
               onChange={handleFilterChange}
               placeholder={t("admin.staff_creation.site_placeholder")}
-              className="h-10 rounded-lg border px-3 text-sm"
+              className="h-10 w-full min-w-0 rounded-lg border px-3 text-sm"
             />
           </div>
         )}
@@ -480,7 +481,7 @@ export default function StaffCreationList() {
               value={filterParams.employee_name}
               onChange={handleFilterChange}
               placeholder={t("admin.staff_creation.employee_placeholder")}
-              className="h-10 rounded-lg border px-3 text-sm"
+              className="h-10 w-full min-w-0 rounded-lg border px-3 text-sm"
             />
           </div>
         )}
@@ -488,7 +489,7 @@ export default function StaffCreationList() {
         <div className="flex items-end">
           <button
             onClick={applyFilter}
-            className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+            className="h-10 rounded-full bg-blue-600 px-6 text-sm font-semibold text-white"
           >
             {t("common.go")}
           </button>

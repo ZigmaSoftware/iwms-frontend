@@ -86,11 +86,14 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "customer-master": ["customer-masters", "customers"],
   "customer-masters": ["customer-master", "customers"],
   customers: ["customer-master", "customer-masters"],
-  "staff-masters": ["user-creations", "process-items", "audits", "user-creation"],
-  "user-creations": ["staff-masters", "user-creation"],
+  "staff-masters": ["staff-creations", "user-creations", "process-items", "audits", "user-creation"],
+  // Backend router group renamed user-creations -> staff-creations; the old
+  // keys stay as aliases so existing permission rows keep resolving.
+  "staff-creations": ["staff-masters", "user-creations", "user-creation"],
+  "user-creations": ["staff-masters", "staff-creations", "user-creation"],
   "process-items": ["staff-masters"],
   audits: ["staff-masters"],
-  "user-creation": ["staff-masters", "user-creations"],
+  "user-creation": ["staff-masters", "staff-creations", "user-creations"],
   "transport-master": ["transport-masters"],
   "transport-masters": ["transport-master"],
   // "schedule-setup"/"schedule-operations" are a pure split of the legacy

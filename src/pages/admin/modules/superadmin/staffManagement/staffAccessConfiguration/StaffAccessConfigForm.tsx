@@ -36,7 +36,7 @@ import {
   buildStaffAccessConfigSchema,
   staffDataScopeSchema,
   staffPermissionsSchema,
-} from "@/schemas/superadmin/userManagement/staffAccessConfiguration.schema";
+} from "@/schemas/superadmin/staffManagement/staffAccessConfiguration.schema";
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
 
