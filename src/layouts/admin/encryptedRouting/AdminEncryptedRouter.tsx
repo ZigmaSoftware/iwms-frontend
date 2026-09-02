@@ -110,6 +110,15 @@ import SourceForm from "@/pages/admin/modules/core_modules/complaintManagement/m
 import TeamList from "@/pages/admin/modules/core_modules/complaintManagement/masters/TeamList";
 import TeamForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/TeamForm";
 import SlaRuleList from "@/pages/admin/modules/core_modules/complaintManagement/masters/SlaRuleList";
+// SUPER ADMIN — global complaint configuration (module key "complaint-masters").
+import {
+  CategoryTabList,
+  CategoryTabForm,
+  SubcategoryTabList,
+  SubcategoryTabForm,
+  SlaTabList,
+  SlaTabForm,
+} from "@/pages/admin/modules/superadmin/complaintMasters/types/complaintTypeTabs";
 import SlaRuleForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/SlaRuleForm";
 import MainScreenTypeList from "@/pages/admin/modules/superadmin/screenManagement/mainScreenType/mainScreenTypeList";
 import MainScreenTypeForm from "@/pages/admin/modules/superadmin/screenManagement/mainScreenType/mainScreenTypeForm";
@@ -248,6 +257,21 @@ const ROUTES: RouteMap = {
     "date-report": { component: DateReport },
     "day-report": { component: DayReport },
   },
+  // SUPER ADMIN — global complaint configuration. Writable; superadmin-only.
+  // One screen, three tabs (see complaintTypeTabs.tsx). The seeded reference
+  // tables (priority/status/source/language/module) have no screen: they are
+  // code-keyed vocabularies the routing and SLA resolvers depend on, so they
+  // stay seeder-owned rather than being editable here.
+  "complaint-masters": {
+    types: { list: CategoryTabList, form: CategoryTabForm },
+    categories: { list: CategoryTabList, form: CategoryTabForm },
+    subcategories: { list: SubcategoryTabList, form: SubcategoryTabForm },
+    "sla-rules": { list: SlaTabList, form: SlaTabForm },
+  },
+  // CORE MODULES — company/project-scoped entries. The master screens below
+  // stay registered so already-open tabs and permission rows keep resolving,
+  // but the backend serves their tables view-only for this module (see
+  // MODULE_READONLY_RESOURCES); editing happens under "complaint-masters".
   "complaint-ticket": {
     complaint: { list: TicketList, form: TicketForm, editForm: TicketDetail },
     tickets: { list: TicketList, form: TicketForm, editForm: TicketDetail },

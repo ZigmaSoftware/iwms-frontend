@@ -5,6 +5,9 @@ import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import {
@@ -21,9 +24,18 @@ import { toSwalMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 import { MASTER_CONFIG, type MasterKind } from "./masterConfig";
 import { FormSelect } from "@/components/common/FormSelect";
+import { CompanyProjectFields } from "@/components/common/CompanyProjectFields";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 type Props = {
   kind: MasterKind;
+  /**
+   * Module segment the Cancel/after-save redirect returns to. Defaults to
+   * `complaint-ticket`; the SUPER ADMIN Complaint Types screen passes
+   * `complaint-masters` so saving returns to that screen's tab rather than
+   * the Desk's view-only list.
+   */
+  moduleSegment?: string;
 };
 
 const emptyForm = {
@@ -52,16 +64,32 @@ const emptyForm = {
   resolve_within_minutes: "",
   working_hours_only: false,
   escalation_after_minutes: "",
-  escalation_team: "",
   is_active: true,
 };
 
-export default function MasterForm({ kind }: Props) {
+export default function MasterForm({ kind, moduleSegment }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
+  // Which kinds carry company/project (migrations 0002 and 0003). Priority,
+  // status, source, language and module stay global — they are code-keyed
+  // vocabularies the routing and SLA resolvers look up by code.
+  const isScoped =
+    kind === "team" || kind === "category" || kind === "subcategory" || kind === "slaRule";
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    loggedInCompanyUniqueId,
+    setProjectId,
+    onCompanyChange,
+    applyCompanyProjectFromRecord,
+  } = useCompanyProjectSelection({ isEdit: Boolean(id) });
   const routes = getEncryptedRoute();
   const config = MASTER_CONFIG[kind];
-  const { listPath } = createCrudRoutePaths(routes.encComplaintTicket, routes[config.routeKey]);
+  const routeBase = moduleSegment ?? routes.encComplaintTicket;
+  const { listPath } = createCrudRoutePaths(routeBase, routes[config.routeKey]);
   const [searchParams] = useSearchParams();
   // A subcategory created via the merged Categories & Subcategories screen's
   // "Add Subcategory" button (which links here with `?category=<id>`) should
@@ -69,7 +97,7 @@ export default function MasterForm({ kind }: Props) {
   // Subcategories list.
   const prefillCategoryId = kind === "subcategory" ? searchParams.get("category") : null;
   const returnPath = prefillCategoryId
-    ? `${createCrudRoutePaths(routes.encComplaintTicket, routes.encComplaintCategories).listPath}?selected=${prefillCategoryId}`
+    ? `${createCrudRoutePaths(routeBase, routes.encComplaintCategories).listPath}?selected=${prefillCategoryId}`
     : listPath;
   // The merged Categories & Subcategories screen links "Add Subcategory" here
   // with `?category=<id>` so the driver doesn't have to re-pick the category
@@ -108,6 +136,9 @@ export default function MasterForm({ kind }: Props) {
   useEffect(() => {
     if (!id) return;
     api.read(id).then((record: any) => {
+      // Show the tenancy the row actually has, not the logged-in default —
+      // otherwise editing a row would silently move it to another project.
+      if (isScoped) applyCompanyProjectFromRecord(record);
       setForm({
         code: record.module_code ?? record.category_code ?? record.subcategory_code ?? record.priority_code ?? record.status_code ?? record.source_code ?? record.team_code ?? "",
         name: record.module_name ?? record.category_name ?? record.subcategory_name ?? record.priority_name ?? record.status_name ?? record.source_name ?? record.team_name ?? "",
@@ -134,11 +165,10 @@ export default function MasterForm({ kind }: Props) {
         resolve_within_minutes: String(record.resolve_within_minutes ?? ""),
         working_hours_only: Boolean(record.working_hours_only),
         escalation_after_minutes: String(record.escalation_after_minutes ?? ""),
-        escalation_team: idOf(record.escalation_team),
         is_active: record.is_active !== false,
       });
     }).catch((err) => Swal.fire("Error", errorText(err, "Unable to load record"), "error"));
-  }, [api, id]);
+  }, [api, id, isScoped, applyCompanyProjectFromRecord]);
 
   const setValue = (key: keyof typeof emptyForm, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -209,8 +239,23 @@ export default function MasterForm({ kind }: Props) {
                     resolve_within_minutes: form.resolve_within_minutes ? Number(form.resolve_within_minutes) : null,
                     working_hours_only: form.working_hours_only,
                     escalation_after_minutes: form.escalation_after_minutes ? Number(form.escalation_after_minutes) : null,
-                    escalation_team: form.escalation_team || null,
                   };
+
+    if (isScoped) {
+      // A scoped master saved without a tenancy is created unscoped and then
+      // disappears from every company-filtered list, so refuse rather than
+      // write a row nobody can find.
+      if (!companyUniqueId) {
+        Swal.fire("Company required", "Select a company before saving.", "warning");
+        return;
+      }
+      if (!projectId) {
+        Swal.fire("Project required", "Select a project before saving.", "warning");
+        return;
+      }
+      payload.company_id = companyUniqueId;
+      payload.project_id = projectId;
+    }
 
     setSaving(true);
     try {
@@ -228,6 +273,18 @@ export default function MasterForm({ kind }: Props) {
   return (
     <ComponentCard title={`${id ? "Edit" : "Add"} ${config.title}`}>
       <form onSubmit={save} className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        {isScoped && (
+          <CompanyProjectFields
+            companyUniqueId={companyUniqueId}
+            projectId={projectId}
+            companies={companies}
+            projects={projects}
+            isSuperAdmin={isSuperAdmin}
+            loggedInCompanyUniqueId={loggedInCompanyUniqueId}
+            onCompanyChange={onCompanyChange}
+            setProjectId={setProjectId}
+          />
+        )}
         {kind === "slaRule" && (
           <>
             <div>
@@ -339,15 +396,6 @@ export default function MasterForm({ kind }: Props) {
               <Label>Escalation After Minutes</Label>
               <Input type="number" value={form.escalation_after_minutes} onChange={(e) => setValue("escalation_after_minutes", e.target.value)} />
             </div>
-            <div>
-              <Label>Escalation Team</Label>
-              <FormSelect
-                value={form.escalation_team}
-                onChange={(v) => setValue("escalation_team", v)}
-                options={teams.map((item) => ({ value: String(item.unique_id), label: capitalize(item.team_name) }))}
-                placeholder={"None"}
-              />
-            </div>
           </>
         )}
         {kind === "team" && (
@@ -390,21 +438,51 @@ export default function MasterForm({ kind }: Props) {
         {["module", "category", "priority"].includes(kind) && (
           <div className="md:col-span-2">
             <Label>Description</Label>
-            <textarea className="w-full rounded-md border px-3 py-2 text-sm" rows={3} value={form.description} onChange={(e) => setValue("description", e.target.value)} />
+            <Textarea rows={3} value={form.description} onChange={(e) => setValue("description", e.target.value)} />
           </div>
         )}
         <div className="md:col-span-2 grid grid-cols-1 gap-3 md:grid-cols-4">
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.is_active} onChange={(e) => setValue("is_active", e.target.checked)} /> Active</label>
-          {kind === "category" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.requires_location} onChange={(e) => setValue("requires_location", e.target.checked)} /> Requires location</label>}
-          {kind === "category" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.requires_media} onChange={(e) => setValue("requires_media", e.target.checked)} /> Requires media</label>}
-          {kind === "status" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.is_final} onChange={(e) => setValue("is_final", e.target.checked)} /> Final status</label>}
-          {kind === "status" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.allow_reopen} onChange={(e) => setValue("allow_reopen", e.target.checked)} /> Allow reopen</label>}
-          {kind === "team" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.is_field_team} onChange={(e) => setValue("is_field_team", e.target.checked)} /> Field team</label>}
-          {kind === "slaRule" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.working_hours_only} onChange={(e) => setValue("working_hours_only", e.target.checked)} /> Working hours only</label>}
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={form.is_active} onCheckedChange={(checked) => setValue("is_active", checked === true)} /> Active
+          </label>
+          {kind === "category" && (
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={form.requires_location} onCheckedChange={(checked) => setValue("requires_location", checked === true)} /> Requires location
+            </label>
+          )}
+          {kind === "category" && (
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={form.requires_media} onCheckedChange={(checked) => setValue("requires_media", checked === true)} /> Requires media
+            </label>
+          )}
+          {kind === "status" && (
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={form.is_final} onCheckedChange={(checked) => setValue("is_final", checked === true)} /> Final status
+            </label>
+          )}
+          {kind === "status" && (
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={form.allow_reopen} onCheckedChange={(checked) => setValue("allow_reopen", checked === true)} /> Allow reopen
+            </label>
+          )}
+          {kind === "team" && (
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={form.is_field_team} onCheckedChange={(checked) => setValue("is_field_team", checked === true)} /> Field team
+            </label>
+          )}
+          {kind === "slaRule" && (
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={form.working_hours_only} onCheckedChange={(checked) => setValue("working_hours_only", checked === true)} /> Working hours only
+            </label>
+          )}
         </div>
         <div className="md:col-span-2 flex justify-end gap-3">
-          <button type="button" className="rounded border px-4 py-2" onClick={() => navigate(returnPath)}>Cancel</button>
-          <button type="submit" disabled={saving} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60">{saving ? "Saving..." : "Save"}</button>
+          <Button type="button" variant="outline" onClick={() => navigate(returnPath)}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
         </div>
       </form>
     </ComponentCard>

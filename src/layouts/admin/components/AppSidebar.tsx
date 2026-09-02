@@ -55,9 +55,11 @@ const {
   encMonthlyWasteComparison,
   encComplaintTicket,
   encComplaint,
-  encComplaintModules,
-  encComplaintCategories,
   encComplaintTeams,
+  encComplaintMastersModule,
+  encComplaintTypes,
+  encComplaintCategories,
+  encComplaintSubcategories,
   encComplaintSlaRules,
   encFeedback,
   encTransportMaster,
@@ -102,19 +104,26 @@ const {
   encTripDelayReport,
 } = getEncryptedRoute();
 
-type NavItem = {
+
+type NavMatchable = {
+  path?: string;
+  matchPaths?: string[];
+};
+
+type NavItem = NavMatchable & {
   nameKey: string;
   icon: React.ReactNode;
-  path?: string;
   module?: string;
   screen?: string;
-  subItems?: Array<{
-    nameKey: string;
-    path: string;
-    module?: string;
-    screen?: string;
-    screens?: string[];
-  }>;
+  subItems?: Array<
+    NavMatchable & {
+      nameKey: string;
+      path: string;
+      module?: string;
+      screen?: string;
+      screens?: string[];
+    }
+  >;
 };
 
 type SidebarSectionKey =
@@ -162,6 +171,7 @@ const MODULE_GROUPS: {
       "roleAssigns",
       "staffManagement",
       "commonMaster",
+      "complaintMasters",
       "auditItems",
     ],
   },
@@ -509,6 +519,28 @@ const customerMasters: NavItem[] = [
   },
 ];
 
+const complaintMastersItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.complaint_masters",
+    icon: <AlertTriangle size={18} />,
+    module: "complaint-masters",
+    screen: "complaint-masters",
+    subItems: [
+      {
+        nameKey: "admin.nav.complaint_types",
+        path: `/${encComplaintMastersModule}/${encComplaintTypes}`,
+        module: "complaint-masters",
+        screens: ["types", "categories", "subcategories", "sla-rules"],
+        matchPaths: [
+          `/${encComplaintMastersModule}/${encComplaintCategories}`,
+          `/${encComplaintMastersModule}/${encComplaintSubcategories}`,
+          `/${encComplaintMastersModule}/${encComplaintSlaRules}`,
+        ],
+      },
+    ],
+  },
+];
+
 const complaintTicketItems: NavItem[] = [
   {
     nameKey: "admin.nav.complaint_management",
@@ -517,22 +549,10 @@ const complaintTicketItems: NavItem[] = [
     screen: "complaint-ticket",
     subItems: [
       {
-        nameKey: "admin.nav.complaint_tickets",
+        nameKey: "admin.nav.complaint_desk",
         path: `/${encComplaintTicket}/${encComplaint}`,
         module: "complaint-ticket",
         screen: "tickets",
-      },
-      {
-        nameKey: "admin.nav.reference_data",
-        path: `/${encComplaintTicket}/${encComplaintModules}`,
-        module: "complaint-ticket",
-        screens: ["modules", "priorities", "sources", "statuses"],
-      },
-      {
-        nameKey: "admin.nav.categories",
-        path: `/${encComplaintTicket}/${encComplaintCategories}`,
-        module: "complaint-ticket",
-        screens: ["categories", "subcategories"],
       },
       {
         nameKey: "admin.nav.teams",
@@ -541,10 +561,10 @@ const complaintTicketItems: NavItem[] = [
         screen: "teams",
       },
       {
-        nameKey: "admin.nav.sla_rules",
-        path: `/${encComplaintTicket}/${encComplaintSlaRules}`,
+        nameKey: "admin.nav.feedback",
+        path: `/${encComplaintTicket}/${encFeedback}`,
         module: "complaint-ticket",
-        screen: "sla-rules",
+        screen: "feedback",
       },
     ],
   },
@@ -579,7 +599,6 @@ const transportMastersItems: NavItem[] = [
   },
 ];
 
-// Split from the legacy "schedule-masters" section — template/plan setup resources.
 const scheduleSetupItems: NavItem[] = [
   {
     nameKey: "admin.nav.schedule_setup",
@@ -681,9 +700,6 @@ const scheduleOperationsItems: NavItem[] = [
   },
 ];
 
-// Legacy name — kept alive only for the reporting sub-resources, matching
-// the backend's equivalent split (see base_urls.py); setup/operations
-// resources above are no longer looked up under this module.
 const scheduleMastersItems: NavItem[] = [
   {
     nameKey: "admin.nav.waste_reports",
@@ -868,6 +884,7 @@ const AppSidebar: React.FC = () => {
         { key: "roleAssigns" as const, items: roleAssignsItems },
         { key: "staffManagement" as const, items: staffManagementMasters },
         { key: "customerMasters" as const, items: customerMasters },
+        { key: "complaintMasters" as const, items: complaintMastersItems },
         { key: "complaintTicket" as const, items: complaintTicketItems },
         { key: "transportMasters" as const, items: transportMastersItems },
         { key: "scheduleSetup" as const, items: scheduleSetupItems },
@@ -997,6 +1014,14 @@ const AppSidebar: React.FC = () => {
     [currentDecodedPath, location.pathname]
   );
 
+  /** True when `entry`'s own route, or any route it fronts, is current. */
+  const isEntryActive = useCallback(
+    (entry: NavMatchable) =>
+      (!!entry.path && isActive(entry.path, true)) ||
+      (entry.matchPaths?.some((candidate) => isActive(candidate, true)) ?? false),
+    [isActive],
+  );
+
   useEffect(() => {
     let matched = false;
     const skipAutoOpenSubmenuKeys = new Set([
@@ -1006,7 +1031,7 @@ const AppSidebar: React.FC = () => {
     sidebarSections.forEach((section) => {
       section.items.forEach((nav, index) => {
         nav.subItems?.forEach((sub) => {
-          if (isActive(sub.path, true)) {
+          if (isEntryActive(sub)) {
             matched = true;
             if (!skipAutoOpenSubmenuKeys.has(sub.nameKey)) {
               setOpenSubmenu({ type: section.key, index });
@@ -1017,7 +1042,7 @@ const AppSidebar: React.FC = () => {
     });
 
     if (!matched) setOpenSubmenu(null);
-  }, [location, isActive, sidebarSections]);
+  }, [location, isActive, isEntryActive, sidebarSections]);
 
   useEffect(() => {
     if (openSubmenu) {
@@ -1095,7 +1120,7 @@ const AppSidebar: React.FC = () => {
                 <Link
                   to={nav.path}
                   className={`${menuButtonBase} ${
-                    isActive(nav.path, true)
+                    isEntryActive(nav)
                       ? menuActiveClasses
                       : menuInactiveClasses
                   }`}
@@ -1104,7 +1129,7 @@ const AppSidebar: React.FC = () => {
                     className={cn(
                       "menu-item-icon-size shrink-0",
                       !showFullSidebar && "mx-auto",
-                      isActive(nav.path, true) ? "text-white" : "text-green-600"
+                      isEntryActive(nav) ? "text-white" : "text-green-600"
                     )}
                   >
                     {nav.icon}
@@ -1113,7 +1138,7 @@ const AppSidebar: React.FC = () => {
                     <span
                       className={cn(
                         "truncate text-sm font-semibold",
-                        isActive(nav.path, true) ? "text-white" : "text-gray-800"
+                        isEntryActive(nav) ? "text-white" : "text-gray-800"
                       )}
                     >
                       {t(nav.nameKey)}
@@ -1141,7 +1166,7 @@ const AppSidebar: React.FC = () => {
                       <Link
                         to={subItem.path}
                         className={`block px-3 py-1.5 text-sm font-medium transition-colors ${
-                          isActive(subItem.path, true)
+                          isEntryActive(subItem)
                             ? subMenuActiveClasses
                             : subMenuInactiveClasses
                         }`}

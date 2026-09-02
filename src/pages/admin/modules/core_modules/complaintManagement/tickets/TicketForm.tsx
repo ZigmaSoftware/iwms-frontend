@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, ClipboardList, Loader2, MapPinned, UserRound } from "lucide-react";
@@ -26,6 +25,10 @@ import { toSwalMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 import { scopeFieldState } from "@/pages/admin/modules/masters/shared/dataScopeOptions";
 import { FormSelect } from "@/components/common/FormSelect";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { CompanyProjectFields } from "@/components/common/CompanyProjectFields";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 const STEPS = [
   { label: "Citizen", icon: UserRound },
@@ -34,13 +37,6 @@ const STEPS = [
   { label: "Review", icon: CheckCircle2 },
 ] as const;
 const REVIEW_STEP = STEPS.length - 1;
-
-const PRIMARY_BUTTON_CLASS =
-  "inline-flex items-center justify-center gap-1.5 rounded-md border !border-[#22a855] !bg-[#22a855] px-5 py-2 text-sm font-semibold !text-white shadow-sm transition hover:!bg-[#1a8a44] disabled:opacity-60";
-const SECONDARY_BUTTON_CLASS =
-  "inline-flex items-center justify-center gap-1.5 rounded-md border !border-[#22a855] !bg-white px-4 py-2 text-sm font-semibold !text-[#22a855] transition hover:!bg-[#e8f8ee] dark:!bg-transparent dark:hover:!bg-[#22a855]/10";
-const CANCEL_BUTTON_CLASS =
-  "inline-flex items-center justify-center rounded-md border !border-[#f7192b] !bg-[#f7192b] px-4 py-2 text-sm font-semibold !text-white transition hover:!bg-[#d91626]";
 
 const reviewRow = (label: string, value?: string | null) => (
   <div className="flex justify-between gap-4 border-b border-gray-100 py-1.5 text-sm last:border-0 dark:border-gray-800">
@@ -63,12 +59,25 @@ export default function TicketWizardForm() {
   const navigate = useNavigate();
   const { encComplaintTicket, encComplaint } = getEncryptedRoute();
   const { listPath } = createCrudRoutePaths(encComplaintTicket, encComplaint);
+  // A ticket is company/project-scoped, so the tenancy is part of step 1 —
+  // `CompanyScopedViewSet` stamps it from the payload on create.
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    loggedInCompanyUniqueId,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false });
+
+  const [showOperationalContext, setShowOperationalContext] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [wasteTypes, setWasteTypes] = useState<any[]>([]);
   const [subcategories, setSubcategories] = useState<any[]>([]);
   const [priorities, setPriorities] = useState<any[]>([]);
-  const [statuses, setStatuses] = useState<any[]>([]);
   const [sources, setSources] = useState<any[]>([]);
   const [step, setStep] = useState(0);
   const [stepError, setStepError] = useState<string | null>(null);
@@ -120,7 +129,6 @@ export default function TicketWizardForm() {
       setCategories(asArray(categoryRows));
       setSubcategories(asArray(subcategoryRows));
       setPriorities(asArray(priorityRows));
-      setStatuses(asArray(statusRows));
       setSources(asArray(sourceRows));
       setWasteTypes(asArray(wasteTypeRows));
       setForm((prev) => ({
@@ -293,6 +301,11 @@ export default function TicketWizardForm() {
 
   const validateStep = (index: number): string | null => {
     if (index === 0) {
+      // Without a tenancy the ticket is created unscoped and then disappears
+      // from every company-filtered list, so block the step rather than let
+      // it save into nowhere.
+      if (!companyUniqueId) return "Select a company to continue.";
+      if (!projectId) return "Select a project to continue.";
       if (!(form.profile_name.trim() || form.customer || form.wa_phone.trim())) {
         return "Select a customer or enter a phone number / profile name to continue.";
       }
@@ -300,8 +313,6 @@ export default function TicketWizardForm() {
     }
     if (index === 1) {
       if (!form.category) return "Select a category to continue.";
-      if (!form.priority) return "Select a priority to continue.";
-      if (!form.status) return "Select a status to continue.";
       if (!form.title.trim()) return "Enter a title to continue.";
       return null;
     }
@@ -365,6 +376,8 @@ export default function TicketWizardForm() {
     setSaving(true);
     try {
       await complaintTicketApi.create({
+        company_id: companyUniqueId,
+        project_id: projectId,
         wa_phone: form.wa_phone,
         profile_name: form.profile_name,
         source: form.source || null,
@@ -428,8 +441,7 @@ export default function TicketWizardForm() {
               .join(", "),
           )}
           {reviewRow("Subcategory", capitalize(findLabel(subcategories, form.subcategory, "subcategory_name")))}
-          {reviewRow("Priority", capitalize(findLabel(priorities, form.priority, "priority_name")))}
-          {reviewRow("Status", capitalize(findLabel(statuses, form.status, "status_name")))}
+          {reviewRow("Priority", `${capitalize(findLabel(priorities, form.priority, "priority_name"))} (from category)`)}
           {reviewRow("Title", form.title)}
           {reviewRow("Description", form.description)}
           {reviewRow("Incident type", capitalize(form.incident_type))}
@@ -508,6 +520,16 @@ export default function TicketWizardForm() {
 
         {step === 0 && (
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+            <CompanyProjectFields
+              companyUniqueId={companyUniqueId}
+              projectId={projectId}
+              companies={companies}
+              projects={projects}
+              isSuperAdmin={isSuperAdmin}
+              loggedInCompanyUniqueId={loggedInCompanyUniqueId}
+              onCompanyChange={onCompanyChange}
+              setProjectId={setProjectId}
+            />
             <div>
               <Label>Customer</Label>
               <FormSelect
@@ -552,26 +574,6 @@ export default function TicketWizardForm() {
                 placeholder={"None"}
               />
             </div>
-            <div>
-              <Label>Priority</Label>
-              <FormSelect
-                value={form.priority}
-                onChange={(v) => setValue("priority", v)}
-                options={priorities.map((item) => ({ value: String(item.unique_id), label: capitalize(item.priority_name) }))}
-                required
-                placeholder={"Select priority"}
-              />
-            </div>
-            <div>
-              <Label>Status</Label>
-              <FormSelect
-                value={form.status}
-                onChange={(v) => setValue("status", v)}
-                options={statuses.map((item) => ({ value: String(item.unique_id), label: capitalize(item.status_name) }))}
-                required
-                placeholder={"Select status"}
-              />
-            </div>
             <div className="md:col-span-3">
               <Label>Waste Type</Label>
               <div className="flex flex-wrap gap-2">
@@ -597,21 +599,38 @@ export default function TicketWizardForm() {
               </div>
             </div>
             <div className="md:col-span-3"><Label>Title</Label><Input value={form.title} onChange={(e) => setValue("title", e.target.value)} required /></div>
-            <div className="md:col-span-3"><Label>Description</Label><textarea className="w-full rounded-md border px-3 py-2 text-sm" rows={4} value={form.description} onChange={(e) => setValue("description", e.target.value)} /></div>
-            <div>
-              <Label>Complaint / Incident Type</Label>
-              <FormSelect
-                value={form.incident_type}
-                onChange={(v) => setValue("incident_type", v)}
-                options={[{ value: "public", label: "Public Grievance" }, { value: "trip", label: "Trip Related" }, { value: "driver", label: "Driver Related" }, { value: "operator", label: "Operator Related" }, { value: "vehicle", label: "Vehicle Related" }, { value: "other", label: "Other" }]}
-                placeholder={null}
-              />
+            <div className="md:col-span-3"><Label>Description</Label><Textarea rows={4} value={form.description} onChange={(e) => setValue("description", e.target.value)} /></div>
+            {/* Operational context is optional and rarely filled for a
+                citizen complaint — it only applies when the complaint is
+                about a specific trip/vehicle/driver. Collapsed so the common
+                path is Category -> Title -> Description and nothing else. */}
+            <div className="md:col-span-3">
+              <button
+                type="button"
+                onClick={() => setShowOperationalContext((open) => !open)}
+                className="text-sm font-medium text-green-700 hover:text-green-900"
+              >
+                {showOperationalContext ? "− Hide" : "+ Add"} operational context (optional)
+              </button>
             </div>
-            <div><Label>Trip Reference</Label><Input placeholder="Trip ID / trip plan code" value={form.trip_reference} onChange={(e) => setValue("trip_reference", e.target.value)} /></div>
-            <div><Label>Vehicle Reference</Label><Input placeholder="Vehicle number / ID" value={form.vehicle_reference} onChange={(e) => setValue("vehicle_reference", e.target.value)} /></div>
-            <div><Label>Driver Reference</Label><Input placeholder="Driver name / staff ID" value={form.driver_reference} onChange={(e) => setValue("driver_reference", e.target.value)} /></div>
-            <div><Label>Operator Reference</Label><Input placeholder="Operator name / staff ID" value={form.operator_reference} onChange={(e) => setValue("operator_reference", e.target.value)} /></div>
-            <div><Label>Other Context</Label><Input placeholder="Any additional operational reference" value={form.other_reference} onChange={(e) => setValue("other_reference", e.target.value)} /></div>
+            {showOperationalContext && (
+              <>
+                <div>
+                  <Label>Complaint / Incident Type</Label>
+                  <FormSelect
+                    value={form.incident_type}
+                    onChange={(v) => setValue("incident_type", v)}
+                    options={[{ value: "public", label: "Public Grievance" }, { value: "trip", label: "Trip Related" }, { value: "driver", label: "Driver Related" }, { value: "operator", label: "Operator Related" }, { value: "vehicle", label: "Vehicle Related" }, { value: "other", label: "Other" }]}
+                    placeholder={null}
+                  />
+                </div>
+                <div><Label>Trip Reference</Label><Input placeholder="Trip ID / trip plan code" value={form.trip_reference} onChange={(e) => setValue("trip_reference", e.target.value)} /></div>
+                <div><Label>Vehicle Reference</Label><Input placeholder="Vehicle number / ID" value={form.vehicle_reference} onChange={(e) => setValue("vehicle_reference", e.target.value)} /></div>
+                <div><Label>Driver Reference</Label><Input placeholder="Driver name / staff ID" value={form.driver_reference} onChange={(e) => setValue("driver_reference", e.target.value)} /></div>
+                <div><Label>Operator Reference</Label><Input placeholder="Operator name / staff ID" value={form.operator_reference} onChange={(e) => setValue("operator_reference", e.target.value)} /></div>
+                <div><Label>Other Context</Label><Input placeholder="Any additional operational reference" value={form.other_reference} onChange={(e) => setValue("other_reference", e.target.value)} /></div>
+              </>
+            )}
           </div>
         )}
 
@@ -689,17 +708,23 @@ export default function TicketWizardForm() {
             </p>
           )}
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <button type="button" className={CANCEL_BUTTON_CLASS} onClick={() => navigate(listPath)}>Cancel</button>
+            <Button type="button" variant="destructive" onClick={() => navigate(listPath)}>
+              Cancel
+            </Button>
             {step > 0 && (
-              <button type="button" className={SECONDARY_BUTTON_CLASS} onClick={goBack}>← Back</button>
+              <Button type="button" variant="outline" onClick={goBack}>
+                ← Back
+              </Button>
             )}
             {step < REVIEW_STEP ? (
-              <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={goNext}>Next →</button>
+              <Button type="button" onClick={goNext}>
+                Next →
+              </Button>
             ) : (
-              <button type="submit" disabled={saving} className={PRIMARY_BUTTON_CLASS}>
+              <Button type="submit" disabled={saving} className="gap-1.5">
                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                 {saving ? "Saving..." : "Confirm & Save"}
-              </button>
+              </Button>
             )}
           </div>
         </div>

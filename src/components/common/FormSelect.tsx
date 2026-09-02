@@ -46,6 +46,16 @@ export interface FormSelectProps {
    * width instead of stretching across the bar.
    */
   fullWidth?: boolean;
+  /**
+   * Show a search box above the options.
+   *
+   * On by default: these dropdowns are fed from master tables (customers,
+   * categories, teams, wards) that routinely run to hundreds of rows, and
+   * scrolling those to find one entry is the slowest part of filling a form.
+   * Pass false for a genuinely short, fixed list (a 3-option status, say)
+   * where a search box is just noise.
+   */
+  searchable?: boolean;
 }
 
 export function FormSelect({
@@ -63,6 +73,7 @@ export function FormSelect({
   className,
   triggerClassName,
   fullWidth = true,
+  searchable = true,
 }: FormSelectProps) {
   // Radix treats "" as "no selection", so the trigger falls back to the
   // placeholder automatically when the form state is empty.
@@ -120,7 +131,11 @@ export function FormSelect({
           <SelectValue placeholder={placeholderText} />
         </SelectTrigger>
 
-        <SelectContent>
+        {/* The search box is rendered by `SelectContent` itself (see
+            components/ui/select.tsx), so every Select in the app gets one
+            without its call sites changing. `searchable` just forwards the
+            caller's opt-out. */}
+        <SelectContent searchable={searchable}>
           {showPlaceholderRow ? (
             <SelectItem value={EMPTY_VALUE}>{placeholderText}</SelectItem>
           ) : null}
