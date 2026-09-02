@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import Select from "@/components/form/Select";
 import { departmentApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { departmentSchema } from "@/schemas/masters/department.schema";
+import { departmentSchema } from "@/schemas/superadmin/staffManagement/department.schema";
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
 
