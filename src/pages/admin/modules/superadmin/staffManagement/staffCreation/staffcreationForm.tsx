@@ -18,7 +18,7 @@ import { useTranslation } from "react-i18next";
 import {
   staffCreationSchema,
   buildStaffCreationFileSchema,
-} from "@/schemas/superadmin/userManagement/staffCreation.schema";
+} from "@/schemas/superadmin/staffManagement/staffCreation.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
@@ -798,7 +798,7 @@ export default function StaffCreationForm() {
         if (id) params.exclude = id;
 
         const response = await api.get(
-          "/user-creations/staffcreation/staff-head-options/",
+          "/staff-creations/staffcreation/staff-head-options/",
           { params },
         );
         const records = Array.isArray(response.data)

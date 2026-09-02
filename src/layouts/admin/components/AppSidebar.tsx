@@ -92,7 +92,6 @@ const {
   encBins,
   encDailyTripAssignment,
   encDailyTripLog,
-  encDailyTripHouseholdCollection,
   encDailyTripTracking,
   encStaticRouteMap,
   encBinCollectionEvent,
@@ -128,7 +127,7 @@ type SidebarSectionKey =
   | "wasteType"
   | "screenManagement"
   | "roleAssigns"
-  | "userCreations"
+  | "staffManagement"
   | "processItems"
   | "customerMasters"
   | "complaintTicket"
@@ -161,7 +160,7 @@ const MODULE_GROUPS: {
       "superadminMaster",
       "screenManagement",
       "roleAssigns",
-      "userCreations",
+      "staffManagement",
       "commonMaster",
       "auditItems",
     ],
@@ -280,19 +279,7 @@ const masterItems: NavItem[] = [
     module: "masters",
     screen: "masters",
     subItems: [
-      // ── Org / Department Setup ──────────────────────────────
-      {
-        nameKey: "admin.nav.department",
-        path: `/${encMasters}/${encDepartments}`,
-        module: "masters",
-        screen: "department-masters",
-      },
-      {
-        nameKey: "admin.nav.designation",
-        path: `/${encMasters}/${encDesignations}`,
-        module: "masters",
-        screen: "designation-masters",
-      },
+
       // ── Administrative / Geographic Hierarchy ────────────────
       {
         nameKey: "admin.nav.district",
@@ -301,16 +288,16 @@ const masterItems: NavItem[] = [
         screen: "districts",
       },
       {
-        nameKey: "admin.nav.zone",
-        path: `/${encMasters}/${encZones}`,
-        module: "masters",
-        screen: "zones",
-      },
-      {
         nameKey: "admin.nav.city",
         path: `/${encMasters}/${encCities}`,
         module: "masters",
         screen: "cities",
+      },
+       {
+        nameKey: "admin.nav.zone",
+        path: `/${encMasters}/${encZones}`,
+        module: "masters",
+        screen: "zones",
       },
       // ── Operational / Field Level ────────────────────────────
       {
@@ -335,8 +322,6 @@ const masterItems: NavItem[] = [
   },
 ];
 
-// Split from "Location Masters" to match the government reference app's
-// dedicated Leader Management section.
 const leaderManagementItems: NavItem[] = [
   {
     nameKey: "admin.nav.leader_management",
@@ -459,23 +444,35 @@ const roleAssignsItems: NavItem[] = [
   },
 ];
 
-const userCreationMasters: NavItem[] = [
+const staffManagementMasters: NavItem[] = [
   {
     nameKey: "admin.nav.staff_management",
     icon: <Users size={18} />,
-    module: "user-creations",
-    screen: "user-creations",
+    module: "staff-creations",
+    screen: "staff-creations",
     subItems: [
+      {
+        nameKey: "admin.nav.department",
+        path: `/${encStaffMasters}/${encDepartments}`,
+        module: "staff-creations",
+        screen: "department-masters",
+      },
+      {
+        nameKey: "admin.nav.designation",
+        path: `/${encStaffMasters}/${encDesignations}`,
+        module: "staff-creations",
+        screen: "designation-masters",
+      },
       {
         nameKey: "admin.nav.staff_creation",
         path: `/${encStaffMasters}/${encStaffCreation}`,
-        module: "user-creations",
+        module: "staff-creations",
         screen: "staffcreation",
       },
       {
         nameKey: "admin.nav.staff_access_configuration",
         path: `/${encAdmins}/${encStaffAccessConfiguration}`,
-        module: "user-creations",
+        module: "staff-creations",
         screen: "staff-access-configuration",
       },
     ],
@@ -644,12 +641,6 @@ const scheduleOperationsItems: NavItem[] = [
         module: "schedule-operations",
         screen: "static-route-map",
       },
-      // {
-      //   nameKey: "admin.nav.daily_trip_household_collection",
-      //   path: `/${encScheduleOperations}/${encDailyTripHouseholdCollection}`,
-      //   module: "schedule-operations",
-      //   screen: "daily-trip-household-collections",
-      // },
       {
         nameKey: "admin.nav.bin_collection_event",
         path: `/${encScheduleOperations}/${encBinCollectionEvent}`,
@@ -875,7 +866,7 @@ const AppSidebar: React.FC = () => {
         { key: "wasteType" as const, items: wasteTypeItems },
         { key: "screenManagement" as const, items: screenManagementItems },
         { key: "roleAssigns" as const, items: roleAssignsItems },
-        { key: "userCreations" as const, items: userCreationMasters },
+        { key: "staffManagement" as const, items: staffManagementMasters },
         { key: "customerMasters" as const, items: customerMasters },
         { key: "complaintTicket" as const, items: complaintTicketItems },
         { key: "transportMasters" as const, items: transportMastersItems },

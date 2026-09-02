@@ -19,10 +19,10 @@ import ZoneList from "@/pages/admin/modules/masters/zone/ZoneListPage";
 import ZoneForm from "@/pages/admin/modules/masters/zone/ZoneForm";
 import WardList from "@/pages/admin/modules/masters/ward/WardListPage";
 import WardForm from "@/pages/admin/modules/masters/ward/WardForm";
-import DepartmentList from "@/pages/admin/modules/masters/department/DepartmentListPage";
-import DepartmentForm from "@/pages/admin/modules/masters/department/DepartmentForm";
-import DesignationList from "@/pages/admin/modules/masters/designation/DesignationListPage";
-import DesignationForm from "@/pages/admin/modules/masters/designation/DesignationForm";
+import DepartmentList from "@/pages/admin/modules/superadmin/staffManagement/department/DepartmentListPage";
+import DepartmentForm from "@/pages/admin/modules/superadmin/staffManagement/department/DepartmentForm";
+import DesignationList from "@/pages/admin/modules/superadmin/staffManagement/designation/DesignationListPage";
+import DesignationForm from "@/pages/admin/modules/superadmin/staffManagement/designation/DesignationForm";
 import CollectionPointListPage from "@/pages/admin/modules/core_modules/scheduleSetup/collectionPoint/CollectionPointListPage";
 import CollectionPointForm from "@/pages/admin/modules/core_modules/scheduleSetup/collectionPoint/CollectionPointForm";
 import PlantListPage from "@/pages/admin/modules/masters/plant/PlantListPage";
@@ -44,8 +44,8 @@ import PropertyList from "@/pages/admin/modules/masters/wasteMasters/property/Pr
 import PropertyForm from "@/pages/admin/modules/masters/wasteMasters/property/PropertyForm";
 import SubPropertyList from "@/pages/admin/modules/masters/wasteMasters/subproperty/SubPropertyListPage";
 import SubPropertyForm from "@/pages/admin/modules/masters/wasteMasters/subproperty/SubPropertyForm";
-import StaffCreationList from "@/pages/admin/modules/superadmin/userManagement/staffCreation/staffcreationlist";
-import StaffCreationForm from "@/pages/admin/modules/superadmin/userManagement/staffCreation/staffcreationForm";
+import StaffCreationList from "@/pages/admin/modules/superadmin/staffManagement/staffCreation/staffcreationlist";
+import StaffCreationForm from "@/pages/admin/modules/superadmin/staffManagement/staffCreation/staffcreationForm";
 // Admin
 import UserTypeList from "@/pages/admin/modules/superadmin/roleManagement/userType/user-typeList";
 import UserTypeForm from "@/pages/admin/modules/superadmin/roleManagement/userType/user-typeForm";
@@ -121,8 +121,8 @@ import UserScreenList from "@/pages/admin/modules/superadmin/screenManagement/us
 import UserScreenForm from "@/pages/admin/modules/superadmin/screenManagement/userScreen/userScreenForm";
 import UserScreenPermissionForm from "@/pages/admin/modules/superadmin/screenManagement/userScreenPermission/userScreenPermissionForm";
 import UserScreenPermissionList from "@/pages/admin/modules/superadmin/screenManagement/userScreenPermission/userScreenPermissionList";
-import StaffAccessConfigList from "@/pages/admin/modules/superadmin/userManagement/staffAccessConfiguration/StaffAccessConfigList";
-import StaffAccessConfigForm from "@/pages/admin/modules/superadmin/userManagement/staffAccessConfiguration/StaffAccessConfigForm";
+import StaffAccessConfigList from "@/pages/admin/modules/superadmin/staffManagement/staffAccessConfiguration/StaffAccessConfigList";
+import StaffAccessConfigForm from "@/pages/admin/modules/superadmin/staffManagement/staffAccessConfiguration/StaffAccessConfigForm";
 import StaffTemplateList from "@/pages/admin/modules/core_modules/scheduleSetup/staffTemplate/staffTemplateList";
 import StaffTemplateForm from "@/pages/admin/modules/core_modules/scheduleSetup/staffTemplate/staffTemplateForm";
 import AlternativeStaffTemplateList from "@/pages/admin/modules/core_modules/scheduleSetup/alternativeStaffTemplate/alternativeStaffTemplateList";
@@ -180,8 +180,6 @@ const ROUTES: RouteMap = {
     cities: { list: CityList, form: CityForm },
     zones: { list: ZoneList, form: ZoneForm },
     wards: { list: WardList, form: WardForm },
-    departments: { list: DepartmentList, form: DepartmentForm },
-    designations: { list: DesignationList, form: DesignationForm },
     bins: { list: BinListPage, form: BinForm },
     "waste-types": { list: WasteTypeListPage, form: WasteTypeForm },
     panchayats: { list: PanchayatListPage, form: PanchayatForm },
@@ -192,6 +190,8 @@ const ROUTES: RouteMap = {
     "sub-properties": { list: SubPropertyList, form: SubPropertyForm },
   },
   "staff-masters": {
+    departments: { list: DepartmentList, form: DepartmentForm },
+    designations: { list: DesignationList, form: DesignationForm },
     "staff-creation": { list: StaffCreationList, form: StaffCreationForm },
   },
   "transport-master": {
@@ -283,6 +283,7 @@ const MASTER_ALIASES: Record<string, string[]> = {
   // "schedule-masters" but whose module was moved into schedule-setup or
   // schedule-operations (see base_urls.py) still resolve via this fallback.
   "schedule-masters": ["schedule-setup", "schedule-operations"],
+  "staff-creations": ["staff-masters"],
   "user-creations": ["staff-masters"],
   "process-items": ["staff-masters"],
   audits: ["staff-masters"],
