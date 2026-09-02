@@ -15,6 +15,10 @@ export type EncryptedRoutes = {
   encComplaintSubcategories: string;
   encComplaintFeedback: string;
   encComplaintMasters: string;
+  /** SUPER ADMIN module key for global complaint configuration. */
+  encComplaintMastersModule: string;
+  /** Tabbed Complaint Types screen (Category / Sub-category / SLA). */
+  encComplaintTypes: string;
   encComplaintPriorities: string;
   encComplaintStatuses: string;
   encComplaintSources: string;
@@ -141,6 +145,8 @@ const plainRoutes: EncryptedRoutes = {
   encComplaintSubcategories: "subcategories",
   encComplaintFeedback: "feedback",
   encComplaintMasters: "masters",
+  encComplaintMastersModule: "complaint-masters",
+  encComplaintTypes: "types",
   encComplaintPriorities: "priorities",
   encComplaintStatuses: "statuses",
   encComplaintSources: "sources",

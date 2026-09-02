@@ -5,6 +5,8 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { InputText } from "primereact/inputtext";
 import type {
   DataTablePageEvent,
@@ -19,6 +21,15 @@ import { MASTER_CONFIG, type MasterKind } from "./masterConfig";
 
 type Props = {
   kind: MasterKind;
+  /**
+   * Which module segment the Add/Edit routes are built under. Defaults to
+   * `complaint-ticket` so every existing route keeps working; the SUPER ADMIN
+   * Complaint Types screen passes `complaint-masters` so its rows link to the
+   * writable superadmin routes instead of the view-only Desk ones.
+   */
+  moduleSegment?: string;
+  /** Hide the built-in heading when the parent screen already renders one. */
+  hideHeading?: boolean;
 };
 
 // Mirrors the `ordering_fields` configured on each backend viewset, intersected
@@ -37,12 +48,12 @@ const SORTABLE_FIELDS_BY_KIND: Record<MasterKind, Set<string>> = {
   slaRule: new Set([]),
 };
 
-export default function MasterList({ kind }: Props) {
+export default function MasterList({ kind, moduleSegment, hideHeading }: Props) {
   const navigate = useNavigate();
   const routes = getEncryptedRoute();
   const config = MASTER_CONFIG[kind];
   const { newPath, editPath } = createCrudRoutePaths(
-    routes.encComplaintTicket,
+    moduleSegment ?? routes.encComplaintTicket,
     routes[config.routeKey],
   );
 
@@ -57,6 +68,34 @@ export default function MasterList({ kind }: Props) {
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const api = useMemo(() => config.api(), [config]);
+
+  // Teams are the one company/project-scoped master here — they point at
+  // company-scoped Department/Staff, so `ComplaintTeamViewSet` extends
+  // `CompanyScopedViewSet`. Every other kind in this file is global
+  // configuration with no company column, so the pickers would filter on a
+  // field that does not exist.
+  const isScoped = kind === "team";
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    showAllProjectsOption,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false, defaultToAll: true });
+
+  const selectedProjectId =
+    projectId && projects.some((project) => project.value === projectId)
+      ? projectId
+      : "";
+  const scopeParams = isScoped
+    ? {
+        ...(companyUniqueId ? { company_id: companyUniqueId } : {}),
+        ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
+      }
+    : {};
 
   // Switching kind should restart pagination (and drop any sort tied to the old kind's columns).
   useEffect(() => {
@@ -78,6 +117,7 @@ export default function MasterList({ kind }: Props) {
     try {
       const response = await api.readAllwithPaginated(page, limit, {
         params: {
+          ...scopeParams,
           ...(search ? { search } : {}),
           ...(sortOrdering ? { ordering: sortOrdering } : {}),
         },
@@ -98,7 +138,7 @@ export default function MasterList({ kind }: Props) {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, first, rowsPerPage, searchTerm, ordering]);
+  }, [api, first, rowsPerPage, searchTerm, ordering, companyUniqueId, selectedProjectId]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -126,7 +166,7 @@ export default function MasterList({ kind }: Props) {
   const loadAllExportRows = async () =>
     asArray(
       await api.readAllForExport({
-        params: { ...(searchTerm ? { search: searchTerm } : {}) },
+        params: { ...scopeParams, ...(searchTerm ? { search: searchTerm } : {}) },
       }),
     ) as unknown as Record<string, unknown>[];
 
@@ -134,10 +174,14 @@ export default function MasterList({ kind }: Props) {
     <div className="p-3">
       <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3 gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold text-gray-800">
-            {config.titlePlural}
-          </h1>
-          <p className="text-sm text-gray-500">Complaint ticketing setup</p>
+          {!hideHeading && (
+            <>
+              <h1 className="text-2xl font-semibold text-gray-800">
+                {config.titlePlural}
+              </h1>
+              <p className="text-sm text-gray-500">Complaint ticketing setup</p>
+            </>
+          )}
         </div>
         <Button
           label="Add New"
@@ -162,14 +206,42 @@ export default function MasterList({ kind }: Props) {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
         header={
-          <div className="flex justify-end">
-            <InputText
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search"
-              className="p-inputtext-sm"
-            />
-          </div>
+          isScoped ? (
+            // Scoped kinds get the same Company/Project pickers as every other
+            // company-scoped list in the app (see `staffTemplateList.tsx`).
+            <FilterBar
+              searchValue={query}
+              onSearchChange={(value) => setQuery(value)}
+              searchPlaceholder="Search"
+            >
+              <FilterBarSelect
+                value={companyUniqueId || ""}
+                onChange={(value) => onCompanyChange(value)}
+                options={companies}
+                placeholder="All Companies"
+                disabled={!isSuperAdmin || companies.length === 0}
+              />
+              <FilterBarSelect
+                value={selectedProjectId}
+                onChange={(value) => setProjectId(value)}
+                options={projects.map((project) => ({
+                  value: String(project.value),
+                  label: project.label || project.value,
+                }))}
+                placeholder={showAllProjectsOption ? "All Projects" : undefined}
+                disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+              />
+            </FilterBar>
+          ) : (
+            <div className="flex justify-end">
+              <InputText
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search"
+                className="p-inputtext-sm"
+              />
+            </div>
+          )
         }
         emptyMessage="No records found"
         stripedRows
@@ -319,6 +391,15 @@ export default function MasterList({ kind }: Props) {
             field="category_code"
             header="Category"
             sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_code")}
+          />
+        )}
+        {kind === "slaRule" && (
+          <Column
+            header="Sub Category"
+            // A rule scoped to the whole category leaves `subcategory` NULL,
+            // which means "applies to every sub-category" — show that as
+            // "All" rather than an empty cell that reads like missing data.
+            body={(row) => row.subcategory_name || row.subcategory_code || "All"}
           />
         )}
         {kind === "slaRule" && (

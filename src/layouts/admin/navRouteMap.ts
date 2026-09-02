@@ -61,6 +61,8 @@ export function buildNavRouteMap(): RouteEntry[] {
     encComplaintSources,
     encComplaintTeams,
     encComplaintSlaRules,
+    encComplaintMastersModule,
+    encComplaintTypes,
     encFeedback,
     encTransportMaster,
     encFuel,
@@ -162,6 +164,15 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encCustomerMaster}/${encCustomerCreation}`, nameKey: "admin.nav.customer_creation", parentNameKey: "admin.nav.customer_masters" },
     { path: `/${encCustomerMaster}/${encApartmentList}`, nameKey: "admin.nav.apartment_list", parentNameKey: "admin.nav.customer_masters" },
     { path: `/${encComplaintTicket}/${encFeedback}`, nameKey: "admin.nav.feedback", parentNameKey: "admin.nav.customer_masters" },
+    // Complaint Masters (SUPER ADMIN) — the three Complaint Types tabs share
+    // one parent so the breadcrumb reads
+    // "Dashboard > Complaint Masters > Complaint Types > Sub Category".
+    // All four routes are the one Complaint Types screen — the breadcrumb
+    // names the screen, and the tab strip on the page shows which tab is open.
+    { path: `/${encComplaintMastersModule}/${encComplaintTypes}`, nameKey: "admin.nav.complaint_types", parentNameKey: "admin.nav.complaint_masters" },
+    { path: `/${encComplaintMastersModule}/${encComplaintCategories}`, nameKey: "admin.nav.complaint_types", parentNameKey: "admin.nav.complaint_masters" },
+    { path: `/${encComplaintMastersModule}/${encComplaintSubcategories}`, nameKey: "admin.nav.complaint_types", parentNameKey: "admin.nav.complaint_masters" },
+    { path: `/${encComplaintMastersModule}/${encComplaintSlaRules}`, nameKey: "admin.nav.complaint_types", parentNameKey: "admin.nav.complaint_masters" },
     // Complaint Ticketing
     { path: `/${encComplaintTicket}/${encComplaint}`, nameKey: "admin.nav.complaint_tickets", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encComplaintModules}`, nameKey: "admin.nav.modules", parentNameKey: "admin.nav.complaint_ticket" },

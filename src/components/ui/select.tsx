@@ -58,36 +58,109 @@ const SelectScrollDownButton = React.forwardRef<
 ));
 SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayName;
 
+/** Flatten a rendered child to plain text so it can be matched against a query. */
+const nodeText = (node: React.ReactNode): string => {
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(nodeText).join(" ");
+  if (React.isValidElement(node)) {
+    return nodeText((node.props as { children?: React.ReactNode }).children);
+  }
+  return "";
+};
+
+/**
+ * Number of options above which the search box appears.
+ *
+ * Short, fixed lists (a 3-option status) read better without one; the long
+ * ones — customers, wards, staff, categories — are where scrolling to find a
+ * row is the slowest part of filling a form.
+ */
+const SEARCH_THRESHOLD = 8;
+
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => (
-  <SelectPrimitive.Portal>
-    <SelectPrimitive.Content
-      ref={ref}
-      className={cn(
-        "relative z-[80] max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-        position === "popper" &&
-          "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
-        className,
-      )}
-      position={position}
-      {...props}
-    >
-      <SelectScrollUpButton />
-      <SelectPrimitive.Viewport
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & {
+    /** Set false to force the search box off for this menu. */
+    searchable?: boolean;
+  }
+>(({ className, children, position = "popper", searchable = true, ...props }, ref) => {
+  const [search, setSearch] = React.useState("");
+
+  const items = React.useMemo(
+    () => React.Children.toArray(children).filter(Boolean),
+    [children],
+  );
+  const showSearch = searchable && items.length >= SEARCH_THRESHOLD;
+
+  // Matching on the child's rendered text is what lets this work for every
+  // caller: `SelectContent` receives options as opaque JSX, so there is no
+  // options array to filter. Callers that build items from a list of objects
+  // (FormSelect) still get exact label matching, since the label IS the text.
+  const visible = React.useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return items;
+    return items.filter((item) => nodeText(item).toLowerCase().includes(query));
+  }, [items, search]);
+
+  return (
+    <SelectPrimitive.Portal>
+      <SelectPrimitive.Content
+        ref={ref}
         className={cn(
-          "p-1",
+          "relative z-[80] max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           position === "popper" &&
-            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+            "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+          className,
         )}
+        position={position}
+        // Radix restores focus to the trigger on close; clearing here means a
+        // reopened menu never shows a stale, narrowed list.
+        onCloseAutoFocus={(event) => {
+          setSearch("");
+          props.onCloseAutoFocus?.(event);
+        }}
+        {...props}
       >
-        {children}
-      </SelectPrimitive.Viewport>
-      <SelectScrollDownButton />
-    </SelectPrimitive.Content>
-  </SelectPrimitive.Portal>
-));
+        {showSearch ? (
+          <div
+            className="sticky top-0 z-10 border-b bg-popover p-1.5"
+            // Radix Select runs its own typeahead on keydown and moves focus
+            // to the matching item, which would pull focus out of this input
+            // on the first keystroke. Keeping the event inside the box lets it
+            // behave like a normal text field; Escape still bubbles so the
+            // menu can close.
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") event.stopPropagation();
+            }}
+          >
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search…"
+              autoFocus
+              className="h-8 w-full rounded-sm border px-2 text-sm outline-none focus:ring-2 focus:ring-green-200"
+            />
+          </div>
+        ) : null}
+        <SelectScrollUpButton />
+        <SelectPrimitive.Viewport
+          className={cn(
+            "p-1",
+            position === "popper" &&
+              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+          )}
+        >
+          {visible}
+        </SelectPrimitive.Viewport>
+        {showSearch && visible.length === 0 ? (
+          <p className="px-3 py-2 text-sm text-muted-foreground">No matches</p>
+        ) : null}
+        <SelectScrollDownButton />
+      </SelectPrimitive.Content>
+    </SelectPrimitive.Portal>
+  );
+});
 SelectContent.displayName = SelectPrimitive.Content.displayName;
 
 const SelectLabel = React.forwardRef<
