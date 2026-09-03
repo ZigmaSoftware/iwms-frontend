@@ -139,6 +139,7 @@ type SidebarSectionKey =
   | "staffManagement"
   | "processItems"
   | "customerMasters"
+  | "complaintMasters"
   | "complaintTicket"
   | "transportMasters"
   | "scheduleSetup"
@@ -816,19 +817,24 @@ const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, toggleSidebar } = useSidebar();
   const location = useLocation();
   const { t } = useTranslation();
-  const { hasPermission } = usePermission();
+  const { hasPermission, isEmptyPermissions } = usePermission();
   const showFullSidebar = isExpanded || isMobileOpen;
 
   //  Detect if current user is superadmin
   const isSuperAdmin = useMemo(() => isSuperAdminUser(), []);
 
   // Check sidebar visibility using the read/view permission returned by login.
+  // Dashboard isn't itself a grantable screen in the backend catalog, so it
+  // can never carry its own "view" permission — instead it's shown to any
+  // staff member who has been granted at least one permission anywhere,
+  // same as it's always shown to superadmin.
   const checkPermission = useCallback(
     (module: string | undefined, screen: string | undefined): boolean => {
       if (!module || !screen) return true;
+      if (module === "dashboard") return !isEmptyPermissions;
       return hasPermission(module, screen, "view");
     },
-    [hasPermission]
+    [hasPermission, isEmptyPermissions]
   );
 
   const checkSubItemPermission = useCallback(
