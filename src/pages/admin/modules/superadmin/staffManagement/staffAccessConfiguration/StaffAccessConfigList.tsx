@@ -203,6 +203,11 @@ export default function StaffAccessConfigList() {
     );
   };
 
+  const projectTemplate = (row: ListRow) => {
+    const names = row.project_names ?? [];
+    return names.length > 0 ? names.join(", ") : "All Projects";
+  };
+
   const statusTemplate = (row: ListRow) => {
     const record = row as Record<string, unknown>;
     const active = record.active_status !== false && record.is_active !== false;
@@ -256,25 +261,21 @@ export default function StaffAccessConfigList() {
         statusValue={statusValue}
         onStatusChange={onStatusFilterChange}
       >
-        {isSuperAdmin && (
-          <FilterBarSelect
-            value={companyUniqueId || ""}
-            onChange={onCompanyChange}
-            placeholder={t("common.all_companies") || "All Companies"}
-            disabled={companies.length === 0}
-            options={companies}
-          />
-        )}
+        <FilterBarSelect
+          value={companyUniqueId || ""}
+          onChange={onCompanyChange}
+          placeholder={t("common.all_companies") || "All Companies"}
+          disabled={!isSuperAdmin || companies.length === 0}
+          options={companies}
+        />
 
-        {companyUniqueId && (
-          <FilterBarSelect
-            value={projectId || ""}
-            onChange={setProjectId}
-            placeholder={showAllProjectsOption ? (t("common.all_projects") || "All Projects") : undefined}
-            disabled={projects.length === 0}
-            options={projects}
-          />
-        )}
+        <FilterBarSelect
+          value={projectId || ""}
+          onChange={setProjectId}
+          placeholder={showAllProjectsOption ? (t("common.all_projects") || "All Projects") : undefined}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+          options={projects}
+        />
       </FilterBar>
     </div>
   );
@@ -311,7 +312,7 @@ export default function StaffAccessConfigList() {
           sortable={Boolean(SORTABLE_FIELD_ORDERING.staff_name)}
         />
         <Column header="Role" body={roleTemplate} />
-        <Column field="project_name" header={t("admin.nav.project")} />
+        <Column header={t("admin.nav.project")} body={projectTemplate} />
         <Column field="company_name" header={t("admin.nav.company")} />
         <Column
           header="Permissions"
