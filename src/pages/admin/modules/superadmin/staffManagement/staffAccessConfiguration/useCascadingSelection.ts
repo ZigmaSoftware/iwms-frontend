@@ -41,19 +41,24 @@ export function useCascadingSelection(
     if (!canReconcile || eligible === null) return;
 
     const current = selectedRef.current;
-    const survived = current.filter((id) => eligible.has(id));
 
     if (skipFirstReconcile && !initialized.current) {
-      // First pass after hydration: never auto-add ("select everything"),
-      // but still drop anything that isn't actually eligible at all — a
-      // stale/leftover value (e.g. a state saved before its project was
-      // cleared) shouldn't linger just because it predates this render.
+      // First pass after hydration: leave the saved selection exactly as-is.
+      // `eligible` on this very first pass can still be an under-populated
+      // or empty Set purely because of async load ordering between the two
+      // independent option fetches this widget depends on (global states
+      // list vs. company-scoped districts/cities/etc) — pruning against that
+      // transient snapshot would wipe a genuinely-saved selection before the
+      // real eligible set has had a chance to catch up. Only take a baseline
+      // here; actual pruning starts from the next (post-hydration) pass,
+      // once `eligible` reflects a settled parent selection.
       prevEligible.current = eligible;
       initialized.current = true;
-      if (survived.length !== current.length) onReconciled(survived);
       return;
     }
     initialized.current = true;
+
+    const survived = current.filter((id) => eligible.has(id));
 
     const newlyEligible = [...eligible].filter((id) => !prevEligible.current.has(id));
     const next = Array.from(new Set([...survived, ...newlyEligible]));
