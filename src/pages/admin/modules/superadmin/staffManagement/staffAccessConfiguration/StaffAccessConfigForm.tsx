@@ -27,6 +27,7 @@ import type {
   AvailableMainScreen,
   AvailablePermissionsResponse,
   DataScopeForm,
+  EmployeeOption,
   GrantedScreenPermission,
   StaffAccessConfigPayload,
   StaffAccessConfigRecord,
@@ -191,6 +192,8 @@ export default function StaffAccessConfigForm() {
   const [fetching, setFetching] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [employeeOptions, setEmployeeOptions] = useState<EmployeeOption[]>([]);
+  const [loadingEmployeeOptions, setLoadingEmployeeOptions] = useState(false);
 
   // Project is the root-level scope field (no parent selection drives it),
   // so unlike the geo levels below it, loading its option list must never
@@ -247,6 +250,40 @@ export default function StaffAccessConfigForm() {
       cancelled = true;
     };
   }, []);
+
+  // Employee dropdown is scoped to the selected company (and, if chosen, the
+  // selected project) — re-fetch whenever either changes. Selecting a new
+  // company/project invalidates the previously chosen employee the same way
+  // it invalidates projects/permissions elsewhere in this form.
+  useEffect(() => {
+    if (!companyUniqueId) {
+      setEmployeeOptions([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingEmployeeOptions(true);
+
+    const params: Record<string, string> = { company_id: companyUniqueId };
+    if (projectIds.length > 0) params.project_id = projectIds[0];
+
+    staffAccessConfigurationApi
+      .action("employee-options", undefined, { params })
+      .then((res: unknown) => {
+        if (cancelled) return;
+        setEmployeeOptions(Array.isArray(res) ? (res as EmployeeOption[]) : []);
+      })
+      .catch(() => {
+        if (!cancelled) setEmployeeOptions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingEmployeeOptions(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [companyUniqueId, projectIds]);
 
   useEffect(() => {
     if (!isEdit || !staffUniqueIdParam) return;
@@ -404,6 +441,28 @@ export default function StaffAccessConfigForm() {
     return staffUserTypeOptions.filter((option) => !option.userTypeId || option.userTypeId === userTypeId);
   }, [staffUserTypeOptions, userTypeId]);
 
+  // Selecting an existing employee autofills whatever details already exist
+  // on their record — fields left blank on the employee stay editable so the
+  // admin can still fill in what's missing.
+  const handleEmployeeSelect = useCallback((value: string) => {
+    setStaffId(value);
+    setFieldErrors((prev) => ({ ...prev, employeeName: "" }));
+
+    const employee = employeeOptions.find((option) => option.unique_id === value);
+    if (!employee) {
+      setEmployeeName("");
+      return;
+    }
+
+    setEmployeeName(employee.employee_name ?? "");
+    if (employee.mobile_number) setMobileNumber(employee.mobile_number);
+    if (employee.office_email) setOfficeEmail(employee.office_email);
+    if (employee.doj) setDoj(employee.doj);
+    if (employee.username) setUsername(employee.username);
+    if (employee.staffusertype_id) setStaffUserTypeId(employee.staffusertype_id);
+    if (typeof employee.active_status === "boolean") setActiveStatus(employee.active_status);
+  }, [employeeOptions]);
+
   const totalSelectedScreens = Object.keys(selections).length;
   const totalSelectedActions = Object.values(selections).reduce((sum, sel) => sum + sel.actionIds.length, 0);
 
@@ -449,12 +508,21 @@ export default function StaffAccessConfigForm() {
   // Field keys each tab is responsible for gating — used to pick which schema
   // error (if any) should block advancing past that specific tab.
   const TAB_FIELD_KEYS: Record<number, string[]> = {
-    0: ["employeeName", "staffConfigName", "mobileNumber", "officeEmail", "doj"],
+    0: ["companyUniqueId", "employeeName", "staffConfigName", "mobileNumber", "officeEmail", "doj"],
     1: ["username", "password", "confirmPassword", "userTypeId", "staffUserTypeId"],
   };
 
   const validateTab = (tab: number): boolean => {
     setStepError(null);
+
+    if (tab === 0) {
+      const scopeValidation = parseWithSchema(staffDataScopeSchema, { companyUniqueId });
+      if (!scopeValidation.success) {
+        setFieldErrors((prev) => ({ ...prev, ...scopeValidation.errors }));
+        setStepError(scopeValidation.errors.companyUniqueId);
+        return false;
+      }
+    }
 
     if (tab === 0 || tab === 1) {
       const schema = buildStaffAccessConfigSchema(isEdit);
@@ -471,22 +539,18 @@ export default function StaffAccessConfigForm() {
         staffUserTypeId,
       });
       if (!validation.success) {
-        setFieldErrors(validation.errors);
+        setFieldErrors((prev) => ({ ...prev, ...validation.errors }));
         const relevantKey = TAB_FIELD_KEYS[tab].find((key) => validation.errors[key]);
         if (relevantKey) {
           setStepError(validation.errors[relevantKey]);
           return false;
         }
       } else {
-        setFieldErrors({});
-      }
-    }
-    if (tab === DATA_SCOPE_TAB) {
-      const validation = parseWithSchema(staffDataScopeSchema, { companyUniqueId });
-      if (!validation.success) {
-        setFieldErrors(validation.errors);
-        setStepError(validation.errors.companyUniqueId);
-        return false;
+        setFieldErrors((prev) => {
+          const next = { ...prev };
+          TAB_FIELD_KEYS[tab].forEach((key) => delete next[key]);
+          return next;
+        });
       }
     }
 
@@ -619,15 +683,90 @@ export default function StaffAccessConfigForm() {
   const renderBasicInfo = () => (
     <div className="grid gap-4 md:grid-cols-2">
       <div>
+        <Label>Company</Label>
+        {isEdit && !companiesLoaded ? (
+          <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
+            Loading…
+          </div>
+        ) : (
+          <Select
+            value={companyUniqueId}
+            onValueChange={(value) => {
+              onCompanyChange(value);
+              setStaffId("");
+              setEmployeeName("");
+              setSelections({});
+              setAvailablePermissions(null);
+            }}
+            disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select company" />
+            </SelectTrigger>
+            <SelectContent>
+              {companies.map((company) => (
+                <SelectItem key={company.value} value={company.value}>{company.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <FieldError message={fieldErrors.companyUniqueId} />
+      </div>
+      <div>
+        <Label>Project <span className="font-normal text-gray-400">(optional — leave blank for all projects under the company)</span></Label>
+        {isEdit && (!companiesLoaded || !projectsLoaded) ? (
+          <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
+            Loading…
+          </div>
+        ) : (
+          <MultiSelect
+            value={projectIds}
+            onChange={(next) => {
+              setProjectIds(next);
+              setStaffId("");
+              setEmployeeName("");
+              setSelections({});
+              setAvailablePermissions(null);
+            }}
+            options={projects}
+            placeholder="Select project(s)"
+            disabled={!companyUniqueId || projects.length === 0}
+          />
+        )}
+      </div>
+      <div>
         <Label htmlFor="employeeName">Employee Name</Label>
-        <Input
-          id="employeeName"
-          value={employeeName}
-          onChange={(event) => {
-            setEmployeeName(event.target.value);
-            setFieldErrors((prev) => ({ ...prev, employeeName: "" }));
-          }}
-        />
+        {isEdit ? (
+          <Input id="employeeName" value={employeeName} disabled />
+        ) : (
+          <Select
+            value={staffId}
+            onValueChange={handleEmployeeSelect}
+            disabled={!companyUniqueId || loadingEmployeeOptions}
+          >
+            <SelectTrigger id="employeeName" className="w-full">
+              <SelectValue placeholder={
+                !companyUniqueId
+                  ? "Select company first"
+                  : loadingEmployeeOptions
+                    ? "Loading employees…"
+                    : "Select employee"
+              } />
+            </SelectTrigger>
+            <SelectContent>
+              {employeeOptions.map((option) => (
+                <SelectItem
+                  key={option.unique_id}
+                  value={option.unique_id}
+                  disabled={option.has_access_configuration}
+                >
+                  {option.employee_name}
+                  {option.has_access_configuration ? " (Permission Already Assigned)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <FieldError message={fieldErrors.employeeName} />
       </div>
       <div>
@@ -761,50 +900,15 @@ export default function StaffAccessConfigForm() {
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <Label>Company</Label>
-            {isEdit && !companiesLoaded ? (
-              <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
-                Loading…
-              </div>
-            ) : (
-              <Select
-                value={companyUniqueId}
-                onValueChange={(value) => {
-                  onCompanyChange(value);
-                  setSelections({});
-                  setAvailablePermissions(null);
-                }}
-                disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select company" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((company) => (
-                    <SelectItem key={company.value} value={company.value}>{company.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-gray-700 dark:text-gray-200">
+              {labelFromOptions(companies, companyUniqueId) || "-"}
+            </div>
           </div>
           <div>
-            <Label>Project <span className="font-normal text-gray-400">(optional — leave blank for all projects under the company)</span></Label>
-            {isEdit && (!companiesLoaded || !projectsLoaded) ? (
-              <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
-                Loading…
-              </div>
-            ) : (
-              <MultiSelect
-                value={projectIds}
-                onChange={(next) => {
-                  setProjectIds(next);
-                  setSelections({});
-                  setAvailablePermissions(null);
-                }}
-                options={projects}
-                placeholder="Select project(s)"
-                disabled={!companyUniqueId || projects.length === 0}
-              />
-            )}
+            <Label>Project</Label>
+            <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-gray-700 dark:text-gray-200">
+              {projectIds.length > 0 ? labelsFromOptions(projects, projectIds).join(", ") : "All (company-wide)"}
+            </div>
           </div>
           <div className="md:col-span-2">
             <Label>Description</Label>

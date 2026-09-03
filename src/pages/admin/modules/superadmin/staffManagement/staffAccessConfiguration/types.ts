@@ -148,3 +148,18 @@ export type WardOption = WithCityIdOption & {
 };
 
 export type UnknownRecord = Record<string, unknown>;
+
+// ─── employee-options (Basic Info tab employee picker) ─────────────────────
+
+export type EmployeeOption = {
+  unique_id: string;
+  employee_name: string;
+  mobile_number?: string | null;
+  office_email?: string | null;
+  doj?: string | null;
+  staffusertype_id?: string | null;
+  staffusertype_name?: string | null;
+  username?: string | null;
+  active_status?: boolean;
+  has_access_configuration?: boolean;
+};
