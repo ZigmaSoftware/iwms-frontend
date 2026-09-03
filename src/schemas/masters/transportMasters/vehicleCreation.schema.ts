@@ -14,6 +14,7 @@ export const vehicleCreationSchema = z.object({
   vehicle_no: requiredString("Vehicle no"),
   vehicle_type_id: optionalString,
   fuel_type_id: optionalString,
+  supervisor_id: optionalString,
   capacity: optionalString,
   mileage_per_liter: optionalString,
   service_record: optionalString,

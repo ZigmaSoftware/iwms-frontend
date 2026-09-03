@@ -409,6 +409,7 @@ export default function StaffCreationForm() {
   const [pendingContractorUserTypeId, setPendingContractorUserTypeId] = useState<string | null>(null);
   const [pendingDepartmentId, setPendingDepartmentId] = useState<string | null>(null);
   const [pendingDesignationId, setPendingDesignationId] = useState<string | null>(null);
+  const [pendingStaffHeadId, setPendingStaffHeadId] = useState<string | null>(null);
 
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -488,6 +489,22 @@ export default function StaffCreationForm() {
     formData.designation,
     formData.designation_id,
   ]);
+
+  const staffHeadOptionsWithCurrent = useMemo(() => {
+    if (!formData.staff_head_id) return staffHeadOptions;
+    if (staffHeadOptions.some((option) => option.value === formData.staff_head_id)) {
+      return staffHeadOptions;
+    }
+    const label = formData.staff_head || formData.staff_head_id;
+    return [
+      {
+        value: formData.staff_head_id,
+        label,
+        name: formData.staff_head || label,
+      },
+      ...staffHeadOptions,
+    ];
+  }, [staffHeadOptions, formData.staff_head, formData.staff_head_id]);
 
   const selectedUserType = staffUserTypeOptions.find(
     (opt) => opt.value === formData.staffusertype_id,
@@ -738,11 +755,13 @@ export default function StaffCreationForm() {
         const contractorTypeId = normalizeEntityId(staff.contractorusertype_id);
         const departmentId = normalizeEntityId(staff.department_id ?? staff.department ?? staff.department_unique_id);
         const designationId = normalizeEntityId(staff.designation_id ?? staff.designation_obj ?? staff.designation_unique_id);
+        const staffHeadId = staff.staff_head_id ?? "";
 
         if (staffTypeId) setPendingStaffUserTypeId(staffTypeId);
         if (contractorTypeId) setPendingContractorUserTypeId(contractorTypeId);
         if (departmentId) setPendingDepartmentId(departmentId);
         if (designationId) setPendingDesignationId(designationId);
+        if (staffHeadId) setPendingStaffHeadId(staffHeadId);
 
         if (staff.driving_licence_file) {
           setLicencePreview(
@@ -792,10 +811,17 @@ export default function StaffCreationForm() {
   }, [backendOrigin, id, isEdit]);
 
   useEffect(() => {
+    // Wait for the edited record's own project to load before fetching —
+    // otherwise this scopes to the logged-in admin's own project (via the
+    // viewset's default project fallback), which can silently exclude the
+    // staff's actually-assigned head if it belongs to a different project.
+    if (isEdit && !formData.project_id) return;
+
     const loadStaffHeads = async () => {
       try {
         const params: Record<string, string> = {};
         if (id) params.exclude = id;
+        if (formData.project_id) params.project_id = formData.project_id;
 
         const response = await api.get(
           "/staff-creations/staffcreation/staff-head-options/",
@@ -818,7 +844,7 @@ export default function StaffCreationForm() {
     };
 
     void loadStaffHeads();
-  }, [id]);
+  }, [id, isEdit, formData.project_id]);
 
   useEffect(() => {
     if (!photoFile) return;
@@ -911,6 +937,19 @@ export default function StaffCreationForm() {
       setPendingDesignationId(null);
     }
   }, [pendingDesignationId, designationOptions]);
+
+  useEffect(() => {
+    if (!pendingStaffHeadId || staffHeadOptions.length === 0) return;
+    const match = staffHeadOptions.find((o) => o.value === pendingStaffHeadId);
+    if (match) {
+      setFormData((prev) => ({
+        ...prev,
+        staff_head_id: pendingStaffHeadId,
+        staff_head: match.name,
+      }));
+      setPendingStaffHeadId(null);
+    }
+  }, [pendingStaffHeadId, staffHeadOptions]);
   // ────────────────────────────────────────────────────────────────────────────
 
   const handleInputChange = (
@@ -1618,7 +1657,7 @@ export default function StaffCreationForm() {
             id="staff_head_id"
             value={formData.staff_head_id}
             onChange={(value) => handleSelectChange("staff_head_id", value)}
-            options={staffHeadOptions}
+            options={staffHeadOptionsWithCurrent}
             placeholder={
               formData.department_id
                 ? t("common.select_item_placeholder", {

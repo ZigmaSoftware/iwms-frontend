@@ -1425,7 +1425,12 @@ export default function DailyTripAssignmentForm() {
                                 <FormSelect
                                   value={stop.status ?? "Pending"}
                                   onChange={(v) => updateStop({ status: v, is_collected: v === "Collected" })}
-                                  options={[{ value: "Pending", label: "Pending" }, { value: "Collected", label: "Collected" }, { value: "Skipped", label: "Skipped" }, { value: "Missed", label: "Missed" }]}
+                                  options={[
+                                    { value: "Pending", label: "Pending" },
+                                    { value: "Collected", label: "Collected" },
+                                    { value: "Not Available", label: "Not Available" },
+                                    { value: "Collect Later", label: "Collect Later" },
+                                  ]}
                                   placeholder={null}
                                 />
                               </td>

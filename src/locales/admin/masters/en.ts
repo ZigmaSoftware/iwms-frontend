@@ -199,6 +199,7 @@ export default {
     "driver_mobile": "Driver Mobile",
     "vehicle_type": "Vehicle Type",
     "fuel_type": "Fuel Type",
+    "supervisor": "Supervisor",
     "capacity": "Capacity",
     "capacity_placeholder": "Enter capacity",
     "mileage_per_liter": "Mileage per Liter",

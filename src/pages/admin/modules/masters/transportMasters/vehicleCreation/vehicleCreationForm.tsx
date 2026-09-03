@@ -30,6 +30,7 @@ const VEHICLE_CREATION_FIELDS: Record<string, string[]> = {
   vehicle_no: ["vehicle_no", "vehicleNo"],
   vehicle_type_id: ["vehicle_type_id", "vehicle_type"],
   fuel_type_id: ["fuel_type_id", "fuel_type"],
+  supervisor_id: ["supervisor_id", "supervisor"],
   capacity: ["capacity"],
   mileage_per_liter: ["mileage_per_liter", "mileage"],
   service_record: ["service_record"],
@@ -119,6 +120,7 @@ export default function VehicleCreationForm() {
   // ── Dropdown data fetch ───────────────────────────────────────────────────
   const [vehicleTypeData, setVehicleTypeData] = useState<any[]>([]);
   const [fuelTypeData, setFuelTypeData] = useState<any[]>([]);
+  const [supervisorData, setSupervisorData] = useState<any[]>([]);
   useEffect(() => {
     let cancelled = false;
     adminApi.vehicleTypes.readAll()
@@ -141,9 +143,21 @@ export default function VehicleCreationForm() {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    adminApi.staffCreation.readAll()
+      .then((res: any) => {
+        if (cancelled) return;
+        setSupervisorData(Array.isArray(res) ? res : (res?.results ?? []));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   // Pending IDs — set when the record loads; applied once options are available
   const [pendingVehicleTypeId, setPendingVehicleTypeId] = useState<string | null>(null);
   const [pendingFuelTypeId, setPendingFuelTypeId] = useState<string | null>(null);
+  const [pendingSupervisorId, setPendingSupervisorId] = useState<string | null>(null);
 
   // ── Submitting state ──────────────────────────────────────────────────────
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -153,6 +167,7 @@ export default function VehicleCreationForm() {
     vehicleNo: "",
     vehicleTypeId: "",
     fuelTypeId: "",
+    supervisorId: "",
     capacity: "",
     mileagePerLiter: "",
     serviceRecord: "",
@@ -186,14 +201,17 @@ export default function VehicleCreationForm() {
     const res = recordData as Record<string, unknown>;
     const vehicleTypeId = toStr(res.vehicle_type_id);
     const fuelTypeId = toStr(res.fuel_type_id);
+    const supervisorId = toStr(res.supervisor_id);
 
     if (vehicleTypeId) setPendingVehicleTypeId(vehicleTypeId);
     if (fuelTypeId) setPendingFuelTypeId(fuelTypeId);
+    if (supervisorId) setPendingSupervisorId(supervisorId);
 
     setForm({
       vehicleNo: toStr(res.vehicle_no),
       vehicleTypeId,
       fuelTypeId,
+      supervisorId,
       capacity: toStr(res.capacity),
       mileagePerLiter: toStr(res.mileage_per_liter),
       serviceRecord: toStr(res.service_record),
@@ -267,6 +285,17 @@ export default function VehicleCreationForm() {
     );
   }, [fuelTypeData, form.fuelTypeId]);
 
+  const supervisorOptions = useMemo(() => {
+    return supervisorData
+      .filter((item) =>
+        String(item?.staffusertype_name ?? item?.designation ?? "")
+          .trim()
+          .toLowerCase()
+          .includes("supervisor")
+      )
+      .map((item) => ({ value: resolveId(item), label: item.employee_name }));
+  }, [supervisorData]);
+
   const conditionOptions = [
     { value: "NEW", label: t("admin.vehicle_creation.condition_new") },
     { value: "SECOND_HAND", label: t("admin.vehicle_creation.condition_second_hand") },
@@ -286,6 +315,13 @@ export default function VehicleCreationForm() {
       setPendingFuelTypeId(null);
     }
   }, [pendingFuelTypeId, fuelTypeOptions]);
+
+  useEffect(() => {
+    if (pendingSupervisorId && supervisorOptions.length > 0 && supervisorOptions.some((o) => o.value === pendingSupervisorId)) {
+      setForm((prev) => ({ ...prev, supervisorId: pendingSupervisorId }));
+      setPendingSupervisorId(null);
+    }
+  }, [pendingSupervisorId, supervisorOptions]);
 
   // ── File helpers ───────────────────────────────────────────────────────────
   const handleFileChange = (
@@ -385,6 +421,7 @@ export default function VehicleCreationForm() {
       vehicle_no: form.vehicleNo.trim(),
       vehicle_type_id: form.vehicleTypeId,
       fuel_type_id: form.fuelTypeId,
+      supervisor_id: form.supervisorId,
       capacity: form.capacity,
       mileage_per_liter: form.mileagePerLiter,
       service_record: form.serviceRecord,
@@ -424,6 +461,7 @@ export default function VehicleCreationForm() {
       vehicle_no: form.vehicleNo.trim(),
       vehicle_type_id: form.vehicleTypeId || null,
       fuel_type_id: form.fuelTypeId || null,
+      supervisor_id: form.supervisorId || null,
       capacity: form.capacity || null,
       mileage_per_liter: form.mileagePerLiter || null,
       service_record: form.serviceRecord || null,
@@ -593,6 +631,25 @@ export default function VehicleCreationForm() {
               options={fuelTypeOptions}
               placeholder={t("common.select_item_placeholder", {
                 item: t("admin.vehicle_creation.fuel_type"),
+              })}
+              className="input-validate w-full"
+            />
+          </div>
+          )}
+
+          {/* Supervisor */}
+          {showField("supervisor_id") && (
+          <div>
+            <Label htmlFor="supervisor">
+              {t("admin.vehicle_creation.supervisor")}
+            </Label>
+            <Select
+              id="supervisor"
+              value={form.supervisorId}
+              onChange={(value) => update("supervisorId", value)}
+              options={supervisorOptions}
+              placeholder={t("common.select_item_placeholder", {
+                item: t("admin.vehicle_creation.supervisor"),
               })}
               className="input-validate w-full"
             />

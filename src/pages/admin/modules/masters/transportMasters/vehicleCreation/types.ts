@@ -5,8 +5,10 @@ export type VehicleCreationRecord = {
   vehicle_no: string;
   vehicle_type_id?: string | null;
   fuel_type_id?: string | null;
+  supervisor_id?: string | null;
   vehicle_type_name?: string | null;
   fuel_type_name?: string | null;
+  supervisor_name?: string | null;
   capacity?: string | null;
   mileage_per_liter?: string | null;
   service_record?: string | null;
