@@ -223,6 +223,8 @@ export default function StaffAccessConfigForm() {
   const [staffUserTypeOptions, setStaffUserTypeOptions] = useState<Option[]>(
     [],
   );
+  const [userTypeOptionsLoaded, setUserTypeOptionsLoaded] = useState(false);
+  const [staffUserTypeOptionsLoaded, setStaffUserTypeOptionsLoaded] = useState(false);
   const [dataScope, setDataScope] = useState<DataScopeForm>({});
   const [geoOptions, setGeoOptions] = useState<LocationScopeOptions>({
     states: [],
@@ -294,6 +296,9 @@ export default function StaffAccessConfigForm() {
       })
       .catch(() => {
         if (!cancelled) setUserTypeOptions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setUserTypeOptionsLoaded(true);
       });
 
     staffUserTypeApi
@@ -314,6 +319,9 @@ export default function StaffAccessConfigForm() {
       })
       .catch(() => {
         if (!cancelled) setStaffUserTypeOptions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setStaffUserTypeOptionsLoaded(true);
       });
 
     return () => {
@@ -577,18 +585,14 @@ export default function StaffAccessConfigForm() {
         return;
       }
 
-      setEmployeeName(employee.employee_name ?? "");
-      if (employee.mobile_number) setMobileNumber(employee.mobile_number);
-      if (employee.office_email) setOfficeEmail(employee.office_email);
-      if (employee.doj) setDoj(employee.doj);
-      if (employee.username) setUsername(employee.username);
-      if (employee.staffusertype_id)
-        setStaffUserTypeId(employee.staffusertype_id);
-      if (typeof employee.active_status === "boolean")
-        setActiveStatus(employee.active_status);
-    },
-    [employeeOptions],
-  );
+    setEmployeeName(employee.employee_name ?? "");
+    if (employee.mobile_number) setMobileNumber(employee.mobile_number);
+    if (employee.office_email) setOfficeEmail(employee.office_email);
+    if (employee.doj) setDoj(employee.doj);
+    if (employee.username) setUsername(employee.username);
+    if (employee.staffusertype_id) setStaffUserTypeId(employee.staffusertype_id);
+    if (typeof employee.active_status === "boolean") setActiveStatus(employee.active_status);
+  }, [employeeOptions]);
 
   const totalSelectedScreens = Object.keys(selections).length;
   const totalSelectedActions = Object.values(selections).reduce(
@@ -1050,14 +1054,11 @@ export default function StaffAccessConfigForm() {
       </div>
       <div>
         <Label htmlFor="userTypeId">User Type</Label>
-        <Select
-          value={userTypeId}
-          onValueChange={(value) => {
-            setUserTypeId(value);
-            setStaffUserTypeId("");
-            setFieldErrors((prev) => ({ ...prev, userTypeId: "" }));
-          }}
-        >
+        <Select value={userTypeId} onValueChange={(value) => {
+          setUserTypeId(value);
+          setStaffUserTypeId("");
+          setFieldErrors((prev) => ({ ...prev, userTypeId: "" }));
+        }}>
           <SelectTrigger id="userTypeId" className="w-full">
             <SelectValue placeholder="Select user type" />
           </SelectTrigger>
@@ -1099,13 +1100,10 @@ export default function StaffAccessConfigForm() {
       </div>
       <div>
         <Label htmlFor="staffUserTypeId">Staff User Type</Label>
-        <Select
-          value={staffUserTypeId}
-          onValueChange={(value) => {
-            setStaffUserTypeId(value);
-            setFieldErrors((prev) => ({ ...prev, staffUserTypeId: "" }));
-          }}
-        >
+        <Select value={staffUserTypeId} onValueChange={(value) => {
+          setStaffUserTypeId(value);
+          setFieldErrors((prev) => ({ ...prev, staffUserTypeId: "" }));
+        }}>
           <SelectTrigger id="staffUserTypeId" className="w-full">
             <SelectValue
               placeholder={
