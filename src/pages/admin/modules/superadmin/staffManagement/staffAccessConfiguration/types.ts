@@ -157,9 +157,11 @@ export type EmployeeOption = {
   mobile_number?: string | null;
   office_email?: string | null;
   doj?: string | null;
+  user_type_id?: string | null;
   staffusertype_id?: string | null;
   staffusertype_name?: string | null;
   username?: string | null;
+  password?: string | null;
   active_status?: boolean;
   has_access_configuration?: boolean;
 };
