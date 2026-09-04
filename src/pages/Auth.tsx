@@ -24,10 +24,11 @@ import {
   unwrapLoginPayload,
   type LoginEnvelope,
 } from "@/utils/authStorage";
-import { Eye, EyeOff, Lock, User, UserRound, Leaf, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Lock, User, UserRound, Leaf, AlertCircle, RefreshCw, ShieldCheck } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import AnimatedLoginScene from "@/components/auth/AnimatedLoginScene";
 import LoginFeatureChain from "@/components/auth/LoginFeatureChain";
+import { useCaptcha } from "@/components/auth/Captcha";
 import "@/components/auth/animated-login.css";
 
 type LoginResponse = LoginEnvelope;
@@ -57,8 +58,10 @@ export default function Auth() {
   const [userInvalid, setUserInvalid] = useState(false);
   const [passInvalid, setPassInvalid] = useState(false);
   const [passHint, setPassHint] = useState("Enter your password to continue.");
+  const [captchaInvalid, setCaptchaInvalid] = useState(false);
   const [shake, setShake] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const captcha = useCaptcha();
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -88,14 +91,16 @@ export default function Auth() {
     e.preventDefault();
     setUserInvalid(false);
     setPassInvalid(false);
+    setCaptchaInvalid(false);
 
     const trimmedUsername = username.trim();
-    if (!trimmedUsername || !password) {
+    if (!trimmedUsername || !password || !captcha.value.trim()) {
       if (!trimmedUsername) setUserInvalid(true);
       if (!password) {
         setPassHint("Enter your password to continue.");
         setPassInvalid(true);
       }
+      if (!captcha.value.trim()) setCaptchaInvalid(true);
       triggerShake();
       return;
     }
@@ -106,6 +111,8 @@ export default function Auth() {
       const res = await api.post<LoginResponse>("/login/", {
         username,
         password,
+        captcha_id: captcha.captchaId,
+        captcha_value: captcha.value,
       });
 
       const payload = unwrapLoginPayload(res.data);
@@ -143,12 +150,18 @@ export default function Auth() {
       }
     } catch (error: any) {
       const errorMessage =
+        error?.response?.data?.captcha?.[0] ||
         error?.response?.data?.detail ||
         error?.message ||
         "Invalid credentials";
 
-      setPassHint(errorMessage);
-      setPassInvalid(true);
+      if (error?.response?.data?.captcha) {
+        setCaptchaInvalid(true);
+      } else {
+        setPassHint(errorMessage);
+        setPassInvalid(true);
+      }
+      captcha.refresh();
       triggerShake();
 
       toast({
@@ -241,6 +254,46 @@ export default function Auth() {
                 <p className="hint" role="alert">
                   <AlertCircle />
                   <span>{passHint}</span>
+                </p>
+              </div>
+
+              <div className={`field c${captchaInvalid ? " invalid" : ""}`}>
+                <label htmlFor="captcha">Security check</label>
+                <div className="captcha-row">
+                  <div className="captcha-image">
+                    {captcha.image ? (
+                      <img src={captcha.image} alt="Captcha" draggable={false} />
+                    ) : (
+                      <span className="captcha-loading">Loading…</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="captcha-refresh"
+                    aria-label="Refresh captcha"
+                    onClick={captcha.refresh}
+                  >
+                    <RefreshCw size={16} />
+                  </button>
+                  <div className="control">
+                    <span className="lead" aria-hidden="true"><ShieldCheck /></span>
+                    <input
+                      id="captcha"
+                      name="captcha"
+                      type="text"
+                      autoComplete="off"
+                      placeholder="Enter the code shown"
+                      value={captcha.value}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                        captcha.setValue(e.target.value);
+                        setCaptchaInvalid(false);
+                      }}
+                    />
+                  </div>
+                </div>
+                <p className="hint" role="alert">
+                  <AlertCircle />
+                  <span>Enter the code shown in the image.</span>
                 </p>
               </div>
 
