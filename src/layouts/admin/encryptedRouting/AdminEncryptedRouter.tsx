@@ -3,7 +3,6 @@ import { Navigate, useLocation, useParams } from "react-router-dom";
 
 import { decryptSegment } from "@/utils/routeCrypto";
 
-
 // Import your actual page components
 import ContinentList from "@/pages/admin/modules/superadmin/commonMasters/continent/ContinentListPage";
 import ContinentForm from "@/pages/admin/modules/superadmin/commonMasters/continent/ContinentForm";
@@ -31,7 +30,6 @@ import WasteTypeListPage from "@/pages/admin/modules/masters/wasteMasters/wasteT
 import WasteTypeForm from "@/pages/admin/modules/masters/wasteMasters/wasteType/WasteTypeForm";
 import BinListPage from "@/pages/admin/modules/masters/wasteMasters/bin/BinListPage";
 import BinForm from "@/pages/admin/modules/masters/wasteMasters/bin/BinForm";
-
 
 import PanchayatListPage from "@/pages/admin/modules/masters/panchayat/PanchayatListPage";
 import PanchayatForm from "@/pages/admin/modules/masters/panchayat/PanchayatForm";
@@ -78,7 +76,7 @@ import VehicleHistory from "@/pages/admin/modules/vehicletracking/vehiclehistory
 import WorkforceManagement from "@/pages/admin/modules/workforcemanagement/workforcemanagement";
 import DateReport from "@/pages/admin/modules/workforcemanagement/datereport";
 import DayReport from "@/pages/admin/modules/workforcemanagement/dayreport";
-import DailyTripAssignmentList from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripAssignment/dailyTripAssignmentList"
+import DailyTripAssignmentList from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripAssignment/dailyTripAssignmentList";
 import DailyTripAssignmentForm from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripAssignment/dailyTripAssignmentForm";
 import DailyTripCollectionPointList from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripCollectionPoint/dailyTripCollectionPointList";
 import DailyTripCollectionPointForm from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripCollectionPoint/dailyTripCollectionPointForm";
@@ -132,6 +130,8 @@ import UserScreenPermissionForm from "@/pages/admin/modules/superadmin/screenMan
 import UserScreenPermissionList from "@/pages/admin/modules/superadmin/screenManagement/userScreenPermission/userScreenPermissionList";
 import StaffAccessConfigList from "@/pages/admin/modules/superadmin/staffManagement/staffAccessConfiguration/StaffAccessConfigList";
 import StaffAccessConfigForm from "@/pages/admin/modules/superadmin/staffManagement/staffAccessConfiguration/StaffAccessConfigForm";
+import AppModuleList from "@/pages/admin/modules/superadmin/screenManagement/appModules/AppModuleList";
+import CustomerAccessConfigList from "@/pages/admin/modules/masters/customerMasters/customerAccessConfiguration/CustomerAccessConfigList";
 import StaffTemplateList from "@/pages/admin/modules/core_modules/scheduleSetup/staffTemplate/staffTemplateList";
 import StaffTemplateForm from "@/pages/admin/modules/core_modules/scheduleSetup/staffTemplate/staffTemplateForm";
 import AlternativeStaffTemplateList from "@/pages/admin/modules/core_modules/scheduleSetup/alternativeStaffTemplate/alternativeStaffTemplateList";
@@ -151,7 +151,6 @@ import ProjectList from "@/pages/admin/modules/superadminMasters/project/project
 import ProjectForm from "@/pages/admin/modules/superadminMasters/project/projectForm";
 import ExternalAttendanceList from "@/pages/admin/modules/core_modules/attendance/ExternalAttendanceList";
 
-
 type ModuleComponent = ComponentType | undefined;
 
 type RouteConfig = {
@@ -170,12 +169,22 @@ const ROUTES: RouteMap = {
   admins: {
     "user-type": { list: UserTypeList, form: UserTypeForm },
     "staff-user-type": { list: StaffUserTypeList, form: StaffUserTypeForm },
-    "mainscreen-type": {list: MainScreenTypeList, form: MainScreenTypeForm},
-    "userscreen-action": {list:UserScreenActionList, form: UserScreenActionForm },
-    "mainscreens": {list: MainScreenList, form: MainScreenForm},
-    "userscreens": {list: UserScreenList, form: UserScreenForm},
-    "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm},
-    "staff-access-configuration": { list: StaffAccessConfigList, form: StaffAccessConfigForm },
+    "mainscreen-type": { list: MainScreenTypeList, form: MainScreenTypeForm },
+    "userscreen-action": {
+      list: UserScreenActionList,
+      form: UserScreenActionForm,
+    },
+    mainscreens: { list: MainScreenList, form: MainScreenForm },
+    userscreens: { list: UserScreenList, form: UserScreenForm },
+    userscreenpermissions: {
+      list: UserScreenPermissionList,
+      form: UserScreenPermissionForm,
+    },
+    "staff-access-configuration": {
+      list: StaffAccessConfigList,
+      form: StaffAccessConfigForm,
+    },
+    "app-modules": { list: AppModuleList },
   },
   "superadmin-masters": {
     "company-creation": { list: CompanyList, form: CompanyListForm },
@@ -192,9 +201,15 @@ const ROUTES: RouteMap = {
     bins: { list: BinListPage, form: BinForm },
     "waste-types": { list: WasteTypeListPage, form: WasteTypeForm },
     panchayats: { list: PanchayatListPage, form: PanchayatForm },
-    "panchayat-leaders": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
+    "panchayat-leaders": {
+      list: PanchayatLeaderListPage,
+      form: PanchayatLeaderForm,
+    },
     plants: { list: PlantListPage, form: PlantForm },
-    "district-leaders": { list: DistrictLeaderListPage, form: DistrictLeaderForm },
+    "district-leaders": {
+      list: DistrictLeaderListPage,
+      form: DistrictLeaderForm,
+    },
     properties: { list: PropertyList, form: PropertyForm },
     "sub-properties": { list: SubPropertyList, form: SubPropertyForm },
   },
@@ -205,27 +220,56 @@ const ROUTES: RouteMap = {
   },
   "transport-master": {
     fuel: { list: FuelList, form: FuelForm },
-    "vehicle-type": { list: VehicleTypeCreation, form: VehicleTypeCreationForm },
-    "vehicle-creation": { list: VehicleCreationListPage, form: VehicleCreationForm },
+    "vehicle-type": {
+      list: VehicleTypeCreation,
+      form: VehicleTypeCreationForm,
+    },
+    "vehicle-creation": {
+      list: VehicleCreationListPage,
+      form: VehicleCreationForm,
+    },
   },
   // Split from the legacy "schedule-masters" bucket — template/plan setup resources.
   "schedule-setup": {
-    "staff-template": {list: StaffTemplateList, form: StaffTemplateForm},
-    "alternative-staff-template": {list: AlternativeStaffTemplateList, form: AlternativeStaffTemplateForm},
-    "collection-points": { list: CollectionPointListPage, form: CollectionPointForm },
+    "staff-template": { list: StaffTemplateList, form: StaffTemplateForm },
+    "alternative-staff-template": {
+      list: AlternativeStaffTemplateList,
+      form: AlternativeStaffTemplateForm,
+    },
+    "collection-points": {
+      list: CollectionPointListPage,
+      form: CollectionPointForm,
+    },
     "trip-plans": { list: TripPlanList, form: TripPlanForm },
   },
   // Split from the legacy "schedule-masters" bucket — day-to-day execution resources.
   "schedule-operations": {
-    "daily-trip-assignment": { list: DailyTripAssignmentList, form: DailyTripAssignmentForm },
-    "daily-trip-collection-point": { list: DailyTripCollectionPointList, form: DailyTripCollectionPointForm },
-    "daily-trip-household-collection": { list: DailyTripHouseholdCollectionList },
+    "daily-trip-assignment": {
+      list: DailyTripAssignmentList,
+      form: DailyTripAssignmentForm,
+    },
+    "daily-trip-collection-point": {
+      list: DailyTripCollectionPointList,
+      form: DailyTripCollectionPointForm,
+    },
+    "daily-trip-household-collection": {
+      list: DailyTripHouseholdCollectionList,
+    },
     "daily-trip-tracking": { component: DailyTripTracking },
     "static-route-map": { component: StaticRouteMap },
-    "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
-    "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
+    "bin-collection-event": {
+      list: BinCollectionEventList,
+      form: BinCollectionEventForm,
+    },
+    "waste-collected-data": {
+      list: WasteCollectedDataList,
+      form: WasteCollectedForm,
+    },
     "daily-trip-log": { list: DailyTripLogList },
-    "vehicle-breakdowns": { list: VehicleBreakdownList, form: VehicleBreakdownForm },
+    "vehicle-breakdowns": {
+      list: VehicleBreakdownList,
+      form: VehicleBreakdownForm,
+    },
     "retrip-requests": { list: TripRetripRequestList },
     // List-only: a delay is filed from the driver app, never created here.
     "trip-delay-reports": { list: TripDelayReportList },
@@ -239,9 +283,16 @@ const ROUTES: RouteMap = {
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage },
   },
   "customer-master": {
-    "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },
+    "customer-creation": {
+      list: CustomerCreationList,
+      form: CustomerCreationForm,
+    },
     "apartment-list": { list: ApartmentListPage },
-    "household-pickup-event": { list: HouseholdPickupEventList, form: HouseholdPickupEventForm },
+    "customer-access-configuration": { list: CustomerAccessConfigList },
+    "household-pickup-event": {
+      list: HouseholdPickupEventList,
+      form: HouseholdPickupEventForm,
+    },
   },
   "vehicle-tracking": {
     "vehicle-track": { component: VehicleTracking },
@@ -330,7 +381,14 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "main-complaint-category": ["main-category", "categories"],
   "sub-complaint-category": ["sub-category", "subcategories"],
   teams: ["teams"],
-  "sla-rules": ["sla-rules", "sla-rule", "sla_rules", "slaRules", "slarules", "sla"],
+  "sla-rules": [
+    "sla-rules",
+    "sla-rule",
+    "sla_rules",
+    "slaRules",
+    "slarules",
+    "sla",
+  ],
   "sla-rule": ["sla-rules"],
   sla_rules: ["sla-rules"],
   slaRules: ["sla-rules"],
@@ -380,7 +438,10 @@ const resolveRouteConfig = (
   return undefined;
 };
 
-const resolveComponent = (config: RouteConfig | undefined, mode: "view" | "new" | "edit"): ModuleComponent => {
+const resolveComponent = (
+  config: RouteConfig | undefined,
+  mode: "view" | "new" | "edit",
+): ModuleComponent => {
   if (!config) return undefined;
 
   if (config.component) return config.component;
@@ -409,8 +470,12 @@ export default function AdminEncryptedRouter() {
     return <Navigate to="/" replace />;
   }
 
-  const mode: "view" | "new" | "edit" = id ? "edit" : location.pathname.endsWith("/new") ? "new" : "view";
-    const Component = resolveComponent(moduleRoutes, mode);
+  const mode: "view" | "new" | "edit" = id
+    ? "edit"
+    : location.pathname.endsWith("/new")
+      ? "new"
+      : "view";
+  const Component = resolveComponent(moduleRoutes, mode);
 
   if (!Component) {
     return <Navigate to="/" replace />;

@@ -64,6 +64,8 @@ export type EncryptedRoutes = {
   encUserCreation: string;
   encUserScreenPermission: string;
   encStaffAccessConfiguration: string;
+  encAppModules: string;
+  encCustomerAccessConfiguration: string;
 
   encUserType: string;
   encVehicleCreation: string;
@@ -122,12 +124,10 @@ export type EncryptedRoutes = {
   encProjectCreation: string;
   encSuperAdminMaster: string;
 
-
   encPanchayats: string;
   encBlockPanchayatUnions: string;
   encPanchayatLeaders: string;
   encDistrictLeaders: string;
-
 };
 
 const plainRoutes: EncryptedRoutes = {
@@ -216,6 +216,8 @@ const plainRoutes: EncryptedRoutes = {
   encUserScreen: "userscreens",
   encUserScreenPermission: "userscreenpermissions",
   encStaffAccessConfiguration: "staff-access-configuration",
+  encAppModules: "app-modules",
+  encCustomerAccessConfiguration: "customer-access-configuration",
   encTripPlans: "trip-plans",
   encDailyTripAssignment: "daily-trip-assignment",
   encDailyTripCollectionPoint: "daily-trip-collection-point",
@@ -239,7 +241,6 @@ const plainRoutes: EncryptedRoutes = {
   encPanchayatLeaders: "panchayat-leaders",
   encDistrictLeaders: "district-leaders",
 
-
   //dashboard
 
   encDashboardOverall: "dashboard-overall",
@@ -251,9 +252,7 @@ const plainRoutes: EncryptedRoutes = {
   encDashboardAlerts: "dashboard-alerts",
   encDashboardReports: "dashboard-reports",
   encDashboardWeighBridge: "dashboard-weighbridge",
-  encDashboardBins: "dashboard-bins"
-
-  
+  encDashboardBins: "dashboard-bins",
 };
 
 const encryptRoutes = (routes: EncryptedRoutes): EncryptedRoutes => {

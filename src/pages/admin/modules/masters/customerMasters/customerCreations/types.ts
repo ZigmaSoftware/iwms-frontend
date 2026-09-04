@@ -42,9 +42,10 @@ export type FamilyMember = {
 export interface FormDataType {
   customer_name: string;
   contact_no: string;
+  app_module: string;
   username: string;
   email: string;
-  password : string;
+  password: string;
   building_no: string;
   street: string;
   area: string;
@@ -97,6 +98,7 @@ export type Customer = {
   longitude?: string | number | null;
   username?: string;
   email?: string;
+  app_module?: string;
   villa_no?: string;
   industry_name?: string;
   industry_type?: string;
