@@ -80,6 +80,8 @@ const {
   encMainScreen,
   encUserScreenPermission,
   encStaffAccessConfiguration,
+  encAppModules,
+  encCustomerAccessConfiguration,
   encStaffMasters,
   encStaffTemplate,
   encAlternativeStaffTemplate,
@@ -103,7 +105,6 @@ const {
   encTripRetripRequest,
   encTripDelayReport,
 } = getEncryptedRoute();
-
 
 type NavMatchable = {
   path?: string;
@@ -139,6 +140,7 @@ type SidebarSectionKey =
   | "staffManagement"
   | "processItems"
   | "customerMasters"
+  | "complaintMasters"
   | "complaintTicket"
   | "transportMasters"
   | "scheduleSetup"
@@ -289,7 +291,6 @@ const masterItems: NavItem[] = [
     module: "masters",
     screen: "masters",
     subItems: [
-
       // ── Administrative / Geographic Hierarchy ────────────────
       {
         nameKey: "admin.nav.district",
@@ -303,7 +304,7 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "cities",
       },
-       {
+      {
         nameKey: "admin.nav.zone",
         path: `/${encMasters}/${encZones}`,
         module: "masters",
@@ -427,6 +428,12 @@ const screenManagementItems: NavItem[] = [
         module: "screen-managements",
         screen: "companywisescreenpermissions",
       },
+      {
+        nameKey: "admin.nav.app_modules",
+        path: `/${encAdmins}/${encAppModules}`,
+        module: "screen-managements",
+        screen: "app-modules",
+      },
     ],
   },
 ];
@@ -489,7 +496,6 @@ const staffManagementMasters: NavItem[] = [
   },
 ];
 
-
 const customerMasters: NavItem[] = [
   {
     nameKey: "admin.nav.customer_masters",
@@ -510,10 +516,10 @@ const customerMasters: NavItem[] = [
         screen: "customercreations",
       },
       {
-        nameKey: "admin.nav.feedback",
-        path: `/${encComplaintTicket}/${encFeedback}`,
+        nameKey: "admin.nav.customer_access_configuration",
+        path: `/${encCustomerMaster}/${encCustomerAccessConfiguration}`,
         module: "customers",
-        screen: "feedbacks",
+        screen: "customer-access-configuration",
       },
     ],
   },
@@ -816,25 +822,34 @@ const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, toggleSidebar } = useSidebar();
   const location = useLocation();
   const { t } = useTranslation();
-  const { hasPermission } = usePermission();
+  const { hasPermission, isEmptyPermissions } = usePermission();
   const showFullSidebar = isExpanded || isMobileOpen;
 
   //  Detect if current user is superadmin
   const isSuperAdmin = useMemo(() => isSuperAdminUser(), []);
 
   // Check sidebar visibility using the read/view permission returned by login.
+  // Dashboard isn't itself a grantable screen in the backend catalog, so it
+  // can never carry its own "view" permission — instead it's shown to any
+  // staff member who has been granted at least one permission anywhere,
+  // same as it's always shown to superadmin.
   const checkPermission = useCallback(
     (module: string | undefined, screen: string | undefined): boolean => {
       if (!module || !screen) return true;
+      if (module === "dashboard") return !isEmptyPermissions;
       return hasPermission(module, screen, "view");
     },
-    [hasPermission]
+    [hasPermission, isEmptyPermissions],
   );
 
   const checkSubItemPermission = useCallback(
     (sub: NonNullable<NavItem["subItems"]>[number]): boolean => {
       if (!sub.module) return true;
-      const screens = sub.screens?.length ? sub.screens : sub.screen ? [sub.screen] : [];
+      const screens = sub.screens?.length
+        ? sub.screens
+        : sub.screen
+          ? [sub.screen]
+          : [];
       if (screens.length === 0) return true;
       return screens.some((screen) => checkPermission(sub.module, screen));
     },
@@ -843,7 +858,7 @@ const AppSidebar: React.FC = () => {
 
   // Filter sub-items: only show items with permission
   const filterSubItems = (
-    subItems: NavItem["subItems"]
+    subItems: NavItem["subItems"],
   ): NavItem["subItems"] => {
     if (!subItems) return undefined;
 
@@ -857,7 +872,7 @@ const AppSidebar: React.FC = () => {
   // Check if menu item should be shown
   const hasVisibleContent = (
     item: NavItem,
-    filteredSubItems: NavItem["subItems"]
+    filteredSubItems: NavItem["subItems"],
   ): boolean => {
     // If no subItems, check direct permission or show if no permission needed
     if (!item.subItems || item.subItems.length === 0) {
@@ -870,59 +885,56 @@ const AppSidebar: React.FC = () => {
   };
 
   // Build sidebar sections with strict filtering
-  const sidebarSections = useMemo(
-    () => {
-      const allSections = [
-        { key: "main" as const, items: navItems },
-        { key: "attendance" as const, items: attendanceItems },
-        { key: "superadminMaster" as const, items: superadminMasterItems },
-        { key: "commonMaster" as const, items: commonMasterItems },
-        { key: "master" as const, items: masterItems },
-        { key: "leaderManagement" as const, items: leaderManagementItems },
-        { key: "wasteType" as const, items: wasteTypeItems },
-        { key: "screenManagement" as const, items: screenManagementItems },
-        { key: "roleAssigns" as const, items: roleAssignsItems },
-        { key: "staffManagement" as const, items: staffManagementMasters },
-        { key: "customerMasters" as const, items: customerMasters },
-        { key: "complaintMasters" as const, items: complaintMastersItems },
-        { key: "complaintTicket" as const, items: complaintTicketItems },
-        { key: "transportMasters" as const, items: transportMastersItems },
-        { key: "scheduleSetup" as const, items: scheduleSetupItems },
-        { key: "scheduleOperations" as const, items: scheduleOperationsItems },
-        { key: "scheduleMasters" as const, items: scheduleMastersItems },
-        { key: "auditItems" as const, items: auditItems },
-        { key: "fleetReports" as const, items: fleetReportItems },
-      ];
+  const sidebarSections = useMemo(() => {
+    const allSections = [
+      { key: "main" as const, items: navItems },
+      { key: "attendance" as const, items: attendanceItems },
+      { key: "superadminMaster" as const, items: superadminMasterItems },
+      { key: "commonMaster" as const, items: commonMasterItems },
+      { key: "master" as const, items: masterItems },
+      { key: "leaderManagement" as const, items: leaderManagementItems },
+      { key: "wasteType" as const, items: wasteTypeItems },
+      { key: "screenManagement" as const, items: screenManagementItems },
+      { key: "roleAssigns" as const, items: roleAssignsItems },
+      { key: "staffManagement" as const, items: staffManagementMasters },
+      { key: "customerMasters" as const, items: customerMasters },
+      { key: "complaintMasters" as const, items: complaintMastersItems },
+      { key: "complaintTicket" as const, items: complaintTicketItems },
+      { key: "transportMasters" as const, items: transportMastersItems },
+      { key: "scheduleSetup" as const, items: scheduleSetupItems },
+      { key: "scheduleOperations" as const, items: scheduleOperationsItems },
+      { key: "scheduleMasters" as const, items: scheduleMastersItems },
+      { key: "auditItems" as const, items: auditItems },
+      { key: "fleetReports" as const, items: fleetReportItems },
+    ];
 
-      // If superadmin, show ALL sections with ALL items
-      if (isSuperAdmin) {
-        // console.log("[Sidebar] SuperAdmin detected - showing all sections");
-        return allSections.filter((section) => section.items.length > 0);
-      }
+    // If superadmin, show ALL sections with ALL items
+    if (isSuperAdmin) {
+      // console.log("[Sidebar] SuperAdmin detected - showing all sections");
+      return allSections.filter((section) => section.items.length > 0);
+    }
 
-      // For regular users: strict filtering
-      return allSections
-        .map((section) => {
-          // Filter items within section
-          const filteredItems = section.items
-            .map((item) => {
-              const filteredSubItems = filterSubItems(item.subItems);
-              return {
-                ...item,
-                subItems: filteredSubItems,
-              };
-            })
-            .filter((item) => hasVisibleContent(item, item.subItems));
+    // For regular users: strict filtering
+    return allSections
+      .map((section) => {
+        // Filter items within section
+        const filteredItems = section.items
+          .map((item) => {
+            const filteredSubItems = filterSubItems(item.subItems);
+            return {
+              ...item,
+              subItems: filteredSubItems,
+            };
+          })
+          .filter((item) => hasVisibleContent(item, item.subItems));
 
-          return {
-            ...section,
-            items: filteredItems,
-          };
-        })
-        .filter((section) => section.items.length > 0); // Only show sections with visible items
-    },
-    [hasPermission, isSuperAdmin, checkPermission]
-  );
+        return {
+          ...section,
+          items: filteredItems,
+        };
+      })
+      .filter((section) => section.items.length > 0); // Only show sections with visible items
+  }, [hasPermission, isSuperAdmin, checkPermission]);
 
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -937,9 +949,11 @@ const AppSidebar: React.FC = () => {
             if (parentName.includes(q)) return item;
             if (!item.subItems || item.subItems.length === 0) return null;
             const matchingSubs = item.subItems.filter((sub) =>
-              t(sub.nameKey).toLowerCase().includes(q)
+              t(sub.nameKey).toLowerCase().includes(q),
             );
-            return matchingSubs.length > 0 ? { ...item, subItems: matchingSubs } : null;
+            return matchingSubs.length > 0
+              ? { ...item, subItems: matchingSubs }
+              : null;
           })
           .filter((item): item is NavItem => item !== null);
         return { ...section, items: filteredItems };
@@ -951,9 +965,10 @@ const AppSidebar: React.FC = () => {
   // category group (SUPER ADMIN / MASTERS / CORE MODULES / REPORTS), in the
   // exact order each group expects.
   const groupedSections = useMemo(() => {
-    const sectionsByKey = new Map<SidebarSectionKey, (typeof filteredSections)[number]>(
-      filteredSections.map((section) => [section.key, section])
-    );
+    const sectionsByKey = new Map<
+      SidebarSectionKey,
+      (typeof filteredSections)[number]
+    >(filteredSections.map((section) => [section.key, section]));
     return MODULE_GROUPS.map((group) => ({
       key: group.key,
       titleKey: group.titleKey,
@@ -962,7 +977,7 @@ const AppSidebar: React.FC = () => {
         .map((key) => sectionsByKey.get(key))
         .filter(
           (section): section is (typeof filteredSections)[number] =>
-            !!section && section.items.length > 0
+            !!section && section.items.length > 0,
         ),
     })).filter((group) => group.sections.length > 0);
   }, [filteredSections]);
@@ -973,7 +988,7 @@ const AppSidebar: React.FC = () => {
   } | null>(null);
 
   const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>(
-    {}
+    {},
   );
   const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -1011,14 +1026,15 @@ const AppSidebar: React.FC = () => {
         currentDecodedPath.module?.startsWith(decodedModule)
       );
     },
-    [currentDecodedPath, location.pathname]
+    [currentDecodedPath, location.pathname],
   );
 
   /** True when `entry`'s own route, or any route it fronts, is current. */
   const isEntryActive = useCallback(
     (entry: NavMatchable) =>
       (!!entry.path && isActive(entry.path, true)) ||
-      (entry.matchPaths?.some((candidate) => isActive(candidate, true)) ?? false),
+      (entry.matchPaths?.some((candidate) => isActive(candidate, true)) ??
+        false),
     [isActive],
   );
 
@@ -1067,7 +1083,7 @@ const AppSidebar: React.FC = () => {
     setOpenSubmenu((prev) =>
       prev && prev.type === type && prev.index === index
         ? null
-        : { type, index }
+        : { type, index },
     );
   };
 
@@ -1075,7 +1091,8 @@ const AppSidebar: React.FC = () => {
     <ul className="flex flex-col gap-2">
       {items.map((nav, index) => {
         const isSubmenuOpen =
-          (searchQuery.trim() !== "" && !!(nav.subItems && nav.subItems.length > 0)) ||
+          (searchQuery.trim() !== "" &&
+            !!(nav.subItems && nav.subItems.length > 0)) ||
           (openSubmenu?.type === type && openSubmenu?.index === index);
         return (
           <li key={nav.path ?? nav.nameKey}>
@@ -1090,7 +1107,7 @@ const AppSidebar: React.FC = () => {
                   className={cn(
                     "menu-item-icon-size shrink-0",
                     !showFullSidebar && "mx-auto",
-                    isSubmenuOpen ? "text-white" : "text-green-600"
+                    isSubmenuOpen ? "text-white" : "text-green-600",
                   )}
                 >
                   {nav.icon}
@@ -1101,7 +1118,7 @@ const AppSidebar: React.FC = () => {
                     <span
                       className={cn(
                         "truncate text-sm font-semibold",
-                        isSubmenuOpen ? "text-white" : "text-gray-800"
+                        isSubmenuOpen ? "text-white" : "text-gray-800",
                       )}
                     >
                       {t(nav.nameKey)}
@@ -1109,7 +1126,9 @@ const AppSidebar: React.FC = () => {
                     <ChevronDown
                       className={cn(
                         "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
-                        isSubmenuOpen ? "rotate-180 text-white" : "text-green-500"
+                        isSubmenuOpen
+                          ? "rotate-180 text-white"
+                          : "text-green-500",
                       )}
                     />
                   </>
@@ -1120,16 +1139,14 @@ const AppSidebar: React.FC = () => {
                 <Link
                   to={nav.path}
                   className={`${menuButtonBase} ${
-                    isEntryActive(nav)
-                      ? menuActiveClasses
-                      : menuInactiveClasses
+                    isEntryActive(nav) ? menuActiveClasses : menuInactiveClasses
                   }`}
                 >
                   <span
                     className={cn(
                       "menu-item-icon-size shrink-0",
                       !showFullSidebar && "mx-auto",
-                      isEntryActive(nav) ? "text-white" : "text-green-600"
+                      isEntryActive(nav) ? "text-white" : "text-green-600",
                     )}
                   >
                     {nav.icon}
@@ -1138,7 +1155,7 @@ const AppSidebar: React.FC = () => {
                     <span
                       className={cn(
                         "truncate text-sm font-semibold",
-                        isEntryActive(nav) ? "text-white" : "text-gray-800"
+                        isEntryActive(nav) ? "text-white" : "text-gray-800",
                       )}
                     >
                       {t(nav.nameKey)}
@@ -1191,7 +1208,7 @@ const AppSidebar: React.FC = () => {
         "border-r border-green-100 bg-white shadow-lg shadow-green-100/40",
         showFullSidebar ? "w-[290px]" : "w-20",
         isMobileOpen ? "translate-x-0" : "-translate-x-full",
-        "lg:translate-x-0"
+        "lg:translate-x-0",
       )}
     >
       {/* Top accent bar: green → blue → orange */}
@@ -1223,41 +1240,45 @@ const AppSidebar: React.FC = () => {
 
         <div className="no-scrollbar flex-1 overflow-y-auto pr-1">
           <nav className="flex flex-col gap-1.5">
-            {groupedSections.length > 0 ? (
-              groupedSections.map((group, groupIndex) => (
-                <div key={group.key} className="flex flex-col gap-1">
-                  {showFullSidebar ? (
-                    <div
-                      className={cn(
-                        "flex items-center gap-2 px-3 pb-1.5",
-                        groupIndex === 0 ? "pt-0" : "pt-3"
-                      )}
-                    >
-                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", group.accent)} />
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                        {t(group.titleKey)}
-                      </span>
-                    </div>
-                  ) : (
-                    groupIndex > 0 && (
-                      <div className="mx-2 my-2 h-px bg-green-100" />
-                    )
-                  )}
+            {groupedSections.length > 0
+              ? groupedSections.map((group, groupIndex) => (
+                  <div key={group.key} className="flex flex-col gap-1">
+                    {showFullSidebar ? (
+                      <div
+                        className={cn(
+                          "flex items-center gap-2 px-3 pb-1.5",
+                          groupIndex === 0 ? "pt-0" : "pt-3",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "h-1.5 w-1.5 shrink-0 rounded-full",
+                            group.accent,
+                          )}
+                        />
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                          {t(group.titleKey)}
+                        </span>
+                      </div>
+                    ) : (
+                      groupIndex > 0 && (
+                        <div className="mx-2 my-2 h-px bg-green-100" />
+                      )
+                    )}
 
-                  {group.sections.map((section) => (
-                    <div key={section.key} className="flex flex-col gap-1">
-                      {renderMenuItems(section.items, section.key)}
-                    </div>
-                  ))}
-                </div>
-              ))
-            ) : (
-              showFullSidebar && searchQuery.trim() && (
-                <p className="px-3 py-6 text-center text-sm text-gray-400">
-                  No results for &ldquo;{searchQuery}&rdquo;
-                </p>
-              )
-            )}
+                    {group.sections.map((section) => (
+                      <div key={section.key} className="flex flex-col gap-1">
+                        {renderMenuItems(section.items, section.key)}
+                      </div>
+                    ))}
+                  </div>
+                ))
+              : showFullSidebar &&
+                searchQuery.trim() && (
+                  <p className="px-3 py-6 text-center text-sm text-gray-400">
+                    No results for &ldquo;{searchQuery}&rdquo;
+                  </p>
+                )}
           </nav>
         </div>
 

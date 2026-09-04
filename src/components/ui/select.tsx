@@ -32,7 +32,6 @@ interface SelectContextValue {
   name?: string;
   open: boolean;
   setOpen: (open: boolean) => void;
-  registerLabel: (value: string, label: React.ReactNode) => void;
   getLabel: (value: string) => React.ReactNode | undefined;
 }
 
@@ -56,7 +55,6 @@ interface SelectProps {
 const Select = ({ value, defaultValue, onValueChange, disabled, name, children }: SelectProps) => {
   const [open, setOpen] = React.useState(false);
   const [uncontrolled, setUncontrolled] = React.useState(defaultValue);
-  const labelsRef = React.useRef(new Map<string, React.ReactNode>());
 
   const resolvedValue = value !== undefined ? value : uncontrolled;
 
@@ -68,11 +66,29 @@ const Select = ({ value, defaultValue, onValueChange, disabled, name, children }
     [value, onValueChange],
   );
 
-  const registerLabel = React.useCallback((itemValue: string, label: React.ReactNode) => {
-    labelsRef.current.set(itemValue, label);
-  }, []);
+  // Labels must be known as soon as `value` is set — including set
+  // programmatically before the user has ever opened this dropdown (e.g.
+  // autofilling a form from a fetched record) — not only once SelectContent
+  // has actually rendered. Radix's Popover.Content unmounts its children
+  // while closed, so SelectContent's own item list (and the old
+  // registerLabel-in-a-ref approach) never ran until first open. Extracting
+  // straight from `children` here instead, into state so SelectValue
+  // re-renders, means this doesn't depend on SelectContent — or Radix's
+  // portal — ever mounting.
+  const itemsByValue = React.useMemo(() => {
+    const map = new Map<string, React.ReactNode>();
+    React.Children.forEach(children, (child) => {
+      if (!React.isValidElement(child) || child.type !== SelectContent) return;
+      const contentProps = child.props as { children?: React.ReactNode };
+      extractItems(contentProps.children).forEach((item) => map.set(item.value, item.label));
+    });
+    return map;
+  }, [children]);
 
-  const getLabel = React.useCallback((itemValue: string) => labelsRef.current.get(itemValue), []);
+  const getLabel = React.useCallback(
+    (itemValue: string) => itemsByValue.get(itemValue),
+    [itemsByValue],
+  );
 
   const ctx = React.useMemo<SelectContextValue>(
     () => ({
@@ -82,10 +98,9 @@ const Select = ({ value, defaultValue, onValueChange, disabled, name, children }
       name,
       open,
       setOpen,
-      registerLabel,
       getLabel,
     }),
-    [resolvedValue, handleChange, disabled, name, open, registerLabel, getLabel],
+    [resolvedValue, handleChange, disabled, name, open, getLabel],
   );
 
   return (
@@ -202,14 +217,9 @@ interface SelectContentProps {
 
 const SelectContent = React.forwardRef<HTMLDivElement, SelectContentProps>(
   ({ className, children, searchable = true }, ref) => {
-    const { value, onValueChange, registerLabel, setOpen } = useSelectContext("SelectContent");
+    const { value, onValueChange, setOpen } = useSelectContext("SelectContent");
 
     const items = React.useMemo(() => extractItems(children), [children]);
-
-    // Keep the label lookup used by SelectValue in sync with what's rendered.
-    React.useEffect(() => {
-      items.forEach((item) => registerLabel(item.value, item.label));
-    }, [items, registerLabel]);
 
     return (
       <PopoverContent

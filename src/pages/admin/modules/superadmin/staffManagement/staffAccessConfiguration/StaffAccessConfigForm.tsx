@@ -1,6 +1,21 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { CheckCircle2, ChevronDown, KeyRound, LayoutGrid, Loader2, MapPinned, ShieldCheck, UserRound } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  KeyRound,
+  LayoutGrid,
+  Loader2,
+  MapPinned,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -18,15 +33,23 @@ import {
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { staffAccessConfigurationApi, staffUserTypeApi, userTypeApi } from "@/helpers/admin";
+import {
+  staffAccessConfigurationApi,
+  staffUserTypeApi,
+  userTypeApi,
+} from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-import LocationScopeSelector, { type LocationScopeOptions } from "./LocationScopeSelector";
+import LocationScopeSelector, {
+  type LocationScopeOptions,
+} from "./LocationScopeSelector";
 import { MultiSelect } from "@/components/form/MultiSelect";
 import type {
   AvailableMainScreen,
+  AppModuleOption,
   AvailablePermissionsResponse,
   DataScopeForm,
+  EmployeeOption,
   GrantedScreenPermission,
   StaffAccessConfigPayload,
   StaffAccessConfigRecord,
@@ -37,13 +60,25 @@ import {
   staffDataScopeSchema,
   staffPermissionsSchema,
 } from "@/schemas/superadmin/staffManagement/staffAccessConfiguration.schema";
-import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
+import {
+  parseWithSchema,
+  type FieldErrors,
+} from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
 
 const { encAdmins, encStaffAccessConfiguration } = getEncryptedRoute();
-const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encAdmins, encStaffAccessConfiguration);
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
+  encAdmins,
+  encStaffAccessConfiguration,
+);
 
-const TABS = ["Basic Info", "Login", "Data Scope", "Permissions", "Review"] as const;
+const TABS = [
+  "Basic Info",
+  "Login",
+  "Data Scope",
+  "Permissions",
+  "Review",
+] as const;
 const DATA_SCOPE_TAB = 2;
 const PERMISSIONS_TAB = 3;
 const PRIMARY_BUTTON_CLASS =
@@ -71,14 +106,16 @@ const toId = (value: unknown): string => {
 const toRecordList = (value: unknown): UnknownRecord[] => {
   if (Array.isArray(value)) {
     return value.filter(
-      (item): item is UnknownRecord => !!item && typeof item === "object" && !Array.isArray(item)
+      (item): item is UnknownRecord =>
+        !!item && typeof item === "object" && !Array.isArray(item),
     );
   }
   if (value && typeof value === "object") {
     const maybeResults = (value as { results?: unknown }).results;
     if (Array.isArray(maybeResults)) {
       return maybeResults.filter(
-        (item): item is UnknownRecord => !!item && typeof item === "object" && !Array.isArray(item)
+        (item): item is UnknownRecord =>
+          !!item && typeof item === "object" && !Array.isArray(item),
       );
     }
   }
@@ -94,7 +131,9 @@ const extractErrorMessage = (error: unknown, fallback: string): string => {
     if (typeof record.detail === "string") return record.detail;
     return Object.entries(record)
       .map(([key, value]) =>
-        Array.isArray(value) ? `${key}: ${value.join(", ")}` : `${key}: ${String(value)}`
+        Array.isArray(value)
+          ? `${key}: ${value.join(", ")}`
+          : `${key}: ${String(value)}`,
       )
       .join("\n");
   }
@@ -138,7 +177,10 @@ export default function StaffAccessConfigForm() {
   const { id: staffUniqueIdParam } = useParams<{ id?: string }>();
   const isEdit = Boolean(staffUniqueIdParam);
   const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const routeState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
 
   const {
     companyUniqueId,
@@ -157,12 +199,14 @@ export default function StaffAccessConfigForm() {
   });
 
   const [projectIds, setProjectIds] = useState<string[]>(
-    routeState?.projectId ? [routeState.projectId] : []
+    routeState?.projectId ? [routeState.projectId] : [],
   );
 
   const [activeTab, setActiveTab] = useState(0);
   const [stepError, setStepError] = useState<string | null>(null);
-  const [staffId, setStaffId] = useState(() => (isEdit && staffUniqueIdParam ? String(staffUniqueIdParam) : ""));
+  const [staffId, setStaffId] = useState(() =>
+    isEdit && staffUniqueIdParam ? String(staffUniqueIdParam) : "",
+  );
   const [employeeName, setEmployeeName] = useState("");
   const [staffConfigName, setStaffConfigName] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
@@ -176,77 +220,148 @@ export default function StaffAccessConfigForm() {
   const [userTypeId, setUserTypeId] = useState("");
   const [staffUserTypeId, setStaffUserTypeId] = useState("");
   const [userTypeOptions, setUserTypeOptions] = useState<Option[]>([]);
-  const [staffUserTypeOptions, setStaffUserTypeOptions] = useState<Option[]>([]);
+  const [staffUserTypeOptions, setStaffUserTypeOptions] = useState<Option[]>(
+    [],
+  );
+  const [userTypeOptionsLoaded, setUserTypeOptionsLoaded] = useState(false);
+  const [staffUserTypeOptionsLoaded, setStaffUserTypeOptionsLoaded] = useState(false);
   const [dataScope, setDataScope] = useState<DataScopeForm>({});
   const [geoOptions, setGeoOptions] = useState<LocationScopeOptions>({
-    states: [], districts: [], cities: [], zones: [], panchayats: [], wards: [],
+    states: [],
+    districts: [],
+    cities: [],
+    zones: [],
+    panchayats: [],
+    wards: [],
   });
   const [description, setDescription] = useState("");
-  const [availablePermissions, setAvailablePermissions] = useState<AvailablePermissionsResponse | null>(null);
+  const [availablePermissions, setAvailablePermissions] =
+    useState<AvailablePermissionsResponse | null>(null);
+  // Mobile apps this staff member may sign into. Ticking one is what makes
+  // their mobile login succeed at all; what they can do inside comes from the
+  // screen permissions below, which are the same rows that govern web.
+  const [appModuleOptions, setAppModuleOptions] = useState<AppModuleOption[]>(
+    [],
+  );
+  const [appModuleIds, setAppModuleIds] = useState<string[]>([]);
+  const [enforceStrictPermissions, setEnforceStrictPermissions] =
+    useState(false);
   const [loadingPermissions, setLoadingPermissions] = useState(false);
-  const [selections, setSelections] = useState<Record<string, GrantedScreenPermission>>({});
+  const [selections, setSelections] = useState<
+    Record<string, GrantedScreenPermission>
+  >({});
   const [pendingGrantedPermissions, setPendingGrantedPermissions] = useState<
     { userScreenId: string; actionIds: string[] }[] | null
   >(null);
   const [fetching, setFetching] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [employeeOptions, setEmployeeOptions] = useState<EmployeeOption[]>([]);
+  const [loadingEmployeeOptions, setLoadingEmployeeOptions] = useState(false);
 
   // Project is the root-level scope field (no parent selection drives it),
   // so unlike the geo levels below it, loading its option list must never
   // auto-select every option — an empty selection here is a deliberate,
   // meaningful state ("all projects under the company"). Only drop ids that
   // are no longer valid for the current company.
-  const eligibleProjectIds = useMemo(() => new Set(projects.map((p) => p.value)), [projects]);
+  const eligibleProjectIds = useMemo(
+    () => new Set(projects.map((p) => p.value)),
+    [projects],
+  );
   useEffect(() => {
     if (!projectsLoaded || (isEdit && fetching)) return;
     setProjectIds((current) => {
       const survived = current.filter((id) => eligibleProjectIds.has(id));
       return survived.length === current.length ? current : survived;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eligibleProjectIds, projectsLoaded, isEdit, fetching]);
 
   useEffect(() => {
     let cancelled = false;
 
-    userTypeApi.readAll()
+    userTypeApi
+      .readAll()
       .then((data: unknown) => {
         if (cancelled) return;
         setUserTypeOptions(
           toRecordList(data)
             .map((item) => ({
               value: toId(item.unique_id),
-              label: String(item.name ?? item.user_type_name ?? item.unique_id ?? ""),
+              label: String(
+                item.name ?? item.user_type_name ?? item.unique_id ?? "",
+              ),
             }))
-            .filter((option) => option.value && option.label)
+            .filter((option) => option.value && option.label),
         );
       })
       .catch(() => {
         if (!cancelled) setUserTypeOptions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setUserTypeOptionsLoaded(true);
       });
 
-    staffUserTypeApi.readAll()
+    staffUserTypeApi
+      .readAll()
       .then((data: unknown) => {
         if (cancelled) return;
         setStaffUserTypeOptions(
           toRecordList(data)
             .map((item) => ({
               value: toId(item.unique_id),
-              label: String(item.name ?? item.role_name ?? item.unique_id ?? ""),
+              label: String(
+                item.name ?? item.role_name ?? item.unique_id ?? "",
+              ),
               userTypeId: toId(item.usertype_id ?? item.user_type_id),
             }))
-            .filter((option) => option.value && option.label)
+            .filter((option) => option.value && option.label),
         );
       })
       .catch(() => {
         if (!cancelled) setStaffUserTypeOptions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setStaffUserTypeOptionsLoaded(true);
       });
 
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // Employee dropdown is scoped to the selected company (and, if chosen, the
+  // selected project) — re-fetch whenever either changes. Selecting a new
+  // company/project invalidates the previously chosen employee the same way
+  // it invalidates projects/permissions elsewhere in this form.
+  useEffect(() => {
+    if (!companyUniqueId) {
+      setEmployeeOptions([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingEmployeeOptions(true);
+
+    const params: Record<string, string> = { company_id: companyUniqueId };
+    if (projectIds.length > 0) params.project_id = projectIds[0];
+
+    staffAccessConfigurationApi
+      .action("employee-options", undefined, { params })
+      .then((res: unknown) => {
+        if (cancelled) return;
+        setEmployeeOptions(Array.isArray(res) ? (res as EmployeeOption[]) : []);
+      })
+      .catch(() => {
+        if (!cancelled) setEmployeeOptions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingEmployeeOptions(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [companyUniqueId, projectIds]);
 
   useEffect(() => {
     if (!isEdit || !staffUniqueIdParam) return;
@@ -258,9 +373,13 @@ export default function StaffAccessConfigForm() {
       .then((record: unknown) => {
         if (cancelled) return;
         const data = record as StaffAccessConfigRecord;
-        setStaffId(toId(data.staff_id ?? data.staff_unique_id ?? staffUniqueIdParam));
+        setStaffId(
+          toId(data.staff_id ?? data.staff_unique_id ?? staffUniqueIdParam),
+        );
         setEmployeeName(String(data.employee_name ?? data.staff_name ?? ""));
-        setStaffConfigName(String(data.staff_config_name ?? data.staffusertype_name ?? ""));
+        setStaffConfigName(
+          String(data.staff_config_name ?? data.staffusertype_name ?? ""),
+        );
         setMobileNumber(String(data.contact_mobile ?? ""));
         setOfficeEmail(String(data.contact_email ?? ""));
         setDoj(data.doj ? String(data.doj) : "");
@@ -272,6 +391,8 @@ export default function StaffAccessConfigForm() {
         setStaffUserTypeId(toId(data.staffusertype_id));
         setDescription(data.description ?? "");
         setProjectIds((data.project_ids ?? []).map((id) => toId(id)));
+        setAppModuleIds((data.app_module_ids ?? []).map((id) => toId(id)));
+        setEnforceStrictPermissions(data.enforce_strict_permissions === true);
         setDataScope({
           state_ids: (data.state_ids ?? []).map((id) => toId(id)),
           district_ids: (data.district_ids ?? []).map((id) => toId(id)),
@@ -285,12 +406,16 @@ export default function StaffAccessConfigForm() {
           (data.granted_permissions ?? []).map((g) => ({
             userScreenId: toId(g.userScreenId),
             actionIds: (g.actionIds ?? []).map((a) => toId(a)),
-          }))
+          })),
         );
       })
       .catch((error) => {
         if (!cancelled) {
-          Swal.fire(t("common.error"), extractErrorMessage(error, t("common.load_failed")), "error");
+          Swal.fire(
+            t("common.error"),
+            extractErrorMessage(error, t("common.load_failed")),
+            "error",
+          );
         }
       })
       .finally(() => {
@@ -302,6 +427,21 @@ export default function StaffAccessConfigForm() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, staffUniqueIdParam]);
+
+  useEffect(() => {
+    let cancelled = false;
+    staffAccessConfigurationApi
+      .action("app-modules")
+      .then((res: unknown) => {
+        if (!cancelled) setAppModuleOptions((res as AppModuleOption[]) ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setAppModuleOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     // In edit mode, companyUniqueId starts out seeded from the list page's
@@ -327,15 +467,19 @@ export default function StaffAccessConfigForm() {
     staffAccessConfigurationApi
       .action("available-permissions", undefined, { params })
       .then((res: unknown) => {
-        if (!cancelled) setAvailablePermissions(res as AvailablePermissionsResponse);
+        if (!cancelled)
+          setAvailablePermissions(res as AvailablePermissionsResponse);
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         setAvailablePermissions(null);
         Swal.fire(
           t("common.error"),
-          extractErrorMessage(error, t("admin.staff_access_configuration.load_permissions_failed")),
-          "error"
+          extractErrorMessage(
+            error,
+            t("admin.staff_access_configuration.load_permissions_failed"),
+          ),
+          "error",
         );
       })
       .finally(() => {
@@ -357,7 +501,8 @@ export default function StaffAccessConfigForm() {
       project.mainscreens.forEach((ms) => {
         ms.screens.forEach((scr) => {
           const screenId = toId(scr.userScreenId);
-          const existing = allowedActionsByScreen.get(screenId) ?? new Set<string>();
+          const existing =
+            allowedActionsByScreen.get(screenId) ?? new Set<string>();
           scr.actions.forEach((a) => existing.add(toId(a.actionId)));
           allowedActionsByScreen.set(screenId, existing);
         });
@@ -367,15 +512,25 @@ export default function StaffAccessConfigForm() {
     setSelections((prev) => {
       const base: Record<string, GrantedScreenPermission> = { ...prev };
       pendingGrantedPermissions?.forEach((g) => {
-        if (!base[g.userScreenId]) base[g.userScreenId] = { userScreenId: g.userScreenId, actionIds: g.actionIds };
+        if (!base[g.userScreenId])
+          base[g.userScreenId] = {
+            userScreenId: g.userScreenId,
+            actionIds: g.actionIds,
+          };
       });
 
       const next: Record<string, GrantedScreenPermission> = {};
       Object.values(base).forEach((sel) => {
         const allowedActions = allowedActionsByScreen.get(sel.userScreenId);
         if (!allowedActions) return;
-        const filteredActionIds = sel.actionIds.filter((a) => allowedActions.has(a));
-        if (filteredActionIds.length > 0) next[sel.userScreenId] = { userScreenId: sel.userScreenId, actionIds: filteredActionIds };
+        const filteredActionIds = sel.actionIds.filter((a) =>
+          allowedActions.has(a),
+        );
+        if (filteredActionIds.length > 0)
+          next[sel.userScreenId] = {
+            userScreenId: sel.userScreenId,
+            actionIds: filteredActionIds,
+          };
       });
       return next;
     });
@@ -385,13 +540,21 @@ export default function StaffAccessConfigForm() {
   }, [availablePermissions]);
 
   const screenInfoById = useMemo(() => {
-    const map = new Map<string, { name: string; actionNameById: Map<string, string> }>();
+    const map = new Map<
+      string,
+      { name: string; actionNameById: Map<string, string> }
+    >();
     availablePermissions?.projects.forEach((project) => {
       project.mainscreens.forEach((ms) => {
         ms.screens.forEach((screen) => {
           const screenId = toId(screen.userScreenId);
-          const entry = map.get(screenId) ?? { name: screen.userScreenName, actionNameById: new Map<string, string>() };
-          screen.actions.forEach((action) => entry.actionNameById.set(toId(action.actionId), action.actionName));
+          const entry = map.get(screenId) ?? {
+            name: screen.userScreenName,
+            actionNameById: new Map<string, string>(),
+          };
+          screen.actions.forEach((action) =>
+            entry.actionNameById.set(toId(action.actionId), action.actionName),
+          );
           map.set(screenId, entry);
         });
       });
@@ -401,60 +564,134 @@ export default function StaffAccessConfigForm() {
 
   const filteredStaffUserTypeOptions = useMemo(() => {
     if (!userTypeId) return staffUserTypeOptions;
-    return staffUserTypeOptions.filter((option) => !option.userTypeId || option.userTypeId === userTypeId);
+    return staffUserTypeOptions.filter(
+      (option) => !option.userTypeId || option.userTypeId === userTypeId,
+    );
   }, [staffUserTypeOptions, userTypeId]);
 
+  // Selecting an existing employee autofills whatever details already exist
+  // on their record — fields left blank on the employee stay editable so the
+  // admin can still fill in what's missing.
+  const handleEmployeeSelect = useCallback(
+    (value: string) => {
+      setStaffId(value);
+      setFieldErrors((prev) => ({ ...prev, employeeName: "" }));
+
+      const employee = employeeOptions.find(
+        (option) => option.unique_id === value,
+      );
+      if (!employee) {
+        setEmployeeName("");
+        return;
+      }
+
+    setEmployeeName(employee.employee_name ?? "");
+    if (employee.mobile_number) setMobileNumber(employee.mobile_number);
+    if (employee.office_email) setOfficeEmail(employee.office_email);
+    if (employee.doj) setDoj(employee.doj);
+    if (employee.username) setUsername(employee.username);
+    if (employee.staffusertype_id) setStaffUserTypeId(employee.staffusertype_id);
+    if (typeof employee.active_status === "boolean") setActiveStatus(employee.active_status);
+  }, [employeeOptions]);
+
   const totalSelectedScreens = Object.keys(selections).length;
-  const totalSelectedActions = Object.values(selections).reduce((sum, sel) => sum + sel.actionIds.length, 0);
+  const totalSelectedActions = Object.values(selections).reduce(
+    (sum, sel) => sum + sel.actionIds.length,
+    0,
+  );
 
-  const toggleAction = useCallback((userScreenId: string, actionId: string, checked: boolean) => {
-    setSelections((prev) => {
-      const currentActionIds = prev[userScreenId]?.actionIds ?? [];
-      const nextActionIds = checked
-        ? Array.from(new Set([...currentActionIds, actionId]))
-        : currentActionIds.filter((a) => a !== actionId);
-      if (nextActionIds.length === 0) {
-        const { [userScreenId]: _removed, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [userScreenId]: { userScreenId, actionIds: nextActionIds } };
-    });
-  }, []);
-
-  const toggleAllActionsForScreen = useCallback((userScreenId: string, allActionIds: string[], checked: boolean) => {
-    setSelections((prev) => {
-      if (!checked) {
-        const { [userScreenId]: _removed, ...rest } = prev;
-        return rest;
-      }
-      return { ...prev, [userScreenId]: { userScreenId, actionIds: allActionIds } };
-    });
-  }, []);
-
-  const toggleModule = useCallback((screens: AvailableMainScreen["screens"], checked: boolean) => {
-    setSelections((prev) => {
-      const next = { ...prev };
-      screens.forEach((screen) => {
-        const screenId = toId(screen.userScreenId);
-        if (checked) {
-          next[screenId] = { userScreenId: screenId, actionIds: screen.actions.map((a) => toId(a.actionId)) };
-        } else {
-          delete next[screenId];
+  const toggleAction = useCallback(
+    (userScreenId: string, actionId: string, checked: boolean) => {
+      setSelections((prev) => {
+        const currentActionIds = prev[userScreenId]?.actionIds ?? [];
+        const nextActionIds = checked
+          ? Array.from(new Set([...currentActionIds, actionId]))
+          : currentActionIds.filter((a) => a !== actionId);
+        if (nextActionIds.length === 0) {
+          const rest = { ...prev };
+          delete rest[userScreenId];
+          return rest;
         }
+        return {
+          ...prev,
+          [userScreenId]: { userScreenId, actionIds: nextActionIds },
+        };
       });
-      return next;
-    });
-  }, []);
+    },
+    [],
+  );
+
+  const toggleAllActionsForScreen = useCallback(
+    (userScreenId: string, allActionIds: string[], checked: boolean) => {
+      setSelections((prev) => {
+        if (!checked) {
+          const rest = { ...prev };
+          delete rest[userScreenId];
+          return rest;
+        }
+        return {
+          ...prev,
+          [userScreenId]: { userScreenId, actionIds: allActionIds },
+        };
+      });
+    },
+    [],
+  );
+
+  const toggleModule = useCallback(
+    (screens: AvailableMainScreen["screens"], checked: boolean) => {
+      setSelections((prev) => {
+        const next = { ...prev };
+        screens.forEach((screen) => {
+          const screenId = toId(screen.userScreenId);
+          if (checked) {
+            next[screenId] = {
+              userScreenId: screenId,
+              actionIds: screen.actions.map((a) => toId(a.actionId)),
+            };
+          } else {
+            delete next[screenId];
+          }
+        });
+        return next;
+      });
+    },
+    [],
+  );
 
   // Field keys each tab is responsible for gating — used to pick which schema
   // error (if any) should block advancing past that specific tab.
   const TAB_FIELD_KEYS: Record<number, string[]> = {
-    0: ["employeeName", "staffConfigName", "mobileNumber", "officeEmail", "doj"],
-    1: ["username", "password", "confirmPassword", "userTypeId", "staffUserTypeId"],
+    0: [
+      "companyUniqueId",
+      "employeeName",
+      "staffConfigName",
+      "mobileNumber",
+      "officeEmail",
+      "doj",
+    ],
+    1: [
+      "username",
+      "password",
+      "confirmPassword",
+      "userTypeId",
+      "staffUserTypeId",
+    ],
   };
 
   const validateTab = (tab: number): boolean => {
     setStepError(null);
+
+    if (tab === 0) {
+      const scopeValidation = parseWithSchema(staffDataScopeSchema, {
+        companyUniqueId,
+      });
+      if (!scopeValidation.success) {
+        setFieldErrors((prev) => ({ ...prev, ...scopeValidation.errors }));
+        setStepError(scopeValidation.errors.companyUniqueId);
+        return false;
+      }
+    }
 
     if (tab === 0 || tab === 1) {
       const schema = buildStaffAccessConfigSchema(isEdit);
@@ -471,27 +708,27 @@ export default function StaffAccessConfigForm() {
         staffUserTypeId,
       });
       if (!validation.success) {
-        setFieldErrors(validation.errors);
-        const relevantKey = TAB_FIELD_KEYS[tab].find((key) => validation.errors[key]);
+        setFieldErrors((prev) => ({ ...prev, ...validation.errors }));
+        const relevantKey = TAB_FIELD_KEYS[tab].find(
+          (key) => validation.errors[key],
+        );
         if (relevantKey) {
           setStepError(validation.errors[relevantKey]);
           return false;
         }
       } else {
-        setFieldErrors({});
-      }
-    }
-    if (tab === DATA_SCOPE_TAB) {
-      const validation = parseWithSchema(staffDataScopeSchema, { companyUniqueId });
-      if (!validation.success) {
-        setFieldErrors(validation.errors);
-        setStepError(validation.errors.companyUniqueId);
-        return false;
+        setFieldErrors((prev) => {
+          const next = { ...prev };
+          TAB_FIELD_KEYS[tab].forEach((key) => delete next[key]);
+          return next;
+        });
       }
     }
 
     if (tab === PERMISSIONS_TAB) {
-      const validation = parseWithSchema(staffPermissionsSchema, { selections });
+      const validation = parseWithSchema(staffPermissionsSchema, {
+        selections,
+      });
       if (!validation.success) {
         setFieldErrors(validation.errors);
         setStepError(validation.errors.selections);
@@ -508,7 +745,8 @@ export default function StaffAccessConfigForm() {
   };
 
   const goToTab = (index: number) => {
-    if (isEdit || index <= activeTab || validateTab(activeTab)) setActiveTab(index);
+    if (isEdit || index <= activeTab || validateTab(activeTab))
+      setActiveTab(index);
   };
 
   const buildPayload = (): StaffAccessConfigPayload => ({
@@ -522,6 +760,8 @@ export default function StaffAccessConfigForm() {
     panchayat_ids: dataScope.panchayat_ids ?? [],
     ward_ids: dataScope.ward_ids ?? [],
     description: description.trim(),
+    app_module_ids: appModuleIds,
+    enforce_strict_permissions: enforceStrictPermissions,
     permissions: Object.values(selections).map((sel) => ({
       userscreen_id: sel.userScreenId,
       action_ids: sel.actionIds,
@@ -565,14 +805,30 @@ export default function StaffAccessConfigForm() {
     setSaving(true);
     try {
       if (isEdit && staffUniqueIdParam) {
-        await staffAccessConfigurationApi.update(staffUniqueIdParam, buildPayload());
+        await staffAccessConfigurationApi.update(
+          staffUniqueIdParam,
+          buildPayload(),
+        );
       } else {
         await staffAccessConfigurationApi.create(buildPayload());
       }
-      await Swal.fire("Saved", "Staff access configuration saved successfully.", "success");
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId: projectIds[0] } });
+      await Swal.fire(
+        "Saved",
+        "Staff access configuration saved successfully.",
+        "success",
+      );
+      navigate(ENC_LIST_PATH, {
+        state: { companyUniqueId, projectId: projectIds[0] },
+      });
     } catch (error) {
-      Swal.fire("Error", extractErrorMessage(error, "Unable to save staff access configuration."), "error");
+      Swal.fire(
+        "Error",
+        extractErrorMessage(
+          error,
+          "Unable to save staff access configuration.",
+        ),
+        "error",
+      );
     } finally {
       setSaving(false);
     }
@@ -589,13 +845,21 @@ export default function StaffAccessConfigForm() {
     projectIds.length > 0
       ? `Projects: ${labelsFromOptions(projects, projectIds).join(", ")}`
       : "Projects: All (company-wide)",
-    (dataScope.state_ids?.length ?? 0) > 0 && `State: ${labelsFromOptions(geoOptions.states, dataScope.state_ids!).join(", ")}`,
-    (dataScope.district_ids?.length ?? 0) > 0 && `District: ${labelsFromOptions(geoOptions.districts, dataScope.district_ids!).join(", ")}`,
-    (dataScope.city_ids?.length ?? 0) > 0 && `City: ${labelsFromOptions(geoOptions.cities, dataScope.city_ids!).join(", ")}`,
-    (dataScope.zone_ids?.length ?? 0) > 0 && `Zone: ${labelsFromOptions(geoOptions.zones, dataScope.zone_ids!).join(", ")}`,
-    (dataScope.panchayat_ids?.length ?? 0) > 0 && `Panchayat: ${labelsFromOptions(geoOptions.panchayats, dataScope.panchayat_ids!).join(", ")}`,
-    (dataScope.ward_ids?.length ?? 0) > 0 && `Ward: ${labelsFromOptions(geoOptions.wards, dataScope.ward_ids!).join(", ")}`,
-  ].filter(Boolean).join(", ");
+    (dataScope.state_ids?.length ?? 0) > 0 &&
+      `State: ${labelsFromOptions(geoOptions.states, dataScope.state_ids!).join(", ")}`,
+    (dataScope.district_ids?.length ?? 0) > 0 &&
+      `District: ${labelsFromOptions(geoOptions.districts, dataScope.district_ids!).join(", ")}`,
+    (dataScope.city_ids?.length ?? 0) > 0 &&
+      `City: ${labelsFromOptions(geoOptions.cities, dataScope.city_ids!).join(", ")}`,
+    (dataScope.zone_ids?.length ?? 0) > 0 &&
+      `Zone: ${labelsFromOptions(geoOptions.zones, dataScope.zone_ids!).join(", ")}`,
+    (dataScope.panchayat_ids?.length ?? 0) > 0 &&
+      `Panchayat: ${labelsFromOptions(geoOptions.panchayats, dataScope.panchayat_ids!).join(", ")}`,
+    (dataScope.ward_ids?.length ?? 0) > 0 &&
+      `Ward: ${labelsFromOptions(geoOptions.wards, dataScope.ward_ids!).join(", ")}`,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   const reviewRow = (label: string, value?: string | null) => (
     <div className="flex items-center justify-between gap-4 border-b border-gray-100 py-2 last:border-b-0 dark:border-gray-800">
@@ -619,20 +883,114 @@ export default function StaffAccessConfigForm() {
   const renderBasicInfo = () => (
     <div className="grid gap-4 md:grid-cols-2">
       <div>
+        <Label>Company</Label>
+        {isEdit && !companiesLoaded ? (
+          <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
+            Loading…
+          </div>
+        ) : (
+          <Select
+            value={companyUniqueId}
+            onValueChange={(value) => {
+              onCompanyChange(value);
+              setStaffId("");
+              setEmployeeName("");
+              setSelections({});
+              setAvailablePermissions(null);
+            }}
+            disabled={
+              Boolean(loggedInCompanyUniqueId) ||
+              (!isSuperAdmin && !loggedInCompanyUniqueId)
+            }
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select company" />
+            </SelectTrigger>
+            <SelectContent>
+              {companies.map((company) => (
+                <SelectItem key={company.value} value={company.value}>
+                  {company.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <FieldError message={fieldErrors.companyUniqueId} />
+      </div>
+      <div>
+        <Label>
+          Project{" "}
+          <span className="font-normal text-gray-400">
+            (optional — leave blank for all projects under the company)
+          </span>
+        </Label>
+        {isEdit && (!companiesLoaded || !projectsLoaded) ? (
+          <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
+            Loading…
+          </div>
+        ) : (
+          <MultiSelect
+            value={projectIds}
+            onChange={(next) => {
+              setProjectIds(next);
+              setStaffId("");
+              setEmployeeName("");
+              setSelections({});
+              setAvailablePermissions(null);
+            }}
+            options={projects}
+            placeholder="Select project(s)"
+            disabled={!companyUniqueId || projects.length === 0}
+          />
+        )}
+      </div>
+      <div>
         <Label htmlFor="employeeName">Employee Name</Label>
-        <Input
-          id="employeeName"
-          value={employeeName}
-          onChange={(event) => {
-            setEmployeeName(event.target.value);
-            setFieldErrors((prev) => ({ ...prev, employeeName: "" }));
-          }}
-        />
+        {isEdit ? (
+          <Input id="employeeName" value={employeeName} disabled />
+        ) : (
+          <Select
+            value={staffId}
+            onValueChange={handleEmployeeSelect}
+            disabled={!companyUniqueId || loadingEmployeeOptions}
+          >
+            <SelectTrigger id="employeeName" className="w-full">
+              <SelectValue
+                placeholder={
+                  !companyUniqueId
+                    ? "Select company first"
+                    : loadingEmployeeOptions
+                      ? "Loading employees…"
+                      : "Select employee"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {employeeOptions.map((option) => (
+                <SelectItem
+                  key={option.unique_id}
+                  value={option.unique_id}
+                  disabled={option.has_access_configuration}
+                >
+                  {option.employee_name}
+                  {option.has_access_configuration
+                    ? " (Permission Already Assigned)"
+                    : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <FieldError message={fieldErrors.employeeName} />
       </div>
       <div>
         <Label htmlFor="staffConfigName">Staff Config Name</Label>
-        <Input id="staffConfigName" value={staffConfigName} onChange={(event) => setStaffConfigName(event.target.value)} placeholder="e.g. Project Supervisor" />
+        <Input
+          id="staffConfigName"
+          value={staffConfigName}
+          onChange={(event) => setStaffConfigName(event.target.value)}
+          placeholder="e.g. Project Supervisor"
+        />
       </div>
       <div>
         <Label htmlFor="mobileNumber">Mobile Number</Label>
@@ -661,10 +1019,20 @@ export default function StaffAccessConfigForm() {
       </div>
       <div>
         <Label htmlFor="doj">Date Of Joining</Label>
-        <Input id="doj" type="date" value={doj} onChange={(event) => setDoj(event.target.value)} />
+        <Input
+          id="doj"
+          type="date"
+          value={doj}
+          onChange={(event) => setDoj(event.target.value)}
+        />
       </div>
       <label className="flex items-center gap-3 text-sm font-medium text-gray-700 dark:text-gray-200">
-        <input type="checkbox" className="h-4 w-4" checked={activeStatus} onChange={(event) => setActiveStatus(event.target.checked)} />
+        <input
+          type="checkbox"
+          className="h-4 w-4"
+          checked={activeStatus}
+          onChange={(event) => setActiveStatus(event.target.checked)}
+        />
         Active
       </label>
     </div>
@@ -696,7 +1064,9 @@ export default function StaffAccessConfigForm() {
           </SelectTrigger>
           <SelectContent>
             {userTypeOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -735,18 +1105,29 @@ export default function StaffAccessConfigForm() {
           setFieldErrors((prev) => ({ ...prev, staffUserTypeId: "" }));
         }}>
           <SelectTrigger id="staffUserTypeId" className="w-full">
-            <SelectValue placeholder={userTypeId ? "Select staff user type" : "Select user type first"} />
+            <SelectValue
+              placeholder={
+                userTypeId ? "Select staff user type" : "Select user type first"
+              }
+            />
           </SelectTrigger>
           <SelectContent>
             {filteredStaffUserTypeOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <FieldError message={fieldErrors.staffUserTypeId} />
       </div>
       <label className="flex items-center gap-3 text-sm font-medium text-gray-700 dark:text-gray-200">
-        <input type="checkbox" className="h-4 w-4" checked={loginEnabled} onChange={(event) => setLoginEnabled(event.target.checked)} />
+        <input
+          type="checkbox"
+          className="h-4 w-4"
+          checked={loginEnabled}
+          onChange={(event) => setLoginEnabled(event.target.checked)}
+        />
         Login Enabled
       </label>
     </div>
@@ -761,60 +1142,33 @@ export default function StaffAccessConfigForm() {
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <Label>Company</Label>
-            {isEdit && !companiesLoaded ? (
-              <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
-                Loading…
-              </div>
-            ) : (
-              <Select
-                value={companyUniqueId}
-                onValueChange={(value) => {
-                  onCompanyChange(value);
-                  setSelections({});
-                  setAvailablePermissions(null);
-                }}
-                disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId)}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select company" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((company) => (
-                    <SelectItem key={company.value} value={company.value}>{company.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-gray-700 dark:text-gray-200">
+              {labelFromOptions(companies, companyUniqueId) || "-"}
+            </div>
           </div>
           <div>
-            <Label>Project <span className="font-normal text-gray-400">(optional — leave blank for all projects under the company)</span></Label>
-            {isEdit && (!companiesLoaded || !projectsLoaded) ? (
-              <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
-                Loading…
-              </div>
-            ) : (
-              <MultiSelect
-                value={projectIds}
-                onChange={(next) => {
-                  setProjectIds(next);
-                  setSelections({});
-                  setAvailablePermissions(null);
-                }}
-                options={projects}
-                placeholder="Select project(s)"
-                disabled={!companyUniqueId || projects.length === 0}
-              />
-            )}
+            <Label>Project</Label>
+            <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm text-gray-700 dark:text-gray-200">
+              {projectIds.length > 0
+                ? labelsFromOptions(projects, projectIds).join(", ")
+                : "All (company-wide)"}
+            </div>
           </div>
           <div className="md:col-span-2">
             <Label>Description</Label>
-            <Input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional notes" />
+            <Input
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Optional notes"
+            />
           </div>
         </div>
         <div className="mt-4">
           <LocationScopeSelector
             value={dataScope}
-            onChange={(patch) => setDataScope((prev) => ({ ...prev, ...patch }))}
+            onChange={(patch) =>
+              setDataScope((prev) => ({ ...prev, ...patch }))
+            }
             companyUniqueId={companyUniqueId}
             projectIds={projectIds}
             disabled={!companyUniqueId}
@@ -827,8 +1181,80 @@ export default function StaffAccessConfigForm() {
     </div>
   );
 
+  const renderAppModules = () => (
+    <div className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+      <div>
+        <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+          Mobile App Access
+        </p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Tick the apps this person may sign into. Without one, their mobile
+          sign-in is refused. What they can do inside each app comes from the
+          screen permissions below — the same ticks that govern the web screens.
+        </p>
+      </div>
+
+      {appModuleOptions.length === 0 ? (
+        <p className="text-xs text-gray-400">No app modules configured.</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {appModuleOptions.map((module) => {
+            const checked = appModuleIds.includes(module.uniqueId);
+            return (
+              <label
+                key={module.uniqueId}
+                title={module.description ?? module.route}
+                className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition ${
+                  checked
+                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-200"
+                    : "border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={checked}
+                  onChange={(event) =>
+                    setAppModuleIds((current) =>
+                      event.target.checked
+                        ? [...current, module.uniqueId]
+                        : current.filter((id) => id !== module.uniqueId),
+                    )
+                  }
+                />
+                <span className="font-medium">{module.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+
+      <label className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900/60 dark:bg-amber-950/30">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4"
+          checked={enforceStrictPermissions}
+          onChange={(event) =>
+            setEnforceStrictPermissions(event.target.checked)
+          }
+        />
+        <span>
+          <span className="block font-medium text-amber-900 dark:text-amber-100">
+            Strict web permissions
+          </span>
+          <span className="mt-1 block text-xs text-amber-800 dark:text-amber-200">
+            When off, this user keeps the role template as a compatibility
+            floor. Turn on only after the checked screens have been verified in
+            the mobile app.
+          </span>
+        </span>
+      </label>
+    </div>
+  );
+
   const renderPermissions = () => (
     <div className="space-y-5">
+      {renderAppModules()}
       {!companyUniqueId ? (
         <div className="rounded-lg border border-dashed border-gray-300 p-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           Select a company on the Data Scope tab first.
@@ -838,44 +1264,76 @@ export default function StaffAccessConfigForm() {
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading permissions
         </div>
-      ) : !availablePermissions?.projects.some((project) => project.mainscreens.length > 0) ? (
+      ) : !availablePermissions?.projects.some(
+          (project) => project.mainscreens.length > 0,
+        ) ? (
         <div className="rounded-lg border border-dashed border-gray-300 p-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           No screens are enabled for the selected project(s).
         </div>
       ) : (
         <>
           <div className="border-l-2 border-blue-500 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
-            Only screens and actions enabled by Super Admin are shown, grouped by project.
+            Only screens and actions enabled by Super Admin are shown, grouped
+            by project.
           </div>
           {availablePermissions.projects
             .filter((project) => project.mainscreens.length > 0)
             .map((project) => (
               <div key={project.projectId} className="space-y-2">
-                <p className="text-xs font-semibold uppercase text-gray-500">{project.projectName}</p>
+                <p className="text-xs font-semibold uppercase text-gray-500">
+                  {project.projectName}
+                </p>
                 {project.mainscreens.map((module, moduleIndex) => {
-                  const screenIds = module.screens.map((screen) => toId(screen.userScreenId));
-                  const moduleChecked = screenIds.length > 0 && screenIds.every((screenId) => {
-                    const screen = module.screens.find((item) => toId(item.userScreenId) === screenId);
-                    return screen && selections[screenId]?.actionIds.length === screen.actions.length;
-                  });
+                  const screenIds = module.screens.map((screen) =>
+                    toId(screen.userScreenId),
+                  );
+                  const moduleChecked =
+                    screenIds.length > 0 &&
+                    screenIds.every((screenId) => {
+                      const screen = module.screens.find(
+                        (item) => toId(item.userScreenId) === screenId,
+                      );
+                      return (
+                        screen &&
+                        selections[screenId]?.actionIds.length ===
+                          screen.actions.length
+                      );
+                    });
                   return (
-                    <details key={`${project.projectId}-${module.mainScreenId}`} className="group overflow-hidden rounded-md border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950" open={moduleIndex === 0}>
+                    <details
+                      key={`${project.projectId}-${module.mainScreenId}`}
+                      className="group overflow-hidden rounded-md border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950"
+                      open={moduleIndex === 0}
+                    >
                       <summary className="flex cursor-pointer list-none items-center gap-3 bg-stone-50 px-3 py-2.5 dark:bg-gray-900">
                         <LayoutGrid className="h-3.5 w-3.5 text-gray-500" />
                         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800 dark:text-gray-100">
                           {module.mainScreenName}
                         </span>
-                        <Toggle checked={moduleChecked} onChange={(checked) => toggleModule(module.screens, checked)} />
+                        <Toggle
+                          checked={moduleChecked}
+                          onChange={(checked) =>
+                            toggleModule(module.screens, checked)
+                          }
+                        />
                         <ChevronDown className="h-4 w-4 text-gray-400 transition group-open:rotate-180" />
                       </summary>
                       <div className="divide-y divide-gray-100 dark:divide-gray-800">
                         {module.screens.map((screen) => {
                           const screenId = toId(screen.userScreenId);
-                          const selectedActionIds = selections[screenId]?.actionIds ?? [];
-                          const allActionIds = screen.actions.map((action) => toId(action.actionId));
-                          const allChecked = allActionIds.length > 0 && selectedActionIds.length === allActionIds.length;
+                          const selectedActionIds =
+                            selections[screenId]?.actionIds ?? [];
+                          const allActionIds = screen.actions.map((action) =>
+                            toId(action.actionId),
+                          );
+                          const allChecked =
+                            allActionIds.length > 0 &&
+                            selectedActionIds.length === allActionIds.length;
                           return (
-                            <div key={screenId} className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(190px,1fr)_minmax(360px,2fr)]">
+                            <div
+                              key={screenId}
+                              className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(190px,1fr)_minmax(360px,2fr)]"
+                            >
                               <span className="truncate text-sm font-medium text-gray-700 dark:text-gray-200">
                                 {screen.userScreenName}
                               </span>
@@ -885,19 +1343,36 @@ export default function StaffAccessConfigForm() {
                                     type="checkbox"
                                     className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900 dark:accent-gray-100"
                                     checked={allChecked}
-                                    onChange={(event) => toggleAllActionsForScreen(screenId, allActionIds, event.target.checked)}
+                                    onChange={(event) =>
+                                      toggleAllActionsForScreen(
+                                        screenId,
+                                        allActionIds,
+                                        event.target.checked,
+                                      )
+                                    }
                                   />
                                   All
                                 </label>
                                 {screen.actions.map((action) => {
                                   const actionId = toId(action.actionId);
                                   return (
-                                    <label key={actionId} className="flex items-center gap-1.5 text-xs capitalize text-gray-600 dark:text-gray-300">
+                                    <label
+                                      key={actionId}
+                                      className="flex items-center gap-1.5 text-xs capitalize text-gray-600 dark:text-gray-300"
+                                    >
                                       <input
                                         type="checkbox"
                                         className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900 dark:accent-gray-100"
-                                        checked={selectedActionIds.includes(actionId)}
-                                        onChange={(event) => toggleAction(screenId, actionId, event.target.checked)}
+                                        checked={selectedActionIds.includes(
+                                          actionId,
+                                        )}
+                                        onChange={(event) =>
+                                          toggleAction(
+                                            screenId,
+                                            actionId,
+                                            event.target.checked,
+                                          )
+                                        }
                                       />
                                       {action.actionName}
                                     </label>
@@ -920,7 +1395,9 @@ export default function StaffAccessConfigForm() {
 
   const renderReview = () => (
     <div className="space-y-6">
-      {reviewCard("Basic info", <UserRound className="h-4 w-4 text-gray-500" />, (
+      {reviewCard(
+        "Basic info",
+        <UserRound className="h-4 w-4 text-gray-500" />,
         <>
           {reviewRow("Name", employeeName)}
           {reviewRow("Staff config", staffConfigName)}
@@ -928,42 +1405,69 @@ export default function StaffAccessConfigForm() {
           {reviewRow("Email", officeEmail)}
           {reviewRow("Date of joining", doj)}
           {reviewRow("Status", activeStatus ? "Active" : "Inactive")}
-        </>
-      ))}
-      {reviewCard("Role & login", <ShieldCheck className="h-4 w-4 text-gray-500" />, (
+        </>,
+      )}
+      {reviewCard(
+        "Role & login",
+        <ShieldCheck className="h-4 w-4 text-gray-500" />,
         <>
           {reviewRow("Username", username)}
-          {reviewRow("User type", labelFromOptions(userTypeOptions, userTypeId))}
-          {reviewRow("Staff user type", labelFromOptions(staffUserTypeOptions, staffUserTypeId))}
+          {reviewRow(
+            "User type",
+            labelFromOptions(userTypeOptions, userTypeId),
+          )}
+          {reviewRow(
+            "Staff user type",
+            labelFromOptions(staffUserTypeOptions, staffUserTypeId),
+          )}
           {reviewRow("Account", loginEnabled ? "Enabled" : "Disabled")}
-        </>
-      ))}
-      {reviewCard("Permissions granted", <KeyRound className="h-4 w-4 text-gray-500" />, (
+        </>,
+      )}
+      {reviewCard(
+        "Permissions granted",
+        <KeyRound className="h-4 w-4 text-gray-500" />,
         totalSelectedActions ? (
           <div className="flex flex-wrap gap-2">
-            {Object.values(selections).slice(0, 18).map((screen) => {
-              const info = screenInfoById.get(screen.userScreenId);
-              const actionNames = screen.actionIds
-                .map((actionId) => info?.actionNameById.get(actionId) ?? actionId)
-                .join(", ");
-              return (
-                <span key={screen.userScreenId} className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-200">
-                  {info?.name ?? screen.userScreenId} ({actionNames})
-                </span>
-              );
-            })}
+            {Object.values(selections)
+              .slice(0, 18)
+              .map((screen) => {
+                const info = screenInfoById.get(screen.userScreenId);
+                const actionNames = screen.actionIds
+                  .map(
+                    (actionId) =>
+                      info?.actionNameById.get(actionId) ?? actionId,
+                  )
+                  .join(", ");
+                return (
+                  <span
+                    key={screen.userScreenId}
+                    className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-200"
+                  >
+                    {info?.name ?? screen.userScreenId} ({actionNames})
+                  </span>
+                );
+              })}
           </div>
-        ) : <p className="text-gray-500">No screens enabled</p>
-      ))}
-      {reviewCard("Data scope", <MapPinned className="h-4 w-4 text-gray-500" />, (
+        ) : (
+          <p className="text-gray-500">No screens enabled</p>
+        ),
+      )}
+      {reviewCard(
+        "Data scope",
+        <MapPinned className="h-4 w-4 text-gray-500" />,
         <>
           {reviewRow("Company", labelFromOptions(companies, companyUniqueId))}
-          {reviewRow("Project", labelsFromOptions(projects, projectIds).join(", "))}
+          {reviewRow(
+            "Project",
+            labelsFromOptions(projects, projectIds).join(", "),
+          )}
           {reviewRow("Scope", scopeSummary)}
           {reviewRow("Description", description)}
-        </>
-      ))}
-      {reviewCard("Summary", <CheckCircle2 className="h-4 w-4 text-gray-500" />, (
+        </>,
+      )}
+      {reviewCard(
+        "Summary",
+        <CheckCircle2 className="h-4 w-4 text-gray-500" />,
         <div className="flex flex-wrap gap-2">
           <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
             {totalSelectedScreens} screens
@@ -971,16 +1475,33 @@ export default function StaffAccessConfigForm() {
           <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
             {totalSelectedActions} actions
           </span>
-        </div>
-      ))}
+        </div>,
+      )}
       <div className="flex flex-wrap justify-end gap-3">
-        <button type="button" onClick={() => setActiveTab(PERMISSIONS_TAB)} className={SECONDARY_BUTTON_CLASS}>
+        <button
+          type="button"
+          onClick={() => setActiveTab(PERMISSIONS_TAB)}
+          className={SECONDARY_BUTTON_CLASS}
+        >
           Back
         </button>
-        <button type="button" onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId: projectIds[0] } })} className={CANCEL_BUTTON_CLASS}>
+        <button
+          type="button"
+          onClick={() =>
+            navigate(ENC_LIST_PATH, {
+              state: { companyUniqueId, projectId: projectIds[0] },
+            })
+          }
+          className={CANCEL_BUTTON_CLASS}
+        >
           Cancel
         </button>
-        <button type="button" onClick={handleSave} disabled={saving} className={PRIMARY_BUTTON_CLASS}>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className={PRIMARY_BUTTON_CLASS}
+        >
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
           Confirm &amp; Save
         </button>
@@ -991,7 +1512,9 @@ export default function StaffAccessConfigForm() {
   if (fetching) {
     return (
       <ComponentCard title="Staff Access Configuration">
-        <div className="flex justify-center items-center py-12 text-gray-500">Loading</div>
+        <div className="flex justify-center items-center py-12 text-gray-500">
+          Loading
+        </div>
       </ComponentCard>
     );
   }
@@ -1028,13 +1551,18 @@ export default function StaffAccessConfigForm() {
                 {isCompleted ? "✓" : index + 1}
               </span>
               {tab}
-              {isLocked && <span className="text-[10px] opacity-60">locked</span>}
+              {isLocked && (
+                <span className="text-[10px] opacity-60">locked</span>
+              )}
             </button>
           );
         })}
       </div>
 
-      <form className="space-y-6 pt-6" onSubmit={(event) => event.preventDefault()}>
+      <form
+        className="space-y-6 pt-6"
+        onSubmit={(event) => event.preventDefault()}
+      >
         {activeTab === 0 && renderBasicInfo()}
         {activeTab === 1 && renderLogin()}
         {activeTab === DATA_SCOPE_TAB && renderDataScope()}
@@ -1049,15 +1577,33 @@ export default function StaffAccessConfigForm() {
               </p>
             )}
             <div className="flex justify-end gap-3">
-              <button type="button" onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId: projectIds[0] } })} className={CANCEL_BUTTON_CLASS}>
+              <button
+                type="button"
+                onClick={() =>
+                  navigate(ENC_LIST_PATH, {
+                    state: { companyUniqueId, projectId: projectIds[0] },
+                  })
+                }
+                className={CANCEL_BUTTON_CLASS}
+              >
                 Cancel
               </button>
               {activeTab > 0 && (
-                <button type="button" onClick={() => setActiveTab((current) => Math.max(current - 1, 0))} className={SECONDARY_BUTTON_CLASS}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveTab((current) => Math.max(current - 1, 0))
+                  }
+                  className={SECONDARY_BUTTON_CLASS}
+                >
                   Back
                 </button>
               )}
-              <button type="button" onClick={nextTab} className={PRIMARY_BUTTON_CLASS}>
+              <button
+                type="button"
+                onClick={nextTab}
+                className={PRIMARY_BUTTON_CLASS}
+              >
                 Next
               </button>
             </div>
