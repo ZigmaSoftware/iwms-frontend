@@ -178,6 +178,8 @@ export default function StaffAccessConfigForm() {
   const [staffUserTypeId, setStaffUserTypeId] = useState("");
   const [userTypeOptions, setUserTypeOptions] = useState<Option[]>([]);
   const [staffUserTypeOptions, setStaffUserTypeOptions] = useState<Option[]>([]);
+  const [userTypeOptionsLoaded, setUserTypeOptionsLoaded] = useState(false);
+  const [staffUserTypeOptionsLoaded, setStaffUserTypeOptionsLoaded] = useState(false);
   const [dataScope, setDataScope] = useState<DataScopeForm>({});
   const [geoOptions, setGeoOptions] = useState<LocationScopeOptions>({
     states: [], districts: [], cities: [], zones: [], panchayats: [], wards: [],
@@ -227,6 +229,9 @@ export default function StaffAccessConfigForm() {
       })
       .catch(() => {
         if (!cancelled) setUserTypeOptions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setUserTypeOptionsLoaded(true);
       });
 
     staffUserTypeApi.readAll()
@@ -244,6 +249,9 @@ export default function StaffAccessConfigForm() {
       })
       .catch(() => {
         if (!cancelled) setStaffUserTypeOptions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setStaffUserTypeOptionsLoaded(true);
       });
 
     return () => {
@@ -459,7 +467,13 @@ export default function StaffAccessConfigForm() {
     if (employee.office_email) setOfficeEmail(employee.office_email);
     if (employee.doj) setDoj(employee.doj);
     if (employee.username) setUsername(employee.username);
+    if (employee.user_type_id) setUserTypeId(employee.user_type_id);
     if (employee.staffusertype_id) setStaffUserTypeId(employee.staffusertype_id);
+    if (employee.staffusertype_name) setStaffConfigName(employee.staffusertype_name);
+    if (employee.password) {
+      setPassword(employee.password);
+      setConfirmPassword(employee.password);
+    }
     if (typeof employee.active_status === "boolean") setActiveStatus(employee.active_status);
   }, [employeeOptions]);
 
@@ -825,7 +839,7 @@ export default function StaffAccessConfigForm() {
       </div>
       <div>
         <Label htmlFor="userTypeId">User Type</Label>
-        <Select value={userTypeId} onValueChange={(value) => {
+        <Select key={userTypeOptionsLoaded ? "loaded" : "loading"} value={userTypeId} onValueChange={(value) => {
           setUserTypeId(value);
           setStaffUserTypeId("");
           setFieldErrors((prev) => ({ ...prev, userTypeId: "" }));
@@ -869,7 +883,7 @@ export default function StaffAccessConfigForm() {
       </div>
       <div>
         <Label htmlFor="staffUserTypeId">Staff User Type</Label>
-        <Select value={staffUserTypeId} onValueChange={(value) => {
+        <Select key={staffUserTypeOptionsLoaded ? "loaded" : "loading"} value={staffUserTypeId} onValueChange={(value) => {
           setStaffUserTypeId(value);
           setFieldErrors((prev) => ({ ...prev, staffUserTypeId: "" }));
         }}>
