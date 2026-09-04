@@ -2,7 +2,6 @@
    Admin endpoint registry (Grouped)
 -------------------------------------------------------- */
 export const adminEndpoints = {
-
   /* =========================
      SUPERADMIN
   ========================= */
@@ -14,6 +13,7 @@ export const adminEndpoints = {
   ========================= */
   loginUser: "login/login-user",
   userpermission: "login/my-permissions",
+  captcha: "login/captcha",
 
   /* =========================
      COMMON MASTERS
@@ -67,12 +67,14 @@ export const adminEndpoints = {
   dailyTripLog: "schedule-operations/daily-trip-logs",
   dailyTripCollectionPoint: "schedule-operations/daily-trip-collection-points",
   routeDetourWaypoints: "schedule-operations/route-detour-waypoints",
-  dailyTripHouseholdCollection: "schedule-operations/daily-trip-household-collections",
+  dailyTripHouseholdCollection:
+    "schedule-operations/daily-trip-household-collections",
   binCollectionEvent: "schedule-operations/bin-collection-events",
   vehicleBreakdown: "schedule-operations/vehicle-breakdowns",
   retripRequests: "schedule-operations/retrip-requests",
   tripDelayReports: "schedule-operations/trip-delay-reports",
-  schedulerConfig: "schedule-operations/daily-trip-assignments/scheduler-config/",
+  schedulerConfig:
+    "schedule-operations/daily-trip-assignments/scheduler-config/",
   wasteCollections: "schedule-operations/wastecollections",
 
   /* =========================
@@ -89,7 +91,8 @@ export const adminEndpoints = {
   mainScreens: "screen-managements/mainscreens",
   userScreens: "screen-managements/userscreens",
   userScreenActions: "screen-managements/userscreen-action",
-  companyWiseScreenPermissions: "screen-managements/companywisescreenpermissions",
+  companyWiseScreenPermissions:
+    "screen-managements/companywisescreenpermissions",
   columnPermissions: "screen-managements/column-permissions",
 
   /* =========================
@@ -106,11 +109,15 @@ export const adminEndpoints = {
   ========================= */
   staffCreation: "staff-creations/staffcreation",
   staffAccessConfiguration: "staff-creations/staff-access-configuration",
+  /** Mobile app module master — which apps exist and can be granted. */
+  appModules: "screen-managements/app-modules",
 
   /* =========================
      CUSTOMERS
   ========================= */
   customerCreations: "customer-masters/customercreations",
+  /** Per-customer app access: which app they may sign into, which screens they see. */
+  customerAccessConfiguration: "customer-masters/customer-access-configuration",
   feedbacks: "customer-masters/feedbacks",
 
   /* =========================
@@ -122,6 +129,22 @@ export const adminEndpoints = {
   /* =========================
      COMPLAINT TICKETING
   ========================= */
+  // ── SUPER ADMIN: global complaint configuration (complaint-masters) ──
+  // Writable only for holders of the superadmin-only "complaint-masters"
+  // module. The `complaint-ticket/*` twins further down are the same tables
+  // exposed read-only so the Desk can fill its dropdowns.
+  complaintMasterTypes: "complaint-masters/types",
+  complaintMasterCategories: "complaint-masters/categories",
+  complaintMasterSubcategories: "complaint-masters/subcategories",
+  complaintMasterSlaRules: "complaint-masters/sla-rules",
+  complaintMasterRoutingRules: "complaint-masters/routing-rules",
+  complaintMasterModules: "complaint-masters/modules",
+  complaintMasterPriorities: "complaint-masters/priorities",
+  complaintMasterStatuses: "complaint-masters/statuses",
+  complaintMasterSources: "complaint-masters/sources",
+  complaintMasterLanguages: "complaint-masters/languages",
+
+  // ── CORE MODULES: company/project-scoped entries ──
   complaintTickets: "complaint-ticket/tickets",
   complaintModules: "complaint-ticket/modules",
   complaintCategories: "complaint-ticket/categories",
@@ -158,15 +181,13 @@ export const adminEndpoints = {
   /* =========================
      AUDITS
   ========================= */
-   loginAudits: "audits/login-audit",
-   commonAudits: "audits/common-audit",
+  loginAudits: "audits/login-audit",
+  commonAudits: "audits/common-audit",
 } as const;
 
 export type AdminEntity = keyof typeof adminEndpoints;
 
-export const getAdminEndpointPath = (
-  entity: AdminEntity
-): string => {
+export const getAdminEndpointPath = (entity: AdminEntity): string => {
   const path = adminEndpoints[entity];
   return path.startsWith("/") ? path : `/${path}`;
 };

@@ -7,7 +7,8 @@ import type {
   DataTableSortEvent,
   SortOrder,
 } from "primereact/datatable";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { complaintFeedbackApi } from "@/features/complaintTicketing/api";
 import type { ComplaintFeedback } from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime, yesNo } from "../utils";
@@ -24,6 +25,29 @@ export default function FeedbackList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+
+  // Feedback has no company column of its own — it hangs off a ticket, which
+  // does — so `ComplaintFeedbackViewSet` filters through `ticket__company_id`.
+  // The pickers are the same ones every company-scoped list uses.
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    showAllProjectsOption,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false, defaultToAll: true });
+
+  const selectedProjectId =
+    projectId && projects.some((project) => project.value === projectId)
+      ? projectId
+      : "";
+  const scopeParams = {
+    ...(companyUniqueId ? { company_id: companyUniqueId } : {}),
+    ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
+  };
 
   const ordering =
     sortField && SORTABLE_FIELDS.has(sortField)
@@ -43,6 +67,7 @@ export default function FeedbackList() {
         limit,
         {
           params: {
+            ...scopeParams,
             ...(search ? { search } : {}),
             ...(orderingParam ? { ordering: orderingParam } : {}),
           },
@@ -64,7 +89,7 @@ export default function FeedbackList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, companyUniqueId, selectedProjectId]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -75,10 +100,6 @@ export default function FeedbackList() {
     setFirst(0);
     setSortField(event.sortField);
     setSortOrder(event.sortOrder);
-  };
-
-  const onGlobalFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(event.target.value);
   };
 
   useEffect(() => {
@@ -94,7 +115,7 @@ export default function FeedbackList() {
   const loadAllExportRows = async () =>
     asArray<ComplaintFeedback>(
       await complaintFeedbackApi.readAllForExport({
-        params: { ...(searchTerm ? { search: searchTerm } : {}) },
+        params: { ...scopeParams, ...(searchTerm ? { search: searchTerm } : {}) },
       }),
     ) as unknown as Record<string, unknown>[];
 
@@ -122,11 +143,31 @@ export default function FeedbackList() {
         sortOrder={sortOrder}
         onSort={onSort}
         loading={isLoading}
-        header={renderListSearchHeader({
-          value: globalFilterValue,
-          onChange: onGlobalFilterChange,
-          placeholder: "Search Feedback...",
-        })}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={(value) => setGlobalFilterValue(value)}
+            searchPlaceholder="Search Feedback..."
+          >
+            <FilterBarSelect
+              value={companyUniqueId || ""}
+              onChange={(value) => onCompanyChange(value)}
+              options={companies}
+              placeholder="All Companies"
+              disabled={!isSuperAdmin || companies.length === 0}
+            />
+            <FilterBarSelect
+              value={selectedProjectId}
+              onChange={(value) => setProjectId(value)}
+              options={projects.map((project) => ({
+                value: String(project.value),
+                label: project.label || project.value,
+              }))}
+              placeholder={showAllProjectsOption ? "All Projects" : undefined}
+              disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+            />
+          </FilterBar>
+        }
         stripedRows
         showGridlines
         emptyMessage="No feedback found"

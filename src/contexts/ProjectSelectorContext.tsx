@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { getStoredProjects, getStoredProfile } from "@/utils/authStorage";
+import { getStoredProjects, getStoredProfile, isAccessTokenValid } from "@/utils/authStorage";
 import type { ProjectConfig } from "@/utils/authStorage";
 import { projectApi, companyApi } from "@/helpers/admin";
 
@@ -164,6 +164,11 @@ export function ProjectSelectorProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (getStoredProjects().length > 0) return;
+    // Guard against firing before the access token is committed to storage
+    // (e.g. landing here right after a redirect) — an unguarded call here
+    // races the axios interceptor and goes out with no Authorization header,
+    // 401ing the very first company/project fetch of the session.
+    if (!isAccessTokenValid()) return;
     fetchCompaniesAndProjects(companyId);
   }, []);
 

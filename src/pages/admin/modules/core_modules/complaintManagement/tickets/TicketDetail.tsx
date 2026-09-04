@@ -11,6 +11,9 @@ import {
 import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Label } from "@/components/ui/label";
+import { FormSelect } from "@/components/common/FormSelect";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -223,7 +226,7 @@ export default function TicketDetail() {
           <h1 className="text-2xl font-semibold text-gray-800">{ticket.ticket_no || ticket.unique_id}</h1>
           <p className="text-sm text-gray-500">Complaint ticket action center</p>
         </div>
-        <button className="rounded border px-4 py-2" onClick={() => navigate(listPath)}>Back</button>
+        <Button variant="outline" onClick={() => navigate(listPath)}>Back</Button>
       </div>
 
       <ComponentCard title="Ticket Details">
@@ -299,18 +302,20 @@ export default function TicketDetail() {
           {activeAction === 0 && (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <Label>Status</Label>
-                <select className="mt-1 h-11 w-full rounded-md border px-3 text-sm" value={statusCode} onChange={(e) => setStatusCode(e.target.value)}>
-                  <option value="">Select status code</option>
-                  {statuses.map((item) => <option key={item.unique_id} value={item.status_code}>{item.status_name}</option>)}
-                </select>
+                <FormSelect
+                  label="Status"
+                  value={statusCode}
+                  onChange={setStatusCode}
+                  options={statuses.map((item) => ({ value: String(item.status_code), label: item.status_name }))}
+                  placeholder="Select status code"
+                />
               </div>
               <div>
                 <Label>Remarks</Label>
                 <Input className="mt-1" value={statusRemarks} onChange={(e) => setStatusRemarks(e.target.value)} placeholder="Remarks" />
               </div>
               <div className="md:col-span-2">
-                <button disabled={busy || !statusCode} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60" onClick={() => run("Status updated.", () => ticketActions.changeStatus(id, { status_code: statusCode, remarks: statusRemarks }))}>Update Status</button>
+                <Button disabled={busy || !statusCode} onClick={() => run("Status updated.", () => ticketActions.changeStatus(id, { status_code: statusCode, remarks: statusRemarks }))}>Update Status</Button>
               </div>
             </div>
           )}
@@ -318,11 +323,13 @@ export default function TicketDetail() {
           {activeAction === 1 && (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <Label>Team</Label>
-                <select className="mt-1 h-11 w-full rounded-md border px-3 text-sm" value={team} onChange={(e) => setTeam(e.target.value)}>
-                  <option value="">Select team</option>
-                  {teams.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.team_name}</option>)}
-                </select>
+                <FormSelect
+                  label="Team"
+                  value={team}
+                  onChange={setTeam}
+                  options={teams.map((item) => ({ value: String(item.unique_id), label: item.team_name }))}
+                  placeholder="Select team"
+                />
               </div>
               <div>
                 <Label>Reason</Label>
@@ -330,35 +337,41 @@ export default function TicketDetail() {
               </div>
 
               <div>
-                <Label>Zone</Label>
-                <select className="mt-1 h-11 w-full rounded-md border px-3 text-sm" value={zone} onChange={(e) => onZoneChange(e.target.value)}>
-                  <option value="">Ticket zone</option>
-                  {zones.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.name}</option>)}
-                </select>
+                <FormSelect
+                  label="Zone"
+                  value={zone}
+                  onChange={onZoneChange}
+                  options={zones.map((item) => ({ value: String(item.unique_id), label: item.name }))}
+                  placeholder="Ticket zone"
+                />
               </div>
               <div>
-                <Label>Ward</Label>
-                <select className="mt-1 h-11 w-full rounded-md border px-3 text-sm" value={ward} onChange={(e) => onWardChange(e.target.value)} disabled={!zone}>
-                  <option value="">All wards in zone</option>
-                  {wards.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.name}</option>)}
-                </select>
+                <FormSelect
+                  label="Ward"
+                  value={ward}
+                  onChange={onWardChange}
+                  options={wards.map((item) => ({ value: String(item.unique_id), label: item.name }))}
+                  placeholder="All wards in zone"
+                  disabled={!zone}
+                />
               </div>
               <p className="text-xs text-gray-500 md:col-span-2">Staff shown: {staffLoading ? "loading..." : staffScopeLabel || "-"}</p>
 
               <div className="md:col-span-2">
-                <Label>Staff</Label>
-                <select className="mt-1 h-11 w-full rounded-md border px-3 text-sm" value={staff} onChange={(e) => setStaff(e.target.value)}>
-                  <option value="">Select staff (optional - defaults to team lead)</option>
-                  {assignableStaff.map((item) => (
-                    <option key={item.staff_unique_id} value={item.staff_unique_id}>
-                      {item.employee_name} - {item.department_name || item.role || "No department"} ({item.ward || item.zone || "No location"})
-                    </option>
-                  ))}
-                </select>
+                <FormSelect
+                  label="Staff"
+                  value={staff}
+                  onChange={setStaff}
+                  options={assignableStaff.map((item) => ({
+                    value: String(item.staff_unique_id),
+                    label: `${item.employee_name} - ${item.department_name || item.role || "No department"} (${item.ward || item.zone || "No location"})`,
+                  }))}
+                  placeholder="Select staff (optional - defaults to team lead)"
+                />
               </div>
               <div className="flex gap-2 md:col-span-2">
-                <button disabled={busy || !team} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60" onClick={() => run("Ticket assigned.", () => ticketActions.assign(id, { team, staff: staff || undefined, reason: assignReason }))}>Assign</button>
-                <button disabled={busy} className="rounded bg-orange-500 px-4 py-2 text-white disabled:opacity-60" onClick={() => run("Ticket escalated.", () => ticketActions.escalate(id, { team: team || undefined, reason: assignReason }))}>Escalate</button>
+                <Button disabled={busy || !team} onClick={() => run("Ticket assigned.", () => ticketActions.assign(id, { team, staff: staff || undefined, reason: assignReason }))}>Assign</Button>
+                <Button variant="secondary" disabled={busy} onClick={() => run("Ticket escalated.", () => ticketActions.escalate(id, { team: team || undefined, reason: assignReason }))}>Escalate</Button>
               </div>
             </div>
           )}
@@ -367,11 +380,11 @@ export default function TicketDetail() {
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <Label>Resolution / Reopen</Label>
-                <textarea className="mt-1 w-full rounded-md border px-3 py-2 text-sm" rows={3} value={resolutionNote} onChange={(e) => setResolutionNote(e.target.value)} placeholder="Resolution note or reopen reason" />
+                <Textarea className="mt-1" rows={3} value={resolutionNote} onChange={(e) => setResolutionNote(e.target.value)} placeholder="Resolution note or reopen reason" />
               </div>
               <div className="flex gap-2">
-                <button disabled={busy} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60" onClick={() => run("Ticket resolved.", () => ticketActions.resolve(id, { resolution_note: resolutionNote }))}>Resolve</button>
-                <button disabled={busy} className="rounded bg-slate-700 px-4 py-2 text-white disabled:opacity-60" onClick={() => run("Ticket reopened.", () => ticketActions.reopen(id, { reopen_reason: resolutionNote }))}>Reopen</button>
+                <Button disabled={busy} onClick={() => run("Ticket resolved.", () => ticketActions.resolve(id, { resolution_note: resolutionNote }))}>Resolve</Button>
+                <Button variant="outline" disabled={busy} onClick={() => run("Ticket reopened.", () => ticketActions.reopen(id, { reopen_reason: resolutionNote }))}>Reopen</Button>
               </div>
             </div>
           )}
@@ -380,10 +393,10 @@ export default function TicketDetail() {
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <Label>Comment</Label>
-                <textarea className="mt-1 w-full rounded-md border px-3 py-2 text-sm" rows={3} value={comment} onChange={(e) => setComment(e.target.value)} />
+                <Textarea className="mt-1" rows={3} value={comment} onChange={(e) => setComment(e.target.value)} />
               </div>
               <div>
-                <button disabled={busy || !comment.trim()} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60" onClick={() => run("Comment added.", () => ticketActions.comment(id, { comment_text: comment, is_internal: false }))}>Add Comment</button>
+                <Button disabled={busy || !comment.trim()} onClick={() => run("Comment added.", () => ticketActions.comment(id, { comment_text: comment, is_internal: false }))}>Add Comment</Button>
               </div>
             </div>
           )}
@@ -392,11 +405,10 @@ export default function TicketDetail() {
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <Label>Attachment</Label>
-                <input className="mt-1 block w-full text-sm" type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                <Input className="mt-1" type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
               </div>
-              <button
+              <Button
                 disabled={busy || !file}
-                className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60"
                 onClick={() => run("Attachment uploaded.", () => {
                   const data = new FormData();
                   if (file) {
@@ -408,7 +420,7 @@ export default function TicketDetail() {
                 })}
               >
                 Upload
-              </button>
+              </Button>
             </div>
           )}
 
@@ -435,8 +447,8 @@ export default function TicketDetail() {
                   <span className="ml-2 text-sm text-gray-500">{rating}/5</span>
                 </div>
               </div>
-              <textarea className="w-full rounded-md border px-3 py-2 text-sm" rows={2} value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} placeholder="Feedback text" />
-              <button disabled={busy} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60" onClick={() => run("Feedback submitted.", () => ticketActions.feedback(id, { rating: Number(rating), feedback_text: feedbackText, is_issue_solved: true }))}>Submit Feedback</button>
+              <Textarea rows={2} value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} placeholder="Feedback text" />
+              <Button disabled={busy} onClick={() => run("Feedback submitted.", () => ticketActions.feedback(id, { rating: Number(rating), feedback_text: feedbackText, is_issue_solved: true }))}>Submit Feedback</Button>
             </div>
           )}
         </div>

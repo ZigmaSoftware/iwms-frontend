@@ -35,7 +35,6 @@ export const panchayatLeaderApi = adminApi.panchayatLeaders;
 export const districtLeaderApi = adminApi.districtLeaders;
 export const blockPanchayatUnionApi = adminApi.blockPanchayatUnions;
 
-
 /* =========================
    WASTE TYPES
 ========================= */
@@ -73,6 +72,8 @@ export const staffCreationApi = adminApi.staffCreation;
 export const staffTemplateApi = adminApi.staffTemplateCreation;
 export const alternativeStaffTemplateApi = adminApi.alternativeStaffTemplate;
 export const staffAccessConfigurationApi = adminApi.staffAccessConfiguration;
+/** Mobile app module master — rename/reorder/deactivate only. */
+export const appModuleApi = adminApi.appModules;
 
 /* =========================
    AUTHENTICATION
@@ -83,6 +84,9 @@ export const loginApi = adminApi.loginUser;
    CUSTOMERS
 ========================= */
 export const customerCreationApi = adminApi.customerCreations;
+/** Per-customer app access: which app they open, which screens they see. */
+export const customerAccessConfigurationApi =
+  adminApi.customerAccessConfiguration;
 // NOTE: householdPickupEvents removed — not defined in adminEndpoints
 export const wasteCollectionApi = adminApi.wasteCollections;
 export const panchayatWiseCollectionApi = adminApi.panchayatWiseCollections;
@@ -127,7 +131,8 @@ export const dailyTripAssignmentApi = adminApi.dailyTripAssignment;
 export const dailyTripLogApi = adminApi.dailyTripLog;
 export const dailyTripCollectionPointApi = adminApi.dailyTripCollectionPoint;
 export const routeDetourWaypointApi = adminApi.routeDetourWaypoints;
-export const dailyTripHouseholdCollectionApi = adminApi.dailyTripHouseholdCollection;
+export const dailyTripHouseholdCollectionApi =
+  adminApi.dailyTripHouseholdCollection;
 export const binCollectionEventApi = adminApi.binCollectionEvent;
 export const dailyWasteComparisonApi = adminApi.dailyWasteComparison;
 export const vehicleBreakdownApi = adminApi.vehicleBreakdown;

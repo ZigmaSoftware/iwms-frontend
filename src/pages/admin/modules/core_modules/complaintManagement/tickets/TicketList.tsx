@@ -9,7 +9,7 @@ import type {
   DataTableSortEvent,
   SortOrder,
 } from "primereact/datatable";
-import { Eye, LayoutGrid, List as ListIcon } from "lucide-react";
+import { Eye } from "lucide-react";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import {
@@ -25,24 +25,12 @@ import type {
 } from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime } from "../utils";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 const PUBLIC_SOURCE_CODE = "PUBLIC_GRIEVANCE";
 
-// Mirrors the sort order seeded for ComplaintStatus so the board reads as a flow.
-const STATUS_COLUMN_ORDER = [
-  "SUBMITTED",
-  "ASSIGNED",
-  "IN_PROGRESS",
-  "ESCALATED",
-  "RESOLVED",
-  "REOPENED",
-  "CLOSED",
-  "REJECTED",
-  "CANCELLED",
-];
-
-type SourceFilter = "all" | "public" | "internal" | "feedback";
-type ViewMode = "table" | "kanban";
+type SourceFilter = "all" | "public" | "internal";
 
 const isPublic = (row: ComplaintTicket) =>
   row.source_code === PUBLIC_SOURCE_CODE;
@@ -82,11 +70,6 @@ export default function TicketList() {
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
-  // Kanban view: a separate, un-paginated fetch of everything matching the
-  // current filters - the board groups the whole matching dataset by status.
-  const [kanbanRows, setKanbanRows] = useState<ComplaintTicket[]>([]);
-  const [kanbanLoading, setKanbanLoading] = useState(false);
-
   // Tab counts (All / Public Grievances / Internal) - sourced from the
   // backend so all three are correct regardless of page/sort/source tab.
   const [counts, setCounts] = useState<{
@@ -99,7 +82,6 @@ export default function TicketList() {
     internal: 0,
   });
 
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   // Feedback used to be its own top-level screen; it's read-only and
   // ticket-scoped (also viewable per-ticket via the Detail screen's Feedback
@@ -139,7 +121,30 @@ export default function TicketList() {
       .catch(() => setDistricts([]));
   }, []);
 
+  // Tickets are company/project-scoped (`CompanyScopedViewSet`), so the list
+  // gets the same Company/Project pickers every scoped list uses — see
+  // `staffTemplateList.tsx`. Public grievances are exempt: they arrive with no
+  // logged-in tenant and are stamped server-side by
+  // `_resolve_company_project`, so nothing here filters them out.
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    showAllProjectsOption,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({ isEdit: false, defaultToAll: true });
+
+  const selectedProjectId =
+    projectId && projects.some((project) => project.value === projectId)
+      ? projectId
+      : "";
+
   const buildTicketParams = () => ({
+    ...(companyUniqueId ? { company_id: companyUniqueId } : {}),
+    ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
     ...(sourceFilter !== "all" ? { source: sourceFilter } : {}),
     ...(stateFilter ? { state: stateFilter } : {}),
     ...(districtFilter ? { district: districtFilter } : {}),
@@ -192,6 +197,8 @@ export default function TicketList() {
   }, [
     searchTerm,
     ordering,
+    companyUniqueId,
+    selectedProjectId,
     sourceFilter,
     stateFilter,
     districtFilter,
@@ -213,6 +220,8 @@ export default function TicketList() {
     rowsPerPage,
     searchTerm,
     ordering,
+    companyUniqueId,
+    selectedProjectId,
     sourceFilter,
     stateFilter,
     districtFilter,
@@ -270,33 +279,6 @@ export default function TicketList() {
     void loadCounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stateFilter, districtFilter, panchayatFilter, zoneFilter, wardFilter]);
-
-  const loadKanbanRows = async () => {
-    setKanbanLoading(true);
-    try {
-      const response = await complaintTicketApi.readAllForExport({
-        params: buildTicketParams(),
-      });
-      setKanbanRows(toRecordList(response));
-    } catch (err) {
-      Swal.fire("Error", errorText(err, "Unable to load tickets"), "error");
-    } finally {
-      setKanbanLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (viewMode === "kanban") void loadKanbanRows();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    viewMode,
-    sourceFilter,
-    stateFilter,
-    districtFilter,
-    panchayatFilter,
-    zoneFilter,
-    wardFilter,
-  ]);
 
   const filteredDistricts = useMemo(
     () =>
@@ -375,8 +357,6 @@ export default function TicketList() {
       .catch(() => []);
     setWards(wardRows);
   };
-
-  const feedbackCount = feedbackByTicket.size;
 
   const feedbackTemplate = (row: ComplaintTicket) => {
     const feedback = feedbackByTicket.get(String(row.unique_id));
@@ -462,28 +442,6 @@ export default function TicketList() {
     );
   };
 
-  const kanbanColumns = useMemo(() => {
-    const byCode = new Map<
-      string,
-      { code: string; name: string; tickets: ComplaintTicket[] }
-    >();
-    kanbanRows.forEach((row) => {
-      const code = row.status_code || "UNKNOWN";
-      if (!byCode.has(code)) {
-        byCode.set(code, { code, name: row.status_name || code, tickets: [] });
-      }
-      byCode.get(code)!.tickets.push(row);
-    });
-    const ordered = STATUS_COLUMN_ORDER.filter((code) => byCode.has(code)).map(
-      (code) => byCode.get(code)!,
-    );
-    const extras = [...byCode.keys()]
-      .filter((code) => !STATUS_COLUMN_ORDER.includes(code))
-      .sort()
-      .map((code) => byCode.get(code)!);
-    return [...ordered, ...extras];
-  }, [kanbanRows]);
-
   // "All data" re-fetches every ticket matching the active filters, since the
   // table is lazily paginated and only holds one page.
   const loadAllExportRows = async () =>
@@ -495,40 +453,37 @@ export default function TicketList() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">
-            Complaint Tickets
-          </h1>
-          <p className="text-sm text-gray-500">
-            Track submitted complaints and operational actions
-          </p>
-        </div>
-        <Button
-          label="Add Ticket"
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(newPath)}
-        />
-      </div>
-
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-2">
+      <ListPageHeader
+        title="Complaint Tickets"
+        subtitle="Track submitted complaints and operational actions"
+        actions={
+          <Button
+            label="Add Ticket"
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(newPath)}
+          />
+        }
+        className="mb-4"
+        filters={
+          <div className="flex min-w-0 flex-col gap-3">
+        <div className="flex flex-wrap gap-2">
           {(
             [
               { key: "all", label: `All (${counts.all})` },
               { key: "public", label: `Public Grievances (${counts.public})` },
               { key: "internal", label: `Internal (${counts.internal})` },
-              { key: "feedback", label: `With Feedback (${feedbackCount})` },
             ] as { key: SourceFilter; label: string }[]
           ).map((tab) => (
             <button
               key={tab.key}
               onClick={() => setSourceFilter(tab.key)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+              // Green, matching the tab strip on the Complaint Types screen
+              // and the shared form/list template.
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
                 sourceFilter === tab.key
-                  ? "bg-slate-900 text-white"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  ? "bg-green-600 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
               {tab.label}
@@ -540,6 +495,23 @@ export default function TicketList() {
           onSearchChange={(value) => setQuery(value)}
           searchPlaceholder="Search tickets"
         >
+          <FilterBarSelect
+            value={companyUniqueId || ""}
+            onChange={(value) => onCompanyChange(value)}
+            options={companies}
+            placeholder="All Companies"
+            disabled={!isSuperAdmin || companies.length === 0}
+          />
+          <FilterBarSelect
+            value={selectedProjectId}
+            onChange={(value) => setProjectId(value)}
+            options={projects.map((project) => ({
+              value: String(project.value),
+              label: project.label || project.value,
+            }))}
+            placeholder={showAllProjectsOption ? "All Projects" : undefined}
+            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
+          />
           <FilterBarSelect
             value={stateFilter}
             onChange={(value) => onStateFilterChange(value)}
@@ -589,209 +561,82 @@ export default function TicketList() {
             disabled={!zoneFilter && !panchayatFilter}
           />
         </FilterBar>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setViewMode("table")}
-            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${
-              viewMode === "table"
-                ? "bg-slate-900 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            <ListIcon className="h-4 w-4" /> Table
-          </button>
-          <button
-            onClick={() => setViewMode("kanban")}
-            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${
-              viewMode === "kanban"
-                ? "bg-slate-900 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            <LayoutGrid className="h-4 w-4" /> Kanban
-          </button>
-        </div>
-      </div>
+          </div>
+        }
+      />
 
-      {viewMode === "table" ? (
-        <DataTable
-          loadExportRows={loadAllExportRows}
-          value={tableRows}
-          dataKey="unique_id"
-          lazy
-          paginator
-          first={first}
-          rows={rowsPerPage}
-          totalRecords={totalRecords}
-          onPage={onPage}
-          sortField={sortField}
-          sortOrder={sortOrder}
-          onSort={onSort}
-          rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={tableLoading}
-          stripedRows
-          showGridlines
-          emptyMessage="No tickets found"
-          className="p-datatable-sm"
-        >
-          <Column
-            header="S.No"
-            body={(_, options) => options.rowIndex + 1}
-            style={{ width: "80px" }}
-          />
-          <Column field="ticket_no" header="Ticket No" sortable />
-          <Column
-            field="created"
-            header="Created"
-            body={(row) => formatDateTime(row.created)}
-            sortable
-          />
-          <Column header="Source" body={sourceTemplate} />
-          <Column
-            header="Customer"
-            body={(row) => row.customer_name || row.profile_name || "-"}
-          />
-          <Column field="wa_phone" header="Phone" />
-          <Column field="category_name" header="Category" />
-          <Column header="Operational Context" body={contextTemplate} />
-          <Column field="waste_type_name" header="Waste Type" />
-          <Column field="subcategory_name" header="Subcategory" />
-          <Column header="District" body={(row) => row.district_name || "-"} />
-          <Column
-            header="Panchayat"
-            body={(row) => row.panchayat_name || "-"}
-          />
-          <Column header="Zone" body={(row) => row.zone_name || "-"} />
-          <Column header="Ward" body={(row) => row.ward_name || "-"} />
-          <Column field="priority_code" header="Priority" />
-          <Column header="Status" body={statusTemplate} />
-          <Column field="assigned_team_name" header="Assigned Team" />
-          <Column
-            header="SLA Due"
-            body={(row) => formatDateTime(row.sla_due_at)}
-          />
-          <Column header="SLA" body={slaTemplate} style={{ width: "120px" }} />
-          <Column header="Feedback" body={feedbackTemplate} />
-          <Column
-            header="Actions"
-            body={(row) => (
-              <button
-                className="inline-flex text-blue-600"
-                onClick={() => navigate(editPath(row.unique_id))}
-                title="Open ticket"
-              >
-                <Eye className="h-5 w-5" />
-              </button>
-            )}
-            style={{ width: "100px" }}
-          />
-        </DataTable>
-      ) : (
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {kanbanLoading && kanbanRows.length === 0 && (
-            <p className="text-sm text-gray-500">Loading tickets…</p>
-          )}
-          {!kanbanLoading && kanbanColumns.length === 0 && (
-            <p className="text-sm text-gray-500">No tickets found</p>
-          )}
-          {kanbanColumns.map((column) => (
-            <div
-              key={column.code}
-              className="flex w-72 shrink-0 flex-col rounded-lg border border-slate-200 bg-slate-50"
+      <DataTable
+        loadExportRows={loadAllExportRows}
+        value={tableRows}
+        dataKey="unique_id"
+        lazy
+        paginator
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
+        rowsPerPageOptions={[5, 10, 25, 50]}
+        loading={tableLoading}
+        stripedRows
+        showGridlines
+        emptyMessage="No tickets found"
+        className="p-datatable-sm"
+      >
+        <Column
+          header="S.No"
+          body={(_, options) => options.rowIndex + 1}
+          style={{ width: "80px" }}
+        />
+        <Column field="ticket_no" header="Ticket No" sortable />
+        <Column
+          field="created"
+          header="Created"
+          body={(row) => formatDateTime(row.created)}
+          sortable
+        />
+        <Column header="Source" body={sourceTemplate} />
+        <Column
+          header="Customer"
+          body={(row) => row.customer_name || row.profile_name || "-"}
+        />
+        <Column field="wa_phone" header="Phone" />
+        <Column field="category_name" header="Category" />
+        <Column header="Operational Context" body={contextTemplate} />
+        <Column field="waste_type_name" header="Waste Type" />
+        <Column field="subcategory_name" header="Subcategory" />
+        <Column header="District" body={(row) => row.district_name || "-"} />
+        <Column
+          header="Panchayat"
+          body={(row) => row.panchayat_name || "-"}
+        />
+        <Column header="Zone" body={(row) => row.zone_name || "-"} />
+        <Column header="Ward" body={(row) => row.ward_name || "-"} />
+        <Column field="priority_code" header="Priority" />
+        <Column header="Status" body={statusTemplate} />
+        <Column field="assigned_team_name" header="Assigned Team" />
+        <Column
+          header="SLA Due"
+          body={(row) => formatDateTime(row.sla_due_at)}
+        />
+        <Column header="SLA" body={slaTemplate} style={{ width: "120px" }} />
+        <Column header="Feedback" body={feedbackTemplate} />
+        <Column
+          header="Actions"
+          body={(row) => (
+            <button
+              className="inline-flex text-blue-600"
+              onClick={() => navigate(editPath(row.unique_id))}
+              title="Open ticket"
             >
-              <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-                <span className="text-sm font-semibold text-slate-700">
-                  {column.name}
-                </span>
-                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                  {column.tickets.length}
-                </span>
-              </div>
-              <div className="flex max-h-[70vh] flex-col gap-2 overflow-y-auto p-2">
-                {column.tickets.map((row) => (
-                  <button
-                    key={row.unique_id}
-                    onClick={() => navigate(editPath(row.unique_id))}
-                    className="rounded-md border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-slate-400 hover:shadow"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-slate-900">
-                        {row.ticket_no || row.unique_id}
-                      </span>
-                      {isPublic(row) && (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                          Public
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 line-clamp-2 text-xs text-slate-600">
-                      {row.description || row.title || "-"}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {row.category_name && (
-                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                          {row.category_name}
-                        </span>
-                      )}
-                      {row.waste_type_name && (
-                        <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-semibold text-teal-700">
-                          {row.waste_type_name}
-                        </span>
-                      )}
-                      {row.priority_code && (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                          {row.priority_code}
-                        </span>
-                      )}
-                      {row.operational_context?.incident_type && (
-                        <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold capitalize text-indigo-700">
-                          {row.operational_context.incident_type}
-                        </span>
-                      )}
-                      {row.sla_breached && (
-                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
-                          SLA Breached
-                        </span>
-                      )}
-                      {feedbackByTicket.has(String(row.unique_id)) && (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                          ★ Feedback
-                        </span>
-                      )}
-                      {(row.ward_name ||
-                        row.zone_name ||
-                        row.panchayat_name ||
-                        row.district_name) && (
-                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                          {[
-                            row.ward_name,
-                            row.zone_name,
-                            row.panchayat_name,
-                            row.district_name,
-                          ]
-                            .filter(Boolean)
-                            .join(", ")}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-                      <span>
-                        {row.customer_name || row.profile_name || "-"}
-                      </span>
-                      <span>{formatDateTime(row.created)}</span>
-                    </div>
-                  </button>
-                ))}
-                {column.tickets.length === 0 && (
-                  <p className="px-1 py-2 text-center text-xs text-slate-400">
-                    No tickets
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+              <Eye className="h-5 w-5" />
+            </button>
+          )}
+          style={{ width: "100px" }}
+        />
+      </DataTable>
     </div>
   );
 }

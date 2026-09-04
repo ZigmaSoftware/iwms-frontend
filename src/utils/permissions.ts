@@ -123,6 +123,9 @@ const MODULE_ALIASES: Record<string, string[]> = {
 };
 
 const SCREEN_ALIASES: Record<string, string[]> = {
+  // The Complaint Types tab route ("types") is backed by the same three
+  // screens as its tabs, so a permission row on any of them authorizes it.
+  types: ["categories", "subcategories", "sla-rules"],
   complaint: ["complaints", "tickets"],
   "main-complaint-category": ["main-category", "categories"],
   "sub-complaint-category": ["sub-category", "subcategories"],

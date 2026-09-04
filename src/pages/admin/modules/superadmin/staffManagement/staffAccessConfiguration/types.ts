@@ -29,6 +29,9 @@ export type StaffAccessConfigPayload = {
   panchayat_ids?: string[];
   ward_ids?: string[];
   description?: string;
+  /** Apps this staff member may sign into. Empty = no mobile access. */
+  app_module_ids?: string[];
+  enforce_strict_permissions?: boolean;
   permissions: PermissionGrant[];
   basicInfo?: Record<string, unknown>;
   loginConfig?: Record<string, unknown>;
@@ -58,6 +61,10 @@ export type StaffAccessConfigRecord = {
   panchayat_ids?: string[];
   ward_ids?: string[];
   description?: string;
+  app_module_ids?: string[];
+  app_module_keys?: string[];
+  app_module_labels?: string[];
+  enforce_strict_permissions?: boolean;
   permissions?: PermissionGrant[];
 
   // Read-only derived fields
@@ -129,7 +136,10 @@ export type SelectOption = {
   label: string;
 };
 
-export type WithStateIdOption = SelectOption & { projectId?: string; stateId?: string };
+export type WithStateIdOption = SelectOption & {
+  projectId?: string;
+  stateId?: string;
+};
 export type WithDistrictIdOption = SelectOption & {
   projectId?: string;
   stateId?: string;
@@ -148,3 +158,31 @@ export type WardOption = WithCityIdOption & {
 };
 
 export type UnknownRecord = Record<string, unknown>;
+
+// ─── employee-options (Basic Info tab employee picker) ─────────────────────
+
+export type EmployeeOption = {
+  unique_id: string;
+  employee_name: string;
+  mobile_number?: string | null;
+  office_email?: string | null;
+  doj?: string | null;
+  user_type_id?: string | null;
+  staffusertype_id?: string | null;
+  staffusertype_name?: string | null;
+  username?: string | null;
+  password?: string | null;
+  active_status?: boolean;
+  has_access_configuration?: boolean;
+};
+
+/** One row of the mobile app module master (screen-managements/app-modules). */
+export type AppModuleOption = {
+  uniqueId: string;
+  moduleKey: string;
+  surfaceKey: string;
+  label: string;
+  route: string;
+  orderNo?: number;
+  description?: string | null;
+};

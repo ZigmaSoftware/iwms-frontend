@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { api } from "@/api";
+import { adminEndpoints } from "@/helpers/admin/endpoints";
 
 import {
   cityApi,
@@ -80,6 +81,7 @@ const isResidentialName = (value: string) =>
 const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   customer_name: ["customer_name", "name"],
   contact_no: ["contact_no", "mobile"],
+  app_module: ["app_module"],
   username: ["username"],
   email: ["email"],
   password: ["password"],
@@ -656,6 +658,7 @@ export default function CustomerCreationForm() {
   const [formData, setFormData] = useState<FormDataType>({
     customer_name: "",
     contact_no: "",
+    app_module: "citizen",
     username: "",
     email: "",
     password: "",
@@ -696,6 +699,39 @@ export default function CustomerCreationForm() {
   });
 
   const { showZone, showPanchayat } = useZonePanchayatVisibility();
+
+  // Sourced from the App Module master so a rename in Screen Management shows
+  // up here without a frontend release.
+  const [appModuleOptions, setAppModuleOptions] = useState<
+    { value: string; label: string }[]
+  >([{ value: "citizen", label: "Customer" }]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get(`/${adminEndpoints.appModules}/`)
+      .then((res) => {
+        if (cancelled) return;
+        const raw = res?.data?.results ?? res?.data ?? [];
+        const rows = Array.isArray(raw) ? raw : [];
+        const options = rows
+          .filter(
+            (row: { is_active?: boolean; surface_key?: string }) =>
+              row.is_active !== false && row.surface_key === "citizen",
+          )
+          .map((row: { surface_key: string; label: string }) => ({
+            value: row.surface_key,
+            label: row.label,
+          }));
+        if (options.length) setAppModuleOptions(options);
+      })
+      .catch(() => {
+        /* keep the default so the field still works offline */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1073,6 +1109,7 @@ export default function CustomerCreationForm() {
       ...prev,
       customer_name: String(data.customer_name ?? ""),
       contact_no: String(data.contact_no ?? ""),
+      app_module: String(data.app_module ?? "citizen"),
       username: String(data.username ?? ""),
       email: String(data.email ?? ""),
       password: String(data.password ?? ""),
@@ -1619,6 +1656,33 @@ export default function CustomerCreationForm() {
                 error={fieldErrors.username}
                 isRequired={false}
               />
+            )}
+            {showField("app_module") && (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Mobile App
+                </label>
+                <Select
+                  value={formData.app_module || "citizen"}
+                  onValueChange={(value) => update("app_module", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select the app this customer opens" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {appModuleOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Which app opens after sign-in. Whether they may sign in, and
+                  which screens they see, is set in Customer Access
+                  Configuration.
+                </p>
+              </div>
             )}
             {showField("email") && (
               <FormInput

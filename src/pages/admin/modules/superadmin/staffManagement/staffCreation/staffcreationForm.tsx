@@ -5,6 +5,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 import { api } from "@/api";
+import { adminEndpoints } from "@/helpers/admin/endpoints";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import Label from "@/components/form/Label";
@@ -279,6 +280,7 @@ const initialFormData = {
   active_status: "1",
   staffusertype_id: "",
   contractorusertype_id: "",
+  app_module: "",
   username: "", // ← username field
   password: "",
   login_enabled: "0",
@@ -330,6 +332,7 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   salary_type: ["salary_type"],
   active_status: ["active_status", "is_active"],
   staffusertype_id: ["staffusertype_id", "staff_user_type", "staffusertype"],
+  app_module: ["app_module"],
   username: ["username"],
   password: ["password"],
   login_enabled: ["login_enabled"],
@@ -409,6 +412,7 @@ export default function StaffCreationForm() {
   const [pendingContractorUserTypeId, setPendingContractorUserTypeId] = useState<string | null>(null);
   const [pendingDepartmentId, setPendingDepartmentId] = useState<string | null>(null);
   const [pendingDesignationId, setPendingDesignationId] = useState<string | null>(null);
+  const [pendingStaffHeadId, setPendingStaffHeadId] = useState<string | null>(null);
 
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -451,6 +455,38 @@ export default function StaffCreationForm() {
     { value: "0", label: t("common.inactive") },
   ];
 
+  // The mobile app this staff member lands in. Sourced from the App Module
+  // master so a rename in Screen Management shows up here without a release.
+  const [appModuleOptions, setAppModuleOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get(`/${adminEndpoints.appModules}/`)
+      .then((res) => {
+        if (cancelled) return;
+        const raw = res?.data?.results ?? res?.data ?? [];
+        const rows = Array.isArray(raw) ? raw : [];
+        setAppModuleOptions([
+          { value: "", label: "No app access" },
+          ...rows
+            .filter((row: { is_active?: boolean }) => row.is_active !== false)
+            .map((row: { surface_key: string; label: string }) => ({
+              value: row.surface_key,
+              label: row.label,
+            })),
+        ]);
+      })
+      .catch(() => {
+        if (!cancelled) setAppModuleOptions([{ value: "", label: "No app access" }]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const departmentOptionsWithCurrent = useMemo(() => {
     if (!formData.department_id) return departmentOptions;
     if (departmentOptions.some((option) => option.value === formData.department_id)) {
@@ -488,6 +524,22 @@ export default function StaffCreationForm() {
     formData.designation,
     formData.designation_id,
   ]);
+
+  const staffHeadOptionsWithCurrent = useMemo(() => {
+    if (!formData.staff_head_id) return staffHeadOptions;
+    if (staffHeadOptions.some((option) => option.value === formData.staff_head_id)) {
+      return staffHeadOptions;
+    }
+    const label = formData.staff_head || formData.staff_head_id;
+    return [
+      {
+        value: formData.staff_head_id,
+        label,
+        name: formData.staff_head || label,
+      },
+      ...staffHeadOptions,
+    ];
+  }, [staffHeadOptions, formData.staff_head, formData.staff_head_id]);
 
   const selectedUserType = staffUserTypeOptions.find(
     (opt) => opt.value === formData.staffusertype_id,
@@ -738,11 +790,13 @@ export default function StaffCreationForm() {
         const contractorTypeId = normalizeEntityId(staff.contractorusertype_id);
         const departmentId = normalizeEntityId(staff.department_id ?? staff.department ?? staff.department_unique_id);
         const designationId = normalizeEntityId(staff.designation_id ?? staff.designation_obj ?? staff.designation_unique_id);
+        const staffHeadId = staff.staff_head_id ?? "";
 
         if (staffTypeId) setPendingStaffUserTypeId(staffTypeId);
         if (contractorTypeId) setPendingContractorUserTypeId(contractorTypeId);
         if (departmentId) setPendingDepartmentId(departmentId);
         if (designationId) setPendingDesignationId(designationId);
+        if (staffHeadId) setPendingStaffHeadId(staffHeadId);
 
         if (staff.driving_licence_file) {
           setLicencePreview(
@@ -792,10 +846,17 @@ export default function StaffCreationForm() {
   }, [backendOrigin, id, isEdit]);
 
   useEffect(() => {
+    // Wait for the edited record's own project to load before fetching —
+    // otherwise this scopes to the logged-in admin's own project (via the
+    // viewset's default project fallback), which can silently exclude the
+    // staff's actually-assigned head if it belongs to a different project.
+    if (isEdit && !formData.project_id) return;
+
     const loadStaffHeads = async () => {
       try {
         const params: Record<string, string> = {};
         if (id) params.exclude = id;
+        if (formData.project_id) params.project_id = formData.project_id;
 
         const response = await api.get(
           "/staff-creations/staffcreation/staff-head-options/",
@@ -818,7 +879,7 @@ export default function StaffCreationForm() {
     };
 
     void loadStaffHeads();
-  }, [id]);
+  }, [id, isEdit, formData.project_id]);
 
   useEffect(() => {
     if (!photoFile) return;
@@ -911,6 +972,19 @@ export default function StaffCreationForm() {
       setPendingDesignationId(null);
     }
   }, [pendingDesignationId, designationOptions]);
+
+  useEffect(() => {
+    if (!pendingStaffHeadId || staffHeadOptions.length === 0) return;
+    const match = staffHeadOptions.find((o) => o.value === pendingStaffHeadId);
+    if (match) {
+      setFormData((prev) => ({
+        ...prev,
+        staff_head_id: pendingStaffHeadId,
+        staff_head: match.name,
+      }));
+      setPendingStaffHeadId(null);
+    }
+  }, [pendingStaffHeadId, staffHeadOptions]);
   // ────────────────────────────────────────────────────────────────────────────
 
   const handleInputChange = (
@@ -1358,6 +1432,30 @@ export default function StaffCreationForm() {
         </>
       )}
 
+      {/* ── App Module ── */}
+      {showField("app_module") && (
+        <div>
+          <Label htmlFor="app_module">
+            {t("admin.staff_creation.app_module", "Mobile App")}
+          </Label>
+          <Select
+            id="app_module"
+            value={formData.app_module}
+            onChange={(value) => handleSelectChange("app_module", value)}
+            options={appModuleOptions}
+            placeholder={t(
+              "admin.staff_creation.app_module_placeholder",
+              "Select the app this user opens"
+            )}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Which app opens after sign-in. Whether they may sign in at all is
+            ticked under Mobile App Access in Staff Access Configuration.
+          </p>
+          <FieldError message={fieldErrors.app_module} />
+        </div>
+      )}
+
       {/* ── Username ── */}
       {showField("username") && (
         <div>
@@ -1618,7 +1716,7 @@ export default function StaffCreationForm() {
             id="staff_head_id"
             value={formData.staff_head_id}
             onChange={(value) => handleSelectChange("staff_head_id", value)}
-            options={staffHeadOptions}
+            options={staffHeadOptionsWithCurrent}
             placeholder={
               formData.department_id
                 ? t("common.select_item_placeholder", {
