@@ -5,6 +5,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 import { api } from "@/api";
+import { adminEndpoints } from "@/helpers/admin/endpoints";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import Label from "@/components/form/Label";
@@ -279,6 +280,7 @@ const initialFormData = {
   active_status: "1",
   staffusertype_id: "",
   contractorusertype_id: "",
+  app_module: "",
   username: "", // ← username field
   password: "",
   login_enabled: "0",
@@ -330,6 +332,7 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   salary_type: ["salary_type"],
   active_status: ["active_status", "is_active"],
   staffusertype_id: ["staffusertype_id", "staff_user_type", "staffusertype"],
+  app_module: ["app_module"],
   username: ["username"],
   password: ["password"],
   login_enabled: ["login_enabled"],
@@ -451,6 +454,38 @@ export default function StaffCreationForm() {
     { value: "1", label: t("common.active") },
     { value: "0", label: t("common.inactive") },
   ];
+
+  // The mobile app this staff member lands in. Sourced from the App Module
+  // master so a rename in Screen Management shows up here without a release.
+  const [appModuleOptions, setAppModuleOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get(`/${adminEndpoints.appModules}/`)
+      .then((res) => {
+        if (cancelled) return;
+        const raw = res?.data?.results ?? res?.data ?? [];
+        const rows = Array.isArray(raw) ? raw : [];
+        setAppModuleOptions([
+          { value: "", label: "No app access" },
+          ...rows
+            .filter((row: { is_active?: boolean }) => row.is_active !== false)
+            .map((row: { surface_key: string; label: string }) => ({
+              value: row.surface_key,
+              label: row.label,
+            })),
+        ]);
+      })
+      .catch(() => {
+        if (!cancelled) setAppModuleOptions([{ value: "", label: "No app access" }]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const departmentOptionsWithCurrent = useMemo(() => {
     if (!formData.department_id) return departmentOptions;
@@ -1395,6 +1430,30 @@ export default function StaffCreationForm() {
             </div>
           )}
         </>
+      )}
+
+      {/* ── App Module ── */}
+      {showField("app_module") && (
+        <div>
+          <Label htmlFor="app_module">
+            {t("admin.staff_creation.app_module", "Mobile App")}
+          </Label>
+          <Select
+            id="app_module"
+            value={formData.app_module}
+            onChange={(value) => handleSelectChange("app_module", value)}
+            options={appModuleOptions}
+            placeholder={t(
+              "admin.staff_creation.app_module_placeholder",
+              "Select the app this user opens"
+            )}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Which app opens after sign-in. Whether they may sign in at all is
+            ticked under Mobile App Access in Staff Access Configuration.
+          </p>
+          <FieldError message={fieldErrors.app_module} />
+        </div>
       )}
 
       {/* ── Username ── */}
