@@ -17,19 +17,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { adminApi } from "@/helpers/admin/registry";
 import {
   complaintStatusApi,
-  complaintTeamApi,
   complaintTicketApi,
-  geoApi,
   ticketActions,
 } from "@/features/complaintTicketing/api";
+
+const departmentApi = adminApi.departments as typeof adminApi.departments;
 import { AttachmentPreview } from "@/features/complaintTicketing/components/AttachmentPreview";
 import type {
   AssignableStaffOption,
   ComplaintTicket,
-  GeoOption,
-  LocalBodyOption,
 } from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime } from "../utils";
 
@@ -111,11 +110,11 @@ export default function TicketDetail() {
   const { listPath } = createCrudRoutePaths(encComplaintTicket, encComplaint);
   const [ticket, setTicket] = useState<ComplaintTicket | null>(null);
   const [statuses, setStatuses] = useState<any[]>([]);
-  const [teams, setTeams] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [activeAction, setActiveAction] = useState(0);
   const [activeHistory, setActiveHistory] = useState(0);
   const [statusCode, setStatusCode] = useState("");
-  const [team, setTeam] = useState("");
+  const [department, setDepartment] = useState("");
   const [staff, setStaff] = useState("");
   const [statusRemarks, setStatusRemarks] = useState("");
   const [assignReason, setAssignReason] = useState("");
@@ -126,32 +125,19 @@ export default function TicketDetail() {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Staff-head assignment scope: filter the staff dropdown by zone/ward.
-  const [zones, setZones] = useState<GeoOption[]>([]);
-  const [wards, setWards] = useState<LocalBodyOption[]>([]);
-  const [zone, setZone] = useState("");
-  const [ward, setWard] = useState("");
   const [assignableStaff, setAssignableStaff] = useState<AssignableStaffOption[]>([]);
-  const [staffScopeLabel, setStaffScopeLabel] = useState("");
   const [staffLoading, setStaffLoading] = useState(false);
 
-  const loadAssignableStaff = async (scope?: { zone?: string; ward?: string }) => {
+  const loadAssignableStaff = async (departmentId?: string) => {
     if (!id) return;
     setStaffLoading(true);
     try {
-      const params = scope && (scope.zone || scope.ward) ? scope : undefined;
+      const params = departmentId ? { department: departmentId } : undefined;
       const res = await ticketActions.assignableStaff(id, params);
       setAssignableStaff(res.staff ?? []);
-      setStaffScopeLabel(
-        res.ward_name
-          ? `Ward: ${res.ward_name}`
-          : res.zone_name
-            ? `Zone: ${res.zone_name}`
-            : "Ticket zone / ward"
-      );
     } catch (err) {
       setAssignableStaff([]);
-      setStaffScopeLabel(errorText(err, "Unable to load staff for this location"));
+      Swal.fire("Error", errorText(err, "Unable to load department roster"), "error");
     } finally {
       setStaffLoading(false);
     }
@@ -159,43 +145,28 @@ export default function TicketDetail() {
 
   const load = async () => {
     if (!id) return;
-    const [ticketRow, statusRows, teamRows, zoneRows] = await Promise.all([
+    const [ticketRow, statusRows, departmentRows] = await Promise.all([
       complaintTicketApi.read(id),
       complaintStatusApi.readAll().catch(() => []),
-      complaintTeamApi.readAll().catch(() => []),
-      geoApi.zones().catch(() => []),
+      departmentApi.readAll().catch(() => []),
     ]);
     setTicket(ticketRow as ComplaintTicket);
     setStatuses(asArray(statusRows));
-    setTeams(asArray(teamRows));
-    setZones(asArray(zoneRows));
+    setDepartments(asArray(departmentRows));
     setStatusCode((ticketRow as ComplaintTicket).status_code ?? "");
-    setTeam(String((ticketRow as ComplaintTicket).assigned_team ?? ""));
-    await loadAssignableStaff({ zone, ward });
+    const currentDepartment = String((ticketRow as ComplaintTicket).department ?? "");
+    setDepartment(currentDepartment);
+    await loadAssignableStaff(currentDepartment || undefined);
   };
 
   useEffect(() => {
     load().catch((err) => Swal.fire("Error", errorText(err, "Unable to load ticket"), "error"));
   }, [id]);
 
-  const onZoneChange = async (value: string) => {
-    setZone(value);
-    setWard("");
-    setWards([]);
+  const onDepartmentChange = async (value: string) => {
+    setDepartment(value);
     setStaff("");
-    if (!value) {
-      await loadAssignableStaff();
-      return;
-    }
-    const wardRows = await geoApi.wards(value).catch(() => []);
-    setWards(wardRows);
-    await loadAssignableStaff({ zone: value });
-  };
-
-  const onWardChange = async (value: string) => {
-    setWard(value);
-    setStaff("");
-    await loadAssignableStaff({ zone, ward: value || undefined });
+    await loadAssignableStaff(value || undefined);
   };
 
   const run = async (message: string, fn: () => Promise<unknown>) => {
@@ -237,8 +208,9 @@ export default function TicketDetail() {
           <Field label="Subcategory" value={ticket.subcategory_name} />
           <Field label="Customer" value={ticket.customer_name || ticket.profile_name} />
           <Field label="Phone" value={ticket.wa_phone} />
-          <Field label="Assigned Team" value={ticket.assigned_team_name} />
+          <Field label="Department" value={ticket.department_name} />
           <Field label="Assigned Staff" value={ticket.assigned_staff_name} />
+          <Field label="Escalated To" value={ticket.is_escalated ? ticket.escalated_to_staff_name : "-"} />
           <Field label="Complaint Type" value={ticket.operational_context?.incident_type?.replaceAll("_", " ")} />
           <Field label="Trip Reference" value={ticket.operational_context?.trip_reference} />
           <Field label="Vehicle Reference" value={ticket.operational_context?.vehicle_reference} />
@@ -324,38 +296,17 @@ export default function TicketDetail() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <FormSelect
-                  label="Team"
-                  value={team}
-                  onChange={setTeam}
-                  options={teams.map((item) => ({ value: String(item.unique_id), label: item.team_name }))}
-                  placeholder="Select team"
+                  label="Department"
+                  value={department}
+                  onChange={onDepartmentChange}
+                  options={departments.map((item) => ({ value: String(item.unique_id), label: item.department_name }))}
+                  placeholder="Select department"
                 />
               </div>
               <div>
                 <Label>Reason</Label>
                 <Input className="mt-1" value={assignReason} onChange={(e) => setAssignReason(e.target.value)} placeholder="Reason" />
               </div>
-
-              <div>
-                <FormSelect
-                  label="Zone"
-                  value={zone}
-                  onChange={onZoneChange}
-                  options={zones.map((item) => ({ value: String(item.unique_id), label: item.name }))}
-                  placeholder="Ticket zone"
-                />
-              </div>
-              <div>
-                <FormSelect
-                  label="Ward"
-                  value={ward}
-                  onChange={onWardChange}
-                  options={wards.map((item) => ({ value: String(item.unique_id), label: item.name }))}
-                  placeholder="All wards in zone"
-                  disabled={!zone}
-                />
-              </div>
-              <p className="text-xs text-gray-500 md:col-span-2">Staff shown: {staffLoading ? "loading..." : staffScopeLabel || "-"}</p>
 
               <div className="md:col-span-2">
                 <FormSelect
@@ -364,14 +315,14 @@ export default function TicketDetail() {
                   onChange={setStaff}
                   options={assignableStaff.map((item) => ({
                     value: String(item.staff_unique_id),
-                    label: `${item.employee_name} - ${item.department_name || item.role || "No department"} (${item.ward || item.zone || "No location"})`,
+                    label: `${item.employee_name} (${item.open_ticket_count ?? 0} open)`,
                   }))}
-                  placeholder="Select staff (optional - defaults to team lead)"
+                  placeholder={staffLoading ? "Loading roster..." : "Select staff (optional - auto-picks least-loaded member)"}
                 />
               </div>
               <div className="flex gap-2 md:col-span-2">
-                <Button disabled={busy || !team} onClick={() => run("Ticket assigned.", () => ticketActions.assign(id, { team, staff: staff || undefined, reason: assignReason }))}>Assign</Button>
-                <Button variant="secondary" disabled={busy} onClick={() => run("Ticket escalated.", () => ticketActions.escalate(id, { team: team || undefined, reason: assignReason }))}>Escalate</Button>
+                <Button disabled={busy || !department} onClick={() => run("Ticket assigned.", () => ticketActions.assign(id, { department, staff: staff || undefined, reason: assignReason }))}>Assign</Button>
+                <Button variant="secondary" disabled={busy} onClick={() => run("Ticket escalated.", () => ticketActions.escalate(id, { reason: assignReason }))}>Escalate to Supervisor</Button>
               </div>
             </div>
           )}
@@ -505,8 +456,8 @@ export default function TicketDetail() {
                     rows={assignmentHistory}
                     emptyMessage="No assignments yet."
                     columns={[
-                      { header: "From Team", body: (item) => item.from_team_name || "-" },
-                      { header: "To Team", body: (item) => item.to_team_name || "-" },
+                      { header: "From Staff", body: (item) => item.from_staff_name || "-" },
+                      { header: "To Staff", body: (item) => item.to_staff_name || "-" },
                       { header: "Assigned At", body: (item) => formatDateTime(item.assigned_at) },
                       { header: "Reason", body: (item) => item.assignment_reason || "-" },
                     ]}
@@ -517,9 +468,6 @@ export default function TicketDetail() {
                     rows={escalationHistory}
                     emptyMessage="No escalations yet."
                     columns={[
-                      { header: "Level", body: (item) => item.escalation_level ?? "-" },
-                      { header: "From Team", body: (item) => item.escalated_from_team_name || "-" },
-                      { header: "To Team", body: (item) => item.escalated_to_team_name || "-" },
                       { header: "To Staff", body: (item) => item.escalated_to_staff_name || "-" },
                       { header: "Escalated At", body: (item) => formatDateTime(item.escalated_at) },
                       { header: "Reason", body: (item) => item.reason || "-" },

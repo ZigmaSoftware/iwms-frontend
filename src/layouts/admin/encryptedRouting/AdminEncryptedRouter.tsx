@@ -105,8 +105,10 @@ import StatusList from "@/pages/admin/modules/core_modules/complaintManagement/m
 import StatusForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/StatusForm";
 import SourceList from "@/pages/admin/modules/core_modules/complaintManagement/masters/SourceList";
 import SourceForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/SourceForm";
-import TeamList from "@/pages/admin/modules/core_modules/complaintManagement/masters/TeamList";
-import TeamForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/TeamForm";
+import DepartmentRosterList from "@/pages/admin/modules/core_modules/complaintManagement/masters/DepartmentRosterList";
+import DepartmentRosterForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/DepartmentRosterForm";
+import SupervisorDashboard from "@/pages/admin/modules/core_modules/complaintManagement/dashboard/SupervisorDashboard";
+import MyTasks from "@/pages/admin/modules/core_modules/complaintManagement/dashboard/MyTasks";
 import SlaRuleList from "@/pages/admin/modules/core_modules/complaintManagement/masters/SlaRuleList";
 // SUPER ADMIN — global complaint configuration (module key "complaint-masters").
 import {
@@ -332,7 +334,9 @@ const ROUTES: RouteMap = {
     priorities: { list: PriorityList, form: PriorityForm },
     statuses: { list: StatusList, form: StatusForm },
     sources: { list: SourceList, form: SourceForm },
-    teams: { list: TeamList, form: TeamForm },
+    "department-members": { list: DepartmentRosterList, form: DepartmentRosterForm },
+    "supervisor-dashboard": { component: SupervisorDashboard },
+    "my-tasks": { component: MyTasks },
     "sla-rules": { list: SlaRuleList, form: SlaRuleForm },
     feedback: { list: FeedbackList },
   },

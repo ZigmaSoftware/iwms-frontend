@@ -22,7 +22,9 @@ export type EncryptedRoutes = {
   encComplaintPriorities: string;
   encComplaintStatuses: string;
   encComplaintSources: string;
-  encComplaintTeams: string;
+  encComplaintDepartmentMembers: string;
+  encSupervisorDashboard: string;
+  encMyTasks: string;
   encComplaintSlaRules: string;
   // renamed from encCitizenGrivence/encComplaint/encMainComplaintCategory/
   // encSubComplaintCategory to match the backend's "complaint-ticket" group
@@ -150,7 +152,9 @@ const plainRoutes: EncryptedRoutes = {
   encComplaintPriorities: "priorities",
   encComplaintStatuses: "statuses",
   encComplaintSources: "sources",
-  encComplaintTeams: "teams",
+  encComplaintDepartmentMembers: "department-members",
+  encSupervisorDashboard: "supervisor-dashboard",
+  encMyTasks: "my-tasks",
   encComplaintSlaRules: "sla-rules",
   encComplaintTicket: "complaint-ticket",
   encTickets: "tickets",

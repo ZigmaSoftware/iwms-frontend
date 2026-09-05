@@ -7,6 +7,7 @@ import {
 import type {
   AssignableStaffResponse,
   ComplaintCategory,
+  ComplaintDepartmentMember,
   ComplaintFeedback,
   ComplaintLanguage,
   ComplaintModule,
@@ -15,7 +16,6 @@ import type {
   ComplaintSource,
   ComplaintStatus,
   ComplaintSubcategory,
-  ComplaintTeam,
   ComplaintSlaRule,
   ComplaintTicket,
   GeoOption,
@@ -36,7 +36,8 @@ export const complaintPriorityApi = adminApi.complaintPriorities as typeof admin
 export const complaintStatusApi = adminApi.complaintStatuses as typeof adminApi.complaintStatuses;
 export const complaintSourceApi = adminApi.complaintSources as typeof adminApi.complaintSources;
 export const complaintLanguageApi = adminApi.complaintLanguages as typeof adminApi.complaintLanguages;
-export const complaintTeamApi = adminApi.complaintTeams as typeof adminApi.complaintTeams;
+export const complaintDepartmentMemberApi =
+  adminApi.complaintDepartmentMembers as typeof adminApi.complaintDepartmentMembers;
 export const complaintSlaRuleApi = adminApi.complaintSlaRules as typeof adminApi.complaintSlaRules;
 export const complaintFeedbackApi = adminApi.complaintFeedback as typeof adminApi.complaintFeedback;
 export const complaintNotificationApi = adminApi.complaintNotifications as typeof adminApi.complaintNotifications;
@@ -50,13 +51,14 @@ export const complaintTicketingApi = {
   statuses: complaintStatusApi,
   sources: complaintSourceApi,
   languages: complaintLanguageApi,
-  teams: complaintTeamApi,
+  departmentMembers: complaintDepartmentMemberApi,
   slaRules: complaintSlaRuleApi,
   feedback: complaintFeedbackApi,
 };
 
 export type {
   ComplaintCategory,
+  ComplaintDepartmentMember,
   ComplaintFeedback,
   ComplaintLanguage,
   ComplaintModule,
@@ -65,18 +67,17 @@ export type {
   ComplaintStatus,
   ComplaintSubcategory,
   ComplaintSlaRule,
-  ComplaintTeam,
   ComplaintTicket,
 };
 
 export const ticketActions = {
   changeStatus: (id: string, payload: { status_code: string; remarks?: string }) =>
     complaintTicketApi.action<ComplaintTicket>(`${id}/status`, payload),
-  assign: (id: string, payload: { team?: string; staff?: string; reason?: string }) =>
+  assign: (id: string, payload: { department?: string; staff?: string; reason?: string }) =>
     complaintTicketApi.action<ComplaintTicket>(`${id}/assign`, payload),
   resolve: (id: string, payload: { resolution_note?: string; remarks?: string }) =>
     complaintTicketApi.action<ComplaintTicket>(`${id}/resolve`, payload),
-  escalate: (id: string, payload: { team?: string; reason?: string }) =>
+  escalate: (id: string, payload: { reason?: string }) =>
     complaintTicketApi.action<ComplaintTicket>(`${id}/escalate`, payload),
   comment: (id: string, payload: { comment_text: string; is_internal?: boolean; is_sensitive?: boolean }) =>
     complaintTicketApi.action(`${id}/comments`, payload),
@@ -88,7 +89,7 @@ export const ticketActions = {
     complaintTicketApi.action(`${id}/attachments`, payload, {
       headers: { "Content-Type": "multipart/form-data" },
     }),
-  assignableStaff: async (id: string, params?: { zone?: string; ward?: string; department?: string }) => {
+  assignableStaff: async (id: string, params?: { department?: string }) => {
     const response = await complaintTicketApi.action<AssignableStaffResponse | AssignableStaffResponse["staff"]>(
       `${id}/assignable-staff`,
       undefined,
@@ -99,6 +100,8 @@ export const ticketActions = {
     }
     return response;
   },
+  departmentQueue: (departmentId: string) =>
+    complaintTicketApi.readAll({ params: { department: departmentId, all: 1 } }),
 };
 
 /* -----------------------------------------
@@ -283,7 +286,6 @@ export async function fetchGrievances(signal?: AbortSignal) {
     state_name: ticket.state_name || "",
     latitude: ticket.latitude ?? undefined,
     longitude: ticket.longitude ?? undefined,
-    assigned_team_name: ticket.assigned_team_name || "",
     assigned_staff_name: ticket.assigned_staff_name || "",
     district_name: ticket.district_name || "",
     panchayat_name: ticket.panchayat_name || "",

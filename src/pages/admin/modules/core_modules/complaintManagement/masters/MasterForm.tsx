@@ -15,9 +15,8 @@ import {
   complaintPriorityApi,
   complaintSourceApi,
   complaintSubcategoryApi,
-  complaintTeamApi,
 } from "@/features/complaintTicketing/api";
-import { departmentApi, staffCreationApi } from "@/helpers/admin";
+import { departmentApi } from "@/helpers/admin";
 import { asArray, errorText, idOf } from "../utils";
 import { buildComplaintMasterSchema } from "@/schemas/core_modules/complaintManagement/complaintMaster.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
@@ -48,18 +47,13 @@ const emptyForm = {
   subcategory: "",
   source: "",
   default_priority: "",
-  default_team: "",
+  default_department: "",
   requires_location: true,
   requires_media: false,
   requires_address_change_detail: false,
   is_sensitive: false,
   is_final: false,
   allow_reopen: false,
-  is_field_team: false,
-  escalation_level: "1",
-  department: "",
-  lead_staff: "",
-  escalates_to: "",
   assign_within_minutes: "",
   resolve_within_minutes: "",
   working_hours_only: false,
@@ -74,7 +68,7 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
   // status, source, language and module stay global — they are code-keyed
   // vocabularies the routing and SLA resolvers look up by code.
   const isScoped =
-    kind === "team" || kind === "category" || kind === "subcategory" || kind === "slaRule";
+    kind === "category" || kind === "subcategory" || kind === "slaRule";
   const {
     companyUniqueId,
     projectId,
@@ -113,9 +107,7 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
   const [priorities, setPriorities] = useState<any[]>([]);
   const [subcategories, setSubcategories] = useState<any[]>([]);
   const [sources, setSources] = useState<any[]>([]);
-  const [teams, setTeams] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
-  const [staffOptions, setStaffOptions] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
 
   const api = useMemo(() => config.api(), [config]);
@@ -126,11 +118,9 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
     complaintPriorityApi.readAll().then((res) => setPriorities(asArray(res))).catch(() => {});
     complaintSubcategoryApi.readAll().then((res) => setSubcategories(asArray(res))).catch(() => {});
     complaintSourceApi.readAll().then((res) => setSources(asArray(res))).catch(() => {});
-    complaintTeamApi.readAll().then((res) => setTeams(asArray(res))).catch(() => {});
-    // Department/Lead Staff pickers only matter for the Team form, but they're
+    // Default Department picker only matters for the Category form, but it's
     // cheap enough to preload alongside everything else above.
     departmentApi.readAll().then((res) => setDepartments(asArray(res))).catch(() => {});
-    staffCreationApi.readAll({ params: { active_status: 1 } }).then((res) => setStaffOptions(asArray(res))).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -140,8 +130,8 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
       // otherwise editing a row would silently move it to another project.
       if (isScoped) applyCompanyProjectFromRecord(record);
       setForm({
-        code: record.module_code ?? record.category_code ?? record.subcategory_code ?? record.priority_code ?? record.status_code ?? record.source_code ?? record.team_code ?? "",
-        name: record.module_name ?? record.category_name ?? record.subcategory_name ?? record.priority_name ?? record.status_name ?? record.source_name ?? record.team_name ?? "",
+        code: record.module_code ?? record.category_code ?? record.subcategory_code ?? record.priority_code ?? record.status_code ?? record.source_code ?? "",
+        name: record.module_name ?? record.category_name ?? record.subcategory_name ?? record.priority_name ?? record.status_name ?? record.source_name ?? "",
         description: record.description ?? "",
         category: idOf(record.category),
         module: idOf(record.module),
@@ -149,18 +139,13 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
         subcategory: idOf(record.subcategory),
         source: idOf(record.source),
         default_priority: idOf(record.default_priority),
-        default_team: idOf(record.default_team),
+        default_department: idOf(record.default_department),
         requires_location: record.requires_location ?? true,
         requires_media: Boolean(record.requires_media),
         requires_address_change_detail: Boolean(record.requires_address_change_detail),
         is_sensitive: Boolean(record.is_sensitive),
         is_final: Boolean(record.is_final),
         allow_reopen: Boolean(record.allow_reopen),
-        is_field_team: Boolean(record.is_field_team),
-        escalation_level: String(record.escalation_level ?? 1),
-        department: idOf(record.department),
-        lead_staff: idOf(record.lead_staff),
-        escalates_to: idOf(record.escalates_to),
         assign_within_minutes: String(record.assign_within_minutes ?? ""),
         resolve_within_minutes: String(record.resolve_within_minutes ?? ""),
         working_hours_only: Boolean(record.working_hours_only),
@@ -198,7 +183,7 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
             module: form.module || null,
             description: form.description,
             default_priority: form.default_priority || null,
-            default_team: form.default_team || null,
+            default_department: form.default_department || null,
             requires_location: form.requires_location,
             requires_media: form.requires_media,
             requires_address_change_detail: form.requires_address_change_detail,
@@ -218,17 +203,6 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
               ? { ...common, status_code: form.code.trim().toUpperCase(), status_name: form.name.trim(), is_final: form.is_final, allow_reopen: form.allow_reopen }
               : kind === "source"
                 ? { ...common, source_code: form.code.trim().toUpperCase(), source_name: form.name.trim() }
-                : kind === "team"
-                ? {
-                    ...common,
-                    team_code: form.code.trim().toUpperCase(),
-                    team_name: form.name.trim(),
-                    department: form.department || null,
-                    lead_staff: form.lead_staff || null,
-                    escalates_to: form.escalates_to || null,
-                    escalation_level: Number(form.escalation_level || 1),
-                    is_field_team: form.is_field_team,
-                  }
                 : {
                     ...common,
                     category: form.category,
@@ -353,11 +327,11 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
         )}
         {kind === "category" && (
           <div>
-            <Label>Default Team</Label>
+            <Label>Default Department</Label>
             <FormSelect
-              value={form.default_team}
-              onChange={(v) => setValue("default_team", v)}
-              options={teams.map((item) => ({ value: String(item.unique_id), label: capitalize(item.team_name) }))}
+              value={form.default_department}
+              onChange={(v) => setValue("default_department", v)}
+              options={departments.map((item) => ({ value: String(item.unique_id), label: capitalize(item.department_name) }))}
               placeholder={"None"}
             />
           </div>
@@ -398,43 +372,6 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
             </div>
           </>
         )}
-        {kind === "team" && (
-          <>
-            <div>
-              <Label>Department</Label>
-              <FormSelect
-                value={form.department}
-                onChange={(v) => setValue("department", v)}
-                options={departments.map((item) => ({ value: String(item.unique_id), label: capitalize(item.department_name) }))}
-                placeholder={"None"}
-              />
-            </div>
-            <div>
-              <Label>Lead Staff</Label>
-              <FormSelect
-                value={form.lead_staff}
-                onChange={(v) => setValue("lead_staff", v)}
-                options={staffOptions}
-                placeholder={"None"}
-              />
-            </div>
-            <div>
-              <Label>Escalates To</Label>
-              <FormSelect
-                value={form.escalates_to}
-                onChange={(v) => setValue("escalates_to", v)}
-                options={teams
-                  .filter((team) => team.unique_id !== id)
-                  .map((item) => ({ value: String(item.unique_id), label: capitalize(item.team_name) }))}
-                placeholder="None"
-              />
-            </div>
-            <div>
-              <Label>Escalation Level</Label>
-              <Input type="number" value={form.escalation_level} onChange={(e) => setValue("escalation_level", e.target.value)} />
-            </div>
-          </>
-        )}
         {["module", "category", "priority"].includes(kind) && (
           <div className="md:col-span-2">
             <Label>Description</Label>
@@ -463,11 +400,6 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
           {kind === "status" && (
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={form.allow_reopen} onCheckedChange={(checked) => setValue("allow_reopen", checked === true)} /> Allow reopen
-            </label>
-          )}
-          {kind === "team" && (
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={form.is_field_team} onCheckedChange={(checked) => setValue("is_field_team", checked === true)} /> Field team
             </label>
           )}
           {kind === "slaRule" && (

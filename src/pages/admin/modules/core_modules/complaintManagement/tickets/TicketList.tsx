@@ -616,7 +616,11 @@ export default function TicketList() {
         <Column header="Ward" body={(row) => row.ward_name || "-"} />
         <Column field="priority_code" header="Priority" />
         <Column header="Status" body={statusTemplate} />
-        <Column field="assigned_team_name" header="Assigned Team" />
+        <Column
+          header="Department"
+          body={(row) => row.department_name || row.assigned_department_name || "-"}
+        />
+        <Column field="assigned_staff_name" header="Assigned Staff" />
         <Column
           header="SLA Due"
           body={(row) => formatDateTime(row.sla_due_at)}
