@@ -62,6 +62,7 @@ export const columnPermissionApi = adminApi.columnPermissions;
 export const userTypeApi = adminApi.userTypes;
 export const staffUserTypeApi = adminApi.staffUserTypes;
 export const roleTypesApi = adminApi.roleTypes;
+export const projectStaffHierarchyApi = adminApi.projectStaffHierarchy;
 export const contractorUserTypeApi = adminApi.contractorUserTypes;
 export const contractorRoleTypesApi = adminApi.contractorRoleTypes;
 
@@ -110,7 +111,7 @@ export const complaintPriorityApi = adminApi.complaintPriorities;
 export const complaintStatusApi = adminApi.complaintStatuses;
 export const complaintSourceApi = adminApi.complaintSources;
 export const complaintLanguageApi = adminApi.complaintLanguages;
-export const complaintTeamApi = adminApi.complaintTeams;
+export const complaintDepartmentMemberApi = adminApi.complaintDepartmentMembers;
 export const complaintSlaRuleApi = adminApi.complaintSlaRules;
 export const complaintRoutingRuleApi = adminApi.complaintRoutingRules;
 export const complaintFeedbackApi = adminApi.complaintFeedback;

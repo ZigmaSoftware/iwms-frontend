@@ -101,6 +101,7 @@ export const adminEndpoints = {
   userTypes: "role-assigns/user-type",
   staffUserTypes: "role-assigns/staffusertypes",
   roleTypes: "role-assigns/staffusertypes/role-choices",
+  projectStaffHierarchy: "role-assigns/project-staff-hierarchy",
   contractorUserTypes: "role-assigns/contractorusertypes",
   contractorRoleTypes: "role-assigns/contractorusertypes/role-choices",
 
@@ -118,7 +119,6 @@ export const adminEndpoints = {
   customerCreations: "customer-masters/customercreations",
   /** Per-customer app access: which app they may sign into, which screens they see. */
   customerAccessConfiguration: "customer-masters/customer-access-configuration",
-  feedbacks: "customer-masters/feedbacks",
 
   /* =========================
      COLLECTIONS
@@ -153,7 +153,7 @@ export const adminEndpoints = {
   complaintStatuses: "complaint-ticket/statuses",
   complaintSources: "complaint-ticket/sources",
   complaintLanguages: "complaint-ticket/languages",
-  complaintTeams: "complaint-ticket/teams",
+  complaintDepartmentMembers: "complaint-ticket/department-members",
   complaintSlaRules: "complaint-ticket/sla-rules",
   complaintRoutingRules: "complaint-ticket/routing-rules",
   complaintFeedback: "complaint-ticket/feedback",

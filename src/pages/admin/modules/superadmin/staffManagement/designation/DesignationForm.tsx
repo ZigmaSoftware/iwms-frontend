@@ -13,8 +13,11 @@ import { designationSchema } from "@/schemas/superadmin/staffManagement/designat
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
 
-const { encMasters, encDesignations } = getEncryptedRoute();
-const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encDesignations);
+const { encStaffMasters, encDesignations } = getEncryptedRoute();
+const { listPath: LIST_PATH } = createCrudRoutePaths(
+  encStaffMasters,
+  encDesignations,
+);
 
 export default function DesignationForm() {
   const { t } = useTranslation();

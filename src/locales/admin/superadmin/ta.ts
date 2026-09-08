@@ -35,6 +35,11 @@ export default {
   staff_user_type: {
     role_label: "பணியாளர் பயனர் பங்கு",
   },
+  project_staff_hierarchy: {
+    reports_to: "யாருக்கு அறிக்கை அளிக்கிறார்",
+    level: "நிலை",
+    top_of_chain: "சங்கிலியின் உச்சம் (தலைவர் இல்லை)",
+  },
   staff_template_audit: {
     title: "பணியாளர் டெம்ப்ளேட் ஆய்வு",
     subtitle: "பணியாளர் டெம்ப்ளேட் வரலாறும் ஒப்புதல்களும் பார்க்கவும்.",
@@ -329,6 +334,7 @@ export default {
     user_type: "பயனர் வகை",
     user_creation: "பயனர் உருவாக்கம்",
     staff_user_type: "பணியாளர் பயனர் வகை",
+    project_staff_hierarchy: "திட்ட பணியாளர் படிநிலை",
     user_creations: "பயனர் உருவாக்கங்கள்",
     staff_management: "பணியாளர் மேலாண்மை",
     masters: "மாஸ்டர்கள்",
@@ -425,7 +431,9 @@ export default {
     priorities: "முன்னுரிமைகள்",
     statuses: "நிலைகள்",
     sources: "மூலங்கள்",
-    teams: "குழுக்கள்",
+    department_roster: "துறை பட்டியல்",
+    supervisor_dashboard: "மேற்பார்வையாளர் டாஷ்போர்டு",
+    my_tasks: "எனது பணிகள்",
     sla_rules: "SLA Rules",
     complaints: "புகார்கள்",
     main_category: "முதன்மை வகை",

@@ -21,9 +21,12 @@ import {
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
 
-const { encMasters, encDesignations } = getEncryptedRoute();
-const { newPath: NEW_PATH } = createCrudRoutePaths(encMasters, encDesignations);
-const { editPath } = createCrudRoutePaths(encMasters, encDesignations);
+const { encStaffMasters, encDesignations } = getEncryptedRoute();
+const { newPath: NEW_PATH } = createCrudRoutePaths(
+  encStaffMasters,
+  encDesignations,
+);
+const { editPath } = createCrudRoutePaths(encStaffMasters, encDesignations);
 
 type DesignationRecord = {
   unique_id: string | number;
