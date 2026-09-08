@@ -335,7 +335,7 @@ export default function StateList() {
           <Column
             field="label"
             header={t("common.label")}
-            body={(r) => r.label.toUpperCase()}
+            body={(r) => r.label?.toUpperCase() ?? ""}
           />
         )}
 
