@@ -850,13 +850,22 @@ export default function StaffCreationForm() {
     // otherwise this scopes to the logged-in admin's own project (via the
     // viewset's default project fallback), which can silently exclude the
     // staff's actually-assigned head if it belongs to a different project.
-    if (isEdit && !formData.project_id) return;
+    if (isEdit && !hookProjectId) return;
 
     const loadStaffHeads = async () => {
       try {
         const params: Record<string, string> = {};
         if (id) params.exclude = id;
-        if (formData.project_id) params.project_id = formData.project_id;
+        // hookProjectId (not formData.project_id) is the source of truth
+        // for the selected project — the Project <Select> above displays
+        // hookProjectId directly, and formData.project_id is only ever set
+        // once the user actively re-picks it via handleSelectChange, so it
+        // can stay empty even while a project is visibly selected.
+        if (hookProjectId) params.project_id = hookProjectId;
+        // Lets the backend narrow candidates to whichever role this
+        // project's hierarchy config says the selected staff type reports
+        // to, instead of showing every staff member in the project.
+        if (formData.staffusertype_id) params.staffusertype_id = formData.staffusertype_id;
 
         const response = await api.get(
           "/staff-creations/staffcreation/staff-head-options/",
@@ -879,7 +888,7 @@ export default function StaffCreationForm() {
     };
 
     void loadStaffHeads();
-  }, [id, isEdit, formData.project_id]);
+  }, [id, isEdit, hookProjectId, formData.staffusertype_id]);
 
   useEffect(() => {
     if (!photoFile) return;

@@ -62,6 +62,7 @@ export const columnPermissionApi = adminApi.columnPermissions;
 export const userTypeApi = adminApi.userTypes;
 export const staffUserTypeApi = adminApi.staffUserTypes;
 export const roleTypesApi = adminApi.roleTypes;
+export const projectStaffHierarchyApi = adminApi.projectStaffHierarchy;
 export const contractorUserTypeApi = adminApi.contractorUserTypes;
 export const contractorRoleTypesApi = adminApi.contractorRoleTypes;
 

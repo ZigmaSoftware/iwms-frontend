@@ -59,8 +59,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     encComplaintPriorities,
     encComplaintStatuses,
     encComplaintSources,
-    encComplaintDepartmentMembers,
-    encSupervisorDashboard,
     encMyTasks,
     encComplaintSlaRules,
     encComplaintMastersModule,
@@ -80,6 +78,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encWasteManagementMaster,
     encWorkforceManagement,
     encStaffUserType,
+    encProjectStaffHierarchy,
     encMainScreenType,
     encUserScreenAction,
     encMainScreen,
@@ -264,6 +263,11 @@ export function buildNavRouteMap(): RouteEntry[] {
       nameKey: "admin.nav.staff_user_type",
       parentNameKey: "admin.nav.roleAssigns",
     },
+    {
+      path: `/${encAdmins}/${encProjectStaffHierarchy}`,
+      nameKey: "admin.nav.project_staff_hierarchy",
+      parentNameKey: "admin.nav.roleAssigns",
+    },
     // User Creations
     // Org / Department Setup
     {
@@ -371,16 +375,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     {
       path: `/${encComplaintTicket}/${encComplaintSources}`,
       nameKey: "admin.nav.sources",
-      parentNameKey: "admin.nav.complaint_ticket",
-    },
-    {
-      path: `/${encComplaintTicket}/${encComplaintDepartmentMembers}`,
-      nameKey: "admin.nav.department_roster",
-      parentNameKey: "admin.nav.complaint_ticket",
-    },
-    {
-      path: `/${encComplaintTicket}/${encSupervisorDashboard}`,
-      nameKey: "admin.nav.supervisor_dashboard",
       parentNameKey: "admin.nav.complaint_ticket",
     },
     {

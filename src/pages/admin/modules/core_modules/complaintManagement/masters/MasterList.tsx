@@ -330,10 +330,23 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
           />
         )}
         {kind === "slaRule" && (
-          <Column field="assign_within_minutes" header="Assign Minutes" />
-        )}
-        {kind === "slaRule" && (
-          <Column field="resolve_within_minutes" header="Resolve Minutes" />
+          <Column
+            header="Escalation Levels"
+            body={(row) => {
+              const levels = (row.escalation_levels ?? []) as {
+                level: number;
+                is_enabled?: boolean;
+                resolve_within_minutes: number;
+              }[];
+              const enabled = levels
+                .filter((level) => level.is_enabled !== false)
+                .sort((a, b) => a.level - b.level);
+              if (enabled.length === 0) return "-";
+              return enabled
+                .map((level) => `L${level.level}: ${level.resolve_within_minutes}m`)
+                .join(", ");
+            }}
+          />
         )}
         {kind === "slaRule" && (
           <Column

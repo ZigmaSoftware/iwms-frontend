@@ -148,8 +148,6 @@ export const MASTER_CONFIG: Record<MasterKind, MasterConfigEntry> = {
       { field: "category_code", header: "Category", sortable: true },
       { field: "subcategory_code", header: "Sub Category" },
       { field: "priority_code", header: "Priority", sortable: true },
-      { field: "assign_within_minutes", header: "Assign Minutes" },
-      { field: "resolve_within_minutes", header: "Resolve Minutes" },
       { field: "working_hours_only", header: "Working Hours", render: "yesno" },
     ],
   },

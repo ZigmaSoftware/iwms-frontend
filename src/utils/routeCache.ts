@@ -22,8 +22,6 @@ export type EncryptedRoutes = {
   encComplaintPriorities: string;
   encComplaintStatuses: string;
   encComplaintSources: string;
-  encComplaintDepartmentMembers: string;
-  encSupervisorDashboard: string;
   encMyTasks: string;
   encComplaintSlaRules: string;
   // renamed from encCitizenGrivence/encComplaint/encMainComplaintCategory/
@@ -59,6 +57,7 @@ export type EncryptedRoutes = {
   encReport: string;
   encStaffCreation: string;
   encStaffUserType: string;
+  encProjectStaffHierarchy: string;
   encStates: string;
   encSubComplaintCategory: string;
   encSubProperties: string;
@@ -152,8 +151,6 @@ const plainRoutes: EncryptedRoutes = {
   encComplaintPriorities: "priorities",
   encComplaintStatuses: "statuses",
   encComplaintSources: "sources",
-  encComplaintDepartmentMembers: "department-members",
-  encSupervisorDashboard: "supervisor-dashboard",
   encMyTasks: "my-tasks",
   encComplaintSlaRules: "sla-rules",
   encComplaintTicket: "complaint-ticket",
@@ -189,6 +186,7 @@ const plainRoutes: EncryptedRoutes = {
   encReport: "reports",
   encStaffCreation: "staff-creation",
   encStaffUserType: "staff-user-type",
+  encProjectStaffHierarchy: "project-staff-hierarchy",
   encStates: "states",
   encSubComplaintCategory: "sub-complaint-category",
   encSubProperties: "sub-properties",

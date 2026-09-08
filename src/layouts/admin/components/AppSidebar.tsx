@@ -55,8 +55,6 @@ const {
   encMonthlyWasteComparison,
   encComplaintTicket,
   encComplaint,
-  encComplaintDepartmentMembers,
-  encSupervisorDashboard,
   encMyTasks,
   encComplaintMastersModule,
   encComplaintTypes,
@@ -77,6 +75,7 @@ const {
   encWasteCollectedData,
   encWorkforceManagement,
   encStaffUserType,
+  encProjectStaffHierarchy,
   encMainScreenType,
   encUserScreenAction,
   encMainScreen,
@@ -459,6 +458,12 @@ const roleAssignsItems: NavItem[] = [
         module: "role-assigns",
         screen: "staff-user-type",
       },
+      {
+        nameKey: "admin.nav.project_staff_hierarchy",
+        path: `/${encAdmins}/${encProjectStaffHierarchy}`,
+        module: "role-assigns",
+        screen: "project-staff-hierarchy",
+      },
     ],
   },
 ];
@@ -561,18 +566,6 @@ const complaintTicketItems: NavItem[] = [
         path: `/${encComplaintTicket}/${encComplaint}`,
         module: "complaint-ticket",
         screen: "tickets",
-      },
-      {
-        nameKey: "admin.nav.department_roster",
-        path: `/${encComplaintTicket}/${encComplaintDepartmentMembers}`,
-        module: "complaint-ticket",
-        screen: "department-members",
-      },
-      {
-        nameKey: "admin.nav.supervisor_dashboard",
-        path: `/${encComplaintTicket}/${encSupervisorDashboard}`,
-        module: "complaint-ticket",
-        screen: "supervisor-dashboard",
       },
       {
         nameKey: "admin.nav.my_tasks",

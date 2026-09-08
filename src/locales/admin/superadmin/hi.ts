@@ -35,6 +35,11 @@ export default {
   staff_user_type: {
     role_label: "स्टाफ यूज़र भूमिका",
   },
+  project_staff_hierarchy: {
+    reports_to: "रिपोर्ट्स टू",
+    level: "स्तर",
+    top_of_chain: "श्रृंखला का शीर्ष (कोई प्रमुख नहीं)",
+  },
   staff_template_audit: {
     title: "स्टाफ टेम्पलेट ऑडिट",
     subtitle: "स्टाफ टेम्पलेट इतिहास और अनुमोदन देखें।",
@@ -324,6 +329,7 @@ export default {
     user_type: "यूज़र प्रकार",
     user_creation: "यूज़र निर्माण",
     staff_user_type: "स्टाफ यूज़र प्रकार",
+    project_staff_hierarchy: "प्रोजेक्ट स्टाफ पदानुक्रम",
     user_creations: "यूज़र निर्माण",
     staff_management: "स्टाफ प्रबंधन",
     masters: "मास्टर्स",

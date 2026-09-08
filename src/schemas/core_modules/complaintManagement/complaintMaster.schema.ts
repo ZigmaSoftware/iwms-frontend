@@ -14,9 +14,8 @@ import { optionalString, requiredString } from "@/schemas/shared/fields";
  *  - "slaRule" (which has no code/name inputs at all) required
  *    `category` + `priority` instead
  * All other fields (description, module, default_priority,
- * default_department, subcategory/source pickers on the SLA rule form, the
- * *_minutes fields, and every boolean flag) were never blocked on and stay
- * optional here too.
+ * default_department, subcategory/source pickers on the SLA rule form, and
+ * every boolean flag) were never blocked on and stay optional here too.
  */
 export type MasterKind =
   | "module"
@@ -44,10 +43,7 @@ const complaintMasterBaseSchema = z.object({
   is_sensitive: z.boolean(),
   is_final: z.boolean(),
   allow_reopen: z.boolean(),
-  assign_within_minutes: optionalString,
-  resolve_within_minutes: optionalString,
   working_hours_only: z.boolean(),
-  escalation_after_minutes: optionalString,
   is_active: z.boolean(),
 });
 

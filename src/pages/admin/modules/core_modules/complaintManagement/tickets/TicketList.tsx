@@ -47,9 +47,9 @@ const toRecordList = (value: unknown): ComplaintTicket[] => {
   return [];
 };
 
-// Backend `ordering_fields` also includes updated/sla_due_at, but only these
-// two are rendered as columns whose field name matches a real orderable
-// backend column - keep sorting limited to what the server can honor.
+// Backend `ordering_fields` also includes updated/next_escalation_due_at, but
+// only these two are rendered as columns whose field name matches a real
+// orderable backend column - keep sorting limited to what the server can honor.
 const SORTABLE_FIELDS = new Set(["ticket_no", "created"]);
 
 export default function TicketList() {
@@ -391,13 +391,6 @@ export default function TicketList() {
     );
 
   const slaTemplate = (row: ComplaintTicket) => {
-    if (row.sla_breached) {
-      return (
-        <span className="whitespace-nowrap rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
-          Breached
-        </span>
-      );
-    }
     if (
       typeof row.sla_time_remaining_seconds === "number" &&
       row.sla_time_remaining_seconds < 0
@@ -616,14 +609,10 @@ export default function TicketList() {
         <Column header="Ward" body={(row) => row.ward_name || "-"} />
         <Column field="priority_code" header="Priority" />
         <Column header="Status" body={statusTemplate} />
-        <Column
-          header="Department"
-          body={(row) => row.department_name || row.assigned_department_name || "-"}
-        />
         <Column field="assigned_staff_name" header="Assigned Staff" />
         <Column
-          header="SLA Due"
-          body={(row) => formatDateTime(row.sla_due_at)}
+          header="Next Escalation Due"
+          body={(row) => formatDateTime(row.next_escalation_due_at)}
         />
         <Column header="SLA" body={slaTemplate} style={{ width: "120px" }} />
         <Column header="Feedback" body={feedbackTemplate} />

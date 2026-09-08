@@ -100,6 +100,7 @@ export const adminEndpoints = {
   userTypes: "role-assigns/user-type",
   staffUserTypes: "role-assigns/staffusertypes",
   roleTypes: "role-assigns/staffusertypes/role-choices",
+  projectStaffHierarchy: "role-assigns/project-staff-hierarchy",
   contractorUserTypes: "role-assigns/contractorusertypes",
   contractorRoleTypes: "role-assigns/contractorusertypes/role-choices",
 

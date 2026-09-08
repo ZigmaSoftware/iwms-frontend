@@ -5,9 +5,7 @@ import {
   type ScopeLevel,
 } from "../../pages/admin/modules/masters/shared/dataScopeOptions";
 import type {
-  AssignableStaffResponse,
   ComplaintCategory,
-  ComplaintDepartmentMember,
   ComplaintFeedback,
   ComplaintLanguage,
   ComplaintModule,
@@ -36,8 +34,6 @@ export const complaintPriorityApi = adminApi.complaintPriorities as typeof admin
 export const complaintStatusApi = adminApi.complaintStatuses as typeof adminApi.complaintStatuses;
 export const complaintSourceApi = adminApi.complaintSources as typeof adminApi.complaintSources;
 export const complaintLanguageApi = adminApi.complaintLanguages as typeof adminApi.complaintLanguages;
-export const complaintDepartmentMemberApi =
-  adminApi.complaintDepartmentMembers as typeof adminApi.complaintDepartmentMembers;
 export const complaintSlaRuleApi = adminApi.complaintSlaRules as typeof adminApi.complaintSlaRules;
 export const complaintFeedbackApi = adminApi.complaintFeedback as typeof adminApi.complaintFeedback;
 export const complaintNotificationApi = adminApi.complaintNotifications as typeof adminApi.complaintNotifications;
@@ -51,14 +47,12 @@ export const complaintTicketingApi = {
   statuses: complaintStatusApi,
   sources: complaintSourceApi,
   languages: complaintLanguageApi,
-  departmentMembers: complaintDepartmentMemberApi,
   slaRules: complaintSlaRuleApi,
   feedback: complaintFeedbackApi,
 };
 
 export type {
   ComplaintCategory,
-  ComplaintDepartmentMember,
   ComplaintFeedback,
   ComplaintLanguage,
   ComplaintModule,
@@ -73,8 +67,6 @@ export type {
 export const ticketActions = {
   changeStatus: (id: string, payload: { status_code: string; remarks?: string }) =>
     complaintTicketApi.action<ComplaintTicket>(`${id}/status`, payload),
-  assign: (id: string, payload: { department?: string; staff?: string; reason?: string }) =>
-    complaintTicketApi.action<ComplaintTicket>(`${id}/assign`, payload),
   resolve: (id: string, payload: { resolution_note?: string; remarks?: string }) =>
     complaintTicketApi.action<ComplaintTicket>(`${id}/resolve`, payload),
   escalate: (id: string, payload: { reason?: string }) =>
@@ -89,19 +81,6 @@ export const ticketActions = {
     complaintTicketApi.action(`${id}/attachments`, payload, {
       headers: { "Content-Type": "multipart/form-data" },
     }),
-  assignableStaff: async (id: string, params?: { department?: string }) => {
-    const response = await complaintTicketApi.action<AssignableStaffResponse | AssignableStaffResponse["staff"]>(
-      `${id}/assignable-staff`,
-      undefined,
-      { params },
-    );
-    if (Array.isArray(response)) {
-      return { count: response.length, staff: response };
-    }
-    return response;
-  },
-  departmentQueue: (departmentId: string) =>
-    complaintTicketApi.readAll({ params: { department: departmentId, all: 1 } }),
 };
 
 /* -----------------------------------------

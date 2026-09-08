@@ -67,16 +67,18 @@ export type ComplaintTicket = {
   ward_name?: string | null;
   assigned_staff?: ApiId | null;
   assigned_staff_name?: string | null;
-  department?: ApiId | null;
-  department_name?: string | null;
   is_escalated?: boolean;
   escalated_to_staff?: ApiId | null;
   escalated_to_staff_name?: string | null;
-  sla_due_at?: string | null;
+  /** Current hop in the project's staff hierarchy: 0 = first assignee. */
+  escalation_level?: number;
+  /** Human role name for `escalation_level` (e.g. "Company Supervisor"). */
+  escalation_level_name?: string | null;
+  /** Deadline for `escalation_level`; past this and unresolved, it auto-escalates. */
+  next_escalation_due_at?: string | null;
   first_response_due_at?: string | null;
+  /** Seconds until next_escalation_due_at (negative once overdue); null if resolved/closed or no further level. */
   sla_time_remaining_seconds?: number | null;
-  sla_breached?: boolean;
-  sla_breached_at?: string | null;
   resolved_at?: string | null;
   closed_at?: string | null;
   reopened_count?: number;
@@ -188,16 +190,13 @@ export type ComplaintLanguage = {
   is_active?: boolean;
 };
 
-export type ComplaintDepartmentMember = {
-  unique_id: string;
-  department: ApiId;
-  department_name?: string | null;
-  staff: ApiId;
-  staff_name?: string | null;
-  is_supervisor?: boolean;
-  max_active_tickets?: number | null;
-  open_ticket_count?: number;
-  is_active?: boolean;
+export type ComplaintSlaEscalationLevel = {
+  unique_id?: string;
+  /** Hierarchy level this window applies to (matches ProjectStaffHierarchy.level). */
+  level: number;
+  /** Whether this level participates in escalation for this rule. */
+  is_enabled?: boolean;
+  resolve_within_minutes: number;
 };
 
 export type ComplaintSlaRule = {
@@ -208,10 +207,10 @@ export type ComplaintSlaRule = {
   priority: ApiId;
   priority_code?: string | null;
   source?: ApiId | null;
-  assign_within_minutes?: number | null;
   resolve_within_minutes?: number | null;
   working_hours_only?: boolean;
-  escalation_after_minutes?: number | null;
+  /** Per-hierarchy-level resolve windows; replaces the whole set on save. */
+  escalation_levels?: ComplaintSlaEscalationLevel[];
   is_active?: boolean;
 };
 

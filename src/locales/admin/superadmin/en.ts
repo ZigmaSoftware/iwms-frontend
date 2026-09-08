@@ -35,6 +35,11 @@ export default {
   staff_user_type: {
     role_label: "Staff User Role",
   },
+  project_staff_hierarchy: {
+    reports_to: "Reports To",
+    level: "Level",
+    top_of_chain: "Top of chain (no head)",
+  },
   staff_template_audit: {
     title: "Staff Template Audit",
     subtitle: "Review staff template history and approvals.",
@@ -349,6 +354,7 @@ export default {
     user_type: "User Type",
     user_creation: "User Creation",
     staff_user_type: "Staff User Type",
+    project_staff_hierarchy: "Project Staff Hierarchy",
     user_creations: "Staff Creations",
     staff_management: "Staff Management",
     staff_creation: "Staff Creation",
