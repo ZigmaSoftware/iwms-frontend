@@ -55,8 +55,18 @@ const FILE_ICON = "/images/pdfimage/download.png";
 
 const VEHICLE_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   { field: "vehicle_no", header: "vehicle_no", required: true, sample: "KA01AB1234" },
-  { field: "vehicle_type", header: "vehicle_type", sample: "Compactor" },
-  { field: "fuel_type", header: "fuel_type", sample: "Diesel" },
+  {
+    field: "vehicle_type",
+    header: "vehicle_type",
+    sample: "Compactor",
+    notes: "Enter the vehicle type name as shown in Vehicle Type master (e.g. Compactor). The unique ID also still works.",
+  },
+  {
+    field: "fuel_type",
+    header: "fuel_type",
+    sample: "Diesel",
+    notes: "Enter the fuel type name as shown in Fuel master (e.g. Diesel). The unique ID also still works.",
+  },
   { field: "capacity", header: "capacity", sample: "7500" },
   { field: "mileage_per_liter", header: "mileage_per_liter", sample: "5.4" },
   { field: "service_record", header: "service_record", sample: "Service at 2024-11-30" },
