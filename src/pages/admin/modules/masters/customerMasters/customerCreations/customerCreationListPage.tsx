@@ -113,43 +113,59 @@ const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
     header: "waste_collection_kg_per_day",
     sample: "5",
   },
-  { field: "ward_name", header: "ward_name", sample: "Ward 10" },
-  { field: "zone_name", header: "zone_name", sample: "North Zone" },
+  {
+    field: "ward_name",
+    header: "ward_name",
+    sample: "Ward 10",
+    notes: "Enter the ward name as shown in Ward master (e.g. Ward 10). Leave blank if this customer belongs to a Panchayat instead.",
+  },
+  {
+    field: "zone_name",
+    header: "zone_name",
+    sample: "North Zone",
+    notes: "Enter the zone name as shown in Zone master (e.g. North Zone).",
+  },
   {
     field: "city_name",
     header: "city_name",
     required: true,
     sample: "Chennai",
+    notes: "Enter the city name as shown in City master (e.g. Chennai).",
   },
   {
     field: "district_name",
     header: "district_name",
     required: true,
     sample: "Chennai",
+    notes: "Enter the district name as shown in District master (e.g. Chennai).",
   },
   {
     field: "state_name",
     header: "state_name",
     required: true,
     sample: "Tamil Nadu",
+    notes: "Enter the state name as shown in State master (e.g. Tamil Nadu).",
   },
   {
     field: "country_name",
     header: "country_name",
     required: true,
     sample: "India",
+    notes: "Enter the country name as shown in Country master (e.g. India).",
   },
   {
     field: "property_name",
     header: "property_name",
     required: true,
     sample: "Residential",
+    notes: "Enter the property type name as shown in Property master (e.g. Residential).",
   },
   {
     field: "sub_property_name",
     header: "sub_property_name",
     required: true,
     sample: "Apartment",
+    notes: "Enter the sub property type name as shown in Sub Property master (e.g. Apartment).",
   },
   {
     // Waste types are entered by NAME, like every other lookup column here
@@ -159,12 +175,17 @@ const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
     field: "waste_type_names",
     header: "waste_type_names",
     sample: "Wet Waste, Dry Waste",
+    notes: "Comma-separated waste type names as shown in Waste Type master.",
   },
   { field: "member_count", header: "member_count", sample: "4" },
   { field: "apartment_name", header: "apartment_name", sample: "Sunrise Apt" },
   { field: "block_no", header: "block_no", sample: "A" },
   { field: "flat_no", header: "flat_no", sample: "101" },
-  { field: "panchayat_name", header: "panchayat_name" },
+  {
+    field: "panchayat_name",
+    header: "panchayat_name",
+    notes: "Enter the panchayat name as shown in Panchayat master. Leave blank if this customer belongs to a Ward/Zone instead.",
+  },
 ];
 
 export default function CustomerCreationListPage() {

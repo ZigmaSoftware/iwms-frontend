@@ -38,13 +38,48 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 const PERMISSION_SEARCH_FIELDS = ["project_name", "company_name", "permission_type_label"];
 
+// NOTE: `header` must stay identical to what the backend's bulk-upload CSV
+// reader looks up in `row.get(...)` — there is no header-to-field remapping
+// like SafeDataTable's generic import path has. company_id/project_id were
+// renamed to company_name/project_name here (and in the backend's
+// bulk_upload row lookups) so the template never shows the raw id column;
+// the backend still accepts a unique_id typed into the same column.
 const BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
-  { field: "company_id", header: "company_id", required: true, sample: "COMPANY-0001" },
-  { field: "project_id", header: "project_id", sample: "PROJECT-0001 (leave blank for company-wide)" },
+  {
+    field: "company_name",
+    header: "company_name",
+    required: true,
+    sample: "Acme Corp",
+    notes: "Enter the company name as shown in Company master (e.g. Acme Corp).",
+  },
+  {
+    field: "project_name",
+    header: "project_name",
+    sample: "Chennai Waste Management (leave blank for company-wide)",
+    notes: "Enter the project name as shown in Project master, scoped to the selected company. Leave blank for a company-wide permission.",
+  },
   { field: "permission_type", header: "permission_type", sample: "screen" },
-  { field: "main_screen_id_or_name", header: "main_screen_id_or_name", required: true, sample: "Transport Masters" },
-  { field: "user_screen_id_or_name", header: "user_screen_id_or_name", required: true, sample: "Vehicle Creation" },
-  { field: "action_id_or_name", header: "action_id_or_name", required: true, sample: "view" },
+  {
+    field: "main_screen_name",
+    header: "main_screen_name",
+    required: true,
+    sample: "Transport Masters",
+    notes: "Enter the main screen name as shown in the screen list (e.g. Transport Masters).",
+  },
+  {
+    field: "user_screen_name",
+    header: "user_screen_name",
+    required: true,
+    sample: "Vehicle Creation",
+    notes: "Enter the screen name as shown under the selected main screen (e.g. Vehicle Creation).",
+  },
+  {
+    field: "action_name",
+    header: "action_name",
+    required: true,
+    sample: "view",
+    notes: "Enter the action name as shown for the selected screen (e.g. view, edit, delete).",
+  },
   { field: "description", header: "description", sample: "" },
 ];
 

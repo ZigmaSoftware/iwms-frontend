@@ -46,7 +46,7 @@ function useSelectContext(component: string) {
 interface SelectProps {
   value?: string;
   defaultValue?: string;
-  onValueChange?: (value: string) => void;
+  onValueChange?(value: string): void;
   disabled?: boolean;
   name?: string;
   children?: React.ReactNode;

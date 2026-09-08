@@ -6,12 +6,14 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowRight, Building2, Eye, EyeOff, Lock, User } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import LoginBg from "../images/bgSignin.png";
+import { useCaptcha, CaptchaField } from "@/components/auth/Captcha";
 
 export default function DistrictAuth() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const captcha = useCaptcha();
 
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -28,8 +30,8 @@ export default function DistrictAuth() {
 
   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!username.trim() || !password.trim()) {
-      toast({ title: "Required", description: "Enter username and password.", variant: "destructive" });
+    if (!username.trim() || !password.trim() || !captcha.value.trim()) {
+      toast({ title: "Required", description: "Enter username, password and captcha.", variant: "destructive" });
       return;
     }
     setLoading(true);
@@ -40,6 +42,8 @@ export default function DistrictAuth() {
         username,
         password,
         login_type: "district_member",
+        captcha_id: captcha.captchaId,
+        captcha_value: captcha.value,
       });
 
       const payload = res.data;
@@ -65,10 +69,12 @@ export default function DistrictAuth() {
       navigate("/district", { replace: true });
     } catch (error: any) {
       const message =
+        error?.response?.data?.captcha?.[0] ||
         error?.response?.data?.non_field_errors?.[0] ||
         error?.response?.data?.detail ||
         error?.message ||
         "Invalid credentials";
+      captcha.refresh();
       toast({ title: "Login Failed", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -154,6 +160,13 @@ export default function DistrictAuth() {
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500">
+              Security check
+            </label>
+            <CaptchaField captcha={captcha} />
           </div>
 
           <button
