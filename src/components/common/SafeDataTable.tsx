@@ -30,7 +30,7 @@ import {
 } from "@/helpers/admin/serverListMode";
 import { getListCompanyProjectContext } from "@/utils/listQueryContext";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
-import type { CrudHelpers } from "@/helpers/admin/crudHelpers";
+import type { CrudFieldMetadata, CrudHelpers } from "@/helpers/admin/crudHelpers";
 import {
   exportRecordsToExcel,
   exportTemplateToExcel,
@@ -59,6 +59,12 @@ type SafeDataTableProps<TValue extends SafeTableRows> =
     exportFilename?: string;
     exportRows?: SafeTableRows;
     exportSheetName?: string;
+    /**
+     * Fetches every row an "All data" export should cover, beyond what's
+     * currently loaded client-side (e.g. paged/filtered server data). Without
+     * this, "All data" falls back to whatever's already in `value`/`exportRows`.
+     */
+    loadExportRows?: () => Promise<SafeTableRows>;
     importApi?: CrudHelpers;
     importColumns?: ExcelTemplateColumn[];
     importDefaults?: SafeTableRow;
@@ -144,6 +150,26 @@ const METADATA_EXCLUDED_FIELDS = new Set([
   "is_deleted",
 ]);
 
+// Fields ending in `_id`/`_ids` that reference a master/lookup table accept
+// the row's human-readable name as an alternative to its opaque unique_id on
+// Excel bulk upload (backend resolution lives in
+// app/utils/name_or_id_field.py). The upload TEMPLATE goes further: it
+// doesn't show the raw `country_id` column at all — the column is literally
+// named `country_name`, so the uploader only ever sees/fills in a name. The
+// unique_id is still accepted if someone types it into that same column
+// (NameOrUniqueIdField checks for an exact unique_id match first), but the
+// template no longer advertises the id-shaped column. Normal form
+// dropdowns/API responses/exports are unaffected — this only changes the
+// upload template's column naming.
+const isLookupField = (field: string, details: CrudFieldMetadata) =>
+  details.type === "field" &&
+  (/_ids?$/.test(field) || field === "mainCategory");
+
+const toLookupNameColumn = (field: string) =>
+  field === "mainCategory"
+    ? "mainCategory_name"
+    : field.replace(/_ids$/, "_names").replace(/_id$/, "_name");
+
 const readMetadataImportColumns = async (
   importApi: CrudHelpers,
 ): Promise<ExcelTemplateColumn[] | null> => {
@@ -158,11 +184,17 @@ const readMetadataImportColumns = async (
         !METADATA_EXCLUDED_FIELDS.has(field) &&
         !field.startsWith("_"),
     )
-    .map(([field, details]) => ({
-      field,
-      header: field,
-      required: details.required === true,
-    }));
+    .map(([field, details]) => {
+      const lookup = isLookupField(field, details);
+      return {
+        field,
+        header: lookup ? toLookupNameColumn(field) : field,
+        required: details.required === true,
+        notes: lookup
+          ? "Enter the name as shown in its master list (e.g. India, Tamil Nadu)."
+          : undefined,
+      };
+    });
 };
 
 const mapExcelRowsToPayloads = (
@@ -549,6 +581,7 @@ export const DataTable = <TValue extends SafeTableRows>(
     exportFilename,
     exportRows,
     exportSheetName,
+    loadExportRows: loadExportRowsProp,
     importApi,
     importColumns,
     importDefaults,
@@ -796,25 +829,27 @@ export const DataTable = <TValue extends SafeTableRows>(
         filename={exportFilename}
         sheetName={exportSheetName}
         loadExportRows={
-          serverApi
-            ? async () => {
-                const companyProject = getListCompanyProjectContext();
-                return (await serverApi.readAllForExport({
-                  ...serverConfig,
-                  params: {
-                    ...serverConfig?.params,
-                    ...(companyProject.companyId
-                      ? { company_id: companyProject.companyId }
-                      : {}),
-                    ...(companyProject.projectId
-                      ? { project_id: companyProject.projectId }
-                      : {}),
-                    ...(globalSearch ? { search: globalSearch } : {}),
-                    ...columnFilterParams,
-                  },
-                })) as SafeTableRows;
-              }
-            : undefined
+          loadExportRowsProp
+            ? loadExportRowsProp
+            : serverApi
+              ? async () => {
+                  const companyProject = getListCompanyProjectContext();
+                  return (await serverApi.readAllForExport({
+                    ...serverConfig,
+                    params: {
+                      ...serverConfig?.params,
+                      ...(companyProject.companyId
+                        ? { company_id: companyProject.companyId }
+                        : {}),
+                      ...(companyProject.projectId
+                        ? { project_id: companyProject.projectId }
+                        : {}),
+                      ...(globalSearch ? { search: globalSearch } : {}),
+                      ...columnFilterParams,
+                    },
+                  })) as SafeTableRows;
+                }
+              : undefined
         }
       />
     ) : (

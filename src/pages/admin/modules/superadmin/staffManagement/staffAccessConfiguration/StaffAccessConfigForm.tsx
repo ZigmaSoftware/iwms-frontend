@@ -223,8 +223,6 @@ export default function StaffAccessConfigForm() {
   const [staffUserTypeOptions, setStaffUserTypeOptions] = useState<Option[]>(
     [],
   );
-  const [userTypeOptionsLoaded, setUserTypeOptionsLoaded] = useState(false);
-  const [staffUserTypeOptionsLoaded, setStaffUserTypeOptionsLoaded] = useState(false);
   const [dataScope, setDataScope] = useState<DataScopeForm>({});
   const [geoOptions, setGeoOptions] = useState<LocationScopeOptions>({
     states: [],
@@ -237,15 +235,16 @@ export default function StaffAccessConfigForm() {
   const [description, setDescription] = useState("");
   const [availablePermissions, setAvailablePermissions] =
     useState<AvailablePermissionsResponse | null>(null);
-  // Mobile apps this staff member may sign into. Ticking one is what makes
-  // their mobile login succeed at all; what they can do inside comes from the
-  // screen permissions below, which are the same rows that govern web.
+  // The one mobile app this staff member signs into. Selecting it is what
+  // makes their mobile login succeed at all; what they can do inside comes
+  // from the screen permissions below, which are the same rows that govern
+  // web. A person belongs to a single app — a Driver does not also open the
+  // Supervisor shell — so this is a radio group, and it is the only place the
+  // app is set: Staff Creation now shows it read-only.
   const [appModuleOptions, setAppModuleOptions] = useState<AppModuleOption[]>(
     [],
   );
-  const [appModuleIds, setAppModuleIds] = useState<string[]>([]);
-  const [enforceStrictPermissions, setEnforceStrictPermissions] =
-    useState(false);
+  const [appModuleId, setAppModuleId] = useState<string>("");
   const [loadingPermissions, setLoadingPermissions] = useState(false);
   const [selections, setSelections] = useState<
     Record<string, GrantedScreenPermission>
@@ -296,9 +295,6 @@ export default function StaffAccessConfigForm() {
       })
       .catch(() => {
         if (!cancelled) setUserTypeOptions([]);
-      })
-      .finally(() => {
-        if (!cancelled) setUserTypeOptionsLoaded(true);
       });
 
     staffUserTypeApi
@@ -319,9 +315,6 @@ export default function StaffAccessConfigForm() {
       })
       .catch(() => {
         if (!cancelled) setStaffUserTypeOptions([]);
-      })
-      .finally(() => {
-        if (!cancelled) setStaffUserTypeOptionsLoaded(true);
       });
 
     return () => {
@@ -391,8 +384,7 @@ export default function StaffAccessConfigForm() {
         setStaffUserTypeId(toId(data.staffusertype_id));
         setDescription(data.description ?? "");
         setProjectIds((data.project_ids ?? []).map((id) => toId(id)));
-        setAppModuleIds((data.app_module_ids ?? []).map((id) => toId(id)));
-        setEnforceStrictPermissions(data.enforce_strict_permissions === true);
+        setAppModuleId(data.app_module_id ? toId(data.app_module_id) : "");
         setDataScope({
           state_ids: (data.state_ids ?? []).map((id) => toId(id)),
           district_ids: (data.district_ids ?? []).map((id) => toId(id)),
@@ -585,14 +577,22 @@ export default function StaffAccessConfigForm() {
         return;
       }
 
-    setEmployeeName(employee.employee_name ?? "");
-    if (employee.mobile_number) setMobileNumber(employee.mobile_number);
-    if (employee.office_email) setOfficeEmail(employee.office_email);
-    if (employee.doj) setDoj(employee.doj);
-    if (employee.username) setUsername(employee.username);
-    if (employee.staffusertype_id) setStaffUserTypeId(employee.staffusertype_id);
-    if (typeof employee.active_status === "boolean") setActiveStatus(employee.active_status);
-  }, [employeeOptions]);
+      setEmployeeName(employee.employee_name ?? "");
+      if (employee.mobile_number) setMobileNumber(employee.mobile_number);
+      if (employee.office_email) setOfficeEmail(employee.office_email);
+      if (employee.doj) setDoj(employee.doj);
+      if (employee.username) setUsername(employee.username);
+      if (employee.user_type_id) setUserTypeId(employee.user_type_id);
+      if (employee.staffusertype_id) setStaffUserTypeId(employee.staffusertype_id);
+      if (employee.staffusertype_name) setStaffConfigName(employee.staffusertype_name);
+      if (employee.password) {
+        setPassword(employee.password);
+        setConfirmPassword(employee.password);
+      }
+      if (typeof employee.active_status === "boolean") setActiveStatus(employee.active_status);
+    },
+    [employeeOptions],
+  );
 
   const totalSelectedScreens = Object.keys(selections).length;
   const totalSelectedActions = Object.values(selections).reduce(
@@ -760,8 +760,7 @@ export default function StaffAccessConfigForm() {
     panchayat_ids: dataScope.panchayat_ids ?? [],
     ward_ids: dataScope.ward_ids ?? [],
     description: description.trim(),
-    app_module_ids: appModuleIds,
-    enforce_strict_permissions: enforceStrictPermissions,
+    app_module_id: appModuleId || null,
     permissions: Object.values(selections).map((sel) => ({
       userscreen_id: sel.userScreenId,
       action_ids: sel.actionIds,
@@ -1188,22 +1187,29 @@ export default function StaffAccessConfigForm() {
           Mobile App Access
         </p>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Tick the apps this person may sign into. Without one, their mobile
-          sign-in is refused. What they can do inside each app comes from the
-          screen permissions below — the same ticks that govern the web screens.
+          Choose the one app this person signs into. Without one, their mobile
+          sign-in is refused. What they can do inside comes from the screen
+          permissions below — the same ticks that govern the web screens.
         </p>
       </div>
 
       {appModuleOptions.length === 0 ? (
         <p className="text-xs text-gray-400">No app modules configured.</p>
       ) : (
-        <div className="flex flex-wrap gap-2">
-          {appModuleOptions.map((module) => {
-            const checked = appModuleIds.includes(module.uniqueId);
+        <div
+          className="flex flex-wrap gap-2"
+          role="radiogroup"
+          aria-label="Mobile app"
+        >
+          {[
+            { uniqueId: "", label: "No app access", description: null, route: null },
+            ...appModuleOptions,
+          ].map((module) => {
+            const checked = appModuleId === module.uniqueId;
             return (
               <label
-                key={module.uniqueId}
-                title={module.description ?? module.route}
+                key={module.uniqueId || "none"}
+                title={module.description ?? module.route ?? undefined}
                 className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition ${
                   checked
                     ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-200"
@@ -1211,16 +1217,12 @@ export default function StaffAccessConfigForm() {
                 }`}
               >
                 <input
-                  type="checkbox"
+                  type="radio"
+                  name="app_module"
                   className="h-4 w-4"
+                  value={module.uniqueId}
                   checked={checked}
-                  onChange={(event) =>
-                    setAppModuleIds((current) =>
-                      event.target.checked
-                        ? [...current, module.uniqueId]
-                        : current.filter((id) => id !== module.uniqueId),
-                    )
-                  }
+                  onChange={() => setAppModuleId(module.uniqueId)}
                 />
                 <span className="font-medium">{module.label}</span>
               </label>
@@ -1228,27 +1230,6 @@ export default function StaffAccessConfigForm() {
           })}
         </div>
       )}
-
-      <label className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900/60 dark:bg-amber-950/30">
-        <input
-          type="checkbox"
-          className="mt-0.5 h-4 w-4"
-          checked={enforceStrictPermissions}
-          onChange={(event) =>
-            setEnforceStrictPermissions(event.target.checked)
-          }
-        />
-        <span>
-          <span className="block font-medium text-amber-900 dark:text-amber-100">
-            Strict web permissions
-          </span>
-          <span className="mt-1 block text-xs text-amber-800 dark:text-amber-200">
-            When off, this user keeps the role template as a compatibility
-            floor. Turn on only after the checked screens have been verified in
-            the mobile app.
-          </span>
-        </span>
-      </label>
     </div>
   );
 

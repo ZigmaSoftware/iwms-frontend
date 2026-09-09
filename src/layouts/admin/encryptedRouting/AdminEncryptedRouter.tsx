@@ -92,6 +92,8 @@ import WasteCollectedDataList from "@/pages/admin/modules/wasteManagementMasters
 import WasteCollectedForm from "@/pages/admin/modules/wasteManagementMasters/wasteCollectedData/wasteCollectedDataForm";
 import StaffUserTypeForm from "@/pages/admin/modules/superadmin/roleManagement/staffUserType/staffUserTypeForm";
 import StaffUserTypeList from "@/pages/admin/modules/superadmin/roleManagement/staffUserType/staffUserTypeList";
+import ProjectStaffHierarchyForm from "@/pages/admin/modules/superadmin/roleManagement/projectStaffHierarchy/projectStaffHierarchyForm";
+import ProjectStaffHierarchyList from "@/pages/admin/modules/superadmin/roleManagement/projectStaffHierarchy/projectStaffHierarchyList";
 
 import CategoryList from "@/pages/admin/modules/core_modules/complaintManagement/category/CategoryList";
 import CategoryForm from "@/pages/admin/modules/core_modules/complaintManagement/category/CategoryForm";
@@ -105,8 +107,7 @@ import StatusList from "@/pages/admin/modules/core_modules/complaintManagement/m
 import StatusForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/StatusForm";
 import SourceList from "@/pages/admin/modules/core_modules/complaintManagement/masters/SourceList";
 import SourceForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/SourceForm";
-import TeamList from "@/pages/admin/modules/core_modules/complaintManagement/masters/TeamList";
-import TeamForm from "@/pages/admin/modules/core_modules/complaintManagement/masters/TeamForm";
+import MyTasks from "@/pages/admin/modules/core_modules/complaintManagement/dashboard/MyTasks";
 import SlaRuleList from "@/pages/admin/modules/core_modules/complaintManagement/masters/SlaRuleList";
 // SUPER ADMIN — global complaint configuration (module key "complaint-masters").
 import {
@@ -169,6 +170,10 @@ const ROUTES: RouteMap = {
   admins: {
     "user-type": { list: UserTypeList, form: UserTypeForm },
     "staff-user-type": { list: StaffUserTypeList, form: StaffUserTypeForm },
+    "project-staff-hierarchy": {
+      list: ProjectStaffHierarchyList,
+      form: ProjectStaffHierarchyForm,
+    },
     "mainscreen-type": { list: MainScreenTypeList, form: MainScreenTypeForm },
     "userscreen-action": {
       list: UserScreenActionList,
@@ -332,7 +337,7 @@ const ROUTES: RouteMap = {
     priorities: { list: PriorityList, form: PriorityForm },
     statuses: { list: StatusList, form: StatusForm },
     sources: { list: SourceList, form: SourceForm },
-    teams: { list: TeamList, form: TeamForm },
+    "my-tasks": { component: MyTasks },
     "sla-rules": { list: SlaRuleList, form: SlaRuleForm },
     feedback: { list: FeedbackList },
   },

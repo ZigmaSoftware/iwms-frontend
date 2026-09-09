@@ -13,8 +13,11 @@ import { departmentSchema } from "@/schemas/superadmin/staffManagement/departmen
 import { parseWithSchema, type FieldErrors } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
 
-const { encMasters, encDepartments } = getEncryptedRoute();
-const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encDepartments);
+const { encStaffMasters, encDepartments } = getEncryptedRoute();
+const { listPath: LIST_PATH } = createCrudRoutePaths(
+  encStaffMasters,
+  encDepartments,
+);
 
 export default function DepartmentForm() {
   const { t } = useTranslation();

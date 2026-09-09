@@ -65,17 +65,20 @@ export type ComplaintTicket = {
   ward?: ApiId | null;
   ward_id?: ApiId | null;
   ward_name?: string | null;
-  assigned_team?: ApiId | null;
-  assigned_team_name?: string | null;
   assigned_staff?: ApiId | null;
   assigned_staff_name?: string | null;
-  assigned_department_name?: string | null;
-  escalation_level?: number | null;
-  sla_due_at?: string | null;
+  is_escalated?: boolean;
+  escalated_to_staff?: ApiId | null;
+  escalated_to_staff_name?: string | null;
+  /** Current hop in the project's staff hierarchy: 0 = first assignee. */
+  escalation_level?: number;
+  /** Human role name for `escalation_level` (e.g. "Company Supervisor"). */
+  escalation_level_name?: string | null;
+  /** Deadline for `escalation_level`; past this and unresolved, it auto-escalates. */
+  next_escalation_due_at?: string | null;
   first_response_due_at?: string | null;
+  /** Seconds until next_escalation_due_at (negative once overdue); null if resolved/closed or no further level. */
   sla_time_remaining_seconds?: number | null;
-  sla_breached?: boolean;
-  sla_breached_at?: string | null;
   resolved_at?: string | null;
   closed_at?: string | null;
   reopened_count?: number;
@@ -122,8 +125,8 @@ export type ComplaintCategory = {
   description?: string | null;
   default_priority?: ApiId | null;
   default_priority_code?: string | null;
-  default_team?: ApiId | null;
-  default_team_name?: string | null;
+  default_department?: ApiId | null;
+  default_department_name?: string | null;
   requires_location?: boolean;
   requires_media?: boolean;
   requires_address_change_detail?: boolean;
@@ -187,20 +190,13 @@ export type ComplaintLanguage = {
   is_active?: boolean;
 };
 
-export type ComplaintTeam = {
-  unique_id: string;
-  team_code: string;
-  team_name: string;
-  department?: ApiId | null;
-  department_name?: string | null;
-  lead_staff?: ApiId | null;
-  lead_staff_name?: string | null;
-  escalates_to?: ApiId | null;
-  escalates_to_name?: string | null;
-  escalates_to_code?: string | null;
-  escalation_level?: number;
-  is_field_team?: boolean;
-  is_active?: boolean;
+export type ComplaintSlaEscalationLevel = {
+  unique_id?: string;
+  /** Hierarchy level this window applies to (matches ProjectStaffHierarchy.level). */
+  level: number;
+  /** Whether this level participates in escalation for this rule. */
+  is_enabled?: boolean;
+  resolve_within_minutes: number;
 };
 
 export type ComplaintSlaRule = {
@@ -211,11 +207,10 @@ export type ComplaintSlaRule = {
   priority: ApiId;
   priority_code?: string | null;
   source?: ApiId | null;
-  assign_within_minutes?: number | null;
   resolve_within_minutes?: number | null;
   working_hours_only?: boolean;
-  escalation_after_minutes?: number | null;
-  escalation_team?: ApiId | null;
+  /** Per-hierarchy-level resolve windows; replaces the whole set on save. */
+  escalation_levels?: ComplaintSlaEscalationLevel[];
   is_active?: boolean;
 };
 
@@ -246,8 +241,6 @@ export type ComplaintStatusHistory = {
 
 export type ComplaintAssignmentHistory = {
   unique_id: string;
-  from_team_name?: string | null;
-  to_team_name?: string | null;
   from_staff_name?: string | null;
   to_staff_name?: string | null;
   assignment_reason?: string | null;
@@ -257,8 +250,6 @@ export type ComplaintAssignmentHistory = {
 export type ComplaintEscalationHistory = {
   unique_id: string;
   escalation_level?: number;
-  escalated_from_team_name?: string | null;
-  escalated_to_team_name?: string | null;
   escalated_to_staff_name?: string | null;
   reason?: string | null;
   escalated_at?: string;
@@ -412,7 +403,6 @@ export interface Grievance {
   state_name?: string;
   latitude?: string | number;
   longitude?: string | number;
-  assigned_team_name?: string;
   assigned_staff_name?: string;
   district_name?: string;
   panchayat_name?: string;
@@ -434,6 +424,8 @@ export interface AttachmentPreviewProps {
 export type AssignableStaffOption = {
   staff_unique_id: string;
   employee_name: string;
+  open_ticket_count?: number;
+  /** @deprecated Legacy zone/ward-scoped assign dialog fields. */
   role?: string | null;
   department_name?: string | null;
   district_name?: string | null;
@@ -444,14 +436,16 @@ export type AssignableStaffOption = {
 };
 
 export type AssignableStaffResponse = {
+  department_id?: ApiId | null;
+  count: number;
+  staff: AssignableStaffOption[];
+  /** @deprecated Legacy zone/ward-scoped assign dialog fields. */
   district_id?: string | null;
   district_name?: string | null;
   zone_id?: string | null;
   zone_name?: string | null;
   ward_id?: string | null;
   ward_name?: string | null;
-  count: number;
-  staff: AssignableStaffOption[];
 };
 
 export type ComplaintNotificationEventType =

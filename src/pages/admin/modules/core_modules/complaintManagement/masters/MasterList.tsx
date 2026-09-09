@@ -5,8 +5,6 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { InputText } from "primereact/inputtext";
 import type {
   DataTablePageEvent,
@@ -34,8 +32,8 @@ type Props = {
 
 // Mirrors the `ordering_fields` configured on each backend viewset, intersected
 // with the fields that are actually rendered as visible columns below. Related-object
-// display fields (e.g. module_name, category_name, department_name, lead_staff_name,
-// default_priority_code/default_team_name, and the slaRule category_code/priority_code
+// display fields (e.g. module_name, category_name, default_priority_code/
+// default_department_name, and the slaRule category_code/priority_code
 // lookups) are not safely orderable and are intentionally left out.
 const SORTABLE_FIELDS_BY_KIND: Record<MasterKind, Set<string>> = {
   module: new Set(["module_code"]),
@@ -44,7 +42,6 @@ const SORTABLE_FIELDS_BY_KIND: Record<MasterKind, Set<string>> = {
   priority: new Set(["priority_code"]),
   status: new Set(["status_code"]),
   source: new Set(["source_code", "source_name"]),
-  team: new Set(["team_code", "team_name"]),
   slaRule: new Set([]),
 };
 
@@ -69,34 +66,6 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
 
   const api = useMemo(() => config.api(), [config]);
 
-  // Teams are the one company/project-scoped master here — they point at
-  // company-scoped Department/Staff, so `ComplaintTeamViewSet` extends
-  // `CompanyScopedViewSet`. Every other kind in this file is global
-  // configuration with no company column, so the pickers would filter on a
-  // field that does not exist.
-  const isScoped = kind === "team";
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, defaultToAll: true });
-
-  const selectedProjectId =
-    projectId && projects.some((project) => project.value === projectId)
-      ? projectId
-      : "";
-  const scopeParams = isScoped
-    ? {
-        ...(companyUniqueId ? { company_id: companyUniqueId } : {}),
-        ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
-      }
-    : {};
-
   // Switching kind should restart pagination (and drop any sort tied to the old kind's columns).
   useEffect(() => {
     setFirst(0);
@@ -117,7 +86,6 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
     try {
       const response = await api.readAllwithPaginated(page, limit, {
         params: {
-          ...scopeParams,
           ...(search ? { search } : {}),
           ...(sortOrdering ? { ordering: sortOrdering } : {}),
         },
@@ -138,7 +106,7 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, first, rowsPerPage, searchTerm, ordering, companyUniqueId, selectedProjectId]);
+  }, [api, first, rowsPerPage, searchTerm, ordering]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -166,7 +134,7 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
   const loadAllExportRows = async () =>
     asArray(
       await api.readAllForExport({
-        params: { ...scopeParams, ...(searchTerm ? { search: searchTerm } : {}) },
+        params: { ...(searchTerm ? { search: searchTerm } : {}) },
       }),
     ) as unknown as Record<string, unknown>[];
 
@@ -206,42 +174,14 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
         header={
-          isScoped ? (
-            // Scoped kinds get the same Company/Project pickers as every other
-            // company-scoped list in the app (see `staffTemplateList.tsx`).
-            <FilterBar
-              searchValue={query}
-              onSearchChange={(value) => setQuery(value)}
-              searchPlaceholder="Search"
-            >
-              <FilterBarSelect
-                value={companyUniqueId || ""}
-                onChange={(value) => onCompanyChange(value)}
-                options={companies}
-                placeholder="All Companies"
-                disabled={!isSuperAdmin || companies.length === 0}
-              />
-              <FilterBarSelect
-                value={selectedProjectId}
-                onChange={(value) => setProjectId(value)}
-                options={projects.map((project) => ({
-                  value: String(project.value),
-                  label: project.label || project.value,
-                }))}
-                placeholder={showAllProjectsOption ? "All Projects" : undefined}
-                disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-              />
-            </FilterBar>
-          ) : (
-            <div className="flex justify-end">
-              <InputText
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search"
-                className="p-inputtext-sm"
-              />
-            </div>
-          )
+          <div className="flex justify-end">
+            <InputText
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search"
+              className="p-inputtext-sm"
+            />
+          </div>
         }
         emptyMessage="No records found"
         stripedRows
@@ -292,7 +232,7 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
           <Column field="default_priority_code" header="Default Priority" />
         )}
         {kind === "category" && (
-          <Column field="default_team_name" header="Default Team" />
+          <Column field="default_department_name" header="Default Department" />
         )}
         {kind === "subcategory" && (
           <Column
@@ -366,26 +306,6 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
             sortable={SORTABLE_FIELDS_BY_KIND[kind].has("source_name")}
           />
         )}
-        {kind === "team" && (
-          <Column
-            field="team_code"
-            header="Code"
-            sortable={SORTABLE_FIELDS_BY_KIND[kind].has("team_code")}
-          />
-        )}
-        {kind === "team" && (
-          <Column
-            field="team_name"
-            header="Team"
-            sortable={SORTABLE_FIELDS_BY_KIND[kind].has("team_name")}
-          />
-        )}
-        {kind === "team" && (
-          <Column field="department_name" header="Department" />
-        )}
-        {kind === "team" && (
-          <Column field="lead_staff_name" header="Lead Staff" />
-        )}
         {kind === "slaRule" && (
           <Column
             field="category_code"
@@ -410,10 +330,23 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
           />
         )}
         {kind === "slaRule" && (
-          <Column field="assign_within_minutes" header="Assign Minutes" />
-        )}
-        {kind === "slaRule" && (
-          <Column field="resolve_within_minutes" header="Resolve Minutes" />
+          <Column
+            header="Escalation Levels"
+            body={(row) => {
+              const levels = (row.escalation_levels ?? []) as {
+                level: number;
+                is_enabled?: boolean;
+                resolve_within_minutes: number;
+              }[];
+              const enabled = levels
+                .filter((level) => level.is_enabled !== false)
+                .sort((a, b) => a.level - b.level);
+              if (enabled.length === 0) return "-";
+              return enabled
+                .map((level) => `L${level.level}: ${level.resolve_within_minutes}m`)
+                .join(", ");
+            }}
+          />
         )}
         {kind === "slaRule" && (
           <Column

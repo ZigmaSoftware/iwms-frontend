@@ -455,8 +455,10 @@ export default function StaffCreationForm() {
     { value: "0", label: t("common.inactive") },
   ];
 
-  // The mobile app this staff member lands in. Sourced from the App Module
-  // master so a rename in Screen Management shows up here without a release.
+  // The mobile app this staff member lands in. Read-only here — it is chosen
+  // on Staff Access Configuration and arrives as a surface key, which this
+  // maps to a display label. Sourced from the App Module master so a rename in
+  // Screen Management shows up without a release.
   const [appModuleOptions, setAppModuleOptions] = useState<
     { value: string; label: string }[]
   >([]);
@@ -486,6 +488,18 @@ export default function StaffCreationForm() {
       cancelled = true;
     };
   }, []);
+
+  // Display label for the surface key the API sends back (e.g. "supervisor" ->
+  // "Supervisor"). Null while the master is still loading, or when the staff
+  // member has no app selected on their access configuration.
+  const appModuleLabel = useMemo(() => {
+    const surfaceKey = formData.app_module;
+    if (!surfaceKey) return null;
+    return (
+      appModuleOptions.find((option) => option.value === surfaceKey)?.label ??
+      surfaceKey
+    );
+  }, [appModuleOptions, formData.app_module]);
 
   const departmentOptionsWithCurrent = useMemo(() => {
     if (!formData.department_id) return departmentOptions;
@@ -850,13 +864,22 @@ export default function StaffCreationForm() {
     // otherwise this scopes to the logged-in admin's own project (via the
     // viewset's default project fallback), which can silently exclude the
     // staff's actually-assigned head if it belongs to a different project.
-    if (isEdit && !formData.project_id) return;
+    if (isEdit && !hookProjectId) return;
 
     const loadStaffHeads = async () => {
       try {
         const params: Record<string, string> = {};
         if (id) params.exclude = id;
-        if (formData.project_id) params.project_id = formData.project_id;
+        // hookProjectId (not formData.project_id) is the source of truth
+        // for the selected project — the Project <Select> above displays
+        // hookProjectId directly, and formData.project_id is only ever set
+        // once the user actively re-picks it via handleSelectChange, so it
+        // can stay empty even while a project is visibly selected.
+        if (hookProjectId) params.project_id = hookProjectId;
+        // Lets the backend narrow candidates to whichever role this
+        // project's hierarchy config says the selected staff type reports
+        // to, instead of showing every staff member in the project.
+        if (formData.staffusertype_id) params.staffusertype_id = formData.staffusertype_id;
 
         const response = await api.get(
           "/staff-creations/staffcreation/staff-head-options/",
@@ -879,7 +902,7 @@ export default function StaffCreationForm() {
     };
 
     void loadStaffHeads();
-  }, [id, isEdit, formData.project_id]);
+  }, [id, isEdit, hookProjectId, formData.staffusertype_id]);
 
   useEffect(() => {
     if (!photoFile) return;
@@ -1432,27 +1455,24 @@ export default function StaffCreationForm() {
         </>
       )}
 
-      {/* ── App Module ── */}
+      {/* ── App Module (read-only) ── */}
       {showField("app_module") && (
         <div>
           <Label htmlFor="app_module">
             {t("admin.staff_creation.app_module", "Mobile App")}
           </Label>
-          <Select
+          <div
             id="app_module"
-            value={formData.app_module}
-            onChange={(value) => handleSelectChange("app_module", value)}
-            options={appModuleOptions}
-            placeholder={t(
-              "admin.staff_creation.app_module_placeholder",
-              "Select the app this user opens"
-            )}
-          />
+            className="flex h-11 items-center rounded-lg border border-gray-200 bg-gray-50 px-4 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+          >
+            {appModuleLabel ??
+              t("admin.staff_creation.app_module_none", "No app access")}
+          </div>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Which app opens after sign-in. Whether they may sign in at all is
-            ticked under Mobile App Access in Staff Access Configuration.
+            Set on this person's Staff Access Configuration, which is the one
+            place the app is chosen. It decides both which app opens after
+            sign-in and whether they may sign in at all.
           </p>
-          <FieldError message={fieldErrors.app_module} />
         </div>
       )}
 

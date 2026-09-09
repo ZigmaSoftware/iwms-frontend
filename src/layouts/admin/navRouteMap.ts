@@ -59,7 +59,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encComplaintPriorities,
     encComplaintStatuses,
     encComplaintSources,
-    encComplaintTeams,
+    encMyTasks,
     encComplaintSlaRules,
     encComplaintMastersModule,
     encComplaintTypes,
@@ -78,6 +78,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encWasteManagementMaster,
     encWorkforceManagement,
     encStaffUserType,
+    encProjectStaffHierarchy,
     encMainScreenType,
     encUserScreenAction,
     encMainScreen,
@@ -262,6 +263,11 @@ export function buildNavRouteMap(): RouteEntry[] {
       nameKey: "admin.nav.staff_user_type",
       parentNameKey: "admin.nav.roleAssigns",
     },
+    {
+      path: `/${encAdmins}/${encProjectStaffHierarchy}`,
+      nameKey: "admin.nav.project_staff_hierarchy",
+      parentNameKey: "admin.nav.roleAssigns",
+    },
     // User Creations
     // Org / Department Setup
     {
@@ -308,11 +314,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     {
       path: `/${encCustomerMaster}/${encCustomerAccessConfiguration}`,
       nameKey: "admin.nav.customer_access_configuration",
-      parentNameKey: "admin.nav.customer_masters",
-    },
-    {
-      path: `/${encComplaintTicket}/${encFeedback}`,
-      nameKey: "admin.nav.feedback",
       parentNameKey: "admin.nav.customer_masters",
     },
     // Complaint Masters (SUPER ADMIN) — the three Complaint Types tabs share
@@ -377,8 +378,8 @@ export function buildNavRouteMap(): RouteEntry[] {
       parentNameKey: "admin.nav.complaint_ticket",
     },
     {
-      path: `/${encComplaintTicket}/${encComplaintTeams}`,
-      nameKey: "admin.nav.teams",
+      path: `/${encComplaintTicket}/${encMyTasks}`,
+      nameKey: "admin.nav.my_tasks",
       parentNameKey: "admin.nav.complaint_ticket",
     },
     {

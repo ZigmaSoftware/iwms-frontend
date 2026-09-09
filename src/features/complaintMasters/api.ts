@@ -41,8 +41,9 @@ export const complaintMasterSlaRuleApi =
   adminApi.complaintMasterSlaRules as typeof adminApi.complaintMasterSlaRules;
 
 /** Routing rules stay API-only: the routing service now falls back to the
- *  category's `default_team`, so rules are an opt-in override rather than a
- *  required setup step and get no screen until a tenant needs geo routing. */
+ *  category's `default_department`, so rules are an opt-in override rather
+ *  than a required setup step and get no screen until a tenant needs geo
+ *  routing. */
 export const complaintMasterRoutingRuleApi =
   adminApi.complaintMasterRoutingRules as typeof adminApi.complaintMasterRoutingRules;
 

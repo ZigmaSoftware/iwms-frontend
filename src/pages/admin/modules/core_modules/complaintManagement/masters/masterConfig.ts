@@ -3,7 +3,6 @@ import {
   complaintPriorityApi,
   complaintSourceApi,
   complaintStatusApi,
-  complaintTeamApi,
 } from "@/features/complaintTicketing/api";
 // Category / Sub-category / SLA are global configuration owned by the
 // superadmin-only "complaint-masters" module. The `complaint-ticket/*` twins
@@ -18,9 +17,9 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 /**
- * Single source of truth for the 8 "reference data" master kinds that share
+ * Single source of truth for the 7 "reference data" master kinds that share
  * the generic `MasterForm`/`MasterList` engine (module, category,
- * subcategory, priority, status, source, team, slaRule).
+ * subcategory, priority, status, source, slaRule).
  *
  * Before this file, `MasterForm.tsx` and `MasterList.tsx` each kept their own
  * copy of `title`/`routeModule`/`api` lookup maps — nearly identical, but
@@ -42,7 +41,6 @@ export type MasterKind =
   | "priority"
   | "status"
   | "source"
-  | "team"
   | "slaRule";
 
 export type MasterColumn = {
@@ -84,13 +82,13 @@ export const MASTER_CONFIG: Record<MasterKind, MasterConfigEntry> = {
     titlePlural: "Complaint Categories",
     api: () => complaintMasterCategoryApi,
     routeKey: "encComplaintCategories",
-    searchFields: ["category_code", "category_name", "module_name", "default_priority_code", "default_team_name"],
+    searchFields: ["category_code", "category_name", "module_name", "default_priority_code", "default_department_name"],
     columns: [
       { field: "category_code", header: "Code", sortable: true },
       { field: "category_name", header: "Category", sortable: true },
       { field: "module_name", header: "Module" },
       { field: "default_priority_code", header: "Default Priority" },
-      { field: "default_team_name", header: "Default Team" },
+      { field: "default_department_name", header: "Default Department" },
     ],
   },
   subcategory: {
@@ -140,19 +138,6 @@ export const MASTER_CONFIG: Record<MasterKind, MasterConfigEntry> = {
       { field: "source_name", header: "Source", sortable: true },
     ],
   },
-  team: {
-    title: "Complaint Team",
-    titlePlural: "Teams",
-    api: () => complaintTeamApi,
-    routeKey: "encComplaintTeams",
-    searchFields: ["team_code", "team_name", "department_name", "lead_staff_name"],
-    columns: [
-      { field: "team_code", header: "Code", sortable: true },
-      { field: "team_name", header: "Team", sortable: true },
-      { field: "department_name", header: "Department" },
-      { field: "lead_staff_name", header: "Lead Staff" },
-    ],
-  },
   slaRule: {
     title: "Complaint SLA Rule",
     titlePlural: "SLA Rules",
@@ -163,8 +148,6 @@ export const MASTER_CONFIG: Record<MasterKind, MasterConfigEntry> = {
       { field: "category_code", header: "Category", sortable: true },
       { field: "subcategory_code", header: "Sub Category" },
       { field: "priority_code", header: "Priority", sortable: true },
-      { field: "assign_within_minutes", header: "Assign Minutes" },
-      { field: "resolve_within_minutes", header: "Resolve Minutes" },
       { field: "working_hours_only", header: "Working Hours", render: "yesno" },
     ],
   },
