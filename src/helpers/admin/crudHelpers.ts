@@ -111,7 +111,7 @@ export const createCrudHelpers = <T = any>(
   basePath: string,
 ): CrudHelpers<T> => {
   const resource = normalizePath(basePath);
-  const exportPageSize = 1000;
+  const exportPageSize = 100000;
 
   const readPaginatedResource = async (
     url: string,
