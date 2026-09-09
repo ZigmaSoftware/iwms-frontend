@@ -29,9 +29,12 @@ export type StaffAccessConfigPayload = {
   panchayat_ids?: string[];
   ward_ids?: string[];
   description?: string;
-  /** Apps this staff member may sign into. Empty = no mobile access. */
-  app_module_ids?: string[];
-  enforce_strict_permissions?: boolean;
+  /**
+   * The one app this staff member signs into. Null/empty = no mobile access,
+   * and their mobile sign-in is refused. A person belongs to a single app, so
+   * this is one id rather than a list.
+   */
+  app_module_id?: string | null;
   permissions: PermissionGrant[];
   basicInfo?: Record<string, unknown>;
   loginConfig?: Record<string, unknown>;
@@ -61,10 +64,10 @@ export type StaffAccessConfigRecord = {
   panchayat_ids?: string[];
   ward_ids?: string[];
   description?: string;
-  app_module_ids?: string[];
-  app_module_keys?: string[];
-  app_module_labels?: string[];
-  enforce_strict_permissions?: boolean;
+  app_module_id?: string | null;
+  /** Surface key of `app_module_id`, e.g. "supervisor". */
+  app_module_key?: string | null;
+  app_module_label?: string | null;
   permissions?: PermissionGrant[];
 
   // Read-only derived fields
