@@ -22,10 +22,6 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { dailyTripLogApi, wasteTypeApi } from "@/helpers/admin";
 import { api } from "@/api";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import {
-  exportRecordsToExcel,
-  getAdminScreenExcelFilename,
-} from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatTimeOnly } from "@/utils/formatTime";
 import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
@@ -766,7 +762,6 @@ export default function DailyTripLogList() {
     mode: "view" | "verify";
   } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const requestIdRef = useRef(0);
@@ -1132,8 +1127,7 @@ export default function DailyTripLogList() {
      dataset fresh from the server (independent of whatever page is currently
      on screen), then apply the same enrichment + collectionType post-filter
      used for the on-screen rows, and explode into per-point/customer rows. ── */
-  const handleDownload = async (format: "excel" | "pdf") => {
-    setIsExporting(true);
+  const handleDownloadPdf = async () => {
     try {
       const exportRaw = toRecordList(
         await dailyTripLogApi.readAllForExport({
@@ -1176,31 +1170,21 @@ export default function DailyTripLogList() {
         });
         return;
       }
-      if (format === "excel") {
-        exportRecordsToExcel(
-          exportRows,
-          getAdminScreenExcelFilename("all"),
-          "Daily Trip Logs",
-        );
-      } else {
-        downloadRecordsPdf({
-          title: "Daily Trip Logs",
-          filename: "daily_trip_logs.pdf",
-          rows: exportRows,
-          columns: Object.keys(exportRows[0]).map((key) => ({
-            key,
-            label: key,
-          })),
-        });
-      }
+      downloadRecordsPdf({
+        title: "Daily Trip Logs",
+        filename: "daily_trip_logs.pdf",
+        rows: exportRows,
+        columns: Object.keys(exportRows[0]).map((key) => ({
+          key,
+          label: key,
+        })),
+      });
     } catch (err: any) {
       Swal.fire({
         icon: "error",
         title: t("common.error"),
         text: extractError(err) ?? err?.message ?? String(err),
       });
-    } finally {
-      setIsExporting(false);
     }
   };
 
@@ -1260,17 +1244,6 @@ export default function DailyTripLogList() {
           } as React.ChangeEvent<HTMLInputElement>)
         }
         searchPlaceholder="Search trip logs..."
-        trailing={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              label={isExporting ? "Exporting..." : "Download PDF"}
-              icon="pi pi-file-pdf"
-              className="p-button-outlined p-button-sm"
-              disabled={isExporting}
-              onClick={() => handleDownload("pdf")}
-            />
-          </div>
-        }
       />
     </div>
   );
@@ -1322,6 +1295,7 @@ export default function DailyTripLogList() {
         loadExportRows={async () =>
           buildExportRows(filteredRows.length > 0 ? filteredRows : rows)
         }
+        onPdfRequest={handleDownloadPdf}
         value={data}
         dataKey="unique_id"
         lazy

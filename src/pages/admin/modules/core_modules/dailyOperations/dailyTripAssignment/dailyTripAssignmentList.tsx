@@ -19,7 +19,7 @@ import type {
   SortOrder,
 } from "primereact/datatable";
 
-import { PencilIcon } from "@/icons";
+import { ActionMenu, type ActionMenuItem } from "@/components/ui/ActionMenu";
 import {
   Dialog,
   DialogContent,
@@ -41,10 +41,6 @@ import { jsPDF } from "jspdf";
 import { api } from "@/api";
 import { adminEndpoints } from "@/helpers/admin/endpoints";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import {
-  exportRecordsToExcel,
-  getAdminScreenExcelFilename,
-} from "@/utils/exportExcel";
 import { downloadRecordsPdf, drawQrCode } from "@/utils/exportPdf";
 import { formatCollectionTime, formatTimeOnly } from "@/utils/formatTime";
 import { downloadCustomerQrStickerPdf } from "@/pages/admin/modules/masters/customerMasters/customerCreations/customerQrStickerPdf";
@@ -327,7 +323,6 @@ export default function DailyTripAssignmentList() {
   const [isSchedulerRunning, setIsSchedulerRunning] = useState(false);
   const [isGeneratingDaily, setIsGeneratingDaily] = useState(false);
   const [isSavingSchedulerConfig, setIsSavingSchedulerConfig] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const [isExportingDetailed, setIsExportingDetailed] = useState(false);
   // unique_id of the trip whose QR sheet is being built, so only that row spins.
   const [qrTripId, setQrTripId] = useState<string | null>(null);
@@ -996,71 +991,90 @@ export default function DailyTripAssignmentList() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await dailyTripAssignmentApi.delete(id);
+      setRawAssignments((current) =>
+        current.filter((item) => item.unique_id !== id),
+      );
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: extractError(err) ?? String(err),
+      });
+    }
+  };
+
   const actionTemplate = (row: DailyTripAssignmentRecord) => {
     const rowId = row.unique_id ?? String((row as any).id ?? "");
+    // One print icon for every row, whatever the trip collects: the
+    // handler prints household customer stickers, bin stickers, or both,
+    // so the crew does not have to know which kind of trip this is.
+    const householdCount = (row.household_collection_points ?? []).length;
+    const binCount = (row.collection_points ?? []).length;
+    const total = householdCount + binCount;
+    const isBusy = qrTripId === row.unique_id;
+
+    const extraActions: ActionMenuItem[] = [
+      {
+        key: "print-qr",
+        label: isBusy && qrProgress
+          ? `Preparing ${qrProgress.done}/${qrProgress.total}...`
+          : `Download QR stickers (${total} stop${total === 1 ? "" : "s"})`,
+        icon: <i className={isBusy ? "pi pi-spin pi-spinner" : "pi pi-print"} />,
+        onClick: () => void handleTripPrint(row),
+        disabled: total === 0 || isBusy,
+        disabledReason: total === 0 ? "No stops on this trip — nothing to print" : undefined,
+      },
+    ];
+
+    if (row.status === "In Progress") {
+      extraActions.push({
+        key: "close-next-trip",
+        label: "Close & Start Next Trip",
+        icon: <span aria-hidden="true">⏭</span>,
+        onClick: () => openRetripModal(row),
+      });
+    }
+
     return (
       <div className="flex justify-center">
-        <button
-          title={t("common.edit")}
-          onClick={() =>
-            navigate(ENC_EDIT_PATH(rowId), {
-              state: {
-                companyUniqueId: (row.company_unique_id ?? row.company_id) as
-                  | string
-                  | undefined,
-                projectId: (row.project_unique_id ?? row.project_id) as
-                  | string
-                  | undefined,
-              },
-            })
+        <ActionMenu
+          onEdit={
+            rowId
+              ? () =>
+                  navigate(ENC_EDIT_PATH(rowId), {
+                    state: {
+                      companyUniqueId: (row.company_unique_id ?? row.company_id) as
+                        | string
+                        | undefined,
+                      projectId: (row.project_unique_id ?? row.project_id) as
+                        | string
+                        | undefined,
+                    },
+                  })
+              : undefined
           }
-          disabled={!rowId}
-          className="text-blue-600 hover:text-blue-800 disabled:opacity-30"
-        >
-          <PencilIcon className="size-5" />
-        </button>
-        {(() => {
-          // One print icon for every row, whatever the trip collects: the
-          // handler prints household customer stickers, bin stickers, or both,
-          // so the crew does not have to know which kind of trip this is.
-          const householdCount = (row.household_collection_points ?? []).length;
-          const binCount = (row.collection_points ?? []).length;
-          const total = householdCount + binCount;
-          const isBusy = qrTripId === row.unique_id;
-          return (
-            <button
-              title={
-                total === 0
-                  ? "No stops on this trip — nothing to print"
-                  : isBusy && qrProgress
-                    ? `Preparing ${qrProgress.done} / ${qrProgress.total}...`
-                    : `Download QR stickers (${total} stop${total === 1 ? "" : "s"})`
-              }
-              onClick={() => void handleTripPrint(row)}
-              disabled={total === 0 || isBusy}
-              className="ml-2 text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed"
-            >
-              <i
-                className={isBusy ? "pi pi-spin pi-spinner" : "pi pi-print"}
-                style={{ fontSize: "1.05rem" }}
-              />
-              {isBusy && qrProgress && qrProgress.total > 0 && (
-                <span className="ml-1 align-middle text-[10px] font-semibold tabular-nums">
-                  {qrProgress.done}/{qrProgress.total}
-                </span>
-              )}
-            </button>
-          );
-        })()}
-        {row.status === "In Progress" && (
-          <button
-            title="Close & Start Next Trip"
-            onClick={() => openRetripModal(row)}
-            className="ml-2 text-orange-600 hover:text-orange-800"
-          >
-            ⏭
-          </button>
-        )}
+          actions={extraActions}
+          onDelete={rowId ? () => void handleDelete(rowId) : undefined}
+        />
       </div>
     );
   };
@@ -1141,46 +1155,27 @@ export default function DailyTripAssignmentList() {
     return out;
   };
 
-  const handleDownload = (format: "excel" | "pdf") => {
-    setIsExporting(true);
-    try {
-      const exportRows = buildExportRows(
-        filteredRows.length > 0 ? filteredRows : rows,
-      );
-      if (exportRows.length === 0) {
-        Swal.fire({
-          icon: "warning",
-          title: "No records",
-          text: "There are no daily trip plans to export.",
-        });
-        return;
-      }
-      if (format === "excel") {
-        exportRecordsToExcel(
-          exportRows,
-          getAdminScreenExcelFilename("all"),
-          "Daily Trip Plans",
-        );
-      } else {
-        downloadRecordsPdf({
-          title: "Daily Trip Plans",
-          filename: "daily_trip_plans.pdf",
-          rows: exportRows,
-          columns: Object.keys(exportRows[0]).map((key) => ({
-            key,
-            label: key,
-          })),
-        });
-      }
-    } catch (err: any) {
+  const handleDownloadPdf = async () => {
+    const exportRows = buildExportRows(
+      filteredRows.length > 0 ? filteredRows : rows,
+    );
+    if (exportRows.length === 0) {
       Swal.fire({
-        icon: "error",
-        title: t("common.error"),
-        text: err?.message ?? String(err),
+        icon: "warning",
+        title: "No records",
+        text: "There are no daily trip plans to export.",
       });
-    } finally {
-      setIsExporting(false);
+      return;
     }
+    downloadRecordsPdf({
+      title: "Daily Trip Plans",
+      filename: "daily_trip_plans.pdf",
+      rows: exportRows,
+      columns: Object.keys(exportRows[0]).map((key) => ({
+        key,
+        label: key,
+      })),
+    });
   };
 
   /* ── detailed per-stop report with a QR code per collection point /
@@ -1524,13 +1519,6 @@ export default function DailyTripAssignmentList() {
         trailing={
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              label={isExporting ? "Exporting..." : "Download PDF"}
-              icon="pi pi-file-pdf"
-              className="p-button-outlined p-button-sm"
-              disabled={isExporting}
-              onClick={() => handleDownload("pdf")}
-            />
-            <Button
               label={
                 isExportingDetailed ? "Generating..." : "Detailed Report (QR)"
               }
@@ -1668,6 +1656,7 @@ export default function DailyTripAssignmentList() {
         }
         value={rows}
         exportRows={filteredRows}
+        onPdfRequest={handleDownloadPdf}
         onValueChange={(value) =>
           setFilteredRows(value as DailyTripAssignmentRecord[])
         }

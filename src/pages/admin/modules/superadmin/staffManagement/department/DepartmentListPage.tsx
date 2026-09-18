@@ -11,7 +11,7 @@ import type {
   SortOrder,
 } from "primereact/datatable";
 import { Switch } from "@/components/ui/switch";
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { departmentApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { FilterBar } from "@/components/common/FilterBar";
@@ -168,6 +168,39 @@ export default function DepartmentListPage() {
     );
   };
 
+  const handleDelete = async (id: string | number) => {
+    const confirmDelete = await Swal.fire({
+      title: "Are you sure?",
+      text: "This record will be permanently deleted!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await departmentApi.delete(id);
+      setRecords((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: "Deleted successfully!",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error: any) {
+      Swal.fire(
+        "Error",
+        String(
+          error?.response?.data?.detail ??
+            error?.message ??
+            "Failed to delete department",
+        ),
+        "error",
+      );
+    }
+  };
+
   const getFilteredExportRows = (allRows: DepartmentRecord[]) => {
     const search = globalFilterValue.trim().toLowerCase();
     return allRows.filter((row) => {
@@ -247,12 +280,12 @@ export default function DepartmentListPage() {
         <Column
           header="Action"
           body={(row) => (
-            <button
-              className="text-blue-600"
-              onClick={() => navigate(editPath(row.unique_id))}
-            >
-              <PencilIcon className="size-5" />
-            </button>
+            <div className="flex justify-center">
+              <ActionMenu
+                onEdit={() => navigate(editPath(row.unique_id))}
+                onDelete={() => void handleDelete(row.unique_id)}
+              />
+            </div>
           )}
         />
       </DataTable>

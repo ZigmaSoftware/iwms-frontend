@@ -15,7 +15,7 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { wardApi } from "@/helpers/admin";
@@ -265,23 +265,46 @@ export default function WardList() {
   );
 
   // ===========================
+  //   Delete
+  // ===========================
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await wardApi.delete(id);
+      setRows((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: extractErrorMessage(error, t("common.request_failed")),
+      });
+    }
+  };
+
+  // ===========================
   //   Actions
   // ===========================
   const actionTemplate = (row: WardListRecord) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
-
-      {/* <button
-        onClick={() => handleDelete(row.unique_id)}
-        className="text-red-600 hover:text-red-800"
-      >
-        <TrashBinIcon className="size-5" />
-      </button> */}
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onDelete={() => void handleDelete(row.unique_id)}
+      />
     </div>
   );
 

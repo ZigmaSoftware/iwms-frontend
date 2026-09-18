@@ -16,7 +16,7 @@ import "primeicons/primeicons.css";
 
 import { projectApi } from "@/helpers/admin";
 import { Switch } from "@/components/ui/switch";
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import {
@@ -116,15 +116,41 @@ export default function ProjectListPage() {
     });
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await projectApi.delete(id);
+      setProjects((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: String(error ?? t("common.request_failed")),
+      });
+    }
+  };
+
   const actionBodyTemplate = (row: Project) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id, companyUniqueId))}
-        className="text-blue-600 hover:text-blue-800"
-        title={t("common.edit")}
-      >
-        <PencilIcon className="size-5" />
-      </button>
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id, companyUniqueId))}
+        onDelete={() => void handleDelete(row.unique_id)}
+      />
     </div>
   );
 

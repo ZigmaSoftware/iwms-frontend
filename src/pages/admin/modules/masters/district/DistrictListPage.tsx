@@ -12,7 +12,7 @@ import type {
   SortOrder,
 } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { districtApi } from "@/helpers/admin";
@@ -257,10 +257,41 @@ export default function DistrictListPage() {
     />
   );
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await districtApi.delete(id);
+      setDistricts((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      const errorData = (error as { response?: { data?: unknown } })?.response
+        ?.data;
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: String(errorData ?? t("common.request_failed")),
+      });
+    }
+  };
+
   const actionTemplate = (row: DistrictListRecord) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        onClick={() =>
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() =>
           navigate(ENC_EDIT_PATH(row.unique_id), {
             state: {
               district: row,
@@ -269,10 +300,8 @@ export default function DistrictListPage() {
             },
           })
         }
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
+        onDelete={() => void handleDelete(row.unique_id)}
+      />
     </div>
   );
 

@@ -15,7 +15,7 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
 import { userScreenPermissionApi } from "@/helpers/admin";
@@ -421,29 +421,17 @@ export default function UserScreenPermissionList() {
   ----------------------------------------------------------- */
 
   const actionTemplate = (row: ProjectPermissionSummaryRow) => (
-    <div className="flex gap-2 justify-center">
-      <button
-        title={t("common.edit")}
-        className="text-blue-600 hover:text-blue-800"
-        onClick={() => {
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() => {
           const routeProjectId = row.project_id || "none";
           navigate(
             ENC_EDIT_PATH(routeProjectId, row.company_id, row.edit_permission_type),
             { state: { companyUniqueId: row.company_id, projectId: row.project_id } }
           );
         }}
-      >
-        <PencilIcon className="size-5" />
-      </button>
-
-      <button
-        title={t("common.delete")}
-        className="text-red-600 hover:text-red-800"
-        onClick={() => handleDelete(row)}
-      >
-        <TrashBinIcon className="size-5" />
-      </button>
-
+        onDelete={() => void handleDelete(row)}
+      />
     </div>
   );
 

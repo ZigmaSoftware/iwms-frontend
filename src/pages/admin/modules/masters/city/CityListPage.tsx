@@ -14,7 +14,7 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { cityApi } from "@/helpers/admin";
@@ -195,10 +195,41 @@ export default function CityList() {
     />
   );
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await cityApi.delete(id);
+      setAllCities((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      const errorData = (error as { response?: { data?: unknown } })?.response
+        ?.data;
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: String(errorData ?? t("common.request_failed")),
+      });
+    }
+  };
+
   const actionTemplate = (city: CityRecord) => (
-    <div className="flex gap-3">
-      <button
-        onClick={() =>
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() =>
           navigate(ENC_EDIT_PATH(city.unique_id), {
             state: {
               city,
@@ -207,17 +238,8 @@ export default function CityList() {
             },
           })
         }
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
-
-      {/* <button
-        onClick={() => handleDelete(city.unique_id)}
-        className="text-red-600 hover:text-red-800"
-      >
-        <TrashBinIcon className="size-5" />
-      </button> */}
+        onDelete={() => void handleDelete(city.unique_id)}
+      />
     </div>
   );
 
