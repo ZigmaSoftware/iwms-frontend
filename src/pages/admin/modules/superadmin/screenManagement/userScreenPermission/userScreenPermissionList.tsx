@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -7,9 +7,13 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
+import type {
+  DataTablePageEvent,
+  DataTableSortEvent,
+  SortOrder,
+} from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import { filterRowsForExport } from "@/utils/adminListExport";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -28,7 +32,7 @@ import {
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
 
-import type { PermissionRow, ProjectPermissionSummaryRow } from "./types";
+import type { ProjectPermissionSummaryRow } from "./types";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
@@ -88,9 +92,16 @@ const toStrId = (value: unknown): string => {
   return String(value).trim();
 };
 
-const PERMISSION_TYPE_LABELS: Record<string, string> = {
-  screen: "Screen Permission",
-  field: "Field Permission",
+type ProjectSummaryResponse = {
+  results?: ProjectPermissionSummaryRow[];
+  count?: number;
+};
+
+const unwrapSummaryRows = (
+  response: ProjectSummaryResponse | ProjectPermissionSummaryRow[],
+): ProjectPermissionSummaryRow[] => {
+  if (Array.isArray(response)) return response;
+  return Array.isArray(response?.results) ? response.results : [];
 };
 
 /* -----------------------------------------------------------
@@ -118,9 +129,14 @@ export default function UserScreenPermissionList() {
   } = useCompanyProjectSelection({
     isEdit: false,
     defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
-  const [permissionRows, setPermissionRows] = useState<PermissionRow[]>([]);
+  const [records, setRecords] = useState<ProjectPermissionSummaryRow[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -153,21 +169,47 @@ export default function UserScreenPermissionList() {
     });
 
   useEffect(() => {
+    setFirst(0);
+  }, [companyUniqueId, projectId]);
+
+  useEffect(() => {
     let mounted = true;
 
     const loadPermissions = async () => {
       if (!companyUniqueId && !isSuperAdmin) {
-        setPermissionRows([]);
+        setRecords([]);
+        setTotalRecords(0);
         return;
       }
 
       setIsLoading(true);
       try {
-        const params: Record<string, string | number> = { limit: 6000, offset: 0 };
+        const params: Record<string, string | number> = {
+          page: first / rowsPerPage + 1,
+          limit: rowsPerPage,
+        };
         if (companyUniqueId) params.company_id = companyUniqueId;
         if (projectId) params.project_id = projectId;
-        const data = await userScreenPermissionApi.readAll({ params });
-        if (mounted) setPermissionRows(data as PermissionRow[]);
+        if (globalFilterValue) params.search = globalFilterValue;
+        if (sortField) {
+          params.ordering = `${sortOrder === -1 ? "-" : ""}${sortField}`;
+        }
+
+        const response =
+          await userScreenPermissionApi.action<ProjectSummaryResponse>(
+            "project-summary",
+            undefined,
+            { params },
+          );
+        if (!mounted) return;
+
+        const rows = unwrapSummaryRows(response);
+        setRecords(rows);
+        setTotalRecords(
+          !Array.isArray(response) && typeof response?.count === "number"
+            ? response.count
+            : rows.length,
+        );
       } catch {
         if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
       } finally {
@@ -180,115 +222,29 @@ export default function UserScreenPermissionList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, t, refetchTrigger]);
+  }, [
+    companyUniqueId,
+    projectId,
+    isSuperAdmin,
+    t,
+    refetchTrigger,
+    first,
+    rowsPerPage,
+    globalFilterValue,
+    sortField,
+    sortOrder,
+  ]);
 
-  const records = useMemo<ProjectPermissionSummaryRow[]>(() => {
-    if (!companyUniqueId && !isSuperAdmin) return [];
-    const data = permissionRows;
-    const selectedCompanyLabel = (
-      companies.find((company) => company.value === companyUniqueId)?.label ?? ""
-    )
-      .trim()
-      .toLowerCase();
+  const onPage = useCallback((event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  }, []);
 
-    const filteredData = !companyUniqueId
-      ? data
-      : data.filter((item) => {
-          const itemCompanyId = toStrId(item.company_id);
-          const itemCompanyName = String(item.company_name ?? "")
-            .trim()
-            .toLowerCase();
-
-          if (itemCompanyId && itemCompanyId === companyUniqueId) return true;
-          if (!itemCompanyId && selectedCompanyLabel) {
-            return itemCompanyName === selectedCompanyLabel;
-          }
-
-          return false;
-        });
-
-    // Group by company + project *name* so a project shows as one row regardless of
-    // duplicate project_ids or whether it has screen and/or field permissions.
-    type GroupAccum = {
-      composite_key: string;
-      project_id: string;
-      project_name: string;
-      company_id: string;
-      company_name: string;
-      permissionTypes: Set<string>;
-      mainScreenIds: Set<string>;
-      userScreenIds: Set<string>;
-      deleteTargets: Map<string, { project_id: string; permission_type: string; mainscreen_id: string }>;
-    };
-
-    const groupedObj: Record<string, GroupAccum> = filteredData.reduce(
-      (acc, item) => {
-        const projId = toStrId(item.project_id);
-        const companyId = toStrId(item.company_id);
-        const projectName = projId
-          ? String(item.project_name ?? t("common.unknown"))
-          : "Company-Wide (All Projects)";
-        const permissionType = String(item.permission_type ?? "screen") || "screen";
-        const key = `${companyId || "__no_company__"}__${projId ? projectName.trim().toLowerCase() : "__company_wide__"}`;
-
-        if (!acc[key]) {
-          acc[key] = {
-            composite_key: key,
-            project_id: projId,
-            project_name: projectName,
-            company_id: companyId,
-            company_name: String(item.company_name ?? t("common.unknown")),
-            permissionTypes: new Set<string>(),
-            mainScreenIds: new Set<string>(),
-            userScreenIds: new Set<string>(),
-            deleteTargets: new Map(),
-          };
-        }
-
-        acc[key].permissionTypes.add(permissionType);
-
-        const mainScreenId = toStrId(item.mainscreen_id);
-        if (mainScreenId) acc[key].mainScreenIds.add(mainScreenId);
-
-        const userScreenId = toStrId(item.userscreen_id);
-        if (userScreenId) acc[key].userScreenIds.add(userScreenId);
-
-        const targetKey = `${projId}__${permissionType}__${mainScreenId}`;
-        if (!acc[key].deleteTargets.has(targetKey)) {
-          acc[key].deleteTargets.set(targetKey, {
-            project_id: projId,
-            permission_type: permissionType,
-            mainscreen_id: mainScreenId,
-          });
-        }
-
-        return acc;
-      },
-      {} as Record<string, GroupAccum>
-    );
-
-    return Object.values(groupedObj).map((group) => {
-      const editPermissionType = group.permissionTypes.has("screen")
-        ? "screen"
-        : Array.from(group.permissionTypes)[0] ?? "screen";
-      const permissionTypeLabel = Array.from(group.permissionTypes)
-        .map((permissionType) => PERMISSION_TYPE_LABELS[permissionType] ?? permissionType)
-        .join(" + ");
-
-      return {
-        project_id: group.project_id,
-        project_name: group.project_name,
-        company_id: group.company_id,
-        company_name: group.company_name,
-        main_screen_count: group.mainScreenIds.size,
-        screen_count: group.userScreenIds.size,
-        permission_type_label: permissionTypeLabel,
-        edit_permission_type: editPermissionType,
-        delete_targets: Array.from(group.deleteTargets.values()),
-        composite_key: group.composite_key,
-      };
-    });
-  }, [companies, companyUniqueId, permissionRows, t]);
+  const onSort = useCallback((event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  }, []);
 
   /* -----------------------------------------------------------
      DELETE RECORD — loop delete-by-project per distinct mainscreen_id
@@ -322,12 +278,13 @@ export default function UserScreenPermissionList() {
         targets.map((target) => `${target.project_id}__${target.permission_type}`)
       );
 
-      setPermissionRows((current) =>
+      setRecords((current) =>
         current.filter((item) => {
-          const itemKey = `${toStrId(item.project_id)}__${String(item.permission_type ?? "screen")}`;
+          const itemKey = `${toStrId(item.project_id)}__${item.edit_permission_type}`;
           return !targetKeys.has(itemKey);
-        })
+        }),
       );
+      setRefetchTrigger((prev) => prev + 1);
 
       Swal.fire(
         t("common.deleted_success"),
@@ -435,7 +392,7 @@ export default function UserScreenPermissionList() {
     </div>
   );
 
-  const indexTemplate = (_: any, { rowIndex }: any) => rowIndex + 1;
+  const indexTemplate = (_: any, { rowIndex }: any) => first + rowIndex + 1;
 
   const mainScreenCountTemplate = (row: ProjectPermissionSummaryRow) =>
     t("admin.user_screen_permission.main_screens_count", { count: row.main_screen_count });
@@ -452,6 +409,7 @@ export default function UserScreenPermissionList() {
     const updated = { ...filters };
     updated["global"].value = value;
     setFilters(updated);
+    setFirst(0);
     setGlobalFilterValue(value);
   };
 
@@ -483,10 +441,31 @@ export default function UserScreenPermissionList() {
     </FilterBar>
   );
 
-  const exportRows = useMemo(
-    () => filterRowsForExport(records, PERMISSION_SEARCH_FIELDS, globalFilterValue),
-    [records, globalFilterValue],
-  );
+  const loadAllExportRows = async () => {
+    try {
+      const params: Record<string, string | number> = {
+        page: 1,
+        limit: 100000,
+      };
+      if (companyUniqueId) params.company_id = companyUniqueId;
+      if (projectId) params.project_id = projectId;
+      if (globalFilterValue) params.search = globalFilterValue;
+      if (sortField) {
+        params.ordering = `${sortOrder === -1 ? "-" : ""}${sortField}`;
+      }
+
+      const response =
+        await userScreenPermissionApi.action<ProjectSummaryResponse>(
+          "project-summary",
+          undefined,
+          { params },
+        );
+      return unwrapSummaryRows(response) as unknown as Record<string, unknown>[];
+    } catch {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    }
+    return [];
+  };
 
   /* -----------------------------------------------------------
      RENDER
@@ -539,15 +518,22 @@ export default function UserScreenPermissionList() {
 
       <DataTable
         value={records}
-        exportRows={exportRows}
+        loadExportRows={loadAllExportRows}
         // This page ships its own Download Template / Upload Excel in the
         // title row: the template uses BULK_TEMPLATE_COLUMNS and the upload
         // posts CSV to the dedicated bulk-upload endpoint. Opt out of the
         // generic pair so they are not rendered twice.
         bulkImportable={false}
         dataKey="composite_key"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         loading={isLoading}
         filters={filters}
         rowsPerPageOptions={[5, 10, 25, 50]}

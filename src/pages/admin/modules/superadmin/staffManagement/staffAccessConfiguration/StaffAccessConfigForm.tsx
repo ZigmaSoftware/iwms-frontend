@@ -555,11 +555,20 @@ export default function StaffAccessConfigForm() {
   }, [availablePermissions]);
 
   const filteredStaffUserTypeOptions = useMemo(() => {
-    if (!userTypeId) return staffUserTypeOptions;
-    return staffUserTypeOptions.filter(
-      (option) => !option.userTypeId || option.userTypeId === userTypeId,
-    );
-  }, [staffUserTypeOptions, userTypeId]);
+    const base = !userTypeId
+      ? staffUserTypeOptions
+      : staffUserTypeOptions.filter(
+          (option) => !option.userTypeId || option.userTypeId === userTypeId,
+        );
+    // Keep the currently-selected option present even if it doesn't match the
+    // active User Type filter — otherwise Select can't resolve its label and
+    // falls back to showing the raw unique_id instead of the name.
+    if (staffUserTypeId && !base.some((option) => option.value === staffUserTypeId)) {
+      const current = staffUserTypeOptions.find((option) => option.value === staffUserTypeId);
+      if (current) return [...base, current];
+    }
+    return base;
+  }, [staffUserTypeOptions, userTypeId, staffUserTypeId]);
 
   // Selecting an existing employee autofills whatever details already exist
   // on their record — fields left blank on the employee stay editable so the

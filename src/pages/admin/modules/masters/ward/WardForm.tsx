@@ -22,7 +22,6 @@ import { useTranslation } from "react-i18next";
 
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { useZonePanchayatVisibility } from "@/hooks/useZonePanchayatVisibility";
 import { continentApi, countryApi, stateApi, districtApi, cityApi, zoneApi, panchayatApi, wardApi } from "@/helpers/admin";
 import { wardSchema } from "@/schemas/masters/ward.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
@@ -173,7 +172,6 @@ export default function WardForm() {
     onCompanyChange,
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit });
-  const { showZone, showPanchayat } = useZonePanchayatVisibility();
 
   const extractErr = (e: any): string => {
     if (e?.response?.data) return String(e.response.data);
@@ -204,10 +202,7 @@ export default function WardForm() {
       LOAD MASTER DATA
       Promise.allSettled — not all() — because a staff without Zone (or
       Panchayat) access 403s that one call at the module-permission
-      middleware; that must not blank out every other dropdown. Zone/
-      Panchayat are additionally skipped entirely up front when the
-      login-scoped data shows the staff has no access to that resource,
-      avoiding the doomed request altogether.
+      middleware; that must not blank out every other dropdown.
   ========================================================== */
   useEffect(() => {
     let cancelled = false;
@@ -217,8 +212,8 @@ export default function WardForm() {
       stateApi.readAll(),
       districtApi.readAll(),
       cityApi.readAll(),
-      showZone ? zoneApi.readAll() : Promise.resolve([]),
-      showPanchayat ? panchayatApi.readAll() : Promise.resolve([]),
+      zoneApi.readAll(),
+      panchayatApi.readAll(),
     ]).then(([continentR, countryR, stateR, districtR, cityR, zoneR, panchayatR]) => {
       if (cancelled) return;
 
@@ -315,7 +310,7 @@ export default function WardForm() {
       })));
     });
     return () => { cancelled = true; };
-  }, [showZone, showPanchayat]);
+  }, []);
 
   useEffect(() => {
     if (isEdit) return;
@@ -385,11 +380,17 @@ export default function WardForm() {
     setFilteredCountries(filt);
   }, [continentId, allCountries, countryId, pendingContinent, pendingCountry]);
 
-  // State: show all active states directly — no continent/country prerequisite.
-  // Auto-resolve country + continent when state is selected (see onValueChange below).
+  // State: filtered by the selected Country. Selecting a State also
+  // auto-resolves Country/Continent (see onValueChange below) for the case
+  // where the record was saved with a state whose country wasn't set yet.
   useEffect(() => {
+    if (!countryId) {
+      setFilteredStates([]);
+      return;
+    }
+
     const filt = allStates
-      .filter((s) => s.isActive)
+      .filter((s) => s.isActive && s.countryId === countryId)
       .map((s) => ({ value: s.id, label: s.name }));
 
     const ensureState = pendingState || stateId;
@@ -403,7 +404,7 @@ export default function WardForm() {
     }
 
     setFilteredStates(filt);
-  }, [allStates, stateId, pendingState, wardRecordData]);
+  }, [countryId, allStates, stateId, pendingState, wardRecordData]);
 
   useEffect(() => {
     const effectiveStateId = stateId || pendingState;
@@ -1095,8 +1096,8 @@ export default function WardForm() {
           </div>
           )}
 
-          {/* Zone — hidden when the staff has no Zone access, or when Panchayat is selected */}
-          {showField("zone_id") && showZone && !effectivePanchayatId && (
+          {/* Zone — hidden when Panchayat is selected (siblings under City) */}
+          {showField("zone_id") && !effectivePanchayatId && (
           <div>
             <Label>{t("admin.nav.zone")}</Label>
             <Select
@@ -1117,8 +1118,8 @@ export default function WardForm() {
           </div>
           )}
 
-          {/* Panchayat — hidden when the staff has no Panchayat access, or when Zone is selected */}
-          {showField("panchayat_id") && showPanchayat && !effectiveZoneId && (
+          {/* Panchayat — hidden when Zone is selected (siblings under City) */}
+          {showField("panchayat_id") && !effectiveZoneId && (
           <div>
             <Label>{t("admin.nav.panchayat")}</Label>
             <Select
