@@ -350,8 +350,8 @@ export default function UserScreenPermissionList() {
      BULK UPLOAD — Download Template / Upload Excel
   ----------------------------------------------------------- */
 
-  const downloadTemplate = () => {
-    exportTemplateToExcel(
+  const downloadTemplate = async () => {
+    await exportTemplateToExcel(
       BULK_TEMPLATE_COLUMNS,
       getAdminScreenExcelFilename("template"),
       "ScreenPermissions",

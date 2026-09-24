@@ -354,7 +354,7 @@ const DataTableHeaderActions = ({
         return;
       }
 
-      exportRecordsToExcel(
+      await exportRecordsToExcel(
         exportRows,
         toExportFilename(filename),
         sheetName || "Data",
@@ -386,12 +386,18 @@ const DataTableHeaderActions = ({
     }
   };
 
-  const handleTemplate = () => {
-    exportTemplateToExcel(
-      resolvedColumns,
-      toTemplateFilename(importTemplateFilename),
-      importSheetName || "Template",
-    );
+  const handleTemplate = async () => {
+    try {
+      await exportTemplateToExcel(
+        resolvedColumns,
+        toTemplateFilename(importTemplateFilename),
+        importSheetName || "Template",
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Template download failed.";
+      Swal.fire("Template download failed", message, "error");
+    }
   };
 
   const handleImport = async (event: ChangeEvent<HTMLInputElement>) => {

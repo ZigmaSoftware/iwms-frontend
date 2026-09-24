@@ -221,7 +221,7 @@ export default function WasteCollectedDataList() {
       return;
     }
     const exportRows = buildExportRows();
-    downloadRecordsPdf({
+    await downloadRecordsPdf({
       title: "Household Collections",
       filename: "household_collections.pdf",
       rows: exportRows,

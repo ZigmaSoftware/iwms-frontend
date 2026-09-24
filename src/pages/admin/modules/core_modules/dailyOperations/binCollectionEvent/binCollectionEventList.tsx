@@ -302,7 +302,7 @@ export default function BinCollectionEventList() {
       });
       return;
     }
-    downloadRecordsPdf({
+    await downloadRecordsPdf({
       title: "Secondary Bin Collection Events",
       filename: "secondary_bin_collection_events.pdf",
       rows: exportRows,
