@@ -213,7 +213,7 @@ export default function TicketWizardForm() {
         ? prev.waste_types.filter((item) => item !== id)
         : [...prev.waste_types, id],
     }));
-  const filteredSubcategories = form.category ? subcategories.filter((item) => String(item.category) === form.category) : subcategories;
+  const filteredSubcategories = form.category ? subcategories.filter((item) => String(item.category_id) === form.category) : subcategories;
   const filteredDistricts = form.state ? districts.filter((item) => item.state_id === form.state) : districts;
   const filteredPanchayats = form.district ? panchayats.filter((item) => !item.district_id || item.district_id === form.district) : panchayats;
   const filteredZones = form.panchayat ? zones.filter((item) => !item.panchayat_id || item.panchayat_id === form.panchayat) : zones;

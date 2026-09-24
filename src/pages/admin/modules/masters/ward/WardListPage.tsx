@@ -113,9 +113,15 @@ export default function WardList() {
       project_id: selectedProjectId,
     });
 
+  // Page-scoped keys (not "selected_company_unique_id"/"selected_project_id")
+  // — those global keys are read by useCompanyProjectSelection as a
+  // cross-page session fallback, so writing this page's own filter there
+  // leaked into every other form's initial company/project state.
+  const WARD_FILTER_PROJECT_KEY = "ward_list_selected_project_id";
+
   useEffect(() => {
     if (typeof window === "undefined" || projects.length === 0) return;
-    const storedProjectId = localStorage.getItem("selected_project_id");
+    const storedProjectId = localStorage.getItem(WARD_FILTER_PROJECT_KEY);
     if (
       storedProjectId &&
       storedProjectId !== projectId &&
@@ -126,13 +132,12 @@ export default function WardList() {
   }, [projectId, projects, setProjectId]);
 
   const onFilterCompanyChange = (value: string) => {
-    localStorage.setItem("selected_company_unique_id", value);
-    localStorage.removeItem("selected_project_id");
+    localStorage.removeItem(WARD_FILTER_PROJECT_KEY);
     onCompanyChange(value);
   };
 
   const onFilterProjectChange = (value: string) => {
-    localStorage.setItem("selected_project_id", value);
+    localStorage.setItem(WARD_FILTER_PROJECT_KEY, value);
     setProjectId(value);
   };
 

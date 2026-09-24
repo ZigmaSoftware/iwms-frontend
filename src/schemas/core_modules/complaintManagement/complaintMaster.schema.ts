@@ -30,13 +30,13 @@ const complaintMasterBaseSchema = z.object({
   code: optionalString,
   name: optionalString,
   description: optionalString,
-  category: optionalString,
-  module: optionalString,
-  priority: optionalString,
-  subcategory: optionalString,
-  source: optionalString,
-  default_priority: optionalString,
-  default_department: optionalString,
+  category_id: optionalString,
+  module_id: optionalString,
+  priority_id: optionalString,
+  subcategory_id: optionalString,
+  source_id: optionalString,
+  default_priority_id: optionalString,
+  default_department_id: optionalString,
   requires_location: z.boolean(),
   requires_media: z.boolean(),
   requires_address_change_detail: z.boolean(),
@@ -51,15 +51,15 @@ const complaintMasterBaseSchema = z.object({
 export function buildComplaintMasterSchema(kind: MasterKind) {
   if (kind === "slaRule") {
     return complaintMasterBaseSchema.extend({
-      category: requiredString("Category"),
-      priority: requiredString("Priority"),
+      category_id: requiredString("Category"),
+      priority_id: requiredString("Priority"),
     });
   }
   if (kind === "subcategory") {
     return complaintMasterBaseSchema.extend({
       code: requiredString("Code"),
       name: requiredString("Name"),
-      category: requiredString("Category"),
+      category_id: requiredString("Category"),
     });
   }
   return complaintMasterBaseSchema.extend({

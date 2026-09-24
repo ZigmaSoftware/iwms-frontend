@@ -98,14 +98,15 @@ export default function ZoneList() {
       project_id: selectedProjectId,
     });
 
+  // Deliberately in-memory only — writing this filter choice to
+  // "selected_company_unique_id"/"selected_project_id" would leak into every
+  // other page's initial company/project state, since useCompanyProjectSelection
+  // reads those same keys as a global session fallback.
   const onFilterCompanyChange = (value: string) => {
-    localStorage.setItem("selected_company_unique_id", value);
-    localStorage.removeItem("selected_project_id");
     onCompanyChange(value);
   };
 
   const onFilterProjectChange = (value: string) => {
-    localStorage.setItem("selected_project_id", value);
     setProjectId(value);
   };
 

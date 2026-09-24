@@ -66,7 +66,7 @@ export default function CategoryManagementScreen() {
   const scopedSubcategories = useMemo(
     () =>
       selectedCategoryId
-        ? subcategories.filter((item) => idOf(item.category) === selectedCategoryId)
+        ? subcategories.filter((item) => idOf(item.category_id) === selectedCategoryId)
         : [],
     [subcategories, selectedCategoryId],
   );

@@ -101,11 +101,20 @@ export default function StaffUserTypeList() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const records = useMemo(() => {
+    const isGeneratedUserTypeId = (value: unknown) =>
+      typeof value === "string" && value.startsWith("UTYPE-");
+
     const normalize = (list: StaffUserType[], category: "Staff" | "Contractor") =>
       (list ?? []).map((item) => ({
         ...item,
-        usertype_id: item.usertype_id ?? item.usertype?.unique_id ?? null,
-        usertype_name: item.usertype_name ?? item.usertype?.name ?? t("common.unknown"),
+        usertype_id: isGeneratedUserTypeId(item.usertype_id)
+          ? item.usertype_id
+          : item.usertype?.unique_id ?? null,
+        usertype_name:
+          item.usertype_name ??
+          item.usertype?.name ??
+          (!isGeneratedUserTypeId(item.usertype_id) ? item.usertype_id : null) ??
+          category,
         category,
       }));
 
