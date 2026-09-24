@@ -12,15 +12,11 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { binCollectionEventApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import {
-  exportRecordsToExcel,
-  getAdminScreenExcelFilename,
-} from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatCollectionTime } from "@/utils/formatTime";
 import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
@@ -296,7 +292,7 @@ export default function BinCollectionEventList() {
       Status: r.status ?? "Collected",
     }));
 
-  const handleDownload = (format: "excel" | "pdf") => {
+  const handleDownloadPdf = async () => {
     const exportRows = buildExportRows();
     if (exportRows.length === 0) {
       Swal.fire({
@@ -306,20 +302,12 @@ export default function BinCollectionEventList() {
       });
       return;
     }
-    if (format === "excel") {
-      exportRecordsToExcel(
-        exportRows,
-        getAdminScreenExcelFilename("all"),
-        "Secondary Bin Collection Events",
-      );
-    } else {
-      downloadRecordsPdf({
-        title: "Secondary Bin Collection Events",
-        filename: "secondary_bin_collection_events.pdf",
-        rows: exportRows,
-        columns: Object.keys(exportRows[0]).map((key) => ({ key, label: key })),
-      });
-    }
+    await downloadRecordsPdf({
+      title: "Secondary Bin Collection Events",
+      filename: "secondary_bin_collection_events.pdf",
+      rows: exportRows,
+      columns: Object.keys(exportRows[0]).map((key) => ({ key, label: key })),
+    });
   };
 
   /* ── summary stats — computed from filtered rows only ── */
@@ -431,14 +419,6 @@ export default function BinCollectionEventList() {
                 navigate(NEW_PATH, { state: { companyUniqueId, projectId } })
               }
             />
-            <button
-              type="button"
-              onClick={() => handleDownload("pdf")}
-              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-            >
-              <i className="pi pi-file-pdf mr-1.5 text-red-600" />
-              Export to PDF
-            </button>
           </div>
         }
       />
@@ -451,6 +431,7 @@ export default function BinCollectionEventList() {
         loadExportRows={async () =>
           buildExportRows(filteredRows.length > 0 ? filteredRows : rows)
         }
+        onPdfRequest={handleDownloadPdf}
         value={rows}
         dataKey="unique_id"
         paginator
@@ -562,17 +543,16 @@ export default function BinCollectionEventList() {
           header={t("common.actions")}
           style={{ width: 90 }}
           body={(row: BinCERecord) => (
-            <button
-              title="Edit"
-              onClick={() =>
-                navigate(VIEW_PATH(row.unique_id ?? ""), {
-                  state: { companyUniqueId, projectId },
-                })
-              }
-              className="text-blue-600 hover:text-blue-800"
-            >
-              <PencilIcon className="size-5" />
-            </button>
+            <div className="flex justify-center">
+              <ActionMenu
+                editLabel="View"
+                onEdit={() =>
+                  navigate(VIEW_PATH(row.unique_id ?? ""), {
+                    state: { companyUniqueId, projectId },
+                  })
+                }
+              />
+            </div>
           )}
         />
       </DataTable>

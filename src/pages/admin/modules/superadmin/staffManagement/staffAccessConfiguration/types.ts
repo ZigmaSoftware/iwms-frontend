@@ -105,6 +105,9 @@ export type AvailableAction = {
 export type AvailableScreen = {
   userScreenId: string;
   userScreenName: string;
+  /** Screens sharing a group are shown under one heading (e.g. "Daily Trip Plan"). */
+  screenGroup?: string | null;
+  screenGroupLabel?: string | null;
   actions: AvailableAction[];
 };
 

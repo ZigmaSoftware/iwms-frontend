@@ -17,7 +17,7 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import QrPreviewDialog from "@/components/common/QrPreviewDialog";
@@ -406,7 +406,7 @@ export default function CustomerCreationListPage() {
       // non-fatal — ship the template without the allowed-values hint
     }
 
-    exportTemplateToExcel(
+    await exportTemplateToExcel(
       columns,
       getAdminScreenExcelFilename("template"),
       "Customers",
@@ -747,11 +747,39 @@ export default function CustomerCreationListPage() {
     );
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await customerCreationApi.delete(id);
+      setCustomers((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: String(error ?? t("common.request_failed")),
+      });
+    }
+  };
+
   const actionTemplate = (customer: Customer) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        title={t("common.edit")}
-        onClick={() =>
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() =>
           navigate(ENC_EDIT_PATH(customer.unique_id), {
             state: {
               companyUniqueId:
@@ -760,10 +788,8 @@ export default function CustomerCreationListPage() {
             },
           })
         }
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
+        onDelete={() => void handleDelete(customer.unique_id)}
+      />
     </div>
   );
 

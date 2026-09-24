@@ -43,13 +43,13 @@ const emptyForm = {
   code: "",
   name: "",
   description: "",
-  category: "",
-  module: "",
-  priority: "",
-  subcategory: "",
-  source: "",
-  default_priority: "",
-  default_department: "",
+  category_id: "",
+  module_id: "",
+  priority_id: "",
+  subcategory_id: "",
+  source_id: "",
+  default_priority_id: "",
+  default_department_id: "",
   requires_location: true,
   requires_media: false,
   requires_address_change_detail: false,
@@ -98,7 +98,7 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
   // edit load below overwrites `category` with the record's own value).
   const [form, setForm] = useState(() =>
     kind === "subcategory" && searchParams.get("category")
-      ? { ...emptyForm, category: searchParams.get("category") ?? "" }
+      ? { ...emptyForm, category_id: searchParams.get("category") ?? "" }
       : emptyForm,
   );
   const [categories, setCategories] = useState<any[]>([]);
@@ -149,13 +149,13 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
         code: record.module_code ?? record.category_code ?? record.subcategory_code ?? record.priority_code ?? record.status_code ?? record.source_code ?? "",
         name: record.module_name ?? record.category_name ?? record.subcategory_name ?? record.priority_name ?? record.status_name ?? record.source_name ?? "",
         description: record.description ?? "",
-        category: idOf(record.category),
-        module: idOf(record.module),
-        priority: idOf(record.priority),
-        subcategory: idOf(record.subcategory),
-        source: idOf(record.source),
-        default_priority: idOf(record.default_priority),
-        default_department: idOf(record.default_department),
+        category_id: idOf(record.category_id),
+        module_id: idOf(record.module_id),
+        priority_id: idOf(record.priority_id),
+        subcategory_id: idOf(record.subcategory_id),
+        source_id: idOf(record.source_id),
+        default_priority_id: idOf(record.default_priority_id),
+        default_department_id: idOf(record.default_department_id),
         requires_location: record.requires_location ?? true,
         requires_media: Boolean(record.requires_media),
         requires_address_change_detail: Boolean(record.requires_address_change_detail),
@@ -263,10 +263,10 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
             ...common,
             category_code: form.code.trim().toUpperCase(),
             category_name: form.name.trim(),
-            module: form.module || null,
+            module_id: form.module_id || null,
             description: form.description,
-            default_priority: form.default_priority || null,
-            default_department: form.default_department || null,
+            default_priority_id: form.default_priority_id || null,
+            default_department_id: form.default_department_id || null,
             requires_location: form.requires_location,
             requires_media: form.requires_media,
             requires_address_change_detail: form.requires_address_change_detail,
@@ -275,10 +275,10 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
         : kind === "subcategory"
           ? {
               ...common,
-              category: form.category,
+              category_id: form.category_id,
               subcategory_code: form.code.trim().toUpperCase(),
               subcategory_name: form.name.trim(),
-              default_priority: form.default_priority || null,
+              default_priority_id: form.default_priority_id || null,
             }
           : kind === "priority"
             ? { ...common, priority_code: form.code.trim().toUpperCase(), priority_name: form.name.trim(), description: form.description }
@@ -288,10 +288,10 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
                 ? { ...common, source_code: form.code.trim().toUpperCase(), source_name: form.name.trim() }
                 : {
                     ...common,
-                    category: form.category,
-                    subcategory: form.subcategory || null,
-                    priority: form.priority,
-                    source: form.source || null,
+                    category_id: form.category_id,
+                    subcategory_id: form.subcategory_id || null,
+                    priority_id: form.priority_id,
+                    source_id: form.source_id || null,
                     working_hours_only: form.working_hours_only,
                     escalation_levels: escalationLevels
                       .filter((row) => row.resolve_within_minutes !== "")
@@ -351,8 +351,8 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
             <div>
               <Label>Category</Label>
               <FormSelect
-                value={form.category}
-                onChange={(v) => setValue("category", v)}
+                value={form.category_id}
+                onChange={(v) => setValue("category_id", v)}
                 options={categories.map((item) => ({ value: String(item.unique_id), label: capitalize(item.category_name) }))}
                 required
                 placeholder={"Select category"}
@@ -361,8 +361,8 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
             <div>
               <Label>Priority</Label>
               <FormSelect
-                value={form.priority}
-                onChange={(v) => setValue("priority", v)}
+                value={form.priority_id}
+                onChange={(v) => setValue("priority_id", v)}
                 options={priorities.map((item) => ({ value: String(item.unique_id), label: capitalize(item.priority_name) }))}
                 required
                 placeholder={"Select priority"}
@@ -374,8 +374,8 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
           <div>
             <Label>Category</Label>
             <FormSelect
-              value={form.category}
-              onChange={(v) => setValue("category", v)}
+              value={form.category_id}
+              onChange={(v) => setValue("category_id", v)}
               options={categories.map((item) => ({ value: String(item.unique_id), label: capitalize(item.category_name) }))}
               required
               placeholder={"Select category"}
@@ -394,8 +394,8 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
           <div>
             <Label>Module</Label>
             <FormSelect
-              value={form.module}
-              onChange={(v) => setValue("module", v)}
+              value={form.module_id}
+              onChange={(v) => setValue("module_id", v)}
               options={modules.map((item) => ({ value: String(item.unique_id), label: capitalize(item.module_name) }))}
               placeholder={"None"}
             />
@@ -405,8 +405,8 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
           <div>
             <Label>Default Priority</Label>
             <FormSelect
-              value={form.default_priority}
-              onChange={(v) => setValue("default_priority", v)}
+              value={form.default_priority_id}
+              onChange={(v) => setValue("default_priority_id", v)}
               options={priorities.map((item) => ({ value: String(item.unique_id), label: capitalize(item.priority_name) }))}
               placeholder={"None"}
             />
@@ -416,8 +416,8 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
           <div>
             <Label>Default Department</Label>
             <FormSelect
-              value={form.default_department}
-              onChange={(v) => setValue("default_department", v)}
+              value={form.default_department_id}
+              onChange={(v) => setValue("default_department_id", v)}
               options={departments.map((item) => ({ value: String(item.unique_id), label: capitalize(item.department_name) }))}
               placeholder={"None"}
             />
@@ -428,10 +428,10 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
             <div>
               <Label>Subcategory</Label>
               <FormSelect
-                value={form.subcategory}
-                onChange={(v) => setValue("subcategory", v)}
+                value={form.subcategory_id}
+                onChange={(v) => setValue("subcategory_id", v)}
                 options={subcategories
-                  .filter((item) => !form.category || idOf(item.category) === form.category)
+                  .filter((item) => !form.category_id || idOf(item.category_id) === form.category_id)
                   .map((item) => ({ value: String(item.unique_id), label: capitalize(item.subcategory_name) }))}
                 placeholder="Any"
               />
@@ -439,8 +439,8 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
             <div>
               <Label>Source</Label>
               <FormSelect
-                value={form.source}
-                onChange={(v) => setValue("source", v)}
+                value={form.source_id}
+                onChange={(v) => setValue("source_id", v)}
                 options={sources.map((item) => ({ value: String(item.unique_id), label: capitalize(item.source_name) }))}
                 placeholder={"Any"}
               />

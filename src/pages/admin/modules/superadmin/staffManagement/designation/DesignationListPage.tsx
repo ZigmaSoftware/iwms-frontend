@@ -11,7 +11,7 @@ import type {
   SortOrder,
 } from "primereact/datatable";
 import { Switch } from "@/components/ui/switch";
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { designationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { FilterBar } from "@/components/common/FilterBar";
@@ -150,6 +150,31 @@ export default function DesignationListPage() {
     );
   };
 
+  const handleDelete = async (id: string | number) => {
+    const confirmDelete = await Swal.fire({
+      title: "Are you sure?",
+      text: "This record will be permanently deleted!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await designationApi.delete(id);
+      setRecords((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: "Deleted successfully!",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch {
+      Swal.fire("Error", "Failed to delete designation", "error");
+    }
+  };
+
   // Feeds the table's single "Download Excel" button: the "All data" option
   // fetches every row matching the current filters, while "Current page"
   // uses the rows already on screen.
@@ -232,12 +257,12 @@ export default function DesignationListPage() {
         <Column
           header="Action"
           body={(row) => (
-            <button
-              className="text-blue-600"
-              onClick={() => navigate(editPath(row.unique_id))}
-            >
-              <PencilIcon className="size-5" />
-            </button>
+            <div className="flex justify-center">
+              <ActionMenu
+                onEdit={() => navigate(editPath(row.unique_id))}
+                onDelete={() => void handleDelete(row.unique_id)}
+              />
+            </div>
           )}
         />
       </DataTable>

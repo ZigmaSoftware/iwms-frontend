@@ -119,13 +119,13 @@ export type ComplaintCategory = {
   unique_id: string;
   category_code: string;
   category_name: string;
-  module?: ApiId | null;
+  module_id?: ApiId | null;
   module_code?: string | null;
   module_name?: string | null;
   description?: string | null;
-  default_priority?: ApiId | null;
+  default_priority_id?: ApiId | null;
   default_priority_code?: string | null;
-  default_department?: ApiId | null;
+  default_department_id?: ApiId | null;
   default_department_name?: string | null;
   requires_location?: boolean;
   requires_media?: boolean;
@@ -146,12 +146,12 @@ export type ComplaintModule = {
 
 export type ComplaintSubcategory = {
   unique_id: string;
-  category: ApiId;
+  category_id: ApiId;
   category_code?: string | null;
   category_name?: string | null;
   subcategory_code: string;
   subcategory_name: string;
-  default_priority?: ApiId | null;
+  default_priority_id?: ApiId | null;
   sort_order?: number;
   is_active?: boolean;
 };
@@ -201,12 +201,12 @@ export type ComplaintSlaEscalationLevel = {
 
 export type ComplaintSlaRule = {
   unique_id: string;
-  category: ApiId;
+  category_id: ApiId;
   category_code?: string | null;
-  subcategory?: ApiId | null;
-  priority: ApiId;
+  subcategory_id?: ApiId | null;
+  priority_id: ApiId;
   priority_code?: string | null;
-  source?: ApiId | null;
+  source_id?: ApiId | null;
   resolve_within_minutes?: number | null;
   working_hours_only?: boolean;
   /** Per-hierarchy-level resolve windows; replaces the whole set on save. */

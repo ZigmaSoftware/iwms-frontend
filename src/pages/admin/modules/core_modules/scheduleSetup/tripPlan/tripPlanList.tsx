@@ -14,16 +14,12 @@ import type {
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Switch } from "@/components/ui/switch";
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { tripPlanApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import {
-  exportRecordsToExcel,
-  getAdminScreenExcelFilename,
-} from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
@@ -224,7 +220,6 @@ export default function TripPlanList() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<
     "all" | "bin_collection" | "household_collection"
   >("all");
@@ -489,46 +484,56 @@ export default function TripPlanList() {
     return out;
   };
 
-  const handleDownload = (format: "excel" | "pdf") => {
-    setIsExporting(true);
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
     try {
-      const exportRows = buildExportRows(
-        filteredRows.length > 0 ? filteredRows : rows,
-      );
-      if (exportRows.length === 0) {
-        Swal.fire({
-          icon: "warning",
-          title: "No records",
-          text: "There are no trip plans to export.",
-        });
-        return;
-      }
-      if (format === "excel") {
-        exportRecordsToExcel(
-          exportRows,
-          getAdminScreenExcelFilename("all"),
-          "Trip Plans",
-        );
-      } else {
-        downloadRecordsPdf({
-          title: "Trip Plans",
-          filename: "trip_plans.pdf",
-          rows: exportRows,
-          columns: Object.keys(exportRows[0]).map((key) => ({
-            key,
-            label: key,
-          })),
-        });
-      }
-    } catch (err: any) {
+      await tripPlanApi.delete(id);
+      setRawRows((current) => current.filter((item) => item.unique_id !== id));
       Swal.fire({
-        icon: "error",
-        title: t("common.error"),
-        text: err?.message ?? String(err),
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
       });
-    } finally {
-      setIsExporting(false);
+    } catch (error) {
+      Swal.fire(
+        t("common.error"),
+        extractErrorMessage(error) ?? t("common.delete_failed"),
+        "error",
+      );
     }
+  };
+
+  const handleDownloadPdf = async () => {
+    const exportRows = buildExportRows(
+      filteredRows.length > 0 ? filteredRows : rows,
+    );
+    if (exportRows.length === 0) {
+      Swal.fire({
+        icon: "warning",
+        title: "No records",
+        text: "There are no trip plans to export.",
+      });
+      return;
+    }
+    await downloadRecordsPdf({
+      title: "Trip Plans",
+      filename: "trip_plans.pdf",
+      rows: exportRows,
+      columns: Object.keys(exportRows[0]).map((key) => ({
+        key,
+        label: key,
+      })),
+    });
   };
 
   const header = (
@@ -550,17 +555,6 @@ export default function TripPlanList() {
           searchValue={globalFilterValue}
           onSearchChange={(value) => setGlobalFilterValue(value)}
           searchPlaceholder={t("common.search_placeholder")}
-          trailing={
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                label={isExporting ? "Exporting..." : "Download PDF"}
-                icon="pi pi-file-pdf"
-                className="p-button-outlined p-button-sm"
-                disabled={isExporting}
-                onClick={() => handleDownload("pdf")}
-              />
-            </div>
-          }
         >
           <FilterBarSelect
             value={companyUniqueId || ""}
@@ -615,6 +609,7 @@ export default function TripPlanList() {
         }
         value={rows}
         exportRows={filteredRows}
+        onPdfRequest={handleDownloadPdf}
         onValueChange={(value) => setFilteredRows(value as typeof rows)}
         dataKey="unique_id"
         lazy
@@ -694,17 +689,16 @@ export default function TripPlanList() {
           header={t("common.actions")}
           style={{ width: 120 }}
           body={(row: TripPlanRecord) => (
-            <button
-              title={t("common.edit")}
-              onClick={() =>
-                navigate(editPath(row.unique_id), {
-                  state: { record: row, companyUniqueId, projectId },
-                })
-              }
-              className="text-blue-600 hover:text-blue-800"
-            >
-              <PencilIcon className="size-5" />
-            </button>
+            <div className="flex justify-center">
+              <ActionMenu
+                onEdit={() =>
+                  navigate(editPath(row.unique_id), {
+                    state: { record: row, companyUniqueId, projectId },
+                  })
+                }
+                onDelete={() => void handleDelete(row.unique_id)}
+              />
+            </div>
           )}
         />
       </DataTable>

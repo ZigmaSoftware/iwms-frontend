@@ -7,7 +7,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { complaintCategoryApi, complaintSubcategoryApi } from "@/features/complaintTicketing/api";
@@ -66,7 +66,7 @@ export default function CategoryManagementScreen() {
   const scopedSubcategories = useMemo(
     () =>
       selectedCategoryId
-        ? subcategories.filter((item) => idOf(item.category) === selectedCategoryId)
+        ? subcategories.filter((item) => idOf(item.category_id) === selectedCategoryId)
         : [],
     [subcategories, selectedCategoryId],
   );
@@ -76,6 +76,47 @@ export default function CategoryManagementScreen() {
   const addSubcategory = () => {
     if (!selectedCategoryId) return;
     navigate(`${subcategoryRoutes.newPath}?category=${selectedCategoryId}`);
+  };
+
+  const deleteRecord = async (api: { delete: (id: string) => Promise<void> }, id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: "Are you sure?",
+      text: "This record will be permanently deleted!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return false;
+
+    try {
+      await api.delete(id);
+      Swal.fire({
+        icon: "success",
+        title: "Deleted successfully!",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+      return true;
+    } catch (error) {
+      Swal.fire("Error", errorText(error, "Unable to delete record"), "error");
+      return false;
+    }
+  };
+
+  const deleteCategory = async (row: any) => {
+    const ok = await deleteRecord(complaintCategoryApi, row.unique_id);
+    if (ok) {
+      setCategories((current) => current.filter((item) => item.unique_id !== row.unique_id));
+      if (selectedCategoryId === row.unique_id) setSelectedCategoryId(null);
+    }
+  };
+
+  const deleteSubcategory = async (row: any) => {
+    const ok = await deleteRecord(complaintSubcategoryApi, row.unique_id);
+    if (ok) {
+      setSubcategories((current) => current.filter((item) => item.unique_id !== row.unique_id));
+    }
   };
 
   return (
@@ -126,9 +167,12 @@ export default function CategoryManagementScreen() {
         <Column
           header="Actions"
           body={(row) => (
-            <button className="text-blue-600" onClick={(e) => { e.stopPropagation(); editCategory(row); }} title="Edit">
-              <PencilIcon className="size-5" />
-            </button>
+            <div className="flex justify-center" onClick={(e) => e.stopPropagation()}>
+              <ActionMenu
+                onEdit={() => editCategory(row)}
+                onDelete={() => void deleteCategory(row)}
+              />
+            </div>
           )}
           style={{ width: "100px" }}
         />
@@ -168,9 +212,12 @@ export default function CategoryManagementScreen() {
             <Column
               header="Actions"
               body={(row) => (
-                <button className="text-blue-600" onClick={() => editSubcategory(row)} title="Edit">
-                  <PencilIcon className="size-5" />
-                </button>
+                <div className="flex justify-center">
+                  <ActionMenu
+                    onEdit={() => editSubcategory(row)}
+                    onDelete={() => void deleteSubcategory(row)}
+                  />
+                </div>
               )}
               style={{ width: "100px" }}
             />

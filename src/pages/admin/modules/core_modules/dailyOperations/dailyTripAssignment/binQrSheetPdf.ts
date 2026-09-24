@@ -1,4 +1,8 @@
-import { jsPDF } from "jspdf";
+import type { jsPDF } from "jspdf";
+
+// jspdf is ~386KB minified — loaded on demand only when a user actually
+// triggers a PDF export, instead of shipping in every list page's chunk.
+const loadJsPdf = () => import("jspdf").then((m) => m.jsPDF);
 import QRCode from "qr.js/lib/QRCode";
 import ErrorCorrectLevel from "qr.js/lib/ErrorCorrectLevel";
 
@@ -281,7 +285,8 @@ export const createBinQrSheetPdf = async (
   if (!context) throw new Error("PDF generation is not supported in this browser.");
 
   const logos = await loadLogos();
-  const documentPdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const JsPdf = await loadJsPdf();
+  const documentPdf = new JsPdf({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageCount = Math.ceil(entries.length / BINS_PER_PAGE);
   const projectName = (scope?.projectName ?? "").trim();
 

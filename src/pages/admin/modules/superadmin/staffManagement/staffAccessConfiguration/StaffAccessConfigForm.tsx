@@ -46,6 +46,7 @@ import LocationScopeSelector, {
 import { MultiSelect } from "@/components/form/MultiSelect";
 import type {
   AvailableMainScreen,
+  AvailableScreen,
   AppModuleOption,
   AvailablePermissionsResponse,
   DataScopeForm,
@@ -65,6 +66,8 @@ import {
   type FieldErrors,
 } from "@/schemas/shared/parseFormErrors";
 import { FieldError } from "@/components/form/FieldError";
+import { TriStateCheckbox } from "@/components/form/TriStateCheckbox";
+import { groupActionState, groupScreens } from "@/utils/screenGroups";
 
 const { encAdmins, encStaffAccessConfiguration } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
@@ -186,6 +189,7 @@ export default function StaffAccessConfigForm() {
     companyUniqueId,
     projects,
     projectsLoaded,
+    projectsCompanyId,
     companies,
     companiesLoaded,
     isSuperAdmin,
@@ -267,13 +271,20 @@ export default function StaffAccessConfigForm() {
     () => new Set(projects.map((p) => p.value)),
     [projects],
   );
+  //
+  // Only once the list is for the company now selected: opening Edit switches
+  // to the record's company in the same render its project ids arrive, while
+  // `projects` still holds the previous company's list, which would otherwise
+  // strip every saved project from the field.
+  const projectsAreCurrent =
+    projectsLoaded && projectsCompanyId === companyUniqueId;
   useEffect(() => {
-    if (!projectsLoaded || (isEdit && fetching)) return;
+    if (!projectsAreCurrent || (isEdit && fetching)) return;
     setProjectIds((current) => {
       const survived = current.filter((id) => eligibleProjectIds.has(id));
       return survived.length === current.length ? current : survived;
     });
-  }, [eligibleProjectIds, projectsLoaded, isEdit, fetching]);
+  }, [eligibleProjectIds, projectsAreCurrent, isEdit, fetching]);
 
   useEffect(() => {
     let cancelled = false;
@@ -555,11 +566,20 @@ export default function StaffAccessConfigForm() {
   }, [availablePermissions]);
 
   const filteredStaffUserTypeOptions = useMemo(() => {
-    if (!userTypeId) return staffUserTypeOptions;
-    return staffUserTypeOptions.filter(
-      (option) => !option.userTypeId || option.userTypeId === userTypeId,
-    );
-  }, [staffUserTypeOptions, userTypeId]);
+    const base = !userTypeId
+      ? staffUserTypeOptions
+      : staffUserTypeOptions.filter(
+          (option) => !option.userTypeId || option.userTypeId === userTypeId,
+        );
+    // Keep the currently-selected option present even if it doesn't match the
+    // active User Type filter — otherwise Select can't resolve its label and
+    // falls back to showing the raw unique_id instead of the name.
+    if (staffUserTypeId && !base.some((option) => option.value === staffUserTypeId)) {
+      const current = staffUserTypeOptions.find((option) => option.value === staffUserTypeId);
+      if (current) return [...base, current];
+    }
+    return base;
+  }, [staffUserTypeOptions, userTypeId, staffUserTypeId]);
 
   // Selecting an existing employee autofills whatever details already exist
   // on their record — fields left blank on the employee stay editable so the
@@ -633,6 +653,28 @@ export default function StaffAccessConfigForm() {
           ...prev,
           [userScreenId]: { userScreenId, actionIds: allActionIds },
         };
+      });
+    },
+    [],
+  );
+
+  // Ticks (or unticks) one action on every screen of a group heading. Screens
+  // that don't offer the action are left alone.
+  const toggleGroupAction = useCallback(
+    (screens: AvailableScreen[], actionId: string, checked: boolean) => {
+      setSelections((prev) => {
+        const next = { ...prev };
+        screens.forEach((screen) => {
+          const screenId = toId(screen.userScreenId);
+          if (!screen.actions.some((a) => toId(a.actionId) === actionId)) return;
+          const current = next[screenId]?.actionIds ?? [];
+          const actionIds = checked
+            ? Array.from(new Set([...current, actionId]))
+            : current.filter((a) => a !== actionId);
+          if (actionIds.length === 0) delete next[screenId];
+          else next[screenId] = { userScreenId: screenId, actionIds };
+        });
+        return next;
       });
     },
     [],
@@ -923,7 +965,7 @@ export default function StaffAccessConfigForm() {
             (optional — leave blank for all projects under the company)
           </span>
         </Label>
-        {isEdit && (!companiesLoaded || !projectsLoaded) ? (
+        {isEdit && (!companiesLoaded || !projectsAreCurrent) ? (
           <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
             Loading…
           </div>
@@ -1233,6 +1275,125 @@ export default function StaffAccessConfigForm() {
     </div>
   );
 
+  const renderScreenRow = (screen: AvailableScreen) => {
+    const screenId = toId(screen.userScreenId);
+    const selectedActionIds = selections[screenId]?.actionIds ?? [];
+    const allActionIds = screen.actions.map((action) => toId(action.actionId));
+    const allChecked =
+      allActionIds.length > 0 && selectedActionIds.length === allActionIds.length;
+    return (
+      <div
+        key={screenId}
+        className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(190px,1fr)_minmax(360px,2fr)]"
+      >
+        <span className="truncate text-sm font-medium text-gray-700 dark:text-gray-200">
+          {screen.userScreenName}
+        </span>
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900 dark:accent-gray-100"
+              checked={allChecked}
+              onChange={(event) =>
+                toggleAllActionsForScreen(screenId, allActionIds, event.target.checked)
+              }
+            />
+            All
+          </label>
+          {screen.actions.map((action) => {
+            const actionId = toId(action.actionId);
+            return (
+              <label
+                key={actionId}
+                className="flex items-center gap-1.5 text-xs capitalize text-gray-600 dark:text-gray-300"
+              >
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900 dark:accent-gray-100"
+                  checked={selectedActionIds.includes(actionId)}
+                  onChange={(event) =>
+                    toggleAction(screenId, actionId, event.target.checked)
+                  }
+                />
+                {action.actionName}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // One row such as "Daily Trip Plan" standing for several screens: its ticks
+  // are saved on every one of them, and show a dash if they ever differ.
+  const renderScreenGroup = (key: string, label: string, screens: AvailableScreen[]) => {
+    const actionsInGroup = new Map<string, string>();
+    screens.forEach((screen) =>
+      screen.actions.forEach((action) =>
+        actionsInGroup.set(toId(action.actionId), action.actionName),
+      ),
+    );
+    const holds = (screen: AvailableScreen, actionId: string) =>
+      (selections[toId(screen.userScreenId)]?.actionIds ?? []).includes(actionId);
+    const offering = (actionId: string) =>
+      screens.filter((screen) => screen.actions.some((a) => toId(a.actionId) === actionId));
+    const all = groupActionState(
+      screens.flatMap((screen) =>
+        screen.actions.map((action) => holds(screen, toId(action.actionId))),
+      ),
+    );
+    return (
+      <div key={`group-${key}`}>
+        <div className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(190px,1fr)_minmax(360px,2fr)]">
+          <span className="truncate text-sm font-medium text-gray-700 dark:text-gray-200">
+            {label}
+          </span>
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200">
+              <TriStateCheckbox
+                className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900 dark:accent-gray-100"
+                checked={all.checked}
+                indeterminate={all.indeterminate}
+                onChange={(event) =>
+                  screens.forEach((screen) =>
+                    toggleAllActionsForScreen(
+                      toId(screen.userScreenId),
+                      screen.actions.map((action) => toId(action.actionId)),
+                      event.target.checked,
+                    ),
+                  )
+                }
+              />
+              All
+            </label>
+            {Array.from(actionsInGroup, ([actionId, actionName]) => {
+              const state = groupActionState(
+                offering(actionId).map((screen) => holds(screen, actionId)),
+              );
+              return (
+                <label
+                  key={actionId}
+                  className="flex items-center gap-1.5 text-xs capitalize text-gray-600 dark:text-gray-300"
+                >
+                  <TriStateCheckbox
+                    className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900 dark:accent-gray-100"
+                    checked={state.checked}
+                    indeterminate={state.indeterminate}
+                    onChange={(event) =>
+                      toggleGroupAction(screens, actionId, event.target.checked)
+                    }
+                  />
+                  {actionName}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderPermissions = () => (
     <div className="space-y-5">
       {renderAppModules()}
@@ -1300,69 +1461,14 @@ export default function StaffAccessConfigForm() {
                         <ChevronDown className="h-4 w-4 text-gray-400 transition group-open:rotate-180" />
                       </summary>
                       <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                        {module.screens.map((screen) => {
-                          const screenId = toId(screen.userScreenId);
-                          const selectedActionIds =
-                            selections[screenId]?.actionIds ?? [];
-                          const allActionIds = screen.actions.map((action) =>
-                            toId(action.actionId),
-                          );
-                          const allChecked =
-                            allActionIds.length > 0 &&
-                            selectedActionIds.length === allActionIds.length;
-                          return (
-                            <div
-                              key={screenId}
-                              className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(190px,1fr)_minmax(360px,2fr)]"
-                            >
-                              <span className="truncate text-sm font-medium text-gray-700 dark:text-gray-200">
-                                {screen.userScreenName}
-                              </span>
-                              <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
-                                <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                                  <input
-                                    type="checkbox"
-                                    className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900 dark:accent-gray-100"
-                                    checked={allChecked}
-                                    onChange={(event) =>
-                                      toggleAllActionsForScreen(
-                                        screenId,
-                                        allActionIds,
-                                        event.target.checked,
-                                      )
-                                    }
-                                  />
-                                  All
-                                </label>
-                                {screen.actions.map((action) => {
-                                  const actionId = toId(action.actionId);
-                                  return (
-                                    <label
-                                      key={actionId}
-                                      className="flex items-center gap-1.5 text-xs capitalize text-gray-600 dark:text-gray-300"
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        className="h-3.5 w-3.5 rounded border-gray-300 accent-gray-900 dark:accent-gray-100"
-                                        checked={selectedActionIds.includes(
-                                          actionId,
-                                        )}
-                                        onChange={(event) =>
-                                          toggleAction(
-                                            screenId,
-                                            actionId,
-                                            event.target.checked,
-                                          )
-                                        }
-                                      />
-                                      {action.actionName}
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
+                        {groupScreens(module.screens, (screen) => ({
+                          key: screen.screenGroup,
+                          label: screen.screenGroupLabel,
+                        })).map((block) =>
+                          block.kind === "screen"
+                            ? renderScreenRow(block.item)
+                            : renderScreenGroup(block.key, block.label, block.items),
+                        )}
                       </div>
                     </details>
                   );
