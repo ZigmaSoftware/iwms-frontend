@@ -525,7 +525,7 @@ export default function TripPlanList() {
       });
       return;
     }
-    downloadRecordsPdf({
+    await downloadRecordsPdf({
       title: "Trip Plans",
       filename: "trip_plans.pdf",
       rows: exportRows,

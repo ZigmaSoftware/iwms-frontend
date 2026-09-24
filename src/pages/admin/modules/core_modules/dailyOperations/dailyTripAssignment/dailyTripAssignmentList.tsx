@@ -37,7 +37,11 @@ import {
   binApi,
   customerCreationApi,
 } from "@/helpers/admin";
-import { jsPDF } from "jspdf";
+import type { jsPDF } from "jspdf";
+
+// jspdf is ~386KB minified — loaded on demand only when a user actually
+// triggers a PDF export, instead of shipping in every list page's chunk.
+const loadJsPdf = () => import("jspdf").then((m) => m.jsPDF);
 import { api } from "@/api";
 import { adminEndpoints } from "@/helpers/admin/endpoints";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
@@ -1167,7 +1171,7 @@ export default function DailyTripAssignmentList() {
       });
       return;
     }
-    downloadRecordsPdf({
+    await downloadRecordsPdf({
       title: "Daily Trip Plans",
       filename: "daily_trip_plans.pdf",
       rows: exportRows,
@@ -1195,7 +1199,8 @@ export default function DailyTripAssignmentList() {
         return;
       }
 
-      const pdf = new jsPDF({
+      const JsPdf = await loadJsPdf();
+      const pdf = new JsPdf({
         orientation: "portrait",
         unit: "mm",
         format: "a4",

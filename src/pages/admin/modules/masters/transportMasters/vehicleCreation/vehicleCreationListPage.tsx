@@ -266,8 +266,8 @@ export default function VehicleCreationListPage() {
   };
 
   // ── Bulk upload ───────────────────────────────────────────────────────────
-  const downloadVehicleTemplate = () => {
-    exportTemplateToExcel(
+  const downloadVehicleTemplate = async () => {
+    await exportTemplateToExcel(
       VEHICLE_BULK_TEMPLATE_COLUMNS,
       getAdminScreenExcelFilename("template"),
       "Vehicles",
