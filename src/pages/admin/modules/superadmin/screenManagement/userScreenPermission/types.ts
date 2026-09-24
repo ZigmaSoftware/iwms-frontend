@@ -119,6 +119,9 @@ export type ScreenMatrixRow = {
   userscreen_name: string;
   actions: string[];
   columnIds: string[];
+  /** Screens sharing a group are shown under one heading (e.g. "Daily Trip Plan"). */
+  screen_group?: string | null;
+  screen_group_label?: string | null;
 };
 
 export type ApiUserScreen = {
@@ -128,6 +131,8 @@ export type ApiUserScreen = {
   order_no?: number;
   is_active?: boolean;
   is_deleted?: boolean;
+  screen_group?: string | null;
+  screen_group_label?: string | null;
   [key: string]: unknown;
 };
 

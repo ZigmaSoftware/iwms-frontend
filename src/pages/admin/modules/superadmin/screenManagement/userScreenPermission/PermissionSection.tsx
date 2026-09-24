@@ -19,6 +19,8 @@ import {
   type ColumnPermissionsResponse,
 } from "@/helpers/admin/columnPermissionService";
 import { adminApi } from "@/helpers/admin/registry";
+import { TriStateCheckbox } from "@/components/form/TriStateCheckbox";
+import { groupActionState, groupScreens } from "@/utils/screenGroups";
 
 /** Green lock: primary key, foreign key, or any field whose name ends with _id */
 const isLockedColumn = (col: UserScreenColumnRecord): boolean =>
@@ -202,6 +204,8 @@ export default function PermissionSection({
           ).trim(),
           actions: uniqueIds(existing?.actions ?? []),
           columnIds: uniqueIds(existing?.columnIds ?? []),
+          screen_group: screen.screen_group ?? null,
+          screen_group_label: screen.screen_group_label ?? null,
         });
       });
 
@@ -361,6 +365,38 @@ export default function PermissionSection({
     );
   };
 
+  // A group heading (e.g. "Daily Trip Plan") ticks an action on every screen
+  // under it; each screen can still be changed on its own afterwards.
+  const handleGroupActionToggle = (
+    screenIds: string[],
+    actionId: string,
+    checked: boolean
+  ) => {
+    setScreenMatrix((prev) =>
+      prev.map((row) =>
+        screenIds.includes(row.userscreen_id)
+          ? {
+              ...row,
+              actions: checked
+                ? uniqueIds([...row.actions, actionId])
+                : row.actions.filter((a) => a !== actionId),
+            }
+          : row
+      )
+    );
+  };
+
+  const handleGroupSelectAll = (screenIds: string[], checked: boolean) => {
+    const allActions = actions.map((a) => a.value);
+    setScreenMatrix((prev) =>
+      prev.map((row) =>
+        screenIds.includes(row.userscreen_id)
+          ? { ...row, actions: checked ? allActions : [] }
+          : row
+      )
+    );
+  };
+
   const handleColumnToggle = (
     screenId: string,
     columnId: string,
@@ -392,6 +428,142 @@ export default function PermissionSection({
           ? { ...row, columnIds: checked ? allIds : lockedIds }
           : row
       )
+    );
+  };
+
+  const renderScreenRow = (row: ScreenMatrixRow, rowNumber: number, nested: boolean) => {
+    const allActionsChecked = row.actions.length === actions.length;
+    const cols = permissionType === "field" ? screenColumns[row.userscreen_id] : undefined;
+    const allColsChecked =
+      cols && cols.length > 0 ? row.columnIds.length === cols.length : false;
+    const someColsChecked = cols && cols.length > 0 && row.columnIds.length > 0;
+
+    return (
+      <Fragment key={row.userscreen_id}>
+        {/* ── Action row ── */}
+        <tr className="border-b hover:bg-gray-50">
+          <td className="px-4 py-3 text-sm">{rowNumber}</td>
+          <td className={`py-3 pr-4 text-sm font-medium ${nested ? "pl-10" : "pl-4"}`}>
+            {nested && <span className="mr-1.5 text-gray-400">↳</span>}
+            {row.userscreen_name}
+          </td>
+          <td className="px-4 py-3 text-center">
+            <input
+              type="checkbox"
+              checked={allActionsChecked}
+              onChange={(e) => handleSelectAll(row.userscreen_id, e.target.checked)}
+              className="w-4 h-4 cursor-pointer"
+            />
+          </td>
+          {actions.map((act) => (
+            <td key={act.value} className="px-4 py-3 text-center">
+              <input
+                type="checkbox"
+                checked={row.actions.includes(act.value)}
+                onChange={(e) =>
+                  handleActionToggle(row.userscreen_id, act.value, e.target.checked)
+                }
+                className="w-4 h-4 cursor-pointer"
+              />
+            </td>
+          ))}
+        </tr>
+
+        {/* ── Column permission row (Field Permission mode only) ── */}
+        {cols && cols.length > 0 && (
+          <tr className="border-b bg-slate-50/60">
+            <td className="px-4 py-2" />
+            <td className="px-4 py-2">
+              <span className="text-xs font-semibold text-slate-500 pl-2">Columns</span>
+              {someColsChecked && (
+                <span className="ml-2 text-xs text-blue-600 font-medium">
+                  ({row.columnIds.length}/{cols.length})
+                </span>
+              )}
+            </td>
+            <td className="px-4 py-2 text-center">
+              <input
+                type="checkbox"
+                checked={allColsChecked}
+                onChange={(e) => handleSelectAllColumns(row.userscreen_id, e.target.checked)}
+                className="w-4 h-4 cursor-pointer accent-blue-600"
+                title="Select all columns"
+              />
+            </td>
+            <td colSpan={actions.length} className="px-4 py-2">
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {cols.map((col) => {
+                  const locked = isLockedColumn(col);
+                  const warning = !locked && isWarningColumn(col);
+                  const checked = locked || row.columnIds.includes(col.unique_id);
+
+                  if (locked) {
+                    return (
+                      <label
+                        key={col.unique_id}
+                        title="Required key field — always visible"
+                        className="flex items-center gap-1.5 text-xs cursor-not-allowed"
+                      >
+                        <input
+                          type="checkbox"
+                          checked
+                          disabled
+                          className="w-3.5 h-3.5 accent-green-600"
+                        />
+                        <span className="text-gray-400">
+                          {col.display_name || col.field_name}
+                        </span>
+                      </label>
+                    );
+                  }
+
+                  if (warning) {
+                    return (
+                      <label
+                        key={col.unique_id}
+                        title="Important field — hiding it may affect functionality"
+                        className="flex items-center gap-1.5 text-xs cursor-pointer group"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) =>
+                            handleColumnToggle(row.userscreen_id, col.unique_id, e.target.checked, col)
+                          }
+                          className="w-3.5 h-3.5 cursor-pointer accent-amber-500"
+                        />
+                        <span className="text-amber-700 group-hover:text-amber-900">
+                          {col.display_name || col.field_name}
+                        </span>
+                        <span className="text-amber-500 text-[10px] leading-none">⚠</span>
+                      </label>
+                    );
+                  }
+
+                  return (
+                    <label
+                      key={col.unique_id}
+                      className="flex items-center gap-1.5 text-xs cursor-pointer group"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) =>
+                          handleColumnToggle(row.userscreen_id, col.unique_id, e.target.checked, col)
+                        }
+                        className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
+                      />
+                      <span className="text-gray-700 group-hover:text-gray-900">
+                        {col.display_name || col.field_name}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </td>
+          </tr>
+        )}
+      </Fragment>
     );
   };
 
@@ -452,138 +624,63 @@ export default function PermissionSection({
               </tr>
             </thead>
             <tbody>
-              {screenMatrix.map((row, i) => {
-                const allActionsChecked = row.actions.length === actions.length;
-                const cols = permissionType === "field" ? screenColumns[row.userscreen_id] : undefined;
-                const allColsChecked =
-                  cols && cols.length > 0 ? row.columnIds.length === cols.length : false;
-                const someColsChecked = cols && cols.length > 0 && row.columnIds.length > 0;
-
-                return (
-                  <Fragment key={row.userscreen_id}>
-                    {/* ── Action row ── */}
-                    <tr className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm">{i + 1}</td>
-                      <td className="px-4 py-3 text-sm font-medium">{row.userscreen_name}</td>
-                      <td className="px-4 py-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={allActionsChecked}
-                          onChange={(e) => handleSelectAll(row.userscreen_id, e.target.checked)}
-                          className="w-4 h-4 cursor-pointer"
-                        />
-                      </td>
-                      {actions.map((act) => (
-                        <td key={act.value} className="px-4 py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={row.actions.includes(act.value)}
-                            onChange={(e) =>
-                              handleActionToggle(row.userscreen_id, act.value, e.target.checked)
-                            }
+              {(() => {
+                let rowNumber = 0;
+                return groupScreens(screenMatrix, (row) => ({
+                  key: row.screen_group,
+                  label: row.screen_group_label,
+                })).map((block) => {
+                  if (block.kind === "screen") {
+                    rowNumber += 1;
+                    return renderScreenRow(block.item, rowNumber, false);
+                  }
+                  const ids = block.items.map((row) => row.userscreen_id);
+                  const all = groupActionState(
+                    block.items.flatMap((row) =>
+                      actions.map((act) => row.actions.includes(act.value))
+                    )
+                  );
+                  rowNumber += 1;
+                  return (
+                    <Fragment key={`group-${block.key}`}>
+                      <tr className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm">{rowNumber}</td>
+                        <td className="px-4 py-3 text-sm font-medium">{block.label}</td>
+                        <td className="px-4 py-3 text-center">
+                          <TriStateCheckbox
+                            checked={all.checked}
+                            indeterminate={all.indeterminate}
+                            onChange={(e) => handleGroupSelectAll(ids, e.target.checked)}
                             className="w-4 h-4 cursor-pointer"
                           />
                         </td>
-                      ))}
-                    </tr>
-
-                    {/* ── Column permission row (Field Permission mode only) ── */}
-                    {cols && cols.length > 0 && (
-                      <tr className="border-b bg-slate-50/60">
-                        <td className="px-4 py-2" />
-                        <td className="px-4 py-2">
-                          <span className="text-xs font-semibold text-slate-500 pl-2">Columns</span>
-                          {someColsChecked && (
-                            <span className="ml-2 text-xs text-blue-600 font-medium">
-                              ({row.columnIds.length}/{cols.length})
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-center">
-                          <input
-                            type="checkbox"
-                            checked={allColsChecked}
-                            onChange={(e) => handleSelectAllColumns(row.userscreen_id, e.target.checked)}
-                            className="w-4 h-4 cursor-pointer accent-blue-600"
-                            title="Select all columns"
-                          />
-                        </td>
-                        <td colSpan={actions.length} className="px-4 py-2">
-                          <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                            {cols.map((col) => {
-                              const locked = isLockedColumn(col);
-                              const warning = !locked && isWarningColumn(col);
-                              const checked = locked || row.columnIds.includes(col.unique_id);
-
-                              if (locked) {
-                                return (
-                                  <label
-                                    key={col.unique_id}
-                                    title="Required key field — always visible"
-                                    className="flex items-center gap-1.5 text-xs cursor-not-allowed"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked
-                                      disabled
-                                      className="w-3.5 h-3.5 accent-green-600"
-                                    />
-                                    <span className="text-gray-400">
-                                      {col.display_name || col.field_name}
-                                    </span>
-                                  </label>
-                                );
-                              }
-
-                              if (warning) {
-                                return (
-                                  <label
-                                    key={col.unique_id}
-                                    title="Important field — hiding it may affect functionality"
-                                    className="flex items-center gap-1.5 text-xs cursor-pointer group"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      onChange={(e) =>
-                                        handleColumnToggle(row.userscreen_id, col.unique_id, e.target.checked, col)
-                                      }
-                                      className="w-3.5 h-3.5 cursor-pointer accent-amber-500"
-                                    />
-                                    <span className="text-amber-700 group-hover:text-amber-900">
-                                      {col.display_name || col.field_name}
-                                    </span>
-                                    <span className="text-amber-500 text-[10px] leading-none">⚠</span>
-                                  </label>
-                                );
-                              }
-
-                              return (
-                                <label
-                                  key={col.unique_id}
-                                  className="flex items-center gap-1.5 text-xs cursor-pointer group"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={(e) =>
-                                      handleColumnToggle(row.userscreen_id, col.unique_id, e.target.checked, col)
-                                    }
-                                    className="w-3.5 h-3.5 cursor-pointer accent-blue-600"
-                                  />
-                                  <span className="text-gray-700 group-hover:text-gray-900">
-                                    {col.display_name || col.field_name}
-                                  </span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </td>
+                        {actions.map((act) => {
+                          const state = groupActionState(
+                            block.items.map((row) => row.actions.includes(act.value))
+                          );
+                          return (
+                            <td key={act.value} className="px-4 py-3 text-center">
+                              <TriStateCheckbox
+                                checked={state.checked}
+                                indeterminate={state.indeterminate}
+                                onChange={(e) =>
+                                  handleGroupActionToggle(ids, act.value, e.target.checked)
+                                }
+                                className="w-4 h-4 cursor-pointer"
+                              />
+                            </td>
+                          );
+                        })}
                       </tr>
-                    )}
-                  </Fragment>
-                );
-              })}
+                      {/* The screens behind the heading are not listed: its ticks
+                          are saved on each of them. Field permissions are per
+                          table, so their column rows are still shown. */}
+                      {permissionType === "field" &&
+                        block.items.map((row) => renderScreenRow(row, rowNumber, true))}
+                    </Fragment>
+                  );
+                });
+              })()}
             </tbody>
           </table>
         </div>

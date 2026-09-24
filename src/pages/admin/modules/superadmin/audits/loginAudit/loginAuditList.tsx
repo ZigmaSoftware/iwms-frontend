@@ -39,8 +39,21 @@ export default function LoginAuditList() {
   const { t } = useTranslation();
 
   const restoredState = null as any;
-  const { companyUniqueId, projectId, projects, companies, isSuperAdmin, setProjectId, onCompanyChange } =
-    useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    showAllProjectsOption,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
   const [rows, setRows] = useState<LoginAuditRecord[]>([]);
   const [selectedAudit, setSelectedAudit] = useState<LoginAuditRecord | null>(null);
@@ -51,13 +64,14 @@ export default function LoginAuditList() {
   });
 
   useEffect(() => {
-    if (!companyUniqueId) {
+    if (!companyUniqueId && !isSuperAdmin) {
       setRows([]);
       return;
     }
     let mounted = true;
     setIsLoading(true);
-    const params: Record<string, string> = { company_id: companyUniqueId };
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
 
      adminApi.loginAudits
@@ -77,7 +91,7 @@ export default function LoginAuditList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, t]);
 
   const openDetails = useCallback((record: LoginAuditRecord) => {
     setSelectedAudit(record);
@@ -124,7 +138,7 @@ export default function LoginAuditList() {
           value={companyUniqueId || ""}
           onChange={(value) => onCompanyChange(value)}
           options={companies}
-          placeholder={t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+          placeholder={isSuperAdmin ? "All Companies" : t("common.select_item_placeholder", { item: t("admin.nav.company") })}
           disabled={!isSuperAdmin || companies.length === 0}
         />
 
@@ -132,8 +146,8 @@ export default function LoginAuditList() {
           value={projectId || ""}
           onChange={(value) => setProjectId(value)}
           options={projects}
-          placeholder={t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-          disabled={!companyUniqueId || projects.length === 0}
+          placeholder={showAllProjectsOption ? "All Projects" : t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
         />
       </FilterBar>
     </div>
