@@ -1170,7 +1170,7 @@ export default function DailyTripLogList() {
         });
         return;
       }
-      downloadRecordsPdf({
+      await downloadRecordsPdf({
         title: "Daily Trip Logs",
         filename: "daily_trip_logs.pdf",
         rows: exportRows,

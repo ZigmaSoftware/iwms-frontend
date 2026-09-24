@@ -406,7 +406,7 @@ export default function CustomerCreationListPage() {
       // non-fatal — ship the template without the allowed-values hint
     }
 
-    exportTemplateToExcel(
+    await exportTemplateToExcel(
       columns,
       getAdminScreenExcelFilename("template"),
       "Customers",
