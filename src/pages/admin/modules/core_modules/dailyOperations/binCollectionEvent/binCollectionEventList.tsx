@@ -428,9 +428,7 @@ export default function BinCollectionEventList() {
   return (
     <div className="p-3">
       <DataTable
-        loadExportRows={async () =>
-          buildExportRows(filteredRows.length > 0 ? filteredRows : rows)
-        }
+        loadExportRows={async () => buildExportRows()}
         onPdfRequest={handleDownloadPdf}
         value={rows}
         dataKey="unique_id"

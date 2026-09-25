@@ -121,14 +121,21 @@ export default function LoginAuditList() {
   );
 
   const header = (
-    <div className="space-y-4">
+    <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-800">{t("admin.nav.login_audit")}</h1>
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-600">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-50">
+              <i className="pi pi-sign-in" />
+            </span>
+            Authentication history
+          </div>
+          <h1 className="text-2xl font-semibold text-gray-900">{t("admin.nav.login_audit")}</h1>
           <p className="text-sm text-gray-500">{t("admin.login_audit.subtitle", "Login audit records")}</p>
         </div>
       </div>
 
+      <div className="rounded-lg border border-gray-100 bg-gray-50/80 p-3">
       <FilterBar
         searchValue={globalFilterValue}
         onSearchChange={(value) => onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)}
@@ -150,6 +157,7 @@ export default function LoginAuditList() {
           disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
         />
       </FilterBar>
+      </div>
     </div>
   );
 
@@ -159,7 +167,8 @@ export default function LoginAuditList() {
   );
 
   return (
-    <div className="p-3">
+    <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
         value={rows}
         exportRows={exportRows}
@@ -202,6 +211,7 @@ export default function LoginAuditList() {
         <Column field="project_name" header="Project" filter showFilterMatchModes={false} />
         <Column header={t("common.actions")} body={actionTemplate} style={{ minWidth: 120 }} />
       </DataTable>
+      </div>
 
       <Dialog open={Boolean(selectedAudit)} onOpenChange={(open) => !open && closeDetails()}>
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">

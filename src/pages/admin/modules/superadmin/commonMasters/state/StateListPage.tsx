@@ -274,7 +274,7 @@ export default function StateList() {
     <div className="flex justify-center">
       <ActionMenu
         onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-        onDelete={() => void handleDelete(row.unique_id)}
+        onDelete={() => void handleDelete(String(row.unique_id))}
       />
     </div>
   );

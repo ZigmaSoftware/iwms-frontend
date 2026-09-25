@@ -388,7 +388,10 @@ export default function CustomerCreationListPage() {
       const names = toRecordList(
         await wasteTypeApi.readAllForExport({ params }),
       )
-        .map((row) => String(row.waste_type_name ?? "").trim())
+        .flatMap((row) =>
+          row.waste_types?.map((wasteType) => wasteType.waste_type_name) ?? [],
+        )
+        .map((name) => String(name ?? "").trim())
         .filter(Boolean);
 
       const allowed = Array.from(new Set(names)).sort();

@@ -509,8 +509,14 @@ export default function CommonAuditList() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+      <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="min-w-0 flex-1">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-amber-600">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50">
+              <i className="pi pi-history" />
+            </span>
+            System history
+          </div>
           <h1 className="text-2xl font-semibold text-gray-800">
             {t("admin.common_audit.list_title")}
           </h1>
@@ -520,7 +526,7 @@ export default function CommonAuditList() {
         </div>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
         <FilterBar
           searchValue={globalFilterValue}
           onSearchChange={(value) =>
@@ -585,6 +591,7 @@ export default function CommonAuditList() {
         </FilterBar>
       </div>
 
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
         loadExportRows={loadAllExportRows}
         value={records}
@@ -668,6 +675,7 @@ export default function CommonAuditList() {
           style={{ width: 120 }}
         />
       </DataTable>
+      </div>
 
       <Dialog
         open={Boolean(selectedRecord)}

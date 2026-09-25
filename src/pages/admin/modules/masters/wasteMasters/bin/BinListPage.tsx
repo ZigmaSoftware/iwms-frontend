@@ -534,7 +534,7 @@ export default function BinList() {
             />
           </FilterBar>
         }
-        loadExportRows={async () => getFilteredExportRows()}
+        loadExportRows={async () => getFilteredExportRows(bins)}
         value={bins}
         dataKey="unique_id"
         lazy

@@ -1,8 +1,12 @@
 /**
- * Locale resources, assembled from per-module files.
+ * Locale resources, assembled from per-module files — loaded on demand per
+ * language instead of all three being bundled into the app's main entry
+ * chunk. Only the active language's ~2,800 lines of translation data is
+ * fetched at startup; the other two languages are fetched only if the user
+ * actually switches to them (see i18n.ts's ensureLanguageLoaded/
+ * switchLanguage), and cached after their first load.
  *
- * The translations used to live in three ~2,000-line files (en/ta/hi). They
- * are now split by the module they belong to, mirroring the admin sidebar:
+ * File layout, mirroring the admin sidebar:
  *
  *   locales/
  *     common/                 shared strings + login
@@ -24,41 +28,7 @@
  * file organisation.
  */
 
-import commonEn from "./common/en";
-import commonTa from "./common/ta";
-import commonHi from "./common/hi";
-
-import adminSuperadminEn from "./admin/superadmin/en";
-import adminSuperadminTa from "./admin/superadmin/ta";
-import adminSuperadminHi from "./admin/superadmin/hi";
-
-import adminMastersEn from "./admin/masters/en";
-import adminMastersTa from "./admin/masters/ta";
-import adminMastersHi from "./admin/masters/hi";
-
-import adminCoreEn from "./admin/coreModules/en";
-import adminCoreTa from "./admin/coreModules/ta";
-import adminCoreHi from "./admin/coreModules/hi";
-
-import adminReportsEn from "./admin/reports/en";
-import adminReportsTa from "./admin/reports/ta";
-import adminReportsHi from "./admin/reports/hi";
-
-import dashEn from "./dashboard/dashboard/en";
-import dashTa from "./dashboard/dashboard/ta";
-import dashHi from "./dashboard/dashboard/hi";
-
-import grievanceEn from "./dashboard/grievance/en";
-import grievanceTa from "./dashboard/grievance/ta";
-import grievanceHi from "./dashboard/grievance/hi";
-
-import dashReportsEn from "./dashboard/reports/en";
-import dashReportsTa from "./dashboard/reports/ta";
-import dashReportsHi from "./dashboard/reports/hi";
-
-import weighbridgeEn from "./dashboard/weighbridge/en";
-import weighbridgeTa from "./dashboard/weighbridge/ta";
-import weighbridgeHi from "./dashboard/weighbridge/hi";
+export type LanguageCode = "en" | "ta" | "hi";
 
 type Part = Record<string, unknown>;
 
@@ -71,22 +41,93 @@ const assemble = (common: Part, admin: Part[], dashboard: Part[]) => ({
   },
 });
 
-export const en = assemble(
-  commonEn,
-  [adminSuperadminEn, adminMastersEn, adminCoreEn, adminReportsEn],
-  [dashEn, grievanceEn, dashReportsEn, weighbridgeEn],
-);
+async function loadEn() {
+  const [
+    common,
+    adminSuperadmin, adminMasters, adminCore, adminReports,
+    dash, grievance, dashReports, weighbridge,
+  ] = await Promise.all([
+    import("./common/en").then((m) => m.default),
+    import("./admin/superadmin/en").then((m) => m.default),
+    import("./admin/masters/en").then((m) => m.default),
+    import("./admin/coreModules/en").then((m) => m.default),
+    import("./admin/reports/en").then((m) => m.default),
+    import("./dashboard/dashboard/en").then((m) => m.default),
+    import("./dashboard/grievance/en").then((m) => m.default),
+    import("./dashboard/reports/en").then((m) => m.default),
+    import("./dashboard/weighbridge/en").then((m) => m.default),
+  ]);
+  return assemble(
+    common,
+    [adminSuperadmin, adminMasters, adminCore, adminReports],
+    [dash, grievance, dashReports, weighbridge],
+  );
+}
 
-export const ta = assemble(
-  commonTa,
-  [adminSuperadminTa, adminMastersTa, adminCoreTa, adminReportsTa],
-  [dashTa, grievanceTa, dashReportsTa, weighbridgeTa],
-);
+async function loadTa() {
+  const [
+    common,
+    adminSuperadmin, adminMasters, adminCore, adminReports,
+    dash, grievance, dashReports, weighbridge,
+  ] = await Promise.all([
+    import("./common/ta").then((m) => m.default),
+    import("./admin/superadmin/ta").then((m) => m.default),
+    import("./admin/masters/ta").then((m) => m.default),
+    import("./admin/coreModules/ta").then((m) => m.default),
+    import("./admin/reports/ta").then((m) => m.default),
+    import("./dashboard/dashboard/ta").then((m) => m.default),
+    import("./dashboard/grievance/ta").then((m) => m.default),
+    import("./dashboard/reports/ta").then((m) => m.default),
+    import("./dashboard/weighbridge/ta").then((m) => m.default),
+  ]);
+  return assemble(
+    common,
+    [adminSuperadmin, adminMasters, adminCore, adminReports],
+    [dash, grievance, dashReports, weighbridge],
+  );
+}
 
-export const hi = assemble(
-  commonHi,
-  [adminSuperadminHi, adminMastersHi, adminCoreHi, adminReportsHi],
-  [dashHi, grievanceHi, dashReportsHi, weighbridgeHi],
-);
+async function loadHi() {
+  const [
+    common,
+    adminSuperadmin, adminMasters, adminCore, adminReports,
+    dash, grievance, dashReports, weighbridge,
+  ] = await Promise.all([
+    import("./common/hi").then((m) => m.default),
+    import("./admin/superadmin/hi").then((m) => m.default),
+    import("./admin/masters/hi").then((m) => m.default),
+    import("./admin/coreModules/hi").then((m) => m.default),
+    import("./admin/reports/hi").then((m) => m.default),
+    import("./dashboard/dashboard/hi").then((m) => m.default),
+    import("./dashboard/grievance/hi").then((m) => m.default),
+    import("./dashboard/reports/hi").then((m) => m.default),
+    import("./dashboard/weighbridge/hi").then((m) => m.default),
+  ]);
+  return assemble(
+    common,
+    [adminSuperadmin, adminMasters, adminCore, adminReports],
+    [dash, grievance, dashReports, weighbridge],
+  );
+}
 
-export default { en, ta, hi };
+export function loadLocale(lang: LanguageCode) {
+  if (lang === "ta") return loadTa();
+  if (lang === "hi") return loadHi();
+  return loadEn();
+}
+
+// Tracks which languages have had their translation bundle merged into the
+// live i18next instance already, so switching back to a language already
+// loaded this session is a no-op instead of re-fetching/re-merging it.
+// Lives here (not in i18n.ts) so callers that only need to *load and merge
+// a language into an existing i18n instance* — e.g. LanguageSwitcher — don't
+// have to import i18n.ts and re-run its module-level i18n.init() side effect.
+const loadedLanguages = new Set<LanguageCode>();
+
+export function isLanguageLoaded(lang: LanguageCode) {
+  return loadedLanguages.has(lang);
+}
+
+export function markLanguageLoaded(lang: LanguageCode) {
+  loadedLanguages.add(lang);
+}

@@ -9,8 +9,12 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { cn } from "@/lib/utils";
-
-type LanguageCode = "en" | "ta" | "hi";
+import {
+  isLanguageLoaded,
+  loadLocale,
+  markLanguageLoaded,
+  type LanguageCode,
+} from "@/locales";
 
 const LANGUAGES: Array<{ value: LanguageCode; labelKey: string }> = [
   { value: "en", labelKey: "common.language_en" },
@@ -56,7 +60,14 @@ export const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
   );
 
   const setLang = (lang: LanguageCode) => {
-    i18n.changeLanguage(lang);
+    void (async () => {
+      if (!isLanguageLoaded(lang)) {
+        const bundle = await loadLocale(lang);
+        i18n.addResourceBundle(lang, "translation", bundle.translation, true, true);
+        markLanguageLoaded(lang);
+      }
+      await i18n.changeLanguage(lang);
+    })();
   };
 
   if (variant === "select") {
