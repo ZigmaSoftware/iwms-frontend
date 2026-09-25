@@ -221,12 +221,18 @@ export default function PanchayatLeaderListPage() {
   const indexTemplate = (_: PanchayatLeader, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
   return (
-    <div className="p-3">
+    <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
 
       {/* ── Title + company/project + Add button — outside DataTable (matches PanchayatListPage) ── */}
-      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+      <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-violet-600">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50">
+              <i className="pi pi-users" />
+            </span>
+            Leadership masters
+          </div>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">
             {t("admin.nav.panchayat_leader")}
           </h1>
           <p className="text-sm text-gray-500">
@@ -245,7 +251,7 @@ export default function PanchayatLeaderListPage() {
         </div>
       </div>
 
-      <FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
+      <div className="mb-4 rounded-xl border border-gray-200 bg-white p-3 shadow-sm"><FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
         searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.panchayat_leader") })}
         statusValue={statusValue} onStatusChange={onStatusFilterChange} className="mb-4">
         <FilterBarSelect value={companyUniqueId || ""} onChange={onCompanyChange} options={companies}
@@ -253,9 +259,10 @@ export default function PanchayatLeaderListPage() {
         <FilterBarSelect value={projectId || ""} onChange={setProjectId} options={projects}
           placeholder={showAllProjectsOption ? "All Projects" : undefined}
           disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} />
-      </FilterBar>
+      </FilterBar></div>
 
       {/* ── DataTable ── */}
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
         value={data}
         exportRows={exportRows}
@@ -324,6 +331,7 @@ export default function PanchayatLeaderListPage() {
           style={{ width: "150px", textAlign: "center" }}
         />
       </DataTable>
+      </div>
     </div>
   );
 }

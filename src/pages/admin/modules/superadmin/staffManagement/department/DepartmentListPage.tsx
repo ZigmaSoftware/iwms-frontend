@@ -216,13 +216,19 @@ export default function DepartmentListPage() {
   };
 
   return (
-    <div className="p-3">
-      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+    <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
+      <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50">
+              <i className="pi pi-building" />
+            </span>
+            Staff management
+          </div>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">
             Department Master
           </h1>
-          <p className="text-sm text-gray-500">Manage department records</p>
+          <p className="text-sm text-gray-500">Organize the departments available to staff and designations.</p>
         </div>
         <Button
           label="Add Department"
@@ -232,17 +238,16 @@ export default function DepartmentListPage() {
         />
       </div>
 
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
-        header={
-          <FilterBar
-            searchValue={globalFilterValue}
-            onSearchChange={onGlobalFilterChange}
-            searchPlaceholder="Search departments"
-            statusValue={statusValue}
-            onStatusChange={onStatusFilterChange}
-          />
-        }
-        loadExportRows={async () => getFilteredExportRows()}
+        header={<div className="border-b border-gray-100 bg-gray-50/70 p-3"><FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={onGlobalFilterChange}
+          searchPlaceholder="Search departments"
+          statusValue={statusValue}
+          onStatusChange={onStatusFilterChange}
+        /></div>}
+        loadExportRows={async () => getFilteredExportRows(records)}
         value={records}
         dataKey="unique_id"
         lazy
@@ -255,6 +260,9 @@ export default function DepartmentListPage() {
         sortOrder={sortOrder}
         onSort={onSort}
         loading={isLoading}
+        stripedRows
+        showGridlines
+        className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, opts) => opts.rowIndex + 1} />
         <Column
@@ -289,6 +297,7 @@ export default function DepartmentListPage() {
           )}
         />
       </DataTable>
+      </div>
     </div>
   );
 }

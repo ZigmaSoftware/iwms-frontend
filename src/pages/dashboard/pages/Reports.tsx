@@ -1,11 +1,22 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { BarChart3, CalendarDays, Recycle, Sparkles } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import DailyWasteComparisonList from "@/pages/admin/modules/reports/wasteReports/dailyWasteComparison/dailyWasteComparisonList";
-import MonthlyWasteComparisonListPage from "@/pages/admin/modules/reports/wasteReports/monthlyWasteComparison/MonthlyWasteComparisonListPage";
+
+const DailyWasteComparisonList = lazy(
+  () =>
+    import(
+      "@/pages/admin/modules/reports/wasteReports/dailyWasteComparison/dailyWasteComparisonList"
+    ),
+);
+const MonthlyWasteComparisonListPage = lazy(
+  () =>
+    import(
+      "@/pages/admin/modules/reports/wasteReports/monthlyWasteComparison/MonthlyWasteComparisonListPage"
+    ),
+);
 
 type WasteReportTab = "daily" | "monthly";
 
@@ -62,13 +73,27 @@ export default function Reports() {
           </TabsList>
 
           <TabsContent value="daily" className="mt-0">
-            <DailyWasteComparisonList embedded />
+            <Suspense fallback={<ReportPanelFallback />}>
+              <DailyWasteComparisonList embedded />
+            </Suspense>
           </TabsContent>
           <TabsContent value="monthly" className="mt-0">
-            <MonthlyWasteComparisonListPage embedded />
+            <Suspense fallback={<ReportPanelFallback />}>
+              <MonthlyWasteComparisonListPage embedded />
+            </Suspense>
           </TabsContent>
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+function ReportPanelFallback() {
+  return (
+    <div className="min-h-[420px] animate-pulse rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="h-8 w-56 rounded-lg bg-slate-200" />
+      <div className="mt-4 h-4 max-w-xl rounded bg-slate-100" />
+      <div className="mt-8 h-48 rounded-xl bg-slate-100" />
     </div>
   );
 }
