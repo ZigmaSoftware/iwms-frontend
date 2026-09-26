@@ -434,7 +434,7 @@ export default {
     sub_category: "उप श्रेणी",
     feedback: "फीडबैक",
     fleet_reports: "फ्लीट & रिपोर्ट्स",
-    workforce_management: "वर्कफोर्स प्रबंधन",
+    workforce_management: "वेब्रिज प्रबंधन",
     attendance: "उपस्थिति",
     reports: "रिपोर्ट्स",
     trip_summary: "ट्रिप सारांश",

@@ -432,7 +432,7 @@ export default {
     collection_monitoring: "Collection Monitoring",
     panchayat_base_collection: "PLB Base Collection",
     ward_base_collection: "Ward Base Collection",
-    workforce_management: "Workforce Management",
+    workforce_management: "Weighbridge Management",
     attendance: "Attendance",
     reports: "Reports",
     trip_summary: "Trip Summary",

@@ -100,7 +100,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     encDistrictLeaders,
 
     encBins,
-    encScheduleMasters,
     encScheduleSetup,
     encScheduleOperations,
     encDailyTripAssignment,
@@ -490,16 +489,14 @@ export function buildNavRouteMap(): RouteEntry[] {
       nameKey: "admin.nav.scheduler_config",
       parentNameKey: "admin.nav.schedule_operations",
     },
-    // Waste reports still use the legacy encrypted schedule-masters route.
-    // Keep both entries in the breadcrumb map because these are the paths used
-    // by the sidebar (the reports-master aliases below remain valid too).
+    // Waste reports (moved from the legacy schedule-masters route).
     {
-      path: `/${encScheduleMasters}/${encDailyWasteComparison}`,
+      path: `/${encReport}/${encDailyWasteComparison}`,
       nameKey: "Daily Waste Comparison",
       parentNameKey: "admin.nav.waste_reports",
     },
     {
-      path: `/${encScheduleMasters}/${encMonthlyWasteComparison}`,
+      path: `/${encReport}/${encMonthlyWasteComparison}`,
       nameKey: "admin.nav.monthly_waste_comparison",
       parentNameKey: "admin.nav.waste_reports",
     },
@@ -561,11 +558,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     {
       path: `/${encReport}/${encWasteCollectedSummary}`,
       nameKey: "admin.nav.waste_collected_summary",
-      parentNameKey: "admin.nav.reports",
-    },
-    {
-      path: `/${encReport}/${encMonthlyWasteComparison}`,
-      nameKey: "admin.nav.monthly_waste_comparison",
       parentNameKey: "admin.nav.reports",
     },
   ];

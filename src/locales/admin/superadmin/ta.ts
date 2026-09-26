@@ -439,7 +439,7 @@ export default {
     main_category: "முதன்மை வகை",
     sub_category: "துணை வகை",
     feedback: "பின்னூட்டம்",
-    workforce_management: "பணியாளர் மேலாண்மை",
+    workforce_management: "எடைமேடை மேலாண்மை",
     attendance: "வருகை",
     reports: "அறிக்கைகள்",
     trip_summary: "பயண சுருக்கம்",
