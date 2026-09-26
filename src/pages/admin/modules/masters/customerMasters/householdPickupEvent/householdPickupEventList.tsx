@@ -202,7 +202,7 @@ export default function HouseholdPickupEventList() {
     </div>
   );
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     const confirmDelete = await Swal.fire({
       title: t("common.confirm_title"),
       text: t("common.confirm_delete_text"),
@@ -214,7 +214,7 @@ export default function HouseholdPickupEventList() {
     if (!confirmDelete.isConfirmed) return;
 
     try {
-      await householdPickupEventApi.delete(id);
+      await householdPickupEventApi.delete(String(id));
       setRecords((current) => current.filter((item) => item.id !== id));
       Swal.fire({
         icon: "success",

@@ -1292,9 +1292,7 @@ export default function DailyTripLogList() {
       </div>
 
       <DataTable
-        loadExportRows={async () =>
-          buildExportRows(filteredRows.length > 0 ? filteredRows : rows)
-        }
+        loadExportRows={async () => buildExportRows(rawRows)}
         onPdfRequest={handleDownloadPdf}
         value={data}
         dataKey="unique_id"

@@ -275,7 +275,7 @@ export default function CountryList() {
     <div className="flex justify-center">
       <ActionMenu
         onEdit={() => navigate(ENC_EDIT_PATH(c.unique_id))}
-        onDelete={() => void handleDelete(c.unique_id)}
+        onDelete={() => void handleDelete(String(c.unique_id))}
       />
     </div>
   );

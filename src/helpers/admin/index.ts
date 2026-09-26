@@ -92,7 +92,7 @@ export const customerAccessConfigurationApi =
 export const wasteCollectionApi = adminApi.wasteCollections;
 export const panchayatWiseCollectionApi = adminApi.panchayatWiseCollections;
 export const wardWiseCollectionApi = adminApi.wardWiseCollections;
-export const feedbackApi = adminApi.feedbacks;
+export const feedbackApi = adminApi.complaintFeedback;
 // export const collectionMonitoringApi = adminApi.pointCollections;
 
 /* =========================

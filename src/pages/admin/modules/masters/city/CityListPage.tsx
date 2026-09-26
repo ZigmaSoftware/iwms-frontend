@@ -238,7 +238,7 @@ export default function CityList() {
             },
           })
         }
-        onDelete={() => void handleDelete(city.unique_id)}
+        onDelete={() => void handleDelete(String(city.unique_id))}
       />
     </div>
   );

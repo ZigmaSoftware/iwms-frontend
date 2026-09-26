@@ -311,10 +311,16 @@ export default function DistrictListPage() {
   ) => rowIndex + 1;
 
   return (
-    <div className="p-3">
-      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3 mb-4">
+    <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
+      <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50">
+              <i className="pi pi-map-marker" />
+            </span>
+            Location masters
+          </div>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">
             {t("admin.nav.district")}
           </h1>
           <p className="text-sm text-gray-500">
@@ -338,10 +344,10 @@ export default function DistrictListPage() {
         </div>
       </div>
 
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
         loadExportRows={loadAllExportRows}
-        header={
-          <FilterBar
+        header={<div className="border-b border-gray-100 bg-gray-50/70 p-3"><FilterBar
             searchValue={globalFilterValue}
             onSearchChange={onGlobalFilterChange}
             searchPlaceholder={t("common.search_placeholder", {
@@ -364,8 +370,7 @@ export default function DistrictListPage() {
                 (!companyUniqueId && !isSuperAdmin) || projects.length === 0
               }
             />
-          </FilterBar>
-        }
+          </FilterBar></div>}
         value={districts}
         dataKey="unique_id"
         lazy
@@ -427,6 +432,7 @@ export default function DistrictListPage() {
           style={{ width: "100px", textAlign: "center" }}
         />
       </DataTable>
+      </div>
     </div>
   );
 }

@@ -36,7 +36,7 @@ const routeEntityBySlug: Record<string, AdminEntity> = {
   "alternative-staff-template": "alternativeStaffTemplate",
   "customer-creation": "customerCreations",
   "apartment-list": "customerCreations",
-  feedback: "feedbacks",
+  feedback: "complaintFeedback",
   complaint: "complaintTickets",
   categories: "complaintCategories",
   subcategories: "complaintSubcategories",
