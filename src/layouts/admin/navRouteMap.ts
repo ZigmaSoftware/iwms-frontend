@@ -51,6 +51,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encTripSummary,
     encWasteCollectedSummary,
     encMonthlyWasteComparison,
+    encComplaintsReport,
     encComplaintTicket,
     encComplaint,
     encComplaintModules,
@@ -389,6 +390,11 @@ export function buildNavRouteMap(): RouteEntry[] {
     {
       path: `/${encComplaintTicket}/${encFeedback}`,
       nameKey: "admin.nav.feedback",
+      parentNameKey: "admin.nav.complaint_ticket",
+    },
+    {
+      path: `/${encReport}/${encComplaintsReport}`,
+      nameKey: "admin.nav.complaints_report",
       parentNameKey: "admin.nav.complaint_ticket",
     },
     // Transport Masters

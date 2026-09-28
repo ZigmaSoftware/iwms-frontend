@@ -942,6 +942,7 @@ const enResource = {
         monthly_distance: "Monthly Distance",
         waste_collected_summary: "Waste Collected Summary",
         monthly_waste_comparison: "Monthly Waste Comparison",
+        complaints_report: "Complaints Report",
       },
       company: {
         logo: "Company Logo",

@@ -54,6 +54,7 @@ const TripSummary = lazy(() => import("@/pages/admin/modules/reports/tripsummary
 const MonthlyDistance = lazy(() => import("@/pages/admin/modules/reports/monthlydistance/monthlydistance"));
 const WasteSummary = lazy(() => import("@/pages/admin/modules/reports/wasteCollectedSummary/wastesummary"));
 const MonthlyWasteComparisonListPage = lazy(() => import("@/pages/admin/modules/reports/wasteReports/monthlyWasteComparison/MonthlyWasteComparisonListPage"));
+const ComplaintsReportPage = lazy(() => import("@/pages/admin/modules/reports/complaintReports/ComplaintsReportPage"));
 const TicketList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketList"));
 const TicketForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketForm"));
 const TicketDetail = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketDetail"));
@@ -367,6 +368,7 @@ export const ROUTES: RouteMap = {
     "waste-collected-summary": { component: WasteSummary },
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage },
     "daily-waste-comparisons": { list: DailyWasteComparisonList },
+    "complaints-report": { list: ComplaintsReportPage },
   },
 };
 

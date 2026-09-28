@@ -441,6 +441,7 @@ export default {
     monthly_distance: "मासिक दूरी",
     waste_collected_summary: "संग्रहित कचरा सारांश",
     monthly_waste_comparison: "मासिक कचरा तुलना",
+    complaints_report: "शिकायत रिपोर्ट",
   },
   home: {
     title: "एनालिटिक्स डैशबोर्ड",

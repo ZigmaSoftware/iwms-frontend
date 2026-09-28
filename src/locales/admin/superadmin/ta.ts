@@ -446,6 +446,7 @@ export default {
     monthly_distance: "மாதாந்திர தூரம்",
     waste_collected_summary: "கழிவு சேகரிப்பு சுருக்கம்",
     monthly_waste_comparison: "மாதாந்திர கழிவு ஒப்பீடு",
+    complaints_report: "புகார் அறிக்கை",
   },
   home: {
     title: "பகுப்பாய்வு டாஷ்போர்டு",
