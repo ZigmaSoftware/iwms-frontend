@@ -124,7 +124,6 @@ export default function CollectionPointForm() {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
     useFieldVisibility("schedule-masters", "collection-points", COLLECTION_POINT_FIELDS);
-  const { showZone, showPanchayat } = useZonePanchayatVisibility();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
@@ -142,6 +141,12 @@ export default function CollectionPointForm() {
     onCompanyChange,
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
+  // Project-driven zone/panchayat visibility: a zone-only project shows Zone
+  // alone, a panchayat-only project shows Panchayat alone.
+  const { showZone, showPanchayat } = useZonePanchayatVisibility({
+    companyId: companyUniqueId,
+    projectId,
+  });
 
   const extractErr = useCallback(
     (error: unknown): string => {

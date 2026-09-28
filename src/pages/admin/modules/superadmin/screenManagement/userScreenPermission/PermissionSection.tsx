@@ -209,8 +209,21 @@ export default function PermissionSection({
         });
       });
 
+      // Screens the catalog places under a DIFFERENT main screen belong to
+      // that card, not this one — a grant response can still list them
+      // after a screen moves (e.g. day/date report into Fleet-reports).
+      const ownedElsewhere = new Set(
+        allUserScreens
+          .filter((screen) => {
+            const owner = toId(screen.mainscreen_id) || toId((screen as any).mainscreen?.unique_id);
+            return owner && owner !== mainScreenId;
+          })
+          .map((screen) => toId(screen.unique_id)),
+      );
+
       actionsByScreen.forEach((existing, screenId) => {
         if (matrix.some((row) => row.userscreen_id === screenId)) return;
+        if (ownedElsewhere.has(screenId)) return;
 
         matrix.push({
           userscreen_id: screenId,

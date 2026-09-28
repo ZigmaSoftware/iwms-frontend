@@ -120,9 +120,13 @@ const MODULE_ALIASES: Record<string, string[]> = {
   masters: ["common-masters", "waste-types", "assets"],
   "waste-management": ["collections"],
   collections: ["waste-management"],
-  "vehicle-tracking": ["reports"],
-  "workforce-management": ["reports"],
-  workforce: ["reports", "workforce-management"],
+  // Fleet screens moved from "reports" to "fleet-reports" (backend migration
+  // 0011_split_fleet_reports_mainscreen); "reports" stays as a fallback for
+  // permission payloads cached before that split.
+  "fleet-reports": ["reports"],
+  "vehicle-tracking": ["fleet-reports", "reports"],
+  "workforce-management": ["fleet-reports", "reports"],
+  workforce: ["fleet-reports", "reports", "workforce-management"],
 };
 
 const SCREEN_ALIASES: Record<string, string[]> = {
@@ -182,7 +186,11 @@ const SCREEN_ALIASES: Record<string, string[]> = {
   "vehicle-creation": ["vehiclecreation", "vehiclecreations", "vehicle-creation", "vehicle creation"],
   "vehicle-track": ["VehicleTrack", "vehicletrack", "vehicle track"],
   "vehicle-history": ["VehicleHistory", "vehiclehistory", "vehicle history"],
-  "workforce-management": ["WorkforceManagement", "workforcemanagement", "workforce management", "workforce"],
+  // Renamed to "weighbridge-management" (backend migration
+  // 0012_weighbridge_management_screens); each name resolves the other so
+  // permission payloads cached before the rename still authorize.
+  "weighbridge-management": ["workforce-management", "WeighbridgeManagement", "weighbridgemanagement"],
+  "workforce-management": ["weighbridge-management", "WorkforceManagement", "workforcemanagement", "workforce management", "workforce"],
   "date-report": ["DateReport", "datereport", "date report"],
   "day-report": ["DayReport", "dayreport", "day report"],
 };
