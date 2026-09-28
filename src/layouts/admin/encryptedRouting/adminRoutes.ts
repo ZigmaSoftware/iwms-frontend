@@ -54,6 +54,7 @@ const TripSummary = lazy(() => import("@/pages/admin/modules/reports/tripsummary
 const MonthlyDistance = lazy(() => import("@/pages/admin/modules/reports/monthlydistance/monthlydistance"));
 const WasteSummary = lazy(() => import("@/pages/admin/modules/reports/wasteCollectedSummary/wastesummary"));
 const MonthlyWasteComparisonListPage = lazy(() => import("@/pages/admin/modules/reports/wasteReports/monthlyWasteComparison/MonthlyWasteComparisonListPage"));
+const ComplaintsReportPage = lazy(() => import("@/pages/admin/modules/reports/complaintReports/ComplaintsReportPage"));
 const TicketList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketList"));
 const TicketForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketForm"));
 const TicketDetail = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketDetail"));
@@ -302,10 +303,6 @@ export const ROUTES: RouteMap = {
   // Legacy name — kept alive only for the reporting sub-resources, matching
   // the backend's equivalent split (see base_urls.py); setup/operations
   // resources above are no longer looked up under this key.
-  "schedule-masters": {
-    "daily-waste-comparisons": { list: DailyWasteComparisonList },
-    "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage },
-  },
   "customer-master": {
     "customer-creation": {
       list: CustomerCreationList,
@@ -370,6 +367,8 @@ export const ROUTES: RouteMap = {
     "monthly-distance": { component: MonthlyDistance },
     "waste-collected-summary": { component: WasteSummary },
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage },
+    "daily-waste-comparisons": { list: DailyWasteComparisonList },
+    "complaints-report": { list: ComplaintsReportPage },
   },
 };
 
@@ -379,9 +378,10 @@ export const MASTER_ALIASES: Record<string, string[]> = {
   "customer-masters": ["customer-master"],
   "transport-masters": ["transport-master"],
   // Legacy bookmarked/cached links whose master still decrypts to
-  // "schedule-masters" but whose module was moved into schedule-setup or
-  // schedule-operations (see base_urls.py) still resolve via this fallback.
-  "schedule-masters": ["schedule-setup", "schedule-operations"],
+  // "schedule-masters" but whose module was moved into schedule-setup,
+  // schedule-operations or reports (see base_urls.py) still resolve via this
+  // fallback.
+  "schedule-masters": ["schedule-setup", "schedule-operations", "reports"],
   "staff-creations": ["staff-masters"],
   "user-creations": ["staff-masters"],
   "process-items": ["staff-masters"],

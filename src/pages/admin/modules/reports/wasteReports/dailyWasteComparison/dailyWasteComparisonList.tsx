@@ -379,7 +379,7 @@ export default function DailyWasteComparisonList({
       if (zoneIds.length) params.zone_id = zoneIds.join(",");
 
       const { data } = await api.get<DailyReportResponse>(
-        "/schedule-masters/daily-waste-comparisons/",
+        "/reports/daily-waste-comparisons/",
         { params },
       );
       setRows(Array.isArray(data?.results) ? data.results : []);

@@ -77,11 +77,10 @@ export const adminEndpoints = {
   wasteCollections: "schedule-operations/wastecollections",
 
   /* =========================
-     SCHEDULE MASTERS (legacy name — kept only for the reporting
-     sub-resources still registered under it; see base_urls.py)
+     REPORTS
   ========================= */
-  dailyWasteComparison: "schedule-masters/daily-waste-comparisons",
-  monthlyWasteComparison: "schedule-masters/monthly-waste-comparison",
+  dailyWasteComparison: "reports/daily-waste-comparisons",
+  monthlyWasteComparison: "reports/monthly-waste-comparison",
 
   /* =========================
      SCREEN MANAGEMENT

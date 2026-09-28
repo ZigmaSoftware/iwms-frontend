@@ -99,7 +99,10 @@ const MODULE_ALIASES: Record<string, string[]> = {
   // "schedule-setup"/"schedule-operations" are a pure split of the legacy
   // "schedule-masters" module — kept as fallbacks so permissions granted
   // before the split still authorize both halves.
-  "schedule-masters": ["schedule masters", "schedule-setup", "schedule-operations"],
+  "schedule-masters": ["schedule masters", "schedule-setup", "schedule-operations", "reports"],
+  // The waste/complaint reports moved from "schedule-masters" to "reports";
+  // grants made before the permission seeder re-homed them still count.
+  reports: ["schedule-masters"],
   "schedule-setup": ["schedule-masters", "schedule masters"],
   "schedule-operations": ["schedule-masters", "schedule masters"],
   // "complaint-ticket" is the renamed "citizen-grievance"/"grivences" module.

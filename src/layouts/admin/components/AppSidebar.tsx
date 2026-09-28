@@ -53,6 +53,7 @@ const {
   encTripSummary,
   encWasteCollectedSummary,
   encMonthlyWasteComparison,
+  encComplaintsReport,
   encComplaintTicket,
   encComplaint,
   encMyTasks,
@@ -63,7 +64,6 @@ const {
   encComplaintSlaRules,
   encFeedback,
   encTransportMaster,
-  encScheduleMasters,
   encScheduleSetup,
   encScheduleOperations,
   encFuel,
@@ -146,7 +146,7 @@ type SidebarSectionKey =
   | "transportMasters"
   | "scheduleSetup"
   | "scheduleOperations"
-  | "scheduleMasters"
+  | "wasteReports"
   | "auditItems"
   | "wasteManagement"
   | "workforceManagement"
@@ -205,7 +205,7 @@ const MODULE_GROUPS: {
     key: "reports",
     titleKey: "admin.nav.group_reports",
     accent: "bg-blue-500",
-    sectionKeys: ["scheduleMasters", "fleetReports"],
+    sectionKeys: ["wasteReports", "fleetReports"],
   },
 ];
 
@@ -579,6 +579,12 @@ const complaintTicketItems: NavItem[] = [
         module: "complaint-ticket",
         screen: "feedback",
       },
+      {
+        nameKey: "admin.nav.complaints_report",
+        path: `/${encReport}/${encComplaintsReport}`,
+        module: "reports",
+        screen: "complaints-report",
+      },
     ],
   },
 ];
@@ -713,23 +719,23 @@ const scheduleOperationsItems: NavItem[] = [
   },
 ];
 
-const scheduleMastersItems: NavItem[] = [
+const wasteReportItems: NavItem[] = [
   {
     nameKey: "admin.nav.waste_reports",
     icon: <LayoutGrid size={18} />,
-    module: "schedule-masters",
-    screen: "schedule-masters",
+    module: "reports",
+    screen: "WasteReports",
     subItems: [
       {
         nameKey: "Daily Waste Comparison",
-        path: `/${encScheduleMasters}/${encDailyWasteComparison}`,
-        module: "schedule-masters",
+        path: `/${encReport}/${encDailyWasteComparison}`,
+        module: "reports",
         screen: "daily-waste-comparisons",
       },
       {
         nameKey: "admin.nav.monthly_waste_comparison",
-        path: `/${encScheduleMasters}/${encMonthlyWasteComparison}`,
-        module: "schedule-masters",
+        path: `/${encReport}/${encMonthlyWasteComparison}`,
+        module: "reports",
         screen: "MonthlyWasteComparison",
       },
     ],
@@ -910,7 +916,7 @@ const AppSidebar: React.FC = () => {
       { key: "transportMasters" as const, items: transportMastersItems },
       { key: "scheduleSetup" as const, items: scheduleSetupItems },
       { key: "scheduleOperations" as const, items: scheduleOperationsItems },
-      { key: "scheduleMasters" as const, items: scheduleMastersItems },
+      { key: "wasteReports" as const, items: wasteReportItems },
       { key: "auditItems" as const, items: auditItems },
       { key: "fleetReports" as const, items: fleetReportItems },
     ];
