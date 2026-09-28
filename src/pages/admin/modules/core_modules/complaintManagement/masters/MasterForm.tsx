@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -127,6 +127,25 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
   >({});
 
   const api = useMemo(() => config.api(), [config]);
+
+  // Categories/subcategories are company+project scoped, but a superadmin's
+  // list calls return every tenant's rows — offer only the selected
+  // company/project's, or an SLA rule can point at a subcategory no ticket
+  // in its project can ever carry (and so never match).
+  const inSelectedScope = useCallback(
+    (item: any) =>
+      (!companyUniqueId || idOf(item.company_id) === companyUniqueId) &&
+      (!projectId || idOf(item.project_id) === projectId),
+    [companyUniqueId, projectId],
+  );
+  const scopedCategories = useMemo(
+    () => categories.filter(inSelectedScope),
+    [categories, inSelectedScope],
+  );
+  const scopedSubcategories = useMemo(
+    () => subcategories.filter(inSelectedScope),
+    [subcategories, inSelectedScope],
+  );
 
   useEffect(() => {
     MASTER_CONFIG.module.api().readAll().then((res) => setModules(asArray(res))).catch(() => {});
@@ -353,7 +372,7 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
               <FormSelect
                 value={form.category_id}
                 onChange={(v) => setValue("category_id", v)}
-                options={categories.map((item) => ({ value: String(item.unique_id), label: capitalize(item.category_name) }))}
+                options={scopedCategories.map((item) => ({ value: String(item.unique_id), label: capitalize(item.category_name) }))}
                 required
                 placeholder={"Select category"}
               />
@@ -376,7 +395,7 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
             <FormSelect
               value={form.category_id}
               onChange={(v) => setValue("category_id", v)}
-              options={categories.map((item) => ({ value: String(item.unique_id), label: capitalize(item.category_name) }))}
+              options={scopedCategories.map((item) => ({ value: String(item.unique_id), label: capitalize(item.category_name) }))}
               required
               placeholder={"Select category"}
             />
@@ -430,7 +449,7 @@ export default function MasterForm({ kind, moduleSegment }: Props) {
               <FormSelect
                 value={form.subcategory_id}
                 onChange={(v) => setValue("subcategory_id", v)}
-                options={subcategories
+                options={scopedSubcategories
                   .filter((item) => !form.category_id || idOf(item.category_id) === form.category_id)
                   .map((item) => ({ value: String(item.unique_id), label: capitalize(item.subcategory_name) }))}
                 placeholder="Any"

@@ -126,6 +126,7 @@ const BinCollectionEventList = lazy(() => import("@/pages/admin/modules/core_mod
 const BinCollectionEventForm = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/binCollectionEvent/binCollectionEventForm"));
 const VehicleBreakdownList = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/vehicleBreakdown/vehicleBreakdownList"));
 const TripDelayReportList = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/tripDelayReport/tripDelayReportList"));
+const TripDelayReportForm = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/tripDelayReport/tripDelayReportForm"));
 const TripRetripRequestList = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/tripRetripRequest/tripRetripRequestList"));
 const VehicleBreakdownForm = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/vehicleBreakdown/vehicleBreakdownForm"));
 const DailyWasteComparisonList = lazy(() => import("@/pages/admin/modules/reports/wasteReports/dailyWasteComparison/dailyWasteComparisonList"));
@@ -296,8 +297,8 @@ export const ROUTES: RouteMap = {
       form: VehicleBreakdownForm,
     },
     "retrip-requests": { list: TripRetripRequestList },
-    // List-only: a delay is filed from the driver app, never created here.
-    "trip-delay-reports": { list: TripDelayReportList },
+    // Filed from the driver app or, by an admin/supervisor, from the web form.
+    "trip-delay-reports": { list: TripDelayReportList, form: TripDelayReportForm },
     "scheduler-config": { component: SchedulerConfigPage },
   },
   // Legacy name — kept alive only for the reporting sub-resources, matching
