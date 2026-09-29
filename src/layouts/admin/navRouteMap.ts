@@ -78,6 +78,8 @@ export function buildNavRouteMap(): RouteEntry[] {
     encWasteCollectedData,
     encWasteManagementMaster,
     encWorkforceManagement,
+    encDayReport,
+    encDateReport,
     encStaffUserType,
     encProjectStaffHierarchy,
     encMainScreenType,
@@ -548,6 +550,16 @@ export function buildNavRouteMap(): RouteEntry[] {
     {
       path: `/${encWorkforceManagement}/${encWorkforceManagement}`,
       nameKey: "admin.nav.workforce_management",
+      parentNameKey: "admin.nav.workforce_management",
+    },
+    {
+      path: `/${encWorkforceManagement}/${encDayReport}`,
+      nameKey: "admin.nav.day_report",
+      parentNameKey: "admin.nav.workforce_management",
+    },
+    {
+      path: `/${encWorkforceManagement}/${encDateReport}`,
+      nameKey: "admin.nav.date_report",
       parentNameKey: "admin.nav.workforce_management",
     },
     // Reports

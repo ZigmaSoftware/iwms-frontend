@@ -435,6 +435,8 @@ export default {
     feedback: "फीडबैक",
     fleet_reports: "फ्लीट & रिपोर्ट्स",
     workforce_management: "वेब्रिज प्रबंधन",
+    day_report: "दिन रिपोर्ट",
+    date_report: "तारीख रिपोर्ट",
     attendance: "उपस्थिति",
     reports: "रिपोर्ट्स",
     trip_summary: "ट्रिप सारांश",

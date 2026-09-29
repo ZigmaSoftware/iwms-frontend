@@ -440,6 +440,8 @@ export default {
     sub_category: "துணை வகை",
     feedback: "பின்னூட்டம்",
     workforce_management: "எடைமேடை மேலாண்மை",
+    day_report: "நாள் அறிக்கை",
+    date_report: "தேதி அறிக்கை",
     attendance: "வருகை",
     reports: "அறிக்கைகள்",
     trip_summary: "பயண சுருக்கம்",
