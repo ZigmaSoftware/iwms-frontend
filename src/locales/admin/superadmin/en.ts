@@ -433,6 +433,8 @@ export default {
     panchayat_base_collection: "PLB Base Collection",
     ward_base_collection: "Ward Base Collection",
     workforce_management: "Weighbridge Management",
+    day_report: "Day Report",
+    date_report: "Date Report",
     attendance: "Attendance",
     reports: "Reports",
     trip_summary: "Trip Summary",

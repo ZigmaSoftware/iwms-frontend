@@ -816,13 +816,13 @@ const fleetReportItems: NavItem[] = [
     screen: "weighbridge-management",
     subItems: [
       {
-        nameKey: "Day Report",
+        nameKey: "admin.nav.day_report",
         path: `/${encWorkforceManagement}/${encDayReport}`,
         module: "fleet-reports",
         screen: "day-report",
       },
       {
-        nameKey: "Date Report",
+        nameKey: "admin.nav.date_report",
         path: `/${encWorkforceManagement}/${encDateReport}`,
         module: "fleet-reports",
         screen: "date-report",

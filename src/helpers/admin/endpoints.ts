@@ -127,10 +127,6 @@ export const adminEndpoints = {
   /* =========================
      COMPLAINT TICKETING
   ========================= */
-  // ── SUPER ADMIN: global complaint configuration (complaint-masters) ──
-  // Writable only for holders of the superadmin-only "complaint-masters"
-  // module. The `complaint-ticket/*` twins further down are the same tables
-  // exposed read-only so the Desk can fill its dropdowns.
   complaintMasterTypes: "complaint-masters/types",
   complaintMasterCategories: "complaint-masters/categories",
   complaintMasterSubcategories: "complaint-masters/subcategories",
