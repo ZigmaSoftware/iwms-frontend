@@ -144,6 +144,7 @@ export const tripDelayReportApi = adminApi.tripDelayReports;
    AUDITS
 ========================= */
 export const commonAuditApi = adminApi.commonAudits;
+export const permissionAuditApi = adminApi.permissionAudits;
 export const monthlyWasteComparisonApi = adminApi.monthlyWasteComparison;
 
 /* =========================
