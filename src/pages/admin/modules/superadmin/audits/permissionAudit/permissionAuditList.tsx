@@ -14,12 +14,6 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Column } from "primereact/column";
 import type {
   DataTablePageEvent,
@@ -29,8 +23,9 @@ import type {
 
 import { permissionAuditApi } from "@/helpers/admin";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import PermissionAuditDetail, { MethodBadge } from "./PermissionAuditDetail";
 
-const SORTABLE_FIELDS = new Set(["timestamp", "action_type"]);
+const SORTABLE_FIELDS = new Set(["timestamp", "action_type", "http_method"]);
 
 // Sentinel for "company-wide, belongs to no project" — mirrors the backend,
 // since an empty string can't be distinguished from "no filter" in a query.
@@ -100,15 +95,6 @@ export default function PermissionAuditList() {
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const loading = isLoading && records.length === 0;
-
-  const stateLabel = useCallback(
-    (active?: boolean | null) => {
-      if (active === true) return t("admin.permission_audit.active");
-      if (active === false) return t("admin.permission_audit.inactive");
-      return "-";
-    },
-    [t],
-  );
 
   const companyOptions = useMemo(
     () =>
@@ -266,8 +252,60 @@ export default function PermissionAuditList() {
     );
   }, []);
 
-  const grantedOnPage = records.filter((r) => r.is_active === true).length;
-  const revokedOnPage = records.length - grantedOnPage;
+  // An access save counts every permission it granted or revoked; a
+  // company permission row is a single change.
+  const isAccessSave = (r: PermissionAuditRecord) =>
+    r.granted_count != null || r.revoked_count != null;
+  const grantedOnPage = records.reduce(
+    (sum, r) => sum + (isAccessSave(r) ? (r.granted_count ?? 0) : r.is_active ? 1 : 0),
+    0,
+  );
+  const revokedOnPage = records.reduce(
+    (sum, r) => sum + (isAccessSave(r) ? (r.revoked_count ?? 0) : r.is_active ? 0 : 1),
+    0,
+  );
+
+  // A company save can touch many modules; the list shows the first few and
+  // View shows them all.
+  const MODULES_SHOWN = 3;
+  const moduleTemplate = (r: PermissionAuditRecord) => {
+    if (!r.changed_modules) return r.mainscreen_name ?? "-";
+    if (r.changed_modules.length === 0) return "-";
+    const shown = r.changed_modules.slice(0, MODULES_SHOWN).join(", ");
+    const more = r.changed_modules.length - MODULES_SHOWN;
+    return (
+      <span title={r.changed_modules.join(", ")}>
+        {shown}
+        {more > 0 && (
+          <span className="text-gray-500">
+            {" "}
+            {t("admin.permission_audit.more_modules", { count: more })}
+          </span>
+        )}
+      </span>
+    );
+  };
+
+  const permissionTemplate = (r: PermissionAuditRecord) => {
+    if (isAccessSave(r)) {
+      return (
+        <div className="flex flex-col text-xs">
+          {(r.granted_count ?? 0) > 0 && (
+            <span className="text-green-700">
+              + {r.granted_count} {t("admin.permission_audit.granted")}
+            </span>
+          )}
+          {(r.revoked_count ?? 0) > 0 && (
+            <span className="text-red-700">
+              − {r.revoked_count} {t("admin.permission_audit.revoked")}
+            </span>
+          )}
+        </div>
+      );
+    }
+    const item = r.userscreenaction_name ?? r.column_name ?? r.app_module_name;
+    return [r.userscreen_name, item].filter(Boolean).join(" › ") || "-";
+  };
 
   return (
     <div className="p-3">
@@ -426,39 +464,24 @@ export default function PermissionAuditList() {
             body={(r: PermissionAuditRecord) => r.project_name ?? "-"}
           />
           <Column
-            field="mainscreen_name"
-            header={t("admin.permission_audit.main_screen")}
-            body={(r: PermissionAuditRecord) => r.mainscreen_name ?? "-"}
+            header={t("admin.permission_audit.module")}
+            body={moduleTemplate}
           />
           <Column
-            field="userscreen_name"
-            header={t("admin.permission_audit.sub_screen")}
-            body={(r: PermissionAuditRecord) => r.userscreen_name ?? "-"}
+            header={t("admin.permission_audit.permissions")}
+            body={permissionTemplate}
           />
           <Column
-            field="userscreenaction_name"
-            header={t("admin.permission_audit.action")}
-            body={(r: PermissionAuditRecord) => r.userscreenaction_name ?? "-"}
-          />
-          <Column
-            header={t("admin.permission_audit.app_or_column")}
-            body={(r: PermissionAuditRecord) =>
-              r.app_module_name ?? r.column_name ?? "-"
-            }
+            field="http_method"
+            header={t("admin.permission_audit.http_method")}
+            body={(r: PermissionAuditRecord) => <MethodBadge method={r.http_method} />}
+            sortable
           />
           <Column
             field="action_type"
             header={t("admin.permission_audit.action_type")}
             body={actionTypeTemplate}
             sortable
-          />
-          <Column
-            header={t("admin.permission_audit.previous_state")}
-            body={(r: PermissionAuditRecord) => stateLabel(r.previous_is_active)}
-          />
-          <Column
-            header={t("admin.permission_audit.new_state")}
-            body={(r: PermissionAuditRecord) => stateLabel(r.is_active)}
           />
           <Column
             field="updated_by_name"
@@ -489,99 +512,10 @@ export default function PermissionAuditList() {
         </DataTable>
       </div>
 
-      <Dialog
-        open={Boolean(selectedRecord)}
-        onOpenChange={(open) => !open && setSelectedRecord(null)}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{t("admin.permission_audit.detail_title")}</DialogTitle>
-          </DialogHeader>
-
-          {selectedRecord && (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                {(
-                  [
-                    ["source", selectedRecord.source_label],
-                    ["granted_to", selectedRecord.target_name],
-                    ["company", selectedRecord.company_name],
-                    ["project", selectedRecord.project_name],
-                    ["main_screen", selectedRecord.mainscreen_name],
-                    ["sub_screen", selectedRecord.userscreen_name],
-                    ["action", selectedRecord.userscreenaction_name],
-                    [
-                      "app_or_column",
-                      selectedRecord.app_module_name ?? selectedRecord.column_name,
-                    ],
-                    ["action_type", selectedRecord.action_type],
-                  ] as const
-                ).map(([key, value]) => (
-                  <div key={key}>
-                    <div className="text-xs text-gray-500">
-                      {t(`admin.permission_audit.${key}`)}
-                    </div>
-                    <div>{value ?? "-"}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="rounded-md border">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="p-2 text-left font-medium">
-                        {t("admin.permission_audit.field")}
-                      </th>
-                      <th className="p-2 text-left font-medium">
-                        {t("admin.permission_audit.old_value")}
-                      </th>
-                      <th className="p-2 text-left font-medium">
-                        {t("admin.permission_audit.new_value")}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-t">
-                      <td className="p-2">{t("admin.permission_audit.active")}</td>
-                      <td className="p-2">{stateLabel(selectedRecord.previous_is_active)}</td>
-                      <td className="p-2">{stateLabel(selectedRecord.is_active)}</td>
-                    </tr>
-                    <tr className="border-t">
-                      <td className="p-2">{t("admin.permission_audit.deleted")}</td>
-                      <td className="p-2">
-                        {selectedRecord.previous_is_deleted == null
-                          ? "-"
-                          : String(selectedRecord.previous_is_deleted)}
-                      </td>
-                      <td className="p-2">
-                        {selectedRecord.is_deleted == null
-                          ? "-"
-                          : String(selectedRecord.is_deleted)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="text-xs text-gray-500">
-                    {t("admin.permission_audit.updated_by")}
-                  </div>
-                  <div>{selectedRecord.updated_by_name ?? "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">
-                    {t("admin.permission_audit.timestamp")}
-                  </div>
-                  <div>{formatDateTime(selectedRecord.timestamp)}</div>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <PermissionAuditDetail
+        record={selectedRecord}
+        onClose={() => setSelectedRecord(null)}
+      />
     </div>
   );
 }
