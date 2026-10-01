@@ -11,7 +11,7 @@ import type {
   DataTableSortEvent,
   SortOrder,
 } from "primereact/datatable";
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { asArray, errorText, yesNo } from "../utils";
@@ -128,6 +128,31 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
   }, [query, kind]);
 
   const edit = (row: any) => navigate(editPath(row.unique_id));
+
+  const handleDelete = async (row: any) => {
+    const confirmDelete = await Swal.fire({
+      title: "Are you sure?",
+      text: "This record will be permanently deleted!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await api.delete(row.unique_id);
+      setRows((current) => current.filter((item) => item.unique_id !== row.unique_id));
+      Swal.fire({
+        icon: "success",
+        title: "Deleted successfully!",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire("Error", errorText(error, "Unable to delete record"), "error");
+    }
+  };
 
   // "All data" re-fetches every row matching the active search, since the
   // table is lazily paginated and only holds one page.
@@ -361,13 +386,12 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
         <Column
           header="Actions"
           body={(row) => (
-            <button
-              className="text-blue-600"
-              onClick={() => edit(row)}
-              title="Edit"
-            >
-              <PencilIcon className="size-5" />
-            </button>
+            <div className="flex justify-center">
+              <ActionMenu
+                onEdit={() => edit(row)}
+                onDelete={() => void handleDelete(row)}
+              />
+            </div>
           )}
           style={{ width: "100px" }}
         />

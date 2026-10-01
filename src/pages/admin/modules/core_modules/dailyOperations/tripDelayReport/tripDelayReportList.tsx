@@ -1,6 +1,7 @@
 import type { TripDelayReportRecord, TripDelayStatus } from "./types";
 import { DELAY_STATUS_LABELS } from "./types";
 import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -15,12 +16,14 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { api } from "@/api";
 import { tripDelayReportApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
+import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 
 /**
  * Delays reported by drivers from the app — a puncture, a minor repair, a
- * blocked road. Read-only for the supervisor apart from two state nudges
- * (Acknowledge, Resolve): a delay does not change the trip, so unlike
- * Vehicle Breakdown there is nothing here to reassign, and no create form.
+ * blocked road — or logged here via "Report Delay" (tripDelayReportForm).
+ * Beyond that, two state nudges (Acknowledge, Resolve): a delay does not
+ * change the trip, so unlike Vehicle Breakdown there is nothing to reassign.
  */
 
 const STATUS_STYLES: Record<TripDelayStatus, string> = {
@@ -140,6 +143,9 @@ function RemarksDialog({
 /* ── Main Component ──────────────────────────────────────────────── */
 export default function TripDelayReportList() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
   const {
     companyUniqueId,
@@ -149,7 +155,15 @@ export default function TripDelayReportList() {
     isSuperAdmin,
     setProjectId,
     onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false, defaultToAll: true });
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
+
+  const { encScheduleOperations, encTripDelayReport } = getEncryptedRoute();
+  const { newPath } = createCrudRoutePaths(encScheduleOperations, encTripDelayReport);
 
   const [rawRows, setRawRows] = useState<TripDelayReportRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -361,6 +375,12 @@ export default function TripDelayReportList() {
               </option>
             ))}
           </select>
+          <Button
+            label="Report Delay"
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            onClick={() => navigate(newPath, { state: { companyUniqueId, projectId } })}
+          />
         </div>
       </div>
 

@@ -11,6 +11,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 
 import { adminApi } from "@/helpers/admin/registry";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
@@ -233,19 +234,15 @@ export default function AlternativeStaffTemplateList() {
 
   const actionTemplate = (row: AlternativeStaffTemplate) => (
     <div className="flex justify-center">
-      <button
-        title={t("common.edit")}
-        onClick={() =>
+      <ActionMenu
+        onEdit={() =>
           navigate(`${ENC_EDIT_PATH(row.unique_id)}?company_unique_id=${encodeURIComponent(
             companyUniqueId
           )}&project_id=${encodeURIComponent(selectedProjectId)}`, {
             state: { record: row, ...selectedContext },
           })
         }
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <i className="pi pi-pencil" />
-      </button>
+      />
     </div>
   );
 

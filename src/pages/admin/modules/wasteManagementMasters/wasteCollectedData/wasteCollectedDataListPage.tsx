@@ -11,17 +11,13 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
-import {
-  exportRecordsToExcel,
-  getAdminScreenExcelFilename,
-} from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatTimeOnly } from "@/utils/formatTime";
 import { WASTE_TYPE_COLORS } from "@/utils/wasteTypeColors";
@@ -85,7 +81,6 @@ export default function WasteCollectedDataList() {
     [],
   );
   const [loading, setLoading] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const [collectionDateFilter, setCollectionDateFilter] = useState("");
   const {
     filters,
@@ -216,44 +211,25 @@ export default function WasteCollectedDataList() {
       City: cap(row.city_name) || "-",
     }));
 
-  const handleDownload = (format: "excel" | "pdf") => {
-    setIsExporting(true);
-    try {
-      if (filteredRows.length === 0) {
-        Swal.fire(
-          t("common.warning"),
-          t("admin.waste_collected_data.empty_message"),
-          "warning",
-        );
-        return;
-      }
-      const exportRows = buildExportRows();
-      if (format === "excel") {
-        exportRecordsToExcel(
-          exportRows,
-          getAdminScreenExcelFilename("all"),
-          "Household Collections",
-        );
-      } else {
-        downloadRecordsPdf({
-          title: "Household Collections",
-          filename: "household_collections.pdf",
-          rows: exportRows,
-          columns: Object.keys(exportRows[0]).map((key) => ({
-            key,
-            label: key,
-          })),
-        });
-      }
-    } catch (err: any) {
-      Swal.fire({
-        icon: "error",
-        title: t("common.error"),
-        text: err?.message ?? String(err),
-      });
-    } finally {
-      setIsExporting(false);
+  const handleDownloadPdf = async () => {
+    if (filteredRows.length === 0) {
+      Swal.fire(
+        t("common.warning"),
+        t("admin.waste_collected_data.empty_message"),
+        "warning",
+      );
+      return;
     }
+    const exportRows = buildExportRows();
+    await downloadRecordsPdf({
+      title: "Household Collections",
+      filename: "household_collections.pdf",
+      rows: exportRows,
+      columns: Object.keys(exportRows[0]).map((key) => ({
+        key,
+        label: key,
+      })),
+    });
   };
 
   /* ── status toggle ── */
@@ -277,21 +253,49 @@ export default function WasteCollectedDataList() {
     return <Switch checked={!!row.is_active} onCheckedChange={updateStatus} />;
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await adminApi.wasteCollections.delete(id);
+      setWasteCollections((current) =>
+        current.filter((item) => item.unique_id !== id),
+      );
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: String(error ?? t("common.request_failed")),
+      });
+    }
+  };
+
   const actionTemplate = (row: WasteCollection) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        title={t("common.edit")}
-        onClick={() =>
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() =>
           navigate(ENC_EDIT_PATH(row.unique_id), {
             // Existing records may have null company/project (saved before this fix).
             // Always pass the currently selected company+project from the list dropdowns.
             state: { companyUniqueId, projectId },
           })
         }
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
+        onDelete={() => void handleDelete(row.unique_id)}
+      />
     </div>
   );
 
@@ -384,21 +388,13 @@ export default function WasteCollectedDataList() {
                 })
               }
             />
-            <Button
-              label={isExporting ? "Exporting..." : "Download PDF"}
-              icon="pi pi-file-pdf"
-              className="p-button-outlined"
-              disabled={isExporting}
-              onClick={() => handleDownload("pdf")}
-            />
           </div>
         }
       />
 
       <DataTable
-        loadExportRows={async () =>
-          buildExportRows(filteredRows.length > 0 ? filteredRows : rows)
-        }
+        loadExportRows={async () => buildExportRows()}
+        onPdfRequest={handleDownloadPdf}
         value={wasteCollections}
         dataKey="unique_id"
         paginator

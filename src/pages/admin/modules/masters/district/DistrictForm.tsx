@@ -1,7 +1,7 @@
 import type { DistrictRouteState, DistrictWithProject } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -105,6 +105,7 @@ export default function DistrictForm() {
   const isEdit = Boolean(id);
   const routeState = location.state as DistrictRouteState | null;
   const routeStateAppliedRef = useRef(false);
+  const recordProjectAppliedRef = useRef(false);
   const {
     companyUniqueId,
     projectId,
@@ -179,6 +180,7 @@ export default function DistrictForm() {
 
   useEffect(() => {
     routeStateAppliedRef.current = false;
+    recordProjectAppliedRef.current = false;
   }, [id, location.key]);
 
   useEffect(() => {
@@ -382,6 +384,12 @@ export default function DistrictForm() {
   }, [recordData, applyCompanyProjectFromRecord, continents]);
 
   useEffect(() => {
+    // Only reconciles the record's saved project into `projects` once, on
+    // the initial load. Without this guard, re-running whenever `projects`
+    // reloads (e.g. because the admin manually switched Company) would
+    // reassert the OLD record's project id — which doesn't belong to the
+    // newly selected company at all — clobbering the admin's own choice.
+    if (recordProjectAppliedRef.current) return;
     if (!recordData || projects.length === 0) return;
 
     const data = recordData as DistrictWithProject;
@@ -394,10 +402,11 @@ export default function DistrictForm() {
       data.project_name
     );
 
-    if (resolvedProjectId && resolvedProjectId !== projectId) {
+    if (resolvedProjectId) {
       setProjectId(resolvedProjectId);
     }
-  }, [recordData, projectId, projects, setProjectId]);
+    recordProjectAppliedRef.current = true;
+  }, [recordData, projects, setProjectId]);
 
   /* ------------------------------
      Auto-resolve missing continent from pending country
@@ -555,6 +564,30 @@ export default function DistrictForm() {
     }
   };
 
+  // Keeps the currently-selected project visible as a SelectItem while
+  // `projects` (scoped to companyUniqueId) is still loading the record's own
+  // saved project — otherwise SelectValue can't resolve a label for it and
+  // falls back to showing the raw unique_id. Only injects when `projectId`
+  // still matches the record's own saved project: once the admin picks a
+  // different company/project themselves, a stale leftover id must NOT be
+  // re-injected as a fake option alongside the new company's real projects.
+  const displayProjects = useMemo(() => {
+    if (!projectId || projects.some((project) => project.value === projectId)) {
+      return projects;
+    }
+    const data = recordData as DistrictWithProject | null;
+    const recordProjectId = normalize(
+      data?.project_id ?? data?.project_unique_id ?? data?.project
+    );
+    if (!data || projectId !== recordProjectId) {
+      return projects;
+    }
+    return [
+      ...projects,
+      { value: projectId, label: data.project_name || projectId },
+    ];
+  }, [projects, projectId, recordData]);
+
   /* ------------------------------
      JSX
   ------------------------------ */
@@ -620,7 +653,7 @@ export default function DistrictForm() {
                 <SelectValue placeholder="Select Project" />
               </SelectTrigger>
               <SelectContent>
-                {projects.map((project) => (
+                {displayProjects.map((project) => (
                   <SelectItem key={project.value} value={project.value}>
                     {project.label}
                   </SelectItem>

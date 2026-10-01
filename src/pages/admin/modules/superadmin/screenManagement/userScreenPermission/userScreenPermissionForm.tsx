@@ -216,7 +216,7 @@ export default function UserScreenPermissionForm() {
         setMainScreens(
           mainScreensData.map((x: MainScreen) => ({
             value: toId(x.unique_id),
-            label: String(x.mainscreen_name ?? ""),
+            label: String(x.mainscreen_label || x.mainscreen_name || ""),
           }))
         );
 

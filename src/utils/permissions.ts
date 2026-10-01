@@ -99,7 +99,10 @@ const MODULE_ALIASES: Record<string, string[]> = {
   // "schedule-setup"/"schedule-operations" are a pure split of the legacy
   // "schedule-masters" module — kept as fallbacks so permissions granted
   // before the split still authorize both halves.
-  "schedule-masters": ["schedule masters", "schedule-setup", "schedule-operations"],
+  "schedule-masters": ["schedule masters", "schedule-setup", "schedule-operations", "reports"],
+  // The waste/complaint reports moved from "schedule-masters" to "reports";
+  // grants made before the permission seeder re-homed them still count.
+  reports: ["schedule-masters"],
   "schedule-setup": ["schedule-masters", "schedule masters"],
   "schedule-operations": ["schedule-masters", "schedule masters"],
   // "complaint-ticket" is the renamed "citizen-grievance"/"grivences" module.
@@ -117,9 +120,13 @@ const MODULE_ALIASES: Record<string, string[]> = {
   masters: ["common-masters", "waste-types", "assets"],
   "waste-management": ["collections"],
   collections: ["waste-management"],
-  "vehicle-tracking": ["reports"],
-  "workforce-management": ["reports"],
-  workforce: ["reports", "workforce-management"],
+  // Fleet screens moved from "reports" to "fleet-reports" (backend migration
+  // 0011_split_fleet_reports_mainscreen); "reports" stays as a fallback for
+  // permission payloads cached before that split.
+  "fleet-reports": ["reports"],
+  "vehicle-tracking": ["fleet-reports", "reports"],
+  "workforce-management": ["fleet-reports", "reports"],
+  workforce: ["fleet-reports", "reports", "workforce-management"],
 };
 
 const SCREEN_ALIASES: Record<string, string[]> = {
@@ -179,7 +186,11 @@ const SCREEN_ALIASES: Record<string, string[]> = {
   "vehicle-creation": ["vehiclecreation", "vehiclecreations", "vehicle-creation", "vehicle creation"],
   "vehicle-track": ["VehicleTrack", "vehicletrack", "vehicle track"],
   "vehicle-history": ["VehicleHistory", "vehiclehistory", "vehicle history"],
-  "workforce-management": ["WorkforceManagement", "workforcemanagement", "workforce management", "workforce"],
+  // Renamed to "weighbridge-management" (backend migration
+  // 0012_weighbridge_management_screens); each name resolves the other so
+  // permission payloads cached before the rename still authorize.
+  "weighbridge-management": ["workforce-management", "WeighbridgeManagement", "weighbridgemanagement"],
+  "workforce-management": ["weighbridge-management", "WorkforceManagement", "workforcemanagement", "workforce management", "workforce"],
   "date-report": ["DateReport", "datereport", "date report"],
   "day-report": ["DayReport", "dayreport", "day report"],
 };

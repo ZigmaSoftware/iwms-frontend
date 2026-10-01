@@ -15,7 +15,7 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { wardApi } from "@/helpers/admin";
@@ -113,9 +113,15 @@ export default function WardList() {
       project_id: selectedProjectId,
     });
 
+  // Page-scoped keys (not "selected_company_unique_id"/"selected_project_id")
+  // — those global keys are read by useCompanyProjectSelection as a
+  // cross-page session fallback, so writing this page's own filter there
+  // leaked into every other form's initial company/project state.
+  const WARD_FILTER_PROJECT_KEY = "ward_list_selected_project_id";
+
   useEffect(() => {
     if (typeof window === "undefined" || projects.length === 0) return;
-    const storedProjectId = localStorage.getItem("selected_project_id");
+    const storedProjectId = localStorage.getItem(WARD_FILTER_PROJECT_KEY);
     if (
       storedProjectId &&
       storedProjectId !== projectId &&
@@ -126,13 +132,12 @@ export default function WardList() {
   }, [projectId, projects, setProjectId]);
 
   const onFilterCompanyChange = (value: string) => {
-    localStorage.setItem("selected_company_unique_id", value);
-    localStorage.removeItem("selected_project_id");
+    localStorage.removeItem(WARD_FILTER_PROJECT_KEY);
     onCompanyChange(value);
   };
 
   const onFilterProjectChange = (value: string) => {
-    localStorage.setItem("selected_project_id", value);
+    localStorage.setItem(WARD_FILTER_PROJECT_KEY, value);
     setProjectId(value);
   };
 
@@ -265,23 +270,46 @@ export default function WardList() {
   );
 
   // ===========================
+  //   Delete
+  // ===========================
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await wardApi.delete(id);
+      setRows((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: extractErrorMessage(error, t("common.request_failed")),
+      });
+    }
+  };
+
+  // ===========================
   //   Actions
   // ===========================
   const actionTemplate = (row: WardListRecord) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
-
-      {/* <button
-        onClick={() => handleDelete(row.unique_id)}
-        className="text-red-600 hover:text-red-800"
-      >
-        <TrashBinIcon className="size-5" />
-      </button> */}
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onDelete={() => void handleDelete(row.unique_id)}
+      />
     </div>
   );
 

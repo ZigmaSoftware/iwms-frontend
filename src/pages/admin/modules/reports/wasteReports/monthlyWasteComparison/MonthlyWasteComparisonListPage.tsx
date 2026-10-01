@@ -434,7 +434,7 @@ export default function MonthlyWasteComparisonListPage({
       const exportRows = await adminApi.monthlyWasteComparison.readAllForExport(
         { params },
       );
-      exportRecordsToExcel(
+      await exportRecordsToExcel(
         exportRows.map((r) => ({
           Month: r.month,
           "Location Type": r.local_body_type,

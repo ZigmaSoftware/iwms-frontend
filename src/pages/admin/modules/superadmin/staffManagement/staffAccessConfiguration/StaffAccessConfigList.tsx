@@ -13,7 +13,7 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
 import { staffAccessConfigurationApi } from "@/helpers/admin";
@@ -79,7 +79,10 @@ export default function StaffAccessConfigList() {
     companyUniqueId,
     projectId,
     projects,
+    projectsLoaded,
+    projectsCompanyId,
     companies,
+    companiesLoaded,
     onCompanyChange,
     setProjectId,
     isSuperAdmin,
@@ -90,6 +93,15 @@ export default function StaffAccessConfigList() {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+
+  // The company/project selection resolves asynchronously after mount. Firing
+  // the list + export fetches before it settles sends duplicate unscoped
+  // requests that are immediately re-fired with the real scope, so gate both
+  // effects until the hook reports the scope as settled. `projectsCompanyId`
+  // also guards the company-switch gap (project list still from the previous
+  // company for one render).
+  const scopeReady =
+    companiesLoaded && projectsLoaded && projectsCompanyId === companyUniqueId;
 
   const {
     globalFilterValue,
@@ -144,9 +156,10 @@ export default function StaffAccessConfigList() {
   };
 
   useEffect(() => {
+    if (!scopeReady) return;
     void loadRows(first / rowsPerPage + 1, rowsPerPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyUniqueId, projectId, first, rowsPerPage, searchTerm, statusValue, ordering, t]);
+  }, [scopeReady, companyUniqueId, projectId, first, rowsPerPage, searchTerm, statusValue, ordering, t]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -160,6 +173,7 @@ export default function StaffAccessConfigList() {
   // synchronously, so keep it refreshed with the full (unpaginated),
   // currently-filtered result set whenever filters/company/project change.
   useEffect(() => {
+    if (!scopeReady) return;
     let mounted = true;
     const params: Record<string, string | number> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
@@ -178,21 +192,44 @@ export default function StaffAccessConfigList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, searchTerm, statusValue]);
+  }, [scopeReady, companyUniqueId, projectId, searchTerm, statusValue]);
 
   const records = rows;
+
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await staffAccessConfigurationApi.delete(id);
+      setRows((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire(t("common.error"), extractErrorMessage(error, t("common.delete_failed")), "error");
+    }
+  };
 
   const actionTemplate = (row: ListRow) => {
     const staffUniqueId = String(row.staff_unique_id ?? row.staff_id ?? "");
     return (
-      <button
-        type="button"
-        title={t("common.edit")}
-        className="text-blue-600 hover:text-blue-800"
-        onClick={() => navigate(editPath(staffUniqueId), { state: { companyUniqueId, projectId } })}
-      >
-        <PencilIcon className="size-5" />
-      </button>
+      <div className="flex justify-center">
+        <ActionMenu
+          onEdit={() => navigate(editPath(staffUniqueId), { state: { companyUniqueId, projectId } })}
+          onDelete={() => void handleDelete(String(row.unique_id))}
+        />
+      </div>
     );
   };
 

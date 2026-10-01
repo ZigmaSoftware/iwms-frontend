@@ -13,7 +13,6 @@ export const adminEndpoints = {
   ========================= */
   loginUser: "login/login-user",
   userpermission: "login/my-permissions",
-  captcha: "login/captcha",
 
   /* =========================
      COMMON MASTERS
@@ -67,6 +66,7 @@ export const adminEndpoints = {
   dailyTripLog: "schedule-operations/daily-trip-logs",
   dailyTripCollectionPoint: "schedule-operations/daily-trip-collection-points",
   routeDetourWaypoints: "schedule-operations/route-detour-waypoints",
+  tripPlanStaticRoutes: "schedule-operations/trip-plan-static-routes",
   dailyTripHouseholdCollection:
     "schedule-operations/daily-trip-household-collections",
   binCollectionEvent: "schedule-operations/bin-collection-events",
@@ -78,11 +78,10 @@ export const adminEndpoints = {
   wasteCollections: "schedule-operations/wastecollections",
 
   /* =========================
-     SCHEDULE MASTERS (legacy name — kept only for the reporting
-     sub-resources still registered under it; see base_urls.py)
+     REPORTS
   ========================= */
-  dailyWasteComparison: "schedule-masters/daily-waste-comparisons",
-  monthlyWasteComparison: "schedule-masters/monthly-waste-comparison",
+  dailyWasteComparison: "reports/daily-waste-comparisons",
+  monthlyWasteComparison: "reports/monthly-waste-comparison",
 
   /* =========================
      SCREEN MANAGEMENT
@@ -129,10 +128,6 @@ export const adminEndpoints = {
   /* =========================
      COMPLAINT TICKETING
   ========================= */
-  // ── SUPER ADMIN: global complaint configuration (complaint-masters) ──
-  // Writable only for holders of the superadmin-only "complaint-masters"
-  // module. The `complaint-ticket/*` twins further down are the same tables
-  // exposed read-only so the Desk can fill its dropdowns.
   complaintMasterTypes: "complaint-masters/types",
   complaintMasterCategories: "complaint-masters/categories",
   complaintMasterSubcategories: "complaint-masters/subcategories",
@@ -153,7 +148,6 @@ export const adminEndpoints = {
   complaintStatuses: "complaint-ticket/statuses",
   complaintSources: "complaint-ticket/sources",
   complaintLanguages: "complaint-ticket/languages",
-  complaintDepartmentMembers: "complaint-ticket/department-members",
   complaintSlaRules: "complaint-ticket/sla-rules",
   complaintRoutingRules: "complaint-ticket/routing-rules",
   complaintFeedback: "complaint-ticket/feedback",
@@ -183,6 +177,8 @@ export const adminEndpoints = {
   ========================= */
   loginAudits: "audits/login-audit",
   commonAudits: "audits/common-audit",
+  permissionAudits: "audits/permission-audit",
+  staticRouteAudits: "audits/static-route-audit",
 } as const;
 
 export type AdminEntity = keyof typeof adminEndpoints;

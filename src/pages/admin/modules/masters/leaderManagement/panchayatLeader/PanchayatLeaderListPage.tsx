@@ -10,7 +10,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { panchayatLeaderApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
@@ -178,29 +178,61 @@ export default function PanchayatLeaderListPage() {
     );
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await panchayatLeaderApi.delete(id);
+      setRows((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: String(error ?? t("common.request_failed")),
+      });
+    }
+  };
+
   const actionTemplate = (row: PanchayatLeader) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        title={t("common.edit")}
-        className="text-blue-600 hover:text-blue-800"
-        onClick={() =>
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() =>
           navigate(ENC_EDIT_PATH(row.unique_id), { state: { companyUniqueId, projectId } })
         }
-      >
-        <PencilIcon className="size-5" />
-      </button>
+        onDelete={() => void handleDelete(row.unique_id)}
+      />
     </div>
   );
 
   const indexTemplate = (_: PanchayatLeader, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
   return (
-    <div className="p-3">
+    <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
 
       {/* ── Title + company/project + Add button — outside DataTable (matches PanchayatListPage) ── */}
-      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+      <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-violet-600">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50">
+              <i className="pi pi-users" />
+            </span>
+            Leadership masters
+          </div>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">
             {t("admin.nav.panchayat_leader")}
           </h1>
           <p className="text-sm text-gray-500">
@@ -219,7 +251,7 @@ export default function PanchayatLeaderListPage() {
         </div>
       </div>
 
-      <FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
+      <div className="mb-4 rounded-xl border border-gray-200 bg-white p-3 shadow-sm"><FilterBar searchValue={globalFilterValue} onSearchChange={onGlobalFilterChange}
         searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.panchayat_leader") })}
         statusValue={statusValue} onStatusChange={onStatusFilterChange} className="mb-4">
         <FilterBarSelect value={companyUniqueId || ""} onChange={onCompanyChange} options={companies}
@@ -227,9 +259,10 @@ export default function PanchayatLeaderListPage() {
         <FilterBarSelect value={projectId || ""} onChange={setProjectId} options={projects}
           placeholder={showAllProjectsOption ? "All Projects" : undefined}
           disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} />
-      </FilterBar>
+      </FilterBar></div>
 
       {/* ── DataTable ── */}
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
         value={data}
         exportRows={exportRows}
@@ -298,6 +331,7 @@ export default function PanchayatLeaderListPage() {
           style={{ width: "150px", textAlign: "center" }}
         />
       </DataTable>
+      </div>
     </div>
   );
 }

@@ -65,6 +65,7 @@ type SafeDataTableProps<TValue extends SafeTableRows> =
      * this, "All data" falls back to whatever's already in `value`/`exportRows`.
      */
     loadExportRows?: () => Promise<SafeTableRows>;
+    onPdfRequest?: () => void | Promise<void>;
     importApi?: CrudHelpers;
     importColumns?: ExcelTemplateColumn[];
     importDefaults?: SafeTableRow;
@@ -243,6 +244,7 @@ type DataTableHeaderActionsProps = {
   filename?: string;
   sheetName?: string;
   loadExportRows?: () => Promise<SafeTableRows>;
+  onPdfRequest?: () => void | Promise<void>;
 };
 
 const DataTableHeaderActions = ({
@@ -261,6 +263,7 @@ const DataTableHeaderActions = ({
   filename,
   sheetName,
   loadExportRows,
+  onPdfRequest,
 }: DataTableHeaderActionsProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [importing, setImporting] = useState(false);
@@ -309,6 +312,7 @@ const DataTableHeaderActions = ({
   // "Download All Excel", which read as two unrelated actions.
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
 
   // Close the scope menu on an outside click or Escape, so it behaves like
@@ -350,7 +354,7 @@ const DataTableHeaderActions = ({
         return;
       }
 
-      exportRecordsToExcel(
+      await exportRecordsToExcel(
         exportRows,
         toExportFilename(filename),
         sheetName || "Data",
@@ -368,12 +372,32 @@ const DataTableHeaderActions = ({
     }
   };
 
-  const handleTemplate = () => {
-    exportTemplateToExcel(
-      resolvedColumns,
-      toTemplateFilename(importTemplateFilename),
-      importSheetName || "Template",
-    );
+  const handlePdf = async () => {
+    if (!onPdfRequest) return;
+    setGeneratingPdf(true);
+    try {
+      await onPdfRequest();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "PDF generation failed.";
+      Swal.fire("PDF generation failed", message, "error");
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
+  const handleTemplate = async () => {
+    try {
+      await exportTemplateToExcel(
+        resolvedColumns,
+        toTemplateFilename(importTemplateFilename),
+        importSheetName || "Template",
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Template download failed.";
+      Swal.fire("Template download failed", message, "error");
+    }
   };
 
   const handleImport = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -566,6 +590,17 @@ const DataTableHeaderActions = ({
           </>
         )}
         {exportButton}
+        {onPdfRequest && (
+          <button
+            type="button"
+            onClick={() => void handlePdf()}
+            disabled={generatingPdf}
+            className={cn(CONTROL_BUTTON, "border border-red-200 bg-red-600 text-white hover:bg-red-700")}
+          >
+            <i className={generatingPdf ? "pi pi-spin pi-spinner" : "pi pi-file-pdf"} />
+            {generatingPdf ? "Generating..." : "Download PDF"}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -582,6 +617,7 @@ export const DataTable = <TValue extends SafeTableRows>(
     exportRows,
     exportSheetName,
     loadExportRows: loadExportRowsProp,
+    onPdfRequest,
     importApi,
     importColumns,
     importDefaults,
@@ -851,6 +887,7 @@ export const DataTable = <TValue extends SafeTableRows>(
                 }
               : undefined
         }
+        onPdfRequest={onPdfRequest}
       />
     ) : (
       tableProps.header

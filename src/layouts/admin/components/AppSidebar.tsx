@@ -14,6 +14,7 @@ import {
   Truck,
   AlertTriangle,
   BarChart3,
+  Scale,
   CalendarCheck,
   Search,
   X,
@@ -22,6 +23,7 @@ import {
 import { useSidebar } from "@/contexts/SideBarContext";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { decryptSegment } from "@/utils/routeCrypto";
+import { permissionFor } from "@/generated/permissionCatalog";
 
 const {
   encAttendance,
@@ -53,6 +55,7 @@ const {
   encTripSummary,
   encWasteCollectedSummary,
   encMonthlyWasteComparison,
+  encComplaintsReport,
   encComplaintTicket,
   encComplaint,
   encMyTasks,
@@ -63,7 +66,6 @@ const {
   encComplaintSlaRules,
   encFeedback,
   encTransportMaster,
-  encScheduleMasters,
   encScheduleSetup,
   encScheduleOperations,
   encFuel,
@@ -74,6 +76,8 @@ const {
   encVehicleType,
   encWasteCollectedData,
   encWorkforceManagement,
+  encDateReport,
+  encDayReport,
   encStaffUserType,
   encProjectStaffHierarchy,
   encMainScreenType,
@@ -101,6 +105,8 @@ const {
   encStaticRouteMap,
   encBinCollectionEvent,
   encLoginAudits,
+  encPermissionAudit,
+  encStaticRouteAudit,
   encDailyWasteComparison,
   encVehicleBreakdown,
   encTripRetripRequest,
@@ -112,21 +118,26 @@ type NavMatchable = {
   matchPaths?: string[];
 };
 
-type NavItem = NavMatchable & {
-  nameKey: string;
-  icon: React.ReactNode;
+// `module`/`screens` always come from `permissionFor(...)`, which only accepts
+// names in the generated backend permission catalog. Group headers (items
+// with subItems) carry none: they show whenever a child is visible.
+type NavPermission = {
   module?: string;
-  screen?: string;
-  subItems?: Array<
-    NavMatchable & {
-      nameKey: string;
-      path: string;
-      module?: string;
-      screen?: string;
-      screens?: string[];
-    }
-  >;
+  screens?: string[];
 };
+
+type NavItem = NavMatchable &
+  NavPermission & {
+    nameKey: string;
+    icon: React.ReactNode;
+    subItems?: Array<
+      NavMatchable &
+        NavPermission & {
+          nameKey: string;
+          path: string;
+        }
+    >;
+  };
 
 type SidebarSectionKey =
   | "main"
@@ -146,7 +157,7 @@ type SidebarSectionKey =
   | "transportMasters"
   | "scheduleSetup"
   | "scheduleOperations"
-  | "scheduleMasters"
+  | "wasteReports"
   | "auditItems"
   | "wasteManagement"
   | "workforceManagement"
@@ -205,7 +216,7 @@ const MODULE_GROUPS: {
     key: "reports",
     titleKey: "admin.nav.group_reports",
     accent: "bg-blue-500",
-    sectionKeys: ["scheduleMasters", "fleetReports"],
+    sectionKeys: ["wasteReports", "fleetReports"],
   },
 ];
 
@@ -213,13 +224,23 @@ const MODULE_GROUPS: {
    MENU DEFINITIONS
 ===================== */
 
+// Each entry names its permission with permissionFor(module, ...screens).
+// Those names come from the generated backend permission catalog
+// (src/generated/permissionCatalog.ts <- iwms-backend/app/utils/
+// permission_catalog.py), so the checkbox an admin ticks in Staff Access
+// Configuration is the one that shows the page, and a typo fails to compile.
+// A page backed by several screens lists them all; the catalog groups them
+// under one heading in the permission forms (e.g. Daily Trip Plan).
+
 const navItems: NavItem[] = [
   {
     nameKey: "admin.nav.dashboard",
     icon: <LayoutGrid size={18} />,
     path: "/admin",
+    // Not a catalog screen: shown to anyone holding any permission (see
+    // checkPermission below).
     module: "dashboard",
-    screen: "Dashboard",
+    screens: ["Dashboard"],
   },
 ];
 
@@ -228,8 +249,7 @@ const attendanceItems: NavItem[] = [
     nameKey: "admin.nav.attendance",
     icon: <CalendarCheck size={18} />,
     path: `/${encAttendance}/${encAttendance}`,
-    module: "attendance",
-    screen: "attendance",
+    ...permissionFor("attendance", "attendance"),
   },
 ];
 
@@ -237,20 +257,16 @@ const superadminMasterItems: NavItem[] = [
   {
     nameKey: "admin.nav.superAdmin_masters",
     icon: <Settings size={18} />,
-    module: "superadmin-masters",
-    screen: "superadmin-masters",
     subItems: [
       {
         nameKey: "admin.nav.company",
         path: `/${encSuperAdminMaster}/${encCompanyCreation}`,
-        module: "superadmin-masters",
-        screen: "company",
+        ...permissionFor("superadmin-masters", "company"),
       },
       {
         nameKey: "admin.nav.project",
         path: `/${encSuperAdminMaster}/${encProjectCreation}`,
-        module: "superadmin-masters",
-        screen: "project",
+        ...permissionFor("superadmin-masters", "project"),
       },
     ],
   },
@@ -260,26 +276,21 @@ const commonMasterItems: NavItem[] = [
   {
     nameKey: "admin.nav.common_masters",
     icon: <Settings size={18} />,
-    module: "common-masters",
-    screen: "common-masters",
     subItems: [
       {
         nameKey: "admin.nav.continent",
         path: `/${encMasters}/${encContinents}`,
-        module: "common-masters",
-        screen: "continents",
+        ...permissionFor("common-masters", "continents"),
       },
       {
         nameKey: "admin.nav.country",
         path: `/${encMasters}/${encCountries}`,
-        module: "common-masters",
-        screen: "countries",
+        ...permissionFor("common-masters", "countries"),
       },
       {
         nameKey: "admin.nav.state",
         path: `/${encMasters}/${encStates}`,
-        module: "common-masters",
-        screen: "states",
+        ...permissionFor("common-masters", "states"),
       },
     ],
   },
@@ -289,46 +300,38 @@ const masterItems: NavItem[] = [
   {
     nameKey: "admin.nav.location_masters",
     icon: <Layers3 size={18} />,
-    module: "masters",
-    screen: "masters",
     subItems: [
       // ── Administrative / Geographic Hierarchy ────────────────
       {
         nameKey: "admin.nav.district",
         path: `/${encMasters}/${encDistricts}`,
-        module: "masters",
-        screen: "districts",
+        ...permissionFor("masters", "districts"),
       },
       {
         nameKey: "admin.nav.city",
         path: `/${encMasters}/${encCities}`,
-        module: "masters",
-        screen: "cities",
+        ...permissionFor("masters", "cities"),
       },
       {
         nameKey: "admin.nav.zone",
         path: `/${encMasters}/${encZones}`,
-        module: "masters",
-        screen: "zones",
+        ...permissionFor("masters", "zones"),
       },
       // ── Operational / Field Level ────────────────────────────
       {
         nameKey: "admin.nav.ward",
         path: `/${encMasters}/${encWards}`,
-        module: "masters",
-        screen: "wards",
+        ...permissionFor("masters", "wards"),
       },
       {
         nameKey: "admin.nav.panchayat",
         path: `/${encMasters}/${encPanchayats}`,
-        module: "masters",
-        screen: "panchayats",
+        ...permissionFor("masters", "panchayat"),
       },
       {
         nameKey: "admin.nav.plant",
         path: `/${encMasters}/${encPlants}`,
-        module: "masters",
-        screen: "plants",
+        ...permissionFor("masters", "plants"),
       },
     ],
   },
@@ -338,20 +341,16 @@ const leaderManagementItems: NavItem[] = [
   {
     nameKey: "admin.nav.leader_management",
     icon: <Users size={18} />,
-    module: "masters",
-    screen: "masters",
     subItems: [
       {
         nameKey: "admin.nav.panchayat_leader",
         path: `/${encMasters}/${encPanchayatLeaders}`,
-        module: "masters",
-        screen: "panchayat-leaders",
+        ...permissionFor("masters", "panchayat-leaders"),
       },
       {
         nameKey: "admin.nav.district_leader",
         path: `/${encMasters}/${encDistrictLeaders}`,
-        module: "masters",
-        screen: "district-leaders",
+        ...permissionFor("masters", "district-leaders"),
       },
     ],
   },
@@ -361,32 +360,26 @@ const wasteTypeItems: NavItem[] = [
   {
     nameKey: "admin.nav.waste_masters",
     icon: <Users size={18} />,
-    module: "waste-types",
-    screen: "waste-types",
     subItems: [
       {
         nameKey: "admin.nav.property",
         path: `/${encMasters}/${encProperties}`,
-        module: "waste-types",
-        screen: "properties",
+        ...permissionFor("waste-types", "properties"),
       },
       {
         nameKey: "admin.nav.sub_property",
         path: `/${encMasters}/${encSubProperties}`,
-        module: "waste-types",
-        screen: "subproperties",
+        ...permissionFor("waste-types", "subproperties"),
       },
       {
         nameKey: "admin.nav.bin_creation",
         path: `/${encMasters}/${encBins}`,
-        module: "waste-types",
-        screen: "bins",
+        ...permissionFor("waste-types", "bins"),
       },
       {
         nameKey: "common.waste_type",
         path: `/${encMasters}/${encWasteTypes}`,
-        module: "waste-types",
-        screen: "wastetypes",
+        ...permissionFor("waste-types", "waste type"),
       },
     ],
   },
@@ -396,44 +389,36 @@ const screenManagementItems: NavItem[] = [
   {
     nameKey: "admin.nav.screen_management",
     icon: <Settings size={18} />,
-    module: "screen-managements",
-    screen: "screen-managements",
     subItems: [
       {
         nameKey: "admin.nav.main_screen_type",
         path: `/${encAdmins}/${encMainScreenType}`,
-        module: "screen-managements",
-        screen: "mainscreentype",
+        ...permissionFor("screen-managements", "mainscreentype"),
       },
       {
         nameKey: "admin.nav.main_screen",
         path: `/${encAdmins}/${encMainScreen}`,
-        module: "screen-managements",
-        screen: "mainscreens",
+        ...permissionFor("screen-managements", "mainscreens"),
       },
       {
         nameKey: "admin.nav.user_screen",
         path: `/${encAdmins}/${encUserScreen}`,
-        module: "screen-managements",
-        screen: "userscreens",
+        ...permissionFor("screen-managements", "userscreens"),
       },
       {
         nameKey: "admin.nav.user_screen_action",
         path: `/${encAdmins}/${encUserScreenAction}`,
-        module: "screen-managements",
-        screen: "userscreen-action",
+        ...permissionFor("screen-managements", "userscreen-action"),
       },
       {
         nameKey: "admin.nav.companywise_user_screen_permission",
         path: `/${encAdmins}/${encUserScreenPermission}`,
-        module: "screen-managements",
-        screen: "companywisescreenpermissions",
+        ...permissionFor("screen-managements", "companywisescreenpermissions"),
       },
       {
         nameKey: "admin.nav.app_modules",
         path: `/${encAdmins}/${encAppModules}`,
-        module: "screen-managements",
-        screen: "app-modules",
+        ...permissionFor("screen-managements", "app-modules"),
       },
     ],
   },
@@ -443,26 +428,23 @@ const roleAssignsItems: NavItem[] = [
   {
     nameKey: "admin.nav.role_management",
     icon: <Settings size={18} />,
-    module: "role-assigns",
-    screen: "role-assigns",
     subItems: [
       {
         nameKey: "admin.nav.user_type",
         path: `/${encAdmins}/${encUserType}`,
-        module: "role-assigns",
-        screen: "user-type",
+        ...permissionFor("role-assigns", "user-type"),
       },
       {
         nameKey: "admin.nav.staff_user_type",
         path: `/${encAdmins}/${encStaffUserType}`,
-        module: "role-assigns",
-        screen: "staff-user-type",
+        // One page with two tabs, shown as one "Staff User Type" row in the
+        // permission forms (SCREEN_GROUPS in the backend).
+        ...permissionFor("role-assigns", "staffusertypes", "contractorusertypes"),
       },
       {
         nameKey: "admin.nav.project_staff_hierarchy",
         path: `/${encAdmins}/${encProjectStaffHierarchy}`,
-        module: "role-assigns",
-        screen: "project-staff-hierarchy",
+        ...permissionFor("role-assigns", "project-staff-hierarchy"),
       },
     ],
   },
@@ -472,32 +454,26 @@ const staffManagementMasters: NavItem[] = [
   {
     nameKey: "admin.nav.staff_management",
     icon: <Users size={18} />,
-    module: "staff-creations",
-    screen: "staff-creations",
     subItems: [
       {
         nameKey: "admin.nav.department",
         path: `/${encStaffMasters}/${encDepartments}`,
-        module: "staff-creations",
-        screen: "department-masters",
+        ...permissionFor("staff-creations", "department-masters"),
       },
       {
         nameKey: "admin.nav.designation",
         path: `/${encStaffMasters}/${encDesignations}`,
-        module: "staff-creations",
-        screen: "designation-masters",
+        ...permissionFor("staff-creations", "designation-masters"),
       },
       {
         nameKey: "admin.nav.staff_creation",
         path: `/${encStaffMasters}/${encStaffCreation}`,
-        module: "staff-creations",
-        screen: "staffcreation",
+        ...permissionFor("staff-creations", "staffcreation"),
       },
       {
         nameKey: "admin.nav.staff_access_configuration",
         path: `/${encAdmins}/${encStaffAccessConfiguration}`,
-        module: "staff-creations",
-        screen: "staff-access-configuration",
+        ...permissionFor("staff-creations", "staff-access-configuration"),
       },
     ],
   },
@@ -507,26 +483,21 @@ const customerMasters: NavItem[] = [
   {
     nameKey: "admin.nav.customer_masters",
     icon: <UserCircle size={18} />,
-    module: "customers",
-    screen: "customers",
     subItems: [
       {
         nameKey: "admin.nav.customer_creation",
         path: `/${encCustomerMaster}/${encCustomerCreation}`,
-        module: "customers",
-        screen: "customercreations",
+        ...permissionFor("customers", "customercreations"),
       },
       {
         nameKey: "admin.nav.apartment_list",
         path: `/${encCustomerMaster}/${encApartmentList}`,
-        module: "customers",
-        screen: "customercreations",
+        ...permissionFor("customers", "apartment-list"),
       },
       {
         nameKey: "admin.nav.customer_access_configuration",
         path: `/${encCustomerMaster}/${encCustomerAccessConfiguration}`,
-        module: "customers",
-        screen: "customer-access-configuration",
+        ...permissionFor("customers", "customer-access-configuration"),
       },
     ],
   },
@@ -536,14 +507,11 @@ const complaintMastersItems: NavItem[] = [
   {
     nameKey: "admin.nav.complaint_masters",
     icon: <AlertTriangle size={18} />,
-    module: "complaint-masters",
-    screen: "complaint-masters",
     subItems: [
       {
         nameKey: "admin.nav.complaint_types",
         path: `/${encComplaintMastersModule}/${encComplaintTypes}`,
-        module: "complaint-masters",
-        screens: ["types", "categories", "subcategories", "sla-rules"],
+        ...permissionFor("complaint-masters", "types", "categories", "subcategories", "sla-rules"),
         matchPaths: [
           `/${encComplaintMastersModule}/${encComplaintCategories}`,
           `/${encComplaintMastersModule}/${encComplaintSubcategories}`,
@@ -558,26 +526,26 @@ const complaintTicketItems: NavItem[] = [
   {
     nameKey: "admin.nav.complaint_management",
     icon: <AlertTriangle size={18} />,
-    module: "complaint-ticket",
-    screen: "complaint-ticket",
     subItems: [
       {
         nameKey: "admin.nav.complaint_desk",
         path: `/${encComplaintTicket}/${encComplaint}`,
-        module: "complaint-ticket",
-        screen: "tickets",
+        ...permissionFor("complaint-ticket", "tickets"),
       },
       {
         nameKey: "admin.nav.my_tasks",
         path: `/${encComplaintTicket}/${encMyTasks}`,
-        module: "complaint-ticket",
-        screen: "my-tasks",
+        ...permissionFor("complaint-ticket", "my-tasks"),
       },
       {
         nameKey: "admin.nav.feedback",
         path: `/${encComplaintTicket}/${encFeedback}`,
-        module: "complaint-ticket",
-        screen: "feedback",
+        ...permissionFor("complaint-ticket", "feedback"),
+      },
+      {
+        nameKey: "admin.nav.complaints_report",
+        path: `/${encReport}/${encComplaintsReport}`,
+        ...permissionFor("reports", "complaints-report"),
       },
     ],
   },
@@ -587,26 +555,21 @@ const transportMastersItems: NavItem[] = [
   {
     nameKey: "admin.nav.transport_masters",
     icon: <Truck size={18} />,
-    module: "transport-masters",
-    screen: "transport-masters",
     subItems: [
       {
         nameKey: "admin.nav.vehicle_type",
         path: `/${encTransportMaster}/${encVehicleType}`,
-        module: "transport-masters",
-        screen: "vehicle-type",
+        ...permissionFor("transport-masters", "vehicle-type"),
       },
       {
         nameKey: "admin.nav.vehicle_creation",
         path: `/${encTransportMaster}/${encVehicleCreation}`,
-        module: "transport-masters",
-        screen: "vehicle-creation",
+        ...permissionFor("transport-masters", "vehicle-creation"),
       },
       {
         nameKey: "admin.nav.fuel",
         path: `/${encTransportMaster}/${encFuel}`,
-        module: "transport-masters",
-        screen: "fuels",
+        ...permissionFor("transport-masters", "fuels"),
       },
     ],
   },
@@ -616,32 +579,26 @@ const scheduleSetupItems: NavItem[] = [
   {
     nameKey: "admin.nav.schedule_setup",
     icon: <LayoutGrid size={18} />,
-    module: "schedule-setup",
-    screen: "schedule-setup",
     subItems: [
       {
         nameKey: "admin.nav.staff_template",
         path: `/${encScheduleSetup}/${encStaffTemplate}`,
-        module: "schedule-setup",
-        screen: "staff-templates",
+        ...permissionFor("schedule-setup", "staff-templates"),
       },
       {
         nameKey: "admin.nav.alternative_staff_template",
         path: `/${encScheduleSetup}/${encAlternativeStaffTemplate}`,
-        module: "schedule-setup",
-        screen: "alternative-staff-templates",
+        ...permissionFor("schedule-setup", "alternative-staff-templates"),
       },
       {
         nameKey: "admin.nav.collection_point",
         path: `/${encScheduleSetup}/${encCollectionPoints}`,
-        module: "schedule-setup",
-        screen: "collection-points",
+        ...permissionFor("schedule-setup", "collection-points"),
       },
       {
         nameKey: "admin.nav.trip_plans",
         path: `/${encScheduleSetup}/${encTripPlans}`,
-        module: "schedule-setup",
-        screen: "trip-plans",
+        ...permissionFor("schedule-setup", "trip-plans"),
       },
     ],
   },
@@ -652,85 +609,70 @@ const scheduleOperationsItems: NavItem[] = [
   {
     nameKey: "admin.nav.schedule_operations",
     icon: <LayoutGrid size={18} />,
-    module: "schedule-operations",
-    screen: "schedule-operations",
     subItems: [
       {
         nameKey: "admin.nav.daily_trip_plan",
         path: `/${encScheduleOperations}/${encDailyTripAssignment}`,
-        module: "schedule-operations",
-        screen: "daily-trip-assignments",
+        ...permissionFor("schedule-operations", "daily-trip-assignments"),
       },
       {
         nameKey: "admin.nav.daily_trip_tracking",
         path: `/${encScheduleOperations}/${encDailyTripTracking}`,
-        module: "schedule-operations",
-        screen: "daily-trip-collection-points",
+        ...permissionFor("schedule-operations", "daily-trip-tracking"),
       },
       {
         nameKey: "admin.nav.static_route_map",
         path: `/${encScheduleOperations}/${encStaticRouteMap}`,
-        module: "schedule-operations",
-        screen: "static-route-map",
+        ...permissionFor("schedule-operations", "static-route-map"),
       },
       {
         nameKey: "admin.nav.bin_collection_event",
         path: `/${encScheduleOperations}/${encBinCollectionEvent}`,
-        module: "schedule-operations",
-        screen: "bin-collection-events",
+        ...permissionFor("schedule-operations", "bin-collection-events"),
       },
       {
         nameKey: "admin.nav.waste_collected_data",
         path: `/${encScheduleOperations}/${encWasteCollectedData}`,
-        module: "schedule-operations",
-        screen: "wastecollections",
+        ...permissionFor("schedule-operations", "wastecollections"),
       },
       {
         nameKey: "admin.nav.daily_trip_log",
         path: `/${encScheduleOperations}/${encDailyTripLog}`,
-        module: "schedule-operations",
-        screen: "daily-trip-logs",
+        ...permissionFor("schedule-operations", "daily-trip-logs"),
       },
       {
         nameKey: "Vehicle Breakdown",
         path: `/${encScheduleOperations}/${encVehicleBreakdown}`,
-        module: "schedule-operations",
-        screen: "vehicle-breakdowns",
+        ...permissionFor("schedule-operations", "vehicle-breakdowns"),
       },
       {
         nameKey: "admin.nav.trip_retrip_request",
         path: `/${encScheduleOperations}/${encTripRetripRequest}`,
-        module: "schedule-operations",
-        screen: "retrip-requests",
+        ...permissionFor("schedule-operations", "retrip-requests"),
       },
       {
         nameKey: "Trip Delays",
         path: `/${encScheduleOperations}/${encTripDelayReport}`,
-        module: "schedule-operations",
-        screen: "trip-delay-reports",
+        ...permissionFor("schedule-operations", "trip-delay-reports"),
       },
     ],
   },
 ];
 
-const scheduleMastersItems: NavItem[] = [
+const wasteReportItems: NavItem[] = [
   {
     nameKey: "admin.nav.waste_reports",
     icon: <LayoutGrid size={18} />,
-    module: "schedule-masters",
-    screen: "schedule-masters",
     subItems: [
       {
         nameKey: "Daily Waste Comparison",
-        path: `/${encScheduleMasters}/${encDailyWasteComparison}`,
-        module: "schedule-masters",
-        screen: "daily-waste-comparisons",
+        path: `/${encReport}/${encDailyWasteComparison}`,
+        ...permissionFor("reports", "daily-waste-comparisons"),
       },
       {
         nameKey: "admin.nav.monthly_waste_comparison",
-        path: `/${encScheduleMasters}/${encMonthlyWasteComparison}`,
-        module: "schedule-masters",
-        screen: "MonthlyWasteComparison",
+        path: `/${encReport}/${encMonthlyWasteComparison}`,
+        ...permissionFor("reports", "monthly-waste-comparison"),
       },
     ],
   },
@@ -740,20 +682,26 @@ const auditItems: NavItem[] = [
   {
     nameKey: "admin.nav.audits",
     icon: <Truck size={18} />,
-    module: "audits",
-    screen: "audits",
     subItems: [
       {
         nameKey: "admin.nav.common_audit",
         path: `/${encAudits}/${encCommonAudit}`,
-        module: "audits",
-        screen: "common-audit",
+        ...permissionFor("audits", "common-audit"),
       },
       {
         nameKey: "admin.nav.login_audit",
         path: `/${encAudits}/${encLoginAudits}`,
-        module: "audits",
-        screen: "login-audit",
+        ...permissionFor("audits", "login-audit"),
+      },
+      {
+        nameKey: "admin.nav.user_access_audit",
+        path: `/${encAudits}/${encPermissionAudit}`,
+        ...permissionFor("audits", "permission-audit"),
+      },
+      {
+        nameKey: "admin.nav.static_route_audit",
+        path: `/${encAudits}/${encStaticRouteAudit}`,
+        ...permissionFor("audits", "static-route-audit"),
       },
     ],
   },
@@ -763,44 +711,49 @@ const fleetReportItems: NavItem[] = [
   {
     nameKey: "admin.nav.fleet_reports",
     icon: <BarChart3 size={18} />,
-    module: "fleet-reports",
-    screen: "FleetReports",
     subItems: [
       {
         nameKey: "admin.nav.vehicle_tracking",
         path: `/${encVehicleTracking}/${encVehicleTrack}`,
-        module: "vehicle-tracking",
-        screen: "VehicleTrack",
+        ...permissionFor("fleet-reports", "vehicle-track"),
       },
       {
         nameKey: "admin.nav.vehicle_history",
         path: `/${encVehicleTracking}/${encVehicleHistory}`,
-        module: "vehicle-tracking",
-        screen: "VehicleHistory",
+        ...permissionFor("fleet-reports", "vehicle-history"),
       },
       {
         nameKey: "admin.nav.trip_summary",
         path: `/${encReport}/${encTripSummary}`,
-        module: "reports",
-        screen: "TripSummary",
+        ...permissionFor("fleet-reports", "trip-summary"),
       },
       {
         nameKey: "admin.nav.monthly_distance",
         path: `/${encReport}/${encMonthlyDistance}`,
-        module: "reports",
-        screen: "MonthlyDistance",
+        ...permissionFor("fleet-reports", "monthly-distance"),
       },
       {
         nameKey: "admin.nav.waste_collected_summary",
         path: `/${encReport}/${encWasteCollectedSummary}`,
-        module: "reports",
-        screen: "WasteCollectedSummary",
+        ...permissionFor("fleet-reports", "waste-collected-summary"),
+      },
+    ],
+  },
+  // One permission row covers the menu and both reports (SCREEN_GROUPS
+  // "weighbridge-management" in the backend's screen_dependencies.py).
+  {
+    nameKey: "admin.nav.workforce_management",
+    icon: <Scale size={18} />,
+    subItems: [
+      {
+        nameKey: "admin.nav.day_report",
+        path: `/${encWorkforceManagement}/${encDayReport}`,
+        ...permissionFor("fleet-reports", "day-report"),
       },
       {
-        nameKey: "admin.nav.workforce_management",
-        path: `/${encWorkforceManagement}/${encWorkforceManagement}`,
-        module: "workforce",
-        screen: "WorkforceManagement",
+        nameKey: "admin.nav.date_report",
+        path: `/${encWorkforceManagement}/${encDateReport}`,
+        ...permissionFor("fleet-reports", "date-report"),
       },
     ],
   },
@@ -850,15 +803,9 @@ const AppSidebar: React.FC = () => {
   );
 
   const checkSubItemPermission = useCallback(
-    (sub: NonNullable<NavItem["subItems"]>[number]): boolean => {
-      if (!sub.module) return true;
-      const screens = sub.screens?.length
-        ? sub.screens
-        : sub.screen
-          ? [sub.screen]
-          : [];
-      if (screens.length === 0) return true;
-      return screens.some((screen) => checkPermission(sub.module, screen));
+    (entry: NavPermission): boolean => {
+      if (!entry.module || !entry.screens?.length) return true;
+      return entry.screens.some((screen) => checkPermission(entry.module, screen));
     },
     [checkPermission],
   );
@@ -883,8 +830,7 @@ const AppSidebar: React.FC = () => {
   ): boolean => {
     // If no subItems, check direct permission or show if no permission needed
     if (!item.subItems || item.subItems.length === 0) {
-      if (!item.module || !item.screen) return true;
-      return checkPermission(item.module, item.screen);
+      return checkSubItemPermission(item);
     }
 
     // If has subItems, show only if filtered children exist
@@ -910,7 +856,7 @@ const AppSidebar: React.FC = () => {
       { key: "transportMasters" as const, items: transportMastersItems },
       { key: "scheduleSetup" as const, items: scheduleSetupItems },
       { key: "scheduleOperations" as const, items: scheduleOperationsItems },
-      { key: "scheduleMasters" as const, items: scheduleMastersItems },
+      { key: "wasteReports" as const, items: wasteReportItems },
       { key: "auditItems" as const, items: auditItems },
       { key: "fleetReports" as const, items: fleetReportItems },
     ];

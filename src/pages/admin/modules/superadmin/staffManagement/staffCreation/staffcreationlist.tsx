@@ -15,7 +15,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { useTranslation } from "react-i18next";
 
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 import { Switch } from "@/components/ui/switch";
@@ -383,15 +383,41 @@ export default function StaffCreationList() {
     );
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await adminApi.staffCreation.delete(id);
+      setStaffs((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: String(error ?? t("common.request_failed")),
+      });
+    }
+  };
+
   const actionTemplate = (row: Staff) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onDelete={() => void handleDelete(String(row.unique_id))}
+      />
     </div>
   );
 
@@ -399,7 +425,7 @@ export default function StaffCreationList() {
     rowIndex + 1;
 
   const header = (
-    <div className="space-y-4">
+    <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-gray-800">
@@ -423,6 +449,7 @@ export default function StaffCreationList() {
       </div>
 
       {/* Filters Row */}
+      <div className="rounded-lg border border-gray-100 bg-gray-50/80 p-3">
       <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {showCol("salary_type") && (
           <div className="flex flex-col gap-1">
@@ -495,9 +522,10 @@ export default function StaffCreationList() {
           </button>
         </div>
       </div>
+      </div>
 
       {/* Search + Status */}
-      <div className="flex justify-end">
+      <div className="flex justify-end border-t border-gray-100 pt-3">
         <FilterBar
           searchValue={globalFilterValue}
           onSearchChange={(value) =>
@@ -534,7 +562,7 @@ export default function StaffCreationList() {
 
   return (
     <>
-      <div className="p-3">
+      <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
         <DataTable
           loadExportRows={loadAllExportRows}
           value={staffs}

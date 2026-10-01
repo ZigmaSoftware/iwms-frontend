@@ -11,7 +11,7 @@ import type {
   SortOrder,
 } from "primereact/datatable";
 import { Switch } from "@/components/ui/switch";
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { designationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { FilterBar } from "@/components/common/FilterBar";
@@ -150,6 +150,31 @@ export default function DesignationListPage() {
     );
   };
 
+  const handleDelete = async (id: string | number) => {
+    const confirmDelete = await Swal.fire({
+      title: "Are you sure?",
+      text: "This record will be permanently deleted!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await designationApi.delete(id);
+      setRecords((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: "Deleted successfully!",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch {
+      Swal.fire("Error", "Failed to delete designation", "error");
+    }
+  };
+
   // Feeds the table's single "Download Excel" button: the "All data" option
   // fetches every row matching the current filters, while "Current page"
   // uses the rows already on screen.
@@ -172,13 +197,19 @@ export default function DesignationListPage() {
   };
 
   return (
-    <div className="p-3">
-      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+    <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
+      <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50">
+              <i className="pi pi-id-card" />
+            </span>
+            Staff management
+          </div>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">
             Designation Master
           </h1>
-          <p className="text-sm text-gray-500">Manage designation records</p>
+          <p className="text-sm text-gray-500">Define roles and connect them to the right department.</p>
         </div>
         <Button
           label="Add Designation"
@@ -188,16 +219,15 @@ export default function DesignationListPage() {
         />
       </div>
 
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
-        header={
-          <FilterBar
-            searchValue={globalFilterValue}
-            onSearchChange={onGlobalFilterChange}
-            searchPlaceholder="Search designations"
-            statusValue={statusValue}
-            onStatusChange={onStatusFilterChange}
-          />
-        }
+        header={<div className="border-b border-gray-100 bg-gray-50/70 p-3"><FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={onGlobalFilterChange}
+          searchPlaceholder="Search designations"
+          statusValue={statusValue}
+          onStatusChange={onStatusFilterChange}
+        /></div>}
         loadExportRows={loadAllExportRows}
         value={records}
         dataKey="unique_id"
@@ -211,6 +241,9 @@ export default function DesignationListPage() {
         sortOrder={sortOrder}
         onSort={onSort}
         loading={isLoading}
+        stripedRows
+        showGridlines
+        className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, opts) => opts.rowIndex + 1} />
         <Column
@@ -232,15 +265,16 @@ export default function DesignationListPage() {
         <Column
           header="Action"
           body={(row) => (
-            <button
-              className="text-blue-600"
-              onClick={() => navigate(editPath(row.unique_id))}
-            >
-              <PencilIcon className="size-5" />
-            </button>
+            <div className="flex justify-center">
+              <ActionMenu
+                onEdit={() => navigate(editPath(row.unique_id))}
+                onDelete={() => void handleDelete(row.unique_id)}
+              />
+            </div>
           )}
         />
       </DataTable>
+      </div>
     </div>
   );
 }

@@ -77,6 +77,7 @@ export type EncryptedRoutes = {
   encWasteCollectedData: string;
   encWasteCollectedSummary: string;
   encMonthlyWasteComparison: string;
+  encComplaintsReport: string;
   encWasteManagementMaster: string;
   encWards: string;
   encCollectionPoints: string;
@@ -122,6 +123,8 @@ export type EncryptedRoutes = {
   encCompanyCreation: string;
   encCommonAudit: string;
   encLoginAudits: string;
+  encPermissionAudit: string;
+  encStaticRouteAudit: string;
   encProjectCreation: string;
   encSuperAdminMaster: string;
 
@@ -169,6 +172,8 @@ const plainRoutes: EncryptedRoutes = {
   encCompanyCreation: "company-creation",
   encCommonAudit: "common-audit",
   encLoginAudits: "login-audits",
+  encPermissionAudit: "permission-audit",
+  encStaticRouteAudit: "static-route-audit",
   encProjectCreation: "project-creation",
   encDistricts: "districts",
   encFeedback: "feedback",
@@ -202,6 +207,7 @@ const plainRoutes: EncryptedRoutes = {
   encWasteCollectedData: "waste-collected-data",
   encWasteCollectedSummary: "waste-collected-summary",
   encMonthlyWasteComparison: "monthly-waste-comparison",
+  encComplaintsReport: "complaints-report",
   encWasteManagementMaster: "waste-management",
   encWards: "wards",
   encCollectionPoints: "collection-points",
