@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { dailyTripCollectionPointApi } from "@/helpers/admin";
-import type { DetourWaypoint, RouteGeometry, RouteStop, StaticRoute } from "./types";
+import { dailyTripCollectionPointApi, tripPlanApi } from "@/helpers/admin";
+import type {
+  DetourWaypoint,
+  RouteGeometry,
+  RouteSource,
+  RouteStop,
+  RouteStorage,
+  StaticRoute,
+} from "./types";
 
 interface DetourWaypointApiResponse {
   id: string;
@@ -12,10 +19,32 @@ interface DetourWaypointApiResponse {
 
 interface StaticRouteApiResponse {
   trip_assignment_id: string;
+  trip_plan_id?: string | null;
   trip_date?: string | null;
+  vehicle_no?: string | null;
+  route_source: Exclude<RouteSource, "draft">;
+  plan_route_version?: number | null;
+  stops: RouteStop[];
+  detour_waypoints?: DetourWaypointApiResponse[];
+  route_geojson?: RouteGeometry | null;
+  distance_meters?: number;
+  duration_seconds?: number;
+}
+
+interface TripPlanStaticRouteApiResponse {
+  trip_plan_id: string;
+  display_code?: string | null;
   vehicle_no?: string | null;
   stops: RouteStop[];
   detour_waypoints?: DetourWaypointApiResponse[];
+  saved: {
+    version: number;
+    saved_at: string;
+    distance_meters: number;
+    duration_seconds: number;
+  } | null;
+  has_unsaved_changes: boolean;
+  route_geojson?: RouteGeometry | null;
 }
 
 interface StaticRoutesApiResponse {
@@ -42,6 +71,7 @@ function toDetourWaypoints(raw?: DetourWaypointApiResponse[]): DetourWaypoint[] 
     longitude: waypoint.longitude,
   }));
 }
+
 
 // ORS Directions draws a road path through however many coordinates it's
 // given, in order — it has no concept of "real stop" vs "manual waypoint."
@@ -70,7 +100,54 @@ function buildRoutingCoordinates(
   return coordinates;
 }
 
-async function withRoadGeometry(response: StaticRouteApiResponse): Promise<{
+interface RawRoute {
+  id: string;
+  name: string;
+  tripPlanId?: string | null;
+  stops: RouteStop[];
+  detour_waypoints?: DetourWaypointApiResponse[];
+  // The road path stored in the DB, when it still matches the stops and
+  // detours — then there's no need to ask the routing engine again.
+  storedGeometry?: RouteGeometry | null;
+  distanceMeters?: number;
+  durationSeconds?: number;
+  storage: RouteStorage;
+}
+
+function fromAssignment(response: StaticRouteApiResponse): RawRoute {
+  return {
+    id: response.trip_assignment_id,
+    name: [response.trip_assignment_id, response.vehicle_no].filter(Boolean).join(" · "),
+    tripPlanId: response.trip_plan_id,
+    stops: response.stops,
+    detour_waypoints: response.detour_waypoints,
+    storedGeometry: response.route_geojson,
+    distanceMeters: response.distance_meters,
+    durationSeconds: response.duration_seconds,
+    storage: { source: response.route_source, version: response.plan_route_version ?? null },
+  };
+}
+
+function fromTripPlan(response: TripPlanStaticRouteApiResponse): RawRoute {
+  return {
+    id: response.trip_plan_id,
+    name: [response.display_code || response.trip_plan_id, response.vehicle_no].filter(Boolean).join(" · "),
+    tripPlanId: response.trip_plan_id,
+    stops: response.stops,
+    detour_waypoints: response.detour_waypoints,
+    storedGeometry: response.route_geojson,
+    distanceMeters: response.route_geojson ? response.saved?.distance_meters : undefined,
+    durationSeconds: response.route_geojson ? response.saved?.duration_seconds : undefined,
+    storage: {
+      source: "draft",
+      version: response.saved?.version ?? null,
+      savedAt: response.saved?.saved_at ?? null,
+      hasUnsavedChanges: response.has_unsaved_changes,
+    },
+  };
+}
+
+async function withRoadGeometry(response: RawRoute): Promise<{
   route: StaticRoute;
   detourWaypoints: DetourWaypoint[];
 }> {
@@ -81,13 +158,19 @@ async function withRoadGeometry(response: StaticRouteApiResponse): Promise<{
     routingCoordinates.map((point) => [point.longitude, point.latitude]),
   );
 
-  let geometry: RouteGeometry = fallback;
-  if (routingCoordinates.length >= 2) {
+  let geometry: RouteGeometry = response.storedGeometry ?? fallback;
+  let distanceMeters = response.distanceMeters;
+  let durationSeconds = response.durationSeconds;
+  if (!response.storedGeometry && routingCoordinates.length >= 2) {
     try {
       const geo = await dailyTripCollectionPointApi.action<RouteStaticGeometryResponse>("route-static", {
         stops: routingCoordinates,
       });
-      if (geo?.route_geojson) geometry = geo.route_geojson;
+      if (geo?.route_geojson) {
+        geometry = geo.route_geojson;
+        distanceMeters = geo.distance_meters;
+        durationSeconds = geo.duration_seconds;
+      }
     } catch {
       // Keep the straight-line fallback when the routing engine is unavailable.
     }
@@ -95,10 +178,14 @@ async function withRoadGeometry(response: StaticRouteApiResponse): Promise<{
 
   return {
     route: {
-      id: response.trip_assignment_id,
-      name: [response.trip_assignment_id, response.vehicle_no].filter(Boolean).join(" · "),
+      id: response.id,
+      name: response.name,
+      tripPlanId: response.tripPlanId,
       stops: orderedStops,
       geometry,
+      distanceMeters,
+      durationSeconds,
+      storage: response.storage,
     },
     detourWaypoints,
   };
@@ -109,13 +196,21 @@ export interface StaticRouteFilters {
   projectId?: string;
   date?: string;
   tripAssignmentId?: string;
+  // Set to show a trip plan's own static route instead of daily trips.
+  tripPlanId?: string;
+  // Fetch nothing (e.g. trip plan mode before a plan is picked).
+  skip?: boolean;
 }
 
-// Fetches real trip routes (fixed stop order + project plant already
-// appended server-side) and their road-following geometry. Passing
-// tripAssignmentId returns that one trip (with its saved manual detour
-// waypoints spliced into the routed geometry); omitting it returns every
-// trip matching the other filters ("all routes" mode, no detour editing).
+// Fetches static routes (fixed stop order + project plant already
+// appended server-side) and their road-following geometry, with saved
+// detour waypoints spliced in. A road path stored in the DB is used as-is;
+// otherwise it's routed live.
+// - tripPlanId: that trip plan's static route and its detours.
+// - tripAssignmentId: one daily trip — its plan's route and detours,
+//   read-only.
+// - neither: every daily trip matching the other filters ("all routes"
+//   mode, no detour editing).
 export function useStaticRoutes(filters: StaticRouteFilters) {
   const [routes, setRoutes] = useState<StaticRoute[]>([]);
   const [detourWaypoints, setDetourWaypoints] = useState<DetourWaypoint[]>([]);
@@ -127,6 +222,18 @@ export function useStaticRoutes(filters: StaticRouteFilters) {
   useEffect(() => {
     let active = true;
 
+    if (filters.skip) {
+      Promise.resolve().then(() => {
+        if (!active) return;
+        setRoutes([]);
+        setDetourWaypoints([]);
+        setLoading(false);
+      });
+      return () => {
+        active = false;
+      };
+    }
+
     const params = {
       company_id: filters.companyId || undefined,
       project_id: filters.projectId || undefined,
@@ -134,13 +241,17 @@ export function useStaticRoutes(filters: StaticRouteFilters) {
       trip_assignment_id: filters.tripAssignmentId || undefined,
     };
 
-    const fetchRoutes = filters.tripAssignmentId
-      ? dailyTripCollectionPointApi
-          .action<StaticRouteApiResponse>("static-route", undefined, { params })
-          .then((route) => [route])
-      : dailyTripCollectionPointApi
-          .action<StaticRoutesApiResponse>("static-routes", undefined, { params })
-          .then((result) => result.routes);
+    const fetchRoutes: Promise<RawRoute[]> = filters.tripPlanId
+      ? tripPlanApi
+          .action<TripPlanStaticRouteApiResponse>(`${filters.tripPlanId}/static-route`)
+          .then((route) => [fromTripPlan(route)])
+      : filters.tripAssignmentId
+        ? dailyTripCollectionPointApi
+            .action<StaticRouteApiResponse>("static-route", undefined, { params })
+            .then((route) => [fromAssignment(route)])
+        : dailyTripCollectionPointApi
+            .action<StaticRoutesApiResponse>("static-routes", undefined, { params })
+            .then((result) => result.routes.map(fromAssignment));
 
     Promise.resolve()
       .then(() => {
@@ -165,7 +276,15 @@ export function useStaticRoutes(filters: StaticRouteFilters) {
     return () => {
       active = false;
     };
-  }, [filters.companyId, filters.projectId, filters.date, filters.tripAssignmentId, refreshKey]);
+  }, [
+    filters.companyId,
+    filters.projectId,
+    filters.date,
+    filters.tripAssignmentId,
+    filters.tripPlanId,
+    filters.skip,
+    refreshKey,
+  ]);
 
   return { routes, detourWaypoints, loading, refresh };
 }

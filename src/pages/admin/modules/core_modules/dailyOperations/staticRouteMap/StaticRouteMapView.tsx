@@ -7,12 +7,14 @@ import type { DetourWaypoint, RouteStop, StaticRoute } from "./types";
 const STOP_COLOR: Record<RouteStop["type"], string> = {
   start: "#16a34a",
   collection_point: "#2563eb",
+  household: "#2563eb",
   plant: "#dc2626",
 };
 
 const STOP_ICON: Record<RouteStop["type"], string> = {
   start: "🚛",
   collection_point: "",
+  household: "",
   plant: "🗑️",
 };
 
@@ -37,7 +39,8 @@ function binCountFor(stop: RouteStop): number {
 }
 
 function stopMarkerHtml(stop: RouteStop, lineColor: string) {
-  const color = stop.type === "collection_point" ? lineColor : STOP_COLOR[stop.type];
+  const color =
+    stop.type === "collection_point" || stop.type === "household" ? lineColor : STOP_COLOR[stop.type];
   const icon = STOP_ICON[stop.type];
   const content = icon || String(stop.order);
   const binCount = binCountFor(stop);
@@ -166,6 +169,7 @@ export default function StaticRouteMapView({
     });
 
     (waypoints ?? []).forEach((waypoint) => {
+      const canEdit = Boolean(editable);
       const latLng = L.latLng(waypoint.latitude, waypoint.longitude);
       latLngs.push(latLng);
       const marker = L.marker(latLng, {
@@ -175,21 +179,21 @@ export default function StaticRouteMapView({
           iconSize: [16, 16],
           iconAnchor: [8, 8],
         }),
-        draggable: Boolean(editable && onWaypointDrag),
+        draggable: Boolean(canEdit && onWaypointDrag),
       }).addTo(map);
 
       marker.bindPopup(`
         <div style="font-size:12px;min-width:140px">
           <div style="font-weight:700;margin-bottom:4px">Detour point</div>
           ${
-            editable && onWaypointRemove
+            canEdit && onWaypointRemove
               ? `<button type="button" data-waypoint-remove="${waypoint.id}" style="color:#dc2626;font-weight:600;cursor:pointer;background:none;border:none;padding:0">Remove</button>`
               : ""
           }
         </div>
       `);
 
-      if (editable && onWaypointRemove) {
+      if (canEdit && onWaypointRemove) {
         marker.on("popupopen", (event: L.PopupEvent) => {
           const button = event.popup
             .getElement()
@@ -198,7 +202,7 @@ export default function StaticRouteMapView({
         });
       }
 
-      if (editable && onWaypointDrag) {
+      if (canEdit && onWaypointDrag) {
         marker.on("dragend", () => {
           const position = marker.getLatLng();
           onWaypointDrag(waypoint.id, position.lat, position.lng);

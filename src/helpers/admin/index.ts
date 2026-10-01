@@ -132,6 +132,7 @@ export const dailyTripAssignmentApi = adminApi.dailyTripAssignment;
 export const dailyTripLogApi = adminApi.dailyTripLog;
 export const dailyTripCollectionPointApi = adminApi.dailyTripCollectionPoint;
 export const routeDetourWaypointApi = adminApi.routeDetourWaypoints;
+export const tripPlanStaticRouteApi = adminApi.tripPlanStaticRoutes;
 export const dailyTripHouseholdCollectionApi =
   adminApi.dailyTripHouseholdCollection;
 export const binCollectionEventApi = adminApi.binCollectionEvent;

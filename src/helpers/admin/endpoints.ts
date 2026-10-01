@@ -66,6 +66,7 @@ export const adminEndpoints = {
   dailyTripLog: "schedule-operations/daily-trip-logs",
   dailyTripCollectionPoint: "schedule-operations/daily-trip-collection-points",
   routeDetourWaypoints: "schedule-operations/route-detour-waypoints",
+  tripPlanStaticRoutes: "schedule-operations/trip-plan-static-routes",
   dailyTripHouseholdCollection:
     "schedule-operations/daily-trip-household-collections",
   binCollectionEvent: "schedule-operations/bin-collection-events",
