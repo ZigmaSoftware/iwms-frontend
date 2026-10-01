@@ -83,6 +83,7 @@ export type ProjectPermissionSummaryRow = {
 export type MainScreen = {
   unique_id?: unknown;
   mainscreen_name?: unknown;
+  mainscreen_label?: unknown;
   [key: string]: unknown;
 };
 
@@ -117,6 +118,8 @@ export type PermissionResponse = {
 export type ScreenMatrixRow = {
   userscreen_id: string;
   userscreen_name: string;
+  /** What the sidebar calls this screen; falls back to userscreen_name. */
+  screen_label?: string | null;
   actions: string[];
   columnIds: string[];
   /** Screens sharing a group are shown under one heading (e.g. "Daily Trip Plan"). */
@@ -131,6 +134,7 @@ export type ApiUserScreen = {
   order_no?: number;
   is_active?: boolean;
   is_deleted?: boolean;
+  screen_label?: string | null;
   screen_group?: string | null;
   screen_group_label?: string | null;
   [key: string]: unknown;
