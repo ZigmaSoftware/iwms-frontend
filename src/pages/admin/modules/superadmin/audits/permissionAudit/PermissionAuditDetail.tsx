@@ -323,13 +323,14 @@ export default function PermissionAuditDetail({
 
   return (
     <Dialog open={Boolean(record)} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
-        <DialogHeader>
+
+      <DialogContent className="z-70 flex max-h-[80vh] max-w-4xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-b border-gray-200 px-6 py-4 pr-12">
           <DialogTitle>{t("admin.permission_audit.detail_title")}</DialogTitle>
         </DialogHeader>
 
         {record && (
-          <div className="space-y-4 text-sm">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4 text-sm">
             <div className="grid grid-cols-2 gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 sm:grid-cols-4">
               <Field label={t("admin.permission_audit.source")}>
                 {record.source_label ?? "-"}
