@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import StaticRouteMapView from "./StaticRouteMapView";
 import { useStaticRoutes } from "./useStaticRoutes";
 import { useRouteDetourEditor } from "./useRouteDetourEditor";
@@ -139,9 +139,18 @@ export default function StaticRouteMap() {
   const [hiddenWaypointIds, setHiddenWaypointIds] = useState<Set<string>>(new Set());
 
   const isAllRoutesMode = !isPlanMode && !assignmentId;
-  const displayedRoutes = isAllRoutesMode && selectedRoute ? [selectedRoute] : routes;
-  const activeRoute = !isAllRoutesMode ? routes[0] : undefined;
-  const visibleWaypoints = detourWaypoints.filter((w) => !hiddenWaypointIds.has(w.id));
+  const displayedRoutes = useMemo(
+    () => (isAllRoutesMode && selectedRoute ? [selectedRoute] : routes),
+    [isAllRoutesMode, selectedRoute, routes],
+  );
+  const activeRoute = useMemo(
+    () => (!isAllRoutesMode ? routes[0] : undefined),
+    [isAllRoutesMode, routes],
+  );
+  const visibleWaypoints = useMemo(
+    () => detourWaypoints.filter((w) => !hiddenWaypointIds.has(w.id)),
+    [detourWaypoints, hiddenWaypointIds],
+  );
 
   useEffect(() => {
     if (isAllRoutesMode) detourEditor.exitEditMode();
@@ -228,20 +237,27 @@ export default function StaticRouteMap() {
   const legLabelFor = (afterStopId: string) =>
     activeRoute?.stops.find((stop) => stop.id === afterStopId)?.label ?? "route";
 
-  const handleMapClick = (latitude: number, longitude: number) => {
-    if (!activeRoute) return;
-    const legStart = nearestLegStartStop(activeRoute.stops, latitude, longitude);
-    if (!legStart) return;
-    const nextSequence =
-      detourWaypoints.filter((w) => w.afterStopId === legStart.id).length + 1;
-    void detourEditor.addWaypoint(legStart.id, latitude, longitude, nextSequence);
-  };
+  const { addWaypoint, moveWaypoint } = detourEditor;
+  const handleMapClick = useCallback(
+    (latitude: number, longitude: number) => {
+      if (!activeRoute) return;
+      const legStart = nearestLegStartStop(activeRoute.stops, latitude, longitude);
+      if (!legStart) return;
+      const nextSequence =
+        detourWaypoints.filter((w) => w.afterStopId === legStart.id).length + 1;
+      void addWaypoint(legStart.id, latitude, longitude, nextSequence);
+    },
+    [activeRoute, detourWaypoints, addWaypoint],
+  );
 
-  const handleWaypointDrag = (waypointId: string, latitude: number, longitude: number) => {
-    const waypoint = detourWaypoints.find((w) => w.id === waypointId);
-    if (!waypoint) return;
-    void detourEditor.moveWaypoint(waypointId, waypoint.afterStopId, waypoint.sequence, latitude, longitude);
-  };
+  const handleWaypointDrag = useCallback(
+    (waypointId: string, latitude: number, longitude: number) => {
+      const waypoint = detourWaypoints.find((w) => w.id === waypointId);
+      if (!waypoint) return;
+      void moveWaypoint(waypointId, waypoint.afterStopId, waypoint.sequence, latitude, longitude);
+    },
+    [detourWaypoints, moveWaypoint],
+  );
 
   const animation = useRouteAnimation(activeRoute?.geometry);
 
