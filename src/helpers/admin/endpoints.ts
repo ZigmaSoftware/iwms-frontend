@@ -179,6 +179,7 @@ export const adminEndpoints = {
   loginAudits: "audits/login-audit",
   commonAudits: "audits/common-audit",
   permissionAudits: "audits/permission-audit",
+  staticRouteAudits: "audits/static-route-audit",
 } as const;
 
 export type AdminEntity = keyof typeof adminEndpoints;

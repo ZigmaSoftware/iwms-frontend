@@ -474,6 +474,7 @@ export default {
     common_audit: "Common Audit",
     login_audit: "Login Audit",
     user_access_audit: "User Access Audit",
+    static_route_audit: "Static Route Audit",
     vehicle_trip_audit: "Vehicle Trip Audit",
     trip_exception_log: "Trip Exception Log",
     bin_load_log: "Bin Load Log",

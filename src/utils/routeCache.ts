@@ -124,6 +124,7 @@ export type EncryptedRoutes = {
   encCommonAudit: string;
   encLoginAudits: string;
   encPermissionAudit: string;
+  encStaticRouteAudit: string;
   encProjectCreation: string;
   encSuperAdminMaster: string;
 
@@ -172,6 +173,7 @@ const plainRoutes: EncryptedRoutes = {
   encCommonAudit: "common-audit",
   encLoginAudits: "login-audits",
   encPermissionAudit: "permission-audit",
+  encStaticRouteAudit: "static-route-audit",
   encProjectCreation: "project-creation",
   encDistricts: "districts",
   encFeedback: "feedback",

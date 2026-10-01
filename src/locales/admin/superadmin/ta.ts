@@ -449,6 +449,7 @@ export default {
     common_audit: "Common Audit",
     login_audit: "உள்நுழைவு ஆய்வு",
     user_access_audit: "பயனர் அணுகல் ஆய்வு",
+    static_route_audit: "நிலையான வழி ஆய்வு",
     vehicle_trip_audit: "வாகன பயண ஆய்வு",
     trip_exception_log: "பயண விதிவிலக்கு பதிவு",
     zone_property_load_tracker: "மண்டல சொத்து சுமை கண்காணிப்பு",
