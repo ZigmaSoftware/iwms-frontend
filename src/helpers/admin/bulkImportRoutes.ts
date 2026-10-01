@@ -43,7 +43,6 @@ const routeEntityBySlug: Record<string, AdminEntity> = {
   priorities: "complaintPriorities",
   statuses: "complaintStatuses",
   sources: "complaintSources",
-  "department-members": "complaintDepartmentMembers",
   "main-complaint-category": "complaintCategories",
   "sub-complaint-category": "complaintSubcategories",
   "vehicle-type": "vehicleTypes",

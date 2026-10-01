@@ -204,6 +204,7 @@ export default function PermissionSection({
           ).trim(),
           actions: uniqueIds(existing?.actions ?? []),
           columnIds: uniqueIds(existing?.columnIds ?? []),
+          screen_label: screen.screen_label ?? null,
           screen_group: screen.screen_group ?? null,
           screen_group_label: screen.screen_group_label ?? null,
         });
@@ -458,7 +459,7 @@ export default function PermissionSection({
           <td className="px-4 py-3 text-sm">{rowNumber}</td>
           <td className={`py-3 pr-4 text-sm font-medium ${nested ? "pl-10" : "pl-4"}`}>
             {nested && <span className="mr-1.5 text-gray-400">↳</span>}
-            {row.userscreen_name}
+            {row.screen_label || row.userscreen_name}
           </td>
           <td className="px-4 py-3 text-center">
             <input
