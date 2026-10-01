@@ -132,6 +132,7 @@ export const dailyTripAssignmentApi = adminApi.dailyTripAssignment;
 export const dailyTripLogApi = adminApi.dailyTripLog;
 export const dailyTripCollectionPointApi = adminApi.dailyTripCollectionPoint;
 export const routeDetourWaypointApi = adminApi.routeDetourWaypoints;
+export const tripPlanStaticRouteApi = adminApi.tripPlanStaticRoutes;
 export const dailyTripHouseholdCollectionApi =
   adminApi.dailyTripHouseholdCollection;
 export const binCollectionEventApi = adminApi.binCollectionEvent;
@@ -144,6 +145,8 @@ export const tripDelayReportApi = adminApi.tripDelayReports;
    AUDITS
 ========================= */
 export const commonAuditApi = adminApi.commonAudits;
+export const permissionAuditApi = adminApi.permissionAudits;
+export const staticRouteAuditApi = adminApi.staticRouteAudits;
 export const monthlyWasteComparisonApi = adminApi.monthlyWasteComparison;
 
 /* =========================
