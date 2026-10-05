@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
+import type { AxiosRequestConfig } from "axios";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -78,19 +80,15 @@ export default function CategoryManagementScreen() {
     navigate(`${subcategoryRoutes.newPath}?category=${selectedCategoryId}`);
   };
 
-  const deleteRecord = async (api: { delete: (id: string) => Promise<void> }, id: string) => {
-    const confirmDelete = await Swal.fire({
+  const deleteRecord = async (api: { delete: (id: string, config?: AxiosRequestConfig) => Promise<void> }, id: string) => {
+    const reason = await confirmDeleteWithReason({
       title: "Are you sure?",
       text: "This record will be permanently deleted!",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
     });
-    if (!confirmDelete.isConfirmed) return false;
+    if (reason === null) return false;
 
     try {
-      await api.delete(id);
+      await api.delete(id, withDeleteReason(reason));
       Swal.fire({
         icon: "success",
         title: "Deleted successfully!",

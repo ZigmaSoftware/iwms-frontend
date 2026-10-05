@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -130,18 +131,14 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
   const edit = (row: any) => navigate(editPath(row.unique_id));
 
   const handleDelete = async (row: any) => {
-    const confirmDelete = await Swal.fire({
+    const reason = await confirmDeleteWithReason({
       title: "Are you sure?",
       text: "This record will be permanently deleted!",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
     });
-    if (!confirmDelete.isConfirmed) return;
+    if (reason === null) return;
 
     try {
-      await api.delete(row.unique_id);
+      await api.delete(row.unique_id, withDeleteReason(reason));
       setRows((current) => current.filter((item) => item.unique_id !== row.unique_id));
       Swal.fire({
         icon: "success",

@@ -13,6 +13,7 @@ import type {
 } from "primereact/datatable";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { Switch } from "@/components/ui/switch";
 import { panchayatApi } from "@/helpers/admin";
@@ -216,18 +217,11 @@ export default function PanchayatListPage() {
     value === null || value === undefined || value === "" ? "-" : String(value);
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await panchayatApi.delete(id);
+      await panchayatApi.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((item) => item.unique_id !== id));
       Swal.fire({
         icon: "success",

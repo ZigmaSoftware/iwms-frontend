@@ -24,7 +24,7 @@ export type ComplaintTicket = {
   module_name?: string | null;
   customer?: ApiId | null;
   customer_name?: string | null;
-  reporter_type?: "Customer" | "Public Grievance" | null;
+  reporter_type?: "Customer" | "Internal" | null;
   reporter_name?: string | null;
   raised_by_name?: string | null;
   wa_phone?: string | null;
@@ -102,7 +102,6 @@ export type IncidentType =
   | "driver"
   | "operator"
   | "vehicle"
-  | "public"
   | "other"
   | string;
 
@@ -273,11 +272,6 @@ export type ComplaintAttachment = {
   created?: string;
 };
 
-export type PublicGrievanceWasteType = {
-  unique_id: string;
-  waste_type_name: string;
-};
-
 /* Flat geo masters (State / District / local body) used instead of the
    old hierarchy-node tree. */
 export type LocalBodyType = "panchayat" | "zone" | "ward";
@@ -298,52 +292,6 @@ export type LocalBodyOption = {
   zone_id?: string | null;
 };
 
-export type PublicGrievanceLocationOption = {
-  unique_id: string;
-  name: string;
-  state_id?: string | null;
-  type?: LocalBodyType;
-};
-
-export type PublicGrievanceCategory = {
-  unique_id: string;
-  category_name: string;
-};
-
-export type PublicGrievanceSubcategory = {
-  unique_id: string;
-  category: string;
-  subcategory_name: string;
-};
-
-export type PublicGrievanceMeta = {
-  waste_types: PublicGrievanceWasteType[];
-  categories: PublicGrievanceCategory[];
-  subcategories: PublicGrievanceSubcategory[];
-};
-
-export type PublicGrievanceResponse = {
-  message: string;
-  ticket_no: string;
-  unique_id: string;
-};
-
-export type PublicGrievanceStatusResult = {
-  ticket_no: string;
-  status: string | null;
-  status_code?: string | null;
-  category?: string | null;
-  subcategory?: string | null;
-  description?: string | null;
-  location_text?: string | null;
-  created?: string;
-  timeline?: {
-    status: string | null;
-    status_code?: string | null;
-    at?: string;
-    remarks?: string | null;
-  }[];
-};
 
 export type ComplaintTimelineItem = {
   status_code?: string | null;
@@ -381,7 +329,7 @@ export interface Grievance {
   customer_id?: string;
   customer_name?: string;
   profile_name?: string;
-  reporter_type?: "Customer" | "Public Grievance";
+  reporter_type?: "Customer" | "Internal";
   reporter_name?: string;
   raised_by_name?: string;
   email?: string;
