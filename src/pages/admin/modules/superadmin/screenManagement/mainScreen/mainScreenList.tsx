@@ -2,6 +2,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -124,18 +125,11 @@ export default function MainScreenList() {
       ACTION BUTTONS
   ------------------------------ */
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await mainScreenApi.delete(id);
+      await mainScreenApi.delete(id, withDeleteReason(reason));
       setRecords((current) => current.filter((item) => item.unique_id !== id));
       Swal.fire({
         icon: "success",

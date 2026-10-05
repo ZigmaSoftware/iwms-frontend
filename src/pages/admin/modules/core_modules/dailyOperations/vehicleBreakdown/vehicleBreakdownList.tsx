@@ -7,6 +7,7 @@ import { BREAKDOWN_REASON_LABELS } from "./types";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -745,18 +746,14 @@ export default function VehicleBreakdownList() {
 
   /* ── Delete ─────────────────────────────────────────────────────── */
   const handleDelete = async (row: VehicleBreakdownRecord) => {
-    const result = await Swal.fire({
+    const reason = await confirmDeleteWithReason({
       title: t("common.are_you_sure"),
       text: `Delete breakdown record ${row.unique_id}?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#ef4444",
       confirmButtonText: t("common.delete"),
-      cancelButtonText: t("common.cancel"),
     });
-    if (!result.isConfirmed) return;
+    if (reason === null) return;
     try {
-      await vehicleBreakdownApi.delete(row.unique_id);
+      await vehicleBreakdownApi.delete(row.unique_id, withDeleteReason(reason));
       setRawRows((prev) => prev.filter((r) => r.unique_id !== row.unique_id));
       Swal.fire(t("common.success"), t("common.deleted_success"), "success");
     } catch (err: any) {

@@ -761,6 +761,14 @@ export default function CommonAuditList() {
                 <div className="text-red-700">{selectedRecord.reason}</div>
               </div>
             ) : null}
+            {selectedRecord?.delete_reason ? (
+              <div className="sm:col-span-2">
+                <div className="text-xs text-gray-500">
+                  {t("common.delete_reason_label")}
+                </div>
+                <div className="whitespace-pre-line">{selectedRecord.delete_reason}</div>
+              </div>
+            ) : null}
             <div className="min-w-0 sm:col-span-2">
               <div className="text-xs text-gray-500">
                 {t("admin.common_audit.user_agent")}
