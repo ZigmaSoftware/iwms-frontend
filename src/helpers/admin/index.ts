@@ -147,6 +147,7 @@ export const commonAuditApi = adminApi.commonAudits;
 export const permissionAuditApi = adminApi.permissionAudits;
 export const staticRouteAuditApi = adminApi.staticRouteAudits;
 export const complaintAuditApi = adminApi.complaintAudits;
+export const auditDashboardApi = adminApi.auditDashboard;
 export const monthlyWasteComparisonApi = adminApi.monthlyWasteComparison;
 
 /* =========================

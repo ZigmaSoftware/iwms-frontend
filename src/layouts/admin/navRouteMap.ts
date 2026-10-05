@@ -97,6 +97,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encPermissionAudit,
     encStaticRouteAudit,
     encComplaintAudit,
+    encAuditDashboard,
     encTripPlans,
     encCompanyCreation,
     encProjectCreation,
@@ -512,6 +513,11 @@ export function buildNavRouteMap(): RouteEntry[] {
       parentNameKey: "admin.nav.waste_reports",
     },
     // Audits
+    {
+      path: `/${encAudits}/${encAuditDashboard}`,
+      nameKey: "admin.nav.audit_dashboard",
+      parentNameKey: "admin.nav.audit_items",
+    },
     {
       path: `/${encAudits}/${encCommonAudit}`,
       nameKey: "admin.nav.common_audit",

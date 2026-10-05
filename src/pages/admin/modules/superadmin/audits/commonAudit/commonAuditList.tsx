@@ -626,6 +626,7 @@ export default function CommonAuditList() {
         paginator
         first={first}
         rows={rowsPerPage}
+        rowsPerPageOptions={[5, 10, 25, 50]}
         totalRecords={totalRecords}
         onPage={onPage}
         sortField={sortField}
