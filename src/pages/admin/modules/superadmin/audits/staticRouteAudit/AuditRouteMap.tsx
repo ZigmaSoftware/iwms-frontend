@@ -41,10 +41,11 @@ function geometryFor(route?: RouteSnapshot | null): GeoJSON.GeoJsonObject | null
   if (route.route_geojson) return route.route_geojson as GeoJSON.GeoJsonObject;
   const latLngs = routingLatLngs(route);
   if (latLngs.length < 2) return null;
-  return {
+  const line: GeoJSON.LineString = {
     type: "LineString",
     coordinates: latLngs.map(([lat, lng]) => [lng, lat]),
   };
+  return line;
 }
 
 function dotHtml(label: string, background: string, dashed = false): string {

@@ -75,6 +75,7 @@ export const PERMISSION_CATALOG = {
       "login-audit": { label: "Login Audit", group: null },
       "permission-audit": { label: "User Access Audit", group: null },
       "static-route-audit": { label: "Static Route Audit", group: null },
+      "complaint-audit": { label: "Complaint Audit", group: null },
     },
   },
   "masters": {
