@@ -445,6 +445,7 @@ export default {
     login_audit: "लॉगिन ऑडिट",
     user_access_audit: "उपयोगकर्ता पहुंच ऑडिट",
     static_route_audit: "स्थिर मार्ग ऑडिट",
+    complaint_audit: "शिकायत ऑडिट",
     vehicle_trip_audit: "वाहन ट्रिप ऑडिट",
     trip_exception_log: "ट्रिप अपवाद लॉग",
     zone_property_load_tracker: "ज़ोन प्रॉपर्टी लोड ट्रैकर",
