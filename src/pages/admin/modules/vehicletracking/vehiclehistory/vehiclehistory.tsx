@@ -2,6 +2,7 @@ import type { HistoryPopupLabels, RawRecord, StatusKey, TrackPoint, VehicleOptio
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import L from "leaflet";
+import { addMapLayerSwitcher } from "@/components/map/MapLayerSwitcher";
 import type { LatLngTuple } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./vehiclehistory.css";
@@ -357,8 +358,7 @@ export default function VehicleHistory(): JSX.Element {
       zoomControl: true,
     });
 
-    const layer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png");
-    layer.addTo(map);
+    addMapLayerSwitcher(map);
 
     trackLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;

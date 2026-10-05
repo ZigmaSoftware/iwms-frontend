@@ -180,7 +180,14 @@ export default {
     "project": "परियोजना",
     "select_company_first": "पहले कंपनी चुनें",
     "toggle_theme": "थीम बदलें",
-    "username": "उपयोगकर्ता नाम"
+    "username": "उपयोगकर्ता नाम",
+    "map_layers": {
+      "title": "मानचित्र परतें",
+      "osm": "OpenStreetMap",
+      "satellite": "सैटेलाइट",
+      "hybrid": "सैटेलाइट + लेबल",
+      "tile_error": "कुछ मानचित्र टाइलें लोड नहीं हो सकीं। अपना कनेक्शन जांचें या कोई अन्य परत चुनें।"
+    }
   },
   "login": {
     "title": "वापसी पर स्वागत है",

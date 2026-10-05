@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import L from "leaflet";
+import { addMapLayerSwitcher } from "@/components/map/MapLayerSwitcher";
 import type { LatLngTuple } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -524,9 +525,7 @@ export function LeafletMapContainer({
       preferCanvas: true,
     }).setView([28.476, 77.507], 12);
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors",
-    }).addTo(map);
+    addMapLayerSwitcher(map);
 
     vehicleLayerRef.current = L.layerGroup().addTo(map);
     geofenceLayerRef.current = L.layerGroup().addTo(map);

@@ -1,6 +1,7 @@
 import type { PanelStatusKey, PanelVehicle, RawRecord, Status, StatusSurface, Vehicle, VehicleMetrics } from "./types";
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
+import { addMapLayerSwitcher } from "@/components/map/MapLayerSwitcher";
 import "leaflet/dist/leaflet.css";
 import "./vehicletracking.css";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -381,7 +382,7 @@ export default function VehicleTracking() {
     if (!API_URL || !mapDivRef.current) return;
 
     const map = L.map(mapDivRef.current).setView([28.61, 77.23], 11);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+    addMapLayerSwitcher(map);
 
     const layer = L.layerGroup().addTo(map);
     mapRef.current = map;
@@ -421,7 +422,7 @@ export default function VehicleTracking() {
 
     map.addControl(new StatusControl({ position: "topleft" }));
 
-    const timer = setInterval(fetchData, 2000);
+    const timer = setInterval(fetchData, 7000);
     return () => {
       clearInterval(timer);
       map.remove();

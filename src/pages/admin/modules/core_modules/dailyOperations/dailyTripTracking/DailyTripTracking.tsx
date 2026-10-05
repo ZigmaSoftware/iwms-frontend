@@ -1,6 +1,7 @@
 import type { OptimizationResult, OverviewResponse, Row, Tab, TrackingResponse, VehicleLocation } from "./types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
+import { addMapLayerSwitcher } from "@/components/map/MapLayerSwitcher";
 import "leaflet/dist/leaflet.css";
 import Swal from "@/lib/notify";
 import {
@@ -557,9 +558,8 @@ export default function DailyTripTracking() {
           ]
         : [10.7867, 76.6548];
     const map = L.map(mapElement.current).setView(center, points.length ? 13 : 8);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap",
-    }).addTo(map);
+    // Top corners hold the route legend and vehicle-route panel.
+    addMapLayerSwitcher(map, { position: "bottomright" });
     const latLngs: L.LatLng[] = [];
     if (!assignmentId && overview?.trips.length) {
       overview.trips.forEach((trip, tripIndex) => {

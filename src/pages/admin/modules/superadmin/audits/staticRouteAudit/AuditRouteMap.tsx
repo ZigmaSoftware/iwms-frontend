@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
+import { addMapLayerSwitcher } from "@/components/map/MapLayerSwitcher";
 import "leaflet/dist/leaflet.css";
 import type { RouteChanges, RouteSnapshot } from "./types";
 
@@ -77,9 +78,7 @@ export default function AuditRouteMap({
     if (!mapElement.current) return;
 
     const map = L.map(mapElement.current);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap",
-    }).addTo(map);
+    addMapLayerSwitcher(map);
 
     const addedIds = new Set((changes?.stops_added ?? []).map((s) => s.id));
     const removedIds = new Set((changes?.stops_removed ?? []).map((s) => s.id));

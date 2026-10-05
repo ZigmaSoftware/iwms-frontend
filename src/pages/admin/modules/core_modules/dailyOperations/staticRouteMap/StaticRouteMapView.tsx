@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
+import { addMapLayerSwitcher } from "@/components/map/MapLayerSwitcher";
 import "leaflet/dist/leaflet.css";
 import "./staticRouteMap.css";
 import type { DetourWaypoint, RouteStop, StaticRoute } from "./types";
@@ -143,9 +144,8 @@ export default function StaticRouteMapView({
     mapRef.current?.remove();
 
     const map = L.map(mapElement.current);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap",
-    }).addTo(map);
+    // Top corners hold the page's legend and trips/route panels.
+    addMapLayerSwitcher(map, { position: "bottomright" });
 
     const handleMapClick = onMapClickRef.current;
     if (handleMapClick) {
