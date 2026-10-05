@@ -71,6 +71,7 @@ export const PERMISSION_CATALOG = {
     label: "Audits",
     section: "super-admin",
     screens: {
+      "audit-dashboard": { label: "Audit Dashboard", group: null },
       "common-audit": { label: "Common Audit", group: null },
       "login-audit": { label: "Login Audit", group: null },
       "permission-audit": { label: "User Access Audit", group: null },

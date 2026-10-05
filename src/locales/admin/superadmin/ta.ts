@@ -446,6 +446,7 @@ export default {
     trip_attendance: "பயண வருகை",
     audit_items: "ஆய்வு உருப்படிகள்",
     audits: "ஆய்வுகள்",
+    audit_dashboard: "தணிக்கை டாஷ்போர்டு",
     common_audit: "Common Audit",
     login_audit: "உள்நுழைவு ஆய்வு",
     user_access_audit: "பயனர் அணுகல் ஆய்வு",

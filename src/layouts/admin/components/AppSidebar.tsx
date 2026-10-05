@@ -108,6 +108,7 @@ const {
   encPermissionAudit,
   encStaticRouteAudit,
   encComplaintAudit,
+  encAuditDashboard,
   encDailyWasteComparison,
   encVehicleBreakdown,
   encTripRetripRequest,
@@ -684,6 +685,11 @@ const auditItems: NavItem[] = [
     nameKey: "admin.nav.audits",
     icon: <Truck size={18} />,
     subItems: [
+      {
+        nameKey: "admin.nav.audit_dashboard",
+        path: `/${encAudits}/${encAuditDashboard}`,
+        ...permissionFor("audits", "audit-dashboard"),
+      },
       {
         nameKey: "admin.nav.common_audit",
         path: `/${encAudits}/${encCommonAudit}`,

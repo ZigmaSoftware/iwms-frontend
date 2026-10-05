@@ -441,6 +441,7 @@ export default {
     trip_attendance: "ट्रिप उपस्थिति",
     audit_items: "ऑडिट आइटम्स",
     audits: "ऑडिट्स",
+    audit_dashboard: "ऑडिट डैशबोर्ड",
     common_audit: "Common Audit",
     login_audit: "लॉगिन ऑडिट",
     user_access_audit: "उपयोगकर्ता पहुंच ऑडिट",

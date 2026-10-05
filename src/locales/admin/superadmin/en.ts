@@ -471,6 +471,7 @@ export default {
     scheduler_config: "Trip Scheduler Config",
     audit_items: "Audit Items",
     audits: "Audits",
+    audit_dashboard: "Audit Dashboard",
     common_audit: "Common Audit",
     login_audit: "Login Audit",
     user_access_audit: "User Access Audit",
