@@ -9,7 +9,6 @@ const Grievances = lazy(() => import("@/pages/dashboard/pages/Grievances"));
 const Alerts = lazy(() => import("@/pages/dashboard/pages/Alerts"));
 const Reports = lazy(() => import("@/pages/dashboard/pages/Reports"));
 const Weighbridge = lazy(() => import("@/pages/dashboard/pages/Weighbridge"));
-// const BinMonitoring = lazy(() => import("@/pages/dashboard/pages/BinMonitoring"));
 
 export type DashboardComponent = ComponentType | undefined;
 
@@ -22,6 +21,5 @@ export const ROUTES: Record<string, DashboardComponent> = {
   "dashboard-grievances": Grievances,
   "dashboard-alerts": Alerts,
   "dashboard-reports": Reports,
-  "dashboard-weighbridge": Weighbridge,
-  // "dashboard-bins": BinMonitoring,
+  "dashboard-weighbridge": Weighbridge
 };
