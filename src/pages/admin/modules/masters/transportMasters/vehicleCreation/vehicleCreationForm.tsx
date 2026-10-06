@@ -144,15 +144,20 @@ export default function VehicleCreationForm() {
   }, []);
 
   useEffect(() => {
+    if (!companyUniqueId) {
+      setSupervisorData([]);
+      return;
+    }
     let cancelled = false;
-    adminApi.staffCreation.readAll()
+    adminApi.staffCreation
+      .readAll({ params: { company_id: companyUniqueId, project_id: projectId || undefined } })
       .then((res: any) => {
         if (cancelled) return;
         setSupervisorData(Array.isArray(res) ? res : (res?.results ?? []));
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [companyUniqueId, projectId]);
 
   // Pending IDs — set when the record loads; applied once options are available
   const [pendingVehicleTypeId, setPendingVehicleTypeId] = useState<string | null>(null);

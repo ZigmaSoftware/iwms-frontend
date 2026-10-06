@@ -1,7 +1,11 @@
 import { saveAs } from "file-saver";
-import * as XLSX from "xlsx";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import { decryptSegment } from "@/utils/routeCrypto";
+
+// xlsx is ~427KB minified — loaded on demand only when a user actually
+// triggers an Excel export/import, instead of shipping in every list
+// page's chunk.
+const loadXlsx = () => import("xlsx");
 
 type ExportValue = string | number | boolean | null | undefined;
 type ExportRow = Record<string, unknown>;
@@ -89,7 +93,7 @@ const flattenRecord = (
     {},
   );
 
-export const exportRecordsToExcel = (
+export const exportRecordsToExcel = async (
   records: ExportRow[],
   filename: string,
   sheetName = "Export",
@@ -98,6 +102,7 @@ export const exportRecordsToExcel = (
     file_name: filename,
     row_count: records.length,
   });
+  const XLSX = await loadXlsx();
   const rows = records.map((record) =>
     flattenRecord(record as Record<string, unknown>),
   );
@@ -111,7 +116,7 @@ export const exportRecordsToExcel = (
   );
 };
 
-export const exportTemplateToExcel = (
+export const exportTemplateToExcel = async (
   columns: ExcelTemplateColumn[],
   filename: string,
   sheetName = "Template",
@@ -120,6 +125,7 @@ export const exportTemplateToExcel = (
     file_name: filename,
     column_count: columns.length,
   });
+  const XLSX = await loadXlsx();
   const templateRow = columns.reduce<Record<string, ExportValue>>(
     (acc, column) => {
       acc[column.header] = column.sample ?? "";
@@ -154,7 +160,7 @@ export const exportTemplateToExcel = (
 };
 
 export const readExcelRows = async (file: File): Promise<ExportRow[]> => {
-  const buffer = await file.arrayBuffer();
+  const [buffer, XLSX] = await Promise.all([file.arrayBuffer(), loadXlsx()]);
   const workbook = XLSX.read(buffer, { type: "array" });
   const sheetName = workbook.SheetNames[0];
   const worksheet = sheetName ? workbook.Sheets[sheetName] : null;

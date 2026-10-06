@@ -91,6 +91,9 @@ export default {
     "confirm_title": "Are you sure?",
     "confirm_delete_text": "This record will be permanently deleted!",
     "confirm_delete_button": "Yes, delete it!",
+    "delete_reason_label": "Reason for deletion",
+    "delete_reason_placeholder": "Enter why this record is being deleted",
+    "delete_reason_required": "Please enter the reason for deletion.",
     "deleted_success": "Deleted successfully!",
     "updated_success": "Updated successfully!",
     "added_success": "Added successfully!",
@@ -177,7 +180,14 @@ export default {
     "project": "Project",
     "select_company_first": "Select a company first",
     "toggle_theme": "Toggle theme",
-    "username": "Username"
+    "username": "Username",
+    "map_layers": {
+      "title": "Map Layers",
+      "osm": "OpenStreetMap",
+      "satellite": "Satellite",
+      "hybrid": "Satellite + Labels",
+      "tile_error": "Some map tiles could not be loaded. Check your connection or try another layer."
+    }
   },
   "login": {
     "title": "Welcome Back",

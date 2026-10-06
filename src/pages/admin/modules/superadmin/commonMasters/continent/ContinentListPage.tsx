@@ -5,7 +5,7 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Switch } from "@/components/ui/switch";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { Button } from "primereact/button";
 import { Column } from "primereact/column";
 import { FilterMatchMode } from "primereact/api";
@@ -13,6 +13,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import {
@@ -165,15 +166,34 @@ export default function ContinentList() {
     );
   };
 
+  const handleDelete = async (id: string) => {
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
+
+    try {
+      await adminApi.continents.delete(id, withDeleteReason(reason));
+      setContinents((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire(
+        t("common.error"),
+        extractErrorMessage(error, t("common.delete_failed")),
+        "error",
+      );
+    }
+  };
+
   const actionBodyTemplate = (row: ContinentRecord) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        onClick={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
-        className="text-blue-600 hover:text-blue-800"
-        title={t("common.edit")}
-      >
-        <PencilIcon className="size-5" />
-      </button>
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
+        onDelete={() => void handleDelete(String(row.unique_id))}
+      />
     </div>
   );
 

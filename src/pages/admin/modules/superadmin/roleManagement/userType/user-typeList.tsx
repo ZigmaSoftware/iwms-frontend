@@ -2,6 +2,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -13,7 +14,7 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 
@@ -130,23 +131,34 @@ export default function UserTypePage() {
   const indexTemplate = (_: UserType, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
-  const actionTemplate = (row: UserType) => (
-    <div className="flex gap-2 justify-center">
-      <button
-        title={t("common.edit")}
-        className="text-blue-600 hover:text-blue-800"
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-      >
-        <PencilIcon className="size-5" />
-      </button>
+  const handleDelete = async (id: string) => {
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
-      {/* <button
-        title="Delete"
-        className="text-red-600 hover:text-red-800"
-        onClick={() => handleDelete(row.unique_id)}
-      >
-        <TrashBinIcon className="size-5" />
-      </button> */}
+    try {
+      await userTypeApi.delete(id, withDeleteReason(reason));
+      setUserTypes((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: String(error ?? t("common.request_failed")),
+      });
+    }
+  };
+
+  const actionTemplate = (row: UserType) => (
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onDelete={() => void handleDelete(row.unique_id)}
+      />
     </div>
   );
 

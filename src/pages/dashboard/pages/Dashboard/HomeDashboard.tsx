@@ -11,14 +11,12 @@ import {
   Route,
   Scale,
   ShieldAlert,
-  Square,
+  Minimize2,
   Trash2,
   Truck,
   UserCheck,
   UserRoundX,
   Users,
-  Eye,
-  EyeOff,
 } from "lucide-react";
 import { LeafletMapContainer, type VehicleData as LiveVehicle } from "@/components/map/LeafletMapContainer";
 import { BinMapPanel } from "./map/BinMapPanel";
@@ -32,7 +30,7 @@ import type { Grievance } from "@/features/grievances/types";
 import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import Select from "@/components/form/Select";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { HoverCard, HoverCardContent, HoverCardPortal, HoverCardTrigger } from "@/components/ui/hover-card";
 import {
   Dialog,
   DialogContent,
@@ -740,7 +738,6 @@ function WardTicker({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const [panelEl, setPanelEl] = useState<HTMLDivElement | null>(null);
   const [hasOverflow, setHasOverflow] = useState(false);
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const [isInteracting, setIsInteracting] = useState(false);
@@ -829,7 +826,7 @@ function WardTicker({
   };
 
   return (
-    <div ref={setPanelEl}>
+    <div>
     <DashboardPanel
       title="Ward Collection Live Ticker"
       action={
@@ -912,14 +909,19 @@ function WardTicker({
                 <HoverCardTrigger asChild>
                   <div>{card}</div>
                 </HoverCardTrigger>
+                {/* Portalled: the ticker scroller is overflow-y-hidden and would clip the card. */}
+                <HoverCardPortal>
                 <HoverCardContent
                   side="bottom"
                   align="center"
-                  sideOffset={14}
-                  collisionBoundary={panelEl}
-                  collisionPadding={12}
+                  sideOffset={10}
+                  // Measure against the viewport (not the short ticker strip,
+                  // which forced a flip upward) and keep clear of the 64px
+                  // sticky top bar, so the card opens below the ward.
+                  collisionPadding={{ top: 76, right: 12, bottom: 12, left: 12 }}
                   avoidCollisions
-                  className="w-[360px] overflow-visible rounded-lg border border-slate-200 bg-white p-0 text-xs text-slate-700 shadow-xl dark:border-[#28425f] dark:bg-[#101d2c] dark:text-slate-200"
+                  // z-[1100]: above Leaflet's map panes/controls (z 400–1000).
+                  className="z-[1100] w-[360px] overflow-visible rounded-lg border border-slate-200 bg-white p-0 text-xs text-slate-700 shadow-xl dark:border-[#28425f] dark:bg-[#101d2c] dark:text-slate-200"
                 >
                   <div className="border-b border-slate-100 bg-yellow-50 px-3 py-2.5 dark:border-[#243954] dark:bg-yellow-400/10">
                     <div className="flex items-start justify-between gap-3">
@@ -1002,6 +1004,7 @@ function WardTicker({
                     </div>
                   </div>
                 </HoverCardContent>
+                </HoverCardPortal>
               </HoverCard>
             );
           })}
@@ -1276,7 +1279,8 @@ export function HomeDashboard() {
   const [mapSize, setMapSize] = useState<"mid" | "max">("mid");
   const [asOf, setAsOf] = useState("");
   const [selectedAlert, setSelectedAlert] = useState<CriticalAlert | null>(null);
-  const [showWardGeofences, setShowWardGeofences] = useState(true);
+  // Ward boundaries are always drawn on the Bins/Households maps (no toggle).
+  const showWardGeofences = true;
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
   // Populated by LeafletMapContainer's own live-GPS polling (independent of
   // loadDashboard below) so the Vehicle Status counts reflect the same feed
@@ -1416,44 +1420,15 @@ export function HomeDashboard() {
           <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900">
             <button
               type="button"
-              onClick={() => setMapSize("mid")}
+              onClick={() => setMapSize(isMapMaximized ? "mid" : "max")}
               className={`flex h-7 w-7 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 ${
-                mapSize === "mid" ? "bg-gray-100 dark:bg-gray-800" : ""
+                isMapMaximized ? "bg-gray-100 dark:bg-gray-800" : ""
               }`}
-              aria-label={t("dashboard.home.map_size_default_aria")}
+              aria-label={t(isMapMaximized ? "dashboard.home.map_size_default_aria" : "dashboard.home.map_size_max_aria")}
+              title={t(isMapMaximized ? "dashboard.home.map_size_default_aria" : "dashboard.home.map_size_max_aria")}
             >
-              <Square className="h-3.5 w-3.5" />
+              {isMapMaximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
             </button>
-            <button
-              type="button"
-              onClick={() => setMapSize("max")}
-              className={`flex h-7 w-7 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 ${
-                mapSize === "max" ? "bg-gray-100 dark:bg-gray-800" : ""
-              }`}
-              aria-label={t("dashboard.home.map_size_max_aria")}
-            >
-              <Maximize2 className="h-3.5 w-3.5" />
-            </button>
-            {/* Meaningless on the dedicated Wards tab — that tab always shows
-                every loaded ward, so the toggle is hidden there instead of
-                doing nothing. */}
-            {activeMapTab !== "wards" && (
-              <button
-                type="button"
-                onClick={() => setShowWardGeofences(!showWardGeofences)}
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 ${
-                  showWardGeofences ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" : ""
-                }`}
-                aria-label={showWardGeofences ? "Hide ward geofences" : "Show ward geofences"}
-                title={showWardGeofences ? "Hide ward geofences" : "Show ward geofences"}
-              >
-                {showWardGeofences ? (
-                  <EyeOff className="h-3.5 w-3.5" />
-                ) : (
-                  <Eye className="h-3.5 w-3.5" />
-                )}
-              </button>
-            )}
           </div>
         </div>
       </div>

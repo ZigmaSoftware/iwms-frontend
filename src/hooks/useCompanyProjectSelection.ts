@@ -83,6 +83,10 @@ export const useCompanyProjectSelection = ({
   const [companiesLoaded, setCompaniesLoaded] = useState(false);
   const [projects, setProjects] = useState<CompanyProjectOption[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
+  // The company `projects` was loaded for. Right after the company changes,
+  // `projects`/`projectsLoaded` still describe the previous company for one
+  // render; compare against this before trusting the list.
+  const [projectsCompanyId, setProjectsCompanyId] = useState<string | null>(null);
   const [resolvedLoggedInCompanyLabel, setResolvedLoggedInCompanyLabel] =
     useState("");
 
@@ -234,6 +238,12 @@ export const useCompanyProjectSelection = ({
 
   useEffect(() => {
     setProjectsLoaded(false);
+    // Remembered with the list, so callers can tell a list that belongs to
+    // the current company from one still left over from the previous company.
+    const markProjectsLoaded = () => {
+      setProjectsCompanyId(companyUniqueId);
+      setProjectsLoaded(true);
+    };
 
     // Non-superadmin: use only the projects from the login session
     if (!isSuperAdmin) {
@@ -249,7 +259,7 @@ export const useCompanyProjectSelection = ({
         if (options.length === 1) return options[0].value;
         return defaultToAll ? "" : options[0]?.value ?? "";
       });
-      setProjectsLoaded(true);
+      markProjectsLoaded();
       return;
     }
 
@@ -281,7 +291,7 @@ export const useCompanyProjectSelection = ({
           })
           .finally(() => {
             if (!active) return;
-            setProjectsLoaded(true);
+            markProjectsLoaded();
           });
 
         return () => {
@@ -291,7 +301,7 @@ export const useCompanyProjectSelection = ({
 
       setProjects([]);
       setProjectId("");
-      setProjectsLoaded(true);
+      markProjectsLoaded();
       return;
     }
 
@@ -320,7 +330,7 @@ export const useCompanyProjectSelection = ({
             }
             return defaultToAll ? "" : (options[0]?.value ?? "");
           });
-          setProjectsLoaded(true);
+          markProjectsLoaded();
           return;
         }
       }
@@ -361,7 +371,7 @@ export const useCompanyProjectSelection = ({
       })
       .finally(() => {
         if (!active) return;
-        setProjectsLoaded(true);
+        markProjectsLoaded();
       });
 
     return () => {
@@ -422,6 +432,7 @@ export const useCompanyProjectSelection = ({
     projectId,
     projects,
     projectsLoaded,
+    projectsCompanyId,
     companies,
     companiesLoaded,
     isSuperAdmin,

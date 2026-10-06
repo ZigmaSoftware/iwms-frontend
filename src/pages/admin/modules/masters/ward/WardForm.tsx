@@ -173,7 +173,13 @@ export default function WardForm() {
     onCompanyChange,
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit });
-  const { showZone, showPanchayat } = useZonePanchayatVisibility();
+  // Project-driven zone/panchayat visibility: a zone-only project shows Zone
+  // alone, a panchayat-only project shows Panchayat alone. projectId syncs
+  // to the record's project in edit mode, so the probe settles correctly.
+  const { showZone, showPanchayat } = useZonePanchayatVisibility({
+    companyId: companyUniqueId,
+    projectId,
+  });
 
   const extractErr = (e: any): string => {
     if (e?.response?.data) return String(e.response.data);
@@ -204,10 +210,7 @@ export default function WardForm() {
       LOAD MASTER DATA
       Promise.allSettled — not all() — because a staff without Zone (or
       Panchayat) access 403s that one call at the module-permission
-      middleware; that must not blank out every other dropdown. Zone/
-      Panchayat are additionally skipped entirely up front when the
-      login-scoped data shows the staff has no access to that resource,
-      avoiding the doomed request altogether.
+      middleware; that must not blank out every other dropdown.
   ========================================================== */
   useEffect(() => {
     let cancelled = false;
@@ -217,8 +220,8 @@ export default function WardForm() {
       stateApi.readAll(),
       districtApi.readAll(),
       cityApi.readAll(),
-      showZone ? zoneApi.readAll() : Promise.resolve([]),
-      showPanchayat ? panchayatApi.readAll() : Promise.resolve([]),
+      zoneApi.readAll(),
+      panchayatApi.readAll(),
     ]).then(([continentR, countryR, stateR, districtR, cityR, zoneR, panchayatR]) => {
       if (cancelled) return;
 
@@ -315,7 +318,7 @@ export default function WardForm() {
       })));
     });
     return () => { cancelled = true; };
-  }, [showZone, showPanchayat]);
+  }, []);
 
   useEffect(() => {
     if (isEdit) return;
@@ -385,11 +388,17 @@ export default function WardForm() {
     setFilteredCountries(filt);
   }, [continentId, allCountries, countryId, pendingContinent, pendingCountry]);
 
-  // State: show all active states directly — no continent/country prerequisite.
-  // Auto-resolve country + continent when state is selected (see onValueChange below).
+  // State: filtered by the selected Country. Selecting a State also
+  // auto-resolves Country/Continent (see onValueChange below) for the case
+  // where the record was saved with a state whose country wasn't set yet.
   useEffect(() => {
+    if (!countryId) {
+      setFilteredStates([]);
+      return;
+    }
+
     const filt = allStates
-      .filter((s) => s.isActive)
+      .filter((s) => s.isActive && s.countryId === countryId)
       .map((s) => ({ value: s.id, label: s.name }));
 
     const ensureState = pendingState || stateId;
@@ -403,7 +412,7 @@ export default function WardForm() {
     }
 
     setFilteredStates(filt);
-  }, [allStates, stateId, pendingState, wardRecordData]);
+  }, [countryId, allStates, stateId, pendingState, wardRecordData]);
 
   useEffect(() => {
     const effectiveStateId = stateId || pendingState;
@@ -1095,7 +1104,8 @@ export default function WardForm() {
           </div>
           )}
 
-          {/* Zone — hidden when the staff has no Zone access, or when Panchayat is selected */}
+          {/* Zone — hidden when Panchayat is selected (siblings under City),
+              and when the project has no zones */}
           {showField("zone_id") && showZone && !effectivePanchayatId && (
           <div>
             <Label>{t("admin.nav.zone")}</Label>
@@ -1117,7 +1127,8 @@ export default function WardForm() {
           </div>
           )}
 
-          {/* Panchayat — hidden when the staff has no Panchayat access, or when Zone is selected */}
+          {/* Panchayat — hidden when Zone is selected (siblings under City),
+              and when the project has no panchayats */}
           {showField("panchayat_id") && showPanchayat && !effectiveZoneId && (
           <div>
             <Label>{t("admin.nav.panchayat")}</Label>

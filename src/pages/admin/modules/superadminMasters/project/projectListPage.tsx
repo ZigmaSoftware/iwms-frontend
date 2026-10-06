@@ -8,6 +8,7 @@ import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -16,7 +17,7 @@ import "primeicons/primeicons.css";
 
 import { projectApi } from "@/helpers/admin";
 import { Switch } from "@/components/ui/switch";
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
 import {
@@ -116,15 +117,34 @@ export default function ProjectListPage() {
     });
   };
 
+  const handleDelete = async (id: string) => {
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
+
+    try {
+      await projectApi.delete(id, withDeleteReason(reason));
+      setProjects((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: String(error ?? t("common.request_failed")),
+      });
+    }
+  };
+
   const actionBodyTemplate = (row: Project) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id, companyUniqueId))}
-        className="text-blue-600 hover:text-blue-800"
-        title={t("common.edit")}
-      >
-        <PencilIcon className="size-5" />
-      </button>
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id, companyUniqueId))}
+        onDelete={() => void handleDelete(row.unique_id)}
+      />
     </div>
   );
 

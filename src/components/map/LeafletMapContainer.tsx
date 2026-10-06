@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import L from "leaflet";
+import { addMapLayerSwitcher } from "@/components/map/MapLayerSwitcher";
 import type { LatLngTuple } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -382,6 +383,11 @@ export function LeafletMapContainer({
 
   const vehicleLayerRef = useRef<L.LayerGroup | null>(null);
   const geofenceLayerRef = useRef<L.LayerGroup | null>(null);
+  const markersRef = useRef<Record<string, L.Marker>>({});
+  // Icon per marker ("status|focused"), so a poll only swaps icons that changed.
+  const markerIconKeyRef = useRef<Record<string, string>>({});
+  // Geofence + vehicle set the map was last fitted to — position updates alone never refit.
+  const lastFitKeyRef = useRef("");
   const metricsRequestRef = useRef(0);
   const onVehiclesChangeRef = useRef(onVehiclesChange);
   onVehiclesChangeRef.current = onVehiclesChange;
@@ -524,9 +530,7 @@ export function LeafletMapContainer({
       preferCanvas: true,
     }).setView([28.476, 77.507], 12);
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors",
-    }).addTo(map);
+    addMapLayerSwitcher(map);
 
     vehicleLayerRef.current = L.layerGroup().addTo(map);
     geofenceLayerRef.current = L.layerGroup().addTo(map);
@@ -675,38 +679,70 @@ export function LeafletMapContainer({
     }
   }, [displayedVehicles, selectedVehicle]);
 
-  /* ================= DRAW VEHICLES ================= */
-  useEffect(() => {
-    if (!vehicleLayerRef.current) return;
-    vehicleLayerRef.current.clearLayers();
+  // Marker click handlers are bound once, so they read the latest poll from here.
+  const displayedVehiclesRef = useRef(displayedVehicles);
+  displayedVehiclesRef.current = displayedVehicles;
+  const selectedVehicleNo = selectedVehicle?.vehicle_no;
 
-    displayedVehicles
-      .filter((v) => statusFilter[v.status])
-      .forEach((v) => {
-        const isFocused = selectedVehicle?.vehicle_no === v.vehicle_no;
-        const marker = L.marker([v.lat, v.lng], {
-          icon: getVehicleIcon(v.status, isFocused),
-        });
-        marker.on("click", () => {
-          setSelectedVehicle(v);
-          setInfoOpen(true);
-          setPanelOpen(true);
-        });
-        marker.bindTooltip(
-            `
+  /* ================= DRAW VEHICLES ================= */
+  // Updates markers in place on each poll (move / restyle / add / remove)
+  // instead of rebuilding the layer, so tooltips and the user's view survive.
+  useEffect(() => {
+    const layer = vehicleLayerRef.current;
+    if (!layer) return;
+
+    const markers = markersRef.current;
+    const iconKeys = markerIconKeyRef.current;
+    const visible = displayedVehicles.filter((v) => statusFilter[v.status]);
+    const visibleIds = new Set(visible.map((v) => v.vehicle_no));
+    Object.keys(markers).forEach((id) => {
+      if (visibleIds.has(id)) return;
+      layer.removeLayer(markers[id]);
+      delete markers[id];
+      delete iconKeys[id];
+    });
+
+    visible.forEach((v) => {
+      const isFocused = selectedVehicleNo === v.vehicle_no;
+      const iconKey = `${v.status}|${isFocused}`;
+      const tooltipHtml = `
               <div style="min-width:140px;">
                 <div style="font-weight:600;">${v.vehicle_no}</div>
                 <div>${labelDriver}: ${v.driver || placeholderDash}</div>
                 <div>${labelStatus}: ${formatStatusLabel(v.status)}</div>
                 <div>${labelSpeed}: ${v.speed} ${speedUnit}</div>
               </div>
-            `,
-            { direction: "top", offset: [0, -12], opacity: 0.95 }
-          ).addTo(vehicleLayerRef.current!);
-        if (isFocused) {
-          marker.openTooltip();
-        }
-      });
+            `;
+
+      let marker = markers[v.vehicle_no];
+      if (marker) {
+        const current = marker.getLatLng();
+        if (current.lat !== v.lat || current.lng !== v.lng) marker.setLatLng([v.lat, v.lng]);
+        if (iconKeys[v.vehicle_no] !== iconKey) marker.setIcon(getVehicleIcon(v.status, isFocused));
+        marker.setTooltipContent(tooltipHtml);
+      } else {
+        const vehicleNo = v.vehicle_no;
+        marker = L.marker([v.lat, v.lng], {
+          icon: getVehicleIcon(v.status, isFocused),
+        });
+        marker.on("click", () => {
+          const latest = displayedVehiclesRef.current.find((item) => item.vehicle_no === vehicleNo);
+          if (latest) setSelectedVehicle(latest);
+          setInfoOpen(true);
+          setPanelOpen(true);
+        });
+        marker
+          .bindTooltip(tooltipHtml, { direction: "top", offset: [0, -12], opacity: 0.95 })
+          .addTo(layer);
+        markers[vehicleNo] = marker;
+      }
+
+      // Toggle the tooltip only when focus changes, not on every poll.
+      const wasFocused = iconKeys[v.vehicle_no]?.endsWith("|true") ?? false;
+      if (isFocused && !wasFocused) marker.openTooltip();
+      if (!isFocused && wasFocused) marker.closeTooltip();
+      iconKeys[v.vehicle_no] = iconKey;
+    });
   }, [
     displayedVehicles,
     formatStatusLabel,
@@ -714,7 +750,7 @@ export function LeafletMapContainer({
     labelSpeed,
     labelStatus,
     placeholderDash,
-    selectedVehicle,
+    selectedVehicleNo,
     speedUnit,
     statusFilter,
   ]);
@@ -872,41 +908,62 @@ export function LeafletMapContainer({
   }, [selectedVehicle?.vehicle_no, gpsTripSummaryApi, gpsTripUserId, dayWiseWeighmentApiUrl]);
 
   /* ================= DRAW GEOFENCES ================= */
+  const geofencePolygons = useMemo(
+    () =>
+      geofenceSites
+        .filter((s) => s.type === "Polygon")
+        .map((site) => ({ name: site.siteName, coords: parseLatLng(site.latlong) }))
+        .filter((site) => site.coords.length > 0),
+    [geofenceSites],
+  );
+
+  // Geofences change only when the site list is (re)fetched — not on vehicle polls.
   useEffect(() => {
-    if (!mapRef.current || !geofenceLayerRef.current) return;
-    geofenceLayerRef.current.clearLayers();
+    const layer = geofenceLayerRef.current;
+    if (!mapRef.current || !layer) return;
+    layer.clearLayers();
 
-    const bounds: LatLngTuple[] = [];
+    geofencePolygons.forEach((site) => {
+      L.polygon(site.coords, {
+        color: "#2563eb",
+        fillOpacity: 0.25,
+      })
+        .bindTooltip(site.name)
+        .addTo(layer);
+    });
+  }, [geofencePolygons]);
 
-    geofenceSites
-      .filter((s) => s.type === "Polygon")
-      .forEach((site) => {
-        const coords = parseLatLng(site.latlong);
-        if (!coords.length) return;
+  /* ================= AUTO FIT ================= */
+  // Fit when geofences load or vehicles appear/disappear — never because a
+  // poll moved them, so the user's zoom/pan is kept between refreshes.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
 
-        L.polygon(coords, {
-          color: "#2563eb",
-          fillOpacity: 0.25,
-        })
-          .bindTooltip(site.siteName)
-          .addTo(geofenceLayerRef.current!);
+    const fitKey = [
+      geofencePolygons.map((site) => site.name).join("|"),
+      displayedVehicles.map((v) => v.vehicle_no).sort().join("|"),
+    ].join("#");
+    if (fitKey === lastFitKeyRef.current) return;
 
-        bounds.push(...coords);
-      });
-
+    const bounds: LatLngTuple[] = geofencePolygons.flatMap((site) => site.coords);
     displayedVehicles.forEach((v) => bounds.push([v.lat, v.lng]));
+    if (!bounds.length) return;
 
-    if (bounds.length) {
-      mapRef.current.fitBounds(bounds, { padding: [40, 40] });
-    }
-  }, [geofenceSites, displayedVehicles]);
+    lastFitKeyRef.current = fitKey;
+    map.fitBounds(bounds, { padding: [40, 40] });
+  }, [geofencePolygons, displayedVehicles]);
 
+  // Centre once per newly selected vehicle; later polls leave the view alone.
   useEffect(() => {
-    if (!mapRef.current || !selectedVehicle) return;
-    mapRef.current.setView([selectedVehicle.lat, selectedVehicle.lng], Math.max(mapRef.current.getZoom(), 15), {
+    const map = mapRef.current;
+    if (!map || !selectedVehicleNo) return;
+    const target = displayedVehiclesRef.current.find((v) => v.vehicle_no === selectedVehicleNo);
+    if (!target) return;
+    map.setView([target.lat, target.lng], Math.max(map.getZoom(), 15), {
       animate: true,
     });
-  }, [selectedVehicle]);
+  }, [selectedVehicleNo]);
 
   /* ================= UI ================= */
   return (

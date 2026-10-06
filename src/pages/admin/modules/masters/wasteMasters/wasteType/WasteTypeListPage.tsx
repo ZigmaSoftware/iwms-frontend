@@ -2,13 +2,15 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
@@ -141,19 +143,40 @@ export default function WasteTypeListPage() {
     { rowIndex }: { rowIndex: number },
   ) => rowIndex + 1;
 
+  const handleDelete = async (id: string) => {
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
+
+    try {
+      await wasteTypeApi.delete(id, withDeleteReason(reason));
+      setAllWasteTypes((current) =>
+        current.filter((item) => item.unique_id !== id),
+      );
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: String(error ?? t("common.request_failed")),
+      });
+    }
+  };
+
   const actionTemplate = (row: WasteTypeListRecord) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        onClick={() =>
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() =>
           navigate(ENC_EDIT_PATH(row.unique_id), {
             state: { companyUniqueId, projectId },
           })
         }
-        className="text-blue-600 hover:text-blue-800"
-        title={t("common.edit")}
-      >
-        <PencilIcon className="size-5" />
-      </button>
+        onDelete={() => void handleDelete(row.unique_id)}
+      />
     </div>
   );
 
@@ -194,10 +217,16 @@ export default function WasteTypeListPage() {
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
   return (
-    <div className="p-3">
-      <div className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3">
+    <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
+      <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold text-gray-800 mb-1">
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-600">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50">
+              <i className="pi pi-recycle" />
+            </span>
+            Waste masters
+          </div>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">
             {t("common.waste_type")}
           </h1>
           <p className="text-sm text-gray-500">
@@ -216,9 +245,9 @@ export default function WasteTypeListPage() {
         </div>
       </div>
 
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
-        header={
-          <FilterBar
+        header={<div className="border-b border-gray-100 bg-gray-50/70 p-3"><FilterBar
             searchValue={globalFilterValue}
             onSearchChange={onGlobalFilterChange}
             searchPlaceholder={t("common.search_placeholder", {
@@ -244,8 +273,7 @@ export default function WasteTypeListPage() {
                 (!companyUniqueId && !isSuperAdmin) || projects.length === 0
               }
             />
-          </FilterBar>
-        }
+          </FilterBar></div>}
         value={rows}
         exportRows={exportRows}
         exportSheetName="WasteTypes"
@@ -325,6 +353,7 @@ export default function WasteTypeListPage() {
           style={{ width: "150px", textAlign: "center" }}
         />
       </DataTable>
+      </div>
     </div>
   );
 }

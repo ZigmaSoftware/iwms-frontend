@@ -3,6 +3,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -12,7 +13,7 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
@@ -212,16 +213,36 @@ export default function FuelList() {
     );
   };
 
+  // ── Delete ────────────────────────────────────────────────────────────────
+  const handleDelete = async (id: string) => {
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
+
+    try {
+      await fuelApi.delete(id, withDeleteReason(reason));
+      setRows((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: String(error ?? t("common.request_failed")),
+      });
+    }
+  };
+
   // ── Action buttons ────────────────────────────────────────────────────────
   const actionTemplate = (row: Fuel) => (
-    <div className="flex gap-2 justify-center">
-      <button
-        title={t("common.edit")}
-        className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800"
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-      >
-        <PencilIcon className="size-5" />
-      </button>
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onDelete={() => void handleDelete(row.unique_id)}
+      />
     </div>
   );
 

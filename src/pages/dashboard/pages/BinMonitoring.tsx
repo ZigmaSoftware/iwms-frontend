@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import L from "leaflet";
+import { addMapLayerSwitcher } from "@/components/map/MapLayerSwitcher";
 import type { LatLngTuple } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -320,9 +321,7 @@ export default function BinMonitoring() {
       zoomControl: false,
     });
     L.control.zoom({ position: "topright" }).addTo(map);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors",
-    }).addTo(map);
+    addMapLayerSwitcher(map);
     markersRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
     const resizeMap = () => map.invalidateSize();

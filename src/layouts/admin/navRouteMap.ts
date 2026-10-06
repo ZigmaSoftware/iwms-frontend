@@ -51,6 +51,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encTripSummary,
     encWasteCollectedSummary,
     encMonthlyWasteComparison,
+    encComplaintsReport,
     encComplaintTicket,
     encComplaint,
     encComplaintModules,
@@ -77,6 +78,8 @@ export function buildNavRouteMap(): RouteEntry[] {
     encWasteCollectedData,
     encWasteManagementMaster,
     encWorkforceManagement,
+    encDayReport,
+    encDateReport,
     encStaffUserType,
     encProjectStaffHierarchy,
     encMainScreenType,
@@ -91,6 +94,10 @@ export function buildNavRouteMap(): RouteEntry[] {
     encAlternativeStaffTemplate,
     encCommonAudit,
     encLoginAudits,
+    encPermissionAudit,
+    encStaticRouteAudit,
+    encComplaintAudit,
+    encAuditDashboard,
     encTripPlans,
     encCompanyCreation,
     encProjectCreation,
@@ -100,7 +107,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     encDistrictLeaders,
 
     encBins,
-    encScheduleMasters,
     encScheduleSetup,
     encScheduleOperations,
     encDailyTripAssignment,
@@ -392,6 +398,11 @@ export function buildNavRouteMap(): RouteEntry[] {
       nameKey: "admin.nav.feedback",
       parentNameKey: "admin.nav.complaint_ticket",
     },
+    {
+      path: `/${encReport}/${encComplaintsReport}`,
+      nameKey: "admin.nav.complaints_report",
+      parentNameKey: "admin.nav.complaint_ticket",
+    },
     // Transport Masters
     {
       path: `/${encTransportMaster}/${encVehicleType}`,
@@ -490,20 +501,23 @@ export function buildNavRouteMap(): RouteEntry[] {
       nameKey: "admin.nav.scheduler_config",
       parentNameKey: "admin.nav.schedule_operations",
     },
-    // Waste reports still use the legacy encrypted schedule-masters route.
-    // Keep both entries in the breadcrumb map because these are the paths used
-    // by the sidebar (the reports-master aliases below remain valid too).
+    // Waste reports (moved from the legacy schedule-masters route).
     {
-      path: `/${encScheduleMasters}/${encDailyWasteComparison}`,
+      path: `/${encReport}/${encDailyWasteComparison}`,
       nameKey: "Daily Waste Comparison",
       parentNameKey: "admin.nav.waste_reports",
     },
     {
-      path: `/${encScheduleMasters}/${encMonthlyWasteComparison}`,
+      path: `/${encReport}/${encMonthlyWasteComparison}`,
       nameKey: "admin.nav.monthly_waste_comparison",
       parentNameKey: "admin.nav.waste_reports",
     },
     // Audits
+    {
+      path: `/${encAudits}/${encAuditDashboard}`,
+      nameKey: "admin.nav.audit_dashboard",
+      parentNameKey: "admin.nav.audit_items",
+    },
     {
       path: `/${encAudits}/${encCommonAudit}`,
       nameKey: "admin.nav.common_audit",
@@ -512,6 +526,21 @@ export function buildNavRouteMap(): RouteEntry[] {
     {
       path: `/${encAudits}/${encLoginAudits}`,
       nameKey: "admin.nav.login_audit",
+      parentNameKey: "admin.nav.audit_items",
+    },
+    {
+      path: `/${encAudits}/${encPermissionAudit}`,
+      nameKey: "admin.nav.user_access_audit",
+      parentNameKey: "admin.nav.audit_items",
+    },
+    {
+      path: `/${encAudits}/${encStaticRouteAudit}`,
+      nameKey: "admin.nav.static_route_audit",
+      parentNameKey: "admin.nav.audit_items",
+    },
+    {
+      path: `/${encAudits}/${encComplaintAudit}`,
+      nameKey: "admin.nav.complaint_audit",
       parentNameKey: "admin.nav.audit_items",
     },
     // Vehicle Tracking
@@ -547,6 +576,16 @@ export function buildNavRouteMap(): RouteEntry[] {
       nameKey: "admin.nav.workforce_management",
       parentNameKey: "admin.nav.workforce_management",
     },
+    {
+      path: `/${encWorkforceManagement}/${encDayReport}`,
+      nameKey: "admin.nav.day_report",
+      parentNameKey: "admin.nav.workforce_management",
+    },
+    {
+      path: `/${encWorkforceManagement}/${encDateReport}`,
+      nameKey: "admin.nav.date_report",
+      parentNameKey: "admin.nav.workforce_management",
+    },
     // Reports
     {
       path: `/${encReport}/${encTripSummary}`,
@@ -561,11 +600,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     {
       path: `/${encReport}/${encWasteCollectedSummary}`,
       nameKey: "admin.nav.waste_collected_summary",
-      parentNameKey: "admin.nav.reports",
-    },
-    {
-      path: `/${encReport}/${encMonthlyWasteComparison}`,
-      nameKey: "admin.nav.monthly_waste_comparison",
       parentNameKey: "admin.nav.reports",
     },
   ];

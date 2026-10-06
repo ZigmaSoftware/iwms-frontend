@@ -1,25 +1,41 @@
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
-import Auth from "@/pages/Auth";
-import ForgotPassword from "@/pages/auth/ForgotPassword";
-import VerifyOTP from "@/pages/auth/VerifyOTP";
-import ResetPassword from "@/pages/auth/ResetPassword";
-import LocalBodyAuth from "@/pages/LocalBodyAuth";
-import LocalBodyDashboard from "@/pages/localbody/LocalBodyDashboard";
-import DistrictAuth from "@/pages/DistrictAuth";
-import DistrictDashboard from "@/pages/district/DistrictDashboard";
-import Dashboard from "@/pages/dashboard/pages/Dashboard";
-import NotFound from "@/pages/dashboard/pages/NotFound";
-import { HomeDashboard } from "@/pages/dashboard/pages/Dashboard/HomeDashboard";
-import AdminHome from "@/pages/admin/AdminHome";
-import AdminEncryptedRouter from "@/layouts/admin/encryptedRouting/AdminEncryptedRouter";
-import CommonAuditList from "@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList";
-import DailyTripLogReportPage from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripLog/DailyTripLogReportPage";
-import DashboardEncryptedRouter from "@/layouts/dashboard/encryptedRouting/DashboardEncryptedRouter";
+import { PageLoader } from "@/components/ui/PageLoader";
 
-import { AdminLayout } from "@/layouts/admin/AdminLayout";
+// Route-level code splitting: each page's chunk is only fetched when its
+// route is actually visited, instead of all of them shipping in the main
+// bundle up front. See adminRoutes.ts/dashboardRoutes.ts for the same
+// treatment applied to the much larger module route maps.
+const Auth = lazy(() => import("@/pages/Auth"));
+const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
+const VerifyOTP = lazy(() => import("@/pages/auth/VerifyOTP"));
+const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
+const LocalBodyAuth = lazy(() => import("@/pages/LocalBodyAuth"));
+const LocalBodyDashboard = lazy(() => import("@/pages/localbody/LocalBodyDashboard"));
+const DistrictAuth = lazy(() => import("@/pages/DistrictAuth"));
+const DistrictDashboard = lazy(() => import("@/pages/district/DistrictDashboard"));
+const Dashboard = lazy(() => import("@/pages/dashboard/pages/Dashboard"));
+const NotFound = lazy(() => import("@/pages/dashboard/pages/NotFound"));
+const HomeDashboard = lazy(() =>
+  import("@/pages/dashboard/pages/Dashboard/HomeDashboard").then((m) => ({ default: m.HomeDashboard })),
+);
+const AdminHome = lazy(() => import("@/pages/admin/AdminHome"));
+const AdminEncryptedRouter = lazy(() => import("@/layouts/admin/encryptedRouting/AdminEncryptedRouter"));
+const CommonAuditList = lazy(
+  () => import("@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList"),
+);
+const DailyTripLogReportPage = lazy(
+  () => import("@/pages/admin/modules/core_modules/dailyOperations/dailyTripLog/DailyTripLogReportPage"),
+);
+const DashboardEncryptedRouter = lazy(
+  () => import("@/layouts/dashboard/encryptedRouting/DashboardEncryptedRouter"),
+);
+const AdminLayout = lazy(() =>
+  import("@/layouts/admin/AdminLayout").then((m) => ({ default: m.AdminLayout })),
+);
+
 import { RoleBasedLayout } from "@/layouts/shared/RoleBasedLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import type { AdminViewMode, UserRole } from "@/types/roles";
@@ -50,7 +66,9 @@ function withDashboard(children: ReactNode) {
 function withAdmin(children: ReactNode) {
   return (
     <ProtectedRoute allowedRoles={ADMIN_ACCESS_ROLES}>
-      <AdminLayout>{children}</AdminLayout>
+      <Suspense fallback={<PageLoader fullHeight />}>
+        <AdminLayout>{children}</AdminLayout>
+      </Suspense>
     </ProtectedRoute>
   );
 }
@@ -116,36 +134,38 @@ function DashboardRouteGuard({ children }: { children: ReactNode }) {
 
 export default function App() {
   return (
-    <Routes>
-      {/* ── Public auth routes ── */}
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/auth/forgot-password" element={<ForgotPassword />} />
-      <Route path="/auth/verify-otp" element={<VerifyOTP />} />
-      <Route path="/auth/reset-password" element={<ResetPassword />} />
+    <Suspense fallback={<PageLoader fullHeight />}>
+      <Routes>
+        {/* ── Public auth routes ── */}
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+        <Route path="/auth/verify-otp" element={<VerifyOTP />} />
+        <Route path="/auth/reset-password" element={<ResetPassword />} />
 
-      {/* ── Panchayat / district leader portals ── */}
-      <Route path="/auth/localbody" element={<LocalBodyAuth />} />
-      <Route path="/localbody" element={<LocalBodyDashboard />} />
-      <Route path="/auth/district" element={<DistrictAuth />} />
-      <Route path="/district" element={<DistrictDashboard />} />
+        {/* ── Panchayat / district leader portals ── */}
+        <Route path="/auth/localbody" element={<LocalBodyAuth />} />
+        <Route path="/localbody" element={<LocalBodyDashboard />} />
+        <Route path="/auth/district" element={<DistrictAuth />} />
+        <Route path="/district" element={<DistrictDashboard />} />
 
-      {/* ── Home redirect ── */}
-      <Route path="/" element={<HomeRedirect />} />
+        {/* ── Home redirect ── */}
+        <Route path="/" element={<HomeRedirect />} />
 
-      {/* ── Staff / user dashboard ── */}
-      <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />
-      <Route path="/dashboard/overview" element={withDashboard(<Dashboard />)} />
-      <Route path="/dashboard/:encModule" element={withDashboard(<DashboardEncryptedRouter />)} />
+        {/* ── Staff / user dashboard ── */}
+        <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />
+        <Route path="/dashboard/overview" element={withDashboard(<Dashboard />)} />
+        <Route path="/dashboard/:encModule" element={withDashboard(<DashboardEncryptedRouter />)} />
 
-      {/* ── Admin panel (Company Admin, superadmin, etc.) ── */}
-      <Route path="/admin" element={withAdmin(<AdminHome />)} />
-      <Route path="/audits/common-audit" element={withAdmin(<CommonAuditList />)} />
-      <Route path="/:encMaster/:encModule" element={withAdmin(<AdminEncryptedRouter />)} />
-      <Route path="/:encMaster/:encModule/new" element={withAdmin(<AdminEncryptedRouter />)} />
-      <Route path="/:encMaster/:encModule/:id/edit" element={withAdmin(<AdminEncryptedRouter />)} />
-      <Route path="/:encMaster/:encModule/:id/report" element={withAdmin(<DailyTripLogReportPage />)} />
+        {/* ── Admin panel (Company Admin, superadmin, etc.) ── */}
+        <Route path="/admin" element={withAdmin(<AdminHome />)} />
+        <Route path="/audits/common-audit" element={withAdmin(<CommonAuditList />)} />
+        <Route path="/:encMaster/:encModule" element={withAdmin(<AdminEncryptedRouter />)} />
+        <Route path="/:encMaster/:encModule/new" element={withAdmin(<AdminEncryptedRouter />)} />
+        <Route path="/:encMaster/:encModule/:id/edit" element={withAdmin(<AdminEncryptedRouter />)} />
+        <Route path="/:encMaster/:encModule/:id/report" element={withAdmin(<DailyTripLogReportPage />)} />
 
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
   );
 }

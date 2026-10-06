@@ -3,6 +3,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -10,7 +11,7 @@ import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primerea
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { staffTemplateApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
@@ -242,19 +243,38 @@ export default function StaffTemplateList() {
 
   /* ================= ACTIONS ================= */
 
+  const handleDelete = async (id: string) => {
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
+
+    try {
+      await staffTemplateApi.delete(id, withDeleteReason(reason));
+      setTemplates((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.delete_failed"),
+        text: String(error ?? t("common.request_failed")),
+      });
+    }
+  };
+
   const actionTemplate = (row: StaffTemplate) => (
     <div className="flex justify-center">
-      <button
-        title={t("common.edit")}
-        onClick={() =>
+      <ActionMenu
+        onEdit={() =>
           navigate(ENC_EDIT_PATH(row.unique_id), {
             state: { ...selectedContext, record: row },
           })
         }
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
+        onDelete={() => void handleDelete(row.unique_id)}
+      />
     </div>
   );
 
