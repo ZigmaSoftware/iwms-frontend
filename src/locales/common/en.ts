@@ -180,7 +180,14 @@ export default {
     "project": "Project",
     "select_company_first": "Select a company first",
     "toggle_theme": "Toggle theme",
-    "username": "Username"
+    "username": "Username",
+    "map_layers": {
+      "title": "Map Layers",
+      "osm": "OpenStreetMap",
+      "satellite": "Satellite",
+      "hybrid": "Satellite + Labels",
+      "tile_error": "Some map tiles could not be loaded. Check your connection or try another layer."
+    }
   },
   "login": {
     "title": "Welcome Back",
