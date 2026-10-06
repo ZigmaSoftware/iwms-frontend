@@ -502,7 +502,10 @@ export default function VehicleHistory(): JSX.Element {
     const poly = L.polyline(coords, { color: "#2563eb", weight: 4 });
     poly.addTo(layer);
 
-    mapRef.current.fitBounds(poly.getBounds(), { padding: [40, 40] });
+    // Measure first, and skip the zoom animation: an animated fit on a stale
+    // size leaves scaled, blurry tiles that never get replaced.
+    mapRef.current.invalidateSize({ pan: false });
+    mapRef.current.fitBounds(poly.getBounds(), { padding: [40, 40], animate: false });
 
     if (markerRef.current) markerRef.current.remove();
     const initial = track[0];

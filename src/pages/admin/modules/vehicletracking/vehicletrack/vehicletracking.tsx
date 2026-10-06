@@ -1,5 +1,5 @@
 import type { PanelStatusKey, PanelVehicle, RawRecord, Status, StatusSurface, Vehicle, VehicleMetrics } from "./types";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import { addMapLayerSwitcher } from "@/components/map/MapLayerSwitcher";
 import "leaflet/dist/leaflet.css";
@@ -264,6 +264,11 @@ export default function VehicleTracking() {
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
   const markerLookupRef = useRef<Record<string, L.Marker>>({});
+  // Icon per marker ("status|focused"), so a poll only swaps icons that changed.
+  const markerIconKeyRef = useRef<Record<string, string>>({});
+  // Vehicle set the map was last fitted to — position updates alone never refit.
+  const lastFitKeyRef = useRef("");
+  const lastFocusedIdRef = useRef("");
   const metricsRequestRef = useRef(0);
   const mapDivRef = useRef<HTMLDivElement | null>(null);
   const carouselRef = useRef<HTMLDivElement | null>(null);
@@ -279,10 +284,13 @@ export default function VehicleTracking() {
     [i18n.language, t],
   );
 
-  const formatStatusLabel = (status: Status) => {
-    const key = status.toLowerCase().replace(" ", "_") as keyof typeof statusLabels;
-    return statusLabels[key] ?? status;
-  };
+  const formatStatusLabel = useCallback(
+    (status: Status) => {
+      const key = status.toLowerCase().replace(" ", "_") as keyof typeof statusLabels;
+      return statusLabels[key] ?? status;
+    },
+    [statusLabels],
+  );
 
   const speedUnit = t("dashboard.live_map.units.kmh");
   const activeVehicle = useMemo(() => {
@@ -422,10 +430,16 @@ export default function VehicleTracking() {
 
     map.addControl(new StatusControl({ position: "topleft" }));
 
-    const timer = setInterval(fetchData, 7000);
+    const timer = setInterval(fetchData, 2000);
     return () => {
       clearInterval(timer);
       map.remove();
+      mapRef.current = null;
+      layerRef.current = null;
+      markerLookupRef.current = {};
+      markerIconKeyRef.current = {};
+      lastFitKeyRef.current = "";
+      lastFocusedIdRef.current = "";
     };
   }, [API_URL]);
 
@@ -599,11 +613,21 @@ export default function VehicleTracking() {
   }, [panelVehicle?.id, dayWiseWeighmentApiUrl, gpsTripSummaryApi]);
 
   /* ================= MARKERS + POPUP ================= */
+  // Updates markers in place on each poll (move / restyle / add / remove)
+  // instead of rebuilding the layer, so open popups and the user's view survive.
   useEffect(() => {
-    if (!layerRef.current || !mapRef.current) return;
+    const layer = layerRef.current;
+    if (!layer || !mapRef.current) return;
 
-    layerRef.current.clearLayers();
-    markerLookupRef.current = {};
+    const markers = markerLookupRef.current;
+    const iconKeys = markerIconKeyRef.current;
+    const visibleIds = new Set(filteredVehicles.map((v) => v.id));
+    Object.keys(markers).forEach((id) => {
+      if (visibleIds.has(id)) return;
+      layer.removeLayer(markers[id]);
+      delete markers[id];
+      delete iconKeys[id];
+    });
 
     filteredVehicles.forEach((v) => {
       const popupHtml = `
@@ -621,28 +645,49 @@ export default function VehicleTracking() {
       `;
 
       const isFocused = v.id === focusedVehicleId;
+      const iconKey = `${v.status}|${isFocused}`;
+      const existing = markers[v.id];
+      if (existing) {
+        const current = existing.getLatLng();
+        if (current.lat !== v.lat || current.lng !== v.lng) existing.setLatLng([v.lat, v.lng]);
+        if (iconKeys[v.id] !== iconKey) {
+          existing.setIcon(createVehicleIcon(v.status, isFocused));
+          iconKeys[v.id] = iconKey;
+        }
+        existing.setPopupContent(popupHtml);
+        return;
+      }
+
       const marker = L.marker([v.lat, v.lng], {
         icon: createVehicleIcon(v.status, isFocused),
       })
         .bindPopup(popupHtml, {
           closeButton: true,
-          autoPan: true,
+          // Live updates must not drag the map around under an open popup.
+          autoPan: false,
           offset: [0, -8],
         })
-        .addTo(layerRef.current!);
+        .addTo(layer);
       marker.on("mouseover", () => marker.openPopup());
       marker.on("mouseout", () => marker.closePopup());
       marker.on("click", () => {
         setFocusedVehicleId(v.id);
         setPanelOpen(true);
       });
-      markerLookupRef.current[v.id] = marker;
+      markers[v.id] = marker;
+      iconKeys[v.id] = iconKey;
     });
   }, [filteredVehicles, focusedVehicleId, formatStatusLabel, speedUnit, t]);
 
   /* ================= AUTO FIT ================= */
+  // Fit only when the set of shown vehicles changes (first load, filter,
+  // search, selection) — not when a poll merely moves them.
   useEffect(() => {
     if (!mapRef.current || filteredVehicles.length === 0) return;
+
+    const fitKey = filteredVehicles.map((v) => v.id).sort().join("|");
+    if (fitKey === lastFitKeyRef.current) return;
+    lastFitKeyRef.current = fitKey;
 
     const bounds = L.latLngBounds(
       filteredVehicles.map((v) => [v.lat, v.lng] as [number, number])
@@ -652,9 +697,13 @@ export default function VehicleTracking() {
   }, [filteredVehicles]);
 
   useEffect(() => {
+    if (!focusedVehicleId) lastFocusedIdRef.current = "";
     if (!mapRef.current || !focusedVehicleId) return;
+    // Centre once per focus change; later polls leave the view alone.
+    if (focusedVehicleId === lastFocusedIdRef.current) return;
     const target = filteredVehicles.find((v) => v.id === focusedVehicleId);
     if (!target) return;
+    lastFocusedIdRef.current = focusedVehicleId;
     const marker = markerLookupRef.current[focusedVehicleId];
     if (marker) {
       marker.openPopup();

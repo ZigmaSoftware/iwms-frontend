@@ -288,6 +288,13 @@ export default function DailyTripTracking() {
   const mapElement = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRefs = useRef<Record<string, L.Marker>>({});
+  // Routes / stops / vehicle; cleared and redrawn without touching the map itself.
+  const overlayRef = useRef<L.LayerGroup | null>(null);
+  // Content last drawn and stop set last fitted — polls that change neither are no-ops.
+  const lastDrawKeyRef = useRef("");
+  const lastFitKeyRef = useRef("");
+  // Bumped whenever the ORS route geometry object changes, so it can join the draw key.
+  const routeGeoJsonVersionRef = useRef<{ value: unknown; version: number }>({ value: null, version: 0 });
   const optimizingRef = useRef(false);
   const lastOptimizedVehicleStartRef = useRef("");
 
@@ -543,31 +550,88 @@ export default function DailyTripTracking() {
   }, []);
 
   // ── Map ────────────────────────────────────────────────────────────────────
+  // The map is created once; polls only redraw the overlay (routes, stops,
+  // vehicle) when its content actually changed, and the view is fitted only
+  // when the trip / stop set changes — so the 15s refresh never resets the
+  // user's zoom/pan or reloads tiles.
   useEffect(() => {
     if (!mapElement.current) return;
-    mapRef.current?.remove();
-    markerRefs.current = {};
+    const map = L.map(mapElement.current).setView([10.7867, 76.6548], 8);
+    // Top corners hold the route legend and vehicle-route panel.
+    addMapLayerSwitcher(map, { position: "bottomright" });
+    overlayRef.current = L.layerGroup().addTo(map);
+    mapRef.current = map;
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      overlayRef.current = null;
+      markerRefs.current = {};
+      lastDrawKeyRef.current = "";
+      lastFitKeyRef.current = "";
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const overlay = overlayRef.current;
+    if (!map || !overlay) return;
+
     const points = (data?.route_results ?? data?.results ?? []).filter(
       (r) => r.collection_point?.latitude && r.collection_point?.longitude,
     ).sort((a, b) => a.sequence - b.sequence);
-    const center: L.LatLngExpression =
-      points.length
-        ? [
-            Number(points[0].collection_point!.latitude),
-            Number(points[0].collection_point!.longitude),
-          ]
-        : [10.7867, 76.6548];
-    const map = L.map(mapElement.current).setView(center, points.length ? 13 : 8);
-    // Top corners hold the route legend and vehicle-route panel.
-    addMapLayerSwitcher(map, { position: "bottomright" });
+    const isOverview = !assignmentId && Boolean(overview?.trips.length);
+    const vehicle = liveVehicleLocation ?? data?.vehicle_tracking?.current_location;
+
+    // Polls return fresh objects even when nothing changed; compare content.
+    if (routeGeoJsonVersionRef.current.value !== routeGeoJson) {
+      routeGeoJsonVersionRef.current = {
+        value: routeGeoJson,
+        version: routeGeoJsonVersionRef.current.version + 1,
+      };
+    }
+    const pointKey = (row: Row) =>
+      `${row.unique_id}:${row.sequence}:${row.status}:${row.collection_point?.latitude}:${row.collection_point?.longitude}:${row.collection_point?.cp_name ?? ""}`;
+    const drawKey = isOverview
+      ? JSON.stringify([
+          "overview",
+          overview!.trips.map((trip) => [
+            trip.assignment_id,
+            trip.trip_date,
+            trip.vehicle_no,
+            trip.distance_meters,
+            Boolean(trip.route_geojson),
+            trip.collection_points.map(pointKey),
+          ]),
+        ])
+      : JSON.stringify([
+          "trip",
+          assignmentId,
+          points.map(pointKey),
+          plant && assignmentId ? [plant.id, plant.latitude, plant.longitude] : null,
+          routeGeoJsonVersionRef.current.version,
+          vehicle ? [Number(vehicle.latitude), Number(vehicle.longitude)] : null,
+          data?.vehicle_tracking?.vehicle_no ?? null,
+          vehicle ? null : routePlan?.vehicle_start ?? null,
+        ]);
+    if (drawKey === lastDrawKeyRef.current) return;
+    lastDrawKeyRef.current = drawKey;
+
+    overlay.clearLayers();
+    markerRefs.current = {};
+    // Fit only when the trip / stop set changes, never on a same-trip poll.
+    const fitOnce = (fitKey: string, bounds: L.LatLng[], padding: number) => {
+      if (!bounds.length || fitKey === lastFitKeyRef.current) return;
+      lastFitKeyRef.current = fitKey;
+      map.fitBounds(L.latLngBounds(bounds), { padding: [padding, padding] });
+    };
     const latLngs: L.LatLng[] = [];
-    if (!assignmentId && overview?.trips.length) {
+    if (isOverview && overview) {
       overview.trips.forEach((trip, tripIndex) => {
         const color = TRIP_ROUTE_COLORS[tripIndex % TRIP_ROUTE_COLORS.length];
         if (trip.route_geojson) {
           L.geoJSON(trip.route_geojson, {
             style: { color: "#ffffff", weight: 9, opacity: 0.9 },
-          }).addTo(map);
+          }).addTo(overlay);
           const routeLayer = L.geoJSON(trip.route_geojson, {
             style: { color, weight: 5, opacity: 0.9 },
           })
@@ -575,7 +639,7 @@ export default function DailyTripTracking() {
               `${trip.assignment_id} · ${trip.vehicle_no ?? "No vehicle"} · ${(trip.distance_meters / 1000).toFixed(2)} km`,
             )
             .on("click", () => selectTrip(trip.assignment_id, trip.trip_date))
-            .addTo(map);
+            .addTo(overlay);
           const bounds = routeLayer.getBounds();
           if (bounds.isValid()) latLngs.push(bounds.getNorthEast(), bounds.getSouthWest());
         }
@@ -595,15 +659,15 @@ export default function DailyTripTracking() {
           })
             .bindTooltip(`${trip.assignment_id} · ${row.collection_point.cp_name ?? row.unique_id}`)
             .on("click", () => selectTrip(trip.assignment_id, trip.trip_date))
-            .addTo(map);
+            .addTo(overlay);
         });
       });
-      if (latLngs.length) map.fitBounds(L.latLngBounds(latLngs), { padding: [35, 35] });
-      mapRef.current = map;
-      return () => {
-        map.remove();
-        mapRef.current = null;
-      };
+      fitOnce(
+        `overview|${overview.trips.map((trip) => trip.assignment_id).sort().join("|")}`,
+        latLngs,
+        35,
+      );
+      return;
     }
     points.forEach((row) => {
       const latLng = L.latLng(
@@ -624,7 +688,7 @@ export default function DailyTripTracking() {
           `${row.sequence}. ${row.collection_point?.cp_name ?? row.unique_id} · ${statusLabel(row.status)}`,
           { direction: "top", offset: [0, -12] },
         )
-        .addTo(map);
+        .addTo(overlay);
       markerRefs.current[row.unique_id] = marker;
     });
     if (assignmentId && plant) {
@@ -639,17 +703,16 @@ export default function DailyTripTracking() {
         }),
       })
         .bindTooltip(plant.name, { direction: "top", offset: [0, -12] })
-        .addTo(map);
+        .addTo(overlay);
     }
     if (routeGeoJson) {
       L.geoJSON(routeGeoJson, {
         style: { color: "#ffffff", weight: 10, opacity: 0.95 },
-      }).addTo(map);
+      }).addTo(overlay);
       L.geoJSON(routeGeoJson, {
         style: { color: "#2563eb", weight: 6, opacity: 0.95 },
-      }).addTo(map);
+      }).addTo(overlay);
     }
-    const vehicle = liveVehicleLocation ?? data?.vehicle_tracking?.current_location;
     if (vehicle) {
       const vehicleLatLng = L.latLng(Number(vehicle.latitude), Number(vehicle.longitude));
       L.marker(vehicleLatLng, {
@@ -661,7 +724,7 @@ export default function DailyTripTracking() {
         }),
       })
         .bindTooltip(`Vehicle ${data?.vehicle_tracking?.vehicle_no ?? ""}`, { direction: "top" })
-        .addTo(map);
+        .addTo(overlay);
       latLngs.push(vehicleLatLng);
     } else if (routePlan?.vehicle_start) {
       const vehicleStart = L.latLng(routePlan.vehicle_start[1], routePlan.vehicle_start[0]);
@@ -672,15 +735,14 @@ export default function DailyTripTracking() {
           iconSize: [34, 34],
           iconAnchor: [17, 17],
         }),
-      }).bindTooltip("ORS route start", { direction: "top" }).addTo(map);
+      }).bindTooltip("ORS route start", { direction: "top" }).addTo(overlay);
       latLngs.push(vehicleStart);
     }
-    if (latLngs.length) map.fitBounds(L.latLngBounds(latLngs), { padding: [24, 24] });
-    mapRef.current = map;
-    return () => {
-      map.remove();
-      mapRef.current = null;
-    };
+    fitOnce(
+      `trip|${assignmentId}|${points.map((row) => row.unique_id).join("|")}|${plant?.id ?? ""}`,
+      latLngs,
+      24,
+    );
   }, [assignmentId, data, liveVehicleLocation, overview, routeGeoJson, routePlan, selectTrip, plant]);
 
   // ── Fixed-order route geometry ─────────────────────────────────────────────
