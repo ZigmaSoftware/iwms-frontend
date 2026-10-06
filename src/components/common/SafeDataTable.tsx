@@ -926,6 +926,10 @@ export const DataTable = <TValue extends SafeTableRows>(
       <PrimeDataTable
         responsiveLayout="stack"
         breakpoint="768px"
+        // Every paginated list shows its overall count ("1–10 of 115
+        // records"); a table can still pass its own template to override.
+        paginatorTemplate="CurrentPageReport FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown"
+        currentPageReportTemplate="{first}–{last} of {totalRecords} records"
         {...serverTableProps}
         header={header}
         value={(serverApi ? serverRows : safeRows) as TValue}

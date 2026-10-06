@@ -123,14 +123,12 @@ export default function TicketWizardForm() {
       complaintPriorityApi.readAll().catch(() => []),
       complaintStatusApi.readAll().catch(() => []),
       complaintSourceApi.readAll().catch(() => []),
-      adminApi.wasteTypes.readAll().catch(() => []),
-    ]).then(([customerRows, categoryRows, subcategoryRows, priorityRows, statusRows, sourceRows, wasteTypeRows]) => {
+    ]).then(([customerRows, categoryRows, subcategoryRows, priorityRows, statusRows, sourceRows]) => {
       setCustomers(asArray(customerRows));
       setCategories(asArray(categoryRows));
       setSubcategories(asArray(subcategoryRows));
       setPriorities(asArray(priorityRows));
       setSources(asArray(sourceRows));
-      setWasteTypes(asArray(wasteTypeRows));
       setForm((prev) => ({
         ...prev,
         priority: asArray<any>(priorityRows)[0]?.unique_id ?? "",
@@ -141,6 +139,38 @@ export default function TicketWizardForm() {
     geoApi.states().then(setStates).catch(() => setStates([]));
     geoApi.districts().then(setDistricts).catch(() => setDistricts([]));
   }, []);
+
+  // Waste types are per company/project — loading them unscoped listed the
+  // same name once per project. Scope to the ticket's tenancy (as the
+  // collection point / trip plan forms do) and collapse names that still
+  // repeat, since they render identically once capitalized.
+  useEffect(() => {
+    if (!companyUniqueId || !projectId) {
+      setWasteTypes([]);
+      setForm((prev) => (prev.waste_types.length ? { ...prev, waste_types: [] } : prev));
+      return;
+    }
+    let cancelled = false;
+    adminApi.wasteTypes
+      .readAll({ params: { company_id: companyUniqueId, project_id: projectId } })
+      .catch(() => [])
+      .then((rows) => {
+        if (cancelled) return;
+        const seen = new Set<string>();
+        const unique = asArray<{ unique_id: string; waste_type_name?: string }>(rows).filter((item) => {
+          const key = String(item.waste_type_name ?? "").trim().toLowerCase();
+          if (!key || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        setWasteTypes(unique);
+        const ids = new Set(unique.map((item) => item.unique_id));
+        setForm((prev) => ({ ...prev, waste_types: prev.waste_types.filter((id) => ids.has(id)) }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [companyUniqueId, projectId]);
 
   // Data Scope — when the logged-in staff's own scope pins a level to
   // exactly one value, that field shows pre-filled and non-editable instead
@@ -620,7 +650,7 @@ export default function TicketWizardForm() {
                   <FormSelect
                     value={form.incident_type}
                     onChange={(v) => setValue("incident_type", v)}
-                    options={[{ value: "public", label: "Public Grievance" }, { value: "trip", label: "Trip Related" }, { value: "driver", label: "Driver Related" }, { value: "operator", label: "Operator Related" }, { value: "vehicle", label: "Vehicle Related" }, { value: "other", label: "Other" }]}
+                    options={[{ value: "trip", label: "Trip Related" }, { value: "driver", label: "Driver Related" }, { value: "operator", label: "Operator Related" }, { value: "vehicle", label: "Vehicle Related" }, { value: "other", label: "Other" }]}
                     placeholder={null}
                   />
                 </div>

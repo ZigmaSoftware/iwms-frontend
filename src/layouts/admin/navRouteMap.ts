@@ -94,6 +94,10 @@ export function buildNavRouteMap(): RouteEntry[] {
     encAlternativeStaffTemplate,
     encCommonAudit,
     encLoginAudits,
+    encPermissionAudit,
+    encStaticRouteAudit,
+    encComplaintAudit,
+    encAuditDashboard,
     encTripPlans,
     encCompanyCreation,
     encProjectCreation,
@@ -510,6 +514,11 @@ export function buildNavRouteMap(): RouteEntry[] {
     },
     // Audits
     {
+      path: `/${encAudits}/${encAuditDashboard}`,
+      nameKey: "admin.nav.audit_dashboard",
+      parentNameKey: "admin.nav.audit_items",
+    },
+    {
       path: `/${encAudits}/${encCommonAudit}`,
       nameKey: "admin.nav.common_audit",
       parentNameKey: "admin.nav.audit_items",
@@ -517,6 +526,21 @@ export function buildNavRouteMap(): RouteEntry[] {
     {
       path: `/${encAudits}/${encLoginAudits}`,
       nameKey: "admin.nav.login_audit",
+      parentNameKey: "admin.nav.audit_items",
+    },
+    {
+      path: `/${encAudits}/${encPermissionAudit}`,
+      nameKey: "admin.nav.user_access_audit",
+      parentNameKey: "admin.nav.audit_items",
+    },
+    {
+      path: `/${encAudits}/${encStaticRouteAudit}`,
+      nameKey: "admin.nav.static_route_audit",
+      parentNameKey: "admin.nav.audit_items",
+    },
+    {
+      path: `/${encAudits}/${encComplaintAudit}`,
+      nameKey: "admin.nav.complaint_audit",
       parentNameKey: "admin.nav.audit_items",
     },
     // Vehicle Tracking

@@ -66,6 +66,7 @@ export const adminEndpoints = {
   dailyTripLog: "schedule-operations/daily-trip-logs",
   dailyTripCollectionPoint: "schedule-operations/daily-trip-collection-points",
   routeDetourWaypoints: "schedule-operations/route-detour-waypoints",
+  tripPlanStaticRoutes: "schedule-operations/trip-plan-static-routes",
   dailyTripHouseholdCollection:
     "schedule-operations/daily-trip-household-collections",
   binCollectionEvent: "schedule-operations/bin-collection-events",
@@ -147,7 +148,6 @@ export const adminEndpoints = {
   complaintStatuses: "complaint-ticket/statuses",
   complaintSources: "complaint-ticket/sources",
   complaintLanguages: "complaint-ticket/languages",
-  complaintDepartmentMembers: "complaint-ticket/department-members",
   complaintSlaRules: "complaint-ticket/sla-rules",
   complaintRoutingRules: "complaint-ticket/routing-rules",
   complaintFeedback: "complaint-ticket/feedback",
@@ -177,6 +177,10 @@ export const adminEndpoints = {
   ========================= */
   loginAudits: "audits/login-audit",
   commonAudits: "audits/common-audit",
+  permissionAudits: "audits/permission-audit",
+  staticRouteAudits: "audits/static-route-audit",
+  complaintAudits: "audits/complaint-audit",
+  auditDashboard: "audits/audit-dashboard",
 } as const;
 
 export type AdminEntity = keyof typeof adminEndpoints;

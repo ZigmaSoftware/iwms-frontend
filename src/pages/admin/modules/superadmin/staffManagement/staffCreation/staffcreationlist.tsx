@@ -4,6 +4,7 @@ import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type {
@@ -384,18 +385,11 @@ export default function StaffCreationList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await adminApi.staffCreation.delete(id);
+      await adminApi.staffCreation.delete(id, withDeleteReason(reason));
       setStaffs((current) => current.filter((item) => item.unique_id !== id));
       Swal.fire({
         icon: "success",

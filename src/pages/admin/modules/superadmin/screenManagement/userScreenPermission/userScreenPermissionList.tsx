@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -251,15 +252,11 @@ export default function UserScreenPermissionList() {
   ----------------------------------------------------------- */
 
   const handleDelete = useCallback(async (row: ProjectPermissionSummaryRow) => {
-    const confirmDelete = await Swal.fire({
-      title: t("common.confirm_title"),
+    const reason = await confirmDeleteWithReason({
       text: t("admin.user_screen_permission.confirm_delete"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
     });
 
-    if (!confirmDelete.isConfirmed) return;
+    if (reason === null) return;
 
     try {
       const targets = row.delete_targets.length > 0
@@ -269,7 +266,8 @@ export default function UserScreenPermissionList() {
       await Promise.all(
         targets.map((target) =>
           userScreenPermissionApi.delete(
-            `delete-by-project/${target.project_id || "none"}/?mainscreen_id=${encodeURIComponent(target.mainscreen_id)}&permission_type=${encodeURIComponent(target.permission_type)}`
+            `delete-by-project/${target.project_id || "none"}/?mainscreen_id=${encodeURIComponent(target.mainscreen_id)}&permission_type=${encodeURIComponent(target.permission_type)}`,
+            withDeleteReason(reason)
           )
         )
       );

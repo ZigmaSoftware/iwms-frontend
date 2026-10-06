@@ -8,6 +8,7 @@ import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -117,18 +118,11 @@ export default function ProjectListPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await projectApi.delete(id);
+      await projectApi.delete(id, withDeleteReason(reason));
       setProjects((current) => current.filter((item) => item.unique_id !== id));
       Swal.fire({
         icon: "success",

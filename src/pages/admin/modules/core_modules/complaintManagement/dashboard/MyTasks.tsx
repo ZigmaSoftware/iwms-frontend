@@ -174,10 +174,9 @@ function ResolvedTicketCard({
 }: {
   ticket: ComplaintTicket;
   busy: boolean;
-  onReopen: (id: string, remarks: string) => void;
+  onReopen: (id: string) => void;
   onOpen: (id: string) => void;
 }) {
-  const [remarks, setRemarks] = useState("");
   const priorityClass = PRIORITY_STYLES[ticket.priority_code ?? ""] ?? "bg-slate-50 text-slate-600 border-slate-200";
 
   return (
@@ -207,12 +206,6 @@ function ResolvedTicketCard({
             <Clock className="h-3.5 w-3.5" /> Resolved {formatDateTime(ticket.resolved_at)}
           </span>
         </div>
-        <Input
-          value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
-          placeholder="Remarks"
-          className="h-8 text-xs"
-        />
         <div className="flex items-center justify-between gap-2 pt-1">
           <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
             Resolved
@@ -221,7 +214,7 @@ function ResolvedTicketCard({
             <Button size="sm" variant="outline" onClick={() => onOpen(ticket.unique_id)}>
               Open
             </Button>
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => onReopen(ticket.unique_id, remarks)}>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => onReopen(ticket.unique_id)}>
               <RefreshCcw className="mr-1 h-4 w-4" /> Reopen
             </Button>
           </div>
@@ -332,10 +325,26 @@ export default function MyTasks() {
     }
   };
 
-  const handleReopen = async (id: string, remarks: string) => {
+  const handleReopen = async (id: string) => {
+    // A reason is required for audit; the backend rejects a reopen without one.
+    const confirmReopen = await Swal.fire({
+      title: "Reopen ticket?",
+      text: "The ticket will move back to Reopened.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Reopen",
+      input: "textarea",
+      inputLabel: "Reason for reopening",
+      inputPlaceholder: "Enter why this ticket is being reopened",
+      inputMaxLength: 1000,
+      inputValidator: (value: string) =>
+        value.trim() ? null : "Please enter the reason for reopening.",
+    });
+    if (!confirmReopen.isConfirmed) return;
+
     setBusyId(id);
     try {
-      await ticketActions.reopen(id, { reopen_reason: remarks || undefined });
+      await ticketActions.reopen(id, { reopen_reason: (confirmReopen.value ?? "").trim() });
       await loadOwnTasks();
     } catch (err) {
       Swal.fire("Error", errorText(err, "Unable to reopen ticket"), "error");

@@ -132,6 +132,10 @@ const VehicleBreakdownForm = lazy(() => import("@/pages/admin/modules/core_modul
 const DailyWasteComparisonList = lazy(() => import("@/pages/admin/modules/reports/wasteReports/dailyWasteComparison/dailyWasteComparisonList"));
 const CommonAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList"));
 const LoginAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/loginAudit/loginAuditList"));
+const PermissionAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/permissionAudit/permissionAuditList"));
+const StaticRouteAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/staticRouteAudit/StaticRouteAuditList"));
+const ComplaintAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/complaintAudit/ComplaintAuditList"));
+const AuditDashboard = lazy(() => import("@/pages/admin/modules/superadmin/audits/auditDashboard/AuditDashboard"));
 const CompanyList = lazy(() => import("@/pages/admin/modules/superadminMasters/company/companyListPage"));
 const CompanyListForm = lazy(() => import("@/pages/admin/modules/superadminMasters/company/companyForm"));
 const ProjectList = lazy(() => import("@/pages/admin/modules/superadminMasters/project/projectListPage"));
@@ -359,9 +363,13 @@ export const ROUTES: RouteMap = {
     feedback: { list: FeedbackList },
   },
   audits: {
+    "audit-dashboard": { component: AuditDashboard },
     "common-audit": { list: CommonAuditList },
     "login-audit": { list: LoginAuditList },
     "login-audits": { list: LoginAuditList },
+    "permission-audit": { list: PermissionAuditList },
+    "static-route-audit": { list: StaticRouteAuditList },
+    "complaint-audit": { list: ComplaintAuditList },
   },
   reports: {
     "trip-summary": { component: TripSummary },

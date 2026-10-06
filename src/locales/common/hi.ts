@@ -94,6 +94,9 @@ export default {
     "confirm_title": "क्या आप सुनिश्चित हैं?",
     "confirm_delete_text": "यह रिकॉर्ड स्थायी रूप से हट जाएगा!",
     "confirm_delete_button": "हाँ, हटाएं!",
+    "delete_reason_label": "हटाने का कारण",
+    "delete_reason_placeholder": "यह रिकॉर्ड क्यों हटाया जा रहा है, दर्ज करें",
+    "delete_reason_required": "कृपया हटाने का कारण दर्ज करें।",
     "deleted_success": "सफलतापूर्वक हटाया गया!",
     "updated_success": "सफलतापूर्वक अपडेट किया गया!",
     "added_success": "सफलतापूर्वक जोड़ा गया!",
@@ -177,7 +180,14 @@ export default {
     "project": "परियोजना",
     "select_company_first": "पहले कंपनी चुनें",
     "toggle_theme": "थीम बदलें",
-    "username": "उपयोगकर्ता नाम"
+    "username": "उपयोगकर्ता नाम",
+    "map_layers": {
+      "title": "मानचित्र परतें",
+      "osm": "OpenStreetMap",
+      "satellite": "सैटेलाइट",
+      "hybrid": "सैटेलाइट + लेबल",
+      "tile_error": "कुछ मानचित्र टाइलें लोड नहीं हो सकीं। अपना कनेक्शन जांचें या कोई अन्य परत चुनें।"
+    }
   },
   "login": {
     "title": "वापसी पर स्वागत है",

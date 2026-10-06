@@ -2,6 +2,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams, useLocation} from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -670,6 +671,17 @@ export default function CollectionPointForm() {
     };
     const payload = filterPayload(rawPayload, ["company_id", "project_id", "ward_ids", "panchayat_id", "zone_id", "collection_type"]) as typeof rawPayload;
 
+    // Removed bins are deleted on save; the backend requires a reason for that.
+    let binDeleteReason = "";
+    if (isEdit && id && binsToDelete.length > 0) {
+      const reason = await confirmDeleteWithReason({
+        title: "Delete removed bins?",
+        text: `${binsToDelete.length} bin(s) removed from this collection point will be permanently deleted when you save.`,
+      });
+      if (reason === null) return;
+      binDeleteReason = reason;
+    }
+
     try {
       setIsSubmitting(true);
       let cpId = id ?? "";
@@ -677,7 +689,7 @@ export default function CollectionPointForm() {
       if (isEdit && id) {
         await collectionPointApi.update(id, payload);
         // Delete removed bins
-        await Promise.all(binsToDelete.map((binId) => adminApi.bins.delete(binId)));
+        await Promise.all(binsToDelete.map((binId) => adminApi.bins.delete(binId, withDeleteReason(binDeleteReason))));
       } else {
         const created = await collectionPointApi.create(payload);
         cpId = (created as any)?.unique_id ?? (created as any)?.data?.unique_id ?? "";

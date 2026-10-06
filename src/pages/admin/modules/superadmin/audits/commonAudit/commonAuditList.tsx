@@ -283,6 +283,8 @@ export default function CommonAuditList() {
   const [moduleNameOptions, setModuleNameOptions] = useState<string[]>([]);
   const [companyFilter, setCompanyFilter] = useState(ALL_MODULES);
   const [projectFilter, setProjectFilter] = useState(ALL_MODULES);
+  // "" = all, "true"/"false" = only successful / only rejected writes.
+  const [statusFilter, setStatusFilter] = useState("");
   const [filterOptions, setFilterOptions] = useState<AuditFilterOptions | null>(
     null,
   );
@@ -372,6 +374,7 @@ export default function CommonAuditList() {
       moduleFilterValue?: string,
       companyValue?: string,
       projectValue?: string,
+      statusValue?: string,
     ) => {
       const requestId = ++requestIdRef.current;
       setIsLoading(true);
@@ -393,6 +396,7 @@ export default function CommonAuditList() {
               ...(projectValue && projectValue !== ALL_MODULES
                 ? { project_unique_id: projectValue }
                 : {}),
+              ...(statusValue ? { success: statusValue } : {}),
             },
           },
         );
@@ -422,6 +426,7 @@ export default function CommonAuditList() {
       moduleFilter,
       companyFilter,
       projectFilter,
+      statusFilter,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -432,6 +437,7 @@ export default function CommonAuditList() {
     moduleFilter,
     companyFilter,
     projectFilter,
+    statusFilter,
   ]);
 
   // Distinct company/project/module/user values for the dropdowns, served by
@@ -491,6 +497,7 @@ export default function CommonAuditList() {
         ...(projectFilter && projectFilter !== ALL_MODULES
           ? { project_unique_id: projectFilter }
           : {}),
+        ...(statusFilter ? { success: statusFilter } : {}),
       },
     });
     return toRecordList(data) as unknown as Record<string, unknown>[];
@@ -588,6 +595,25 @@ export default function CommonAuditList() {
               className="w-full"
             />
           </LabeledFilter>
+
+          <LabeledFilter
+            label={t("admin.common_audit.status_filter_label")}
+            hint={t("admin.common_audit.status_filter_hint")}
+          >
+            <FilterBarSelect
+              value={statusFilter}
+              onChange={(value) => {
+                setFirst(0);
+                setStatusFilter(value);
+              }}
+              options={[
+                { label: t("admin.common_audit.success"), value: "true" },
+                { label: t("admin.common_audit.failed"), value: "false" },
+              ]}
+              placeholder={t("common.all")}
+              className="w-full"
+            />
+          </LabeledFilter>
         </FilterBar>
       </div>
 
@@ -600,6 +626,7 @@ export default function CommonAuditList() {
         paginator
         first={first}
         rows={rowsPerPage}
+        rowsPerPageOptions={[5, 10, 25, 50]}
         totalRecords={totalRecords}
         onPage={onPage}
         sortField={sortField}
@@ -664,6 +691,24 @@ export default function CommonAuditList() {
           }}
         />
         <Column
+          field="success"
+          header={t("admin.common_audit.status")}
+          body={(r: CommonAuditRecord) =>
+            r.success === false ? (
+              <span
+                title={r.reason ?? undefined}
+                className="rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
+              >
+                {t("admin.common_audit.failed")}
+              </span>
+            ) : (
+              <span className="rounded bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                {t("admin.common_audit.success")}
+              </span>
+            )
+          }
+        />
+        <Column
           field="createdAt"
           header={t("admin.common_audit.created_at")}
           body={(r: CommonAuditRecord) => formatDateTime(r.createdAt)}
@@ -685,6 +730,55 @@ export default function CommonAuditList() {
           <DialogHeader>
             <DialogTitle>{t("admin.common_audit.detail_title")}</DialogTitle>
           </DialogHeader>
+
+          <div className="grid gap-3 rounded-md border bg-gray-50 p-3 text-sm sm:grid-cols-2">
+            <div>
+              <div className="text-xs text-gray-500">
+                {t("admin.common_audit.status")}
+              </div>
+              <div
+                className={
+                  selectedRecord?.success === false
+                    ? "font-medium text-red-700"
+                    : "font-medium text-green-700"
+                }
+              >
+                {selectedRecord?.success === false
+                  ? t("admin.common_audit.failed")
+                  : t("admin.common_audit.success")}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500">
+                {t("admin.common_audit.ip_address")}
+              </div>
+              <div>{selectedRecord?.ip_address || "-"}</div>
+            </div>
+            {selectedRecord?.reason ? (
+              <div className="sm:col-span-2">
+                <div className="text-xs text-gray-500">
+                  {t("admin.common_audit.reason")}
+                </div>
+                <div className="text-red-700">{selectedRecord.reason}</div>
+              </div>
+            ) : null}
+            {selectedRecord?.delete_reason ? (
+              <div className="sm:col-span-2">
+                <div className="text-xs text-gray-500">
+                  {t("common.delete_reason_label")}
+                </div>
+                <div className="whitespace-pre-line">{selectedRecord.delete_reason}</div>
+              </div>
+            ) : null}
+            <div className="min-w-0 sm:col-span-2">
+              <div className="text-xs text-gray-500">
+                {t("admin.common_audit.user_agent")}
+              </div>
+              <div className="break-words text-xs text-gray-700">
+                {selectedRecord?.user_agent || "-"}
+              </div>
+            </div>
+          </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <JsonViewer
