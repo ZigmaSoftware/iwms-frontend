@@ -566,11 +566,16 @@ const resolveScreenActions = (
   return screenKey ? moduleEntry[screenKey] : undefined;
 };
 
-const isStoredSuperAdmin = (): boolean => {
+export const isStoredSuperAdmin = (): boolean => {
   if (typeof window === "undefined") return false;
   const role = String(localStorage.getItem("user_role") ?? "").trim().toLowerCase();
   return role === "superadmin" || role === "super_admin";
 };
+
+/** Where an admin lands after sign-in: platform super admins open the
+ * Superadmin Dashboard, everyone else the (company/project) Admin Dashboard. */
+export const adminLandingPath = (): string =>
+  isStoredSuperAdmin() ? "/admin/superadmin-dashboard" : "/admin";
 
 const resolveSimpleColumnEntry = (
   columnPermissions: ColumnPermissionsPayload,

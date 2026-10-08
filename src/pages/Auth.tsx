@@ -15,6 +15,7 @@ import {
   isAdmin,
 } from "@/types/roles";
 import {
+  adminLandingPath,
   getStoredColumnPermissions,
   getStoredPermissions,
   hasAnyPermission,
@@ -129,14 +130,15 @@ export default function Auth() {
       });
 
       // Route based on role:
-      //   Admin-type roles (Company Admin, superadmin, etc.) → /admin
+      //   Platform super admin → /admin/superadmin-dashboard
+      //   Admin-type roles (Company Admin, Project Admin, etc.) → /admin
       //   Any other role granted module/screen permissions → /admin
       //   Everyone else (no admin-module access) → /dashboard
       const hasAdminRole = isAdmin(normalizedRole, hasAnyPermission("view", freshPermissions));
 
       if (hasAdminRole) {
         setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);
-        navigate("/admin", { replace: true });
+        navigate(adminLandingPath(), { replace: true });
       } else {
         clearAdminViewPreference();
         navigate("/dashboard", { replace: true });

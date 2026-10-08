@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   ChevronDown,
   LayoutGrid,
+  ShieldCheck,
   Settings,
   Layers3,
   Users,
@@ -118,6 +119,8 @@ const {
 type NavMatchable = {
   path?: string;
   matchPaths?: string[];
+  /** Match `path` only, not routes nested under it. */
+  exact?: boolean;
 };
 
 // `module`/`screens` always come from `permissionFor(...)`, which only accepts
@@ -132,6 +135,8 @@ type NavItem = NavMatchable &
   NavPermission & {
     nameKey: string;
     icon: React.ReactNode;
+    /** Platform super admins only; not grantable to anyone else. */
+    superadminOnly?: boolean;
     subItems?: Array<
       NavMatchable &
         NavPermission & {
@@ -236,13 +241,18 @@ const MODULE_GROUPS: {
 
 const navItems: NavItem[] = [
   {
-    nameKey: "admin.nav.dashboard",
+    nameKey: "admin.nav.superadmin_dashboard",
+    icon: <ShieldCheck size={18} />,
+    path: "/admin/superadmin-dashboard",
+    superadminOnly: true,
+  },
+  {
+    nameKey: "admin.nav.admin_dashboard",
     icon: <LayoutGrid size={18} />,
     path: "/admin",
-    // Not a catalog screen: shown to anyone holding any permission (see
-    // checkPermission below).
-    module: "dashboard",
-    screens: ["Dashboard"],
+    // Every admin page lives under /admin; only the page itself is this item.
+    exact: true,
+    ...permissionFor("dashboard", "admin-dashboard"),
   },
 ];
 
@@ -794,24 +804,19 @@ const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, toggleSidebar } = useSidebar();
   const location = useLocation();
   const { t } = useTranslation();
-  const { hasPermission, isEmptyPermissions } = usePermission();
+  const { hasPermission } = usePermission();
   const showFullSidebar = isExpanded || isMobileOpen;
 
   //  Detect if current user is superadmin
   const isSuperAdmin = useMemo(() => isSuperAdminUser(), []);
 
   // Check sidebar visibility using the read/view permission returned by login.
-  // Dashboard isn't itself a grantable screen in the backend catalog, so it
-  // can never carry its own "view" permission — instead it's shown to any
-  // staff member who has been granted at least one permission anywhere,
-  // same as it's always shown to superadmin.
   const checkPermission = useCallback(
     (module: string | undefined, screen: string | undefined): boolean => {
       if (!module || !screen) return true;
-      if (module === "dashboard") return !isEmptyPermissions;
       return hasPermission(module, screen, "view");
     },
-    [hasPermission, isEmptyPermissions],
+    [hasPermission],
   );
 
   const checkSubItemPermission = useCallback(
@@ -884,6 +889,7 @@ const AppSidebar: React.FC = () => {
       .map((section) => {
         // Filter items within section
         const filteredItems = section.items
+          .filter((item) => !item.superadminOnly)
           .map((item) => {
             const filteredSubItems = filterSubItems(item.subItems);
             return {
@@ -997,7 +1003,7 @@ const AppSidebar: React.FC = () => {
   /** True when `entry`'s own route, or any route it fronts, is current. */
   const isEntryActive = useCallback(
     (entry: NavMatchable) =>
-      (!!entry.path && isActive(entry.path, true)) ||
+      (!!entry.path && isActive(entry.path, !entry.exact)) ||
       (entry.matchPaths?.some((candidate) => isActive(candidate, true)) ??
         false),
     [isActive],

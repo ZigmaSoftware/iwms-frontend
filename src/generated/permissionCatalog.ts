@@ -8,6 +8,13 @@
 // in the backend catalog is a TypeScript error.
 
 export const PERMISSION_CATALOG = {
+  "dashboard": {
+    label: "Dashboard",
+    section: "dashboard",
+    screens: {
+      "admin-dashboard": { label: "Admin Dashboard", group: null },
+    },
+  },
   "superadmin-masters": {
     label: "SuperAdmin Masters",
     section: "super-admin",
