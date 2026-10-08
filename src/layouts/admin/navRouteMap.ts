@@ -123,7 +123,11 @@ export function buildNavRouteMap(): RouteEntry[] {
   } = getEncryptedRoute();
 
   _cache = [
-    { path: "/admin", nameKey: "admin.nav.dashboard" },
+    {
+      path: "/admin/superadmin-dashboard",
+      nameKey: "admin.nav.superadmin_dashboard",
+    },
+    { path: "/admin", nameKey: "admin.nav.admin_dashboard" },
     {
       path: `/${encAttendance}/${encAttendance}`,
       nameKey: "admin.nav.attendance",

@@ -171,6 +171,8 @@ export const adminEndpoints = {
      DASHBOARD
   ========================= */
   dashboardSummary: "dashboard/summary",
+  adminDashboard: "dashboards/admin",
+  superadminDashboard: "dashboards/superadmin",
 
   /* =========================
      AUDITS

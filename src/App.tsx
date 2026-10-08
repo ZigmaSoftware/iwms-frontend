@@ -21,7 +21,8 @@ const NotFound = lazy(() => import("@/pages/dashboard/pages/NotFound"));
 const HomeDashboard = lazy(() =>
   import("@/pages/dashboard/pages/Dashboard/HomeDashboard").then((m) => ({ default: m.HomeDashboard })),
 );
-const AdminHome = lazy(() => import("@/pages/admin/AdminHome"));
+const AdminDashboard = lazy(() => import("@/pages/admin/dashboards/AdminDashboard"));
+const SuperadminDashboard = lazy(() => import("@/pages/admin/dashboards/SuperadminDashboard"));
 const AdminEncryptedRouter = lazy(() => import("@/layouts/admin/encryptedRouting/AdminEncryptedRouter"));
 const CommonAuditList = lazy(
   () => import("@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList"),
@@ -49,7 +50,7 @@ import {
   normalizeRole,
   isAdmin,
 } from "@/types/roles";
-import { hasAnyPermission } from "@/utils/permissions";
+import { adminLandingPath, hasAnyPermission } from "@/utils/permissions";
 
 const ADMIN_ACCESS_ROLES: UserRole[] = [DEFAULT_ROLE, ...ADMIN_ROLES];
 
@@ -85,14 +86,14 @@ function HomeRedirect() {
     if (preference === ADMIN_VIEW_MODE_DASHBOARD) {
       return <Navigate to="/dashboard" replace />;
     }
-    return <Navigate to="/admin" replace />;
+    return <Navigate to={adminLandingPath()} replace />;
   }
 
   const resolvedRole = storedRole ?? DEFAULT_ROLE;
 
   if (resolvedRole === DEFAULT_ROLE) {
     if (preference === ADMIN_VIEW_MODE_ADMIN) {
-      return <Navigate to="/admin" replace />;
+      return <Navigate to={adminLandingPath()} replace />;
     }
     return <Navigate to="/dashboard" replace />;
   }
@@ -122,11 +123,11 @@ function DashboardRouteGuard({ children }: { children: ReactNode }) {
   const preference = adminViewPreference ?? ADMIN_VIEW_MODE_ADMIN;
 
   if (isAdmin(role, hasAnyPermission("view")) && preference === ADMIN_VIEW_MODE_ADMIN) {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to={adminLandingPath()} replace />;
   }
 
   if (role === DEFAULT_ROLE && preference === ADMIN_VIEW_MODE_ADMIN) {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to={adminLandingPath()} replace />;
   }
 
   return <>{children}</>;
@@ -157,7 +158,8 @@ export default function App() {
         <Route path="/dashboard/:encModule" element={withDashboard(<DashboardEncryptedRouter />)} />
 
         {/* ── Admin panel (Company Admin, superadmin, etc.) ── */}
-        <Route path="/admin" element={withAdmin(<AdminHome />)} />
+        <Route path="/admin" element={withAdmin(<AdminDashboard />)} />
+        <Route path="/admin/superadmin-dashboard" element={withAdmin(<SuperadminDashboard />)} />
         <Route path="/audits/common-audit" element={withAdmin(<CommonAuditList />)} />
         <Route path="/:encMaster/:encModule" element={withAdmin(<AdminEncryptedRouter />)} />
         <Route path="/:encMaster/:encModule/new" element={withAdmin(<AdminEncryptedRouter />)} />
