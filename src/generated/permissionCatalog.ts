@@ -13,6 +13,7 @@ export const PERMISSION_CATALOG = {
     section: "dashboard",
     screens: {
       "admin-dashboard": { label: "Admin Dashboard", group: null },
+      "superadmin-dashboard": { label: "Superadmin Dashboard", group: null },
     },
   },
   "superadmin-masters": {

@@ -34,9 +34,6 @@ const STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   updated_at: ["updated_at"],
 };
 
-/* ================= TYPES ================= */
-
-
 /* ================= COMPONENT ================= */
 
 export default function StaffTemplateList() {

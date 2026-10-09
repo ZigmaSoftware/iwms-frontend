@@ -178,6 +178,7 @@ export type AdminDashboardData = {
   };
   filters: {
     can_pick_company: boolean;
+    can_pick_project: boolean;
     companies: { id: string; name: string }[];
     projects: { id: string; name: string; company_id: string; company_name: string }[];
   };

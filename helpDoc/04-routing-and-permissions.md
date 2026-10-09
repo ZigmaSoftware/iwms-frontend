@@ -121,6 +121,22 @@ have fallbacks). If a check behaves oddly, read the alias tables in
 entries the user may reach, which is why a new screen can be completely
 invisible even though its route works.
 
+**The two dashboards** are both listed under the `dashboard` module in
+`src/generated/permissionCatalog.ts`, and both are view-only:
+
+| Page | Path | Shown when |
+|---|---|---|
+| Admin Dashboard | `/admin` | The user holds `permissionFor("dashboard", "admin-dashboard")` |
+| Superadmin Dashboard | `/admin/superadmin-dashboard` | The user is a platform super admin (`superadminOnly`). The `superadmin-dashboard` permission cannot open it for anyone else, because the backend refuses the API |
+
+On the Admin Dashboard the Company filter is locked for everyone except a
+platform super admin. The Project filter is also locked when the user can
+see only one project (`filters.can_pick_project` is false), for example a
+company + project admin like Megha. That project is preselected.
+
+After login, `adminLandingPath()` sends a platform super admin to the
+Superadmin Dashboard and every other admin to `/admin`.
+
 ## Why a new screen doesn't appear — in order
 
 Work down this list; it is roughly the order of likelihood:
