@@ -339,14 +339,7 @@ export default function AlternativeStaffTemplateList() {
           />
         )}
 
-        {showCol("created_at") && (
-          <Column
-            header={t("common.created_at")}
-            body={(r: AlternativeStaffTemplate) =>
-              r.created_at ? new Date(r.created_at).toLocaleDateString() : "-"
-            }
-          />
-        )}
+
 
         <Column
           header={t("common.actions")}

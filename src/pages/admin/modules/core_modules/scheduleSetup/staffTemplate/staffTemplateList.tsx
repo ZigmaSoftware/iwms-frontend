@@ -391,19 +391,7 @@ export default function StaffTemplateList() {
           />
         )}
 
-        {showCol("created_at") && (
-          <Column
-            header={t("admin.staff_template.columns.created_at")}
-            body={(r: StaffTemplate) => new Date(r.created_at).toLocaleDateString()}
-          />
-        )}
 
-        {showCol("updated_at") && (
-          <Column
-            header={t("admin.staff_template.columns.updated_at")}
-            body={(r: StaffTemplate) => new Date(r.updated_at).toLocaleDateString()}
-          />
-        )}
 
         <Column
           header={t("common.actions")}
