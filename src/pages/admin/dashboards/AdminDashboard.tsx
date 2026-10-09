@@ -131,6 +131,8 @@ function AdminDashboardContent() {
   const ops = data?.operations;
   const busy = loading && !data;
   const canPickCompany = Boolean(data?.filters.can_pick_company);
+  // A company + project admin's one project is preselected and locked.
+  const canPickProject = data ? data.filters.can_pick_project !== false : true;
 
   const projectColumns = useMemo(
     () => (data?.projects ?? []).map((p) => ({ id: p.project_id, name: p.project_name })),
@@ -240,14 +242,22 @@ function AdminDashboardContent() {
             )}
           </Filter>
           <Filter label={t("admin.dashboards.project", "Project")}>
-            <MultiSelect
-              label={t("admin.dashboards.project", "Project")}
-              icon={<FolderKanban size={15} aria-hidden="true" className="shrink-0 text-[#1f9d47]" />}
-              options={projectOptions}
-              value={projectIds}
-              onChange={setProjectIds}
-              allLabel={t("admin.dashboards.all_projects", "All projects")}
-            />
+            {canPickProject ? (
+              <MultiSelect
+                label={t("admin.dashboards.project", "Project")}
+                icon={<FolderKanban size={15} aria-hidden="true" className="shrink-0 text-[#1f9d47]" />}
+                options={projectOptions}
+                value={projectIds}
+                onChange={setProjectIds}
+                allLabel={t("admin.dashboards.all_projects", "All projects")}
+              />
+            ) : (
+              <span className={`${inputClass} inline-flex w-full items-center gap-2 bg-muted sm:w-[250px]`}>
+                <FolderKanban size={15} aria-hidden="true" className="shrink-0 text-[#1f9d47]" />
+                <span className="truncate">{scope?.project_name ?? "…"}</span>
+                <Lock size={12} aria-hidden="true" className={`ml-auto shrink-0 ${mutedClass}`} />
+              </span>
+            )}
           </Filter>
           <Filter label={t("admin.dashboards.range.label", "Period")}>
             <DateRangeControl value={range} onChange={setRange} />
