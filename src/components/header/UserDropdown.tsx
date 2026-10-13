@@ -10,7 +10,7 @@ export default function UserDropdown() {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const isDark = theme === "dark";
-  const displayName = user?.name || "User";
+  const displayName = user?.name;
 
   function handleSignOut() {
     clearAuthSession();

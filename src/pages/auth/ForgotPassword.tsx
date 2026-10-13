@@ -62,7 +62,7 @@ export default function ForgotPassword() {
       <main className="page">
         <section className="left">
           <a className="brand" href="#" aria-label="Zigma home" onClick={(e) => e.preventDefault()}>
-            <img src={ZigmaLogo} alt="Zigma IWMS" />
+            <img src={ZigmaLogo} alt="Zigma IWMS" width={96} height={90} fetchPriority="high" />
           </a>
 
           <h1 className="headline">Smart Solutions for a Cleaner, Greener Tomorrow</h1>

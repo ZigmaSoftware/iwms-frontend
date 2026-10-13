@@ -99,7 +99,6 @@ export default function BinForm() {
   const { t } = useTranslation();
   const { showField, filterPayload } =
     useFieldVisibility("assets", "bins", BIN_FIELDS);
-  const { showZone, showPanchayat } = useZonePanchayatVisibility();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
@@ -116,6 +115,12 @@ export default function BinForm() {
     onCompanyChange,
     applyCompanyProjectFromRecord,
   } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
+  // Project-driven zone/panchayat visibility: a zone-only project shows Zone
+  // alone, a panchayat-only project shows Panchayat alone.
+  const { showZone, showPanchayat } = useZonePanchayatVisibility({
+    companyId: companyUniqueId,
+    projectId,
+  });
 
   const extractErr = useCallback((e: unknown): string => {
     const error = e as {

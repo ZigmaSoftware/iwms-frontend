@@ -1,5 +1,4 @@
 import { adminApi } from "@/helpers/admin/registry";
-import { api } from "@/api";
 import {
   mergeWithScopeOptionExtra,
   type ScopeLevel,
@@ -20,10 +19,6 @@ import type {
   Grievance,
   LocalBodyOption,
   LocalBodyType,
-  PublicGrievanceLocationOption,
-  PublicGrievanceMeta,
-  PublicGrievanceResponse,
-  PublicGrievanceStatusResult,
 } from "./types";
 
 export const complaintTicketApi = adminApi.complaintTickets as typeof adminApi.complaintTickets;
@@ -73,7 +68,7 @@ export const ticketActions = {
     complaintTicketApi.action<ComplaintTicket>(`${id}/escalate`, payload),
   comment: (id: string, payload: { comment_text: string; is_internal?: boolean; is_sensitive?: boolean }) =>
     complaintTicketApi.action(`${id}/comments`, payload),
-  reopen: (id: string, payload: { reopen_reason?: string }) =>
+  reopen: (id: string, payload: { reopen_reason: string }) =>
     complaintTicketApi.action<ComplaintTicket>(`${id}/reopen`, payload),
   feedback: (id: string, payload: { rating?: number; feedback_text?: string; is_issue_solved?: boolean }) =>
     complaintTicketApi.action(`${id}/feedback`, payload),
@@ -245,7 +240,7 @@ export async function fetchGrievances(signal?: AbortSignal) {
     customer_id: ticket.customer ? String(ticket.customer) : "",
     customer_name: ticket.customer_name || "",
     profile_name: ticket.profile_name || "",
-    reporter_type: ticket.reporter_type || (ticket.customer ? "Customer" : "Public Grievance"),
+    reporter_type: ticket.reporter_type || (ticket.customer ? "Customer" : "Internal"),
     reporter_name: ticket.reporter_name || ticket.customer_name || ticket.profile_name || "Anonymous",
     raised_by_name: ticket.raised_by_name || ticket.customer_name || ticket.profile_name || "Anonymous",
     email: ticket.email || "",
@@ -271,43 +266,3 @@ export async function fetchGrievances(signal?: AbortSignal) {
     operational_context: ticket.operational_context,
   }));
 }
-
-export const publicGrievanceApi = {
-  meta: async (signal?: AbortSignal) => {
-    const { data } = await api.get<PublicGrievanceMeta>("/publicgrievance/meta/", {
-      signal,
-    });
-    return data;
-  },
-  states: async (signal?: AbortSignal) => {
-    const { data } = await api.get<PublicGrievanceLocationOption[]>("/publicgrievance/states/", { signal });
-    return data;
-  },
-  districts: async (stateId?: string, signal?: AbortSignal) => {
-    const { data } = await api.get<PublicGrievanceLocationOption[]>("/publicgrievance/districts/", {
-      params: stateId ? { state: stateId } : undefined,
-      signal,
-    });
-    return data;
-  },
-  cities: async (districtId: string, signal?: AbortSignal) => {
-    const { data } = await api.get<PublicGrievanceLocationOption[]>("/publicgrievance/cities/", {
-      params: { district: districtId },
-      signal,
-    });
-    return data;
-  },
-  create: async (payload: FormData) => {
-    const { data } = await api.post<PublicGrievanceResponse>("/publicgrievance/", payload, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    return data;
-  },
-  status: async (params: { ticket_no?: string; mobile?: string }, signal?: AbortSignal) => {
-    const { data } = await api.get<PublicGrievanceStatusResult[]>("/publicgrievance/status/", {
-      params,
-      signal,
-    });
-    return data;
-  },
-};

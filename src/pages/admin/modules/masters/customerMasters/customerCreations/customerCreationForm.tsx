@@ -698,7 +698,10 @@ export default function CustomerCreationForm() {
     industry_type: "",
   });
 
-  const { showZone, showPanchayat } = useZonePanchayatVisibility();
+  const { showZone, showPanchayat } = useZonePanchayatVisibility({
+    companyId: companyUniqueId,
+    projectId,
+  });
 
   // Sourced from the App Module master so a rename in Screen Management shows
   // up here without a frontend release.

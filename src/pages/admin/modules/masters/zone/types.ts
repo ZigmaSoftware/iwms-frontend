@@ -4,6 +4,7 @@ export type CountryMeta = {
   id: string;
   name: string;
   continentId: string | null;
+  continentName: string | null;
   isActive: boolean;
 };
 

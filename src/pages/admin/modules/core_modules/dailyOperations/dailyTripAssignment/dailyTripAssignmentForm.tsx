@@ -188,7 +188,10 @@ export default function DailyTripAssignmentForm() {
     initialProjectId: routeState?.projectId,
   });
 
-  const { showZone, showPanchayat } = useZonePanchayatVisibility();
+  const { showZone, showPanchayat } = useZonePanchayatVisibility({
+    companyId: companyUniqueId,
+    projectId,
+  });
 
   const { encScheduleOperations, encDailyTripAssignment } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleOperations, encDailyTripAssignment);

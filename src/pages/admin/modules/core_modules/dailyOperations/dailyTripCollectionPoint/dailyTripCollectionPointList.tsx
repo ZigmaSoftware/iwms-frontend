@@ -4,6 +4,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -11,7 +12,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { dailyTripCollectionPointApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -137,6 +138,28 @@ export default function DailyTripCollectionPointList() {
   useEffect(() => {
     loadRecords();
   }, [loadRecords]);
+
+  const handleDelete = async (id: string) => {
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
+
+    try {
+      await dailyTripCollectionPointApi.delete(id, withDeleteReason(reason));
+      setRecords((current) => current.filter((item) => item.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire(
+        t("common.error"),
+        extractError(error) ?? t("common.delete_failed"),
+        "error",
+      );
+    }
+  };
 
   // Company/project scoping is now applied server-side via params in
   // loadRecords — no client-side narrowing needed here.
@@ -264,15 +287,12 @@ export default function DailyTripCollectionPointList() {
           header={t("common.actions")}
           body={(row: DailyTripCollectionPointRecord) => (
             <div className="flex justify-center">
-              <button
-                onClick={() => navigate(EDIT_PATH(row.unique_id), {
+              <ActionMenu
+                onEdit={() => navigate(EDIT_PATH(row.unique_id), {
                   state: { companyUniqueId: row.company_id ?? companyUniqueId, projectId: row.project_id ?? projectId },
                 })}
-                className="text-blue-600 hover:text-blue-800"
-                title={t("common.edit")}
-              >
-                <PencilIcon className="size-5" />
-              </button>
+                onDelete={() => void handleDelete(row.unique_id)}
+              />
             </div>
           )}
           style={{ width: 120 }}

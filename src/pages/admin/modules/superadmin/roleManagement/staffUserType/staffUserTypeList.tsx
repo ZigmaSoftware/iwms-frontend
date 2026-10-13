@@ -4,6 +4,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -14,7 +15,7 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { contractorUserTypeApi, staffUserTypeApi } from "@/helpers/admin";
@@ -101,11 +102,20 @@ export default function StaffUserTypeList() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const records = useMemo(() => {
+    const isGeneratedUserTypeId = (value: unknown) =>
+      typeof value === "string" && value.startsWith("UTYPE-");
+
     const normalize = (list: StaffUserType[], category: "Staff" | "Contractor") =>
       (list ?? []).map((item) => ({
         ...item,
-        usertype_id: item.usertype_id ?? item.usertype?.unique_id ?? null,
-        usertype_name: item.usertype_name ?? item.usertype?.name ?? t("common.unknown"),
+        usertype_id: isGeneratedUserTypeId(item.usertype_id)
+          ? item.usertype_id
+          : item.usertype?.unique_id ?? null,
+        usertype_name:
+          item.usertype_name ??
+          item.usertype?.name ??
+          (!isGeneratedUserTypeId(item.usertype_id) ? item.usertype_id : null) ??
+          category,
         category,
       }));
 
@@ -161,18 +171,43 @@ export default function StaffUserTypeList() {
   };
 
   /* -----------------------------------------------------------
+     DELETE
+  ----------------------------------------------------------- */
+  const handleDelete = async (row: any) => {
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
+
+    try {
+      if (row.category === "Contractor") {
+        await contractorUserTypeApi.delete(row.unique_id, withDeleteReason(reason));
+      } else {
+        await staffUserTypeApi.delete(row.unique_id, withDeleteReason(reason));
+      }
+      await loadRecords();
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire(
+        t("common.error"),
+        extractErrorMessage(error, t("common.delete_failed")),
+        "error",
+      );
+    }
+  };
+
+  /* -----------------------------------------------------------
      ACTION BUTTONS
   ----------------------------------------------------------- */
   const actionTemplate = (row: StaffUserTypeRow) => (
-    <div className="flex gap-2 justify-center">
-      <button
-        title={t("common.edit")}
-        className="text-blue-600 hover:text-blue-800"
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-      >
-        <PencilIcon className="size-5" />
-      </button>
-
+    <div className="flex justify-center">
+      <ActionMenu
+        onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+        onDelete={() => void handleDelete(row)}
+      />
     </div>
   );
 

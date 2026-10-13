@@ -9,6 +9,7 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Label } from "@/components/ui/label";
@@ -216,7 +217,7 @@ export default function UserScreenPermissionForm() {
         setMainScreens(
           mainScreensData.map((x: MainScreen) => ({
             value: toId(x.unique_id),
-            label: String(x.mainscreen_name ?? ""),
+            label: String(x.mainscreen_label || x.mainscreen_name || ""),
           }))
         );
 
@@ -377,16 +378,26 @@ export default function UserScreenPermissionForm() {
       const removedMainScreenIds = loadedMainScreenIdsRef.current.filter(
         (id) => !currentIds.has(id)
       );
+      // Ask for the backend-required delete reason only when something will
+      // be deleted. Returning here still runs the finally block (resets loading).
+      const deleteReason =
+        removedMainScreenIds.length > 0
+          ? await confirmDeleteWithReason({
+              title: "Remove main screen permissions?",
+              text: "Saving will permanently delete the permissions of the main screens you removed from this form.",
+            })
+          : "";
+      if (deleteReason === null) return;
       for (const removedMainScreenId of removedMainScreenIds) {
         await api.delete(
           `/screen-managements/companywisescreenpermissions/delete-by-project/${effectiveProjectIdParam}/`,
-          {
+          withDeleteReason(deleteReason, {
             params: {
               company_id: effectiveCompanyId,
               mainscreen_id: removedMainScreenId,
               permission_type: permissionType,
             },
-          }
+          })
         );
       }
 

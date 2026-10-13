@@ -7,6 +7,7 @@ import { BREAKDOWN_REASON_LABELS } from "./types";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -20,6 +21,7 @@ import type {
   SortOrder,
 } from "primereact/datatable";
 
+import { ActionMenu, type ActionMenuItem } from "@/components/ui/ActionMenu";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
@@ -744,18 +746,14 @@ export default function VehicleBreakdownList() {
 
   /* ── Delete ─────────────────────────────────────────────────────── */
   const handleDelete = async (row: VehicleBreakdownRecord) => {
-    const result = await Swal.fire({
+    const reason = await confirmDeleteWithReason({
       title: t("common.are_you_sure"),
       text: `Delete breakdown record ${row.unique_id}?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#ef4444",
       confirmButtonText: t("common.delete"),
-      cancelButtonText: t("common.cancel"),
     });
-    if (!result.isConfirmed) return;
+    if (reason === null) return;
     try {
-      await vehicleBreakdownApi.delete(row.unique_id);
+      await vehicleBreakdownApi.delete(row.unique_id, withDeleteReason(reason));
       setRawRows((prev) => prev.filter((r) => r.unique_id !== row.unique_id));
       Swal.fire(t("common.success"), t("common.deleted_success"), "success");
     } catch (err: any) {
@@ -875,65 +873,60 @@ export default function VehicleBreakdownList() {
   };
 
   /* ── Action column ──────────────────────────────────────────────── */
-  const actionTemplate = (row: VehicleBreakdownRecord) => (
-    <div className="flex items-center justify-center gap-3">
-      <button
-        title="View Changes"
-        onClick={() => setViewTarget(row)}
-        className="text-slate-600 hover:text-slate-900 transition-colors"
-      >
-        <i className="pi pi-eye" />
-      </button>
+  const actionTemplate = (row: VehicleBreakdownRecord) => {
+    const isPending = row.approval_status === "PENDING";
+    const extraActions: ActionMenuItem[] = [
+      {
+        key: "view",
+        label: "View Changes",
+        icon: <i className="pi pi-eye" />,
+        onClick: () => setViewTarget(row),
+      },
+    ];
 
-      {/* Edit — only pending records */}
-      {row.approval_status === "PENDING" && (
-        <button
-          title={t("common.edit")}
-          onClick={() =>
-            navigate(editPath(row.unique_id), {
-              state: { record: row, ...selectedContext },
-            })
+    if (isPending) {
+      extraActions.push(
+        {
+          key: "verify",
+          label: "Verify & Approve",
+          icon: <i className="pi pi-check-circle" />,
+          onClick: () => setVerifyTarget(row),
+        },
+        {
+          key: "reject",
+          label: "Reject",
+          icon: <i className="pi pi-times-circle" />,
+          onClick: () => setRejectTarget(row),
+        },
+      );
+    }
+
+    return (
+      <div className="flex justify-center">
+        <ActionMenu
+          onEdit={
+            isPending
+              ? () =>
+                  navigate(editPath(row.unique_id), {
+                    state: { record: row, ...selectedContext },
+                  })
+              : undefined
           }
-          className="text-blue-600 hover:text-blue-800 transition-colors"
-        >
-          <i className="pi pi-pencil" />
-        </button>
-      )}
-
-      {/* Verify — only pending records */}
-      {row.approval_status === "PENDING" && (
-        <button
-          title="Verify & Approve"
-          onClick={() => setVerifyTarget(row)}
-          className="text-green-600 hover:text-green-800 transition-colors"
-        >
-          <i className="pi pi-check-circle" />
-        </button>
-      )}
-
-      {/* Reject — only pending records */}
-      {row.approval_status === "PENDING" && (
-        <button
-          title="Reject"
-          onClick={() => setRejectTarget(row)}
-          className="text-orange-500 hover:text-orange-700 transition-colors"
-        >
-          <i className="pi pi-times-circle" />
-        </button>
-      )}
-
-      {/* Delete — not allowed on approved records */}
-      {row.approval_status !== "APPROVED" && (
-        <button
-          title={t("common.delete")}
-          onClick={() => handleDelete(row)}
-          className="text-red-600 hover:text-red-800 transition-colors"
-        >
-          <i className="pi pi-trash" />
-        </button>
-      )}
-    </div>
-  );
+          actions={extraActions}
+          onDelete={
+            row.approval_status !== "APPROVED"
+              ? () => void handleDelete(row)
+              : undefined
+          }
+          deleteDisabledReason={
+            row.approval_status === "APPROVED"
+              ? "Approved records cannot be deleted"
+              : undefined
+          }
+        />
+      </div>
+    );
+  };
 
   /* ── Header ─────────────────────────────────────────────────────── */
   const header = (

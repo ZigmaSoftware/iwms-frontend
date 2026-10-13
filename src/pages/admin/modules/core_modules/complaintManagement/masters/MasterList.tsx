@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -11,7 +12,7 @@ import type {
   DataTableSortEvent,
   SortOrder,
 } from "primereact/datatable";
-import { PencilIcon } from "@/icons";
+import { ActionMenu } from "@/components/ui/ActionMenu";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { asArray, errorText, yesNo } from "../utils";
@@ -128,6 +129,27 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
   }, [query, kind]);
 
   const edit = (row: any) => navigate(editPath(row.unique_id));
+
+  const handleDelete = async (row: any) => {
+    const reason = await confirmDeleteWithReason({
+      title: "Are you sure?",
+      text: "This record will be permanently deleted!",
+    });
+    if (reason === null) return;
+
+    try {
+      await api.delete(row.unique_id, withDeleteReason(reason));
+      setRows((current) => current.filter((item) => item.unique_id !== row.unique_id));
+      Swal.fire({
+        icon: "success",
+        title: "Deleted successfully!",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire("Error", errorText(error, "Unable to delete record"), "error");
+    }
+  };
 
   // "All data" re-fetches every row matching the active search, since the
   // table is lazily paginated and only holds one page.
@@ -361,13 +383,12 @@ export default function MasterList({ kind, moduleSegment, hideHeading }: Props) 
         <Column
           header="Actions"
           body={(row) => (
-            <button
-              className="text-blue-600"
-              onClick={() => edit(row)}
-              title="Edit"
-            >
-              <PencilIcon className="size-5" />
-            </button>
+            <div className="flex justify-center">
+              <ActionMenu
+                onEdit={() => edit(row)}
+                onDelete={() => void handleDelete(row)}
+              />
+            </div>
           )}
           style={{ width: "100px" }}
         />

@@ -88,10 +88,9 @@ const WASTE_PALETTE: string[] = [C.leaf, C.teal, C.ochre, C.violet, C.brick, C.p
 const OTHER_SLICE_COLOR = "#9CA3AF";
 
 const FONTS = `
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-.dwcr{font-family:'Manrope',system-ui,sans-serif;color:${C.ink};background:${C.bg};}
-.dwcr .font-display{font-family:'Manrope',system-ui,sans-serif;}
-.dwcr .font-mono{font-family:'IBM Plex Mono',monospace;}
+.dwcr{font-family:var(--app-font-family),system-ui,sans-serif;color:${C.ink};background:${C.bg};}
+.dwcr .font-display{font-family:var(--app-font-family),system-ui,sans-serif;}
+.dwcr .font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
 .dwcr ::-webkit-scrollbar{height:6px;width:6px;}
 .dwcr ::-webkit-scrollbar-thumb{background:${C.line};border-radius:4px;}
 .dwcr .dwcr-select{background:${C.surfaceSunk};border-color:${C.line};color:${C.ink};font-size:0.75rem;height:2.25rem;}
@@ -380,7 +379,7 @@ export default function DailyWasteComparisonList({
       if (zoneIds.length) params.zone_id = zoneIds.join(",");
 
       const { data } = await api.get<DailyReportResponse>(
-        "/schedule-masters/daily-waste-comparisons/",
+        "/reports/daily-waste-comparisons/",
         { params },
       );
       setRows(Array.isArray(data?.results) ? data.results : []);
@@ -510,7 +509,7 @@ export default function DailyWasteComparisonList({
       const exportRows = await dailyWasteComparisonApi.readAllForExport({
         params,
       });
-      exportRecordsToExcel(
+      await exportRecordsToExcel(
         exportRows.map((r) => ({
           Date: r.collection_date,
           "Location Type": r.local_body_type,

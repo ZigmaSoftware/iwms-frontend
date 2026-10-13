@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { saveAs } from "file-saver";
-import * as XLSX from "xlsx";
+// xlsx is ~427KB minified — loaded on demand only when a user actually
+// triggers an Excel export, instead of shipping in this dashboard's chunk.
+const loadXlsx = () => import("xlsx");
 import { Download, LogOut, MapPin, Printer } from "lucide-react";
 import ZigmaLogo from "../../images/logo.png";
 
@@ -167,7 +169,8 @@ export default function DistrictDashboard() {
 
   const handlePrint = () => window.print();
 
-  const downloadDaily = () => {
+  const downloadDaily = async () => {
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(filteredDailyRows.map((r, i) => ({
       "S.No": i + 1, "Date": r.date, "Waste Type": r.waste_type,
       "Agreed (Kg)": r.agreed_weight_kg, "Actual (Kg)": r.actual_weight_kg,
@@ -180,7 +183,8 @@ export default function DistrictDashboard() {
       `daily-report-${districtName}.xlsx`);
   };
 
-  const downloadMonthly = () => {
+  const downloadMonthly = async () => {
+    const XLSX = await loadXlsx();
     const ws = XLSX.utils.json_to_sheet(filteredMonthlyRows.map((r, i) => ({
       "S.No": i + 1, "Month": r.month, "Waste Type": r.waste_type,
       "Agreed (Kg)": r.total_agreed_weight, "Actual (Kg)": r.total_actual_weight,

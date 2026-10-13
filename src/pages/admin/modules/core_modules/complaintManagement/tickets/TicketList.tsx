@@ -28,13 +28,6 @@ import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-const PUBLIC_SOURCE_CODE = "PUBLIC_GRIEVANCE";
-
-type SourceFilter = "all" | "public" | "internal";
-
-const isPublic = (row: ComplaintTicket) =>
-  row.source_code === PUBLIC_SOURCE_CODE;
-
 const toRecordList = (value: unknown): ComplaintTicket[] => {
   if (Array.isArray(value)) return value as ComplaintTicket[];
   if (
@@ -70,19 +63,6 @@ export default function TicketList() {
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
-  // Tab counts (All / Public Grievances / Internal) - sourced from the
-  // backend so all three are correct regardless of page/sort/source tab.
-  const [counts, setCounts] = useState<{
-    all: number;
-    public: number;
-    internal: number;
-  }>({
-    all: 0,
-    public: 0,
-    internal: 0,
-  });
-
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   // Feedback used to be its own top-level screen; it's read-only and
   // ticket-scoped (also viewable per-ticket via the Detail screen's Feedback
   // tab), so it lives here now as a column + quick-filter instead.
@@ -123,9 +103,7 @@ export default function TicketList() {
 
   // Tickets are company/project-scoped (`CompanyScopedViewSet`), so the list
   // gets the same Company/Project pickers every scoped list uses — see
-  // `staffTemplateList.tsx`. Public grievances are exempt: they arrive with no
-  // logged-in tenant and are stamped server-side by
-  // `_resolve_company_project`, so nothing here filters them out.
+  // `staffTemplateList.tsx`.
   const {
     companyUniqueId,
     projectId,
@@ -145,7 +123,6 @@ export default function TicketList() {
   const buildTicketParams = () => ({
     ...(companyUniqueId ? { company_id: companyUniqueId } : {}),
     ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
-    ...(sourceFilter !== "all" ? { source: sourceFilter } : {}),
     ...(stateFilter ? { state: stateFilter } : {}),
     ...(districtFilter ? { district: districtFilter } : {}),
     ...(panchayatFilter ? { panchayat: panchayatFilter } : {}),
@@ -199,7 +176,6 @@ export default function TicketList() {
     ordering,
     companyUniqueId,
     selectedProjectId,
-    sourceFilter,
     stateFilter,
     districtFilter,
     panchayatFilter,
@@ -222,7 +198,6 @@ export default function TicketList() {
     ordering,
     companyUniqueId,
     selectedProjectId,
-    sourceFilter,
     stateFilter,
     districtFilter,
     panchayatFilter,
@@ -245,40 +220,6 @@ export default function TicketList() {
     setSortField(event.sortField);
     setSortOrder(event.sortOrder);
   };
-
-  const loadCounts = async () => {
-    try {
-      const response = await complaintTicketApi.action<{
-        all: number;
-        public: number;
-        internal: number;
-      }>("counts", undefined, {
-        params: {
-          ...(stateFilter ? { state: stateFilter } : {}),
-          ...(districtFilter ? { district: districtFilter } : {}),
-          ...(panchayatFilter ? { panchayat: panchayatFilter } : {}),
-          ...(zoneFilter ? { zone: zoneFilter } : {}),
-          ...(wardFilter ? { ward: wardFilter } : {}),
-        },
-      });
-      setCounts({
-        all: response?.all ?? 0,
-        public: response?.public ?? 0,
-        internal: response?.internal ?? 0,
-      });
-    } catch (err) {
-      Swal.fire(
-        "Error",
-        errorText(err, "Unable to load ticket counts"),
-        "error",
-      );
-    }
-  };
-
-  useEffect(() => {
-    void loadCounts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stateFilter, districtFilter, panchayatFilter, zoneFilter, wardFilter]);
 
   const filteredDistricts = useMemo(
     () =>
@@ -379,17 +320,6 @@ export default function TicketList() {
     </span>
   );
 
-  const sourceTemplate = (row: ComplaintTicket) =>
-    isPublic(row) ? (
-      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-        Public
-      </span>
-    ) : (
-      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-        Internal
-      </span>
-    );
-
   const slaTemplate = (row: ComplaintTicket) => {
     if (
       typeof row.sla_time_remaining_seconds === "number" &&
@@ -460,29 +390,6 @@ export default function TicketList() {
         className="mb-4"
         filters={
           <div className="flex min-w-0 flex-col gap-3">
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              { key: "all", label: `All (${counts.all})` },
-              { key: "public", label: `Public Grievances (${counts.public})` },
-              { key: "internal", label: `Internal (${counts.internal})` },
-            ] as { key: SourceFilter; label: string }[]
-          ).map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setSourceFilter(tab.key)}
-              // Green, matching the tab strip on the Complaint Types screen
-              // and the shared form/list template.
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                sourceFilter === tab.key
-                  ? "bg-green-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
         <FilterBar
           searchValue={query}
           onSearchChange={(value) => setQuery(value)}
@@ -590,7 +497,6 @@ export default function TicketList() {
           body={(row) => formatDateTime(row.created)}
           sortable
         />
-        <Column header="Source" body={sourceTemplate} />
         <Column
           header="Customer"
           body={(row) => row.customer_name || row.profile_name || "-"}

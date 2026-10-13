@@ -1,5 +1,5 @@
-import { AdminLayout } from "@/layouts/admin/AdminLayout";
-import { DashboardLayout } from "@/layouts/dashboard/DashboardLayout";
+import { lazy, Suspense } from "react";
+import { PageLoader } from "@/components/ui/PageLoader";
 import type { RoleBasedLayoutProps, UserRole } from "@/types/roles";
 import {
   ADMIN_VIEW_MODE_DASHBOARD,
@@ -10,6 +10,13 @@ import {
   normalizeRole,
 } from "@/types/roles";
 import { hasAnyPermission } from "@/utils/permissions";
+
+const AdminLayout = lazy(() =>
+  import("@/layouts/admin/AdminLayout").then((m) => ({ default: m.AdminLayout })),
+);
+const DashboardLayout = lazy(() =>
+  import("@/layouts/dashboard/DashboardLayout").then((m) => ({ default: m.DashboardLayout })),
+);
 
 const getStoredRole = (): UserRole | null => {
   if (typeof window === "undefined") {
@@ -28,11 +35,23 @@ export function RoleBasedLayout({
   if (resolvedRole === DEFAULT_ROLE || isAdmin(resolvedRole, hasAnyPermission("view"))) {
     const adminPreference = getAdminViewPreference();
     if (adminPreference === ADMIN_VIEW_MODE_DASHBOARD) {
-      return <DashboardLayout>{children}</DashboardLayout>;
+      return (
+        <Suspense fallback={<PageLoader fullHeight />}>
+          <DashboardLayout>{children}</DashboardLayout>
+        </Suspense>
+      );
     }
 
-    return <AdminLayout>{children}</AdminLayout>;
+    return (
+      <Suspense fallback={<PageLoader fullHeight />}>
+        <AdminLayout>{children}</AdminLayout>
+      </Suspense>
+    );
   }
 
-  return <DashboardLayout>{children}</DashboardLayout>;
+  return (
+    <Suspense fallback={<PageLoader fullHeight />}>
+      <DashboardLayout>{children}</DashboardLayout>
+    </Suspense>
+  );
 }

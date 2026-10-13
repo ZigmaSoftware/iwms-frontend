@@ -105,12 +105,19 @@ export type AvailableAction = {
 export type AvailableScreen = {
   userScreenId: string;
   userScreenName: string;
+  /** What the sidebar calls this screen; falls back to userScreenName. */
+  userScreenLabel?: string | null;
+  /** Screens sharing a group are shown under one heading (e.g. "Daily Trip Plan"). */
+  screenGroup?: string | null;
+  screenGroupLabel?: string | null;
   actions: AvailableAction[];
 };
 
 export type AvailableMainScreen = {
   mainScreenId: string;
   mainScreenName: string;
+  /** What the sidebar calls this module; falls back to mainScreenName. */
+  mainScreenLabel?: string | null;
   screens: AvailableScreen[];
 };
 

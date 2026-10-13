@@ -55,6 +55,9 @@ export function ProjectSelectorBar() {
           onChange={(e) => setProjectId(e.target.value)}
           disabled={loading || projects.length <= 1}
         >
+          {!loading && projects.length === 0 && (
+            <option value="">No projects for this company</option>
+          )}
           {projects.map((p) => (
             <option key={p.unique_id} value={p.unique_id}>
               {p.name}

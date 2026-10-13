@@ -1,12 +1,17 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import StaticRouteMapView from "./StaticRouteMapView";
 import { useStaticRoutes } from "./useStaticRoutes";
 import { useRouteDetourEditor } from "./useRouteDetourEditor";
 import { useRouteAnimation } from "./useRouteAnimation";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { dailyTripAssignmentApi } from "@/helpers/admin";
+import { dailyTripAssignmentApi, tripPlanApi, tripPlanStaticRouteApi } from "@/helpers/admin";
+import Swal from "@/lib/notify";
 import { normalizeList } from "@/utils/forms";
 import type { RouteStop, StaticRoute } from "./types";
+
+// "plan": draw and edit a trip plan's static route. "daily": view a daily
+// trip, which follows its trip plan's route.
+type MapMode = "plan" | "daily";
 
 const SPEED_OPTIONS = [1, 2, 4] as const;
 
@@ -37,6 +42,19 @@ function nearestLegStartStop(stops: RouteStop[], latitude: number, longitude: nu
   return closest?.stop ?? null;
 }
 
+interface SaveRouteResponse {
+  version: number;
+  routing_error: string | null;
+  updated_trip_count: number;
+}
+
+function formatDistanceAndTime(route: StaticRoute): string | null {
+  if (!route.distanceMeters) return null;
+  const km = (route.distanceMeters / 1000).toFixed(1);
+  const minutes = Math.round((route.durationSeconds ?? 0) / 60);
+  return `${km} km · ${minutes} min`;
+}
+
 const LEGEND: Array<{ label: string; color: string }> = [
   { label: "Start", color: "#16a34a" },
   { label: "Collection Point", color: "#2563eb" },
@@ -47,11 +65,35 @@ export default function StaticRouteMap() {
   const { companyUniqueId, projectId, companies, projects, setProjectId, onCompanyChange } =
     useCompanyProjectSelection({ isEdit: false });
 
+  const [mode, setMode] = useState<MapMode>("daily");
+  const [tripPlanId, setTripPlanId] = useState("");
+  const [tripPlans, setTripPlans] = useState<Array<{ value: string; label: string }>>([]);
   const [date, setDate] = useState("");
   const [assignmentId, setAssignmentId] = useState("");
   const [assignments, setAssignments] = useState<Array<{ value: string; label: string }>>([]);
   const [selectedRoute, setSelectedRoute] = useState<StaticRoute | null>(null);
   const [sequencePanelOpen, setSequencePanelOpen] = useState(true);
+
+  useEffect(() => {
+    if (!companyUniqueId || !projectId) {
+      return;
+    }
+    let active = true;
+    void tripPlanApi
+      .readAll({ params: { company_id: companyUniqueId, project_id: projectId } })
+      .then((result) => {
+        if (!active) return;
+        setTripPlans(
+          (normalizeList(result) as Record<string, unknown>[]).map((item) => ({
+            value: String(item.unique_id ?? ""),
+            label: String(item.display_code || item.unique_id || ""),
+          })),
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, [companyUniqueId, projectId]);
 
   useEffect(() => {
     if (!companyUniqueId || !projectId) {
@@ -63,10 +105,13 @@ export default function StaticRouteMap() {
     void dailyTripAssignmentApi.readAll({ params }).then((result) => {
       if (!active) return;
       setAssignments(
-        (normalizeList(result) as Record<string, unknown>[]).map((item) => ({
-          value: String(item.unique_id ?? ""),
-          label: `${String(item.unique_id ?? "")}${item.trip_date ? ` | ${String(item.trip_date)}` : ""}`,
-        })),
+        (normalizeList(result) as Record<string, unknown>[]).map((item) => {
+          const planCode = (item.trip_plan as { display_code?: string } | null)?.display_code;
+          return {
+            value: String(item.unique_id ?? ""),
+            label: [item.unique_id, item.trip_date, planCode].filter(Boolean).map(String).join(" | "),
+          };
+        }),
       );
     });
     return () => {
@@ -74,29 +119,103 @@ export default function StaticRouteMap() {
     };
   }, [companyUniqueId, projectId, date]);
 
+  const isPlanMode = mode === "plan";
+
   const { routes, detourWaypoints, loading, refresh } = useStaticRoutes({
     companyId: companyUniqueId,
     projectId,
     date,
-    tripAssignmentId: assignmentId,
+    tripAssignmentId: isPlanMode ? undefined : assignmentId,
+    tripPlanId: isPlanMode ? tripPlanId : undefined,
+    skip: isPlanMode && !tripPlanId,
   });
 
+  // Routes are edited on the trip plan only; daily trips just show it.
   const detourEditor = useRouteDetourEditor({
-    tripAssignmentId: assignmentId,
+    tripPlanId: isPlanMode ? tripPlanId : "",
     onChanged: refresh,
   });
 
   const [hiddenWaypointIds, setHiddenWaypointIds] = useState<Set<string>>(new Set());
 
-  const isAllRoutesMode = !assignmentId;
-  const displayedRoutes = isAllRoutesMode && selectedRoute ? [selectedRoute] : routes;
-  const activeRoute = !isAllRoutesMode ? routes[0] : undefined;
-  const visibleWaypoints = detourWaypoints.filter((w) => !hiddenWaypointIds.has(w.id));
+  const isAllRoutesMode = !isPlanMode && !assignmentId;
+  const displayedRoutes = useMemo(
+    () => (isAllRoutesMode && selectedRoute ? [selectedRoute] : routes),
+    [isAllRoutesMode, selectedRoute, routes],
+  );
+  const activeRoute = useMemo(
+    () => (!isAllRoutesMode ? routes[0] : undefined),
+    [isAllRoutesMode, routes],
+  );
+  const visibleWaypoints = useMemo(
+    () => detourWaypoints.filter((w) => !hiddenWaypointIds.has(w.id)),
+    [detourWaypoints, hiddenWaypointIds],
+  );
 
   useEffect(() => {
     if (isAllRoutesMode) detourEditor.exitEditMode();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAllRoutesMode]);
+
+  useEffect(() => {
+    detourEditor.exitEditMode();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, tripPlanId, assignmentId]);
+
+  const changeMode = (nextMode: MapMode) => {
+    setMode(nextMode);
+    setSelectedRoute(null);
+  };
+
+  const openPlanRoute = (planId: string) => {
+    setTripPlanId(planId);
+    changeMode("plan");
+  };
+
+  const [isSavingRoute, setIsSavingRoute] = useState(false);
+  const planStorage = isPlanMode ? activeRoute?.storage : undefined;
+  // Detour edits save automatically; this is only needed when the
+  // drawing differs from what's stored (e.g. a plan never saved yet).
+  const canSaveRoute = Boolean(planStorage && (planStorage.hasUnsavedChanges || planStorage.version === null));
+
+  // Stores the plan's route as drawn, with its road path, and copies it to
+  // the plan's daily trips from today on that haven't finished.
+  const saveRoute = async () => {
+    if (!tripPlanId) return;
+    setIsSavingRoute(true);
+    try {
+      const result: SaveRouteResponse = await tripPlanStaticRouteApi.create({ trip_plan_id: tripPlanId });
+      detourEditor.exitEditMode();
+      refresh();
+      const trips = `${result.updated_trip_count} trip${result.updated_trip_count === 1 ? "" : "s"} updated.`;
+      if (result.routing_error) {
+        void Swal.fire(
+          "Route saved without road path",
+          `Version ${result.version} saved, but the routing engine failed (${result.routing_error}). The map will route it live. ${trips}`,
+          "warning",
+        );
+      } else {
+        void Swal.fire("Route saved", `Version ${result.version} saved. ${trips}`, "success");
+      }
+    } catch (error) {
+      console.error("Failed to save static route", error);
+      void Swal.fire("Error", "Unable to save the route.", "error");
+    } finally {
+      setIsSavingRoute(false);
+    }
+  };
+
+  const dailySourceLabel = (() => {
+    const storage = activeRoute?.storage;
+    if (!storage) return "Fixed stop order for the selected trip";
+    if (storage.source === "saved") {
+      return `Follows trip plan route v${storage.version} — edit the route on the trip plan`;
+    }
+    if (storage.source === "plan") {
+      return "Follows the trip plan's route — edit the route on the trip plan";
+    }
+    return "Fixed stop order for the selected trip";
+  })();
 
   useEffect(() => {
     setHiddenWaypointIds((current) => {
@@ -118,20 +237,27 @@ export default function StaticRouteMap() {
   const legLabelFor = (afterStopId: string) =>
     activeRoute?.stops.find((stop) => stop.id === afterStopId)?.label ?? "route";
 
-  const handleMapClick = (latitude: number, longitude: number) => {
-    if (!activeRoute) return;
-    const legStart = nearestLegStartStop(activeRoute.stops, latitude, longitude);
-    if (!legStart) return;
-    const nextSequence =
-      detourWaypoints.filter((w) => w.afterStopId === legStart.id).length + 1;
-    void detourEditor.addWaypoint(legStart.id, latitude, longitude, nextSequence);
-  };
+  const { addWaypoint, moveWaypoint } = detourEditor;
+  const handleMapClick = useCallback(
+    (latitude: number, longitude: number) => {
+      if (!activeRoute) return;
+      const legStart = nearestLegStartStop(activeRoute.stops, latitude, longitude);
+      if (!legStart) return;
+      const nextSequence =
+        detourWaypoints.filter((w) => w.afterStopId === legStart.id).length + 1;
+      void addWaypoint(legStart.id, latitude, longitude, nextSequence);
+    },
+    [activeRoute, detourWaypoints, addWaypoint],
+  );
 
-  const handleWaypointDrag = (waypointId: string, latitude: number, longitude: number) => {
-    const waypoint = detourWaypoints.find((w) => w.id === waypointId);
-    if (!waypoint) return;
-    void detourEditor.moveWaypoint(waypointId, waypoint.afterStopId, waypoint.sequence, latitude, longitude);
-  };
+  const handleWaypointDrag = useCallback(
+    (waypointId: string, latitude: number, longitude: number) => {
+      const waypoint = detourWaypoints.find((w) => w.id === waypointId);
+      if (!waypoint) return;
+      void moveWaypoint(waypointId, waypoint.afterStopId, waypoint.sequence, latitude, longitude);
+    },
+    [detourWaypoints, moveWaypoint],
+  );
 
   const animation = useRouteAnimation(activeRoute?.geometry);
 
@@ -141,11 +267,47 @@ export default function StaticRouteMap() {
         <div>
           <h1 className="text-lg font-bold text-gray-800">Static Route Map</h1>
           <p className="text-xs text-gray-500">
-            {isAllRoutesMode ? "Showing every trip route" : "Fixed stop order for the selected trip"}
+            {isPlanMode
+              ? "Trip plan's static route — changes apply automatically to today's and upcoming daily trips"
+              : isAllRoutesMode
+                ? "Showing every trip route"
+                : dailySourceLabel}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {!isAllRoutesMode && activeRoute && (
+          {planStorage && (
+            <span
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                canSaveRoute ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"
+              }`}
+            >
+              {planStorage.version === null
+                ? "Not saved yet"
+                : planStorage.hasUnsavedChanges
+                  ? `Unsaved changes (saved v${planStorage.version})`
+                  : `Saved v${planStorage.version}`}
+            </span>
+          )}
+          {canSaveRoute && (
+            <button
+              type="button"
+              onClick={() => void saveRoute()}
+              disabled={isSavingRoute || detourEditor.isSaving}
+              className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isSavingRoute ? "Saving…" : "Save Route"}
+            </button>
+          )}
+          {!isPlanMode && activeRoute?.tripPlanId && (
+            <button
+              type="button"
+              onClick={() => openPlanRoute(activeRoute.tripPlanId as string)}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            >
+              Edit Plan Route
+            </button>
+          )}
+          {isPlanMode && activeRoute && (
             <button
               type="button"
               onClick={() =>
@@ -169,11 +331,30 @@ export default function StaticRouteMap() {
 
       {detourEditor.isEditing && (
         <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-          Click anywhere on the map to add a detour point on the nearest leg. Click a detour marker to remove it, or drag it to fine-tune.
+          Click anywhere on the map to add a detour point on the nearest leg. Click a detour marker to remove it, or drag it to fine-tune. Changes save automatically and apply to today's and upcoming trips.
         </div>
       )}
 
       <div className="flex shrink-0 flex-wrap gap-2 border-b bg-white px-4 py-2">
+        <div className="flex overflow-hidden rounded-lg border border-gray-200 text-sm">
+          {(
+            [
+              ["plan", "Trip Plan"],
+              ["daily", "Daily Trip"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => changeMode(value)}
+              className={`px-3 py-2 font-semibold ${
+                mode === value ? "bg-blue-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <select
           value={companyUniqueId}
           onChange={(e) => onCompanyChange(e.target.value)}
@@ -198,27 +379,44 @@ export default function StaticRouteMap() {
             </option>
           ))}
         </select>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-lg border border-gray-200 p-2 text-sm"
-        />
-        <select
-          value={assignmentId}
-          onChange={(e) => {
-            setAssignmentId(e.target.value);
-            setSelectedRoute(null);
-          }}
-          className="rounded-lg border border-gray-200 p-2 text-sm"
-        >
-          <option value="">All Routes</option>
-          {assignments.map((x) => (
-            <option key={x.value} value={x.value}>
-              {x.label}
-            </option>
-          ))}
-        </select>
+        {isPlanMode ? (
+          <select
+            value={tripPlanId}
+            onChange={(e) => setTripPlanId(e.target.value)}
+            className="rounded-lg border border-gray-200 p-2 text-sm"
+          >
+            <option value="">Trip Plan</option>
+            {tripPlans.map((x) => (
+              <option key={x.value} value={x.value}>
+                {x.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="rounded-lg border border-gray-200 p-2 text-sm"
+            />
+            <select
+              value={assignmentId}
+              onChange={(e) => {
+                setAssignmentId(e.target.value);
+                setSelectedRoute(null);
+              }}
+              className="rounded-lg border border-gray-200 p-2 text-sm"
+            >
+              <option value="">All Routes</option>
+              {assignments.map((x) => (
+                <option key={x.value} value={x.value}>
+                  {x.label}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
       </div>
 
       <div className="relative flex-1 overflow-hidden">
@@ -308,7 +506,10 @@ export default function StaticRouteMap() {
                 ×
               </button>
             </div>
-            <p className="mb-2 text-[11px] text-gray-500">{displayedRoutes[0].name}</p>
+            <p className="mb-2 text-[11px] text-gray-500">
+              {displayedRoutes[0].name}
+              {formatDistanceAndTime(displayedRoutes[0]) && ` · ${formatDistanceAndTime(displayedRoutes[0])}`}
+            </p>
             <ol className="max-h-64 space-y-1.5 overflow-y-auto">
               {[...displayedRoutes[0].stops]
                 .sort((a, b) => a.order - b.order)
@@ -327,15 +528,17 @@ export default function StaticRouteMap() {
                   <span className="text-[11px] font-semibold text-amber-700">
                     {detourWaypoints.length} detour point{detourWaypoints.length === 1 ? "" : "s"}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void Promise.all(detourWaypoints.map((w) => detourEditor.removeWaypoint(w.id)))
-                    }
-                    className="text-[11px] font-semibold text-red-600 hover:underline"
-                  >
-                    Clear detours
-                  </button>
+                  {isPlanMode && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void Promise.all(detourWaypoints.map((w) => detourEditor.removeWaypoint(w.id)))
+                      }
+                      className="text-[11px] font-semibold text-red-600 hover:underline"
+                    >
+                      Clear detours
+                    </button>
+                  )}
                 </div>
                 <ul className="max-h-32 space-y-1 overflow-y-auto">
                   {detourWaypoints.map((waypoint, index) => (
@@ -349,14 +552,16 @@ export default function StaticRouteMap() {
                       <span className="flex-1 truncate text-gray-600">
                         Detour {index + 1} — near {legLabelFor(waypoint.afterStopId)}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => void detourEditor.removeWaypoint(waypoint.id)}
-                        title="Delete detour point"
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        🗑
-                      </button>
+                      {isPlanMode && (
+                        <button
+                          type="button"
+                          onClick={() => void detourEditor.removeWaypoint(waypoint.id)}
+                          title="Delete detour point"
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          🗑
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -397,7 +602,9 @@ export default function StaticRouteMap() {
         {!loading && displayedRoutes.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="rounded-xl border bg-white/95 px-6 py-4 text-sm text-gray-500 shadow-lg">
-              No routes found for the current filters.
+              {isPlanMode && !tripPlanId
+                ? "Select a trip plan to view or draw its static route."
+                : "No routes found for the current filters."}
             </div>
           </div>
         )}

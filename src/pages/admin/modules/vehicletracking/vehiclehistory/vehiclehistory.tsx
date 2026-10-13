@@ -2,6 +2,7 @@ import type { HistoryPopupLabels, RawRecord, StatusKey, TrackPoint, VehicleOptio
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import L from "leaflet";
+import { addMapLayerSwitcher } from "@/components/map/MapLayerSwitcher";
 import type { LatLngTuple } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./vehiclehistory.css";
@@ -357,8 +358,7 @@ export default function VehicleHistory(): JSX.Element {
       zoomControl: true,
     });
 
-    const layer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png");
-    layer.addTo(map);
+    addMapLayerSwitcher(map);
 
     trackLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
@@ -502,7 +502,10 @@ export default function VehicleHistory(): JSX.Element {
     const poly = L.polyline(coords, { color: "#2563eb", weight: 4 });
     poly.addTo(layer);
 
-    mapRef.current.fitBounds(poly.getBounds(), { padding: [40, 40] });
+    // Measure first, and skip the zoom animation: an animated fit on a stale
+    // size leaves scaled, blurry tiles that never get replaced.
+    mapRef.current.invalidateSize({ pan: false });
+    mapRef.current.fitBounds(poly.getBounds(), { padding: [40, 40], animate: false });
 
     if (markerRef.current) markerRef.current.remove();
     const initial = track[0];

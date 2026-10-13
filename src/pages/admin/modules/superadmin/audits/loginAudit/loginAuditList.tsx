@@ -39,8 +39,21 @@ export default function LoginAuditList() {
   const { t } = useTranslation();
 
   const restoredState = null as any;
-  const { companyUniqueId, projectId, projects, companies, isSuperAdmin, setProjectId, onCompanyChange } =
-    useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+  const {
+    companyUniqueId,
+    projectId,
+    projects,
+    companies,
+    isSuperAdmin,
+    showAllProjectsOption,
+    setProjectId,
+    onCompanyChange,
+  } = useCompanyProjectSelection({
+    isEdit: false,
+    defaultToAll: true,
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
 
   const [rows, setRows] = useState<LoginAuditRecord[]>([]);
   const [selectedAudit, setSelectedAudit] = useState<LoginAuditRecord | null>(null);
@@ -51,13 +64,14 @@ export default function LoginAuditList() {
   });
 
   useEffect(() => {
-    if (!companyUniqueId) {
+    if (!companyUniqueId && !isSuperAdmin) {
       setRows([]);
       return;
     }
     let mounted = true;
     setIsLoading(true);
-    const params: Record<string, string> = { company_id: companyUniqueId };
+    const params: Record<string, string> = {};
+    if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
 
      adminApi.loginAudits
@@ -77,7 +91,7 @@ export default function LoginAuditList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, t]);
+  }, [companyUniqueId, projectId, isSuperAdmin, t]);
 
   const openDetails = useCallback((record: LoginAuditRecord) => {
     setSelectedAudit(record);
@@ -107,14 +121,21 @@ export default function LoginAuditList() {
   );
 
   const header = (
-    <div className="space-y-4">
+    <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-800">{t("admin.nav.login_audit")}</h1>
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-600">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-50">
+              <i className="pi pi-sign-in" />
+            </span>
+            Authentication history
+          </div>
+          <h1 className="text-2xl font-semibold text-gray-900">{t("admin.nav.login_audit")}</h1>
           <p className="text-sm text-gray-500">{t("admin.login_audit.subtitle", "Login audit records")}</p>
         </div>
       </div>
 
+      <div className="rounded-lg border border-gray-100 bg-gray-50/80 p-3">
       <FilterBar
         searchValue={globalFilterValue}
         onSearchChange={(value) => onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)}
@@ -124,7 +145,7 @@ export default function LoginAuditList() {
           value={companyUniqueId || ""}
           onChange={(value) => onCompanyChange(value)}
           options={companies}
-          placeholder={t("common.select_item_placeholder", { item: t("admin.nav.company") })}
+          placeholder={isSuperAdmin ? "All Companies" : t("common.select_item_placeholder", { item: t("admin.nav.company") })}
           disabled={!isSuperAdmin || companies.length === 0}
         />
 
@@ -132,10 +153,11 @@ export default function LoginAuditList() {
           value={projectId || ""}
           onChange={(value) => setProjectId(value)}
           options={projects}
-          placeholder={t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-          disabled={!companyUniqueId || projects.length === 0}
+          placeholder={showAllProjectsOption ? "All Projects" : t("common.select_item_placeholder", { item: t("admin.nav.project") })}
+          disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
         />
       </FilterBar>
+      </div>
     </div>
   );
 
@@ -145,7 +167,8 @@ export default function LoginAuditList() {
   );
 
   return (
-    <div className="p-3">
+    <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
         value={rows}
         exportRows={exportRows}
@@ -188,6 +211,7 @@ export default function LoginAuditList() {
         <Column field="project_name" header="Project" filter showFilterMatchModes={false} />
         <Column header={t("common.actions")} body={actionTemplate} style={{ minWidth: 120 }} />
       </DataTable>
+      </div>
 
       <Dialog open={Boolean(selectedAudit)} onOpenChange={(open) => !open && closeDetails()}>
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">

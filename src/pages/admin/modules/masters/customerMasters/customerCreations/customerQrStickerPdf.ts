@@ -1,4 +1,8 @@
-import { jsPDF } from "jspdf";
+import type { jsPDF } from "jspdf";
+
+// jspdf is ~386KB minified — loaded on demand only when a user actually
+// triggers a PDF export, instead of shipping in every list page's chunk.
+const loadJsPdf = () => import("jspdf").then((m) => m.jsPDF);
 
 import type { Customer } from "./types";
 import { loadQrImage, safeFilename, text } from "./customerQrPdf";
@@ -706,7 +710,8 @@ const createCustomerQrStickerPdf = async (
   // Warm every QR image up front, in parallel, so the draw loop below never
   // blocks on a network fetch per card.
   const qrCache = await prefetchQrImages(orderedCustomers, scope?.onProgress);
-  const documentPdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const JsPdf = await loadJsPdf();
+  const documentPdf = new JsPdf({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageCount = Math.ceil(customers.length / STICKERS_PER_PAGE);
 
   for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {

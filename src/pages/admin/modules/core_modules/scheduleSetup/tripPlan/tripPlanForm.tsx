@@ -214,7 +214,10 @@ export default function TripPlanForm() {
     initialProjectId: routeState?.projectId,
   });
 
-  const { showZone, showPanchayat } = useZonePanchayatVisibility();
+  const { showZone, showPanchayat } = useZonePanchayatVisibility({
+    companyId: companyUniqueId,
+    projectId,
+  });
 
   const { encScheduleSetup, encTripPlans } = getEncryptedRoute();
   const { listPath: listPath } = createCrudRoutePaths(encScheduleSetup, encTripPlans);

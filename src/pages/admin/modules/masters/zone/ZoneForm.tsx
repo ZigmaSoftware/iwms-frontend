@@ -196,6 +196,7 @@ export default function ZoneForm() {
             id: String(c.unique_id),
             name: c.name,
             continentId: normalizeNullable(c.continent_unique_id ?? c.continent_id ?? c.continent),
+            continentName: typeof c.continent_name === "string" ? c.continent_name : null,
             isActive: Boolean(c.is_active),
           }))
         );
@@ -304,9 +305,16 @@ export default function ZoneForm() {
   ========================================================== */
 
   // Country: filtered by continent when one is selected, otherwise all active countries.
+  // Matches by continent id, falling back to the continent name — rows whose
+  // continent_id still holds the name (pre-backfill data) must also match.
   useEffect(() => {
+    const selectedContinentName = normalizeLabel(
+      continents.find((c) => c.value === continentId)?.label
+    );
     const filt = allCountries
-      .filter((c) => c.isActive && (!continentId || c.continentId === continentId))
+      .filter((c) => c.isActive && (!continentId
+        || c.continentId === continentId
+        || (!!selectedContinentName && normalizeLabel(c.continentName) === selectedContinentName)))
       .map((c) => ({ value: c.id, label: c.name }));
 
     const ensureId = pendingCountry || countryId;
@@ -319,13 +327,15 @@ export default function ZoneForm() {
       }
     }
     setFilteredCountries(filt);
-  }, [allCountries, continentId, countryId, pendingCountry, zoneData]);
+  }, [allCountries, continents, continentId, countryId, pendingCountry, zoneData]);
 
-  // State: show all active states directly — no continent/country prerequisite.
-  // Auto-resolve country + continent when state is selected (see onStateChange).
+  // State: filtered by the selected country when one is chosen, otherwise all
+  // active states (picking a state first still auto-resolves country +
+  // continent via onStateChange below).
   useEffect(() => {
+    const effectiveCountryId = countryId || pendingCountry;
     const filt = allStates
-      .filter((s) => s.isActive)
+      .filter((s) => s.isActive && (!effectiveCountryId || s.countryId === effectiveCountryId))
       .map((s) => ({ value: s.id, label: s.name }));
 
     const ensureId = pendingState || stateId;
@@ -338,7 +348,7 @@ export default function ZoneForm() {
       }
     }
     setFilteredStates(filt);
-  }, [allStates, stateId, pendingState, zoneData]);
+  }, [allStates, stateId, pendingState, zoneData, countryId, pendingCountry]);
 
   useEffect(() => {
     const effectiveStateId = stateId || pendingState;

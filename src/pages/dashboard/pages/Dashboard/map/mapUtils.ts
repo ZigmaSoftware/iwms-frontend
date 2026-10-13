@@ -1,4 +1,5 @@
 import L from "leaflet";
+import { addMapLayerSwitcher } from "@/components/map/MapLayerSwitcher";
 import type { LatLngTuple } from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -251,8 +252,6 @@ export const initBaseMap = (container: HTMLDivElement) => {
     zoomControl: false,
   });
   L.control.zoom({ position: "topright" }).addTo(map);
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "© OpenStreetMap contributors",
-  }).addTo(map);
+  addMapLayerSwitcher(map);
   return map;
 };
