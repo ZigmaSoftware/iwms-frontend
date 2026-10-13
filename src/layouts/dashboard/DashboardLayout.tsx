@@ -22,7 +22,8 @@ import {
   type DashboardLayoutProps,
   type UserRole,
 } from "@/types/roles";
-import { clearAuthSession } from "@/utils/authStorage";
+import { ACCESS_TOKEN_STORAGE_KEY, clearAuthSession } from "@/utils/authStorage";
+import { endLoginSession } from "@/utils/loginSession";
 import { hasAnyPermission } from "@/utils/permissions";
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
@@ -44,8 +45,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     return () => window.clearTimeout(timer);
   }, [location.pathname]);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     try {
+      await endLoginSession(ACCESS_TOKEN_STORAGE_KEY, "manual");
       clearAuthSession();
       setUser(null);
 

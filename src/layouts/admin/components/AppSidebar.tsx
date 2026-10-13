@@ -6,17 +6,27 @@ import { cn } from "@/lib/utils";
 
 import {
   ChevronDown,
-  LayoutGrid,
-  ShieldCheck,
-  Settings,
-  Layers3,
-  Users,
-  UserCircle,
-  Truck,
-  AlertTriangle,
   BarChart3,
-  Scale,
+  Briefcase,
+  Building2,
   CalendarCheck,
+  CalendarCog,
+  ClipboardList,
+  FileSearch,
+  Globe,
+  KeyRound,
+  Landmark,
+  LayoutDashboard,
+  MapPin,
+  MessageSquareWarning,
+  MonitorCog,
+  PieChart,
+  Recycle,
+  Route,
+  ShieldCheck,
+  Truck,
+  UserCircle,
+  Users,
   Search,
   X,
 } from "lucide-react";
@@ -248,7 +258,7 @@ const navItems: NavItem[] = [
   },
   {
     nameKey: "admin.nav.admin_dashboard",
-    icon: <LayoutGrid size={18} />,
+    icon: <LayoutDashboard size={18} />,
     path: "/admin",
     // Every admin page lives under /admin; only the page itself is this item.
     exact: true,
@@ -268,7 +278,7 @@ const attendanceItems: NavItem[] = [
 const superadminMasterItems: NavItem[] = [
   {
     nameKey: "admin.nav.superAdmin_masters",
-    icon: <Settings size={18} />,
+    icon: <Building2 size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.company",
@@ -287,7 +297,7 @@ const superadminMasterItems: NavItem[] = [
 const commonMasterItems: NavItem[] = [
   {
     nameKey: "admin.nav.common_masters",
-    icon: <Settings size={18} />,
+    icon: <Globe size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.continent",
@@ -311,7 +321,7 @@ const commonMasterItems: NavItem[] = [
 const masterItems: NavItem[] = [
   {
     nameKey: "admin.nav.location_masters",
-    icon: <Layers3 size={18} />,
+    icon: <MapPin size={18} />,
     subItems: [
       // ── Administrative / Geographic Hierarchy ────────────────
       {
@@ -352,7 +362,7 @@ const masterItems: NavItem[] = [
 const leaderManagementItems: NavItem[] = [
   {
     nameKey: "admin.nav.leader_management",
-    icon: <Users size={18} />,
+    icon: <Landmark size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.panchayat_leader",
@@ -371,7 +381,7 @@ const leaderManagementItems: NavItem[] = [
 const wasteTypeItems: NavItem[] = [
   {
     nameKey: "admin.nav.waste_masters",
-    icon: <Users size={18} />,
+    icon: <Recycle size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.property",
@@ -400,7 +410,7 @@ const wasteTypeItems: NavItem[] = [
 const screenManagementItems: NavItem[] = [
   {
     nameKey: "admin.nav.screen_management",
-    icon: <Settings size={18} />,
+    icon: <MonitorCog size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.main_screen_type",
@@ -439,7 +449,7 @@ const screenManagementItems: NavItem[] = [
 const roleAssignsItems: NavItem[] = [
   {
     nameKey: "admin.nav.role_management",
-    icon: <Settings size={18} />,
+    icon: <KeyRound size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.user_type",
@@ -518,7 +528,7 @@ const customerMasters: NavItem[] = [
 const complaintMastersItems: NavItem[] = [
   {
     nameKey: "admin.nav.complaint_masters",
-    icon: <AlertTriangle size={18} />,
+    icon: <ClipboardList size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.complaint_types",
@@ -537,7 +547,7 @@ const complaintMastersItems: NavItem[] = [
 const complaintTicketItems: NavItem[] = [
   {
     nameKey: "admin.nav.complaint_management",
-    icon: <AlertTriangle size={18} />,
+    icon: <MessageSquareWarning size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.complaint_desk",
@@ -590,7 +600,7 @@ const transportMastersItems: NavItem[] = [
 const scheduleSetupItems: NavItem[] = [
   {
     nameKey: "admin.nav.schedule_setup",
-    icon: <LayoutGrid size={18} />,
+    icon: <CalendarCog size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.staff_template",
@@ -620,7 +630,7 @@ const scheduleSetupItems: NavItem[] = [
 const scheduleOperationsItems: NavItem[] = [
   {
     nameKey: "admin.nav.schedule_operations",
-    icon: <LayoutGrid size={18} />,
+    icon: <Route size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.daily_trip_plan",
@@ -674,7 +684,7 @@ const scheduleOperationsItems: NavItem[] = [
 const wasteReportItems: NavItem[] = [
   {
     nameKey: "admin.nav.waste_reports",
-    icon: <LayoutGrid size={18} />,
+    icon: <PieChart size={18} />,
     subItems: [
       {
         nameKey: "Daily Waste Comparison",
@@ -693,7 +703,7 @@ const wasteReportItems: NavItem[] = [
 const auditItems: NavItem[] = [
   {
     nameKey: "admin.nav.audits",
-    icon: <Truck size={18} />,
+    icon: <FileSearch size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.audit_dashboard",
@@ -765,7 +775,7 @@ const fleetReportItems: NavItem[] = [
   // "weighbridge-management" in the backend's screen_dependencies.py).
   {
     nameKey: "admin.nav.workforce_management",
-    icon: <Scale size={18} />,
+    icon: <Briefcase size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.day_report",

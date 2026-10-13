@@ -1,8 +1,9 @@
-import { useState, type ChangeEvent, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "@/api";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { startLoginSession } from "@/utils/loginSession";
 import { ArrowRight, Building2, Eye, EyeOff, Lock, User } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import LoginBg from "../images/bgSignin.jpg";
@@ -14,7 +15,17 @@ export default function DistrictAuth() {
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+
+  // Explain an automatic logout (idle timeout / session expiry)
+  useEffect(() => {
+    const sessionMessage = (location.state as { sessionMessage?: string } | null)?.sessionMessage;
+    if (sessionMessage) {
+      toast({ title: "Session Ended", description: sessionMessage });
+      window.history.replaceState({}, "");
+    }
+  }, []);
 
   const clearDistrictSession = () => {
     [
@@ -40,6 +51,7 @@ export default function DistrictAuth() {
         username,
         password,
         login_type: "district_member",
+        client: "web",
       });
 
       const payload = res.data;
@@ -57,6 +69,7 @@ export default function DistrictAuth() {
       }
 
       localStorage.setItem("district_access_token", token);
+      startLoginSession("district_access_token");
       localStorage.setItem("district_unique_id", districtId);
       localStorage.setItem("district_name", districtName);
       localStorage.setItem("district_user_name", leaderName);
