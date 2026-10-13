@@ -74,18 +74,14 @@ function ApproveDialog({
 }: {
   row: TripRetripRequestRecord;
   onClose: () => void;
-  onConfirm: (
-    collectionPointIds: string[] | undefined,
-    remarks: string,
-  ) => void;
+  onConfirm: (collectionPointIds: string[], remarks: string) => void;
   isLoading: boolean;
 }) {
-  const isHousehold =
-    row.collection_type === "household" || row.collection_type === "bulk";
   const bins = row.live_pending?.collection_points ?? [];
   const households = row.live_pending?.households ?? [];
+  const stops = [...bins, ...households];
   const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(bins.map((b) => b.unique_id)),
+    () => new Set(stops.map((stop) => stop.unique_id)),
   );
   const [remarks, setRemarks] = useState("");
 
@@ -98,7 +94,7 @@ function ApproveDialog({
     });
   };
 
-  const carriedCount = isHousehold ? households.length : selected.size;
+  const carriedCount = selected.size;
 
   const footer = (
     <div className="flex justify-end gap-2 pt-2">
@@ -113,9 +109,8 @@ function ApproveDialog({
         icon="pi pi-check"
         className="p-button-success"
         loading={isLoading}
-        onClick={() =>
-          onConfirm(isHousehold ? undefined : Array.from(selected), remarks)
-        }
+        disabled={selected.size === 0}
+        onClick={() => onConfirm(Array.from(selected), remarks)}
       />
     </div>
   );
@@ -156,42 +151,96 @@ function ApproveDialog({
           ))}
         </div>
 
-        {isHousehold ? (
-          <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-xs text-blue-800">
-            <strong>On approval:</strong> all {households.length} remaining
-            household(s) will be reassigned to a new trip for the same driver.
-            The current trip will be closed.
-          </div>
-        ) : (
-          <div>
-            <p className="text-sm font-medium text-gray-700 mb-1.5">
-              Select the collection points to carry over to the new trip (
-              {selected.size} of {bins.length} selected)
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-sm font-medium text-gray-700">
+              Select stops to carry over ({selected.size} of {stops.length} selected)
             </p>
-            <div className="max-h-52 overflow-y-auto rounded-lg border border-gray-200 divide-y">
-              {bins.length === 0 && (
-                <div className="p-3 text-xs text-gray-400">
-                  No pending collection points left.
-                </div>
-              )}
-              {bins.map((stop) => (
-                <label
-                  key={stop.unique_id}
-                  className="flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.has(stop.unique_id)}
-                    onChange={() => toggle(stop.unique_id)}
-                    className="h-4 w-4"
-                  />
-                  <span className="flex-1 text-gray-800">
-                    {stop.name ?? stop.unique_id}
-                  </span>
-                  <span className="text-xs text-gray-400">{stop.status}</span>
-                </label>
-              ))}
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                label="All"
+                className="p-button-text p-button-sm"
+                onClick={() =>
+                  setSelected(new Set(stops.map((stop) => stop.unique_id)))
+                }
+                disabled={stops.length === 0 || selected.size === stops.length}
+              />
+              <Button
+                type="button"
+                label="Clear"
+                className="p-button-text p-button-sm p-button-secondary"
+                onClick={() => setSelected(new Set())}
+                disabled={selected.size === 0}
+              />
             </div>
+          </div>
+          <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 divide-y">
+            {stops.length === 0 && (
+              <div className="p-3 text-xs text-gray-400">
+                No pending collection points left. Refresh this request before approving.
+              </div>
+            )}
+            {bins.map((stop) => (
+              <label
+                key={stop.unique_id}
+                className="flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(stop.unique_id)}
+                  onChange={() => toggle(stop.unique_id)}
+                  className="h-4 w-4"
+                />
+                <span className="flex-1 text-gray-800">
+                  {stop.name ?? stop.unique_id}
+                </span>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500">
+                  Bin
+                </span>
+                <span className="text-xs text-gray-400">{stop.status}</span>
+              </label>
+            ))}
+            {households.map((stop) => (
+              <label
+                key={stop.unique_id}
+                className="flex items-center gap-2.5 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(stop.unique_id)}
+                  onChange={() => toggle(stop.unique_id)}
+                  className="h-4 w-4"
+                />
+                <span className="flex-1 text-gray-800">
+                  {stop.name ?? stop.unique_id}
+                </span>
+                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+                  Household
+                </span>
+                <span className="text-xs text-gray-400">{stop.status}</span>
+              </label>
+            ))}
+          </div>
+          {selected.size === 0 && (
+            <p className="mt-1.5 text-xs text-red-600">
+              Select at least one pending stop before approving.
+            </p>
+          )}
+        </div>
+
+        {households.length > 0 && (
+          <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-xs text-blue-800">
+            <strong>Household Re-Trip:</strong> only the selected household
+            stop(s) will be reassigned. Unselected stops stay on the source trip
+            record and will not appear in the new mobile assignment.
+          </div>
+        )}
+
+        {bins.length > 0 && (
+          <div className="rounded-lg bg-slate-50 border border-slate-100 p-3 text-xs text-slate-700">
+            <strong>Bin Re-Trip:</strong> one collection point can contain more
+            than one bin, so each pending bin stop is selected separately.
           </div>
         )}
 
@@ -325,6 +374,7 @@ export default function TripRetripRequestList() {
 
   const [approveTarget, setApproveTarget] =
     useState<TripRetripRequestRecord | null>(null);
+  const [isLoadingApproveDetail, setIsLoadingApproveDetail] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [rejectTarget, setRejectTarget] =
     useState<TripRetripRequestRecord | null>(null);
@@ -417,19 +467,37 @@ export default function TripRetripRequestList() {
   };
 
   /* ── Approve ────────────────────────────────────────────────────── */
+  const openApproveDialog = async (row: TripRetripRequestRecord) => {
+    setIsLoadingApproveDetail(true);
+    try {
+      const fresh = await retripRequestApi.read(row.unique_id);
+      setApproveTarget(fresh);
+    } catch (err: any) {
+      Swal.fire(t("common.error"), extractError(err), "error");
+    } finally {
+      setIsLoadingApproveDetail(false);
+    }
+  };
+
   const handleApproveConfirm = async (
-    collectionPointIds: string[] | undefined,
+    collectionPointIds: string[],
     remarks: string,
   ) => {
     if (!approveTarget) return;
+    if (!collectionPointIds || collectionPointIds.length === 0) {
+      Swal.fire(
+        t("common.error"),
+        "Select at least one pending stop before approving.",
+        "error",
+      );
+      return;
+    }
     setIsApproving(true);
     try {
       await api.post(
         `/schedule-operations/retrip-requests/${approveTarget.unique_id}/approve/`,
         {
-          ...(collectionPointIds !== undefined
-            ? { collection_point_ids: collectionPointIds }
-            : {}),
+          collection_point_ids: collectionPointIds,
           ...(remarks ? { remarks } : {}),
         },
       );
@@ -488,7 +556,8 @@ export default function TripRetripRequestList() {
       {row.status === "Pending" && (
         <button
           title="Re-Trip (Approve)"
-          onClick={() => setApproveTarget(row)}
+          onClick={() => void openApproveDialog(row)}
+          disabled={isLoadingApproveDetail}
           className="text-green-600 hover:text-green-800 transition-colors"
         >
           <i className="pi pi-check-circle" />
