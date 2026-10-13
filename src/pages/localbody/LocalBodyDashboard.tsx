@@ -10,6 +10,8 @@ import {
   Download, FileBarChart2, LogOut, MapPin, Printer, Scale, TrendingUp,
 } from "lucide-react";
 import ZigmaLogo from "../../images/logo.png";
+import { useIdleLogout, type SessionEndCause } from "@/hooks/useIdleLogout";
+import { clearLoginSessionTracking, endLoginSession } from "@/utils/loginSession";
 
 /* ─── axios instance ─────────────────────────────────────────────────── */
 const IS_PROD = import.meta.env.VITE_PROD === "true";
@@ -76,6 +78,7 @@ const currentMonth = () => {
 const todayStr = () => new Date().toISOString().split("T")[0];
 
 function clearLocalBodySession() {
+  clearLoginSessionTracking("lb_access_token");
   ["lb_access_token","lb_panchayat_unique_id","lb_panchayat_name","lb_leader_name","lb_role"]
     .forEach((k) => localStorage.removeItem(k));
 }
@@ -103,6 +106,17 @@ const StatusBadge = ({ s }: { s: string }) => {
 ════════════════════════════════════════════════════════════ */
 export default function LocalBodyDashboard() {
   const navigate      = useNavigate();
+
+  useIdleLogout({
+    tokenKey: "lb_access_token",
+    onSessionEnd: (cause: SessionEndCause) => {
+      clearLocalBodySession();
+      navigate("/auth/localbody", {
+        replace: true,
+        state: cause === "logged_out" ? undefined : { sessionMessage: "You were logged out due to inactivity or session expiry. Please sign in again." },
+      });
+    },
+  });
   const leaderName    = localStorage.getItem("lb_leader_name") ?? "Leader";
   const panchayatName = localStorage.getItem("lb_panchayat_name") ?? "";
   const printRef      = useRef<HTMLDivElement>(null);
@@ -240,7 +254,7 @@ export default function LocalBodyDashboard() {
           <span className="text-xs font-semibold text-gray-700 hidden sm:block">{leaderName}</span>
         </div>
         <button
-          onClick={() => { clearLocalBodySession(); navigate("/auth/localbody", { replace: true }); }}
+          onClick={async () => { await endLoginSession("lb_access_token", "manual"); clearLocalBodySession(); navigate("/auth/localbody", { replace: true }); }}
           className="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
         >
           <LogOut className="h-3.5 w-3.5" /> Logout

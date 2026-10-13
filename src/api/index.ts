@@ -39,6 +39,15 @@ const createApi = (opts: CreateApiOptions): AxiosInstance => {
     return config;
   });
 
+  // Let the idle-logout guard confirm with the server whether the session
+  // was ended (logged out elsewhere / idle timeout) — see useIdleLogout.
+  api.interceptors.response.use(undefined, (error) => {
+    if (error?.response?.status === 401 && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+    }
+    return Promise.reject(error);
+  });
+
   return api;
 };
 
