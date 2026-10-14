@@ -161,6 +161,7 @@ export const exportTemplateToExcel = async (
 
 export const readExcelRows = async (file: File): Promise<ExportRow[]> => {
   const [buffer, XLSX] = await Promise.all([file.arrayBuffer(), loadXlsx()]);
+  console.log("Reading Excel file:", file.name, "size:", file.size, "bytes");
   const workbook = XLSX.read(buffer, { type: "array" });
   const sheetName = workbook.SheetNames[0];
   const worksheet = sheetName ? workbook.Sheets[sheetName] : null;

@@ -105,7 +105,10 @@ export function FormSelect({
       ) : null}
 
       <Select
-        value={selected || undefined}
+        // Always controlled: `undefined` would switch Radix to uncontrolled
+        // and a programmatic reset (e.g. "Clear filters") would keep showing
+        // the previous value. "" renders the placeholder.
+        value={selected}
         onValueChange={(next) => onChange(next === EMPTY_VALUE ? "" : next)}
         disabled={disabled || options.length === 0}
         name={name}
