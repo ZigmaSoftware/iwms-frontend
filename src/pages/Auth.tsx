@@ -67,6 +67,15 @@ export default function Auth() {
   const { t } = useTranslation();
   const { setUser } = useUser();
 
+  // Explain an automatic logout (idle timeout / session ended elsewhere)
+  useEffect(() => {
+    const sessionMessage = (location.state as { sessionMessage?: string } | null)?.sessionMessage;
+    if (sessionMessage) {
+      toast({ title: "Session Ended", description: sessionMessage });
+      window.history.replaceState({}, "");
+    }
+  }, []);
+
   // Show success toast once when redirected from reset-password
   useEffect(() => {
     const successMessage = (location.state as { successMessage?: string } | null)?.successMessage;
@@ -107,6 +116,7 @@ export default function Auth() {
       const res = await api.post<LoginResponse>("/login/", {
         username,
         password,
+        client: "web",
       });
 
       const payload = unwrapLoginPayload(res.data);

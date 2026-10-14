@@ -13,6 +13,7 @@ import {
   setStoredPermissionDetails,
   setStoredPermissions,
 } from "@/utils/permissions";
+import { clearLoginSessionTracking, startLoginSession } from "@/utils/loginSession";
 
 export const ACCESS_TOKEN_STORAGE_KEY = "access_token";
 export const REFRESH_TOKEN_STORAGE_KEY = "refresh_token";
@@ -208,7 +209,10 @@ export const persistLoginSession = (payload: LoginPayload): void => {
   const profile = payload.profile ?? null;
   const role = normalizeRole(user.role ?? payload.role ?? null);
 
-  if (access) safeSetStorageItem(ACCESS_TOKEN_STORAGE_KEY, access);
+  if (access) {
+    safeSetStorageItem(ACCESS_TOKEN_STORAGE_KEY, access);
+    startLoginSession(ACCESS_TOKEN_STORAGE_KEY);
+  }
   if (refresh) safeSetStorageItem(REFRESH_TOKEN_STORAGE_KEY, refresh);
   safeSetStorageItem(USER_STORAGE_KEY, JSON.stringify(user));
   if (role) safeSetStorageItem(USER_ROLE_STORAGE_KEY, role);
@@ -261,6 +265,7 @@ export const persistLoginSession = (payload: LoginPayload): void => {
 };
 
 export const clearAuthSession = (): void => {
+  clearLoginSessionTracking(ACCESS_TOKEN_STORAGE_KEY);
   localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
   localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
   localStorage.removeItem(USER_STORAGE_KEY);

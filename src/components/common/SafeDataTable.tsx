@@ -74,6 +74,11 @@ type SafeDataTableProps<TValue extends SafeTableRows> =
     onImportComplete?: () => void | Promise<void>;
     onImportRows?: (rows: SafeTableRows) => Promise<void>;
     transformServerRows?: (rows: SafeTableRows) => SafeTableRows;
+    /**
+     * Place the Excel/PDF buttons inside the page's own header instead of
+     * beside it: receives the buttons and returns the whole header.
+     */
+    renderHeaderWithActions?: (actions: ReactNode) => ReactNode;
   };
 
 const toSafeRows = <TValue extends SafeTableRows>(
@@ -245,10 +250,12 @@ type DataTableHeaderActionsProps = {
   sheetName?: string;
   loadExportRows?: () => Promise<SafeTableRows>;
   onPdfRequest?: () => void | Promise<void>;
+  renderHeaderWithActions?: (actions: ReactNode) => ReactNode;
 };
 
 const DataTableHeaderActions = ({
   header,
+  renderHeaderWithActions,
   rows,
   pageRows,
   importColumns,
@@ -554,12 +561,7 @@ const DataTableHeaderActions = ({
     resolvedColumns.length > 0 &&
     (Boolean(onImportRows) || Boolean(importApi));
 
-  return (
-    <div className="iwms-list-header flex min-w-0 flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between">
-      {/* basis-full below lg keeps the page header on its own row: side by
-          side with the Excel buttons it was being squeezed narrow enough to
-          break long titles one word per line. */}
-      <div className="min-w-0 flex-1 lg:basis-auto">{header}</div>
+  const actions = (
       <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:auto-cols-max sm:grid-flow-col sm:grid-cols-none sm:items-center">
         {canImport && (
           <>
@@ -602,6 +604,19 @@ const DataTableHeaderActions = ({
           </button>
         )}
       </div>
+  );
+
+  if (renderHeaderWithActions) {
+    return <div className="iwms-list-header min-w-0">{renderHeaderWithActions(actions)}</div>;
+  }
+
+  return (
+    <div className="iwms-list-header flex min-w-0 flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between">
+      {/* basis-full below lg keeps the page header on its own row: side by
+          side with the Excel buttons it was being squeezed narrow enough to
+          break long titles one word per line. */}
+      <div className="min-w-0 flex-1 lg:basis-auto">{header}</div>
+      {actions}
     </div>
   );
 };
@@ -626,6 +641,7 @@ export const DataTable = <TValue extends SafeTableRows>(
     onImportComplete,
     onImportRows,
     transformServerRows,
+    renderHeaderWithActions,
     ...tableProps
   } = props;
   const safeRows = toSafeRows(tableProps.value);
@@ -888,6 +904,7 @@ export const DataTable = <TValue extends SafeTableRows>(
               : undefined
         }
         onPdfRequest={onPdfRequest}
+        renderHeaderWithActions={renderHeaderWithActions}
       />
     ) : (
       tableProps.header

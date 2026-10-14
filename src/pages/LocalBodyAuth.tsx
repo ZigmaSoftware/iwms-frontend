@@ -1,7 +1,8 @@
-import { useState, type ChangeEvent, type FormEvent, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState, type ChangeEvent, type FormEvent, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "@/api";
 import { useToast } from "@/hooks/use-toast";
+import { startLoginSession } from "@/utils/loginSession";
 import { Eye, EyeOff, Lock, User, Building2, Leaf, AlertCircle } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import AnimatedLoginScene from "@/components/auth/AnimatedLoginScene";
@@ -25,7 +26,17 @@ export default function LocalBodyAuth() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
+
+  // Explain an automatic logout (idle timeout / session expiry)
+  useEffect(() => {
+    const sessionMessage = (location.state as { sessionMessage?: string } | null)?.sessionMessage;
+    if (sessionMessage) {
+      toast({ title: "Session Ended", description: sessionMessage });
+      window.history.replaceState({}, "");
+    }
+  }, []);
 
   const triggerShake = () => {
     setShake(false);
@@ -55,6 +66,7 @@ export default function LocalBodyAuth() {
         username,
         password,
         login_type: "panchayat_leader",
+        client: "web",
       });
 
       const payload = unwrapLoginPayload(res.data);
@@ -64,6 +76,7 @@ export default function LocalBodyAuth() {
       const lbToken = (payload as any).access_token ?? (payload as any).access ?? "";
       if (lbToken) {
         localStorage.setItem("lb_access_token", lbToken);
+        startLoginSession("lb_access_token");
       }
 
       // Store panchayat context for the dashboard

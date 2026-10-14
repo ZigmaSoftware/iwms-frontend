@@ -38,6 +38,7 @@ const AdminLayout = lazy(() =>
 );
 
 import { RoleBasedLayout } from "@/layouts/shared/RoleBasedLayout";
+import SessionIdleGuard from "@/components/auth/SessionIdleGuard";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import type { AdminViewMode, UserRole } from "@/types/roles";
 import {
@@ -136,6 +137,7 @@ function DashboardRouteGuard({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <Suspense fallback={<PageLoader fullHeight />}>
+      <SessionIdleGuard />
       <Routes>
         {/* ── Public auth routes ── */}
         <Route path="/auth" element={<Auth />} />

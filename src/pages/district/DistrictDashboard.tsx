@@ -7,6 +7,8 @@ import { saveAs } from "file-saver";
 const loadXlsx = () => import("xlsx");
 import { Download, LogOut, MapPin, Printer } from "lucide-react";
 import ZigmaLogo from "../../images/logo.png";
+import { useIdleLogout, type SessionEndCause } from "@/hooks/useIdleLogout";
+import { clearLoginSessionTracking, endLoginSession } from "@/utils/loginSession";
 
 const IS_PROD = import.meta.env.VITE_PROD === "true";
 const API_ROOT = IS_PROD ? import.meta.env.VITE_API_PROD : import.meta.env.VITE_API_LOCAL;
@@ -69,6 +71,7 @@ const currentMonth = () => {
 const todayStr = () => new Date().toISOString().split("T")[0];
 
 function clearDistrictSession() {
+  clearLoginSessionTracking("district_access_token");
   ["district_access_token","district_unique_id","district_name","district_user_name","district_role"].forEach((k) => localStorage.removeItem(k));
 }
 
@@ -92,6 +95,17 @@ const StatusBadge = ({ s }: { s: string }) => {
 
 export default function DistrictDashboard() {
   const navigate = useNavigate();
+
+  useIdleLogout({
+    tokenKey: "district_access_token",
+    onSessionEnd: (cause: SessionEndCause) => {
+      clearDistrictSession();
+      navigate("/auth/district", {
+        replace: true,
+        state: cause === "logged_out" ? undefined : { sessionMessage: "You were logged out due to inactivity or session expiry. Please sign in again." },
+      });
+    },
+  });
   const userName = localStorage.getItem("district_user_name") ?? "District User";
   const districtName = localStorage.getItem("district_name") ?? "";
   const printRef = useRef<HTMLDivElement>(null);
@@ -223,7 +237,7 @@ export default function DistrictDashboard() {
           <span className="text-xs font-semibold text-gray-700 hidden sm:block">{userName}</span>
         </div>
         <button
-          onClick={() => { clearDistrictSession(); navigate("/auth/district", { replace: true }); }}
+          onClick={async () => { await endLoginSession("district_access_token", "manual"); clearDistrictSession(); navigate("/auth/district", { replace: true }); }}
           className="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
         >
           <LogOut className="h-3.5 w-3.5" /> Logout
