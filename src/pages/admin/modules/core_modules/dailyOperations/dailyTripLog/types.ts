@@ -98,6 +98,7 @@ export type DailyTripLogRecord = {
     waste_type_breakdown?: WasteTypeBreakdownItem[];
     collected_at?: string | null;
     status?: string;
+    status_evidence_image_url?: string | null;
     capture_images?: TripLogCaptureImage[];
   }[];
   vehicle?: NamedRef & { vehicle_no?: string };

@@ -18,6 +18,7 @@ import { tripDelayReportApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+import { EvidenceImagePreview } from "@/components/common/EvidenceImagePreview";
 
 /**
  * Delays reported by drivers from the app — a puncture, a minor repair, a
@@ -432,6 +433,16 @@ export default function TripDelayReportList() {
           body={(r: TripDelayReportRecord) =>
             r.estimated_delay_minutes != null ? `${r.estimated_delay_minutes} min` : "—"
           }
+        />
+        <Column
+          header="Evidence"
+          style={{ width: 100 }}
+          body={(r: TripDelayReportRecord) => (
+            <EvidenceImagePreview
+              url={r.evidence_image_url}
+              label={`Delay evidence ${r.unique_id}`}
+            />
+          )}
         />
         <Column field="reported_by_name" header="Reported by" style={{ minWidth: 150 }} body={(r) => r.reported_by_name || "—"} />
         <Column field="delay_time" header="At" style={{ minWidth: 100 }} body={(r) => r.delay_time?.slice(0, 5) || "—"} />

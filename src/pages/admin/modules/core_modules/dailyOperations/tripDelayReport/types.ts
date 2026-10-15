@@ -40,6 +40,7 @@ export interface TripDelayReportRecord {
   delay_lat: string | null;
   delay_lng: string | null;
   delay_location: string | null;
+  evidence_image_url: string | null;
   status: TripDelayStatus;
   status_display: string;
   acknowledged_by: string | null;

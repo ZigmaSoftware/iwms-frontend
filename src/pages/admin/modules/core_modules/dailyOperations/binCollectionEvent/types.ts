@@ -57,6 +57,7 @@ export type BinCERecord = {
   status_reason?: string | null;
   driver_latitude?: string | number | null;
   driver_longitude?: string | number | null;
+  status_evidence_image_url?: string | null;
   notes?: string | null;
   created_at?: string;
   company_name?: string;

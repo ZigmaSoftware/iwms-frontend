@@ -107,6 +107,7 @@ export default function TripDelayReportForm() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [evidenceImage, setEvidenceImage] = useState<File | null>(null);
 
   /* ── dropdown data ── */
   const [assignmentOptions, setAssignmentOptions] = useState<SelectOption[]>([]);
@@ -207,20 +208,35 @@ export default function TripDelayReportForm() {
     if (!projectId) {
       Swal.fire(t("common.error"), "Please select a project.", "error"); return;
     }
+    if (!form.delay_lat || !form.delay_lng) {
+      Swal.fire(
+        t("common.error"),
+        "Detect the capture location before submitting the delay.",
+        "error",
+      );
+      return;
+    }
+    if (!evidenceImage) {
+      Swal.fire(t("common.error"), "Capture or choose a delay evidence image.", "error");
+      return;
+    }
 
     setSaving(true);
     try {
-      await tripDelayReportApi.create({
-        company_id_input: companyUniqueId,
-        project_id_input: projectId,
-        trip_assignment_id: form.trip_assignment_id,
-        delay_reason: form.delay_reason,
-        delay_remarks: form.delay_remarks.trim(),
-        estimated_delay_minutes: form.estimated_delay_minutes ? Number(form.estimated_delay_minutes) : null,
-        delay_lat: form.delay_lat || null,
-        delay_lng: form.delay_lng || null,
-        delay_location: form.delay_location || null,
-      });
+      const payload = new FormData();
+      payload.append("company_id_input", companyUniqueId);
+      payload.append("project_id_input", projectId);
+      payload.append("trip_assignment_id", form.trip_assignment_id);
+      payload.append("delay_reason", form.delay_reason);
+      payload.append("delay_remarks", form.delay_remarks.trim());
+      payload.append("delay_lat", form.delay_lat);
+      payload.append("delay_lng", form.delay_lng);
+      payload.append("evidence_image", evidenceImage);
+      if (form.estimated_delay_minutes) {
+        payload.append("estimated_delay_minutes", form.estimated_delay_minutes);
+      }
+      if (form.delay_location) payload.append("delay_location", form.delay_location);
+      await tripDelayReportApi.upload(payload);
 
       await Swal.fire({
         title: t("common.success"),
@@ -349,7 +365,7 @@ export default function TripDelayReportForm() {
 
           {/* Delay Latitude */}
           <div>
-            <Label>Latitude (optional)</Label>
+            <Label>Latitude <span className="text-red-500">*</span></Label>
             <div className="flex items-center gap-2">
               <Input
                 type="number"
@@ -373,7 +389,7 @@ export default function TripDelayReportForm() {
 
           {/* Delay Longitude */}
           <div>
-            <Label>Longitude (optional)</Label>
+            <Label>Longitude <span className="text-red-500">*</span></Label>
             <Input
               type="number"
               step="any"
@@ -406,6 +422,20 @@ export default function TripDelayReportForm() {
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
             />
             <FieldError message={fieldErrors.delay_remarks} />
+          </div>
+
+          <div className="md:col-span-2">
+            <Label>Evidence image <span className="text-red-500">*</span></Label>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              capture="environment"
+              onChange={(event) => setEvidenceImage(event.target.files?.[0] ?? null)}
+              className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-green-50 file:px-3 file:py-1.5 file:font-semibold file:text-green-700"
+            />
+            {evidenceImage && (
+              <p className="mt-1 text-xs text-gray-500">{evidenceImage.name}</p>
+            )}
           </div>
         </div>
       </ComponentCard>
