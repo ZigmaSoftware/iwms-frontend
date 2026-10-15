@@ -45,6 +45,11 @@ export type DailyTripHouseholdCollectionRecord = {
   status_reason?: string | null;
   status_latitude?: string | number | null;
   status_longitude?: string | number | null;
+  status_evidence_image_url?: string | null;
+  // Set when the customer tapped "I'm home now" in the citizen app after the
+  // stop was marked Collect Later.
+  customer_available_at?: string | null;
+  customer_available_note?: string | null;
   company_id?: string | null;
   company_unique_id?: string | null;
   project_id?: string | null;

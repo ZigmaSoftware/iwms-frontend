@@ -15,6 +15,7 @@ import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import { Button } from "primereact/button";
 import { downloadCustomerQrStickerPdf } from "@/pages/admin/modules/masters/customerMasters/customerCreations/customerQrStickerPdf";
 import type { Customer } from "@/pages/admin/modules/masters/customerMasters/customerCreations/types";
+import { EvidenceImagePreview } from "@/components/common/EvidenceImagePreview";
 
 
 // A5: DailyTripHouseholdCollection.STATUS_CHOICES — Pending/Collected/Collect
@@ -57,6 +58,31 @@ const Badge = ({ value }: { value?: string }) => (
     {value ?? "-"}
   </span>
 );
+
+// "I'm home now" from the citizen app: green while the stop is still open,
+// red when it ended Not Available anyway (a Missed Pickup ticket is raised).
+const CustomerAvailable = ({ row }: { row: DailyTripHouseholdCollectionRecord }) => {
+  if (!row.customer_available_at) return <span className="text-gray-400">-</span>;
+  const at = new Date(row.customer_available_at);
+  const missed = row.status === "Not Available";
+  const time = Number.isNaN(at.getTime())
+    ? row.customer_available_at
+    : at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return (
+    <div className="flex flex-col gap-0.5" title={row.customer_available_note ?? undefined}>
+      <span
+        className={`inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+          missed ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"
+        }`}
+      >
+        {missed ? "Was home - missed" : "Home now"} · {time}
+      </span>
+      {row.customer_available_note ? (
+        <span className="text-xs text-gray-500">"{row.customer_available_note}"</span>
+      ) : null}
+    </div>
+  );
+};
 
 const text = (value: unknown): string =>
   value === null || value === undefined || String(value).trim() === ""
@@ -545,6 +571,22 @@ export default function DailyTripHouseholdCollectionList() {
           header="Status Reason"
           style={{ minWidth: 160 }}
           body={(row: DailyTripHouseholdCollectionRecord) => text(row.status_reason)}
+        />
+        <Column
+          field="customer_available_at"
+          header="Customer Home"
+          style={{ minWidth: 170 }}
+          body={(row: DailyTripHouseholdCollectionRecord) => <CustomerAvailable row={row} />}
+        />
+        <Column
+          header="Evidence"
+          style={{ width: 100 }}
+          body={(row: DailyTripHouseholdCollectionRecord) => (
+            <EvidenceImagePreview
+              url={row.status_evidence_image_url}
+              label={`Household status evidence ${row.unique_id}`}
+            />
+          )}
         />
         <Column
           header="Waste Breakdown (Wet/Dry/Mixed/Sanitary/Total)"

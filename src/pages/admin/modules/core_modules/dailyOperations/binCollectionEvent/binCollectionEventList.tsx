@@ -20,6 +20,7 @@ import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatCollectionTime } from "@/utils/formatTime";
 import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
+import { EvidenceImagePreview } from "@/components/common/EvidenceImagePreview";
 
 const extractError = (error: unknown): string | null => {
   const data = (error as any)?.response?.data;
@@ -536,6 +537,16 @@ export default function BinCollectionEventList() {
           showFilterMatchModes={false}
           body={(row: BinCERecord) => <StatusBadge value={row.status} />}
           style={{ width: 130 }}
+        />
+        <Column
+          header="Evidence"
+          style={{ width: 100 }}
+          body={(row: BinCERecord) => (
+            <EvidenceImagePreview
+              url={row.status_evidence_image_url}
+              label={`Bin status evidence ${row.unique_id ?? ""}`}
+            />
+          )}
         />
         <Column
           header={t("common.actions")}
