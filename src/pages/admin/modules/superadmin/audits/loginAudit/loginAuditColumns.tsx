@@ -1,8 +1,9 @@
 import { Column } from "primereact/column";
 import type { TFunction } from "i18next";
 import type { LoginAuditRecord } from "./types";
-import { formatDateTime, shortUserAgent } from "./format";
+import { shortUserAgent } from "./format";
 import SessionBadge from "./SessionBadge";
+import SessionTimeCell from "./SessionTimeCell";
 
 type Options = {
   t: TFunction;
@@ -25,7 +26,7 @@ export const renderLoginAuditColumns = ({ t, onView }: Options) => [
     field="username"
     header="User"
     sortable
-    style={{ width: "16%" }}
+    style={{ width: "18%" }}
     body={(row: LoginAuditRecord) => (
       <div className="min-w-0">
         <p className="break-words font-semibold text-gray-900">{row.username || "-"}</p>
@@ -37,7 +38,7 @@ export const renderLoginAuditColumns = ({ t, onView }: Options) => [
     key="device"
     field="ip_address"
     header="Device"
-    style={{ width: "14%" }}
+    style={{ width: "16%" }}
     body={(row: LoginAuditRecord) => (
       <div className="min-w-0" title={row.user_agent ?? undefined}>
         <p className="break-all font-medium text-gray-800">{row.ip_address || "-"}</p>
@@ -46,24 +47,12 @@ export const renderLoginAuditColumns = ({ t, onView }: Options) => [
     )}
   />,
   <Column
-    key="login_time"
+    key="session_time"
     field="timestamp"
-    header="Login Time"
+    header="Session Time"
     sortable
-    style={{ width: "13%" }}
-    body={(row: LoginAuditRecord) => (
-      <span className="text-sm text-gray-800">{formatDateTime(row.timestamp)}</span>
-    )}
-  />,
-  <Column
-    key="logout_time"
-    field="logout_at"
-    header="Logout Time"
-    sortable
-    style={{ width: "13%" }}
-    body={(row: LoginAuditRecord) => (
-      <span className="text-sm text-gray-800">{row.success ? formatDateTime(row.logout_at) : "-"}</span>
-    )}
+    style={{ width: "22%" }}
+    body={(row: LoginAuditRecord) => <SessionTimeCell row={row} />}
   />,
   <Column
     key="logout_type"
