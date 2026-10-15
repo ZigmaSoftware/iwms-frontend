@@ -5,6 +5,7 @@ import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { CONTROL_HEIGHT } from "@/components/common/controlSizing";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { filterRowsForExport } from "@/utils/adminListExport";
 
@@ -70,6 +71,21 @@ export default function LoginAuditList() {
     }));
   };
 
+  // Company is only clearable for superadmins; everyone else is pinned to
+  // their own company.
+  const hasActiveFilters =
+    Boolean(globalFilterValue) ||
+    Boolean(sessionState) ||
+    Boolean(projectId) ||
+    (isSuperAdmin && Boolean(companyUniqueId));
+
+  const clearFilters = () => {
+    onGlobalFilterChange("");
+    onSessionStateChange("");
+    if (isSuperAdmin) onCompanyChange("");
+    setProjectId("");
+  };
+
   const columns = useMemo(() => renderLoginAuditColumns({ t, onView: setSelectedAudit }), [t]);
 
   const exportRows = useMemo(
@@ -83,6 +99,18 @@ export default function LoginAuditList() {
         searchValue={globalFilterValue}
         onSearchChange={onGlobalFilterChange}
         searchPlaceholder={t("admin.login_audit.search", "Search login audits...")}
+        trailing={
+          hasActiveFilters ? (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className={`inline-flex ${CONTROL_HEIGHT} items-center gap-1.5 whitespace-nowrap rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600`}
+            >
+              <i className="pi pi-filter-slash text-xs" />
+              {t("common.clear_filters", "Clear filters")}
+            </button>
+          ) : null
+        }
       >
         <FilterBarSelect
           value={companyUniqueId || ""}

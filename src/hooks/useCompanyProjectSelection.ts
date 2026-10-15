@@ -417,15 +417,19 @@ export const useCompanyProjectSelection = ({
   // Show "All Projects" only for superadmin or non-superadmin with multiple projects
   const showAllProjectsOption = isSuperAdmin || projects.length > 1;
 
-  useEffect(() => {
-    setListCompanyProjectContext({
-      companyId: companyUniqueId,
-      projectId,
-    });
-    return () => {
+  // Published during render, not in an effect: a list table below this page
+  // reads it while rendering and refetches from its own effect, which React
+  // runs *before* this (parent's) effect. Publishing in an effect left the
+  // table one step behind, e.g. "Clear filters" refetched with the old
+  // company/project. The write is idempotent, so a repeated render is harmless.
+  setListCompanyProjectContext({ companyId: companyUniqueId, projectId });
+
+  useEffect(
+    () => () => {
       setListCompanyProjectContext({ companyId: "", projectId: "" });
-    };
-  }, [companyUniqueId, projectId]);
+    },
+    [],
+  );
 
   return {
     companyUniqueId,

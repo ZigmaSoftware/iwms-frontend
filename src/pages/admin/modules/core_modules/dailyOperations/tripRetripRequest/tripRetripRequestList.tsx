@@ -26,6 +26,22 @@ const STATUS_STYLES: Record<RetripStatus, string> = {
   Pending: "bg-yellow-100 text-yellow-800",
   Approved: "bg-green-100 text-green-800",
   Rejected: "bg-red-100 text-red-800",
+  Expired: "bg-gray-200 text-gray-700",
+};
+
+const isPastDeadline = (row: TripRetripRequestRecord, now = Date.now()) =>
+  row.status === "Pending" &&
+  Boolean(row.expires_at) &&
+  new Date(row.expires_at as string).getTime() <= now;
+
+const deadlineLabel = (row: TripRetripRequestRecord, now = Date.now()) => {
+  if (row.status === "Expired" || isPastDeadline(row, now)) return "Expired";
+  if (!row.expires_at || row.status !== "Pending") return "-";
+  const seconds = Math.max(
+    0,
+    Math.ceil((new Date(row.expires_at).getTime() - now) / 1000),
+  );
+  return `Expires in ${Math.ceil(seconds / 60)} min`;
 };
 
 const StatusBadge = ({ value }: { value: RetripStatus }) => (
@@ -36,13 +52,16 @@ const StatusBadge = ({ value }: { value: RetripStatus }) => (
   </span>
 );
 
-const extractError = (error: any): string => {
-  const data = error?.response?.data;
+type ApiError = { response?: { status?: number; data?: unknown } };
+
+const extractError = (error: unknown): string => {
+  const data = (error as ApiError)?.response?.data;
   if (!data) return "An unexpected error occurred.";
   if (typeof data === "string") return data;
-  if (typeof data?.detail === "string") return data.detail;
   if (typeof data === "object") {
-    const first = Object.values(data)[0];
+    const record = data as Record<string, unknown>;
+    if (typeof record.detail === "string") return record.detail;
+    const first = Object.values(record)[0];
     if (Array.isArray(first)) return String(first[0]);
     if (typeof first === "string") return first;
   }
@@ -95,6 +114,7 @@ function ApproveDialog({
   };
 
   const carriedCount = selected.size;
+  const expired = isPastDeadline(row);
 
   const footer = (
     <div className="flex justify-end gap-2 pt-2">
@@ -109,7 +129,7 @@ function ApproveDialog({
         icon="pi pi-check"
         className="p-button-success"
         loading={isLoading}
-        disabled={selected.size === 0}
+        disabled={selected.size === 0 || expired}
         onClick={() => onConfirm(Array.from(selected), remarks)}
       />
     </div>
@@ -143,6 +163,7 @@ function ApproveDialog({
             ["Vehicle", row.vehicle_no ?? "-"],
             ["Requested by", row.requested_by_name ?? "-"],
             ["Reason", row.reason],
+            ["Decision window", deadlineLabel(row)],
           ].map(([label, value]) => (
             <div key={label} className="flex gap-2">
               <span className="text-gray-500 w-32 shrink-0">{label}</span>
@@ -150,6 +171,12 @@ function ApproveDialog({
             </div>
           ))}
         </div>
+
+        {expired && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
+            This request has expired. Refresh the list to see its final status.
+          </div>
+        )}
 
         <div>
           <div className="mb-2 flex items-center justify-between gap-3">
@@ -371,6 +398,7 @@ export default function TripRetripRequestList() {
     "Pending",
   );
   const requestIdRef = useRef(0);
+  const [clock, setClock] = useState(() => Date.now());
 
   const [approveTarget, setApproveTarget] =
     useState<TripRetripRequestRecord | null>(null);
@@ -455,6 +483,17 @@ export default function TripRetripRequestList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setClock(Date.now());
+      if (statusFilter === "Pending") {
+        void loadRows(first / rowsPerPage + 1, rowsPerPage);
+      }
+    }, 30000);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, first, rowsPerPage, companyUniqueId, projectId]);
+
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
     setRowsPerPage(event.rows);
@@ -472,8 +511,12 @@ export default function TripRetripRequestList() {
     try {
       const fresh = await retripRequestApi.read(row.unique_id);
       setApproveTarget(fresh);
-    } catch (err: any) {
+    } catch (err: unknown) {
       Swal.fire(t("common.error"), extractError(err), "error");
+      if ((err as ApiError)?.response?.status === 409) {
+        setApproveTarget(null);
+        void loadRows(first / rowsPerPage + 1, rowsPerPage);
+      }
     } finally {
       setIsLoadingApproveDetail(false);
     }
@@ -513,8 +556,12 @@ export default function TripRetripRequestList() {
         timer: 2200,
         showConfirmButton: false,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       Swal.fire(t("common.error"), extractError(err), "error");
+      if ((err as ApiError)?.response?.status === 409) {
+        setApproveTarget(null);
+        void loadRows(first / rowsPerPage + 1, rowsPerPage);
+      }
     } finally {
       setIsApproving(false);
     }
@@ -543,8 +590,12 @@ export default function TripRetripRequestList() {
         timer: 2000,
         showConfirmButton: false,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       Swal.fire(t("common.error"), extractError(err), "error");
+      if ((err as ApiError)?.response?.status === 409) {
+        setRejectTarget(null);
+        void loadRows(first / rowsPerPage + 1, rowsPerPage);
+      }
     } finally {
       setIsRejecting(false);
     }
@@ -553,7 +604,7 @@ export default function TripRetripRequestList() {
   /* ── Action column ──────────────────────────────────────────────── */
   const actionTemplate = (row: TripRetripRequestRecord) => (
     <div className="flex items-center justify-center gap-3">
-      {row.status === "Pending" && (
+      {row.status === "Pending" && !isPastDeadline(row, clock) && (
         <button
           title="Re-Trip (Approve)"
           onClick={() => void openApproveDialog(row)}
@@ -563,7 +614,7 @@ export default function TripRetripRequestList() {
           <i className="pi pi-check-circle" />
         </button>
       )}
-      {row.status === "Pending" && (
+      {row.status === "Pending" && !isPastDeadline(row, clock) && (
         <button
           title="Reject"
           onClick={() => setRejectTarget(row)}
@@ -595,7 +646,7 @@ export default function TripRetripRequestList() {
       searchPlaceholder="Search Re-Trip requests…"
       trailing={
         <div className="flex flex-wrap items-center gap-2">
-          {(["Pending", "Approved", "Rejected", ""] as const).map((s) => (
+          {(["Pending", "Approved", "Rejected", "Expired", ""] as const).map((s) => (
             <button
               key={s || "all"}
               type="button"
@@ -675,7 +726,7 @@ export default function TripRetripRequestList() {
       >
         <Column
           header={t("common.s_no")}
-          body={(_: any, { rowIndex }: any) => rowIndex + 1}
+          body={(_: unknown, { rowIndex }: { rowIndex: number }) => rowIndex + 1}
           style={{ width: 60 }}
         />
         <Column
@@ -700,13 +751,13 @@ export default function TripRetripRequestList() {
           field="area_name"
           header="Area"
           style={{ minWidth: 140 }}
-          body={(r: any) => r.area_name || "-"}
+          body={(r: TripRetripRequestRecord) => r.area_name || "-"}
         />
         <Column
           field="vehicle_no"
           header="Vehicle"
           style={{ minWidth: 110 }}
-          body={(r: any) => r.vehicle_no || "-"}
+          body={(r: TripRetripRequestRecord) => r.vehicle_no || "-"}
         />
         <Column
           field="collection_type"
@@ -731,7 +782,7 @@ export default function TripRetripRequestList() {
           field="reason"
           header="Reason"
           style={{ minWidth: 220 }}
-          body={(r: any) => (
+          body={(r: TripRetripRequestRecord) => (
             <span className="text-xs text-gray-700">{r.reason}</span>
           )}
         />
@@ -739,7 +790,31 @@ export default function TripRetripRequestList() {
           field="requested_by_name"
           header="Requested By"
           style={{ minWidth: 140 }}
-          body={(r: any) => r.requested_by_name || "-"}
+          body={(r: TripRetripRequestRecord) => r.requested_by_name || "-"}
+        />
+        <Column
+          header="Decision Window"
+          style={{ minWidth: 140 }}
+          body={(r: TripRetripRequestRecord) => {
+            const label = deadlineLabel(r, clock);
+            const urgent =
+              r.status === "Pending" &&
+              r.expires_at &&
+              new Date(r.expires_at).getTime() - clock <= 10 * 60 * 1000;
+            return (
+              <span
+                className={`text-xs font-semibold ${
+                  label === "Expired"
+                    ? "text-red-700"
+                    : urgent
+                      ? "text-orange-700"
+                      : "text-gray-600"
+                }`}
+              >
+                {label}
+              </span>
+            );
+          }}
         />
         <Column
           field="status"

@@ -1,6 +1,15 @@
 export const formatDateTime = (value?: string | null) =>
   value ? new Date(value).toLocaleString() : "-";
 
+export const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+
+export const formatTime = (value: string) =>
+  new Date(value).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+
+export const isSameDay = (a: string, b: string) =>
+  new Date(a).toDateString() === new Date(b).toDateString();
+
 const BROWSERS: [RegExp, string][] = [
   [/Edg\/(\d+)/, "Edge"],
   [/OPR\/(\d+)/, "Opera"],

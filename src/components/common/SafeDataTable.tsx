@@ -681,6 +681,9 @@ export const DataTable = <TValue extends SafeTableRows>(
   );
   const rowShape = useRef<string[]>([]);
   const appliedMetadataVersion = useRef(0);
+  // Only the newest page request may write rows: an older one resolving late
+  // (filters changed mid-flight) would otherwise overwrite fresher data.
+  const latestServerRequest = useRef(0);
 
   const mapServerRows = useCallback((rows: SafeTableRows) => {
     const targetKeys = rowShape.current;
@@ -759,6 +762,7 @@ export const DataTable = <TValue extends SafeTableRows>(
     ) => {
       if (!serverApi) return;
 
+      const requestId = ++latestServerRequest.current;
       setServerLoading(true);
       try {
         const companyProject = getListCompanyProjectContext();
@@ -783,6 +787,7 @@ export const DataTable = <TValue extends SafeTableRows>(
             },
           },
         );
+        if (requestId !== latestServerRequest.current) return;
         const nextRows = Array.isArray(response) ? response : response.results ?? [];
         const count = Array.isArray(response)
           ? nextRows.length
@@ -798,7 +803,7 @@ export const DataTable = <TValue extends SafeTableRows>(
         setServerRows(transformedRows);
         setServerTotal(count);
       } finally {
-        setServerLoading(false);
+        if (requestId === latestServerRequest.current) setServerLoading(false);
       }
     },
     [

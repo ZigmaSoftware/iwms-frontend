@@ -59,6 +59,17 @@ const normalizeHouseholdRows = (rows: any[]): NonNullable<DailyTripLogRecord["ho
       const customer = row?.customer ?? {};
       const customerName = row?.customer_name ?? customer?.customer_name ?? row?.customer?.name ?? null;
       const customerUniqueId = row?.customer_unique_id ?? row?.customer_id ?? customer?.unique_id ?? null;
+      const statusEvidenceUrl = row?.status_evidence_image_url;
+      const captureImages = Array.isArray(row?.capture_images) && row.capture_images.length > 0
+        ? row.capture_images
+        : statusEvidenceUrl
+          ? [{
+              url: statusEvidenceUrl,
+              household_collection_id: row?.unique_id,
+              trip_household_collection_id: row?.unique_id,
+              image_type: "status_evidence",
+            }]
+          : undefined;
 
       return {
         unique_id: row?.unique_id,
@@ -75,7 +86,7 @@ const normalizeHouseholdRows = (rows: any[]): NonNullable<DailyTripLogRecord["ho
         waste_type_breakdown: householdWasteBreakdown(row),
         collected_at: row?.collected_at ?? null,
         status: row?.status,
-        capture_images: row?.capture_images,
+        capture_images: captureImages,
       };
     })
     .filter((row) => row.unique_id || row.customer_name || row.customer_unique_id);

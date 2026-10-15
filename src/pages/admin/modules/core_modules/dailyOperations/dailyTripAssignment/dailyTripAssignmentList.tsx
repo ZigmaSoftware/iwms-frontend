@@ -142,6 +142,7 @@ const RetripCell = ({
 
   const isApproved = retrip.status === "Approved";
   const isPending = retrip.status === "Pending";
+  const isExpired = retrip.status === "Expired";
 
   return (
     <div className="space-y-1">
@@ -151,11 +152,27 @@ const RetripCell = ({
             ? "bg-green-100 text-green-700"
             : isPending
               ? "bg-orange-100 text-orange-700"
-              : "bg-red-100 text-red-700"
+              : isExpired
+                ? "bg-gray-200 text-gray-700"
+                : "bg-red-100 text-red-700"
         }`}
       >
-        {isApproved ? "→ Proceeded" : isPending ? "⚠ Pending" : "✕ Rejected"}
+        {isApproved
+          ? "→ Proceeded"
+          : isPending
+            ? "⚠ Pending"
+            : isExpired
+              ? "Expired"
+              : "✕ Rejected"}
       </span>
+      {isPending && retrip.expires_at && (
+        <div className="text-[10px] font-medium text-orange-700 leading-tight">
+          Decision due {new Date(retrip.expires_at).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </div>
+      )}
       {isApproved && retrip.new_assignment_id && (
         <div className="text-[10px] text-gray-600 leading-tight">
           <span className="font-medium">Next:</span> {retrip.new_assignment_id}
@@ -680,9 +697,19 @@ export default function DailyTripAssignmentList() {
   };
 
   /* ── column templates ── */
-  const statusTemplate = (row: DailyTripAssignmentRecord) => (
-    <Badge value={row.status} styleMap={STATUS_STYLES} />
-  );
+  const statusTemplate = (row: DailyTripAssignmentRecord) =>
+    row.service_notice ? (
+      <div className="flex flex-col gap-1">
+        <span className="inline-flex w-fit items-center rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800">
+          No collection today
+        </span>
+        <span className="max-w-48 text-xs text-gray-600" title={row.service_notice.reason_text || row.service_notice.reason_label}>
+          {row.service_notice.reason_text || row.service_notice.reason_label}
+        </span>
+      </div>
+    ) : (
+      <Badge value={row.status} styleMap={STATUS_STYLES} />
+    );
 
   /* ── Re-Trip: close an In Progress trip early, carrying leftover stops to
      a continuation trip (app.services.retrip_service.proceed_to_next_trip
