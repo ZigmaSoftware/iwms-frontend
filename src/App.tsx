@@ -18,9 +18,7 @@ const DistrictAuth = lazy(() => import("@/pages/DistrictAuth"));
 const DistrictDashboard = lazy(() => import("@/pages/district/DistrictDashboard"));
 const Dashboard = lazy(() => import("@/pages/dashboard/pages/Dashboard"));
 const NotFound = lazy(() => import("@/pages/dashboard/pages/NotFound"));
-const HomeDashboard = lazy(() =>
-  import("@/pages/dashboard/pages/Dashboard/HomeDashboard").then((m) => ({ default: m.HomeDashboard })),
-);
+const DashboardHome = lazy(() => import("@/layouts/dashboard/DashboardHome"));
 const AdminDashboard = lazy(() => import("@/pages/admin/dashboards/AdminDashboard"));
 const SuperadminDashboard = lazy(() => import("@/pages/admin/dashboards/SuperadminDashboard"));
 const AdminEncryptedRouter = lazy(() => import("@/layouts/admin/encryptedRouting/AdminEncryptedRouter"));
@@ -52,6 +50,7 @@ import {
   isAdmin,
 } from "@/types/roles";
 import { adminLandingPath, hasAnyPermission } from "@/utils/permissions";
+import { useDashboardMenuItems } from "@/layouts/dashboard/dashboardMenu";
 
 const ADMIN_ACCESS_ROLES: UserRole[] = [DEFAULT_ROLE, ...ADMIN_ROLES];
 
@@ -76,6 +75,8 @@ function withAdmin(children: ReactNode) {
 }
 
 function HomeRedirect() {
+  const { items: dashboardTabs } = useDashboardMenuItems();
+
   if (typeof window === "undefined") {
     return null;
   }
@@ -84,7 +85,8 @@ function HomeRedirect() {
   const preference = getAdminViewPreference();
 
   if (isAdmin(storedRole, hasAnyPermission("view"))) {
-    if (preference === ADMIN_VIEW_MODE_DASHBOARD) {
+    // An admin without any User Dashboard tab stays in the admin panel.
+    if (preference === ADMIN_VIEW_MODE_DASHBOARD && dashboardTabs.length > 0) {
       return <Navigate to="/dashboard" replace />;
     }
     return <Navigate to={adminLandingPath()} replace />;
@@ -106,6 +108,7 @@ function DashboardRouteGuard({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<UserRole | null>(null);
   const [adminViewPreference, setAdminViewPreferenceState] = useState<AdminViewMode | null>(null);
   const [checked, setChecked] = useState(false);
+  const { items: dashboardTabs } = useDashboardMenuItems();
 
   useEffect(() => {
     try {
@@ -128,6 +131,11 @@ function DashboardRouteGuard({ children }: { children: ReactNode }) {
   }
 
   if (role === DEFAULT_ROLE && preference === ADMIN_VIEW_MODE_ADMIN) {
+    return <Navigate to={adminLandingPath()} replace />;
+  }
+
+  // Admins without any User Dashboard tab have no dashboard view to open.
+  if ((isAdmin(role, hasAnyPermission("view")) || role === DEFAULT_ROLE) && dashboardTabs.length === 0) {
     return <Navigate to={adminLandingPath()} replace />;
   }
 
@@ -155,7 +163,7 @@ export default function App() {
         <Route path="/" element={<HomeRedirect />} />
 
         {/* ── Staff / user dashboard ── */}
-        <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />
+        <Route path="/dashboard" element={withDashboard(<DashboardHome />)} />
         <Route path="/dashboard/overview" element={withDashboard(<Dashboard />)} />
         <Route path="/dashboard/:encModule" element={withDashboard(<DashboardEncryptedRouter />)} />
 
