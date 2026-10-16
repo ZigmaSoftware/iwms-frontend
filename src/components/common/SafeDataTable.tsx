@@ -204,6 +204,9 @@ const readImportColumns = (children: ReactNode): ExcelTemplateColumn[] => {
   return columns;
 };
 
+// System/audit columns (mostly from BaseMaster) the server stamps itself —
+// never something an uploader fills in. Tenancy fields (company_id /
+// project_id) are deliberately NOT listed: they stay in the template.
 const METADATA_EXCLUDED_FIELDS = new Set([
   "id",
   "unique_id",
@@ -211,7 +214,14 @@ const METADATA_EXCLUDED_FIELDS = new Set([
   "updated_at",
   "created_by",
   "updated_by",
+  "created_by_id",
+  "updated_by_id",
+  "deleted_at",
+  "deleted_by",
+  "deleted_by_id",
+  "delete_reason",
   "is_deleted",
+  "is_active",
 ]);
 
 // Fields ending in `_id`/`_ids` that reference a master/lookup table accept

@@ -61,6 +61,7 @@ export type WardBreakdownRow = {
   received: number;
   resolved: number;
   pending: number;
+  escalated: number;
   sla_compliance_percent: number;
 };
 
