@@ -22,6 +22,7 @@ import { combineFilters, useOptionFilter } from "@/components/filters/useOptionF
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatCollectionTime } from "@/utils/formatTime";
 import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
+import { EvidenceImagePreview } from "@/components/common/EvidenceImagePreview";
 import { useScreenAccess } from "@/contexts/screenPermission";
 
 const extractError = (error: unknown): string | null => {
@@ -512,6 +513,16 @@ export default function BinCollectionEventList() {
           showFilterMatchModes={false}
           body={(row: BinCERecord) => <StatusBadge value={row.status} />}
           style={{ width: 130 }}
+        />
+        <Column
+          header="Evidence"
+          style={{ width: 100 }}
+          body={(row: BinCERecord) => (
+            <EvidenceImagePreview
+              url={row.status_evidence_image_url}
+              label={`Bin status evidence ${row.unique_id ?? ""}`}
+            />
+          )}
         />
         <Column
           header={t("common.actions")}

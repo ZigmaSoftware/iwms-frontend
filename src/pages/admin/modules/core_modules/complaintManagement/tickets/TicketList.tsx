@@ -311,6 +311,25 @@ export default function TicketList() {
           sortable
         />
         <Column
+          header="Source"
+          body={(row) =>
+            row.source_code ? (
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  row.source_code === "SYSTEM"
+                    ? "bg-indigo-100 text-indigo-800"
+                    : "bg-slate-100 text-slate-700"
+                }`}
+                title={row.source_code === "SYSTEM" ? "Raised automatically by the system" : undefined}
+              >
+                {row.source_code === "SYSTEM" ? "Automatic" : row.source_code.replace(/_/g, " ")}
+              </span>
+            ) : (
+              "-"
+            )
+          }
+        />
+        <Column
           header="Customer"
           body={(row) => row.customer_name || row.profile_name || "-"}
         />

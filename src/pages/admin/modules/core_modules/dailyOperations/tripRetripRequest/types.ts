@@ -1,4 +1,4 @@
-export type RetripStatus = "Pending" | "Approved" | "Rejected";
+export type RetripStatus = "Pending" | "Approved" | "Rejected" | "Expired";
 
 export interface RetripPendingBin {
   unique_id: string;
@@ -52,6 +52,12 @@ export type TripRetripRequestRecord = {
 
   new_assignment: string | null;
 
+  expires_at: string | null;
+  reminder_sent_at: string | null;
+  escalated_at: string | null;
+  time_remaining_seconds: number;
+  urgency: "normal" | "reminder" | "urgent" | "expired" | "decided";
+
   created_at: string;
   updated_at: string;
 };
@@ -60,4 +66,5 @@ export const RETRIP_STATUS_LABELS: Record<RetripStatus, string> = {
   Pending: "Pending",
   Approved: "Approved",
   Rejected: "Rejected",
+  Expired: "Expired",
 };

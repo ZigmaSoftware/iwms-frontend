@@ -73,6 +73,15 @@ export type DailyTripAssignmentRecord = {
   actual_end_time?: string | null;
   total_trip_time_seconds?: number | null;
   status?: string;
+  service_notice?: {
+    unique_id: string;
+    reason_code: string;
+    reason_label: string;
+    reason_text?: string;
+    staff_recipient_count: number;
+    customer_recipient_count: number;
+    notified_at?: string | null;
+  } | null;
   remarks?: string | null;
   breakdown_info?: {
     unique_id: string;
@@ -89,8 +98,9 @@ export type DailyTripAssignmentRecord = {
   } | null;
   retrip_info?: {
     unique_id: string;
-    status: "Pending" | "Approved" | "Rejected";
+    status: "Pending" | "Approved" | "Rejected" | "Expired";
     new_assignment_id?: string | null;
+    expires_at?: string | null;
   } | null;
   [key: string]: unknown;
 };
