@@ -39,6 +39,9 @@ export default {
     reports_to: "யாருக்கு அறிக்கை அளிக்கிறார்",
     level: "நிலை",
     top_of_chain: "சங்கிலியின் உச்சம் (தலைவர் இல்லை)",
+    escalation: "புகார் மேல்முறையீடு",
+    escalation_yes: "பங்கேற்கும்",
+    escalation_no: "தவிர்க்கப்படும்",
   },
   staff_template_audit: {
     title: "பணியாளர் டெம்ப்ளேட் ஆய்வு",

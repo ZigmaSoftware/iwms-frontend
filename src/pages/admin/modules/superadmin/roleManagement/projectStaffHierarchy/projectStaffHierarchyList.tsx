@@ -246,6 +246,17 @@ export default function ProjectStaffHierarchyList() {
           sortable
           style={{ width: 100 }}
         />
+        <Column
+          header={t("admin.project_staff_hierarchy.escalation")}
+          body={(row: ProjectStaffHierarchyRow) =>
+            t(
+              row.escalation_enabled === false
+                ? "admin.project_staff_hierarchy.escalation_no"
+                : "admin.project_staff_hierarchy.escalation_yes",
+            )
+          }
+          style={{ width: 160 }}
+        />
         <Column header={t("common.status")} body={statusTemplate} style={{ width: 120 }} />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 150 }} />
       </DataTable>

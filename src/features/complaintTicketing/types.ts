@@ -193,8 +193,6 @@ export type ComplaintSlaEscalationLevel = {
   unique_id?: string;
   /** Hierarchy level this window applies to (matches ProjectStaffHierarchy.level). */
   level: number;
-  /** Whether this level participates in escalation for this rule. */
-  is_enabled?: boolean;
   resolve_within_minutes: number;
 };
 

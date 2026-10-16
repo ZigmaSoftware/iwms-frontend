@@ -8,6 +8,7 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import { Button } from "primereact/button";
 import { Column } from "primereact/column";
 import type { DataTablePageEvent } from "primereact/datatable";
 
@@ -435,9 +436,14 @@ export default function ComplaintAuditList() {
             header={t("common.actions")}
             body={(row: ComplaintAuditRecord) => (
               <div className="flex justify-center">
-                <button onClick={() => void openDetail(row)} className="text-blue-600 hover:text-blue-800">
-                  Timeline
-                </button>
+                <Button
+                  icon="pi pi-eye"
+                  className="p-button-sm p-button-text p-button-info"
+                  tooltip="Timeline"
+                  tooltipOptions={{ position: "top" }}
+                  aria-label="Timeline"
+                  onClick={() => void openDetail(row)}
+                />
               </div>
             )}
             style={{ width: 100 }}

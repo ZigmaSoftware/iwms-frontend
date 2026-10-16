@@ -39,6 +39,9 @@ export default {
     reports_to: "Reports To",
     level: "Level",
     top_of_chain: "Top of chain (no head)",
+    escalation: "Complaint Escalation",
+    escalation_yes: "Takes part",
+    escalation_no: "Skipped",
   },
   staff_template_audit: {
     title: "Staff Template Audit",

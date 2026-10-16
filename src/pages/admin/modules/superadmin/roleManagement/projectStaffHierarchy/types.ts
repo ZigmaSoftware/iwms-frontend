@@ -18,5 +18,7 @@ export type ProjectStaffHierarchyRow = {
   reports_to_staffusertype_id: string | null;
   reports_to_staffusertype_name?: string;
   level: number;
+  /** Whether this level takes part in complaint escalation. */
+  escalation_enabled?: boolean;
   is_active: boolean;
 };
