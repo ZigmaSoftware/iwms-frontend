@@ -24,6 +24,12 @@ type UseCompanyProjectSelectionArgs = {
   initialCompanyId?: string;
   initialProjectId?: string;
   defaultToAll?: boolean;
+  /**
+   * Publish the selection as the list query context SafeDataTable reads.
+   * Off for useCompanyProjectFilter, whose selection is a Filters-panel draft
+   * that it publishes itself only once applied.
+   */
+  publishContext?: boolean;
 };
 
 const toStringId = (value: unknown): string => {
@@ -74,6 +80,7 @@ export const useCompanyProjectSelection = ({
   initialCompanyId,
   initialProjectId,
   defaultToAll = false,
+  publishContext = true,
 }: UseCompanyProjectSelectionArgs) => {
   const [companyUniqueId, setCompanyUniqueId] = useState(
     () => initialCompanyId || (defaultToAll ? "" : getCurrentCompanyUniqueId() ?? "")
@@ -422,12 +429,17 @@ export const useCompanyProjectSelection = ({
   // runs *before* this (parent's) effect. Publishing in an effect left the
   // table one step behind, e.g. "Clear filters" refetched with the old
   // company/project. The write is idempotent, so a repeated render is harmless.
-  setListCompanyProjectContext({ companyId: companyUniqueId, projectId });
+  if (publishContext) {
+    setListCompanyProjectContext({ companyId: companyUniqueId, projectId });
+  }
 
   useEffect(
     () => () => {
-      setListCompanyProjectContext({ companyId: "", projectId: "" });
+      if (publishContext) {
+        setListCompanyProjectContext({ companyId: "", projectId: "" });
+      }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 

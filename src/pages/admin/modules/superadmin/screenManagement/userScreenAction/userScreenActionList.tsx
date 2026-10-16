@@ -21,9 +21,12 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { userScreenActionApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 
 import type { UserScreenAction } from "../shared/admin.types";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const SORTABLE_FIELDS = new Set(["action_name", "variable_name"]);
 
@@ -52,10 +55,11 @@ export default function UserScreenActionList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters();
 
   const navigate = useNavigate();
+  const { canEdit } = useScreenAccess();
   const { encAdmins, encUserScreenAction } = getEncryptedRoute();
 
 
@@ -127,24 +131,20 @@ export default function UserScreenActionList() {
     setSortOrder(event.sortOrder);
   };
 
-  // Feeds the table's single "Download Excel" button: the "All data" option
-  // fetches every row matching the current filters, while "Current page"
-  // uses the rows already on screen.
-  const loadAllExportRows = async () => {
-    try {
-      const response = await userScreenActionApi.readAllForExport({
+  // Feeds the table's single "Download Excel" button: "All data" is built
+  // server-side for the current filters, while "Current page" uses the rows
+  // already on screen.
+  const onServerExport = (filename: string, sheetName: string) =>
+    userScreenActionApi.exportToExcel(
+      {
         params: {
           ...(searchTerm ? { search: searchTerm } : {}),
           ...(statusValue !== "all" ? { is_active: statusValue === "active" } : {}),
         },
-      });
-      const rows = toRecordList(response);
-      return rows;
-    } catch {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
-    }
-    return [];
-  };
+      },
+      filename,
+      sheetName,
+    );
 
   const indexTemplate = (
     _: UserScreenAction,
@@ -204,7 +204,7 @@ export default function UserScreenActionList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={pendingStatusId === String(row.unique_id)}
+        disabled={!canEdit || pendingStatusId === String(row.unique_id)}
         onCheckedChange={updateStatus}
       />
     );
@@ -217,8 +217,6 @@ export default function UserScreenActionList() {
       searchPlaceholder={t("common.search_placeholder", {
         item: t("admin.user_screen_action.action_label"),
       })}
-      statusValue={statusValue}
-      onStatusChange={onStatusFilterChange}
     />
   );
 
@@ -238,19 +236,22 @@ export default function UserScreenActionList() {
             </p>
           </div>
 
-          <Button
-            label={t("common.add_item", {
-              item: t("admin.user_screen_action.action_label"),
-            })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", {
+                item: t("admin.user_screen_action.action_label"),
+              })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         </div>
 
         {/* Table */}
         <DataTable
-          loadExportRows={loadAllExportRows}
+          filterPanel={combineFilters(statusFilter)}
+          onServerExport={onServerExport}
           value={records}
           dataKey="unique_id"
           lazy

@@ -29,6 +29,7 @@ import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const householdPickupEventApi = createCrudHelpers<HouseholdPickupEventRecord>(
   "customer-masters/household-pickup-events",
@@ -182,12 +183,14 @@ export default function HouseholdPickupEventList() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            label={t("admin.household_pickup_event.create_button")}
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("admin.household_pickup_event.create_button")}
+              icon="pi pi-plus"
+              className="p-button-success p-button-sm"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         </div>
       </div>
 

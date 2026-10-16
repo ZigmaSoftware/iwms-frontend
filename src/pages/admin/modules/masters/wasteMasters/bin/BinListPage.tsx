@@ -23,17 +23,19 @@ import "primeicons/primeicons.css";
 import { Switch } from "@/components/ui/switch";
 import QrPreviewDialog from "@/components/common/QrPreviewDialog";
 import { ActionMenu } from "@/components/ui/ActionMenu";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { binApi, zoneApi, wardApi } from "@/helpers/admin";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { binApi } from "@/helpers/admin";
+import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
 
-type LookupOption = { value: string; label: string };
 
 const toRecordList = (value: unknown): Record<string, unknown>[] => {
   if (Array.isArray(value)) return value as Record<string, unknown>[];
@@ -53,6 +55,7 @@ const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
 const BIN_COLUMN_FIELDS: Record<string, string[]> = {
   bin_name: ["bin_name", "name"],
   bin_capacity: ["bin_capacity", "capacity_liters"],
+  zone_name: ["zone_id", "zone", "zone_name"],
   ward_name: ["ward_id", "ward", "ward_name"],
   panchayat_name: ["panchayat_id", "panchayat", "panchayat_name"],
   waste_type_name: [
@@ -70,6 +73,7 @@ const SORTABLE_FIELDS = new Set(["bin_name", "bin_capacity", "is_active"]);
 
 export default function BinList() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [selectedQrBin, setSelectedQrBin] = useState<Bin | null>(null);
   const location = useLocation();
@@ -77,21 +81,14 @@ export default function BinList() {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const [first, setFirst] = useState(0);
+  const resetPage = () => setFirst(0);
+  const companyProject = useCompanyProjectFilter(resetPage, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
 
   const {
     filters,
@@ -99,7 +96,7 @@ export default function BinList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters({
     initialFilters: {
       bin_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -110,15 +107,10 @@ export default function BinList() {
     },
   });
 
-  const [zoneFilterId, setZoneFilterId] = useState("");
-  const [wardFilterId, setWardFilterId] = useState("");
-  const [zoneOptions, setZoneOptions] = useState<LookupOption[]>([]);
-  const [wardOptions, setWardOptions] = useState<LookupOption[]>([]);
 
   const navigate = useNavigate();
   const [binRows, setBinRows] = useState<BinApiRow[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
-  const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
@@ -135,46 +127,6 @@ export default function BinList() {
     sortField && SORTABLE_FIELDS.has(sortField)
       ? `${sortOrder === -1 ? "-" : ""}${sortField}`
       : undefined;
-
-  // Load zone/ward filter options (scoped by company/project, mirrors A1's bin filters)
-  useEffect(() => {
-    if (!companyUniqueId) return;
-    let cancelled = false;
-    const params = {
-      company_id: companyUniqueId,
-      project_id: projectId || undefined,
-    };
-    Promise.all([zoneApi.readAll({ params }), wardApi.readAll({ params })])
-      .then(([zoneRes, wardRes]) => {
-        if (cancelled) return;
-        setZoneOptions(
-          toRecordList(zoneRes)
-            .filter((z) => z.is_active !== false)
-            .map((z) => ({
-              value: String(z.unique_id ?? ""),
-              label: String(z.zone_name ?? z.name ?? z.unique_id ?? ""),
-            }))
-            .filter((z) => z.value),
-        );
-        setWardOptions(
-          toRecordList(wardRes)
-            .filter((w) => w.is_active !== false)
-            .map((w) => ({
-              value: String(w.unique_id ?? ""),
-              label: String(w.ward_name ?? w.name ?? w.unique_id ?? ""),
-            }))
-            .filter((w) => w.value),
-        );
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setZoneOptions([]);
-        setWardOptions([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [companyUniqueId, projectId]);
 
   useEffect(() => {
     if (isSuperAdmin && companies.length === 0) {
@@ -201,8 +153,6 @@ export default function BinList() {
           params: {
             company_id: companyUniqueId,
             project_id: projectId || undefined,
-            zone_id: zoneFilterId || undefined,
-            ward_id: wardFilterId || undefined,
             ...(globalFilterValue.trim()
               ? { search: globalFilterValue.trim() }
               : {}),
@@ -241,8 +191,6 @@ export default function BinList() {
     projectId,
     isSuperAdmin,
     companies.length,
-    zoneFilterId,
-    wardFilterId,
     first,
     rowsPerPage,
     globalFilterValue,
@@ -261,11 +209,11 @@ export default function BinList() {
     setSortOrder(event.sortOrder);
   };
 
-  // Reset to the first page whenever search/zone/ward filters change so the
-  // paginator doesn't stay stuck on a now out-of-range page.
+  // Reset to the first page whenever the search changes so the paginator
+  // doesn't stay stuck on a now out-of-range page.
   useEffect(() => {
     setFirst(0);
-  }, [globalFilterValue, zoneFilterId, wardFilterId]);
+  }, [globalFilterValue]);
 
   const mapBinRows = (rows: BinApiRow[]): Bin[] =>
     rows.map((row) => ({
@@ -287,6 +235,7 @@ export default function BinList() {
         ? String(row.panchayat_name)
         : undefined,
       panchayat: row.panchayat ? String(row.panchayat) : undefined,
+      zone_name: row.zone_name ? String(row.zone_name) : undefined,
       ward_name: String(row.ward_name ?? row.ward ?? ""),
       ward: row.ward ? String(row.ward) : undefined,
       bin_type: row.bin_type ? String(row.bin_type) : undefined,
@@ -319,8 +268,6 @@ export default function BinList() {
       params: {
         company_id: companyUniqueId,
         project_id: projectId || undefined,
-        zone_id: zoneFilterId || undefined,
-        ward_id: wardFilterId || undefined,
       },
     });
     return mapBinRows(toRecordList(data) as BinApiRow[]);
@@ -336,6 +283,7 @@ export default function BinList() {
       if (!search) return true;
       return [
         bin.bin_name,
+        bin.zone_name,
         bin.ward_name,
         bin.ward,
         bin.panchayat_name,
@@ -382,7 +330,7 @@ export default function BinList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={isUpdating && pendingStatusId === row.unique_id}
+        disabled={!canEdit || (isUpdating && pendingStatusId === row.unique_id)}
         onCheckedChange={updateStatus}
       />
     );
@@ -466,14 +414,16 @@ export default function BinList() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.bin_creation") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() =>
-              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
-            }
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.bin_creation") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() =>
+                navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+              }
+            />
+          </Can>
         </div>
       </div>
 
@@ -485,49 +435,9 @@ export default function BinList() {
             searchPlaceholder={t("common.search_placeholder", {
               item: t("admin.nav.bin_master"),
             })}
-            statusValue={statusValue}
-            onStatusChange={onStatusFilterChange}
-          >
-            <FilterBarSelect
-              value={companyUniqueId || ""}
-              onChange={onCompanyChange}
-              options={companies}
-              placeholder="All Companies"
-              disabled={!isSuperAdmin || companies.length === 0}
-            />
-            <FilterBarSelect
-              value={projectId || ""}
-              onChange={setProjectId}
-              options={projects}
-              placeholder={showAllProjectsOption ? "All Projects" : undefined}
-              disabled={
-                (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-              }
-            />
-            <FilterBarSelect
-              value={zoneFilterId}
-              onChange={setZoneFilterId}
-              options={zoneOptions}
-              placeholder={
-                t("common.select_item_placeholder", {
-                  item: t("admin.nav.zone"),
-                }) || "All Zones"
-              }
-              disabled={!companyUniqueId || zoneOptions.length === 0}
-            />
-            <FilterBarSelect
-              value={wardFilterId}
-              onChange={setWardFilterId}
-              options={wardOptions}
-              placeholder={
-                t("common.select_item_placeholder", {
-                  item: t("common.ward"),
-                }) || "All Wards"
-              }
-              disabled={!companyUniqueId || wardOptions.length === 0}
-            />
-          </FilterBar>
+          />
         }
+        filterPanel={combineFilters(companyProject, statusFilter)}
         loadExportRows={async () => getFilteredExportRows(bins)}
         value={bins}
         dataKey="unique_id"
@@ -547,6 +457,7 @@ export default function BinList() {
           "bin_name",
           "panchayat_name",
           "panchayat",
+          "zone_name",
           "ward_name",
           "waste_type_name",
           "wastetype_name",
@@ -583,6 +494,18 @@ export default function BinList() {
             filter
             showFilterMatchModes={false}
             style={{ minWidth: "150px" }}
+          />
+        )}
+        {/* only zone-based bins have a zone; panchayat-only lists skip the column */}
+        {showCol("zone_name") && bins.some((bin) => bin.zone_name) && (
+          <Column
+            field="zone_name"
+            header={t("admin.nav.zone")}
+            body={(row: Bin) => cap(row.zone_name || "-")}
+            sortable
+            filter
+            showFilterMatchModes={false}
+            style={{ minWidth: "120px" }}
           />
         )}
         {showCol("ward_name") && (

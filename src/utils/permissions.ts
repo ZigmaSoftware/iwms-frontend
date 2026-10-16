@@ -6,7 +6,15 @@ import { jwtDecode } from "jwt-decode";
 // Types
 // ============================================================
 
-export type PermissionAction = "view" | "add" | "edit" | "delete" | "use" | string;
+export type PermissionAction =
+  | "view"
+  | "add"
+  | "edit"
+  | "delete"
+  | "use"
+  | "import"
+  | "export"
+  | string;
 export type PermissionsMap = Record<string, Record<string, string[]>>;
 
 export type PermissionDetailsColumn = {
@@ -29,6 +37,10 @@ export type PermissionDetailsScreen = {
     edit: boolean;
     delete: boolean;
     use: boolean;
+    /** Bulk upload (Excel/CSV) — the UI also requires "add". */
+    import: boolean;
+    /** Excel/PDF/QR downloads — the UI also requires "view". */
+    export: boolean;
   };
   columns: PermissionDetailsColumn[];
 };
@@ -77,6 +89,8 @@ const ACTION_ALIASES: Record<string, string[]> = {
   edit: ["edit", "update", "change"],
   delete: ["delete", "remove"],
   use: ["use", "select", "reference"],
+  import: ["import", "upload", "bulkupload"],
+  export: ["export", "download"],
 };
 
 const MODULE_ALIASES: Record<string, string[]> = {
@@ -328,6 +342,8 @@ const sanitizePermissionDetails = (source: unknown): PermissionDetailsMap => {
           edit: Boolean(perms.edit ?? false),
           delete: Boolean(perms.delete ?? false),
           use: Boolean(perms.use ?? false),
+          import: Boolean(perms.import ?? false),
+          export: Boolean(perms.export ?? false),
         },
         columns,
       };

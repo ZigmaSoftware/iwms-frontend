@@ -19,9 +19,12 @@ import { Switch } from "@/components/ui/switch";
 import { userScreenApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { filterRowsForExport } from "@/utils/adminListExport";
 
 import type { UserScreen } from "../shared/admin.types";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const USER_SCREEN_SEARCH_FIELDS = ["userscreen_name", "mainscreen_name", "folder_name"];
 
@@ -38,10 +41,11 @@ export default function UserScreenList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters();
 
   const navigate = useNavigate();
+  const { canEdit } = useScreenAccess();
   const { encAdmins, encUserScreen } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -99,7 +103,7 @@ export default function UserScreenList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={pendingStatusId === String(row.unique_id)}
+        disabled={!canEdit || pendingStatusId === String(row.unique_id)}
         onCheckedChange={updateStatus}
       />
     );
@@ -143,8 +147,6 @@ export default function UserScreenList() {
       searchPlaceholder={t("common.search_placeholder", {
         item: t("admin.nav.user_screen"),
       })}
-      statusValue={statusValue}
-      onStatusChange={onStatusFilterChange}
     />
   );
 
@@ -168,17 +170,20 @@ export default function UserScreenList() {
             </p>
           </div>
 
-          <Button
-            label={t("common.add_item", {
-              item: t("admin.nav.user_screen"),
-            })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", {
+                item: t("admin.nav.user_screen"),
+              })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         </div>
 
         <DataTable
+          filterPanel={combineFilters(statusFilter)}
           value={screens}
           exportRows={exportRows}
           paginator

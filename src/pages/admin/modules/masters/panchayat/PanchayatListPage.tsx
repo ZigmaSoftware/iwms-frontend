@@ -17,11 +17,14 @@ import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason"
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { Switch } from "@/components/ui/switch";
 import { panchayatApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { PanchayatListRecord } from "./types";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const PANCHAYAT_COLUMN_FIELDS: Record<string, string[]> = {
   panchayat_name: ["panchayat_name", "name"],
@@ -50,6 +53,7 @@ const toRecordList = (value: unknown): PanchayatListRecord[] => {
 
 export default function PanchayatListPage() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "panchayats",
@@ -71,7 +75,7 @@ export default function PanchayatListPage() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters({
     initialFilters: {
       panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -88,21 +92,12 @@ export default function PanchayatListPage() {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const companyProject = useCompanyProjectFilter(() => setFirst(0), {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
   const navigate = useNavigate();
   const { encMasters, encPanchayats } = getEncryptedRoute();
 
@@ -276,7 +271,9 @@ export default function PanchayatListPage() {
     return (
       <Switch
         checked={Boolean(row.is_active)}
-        disabled={isUpdating && pendingStatusId === String(row.unique_id)}
+        disabled={
+          !canEdit || (isUpdating && pendingStatusId === String(row.unique_id))
+        }
         onCheckedChange={(checked) => void updateStatus(checked)}
       />
     );
@@ -301,14 +298,16 @@ export default function PanchayatListPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.panchayat") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() =>
-              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
-            }
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.panchayat") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() =>
+                navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+              }
+            />
+          </Can>
         </div>
       </div>
 
@@ -320,28 +319,9 @@ export default function PanchayatListPage() {
             searchPlaceholder={t("common.search_placeholder", {
               item: t("admin.nav.panchayat"),
             })}
-            statusValue={statusValue}
-            onStatusChange={onStatusFilterChange}
-            className="mb-4"
-          >
-            <FilterBarSelect
-              value={companyUniqueId || ""}
-              onChange={onCompanyChange}
-              options={companies}
-              placeholder="All Companies"
-              disabled={!isSuperAdmin || companies.length === 0}
-            />
-            <FilterBarSelect
-              value={projectId || ""}
-              onChange={setProjectId}
-              options={projects}
-              placeholder={showAllProjectsOption ? "All Projects" : undefined}
-              disabled={
-                (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-              }
-            />
-          </FilterBar>
+          />
         }
+        filterPanel={combineFilters(companyProject, statusFilter)}
         value={data}
         exportRows={exportRows}
         exportSheetName="Panchayats"

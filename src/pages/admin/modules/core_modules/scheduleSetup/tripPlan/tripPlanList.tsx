@@ -18,12 +18,17 @@ import { Switch } from "@/components/ui/switch";
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { tripPlanApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import {
+  combineFilters,
+  useOptionFilter,
+} from "@/components/filters/useOptionFilter";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { wasteTypeColorClass } from "@/utils/wasteTypeColors";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 // The `rows` memo below always derives _location/_staff/_vehicle/etc. from
 // the raw nested objects on every fetched page. These accessors read the
@@ -186,27 +191,46 @@ const extractErrorMessage = (error: unknown): string | null => {
 export default function TripPlanList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { canAdd, canEdit } = useScreenAccess();
   const location = useLocation();
   const restoredState = location.state as {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
 
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const [first, setFirst] = useState(0);
+  const resetPage = () => setFirst(0);
+  const companyProject = useCompanyProjectFilter(resetPage, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const companyUniqueId = companyProject.companyId;
+  const projectId = companyProject.projectId;
+  const { isSuperAdmin } = companyProject.selection;
+
+  // Both filter the fetched page client-side (see `rows` below).
+  const collectionTypeFilter = useOptionFilter({
+    param: "collection_type",
+    label: "Collection type",
+    options: [
+      { value: "bin_collection", label: "Bin Collection" },
+      { value: "household_collection", label: "Household Collection" },
+    ],
+    allLabel: "All Types",
+    onAppliedChange: resetPage,
+  });
+  const autoAssignFilter = useOptionFilter({
+    param: "auto_assign",
+    label: "Assignment",
+    options: [
+      { value: "auto", label: "Auto-Assign" },
+      { value: "manual", label: "Manual" },
+    ],
+    allLabel: "All Plans",
+    onAppliedChange: resetPage,
+  });
+  const collectionType = collectionTypeFilter.value;
+  const autoAssign = autoAssignFilter.value;
 
   const { encScheduleSetup, encTripPlans } = getEncryptedRoute();
   const { newPath: newPath } = createCrudRoutePaths(
@@ -217,16 +241,9 @@ export default function TripPlanList() {
 
   const [rawRows, setRawRows] = useState<TripPlanRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
-  const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
-  const [collectionTypeFilter, setCollectionTypeFilter] = useState<
-    "all" | "bin_collection" | "household_collection"
-  >("all");
-  const [autoAssignFilter, setAutoAssignFilter] = useState<
-    "all" | "auto" | "manual"
-  >("all");
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
@@ -328,7 +345,7 @@ export default function TripPlanList() {
     () =>
       rawRows
         .filter((record) => {
-          if (collectionTypeFilter !== "all") {
+          if (collectionType) {
             const stops = Array.isArray(record.plan_collection_points)
               ? record.plan_collection_points
               : [];
@@ -336,14 +353,14 @@ export default function TripPlanList() {
               !stops.some(
                 (s: any) =>
                   (s.collection_type ?? "bin_collection") ===
-                  collectionTypeFilter,
+                  collectionType,
               )
             )
               return false;
           }
-          if (autoAssignFilter === "auto" && !record.is_auto_assign)
+          if (autoAssign === "auto" && !record.is_auto_assign)
             return false;
-          if (autoAssignFilter === "manual" && record.is_auto_assign)
+          if (autoAssign === "manual" && record.is_auto_assign)
             return false;
           return true;
         })
@@ -367,7 +384,7 @@ export default function TripPlanList() {
             record.collection_type ??
             "",
         })),
-    [rawRows, collectionTypeFilter, autoAssignFilter],
+    [rawRows, collectionType, autoAssign],
   );
 
   // Keeps exported Excel rows in sync with the currently displayed
@@ -404,7 +421,7 @@ export default function TripPlanList() {
     return (
       <Switch
         checked={row.status === "ACTIVE"}
-        disabled={updating}
+        disabled={!canEdit || updating}
         onCheckedChange={updateStatus}
       />
     );
@@ -530,74 +547,39 @@ export default function TripPlanList() {
     });
   };
 
-  const header = (
-    <ListPageHeader
-      title="Trip Plans"
-      subtitle="Manage trip route, staff, vehicle, schedule, and stop list"
-      actions={
-        <Button
-          label="Add Trip Plan"
-          icon="pi pi-plus"
-          className="p-button-success p-button-sm"
-          onClick={() =>
-            navigate(newPath, { state: { companyUniqueId, projectId } })
-          }
-        />
-      }
-      filters={
-        <FilterBar
-          searchValue={globalFilterValue}
-          onSearchChange={(value) => setGlobalFilterValue(value)}
-          searchPlaceholder={t("common.search_placeholder")}
-        >
-          <FilterBarSelect
-            value={companyUniqueId || ""}
-            onChange={onCompanyChange}
-            placeholder="All Companies"
-            options={companies}
-            disabled={!isSuperAdmin || companies.length === 0}
-          />
-          <FilterBarSelect
-            value={projectId || ""}
-            onChange={setProjectId}
-            placeholder={showAllProjectsOption ? "All Projects" : undefined}
-            options={projects}
-            disabled={
-              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-            }
-          />
-          <FilterBarSelect
-            value={collectionTypeFilter}
-            onChange={(value) =>
-              setCollectionTypeFilter(
-                value as "all" | "bin_collection" | "household_collection",
-              )
-            }
-            options={[
-              { value: "all", label: "All Types" },
-              { value: "bin_collection", label: "Bin Collection" },
-              { value: "household_collection", label: "Household Collection" },
-            ]}
-          />
-          <FilterBarSelect
-            value={autoAssignFilter}
-            onChange={(value) =>
-              setAutoAssignFilter(value as "all" | "auto" | "manual")
-            }
-            options={[
-              { value: "all", label: "All Plans" },
-              { value: "auto", label: "Auto-Assign" },
-              { value: "manual", label: "Manual" },
-            ]}
-          />
-        </FilterBar>
-      }
-    />
-  );
-
   return (
     <div className="p-3">
+      <ListPageHeader
+        title="Trip Plans"
+        subtitle="Manage trip route, staff, vehicle, schedule, and stop list"
+        actions={
+          canAdd ? (
+            <Button
+              label="Add Trip Plan"
+              icon="pi pi-plus"
+              className="p-button-success p-button-sm"
+              onClick={() =>
+                navigate(newPath, { state: { companyUniqueId, projectId } })
+              }
+            />
+          ) : undefined
+        }
+        className="mb-4"
+      />
+
       <DataTable
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={(value) => setGlobalFilterValue(value)}
+            searchPlaceholder={t("common.search_placeholder")}
+          />
+        }
+        filterPanel={combineFilters(
+          companyProject,
+          collectionTypeFilter,
+          autoAssignFilter,
+        )}
         loadExportRows={async () =>
           buildExportRows(filteredRows.length > 0 ? filteredRows : rows)
         }
@@ -616,7 +598,6 @@ export default function TripPlanList() {
         sortOrder={sortOrder}
         onSort={onSort}
         loading={loading}
-        header={header}
         stripedRows
         showGridlines
         className="p-datatable-sm"

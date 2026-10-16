@@ -19,7 +19,10 @@ import { Switch } from "@/components/ui/switch";
 import { mainScreenApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { filterRowsForExport } from "@/utils/adminListExport";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 import type { MainScreen } from "../shared/admin.types"; // Correct import
 
@@ -53,10 +56,11 @@ export default function MainScreenList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters();
 
   const navigate = useNavigate();
+  const { canEdit } = useScreenAccess();
   const { encAdmins, encMainScreen } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -115,7 +119,7 @@ export default function MainScreenList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={updatingStatusId === row.unique_id}
+        disabled={!canEdit || updatingStatusId === row.unique_id}
         onCheckedChange={updateStatus}
       />
     );
@@ -163,8 +167,6 @@ export default function MainScreenList() {
       searchValue={globalFilterValue}
       onSearchChange={onGlobalFilterChange}
       searchPlaceholder={t("common.search_placeholder")}
-      statusValue={statusValue}
-      onStatusChange={onStatusFilterChange}
     />
   );
 
@@ -188,15 +190,18 @@ export default function MainScreenList() {
             </p>
           </div>
 
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.main_screen") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.main_screen") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         </div>
 
         <DataTable
+          filterPanel={combineFilters(statusFilter)}
           value={records}
           exportRows={exportRows}
           paginator

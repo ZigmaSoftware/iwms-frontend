@@ -12,7 +12,6 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type ReactNode,
 } from "react";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -32,9 +31,14 @@ import type {
 } from "primereact/datatable";
 
 import { commonAuditApi } from "@/helpers/admin";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-
-const ALL_MODULES = "__all__";
+import { FilterBar } from "@/components/common/FilterBar";
+import { FormSelect } from "@/components/common/FormSelect";
+import { FilterSection } from "@/components/common/ListToolbar";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import {
+  combineFilters,
+  useOptionFilter,
+} from "@/components/filters/useOptionFilter";
 
 const SORTABLE_FIELDS = new Set([
   "module_name",
@@ -67,30 +71,8 @@ const formatJson = (value?: CommonAuditJsonValue) => {
   return JSON.stringify(value, null, 2);
 };
 
-/**
- * A filter dropdown with a visible caption above it and a short hint below,
- * so each control states what it narrows the audit trail by. Without this
- * the bar is a row of interchangeable "All" selects.
- */
-const LabeledFilter = ({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: ReactNode;
-}) => (
-  <div className="flex w-full flex-col gap-1 sm:w-[320px]">
-    <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
-      {label}
-    </label>
-    {children}
-    {hint ? (
-      <span className="text-[11px] leading-tight text-gray-400">{hint}</span>
-    ) : null}
-  </div>
-);
+const nameOf = (options: ModuleFilterOption[], value: string) =>
+  options.find((option) => option.value === value)?.label ?? value;
 
 const JsonViewer = ({
   title,
@@ -268,7 +250,6 @@ export default function CommonAuditList() {
   const { t } = useTranslation();
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [moduleFilter, setModuleFilter] = useState(ALL_MODULES);
   const [selectedRecord, setSelectedRecord] =
     useState<CommonAuditRecord | null>(null);
   const [records, setRecords] = useState<CommonAuditRecord[]>([]);
@@ -281,38 +262,30 @@ export default function CommonAuditList() {
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [moduleNameOptions, setModuleNameOptions] = useState<string[]>([]);
-  const [companyFilter, setCompanyFilter] = useState(ALL_MODULES);
-  const [projectFilter, setProjectFilter] = useState(ALL_MODULES);
-  // "" = all, "true"/"false" = only successful / only rejected writes.
-  const [statusFilter, setStatusFilter] = useState("");
   const [filterOptions, setFilterOptions] = useState<AuditFilterOptions | null>(
     null,
   );
 
-  const moduleOptions = useMemo<ModuleFilterOption[]>(() => {
-    return [
-      { label: t("common.all"), value: ALL_MODULES },
-      ...moduleNameOptions.map((moduleName) => ({
+  const moduleOptions = useMemo<ModuleFilterOption[]>(
+    () =>
+      moduleNameOptions.map((moduleName) => ({
         label: moduleName,
         value: moduleName,
       })),
-    ];
-  }, [moduleNameOptions, t]);
+    [moduleNameOptions],
+  );
 
   const companyOptions = useMemo<ModuleFilterOption[]>(
-    () => [
-      { label: t("common.all"), value: ALL_MODULES },
-      ...(filterOptions?.companies ?? []).map((c) => ({
+    () =>
+      (filterOptions?.companies ?? []).map((c) => ({
         label: c.name,
         value: c.unique_id,
       })),
-    ],
-    [filterOptions, t],
+    [filterOptions],
   );
 
   const projectOptions = useMemo<ModuleFilterOption[]>(
     () => [
-      { label: t("common.all"), value: ALL_MODULES },
       // Lets a user isolate company-wide activity that belongs to no project.
       { label: t("admin.common_audit.no_project"), value: NO_PROJECT },
       ...(filterOptions?.projects ?? []).map((p) => ({
@@ -322,6 +295,49 @@ export default function CommonAuditList() {
     ],
     [filterOptions, t],
   );
+
+  const resetPage = () => setFirst(0);
+
+  // Module / Company → Project, edited in the Filters panel as a draft and
+  // sent once applied ("" = all).
+  const scope = useDraftFilter({
+    empty: { module: "", company: "", project: "" },
+    chips: {
+      module: {
+        label: t("admin.common_audit.module_filter_label"),
+        format: (value) => nameOf(moduleOptions, value),
+      },
+      company: {
+        label: t("admin.common_audit.company_filter_label"),
+        format: (value) => nameOf(companyOptions, value),
+        clears: ["project"],
+      },
+      project: {
+        label: t("admin.common_audit.project_filter_label"),
+        format: (value) => nameOf(projectOptions, value),
+      },
+    },
+    onAppliedChange: resetPage,
+  });
+  const {
+    module: moduleFilter,
+    company: companyFilter,
+    project: projectFilter,
+  } = scope.applied;
+  const draft = scope.draft;
+
+  // "" = all, "true"/"false" = only successful / only rejected writes.
+  const status = useOptionFilter({
+    param: "success",
+    label: t("admin.common_audit.status_filter_label"),
+    options: [
+      { label: t("admin.common_audit.success"), value: "true" },
+      { label: t("admin.common_audit.failed"), value: "false" },
+    ],
+    allLabel: t("common.all"),
+    onAppliedChange: resetPage,
+  });
+  const statusFilter = status.value;
 
   const loading = isLoading && records.length === 0;
 
@@ -387,15 +403,9 @@ export default function CommonAuditList() {
             params: {
               ...(search ? { search } : {}),
               ...(orderingParam ? { ordering: orderingParam } : {}),
-              ...(moduleFilterValue && moduleFilterValue !== ALL_MODULES
-                ? { module_name: moduleFilterValue }
-                : {}),
-              ...(companyValue && companyValue !== ALL_MODULES
-                ? { company_unique_id: companyValue }
-                : {}),
-              ...(projectValue && projectValue !== ALL_MODULES
-                ? { project_unique_id: projectValue }
-                : {}),
+              ...(moduleFilterValue ? { module_name: moduleFilterValue } : {}),
+              ...(companyValue ? { company_unique_id: companyValue } : {}),
+              ...(projectValue ? { project_unique_id: projectValue } : {}),
               ...(statusValue ? { success: statusValue } : {}),
             },
           },
@@ -445,18 +455,15 @@ export default function CommonAuditList() {
   // current page, so the lists stay complete — and stay scoped: a company
   // user is never offered another company here.
   //
-  // Refetched when the company changes so the project list only ever offers
-  // projects belonging to the selected company.
+  // Refetched when the (draft) company changes so the project list only ever
+  // offers projects belonging to the company picked in the Filters panel.
   useEffect(() => {
     let mounted = true;
 
     const loadFilterOptions = async () => {
       try {
         const data = (await commonAuditApi.read("filter-options", {
-          params:
-            companyFilter && companyFilter !== ALL_MODULES
-              ? { company_unique_id: companyFilter }
-              : {},
+          params: draft.company ? { company_unique_id: draft.company } : {},
         })) as unknown as AuditFilterOptions;
         if (!mounted || !data) return;
         setFilterOptions(data);
@@ -471,7 +478,7 @@ export default function CommonAuditList() {
     return () => {
       mounted = false;
     };
-  }, [companyFilter]);
+  }, [draft.company]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -481,27 +488,23 @@ export default function CommonAuditList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  // Feeds the table's "Download Excel" button: "All data" re-fetches every
-  // audit row matching the current filters, since the table is lazily
-  // paginated and only holds one page.
-  const loadAllExportRows = async () => {
-    const data = await commonAuditApi.readAllForExport({
-      params: {
-        ...(searchTerm ? { search: searchTerm } : {}),
-        ...(moduleFilter && moduleFilter !== ALL_MODULES
-          ? { module_name: moduleFilter }
-          : {}),
-        ...(companyFilter && companyFilter !== ALL_MODULES
-          ? { company_unique_id: companyFilter }
-          : {}),
-        ...(projectFilter && projectFilter !== ALL_MODULES
-          ? { project_unique_id: projectFilter }
-          : {}),
-        ...(statusFilter ? { success: statusFilter } : {}),
+  // Feeds the table's "Download Excel" button: "All data" is exported on the
+  // server with the current filters, since the table is lazily paginated and
+  // only holds one page.
+  const serverExport = (filename: string, sheetName: string) =>
+    commonAuditApi.exportToExcel(
+      {
+        params: {
+          ...(searchTerm ? { search: searchTerm } : {}),
+          ...(moduleFilter ? { module_name: moduleFilter } : {}),
+          ...(companyFilter ? { company_unique_id: companyFilter } : {}),
+          ...(projectFilter ? { project_unique_id: projectFilter } : {}),
+          ...(statusFilter ? { success: statusFilter } : {}),
+        },
       },
-    });
-    return toRecordList(data) as unknown as Record<string, unknown>[];
-  };
+      filename,
+      sheetName,
+    );
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -513,6 +516,45 @@ export default function CommonAuditList() {
     setSortField(event.sortField);
     setSortOrder(event.sortOrder);
   };
+
+  // Each dropdown is labelled (with a hint) so its purpose is clear on sight.
+  const scopeField = (
+    <>
+      <FilterSection label={t("admin.common_audit.module_filter_label")}>
+        <FormSelect
+          value={draft.module}
+          onChange={(value) => scope.setField("module", value)}
+          options={moduleOptions}
+          placeholder={t("common.all")}
+          helpText={t("admin.common_audit.module_filter_hint")}
+        />
+      </FilterSection>
+      <FilterSection label="Company & project">
+        <div className="grid grid-cols-2 gap-2">
+          <FormSelect
+            label={t("admin.common_audit.company_filter_label")}
+            value={draft.company}
+            onChange={(value) =>
+              // A project belongs to one company, so a stale project filter
+              // would silently return nothing after switching company.
+              scope.setDraft((d) => ({ ...d, company: value, project: "" }))
+            }
+            options={companyOptions}
+            placeholder={t("common.all")}
+            helpText={t("admin.common_audit.company_filter_hint")}
+          />
+          <FormSelect
+            label={t("admin.common_audit.project_filter_label")}
+            value={draft.project}
+            onChange={(value) => scope.setField("project", value)}
+            options={projectOptions}
+            placeholder={t("common.all")}
+            helpText={t("admin.common_audit.project_filter_hint")}
+          />
+        </div>
+      </FilterSection>
+    </>
+  );
 
   return (
     <div className="p-3">
@@ -533,93 +575,21 @@ export default function CommonAuditList() {
         </div>
       </div>
 
-      <div className="mb-4 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-        <FilterBar
-          searchValue={globalFilterValue}
-          onSearchChange={(value) =>
-            onGlobalFilterChange({
-              target: { value },
-            } as ChangeEvent<HTMLInputElement>)
-          }
-          searchPlaceholder={t("admin.common_audit.search_placeholder")}
-        >
-          {/* Each dropdown is labelled so its purpose is clear on sight —
-              three unlabelled "All" selects are indistinguishable. */}
-          <LabeledFilter
-            label={t("admin.common_audit.module_filter_label")}
-            hint={t("admin.common_audit.module_filter_hint")}
-          >
-            <FilterBarSelect
-              value={moduleFilter === ALL_MODULES ? "" : moduleFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setModuleFilter(value || ALL_MODULES);
-              }}
-              options={moduleOptions.filter((o) => o.value !== ALL_MODULES)}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-
-          <LabeledFilter
-            label={t("admin.common_audit.company_filter_label")}
-            hint={t("admin.common_audit.company_filter_hint")}
-          >
-            <FilterBarSelect
-              value={companyFilter === ALL_MODULES ? "" : companyFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setCompanyFilter(value || ALL_MODULES);
-                // A project belongs to one company, so a stale project filter
-                // would silently return nothing after switching company.
-                setProjectFilter(ALL_MODULES);
-              }}
-              options={companyOptions.filter((o) => o.value !== ALL_MODULES)}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-
-          <LabeledFilter
-            label={t("admin.common_audit.project_filter_label")}
-            hint={t("admin.common_audit.project_filter_hint")}
-          >
-            <FilterBarSelect
-              value={projectFilter === ALL_MODULES ? "" : projectFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setProjectFilter(value || ALL_MODULES);
-              }}
-              options={projectOptions.filter((o) => o.value !== ALL_MODULES)}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-
-          <LabeledFilter
-            label={t("admin.common_audit.status_filter_label")}
-            hint={t("admin.common_audit.status_filter_hint")}
-          >
-            <FilterBarSelect
-              value={statusFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setStatusFilter(value);
-              }}
-              options={[
-                { label: t("admin.common_audit.success"), value: "true" },
-                { label: t("admin.common_audit.failed"), value: "false" },
-              ]}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-        </FilterBar>
-      </div>
-
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
-        loadExportRows={loadAllExportRows}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={(value) =>
+              onGlobalFilterChange({
+                target: { value },
+              } as ChangeEvent<HTMLInputElement>)
+            }
+            searchPlaceholder={t("admin.common_audit.search_placeholder")}
+          />
+        }
+        filterPanel={combineFilters({ ...scope, field: scopeField }, status)}
+        onServerExport={serverExport}
         value={records}
         dataKey="uuid"
         lazy

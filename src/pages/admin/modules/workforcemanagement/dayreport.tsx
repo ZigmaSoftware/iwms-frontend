@@ -5,6 +5,9 @@ import { useNavigate } from "react-router-dom";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { FilterBar } from "@/components/common/FilterBar";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import { combineFilters, type FilterPart } from "@/components/filters/useOptionFilter";
 import { Column } from "primereact/column";
 import { FilterMatchMode } from "primereact/api";
 import { Button } from "primereact/button";
@@ -59,8 +62,56 @@ export default function DayReport() {
     getLastDayOfMonth(today.getFullYear(), today.getMonth() + 1)
   ).padStart(2, "0")}`;
 
-  const [fromDate, setFromDate] = useState(initialFromDate);
-  const [toDate, setToDate] = useState(initialToDate);
+  // From / To are required by the API: the Filters panel edits a draft,
+  // Reset (and removing a chip) goes back to the current month.
+  const defaultRange = { from: initialFromDate, to: initialToDate };
+  const dateRange = useDraftFilter({ empty: defaultRange });
+  const { from: fromDate, to: toDate } = dateRange.applied;
+  const dateChips: ActiveFilterChip[] = (["from", "to"] as const)
+    .filter((key) => dateRange.applied[key] !== defaultRange[key])
+    .map((key) => ({
+      key,
+      label: key === "from" ? "From date" : "To date",
+      value: dateRange.applied[key],
+      onRemove: () => dateRange.commit({ ...dateRange.applied, [key]: defaultRange[key] }),
+    }));
+  const dateFilter: FilterPart = {
+    field: (
+      <FilterSection label="Date range">
+        <div className="grid grid-cols-2 gap-2">
+          <label className="text-xs text-gray-500">
+            {t("admin.workforce_management.day_report.filters.from")}
+            <input
+              type="date"
+              value={dateRange.draft.from}
+              max={dateRange.draft.to || undefined}
+              onChange={(e) => dateRange.setField("from", e.target.value)}
+              className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+            />
+          </label>
+          <label className="text-xs text-gray-500">
+            {t("admin.workforce_management.day_report.filters.to")}
+            <input
+              type="date"
+              value={dateRange.draft.to}
+              min={dateRange.draft.from || undefined}
+              onChange={(e) => dateRange.setField("to", e.target.value)}
+              className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+            />
+          </label>
+        </div>
+      </FilterSection>
+    ),
+    chips: dateChips,
+    count: dateChips.length,
+    // an emptied date input falls back to the default instead of sending ""
+    apply: () =>
+      dateRange.commit({
+        from: dateRange.draft.from || defaultRange.from,
+        to: dateRange.draft.to || defaultRange.to,
+      }),
+    reset: () => dateRange.commit(defaultRange),
+  };
   const [rows, setRows] = useState<ApiRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,34 +128,11 @@ export default function DayReport() {
   };
 
   const renderHeader = () => (
-    <div className="flex justify-between items-center">
-      <div className="flex gap-3 items-center">
-        <label>
-          {t("admin.workforce_management.day_report.filters.from")}
-          <input
-            type="date"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="ml-2 wf-date-input"
-          />
-        </label>
-        <label>
-          {t("admin.workforce_management.day_report.filters.to")}
-          <input
-            type="date"
-            value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-            className="ml-2 wf-date-input"
-          />
-        </label>
-        <Button label={t("common.go")} onClick={fetchData} />
-      </div>
-      <FilterBar
-        searchValue={globalFilterValue}
-        onSearchChange={onGlobalFilterChange}
-        searchPlaceholder={t("admin.workforce_management.day_report.search_placeholder")}
-      />
-    </div>
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={onGlobalFilterChange}
+      searchPlaceholder={t("admin.workforce_management.day_report.search_placeholder")}
+    />
   );
 
   // ---------- Fetch Data ----------
@@ -181,7 +209,7 @@ export default function DayReport() {
       setError("admin.workforce_management.day_report.error_no_api");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayWiseWeighmentApiUrl, contextLoading]);
+  }, [dayWiseWeighmentApiUrl, contextLoading, fromDate, toDate]);
 
   const indexTemplate = (_: ApiRow, { rowIndex }: any) => rowIndex + 1;
   const exportRows = useMemo(
@@ -244,6 +272,7 @@ export default function DayReport() {
           rowsPerPageOptions={[5, 10, 25, 50]}
           filters={filters}
           header={renderHeader()}
+          filterPanel={combineFilters(dateFilter)}
           loading={loading}
           globalFilterFields={DAY_REPORT_GLOBAL_FIELDS}
           stripedRows

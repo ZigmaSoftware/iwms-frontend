@@ -21,7 +21,10 @@ import { Switch } from "@/components/ui/switch";
 import { projectStaffHierarchyApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { filterRowsForExport } from "@/utils/adminListExport";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const SEARCH_FIELDS = [
   "project_name",
@@ -68,10 +71,11 @@ export default function ProjectStaffHierarchyList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters();
 
   const navigate = useNavigate();
+  const { canEdit } = useScreenAccess();
   const { encAdmins, encProjectStaffHierarchy } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -117,7 +121,7 @@ export default function ProjectStaffHierarchyList() {
   const statusTemplate = (row: ProjectStaffHierarchyRow) => (
     <Switch
       checked={row.is_active}
-      disabled={isUpdating && pendingStatusId === row.unique_id}
+      disabled={!canEdit || (isUpdating && pendingStatusId === row.unique_id)}
       onCheckedChange={(checked) => void updateStatus(row, checked)}
     />
   );
@@ -163,8 +167,6 @@ export default function ProjectStaffHierarchyList() {
       searchValue={globalFilterValue}
       onSearchChange={onGlobalFilterChange}
       searchPlaceholder={t("common.search_placeholder")}
-      statusValue={statusValue}
-      onStatusChange={onStatusFilterChange}
     />
   );
 
@@ -187,17 +189,20 @@ export default function ProjectStaffHierarchyList() {
           </p>
         </div>
 
-        <Button
-          label={t("common.add_item", {
-            item: t("admin.nav.project_staff_hierarchy"),
-          })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <Can action="add">
+          <Button
+            label={t("common.add_item", {
+              item: t("admin.nav.project_staff_hierarchy"),
+            })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </Can>
       </div>
 
       <DataTable
+        filterPanel={combineFilters(statusFilter)}
         value={rows}
         exportRows={exportRows}
         paginator

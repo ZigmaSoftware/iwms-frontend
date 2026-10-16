@@ -12,6 +12,9 @@ import { Truck } from "lucide-react";
 import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 import { FilterBar } from "@/components/common/FilterBar";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import { combineFilters, type FilterPart } from "@/components/filters/useOptionFilter";
 import { buildTripSummaryUrl, buildVehicleTrackingUrl } from "@/config/gpsApiConfig";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -118,8 +121,7 @@ export default function MonthlyDistance() {
   );
   const TRIP_SUMMARY_API_URL = gpsTripSummaryApi;
   const [vehicles, setVehicles] = useState<VehicleOption[]>(FALLBACK_VEHICLES);
-  const [monthInput, setMonthInput] = useState(formatMonthInput(new Date()));
-  const [selectedMonth, setSelectedMonth] = useState(monthInput);
+  const [defaultMonth] = useState(() => formatMonthInput(new Date()));
   const [loadingVehicles, setLoadingVehicles] = useState(true);
   const [loadingFleet, setLoadingFleet] = useState(false);
 
@@ -127,6 +129,40 @@ export default function MonthlyDistance() {
   const [rosterError, setRosterError] = useState("");
   const [fetchError, setFetchError] = useState("");
   const isLoading = loadingVehicles || loadingFleet;
+
+  // The month is required: the Filters panel edits a draft, Reset (and
+  // removing the chip) goes back to the current month.
+  const monthFilter = useDraftFilter({ empty: { month: defaultMonth } });
+  const monthChips: ActiveFilterChip[] =
+    monthFilter.applied.month !== defaultMonth
+      ? [
+          {
+            key: "month",
+            label: "Month",
+            value: monthFilter.applied.month,
+            onRemove: () => monthFilter.commit({ month: defaultMonth }),
+          },
+        ]
+      : [];
+  const monthFilterPart: FilterPart = {
+    field: (
+      <FilterSection label="Month">
+        <input
+          type="month"
+          value={monthFilter.draft.month}
+          onChange={(e) => monthFilter.setField("month", e.target.value)}
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          aria-label="Month"
+        />
+      </FilterSection>
+    ),
+    chips: monthChips,
+    count: monthChips.length,
+    // an emptied month input falls back to the current month
+    apply: () => monthFilter.commit({ month: monthFilter.draft.month || defaultMonth }),
+    reset: () => monthFilter.commit({ month: defaultMonth }),
+  };
+  const selectedMonth = monthFilter.applied.month;
 
   /* ===== PrimeReact Filters ===== */
 
@@ -351,21 +387,6 @@ export default function MonthlyDistance() {
             </h1>
             <p className="text-sm text-gray-500">{monthHeadline}</p>
           </div>
-
-          <div className="flex gap-3">
-            <input
-              type="month"
-              value={monthInput}
-              onChange={(e) => setMonthInput(e.target.value)}
-              className="md-month-input"
-            />
-            <button
-              onClick={() => setSelectedMonth(monthInput)}
-              className="bg-blue-600 text-white px-4 py-2 rounded"
-            >
-              {t("common.go")}
-            </button>
-          </div>
         </div>
 
         {rosterError && <div className="p-2 text-blue-600">{t(rosterError)}</div>}
@@ -411,6 +432,7 @@ export default function MonthlyDistance() {
             showGridlines
             responsiveLayout="scroll"
             globalFilterFields={["vehicleId"]}
+            filterPanel={combineFilters(monthFilterPart)}
             className="p-datatable-sm"
           >
           <Column

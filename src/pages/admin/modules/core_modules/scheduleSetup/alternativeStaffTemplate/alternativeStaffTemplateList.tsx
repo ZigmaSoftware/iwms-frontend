@@ -12,10 +12,12 @@ import { Button } from "primereact/button";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { ActionMenu } from "@/components/ui/ActionMenu";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import {
   exportRecordsToExcel,
@@ -38,6 +40,7 @@ const ALTERNATIVE_STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
 export default function AlternativeStaffTemplateList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { canAdd } = useScreenAccess();
   const { showColumn: showCol } = useFieldVisibility(
     "staff-masters",
     "alternative-staff-template",
@@ -46,27 +49,19 @@ export default function AlternativeStaffTemplateList() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const [first, setFirst] = useState(0);
+  const companyProject = useCompanyProjectFilter(() => setFirst(0), {
     initialCompanyId:
       restoredState?.companyUniqueId ?? searchParams.get("company_unique_id") ?? undefined,
     initialProjectId: restoredState?.projectId ?? searchParams.get("project_id") ?? undefined,
   });
+  const companyUniqueId = companyProject.companyId;
+  const selectedProjectId = companyProject.projectId;
+  const { companies, isSuperAdmin } = companyProject.selection;
 
   const [records, setRecords] = useState<AlternativeStaffTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalRecords, setTotalRecords] = useState(0);
-  const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
@@ -79,10 +74,6 @@ export default function AlternativeStaffTemplateList() {
     encScheduleSetup,
     encAlternativeStaffTemplate,
   );
-  const selectedProjectId =
-    projectId && projects.some((project) => project.value === projectId)
-      ? projectId
-      : "";
   const selectedContext = { companyUniqueId, projectId: selectedProjectId };
 
   const ordering = sortField
@@ -173,61 +164,21 @@ export default function AlternativeStaffTemplateList() {
 
   const onGlobalFilterChange = (value: string) => setGlobalFilterValue(value);
 
-  const fetchExportRows = async (): Promise<AlternativeStaffTemplate[]> => {
+  // Feeds the table's single "Download Excel" button: the "All data" option
+  // is exported on the server with the current filters, while "Current page"
+  // uses the rows already on screen.
+  const serverExport = (filename: string, sheetName: string) => {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (selectedProjectId) params.project_id = selectedProjectId;
     if (globalSearchTerm) params.search = globalSearchTerm;
 
-    const response = await adminApi.alternativeStaffTemplate.readAllForExport({ params });
-    const payload: any = response ?? [];
-    return Array.isArray(payload) ? payload : payload?.results ?? [];
+    return adminApi.alternativeStaffTemplate.exportToExcel(
+      { params },
+      filename,
+      sheetName,
+    );
   };
-
-  // Feeds the table's single "Download Excel" button: the "All data" option
-  // fetches every row matching the current filters, while "Current page"
-  // uses the rows already on screen.
-  const loadAllExportRows = async () => fetchExportRows();
-
-  const header = (
-    <ListPageHeader
-      title={t("admin.alternative_staff_template.list_title")}
-      subtitle={t("admin.alternative_staff_template.list_subtitle")}
-      actions={
-          <Button
-            label={t("admin.alternative_staff_template.create_button")}
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-            onClick={() => navigate(ENC_NEW_PATH, { state: selectedContext })}
-          />
-      }
-      filters={
-        <FilterBar
-          searchValue={globalFilterValue}
-          onSearchChange={onGlobalFilterChange}
-          searchPlaceholder={t("admin.alternative_staff_template.search_placeholder")}
-        >
-          <FilterBarSelect
-            value={companyUniqueId || ""}
-            onChange={(value) => onCompanyChange(value)}
-            options={companies}
-            placeholder="All Companies"
-            disabled={!isSuperAdmin || companies.length === 0}
-          />
-          <FilterBarSelect
-            value={selectedProjectId}
-            onChange={(value) => setProjectId(value)}
-            options={projects.map((project) => ({
-              value: String(project.value),
-              label: project.label || project.value,
-            }))}
-            placeholder={showAllProjectsOption ? "All Projects" : undefined}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-          />
-        </FilterBar>
-      }
-    />
-  );
 
   const indexTemplate = (_: AlternativeStaffTemplate, { rowIndex }: any) =>
     rowIndex + 1;
@@ -248,8 +199,32 @@ export default function AlternativeStaffTemplateList() {
 
   return (
     <div className="p-3">
+      <ListPageHeader
+        title={t("admin.alternative_staff_template.list_title")}
+        subtitle={t("admin.alternative_staff_template.list_subtitle")}
+        actions={
+          canAdd ? (
+            <Button
+              label={t("admin.alternative_staff_template.create_button")}
+              icon="pi pi-plus"
+              className="p-button-success p-button-sm"
+              onClick={() => navigate(ENC_NEW_PATH, { state: selectedContext })}
+            />
+          ) : undefined
+        }
+        className="mb-4"
+      />
+
       <DataTable
-        loadExportRows={loadAllExportRows}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("admin.alternative_staff_template.search_placeholder")}
+          />
+        }
+        filterPanel={combineFilters(companyProject)}
+        onServerExport={serverExport}
         value={records}
         lazy
         paginator
@@ -262,7 +237,6 @@ export default function AlternativeStaffTemplateList() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
-        header={header}
         stripedRows
         showGridlines
         className="p-datatable-sm"

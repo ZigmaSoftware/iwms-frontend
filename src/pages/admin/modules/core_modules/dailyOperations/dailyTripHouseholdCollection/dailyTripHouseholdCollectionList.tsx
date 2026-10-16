@@ -1,17 +1,18 @@
 import type { DailyTripHouseholdCollectionRecord, NamedRef } from "./types";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "react-router-dom";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Column } from "primereact/column";
 
 import { customerCreationApi, dailyTripHouseholdCollectionApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
 import { Button } from "primereact/button";
 import { downloadCustomerQrStickerPdf } from "@/pages/admin/modules/masters/customerMasters/customerCreations/customerQrStickerPdf";
 import type { Customer } from "@/pages/admin/modules/masters/customerMasters/customerCreations/types";
@@ -99,28 +100,6 @@ const toRecordList = (value: unknown): DailyTripHouseholdCollectionRecord[] => {
 
 export default function DailyTripHouseholdCollectionList() {
   const { t } = useTranslation();
-  const location = useLocation();
-  const restoredState = location.state as {
-    companyUniqueId?: string;
-    projectId?: string;
-  } | null;
-
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
-
   const [rawRows, setRawRows] = useState<DailyTripHouseholdCollectionRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
@@ -130,13 +109,41 @@ export default function DailyTripHouseholdCollectionList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
-  const [statusFilter, setStatusFilter] = useState<string>("");
   // unique_id of the stop whose QR is being prepared, so only that row's
   // button shows a spinner.
   const [qrDownloadingId, setQrDownloadingId] = useState<string | null>(null);
-  const [collectionTypeFilter, setCollectionTypeFilter] = useState<string>("");
   const [filteredRows, setFilteredRows] = useState<DailyTripHouseholdCollectionRecord[]>([]);
   const requestIdRef = useRef(0);
+
+  const resetPage = () => setFirst(0);
+  const location = useLocation();
+  const restoredState = location.state as {
+    companyUniqueId?: string;
+    projectId?: string;
+  } | null;
+  const companyProject = useCompanyProjectFilter(resetPage, {
+    initialCompanyId: restoredState?.companyUniqueId,
+    initialProjectId: restoredState?.projectId,
+  });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
+  const statusPart = useOptionFilter({
+    param: "status",
+    label: "Status",
+    options: STATUS_OPTIONS,
+    onAppliedChange: resetPage,
+  });
+  const collectionTypePart = useOptionFilter({
+    param: "collection_type",
+    label: "Collection type",
+    options: Object.entries(COLLECTION_TYPE_LABELS).map(([value, label]) => ({
+      value,
+      label,
+    })),
+    onAppliedChange: resetPage,
+  });
+  const statusFilter = statusPart.value;
+  const collectionTypeFilter = collectionTypePart.value;
 
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
     ? `${sortOrder === -1 ? "-" : ""}${sortField}`
@@ -224,47 +231,21 @@ export default function DailyTripHouseholdCollectionList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  // Keeps exported Excel rows in sync with the currently applied
-  // (filtered/searched) query rather than only the rows on the visible
-  // page — fetches the full filtered dataset fresh from the server,
-  // independent of pagination, whenever the filters/search change.
-  useEffect(() => {
-    if (isSuperAdmin && companies.length === 0) {
-      setFilteredRows([]);
-      return;
-    }
-    if (!companyUniqueId && !isSuperAdmin) {
-      setFilteredRows([]);
-      return;
-    }
-    let mounted = true;
+  // "All data" is exported on the server with the currently applied
+  // filters/search (independent of pagination).
+  const serverExport = (filename: string, sheetName: string) => {
     const params: Record<string, string> = {};
     if (companyUniqueId) params.company_id = companyUniqueId;
     if (projectId) params.project_id = projectId;
     if (statusFilter) params.status = statusFilter;
     if (collectionTypeFilter) params.collection_type = collectionTypeFilter;
     if (searchTerm) params.search = searchTerm;
-
-    dailyTripHouseholdCollectionApi
-      .readAllForExport({ params })
-      .then((data) => {
-        if (mounted) setFilteredRows(toRecordList(data));
-      })
-      .catch(() => {
-        /* export sync failure is non-fatal; button will just show stale rows */
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [
-    companyUniqueId,
-    projectId,
-    isSuperAdmin,
-    companies.length,
-    statusFilter,
-    collectionTypeFilter,
-    searchTerm,
-  ]);
+    return dailyTripHouseholdCollectionApi.exportToExcel(
+      { params },
+      filename,
+      sheetName,
+    );
+  };
 
   const rows = rawRows.map((rec) => ({
     ...rec,
@@ -366,38 +347,7 @@ export default function DailyTripHouseholdCollectionList() {
         onGlobalFilterChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)
       }
       searchPlaceholder="Search household collections..."
-    >
-      <FilterBarSelect
-        value={companyUniqueId || ""}
-        onChange={onCompanyChange}
-        placeholder="All Companies"
-        options={companies}
-        disabled={!isSuperAdmin || companies.length === 0}
-      />
-      <FilterBarSelect
-        value={projectId || ""}
-        onChange={setProjectId}
-        placeholder={showAllProjectsOption ? "All Projects" : undefined}
-        options={projects}
-        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-      />
-      <FilterBarSelect
-        value={statusFilter}
-        onChange={(value) => setStatusFilter(value)}
-        options={STATUS_OPTIONS}
-        placeholder={"All Statuses"}
-      />
-      <FilterBarSelect
-        value={collectionTypeFilter}
-        onChange={(value) => setCollectionTypeFilter(value)}
-        options={Object.entries(COLLECTION_TYPE_LABELS).map(([value, label]) => ({
-          value,
-          label,
-        }))}
-        placeholder="All Collection Types"
-        aria-label="Collection type filter"
-      />
-    </FilterBar>
+    />
   );
 
   return (
@@ -416,6 +366,7 @@ export default function DailyTripHouseholdCollectionList() {
       <DataTable
         value={rows}
         exportRows={filteredRows}
+        onServerExport={serverExport}
         onValueChange={(value) => setFilteredRows(value as typeof filteredRows)}
         dataKey="unique_id"
         lazy
@@ -430,6 +381,7 @@ export default function DailyTripHouseholdCollectionList() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
         header={renderHeader()}
+        filterPanel={combineFilters(companyProject, statusPart, collectionTypePart)}
         stripedRows
         showGridlines
         emptyMessage="No household collection records found."

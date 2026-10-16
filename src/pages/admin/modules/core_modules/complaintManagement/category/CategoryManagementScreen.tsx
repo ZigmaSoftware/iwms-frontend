@@ -15,6 +15,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { complaintCategoryApi, complaintSubcategoryApi } from "@/features/complaintTicketing/api";
 import { asArray, errorText, idOf, yesNo } from "../utils";
 import { MASTER_CONFIG } from "../masters/masterConfig";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 /**
  * "Categories & Subcategories" — merges what used to be two separate
@@ -34,6 +35,7 @@ export default function CategoryManagementScreen() {
   const navigate = useNavigate();
   const routes = getEncryptedRoute();
   const [searchParams] = useSearchParams();
+  const { canAdd } = useScreenAccess();
 
   const categoryRoutes = createCrudRoutePaths(routes.encComplaintTicket, routes[MASTER_CONFIG.category.routeKey]);
   const subcategoryRoutes = createCrudRoutePaths(routes.encComplaintTicket, routes[MASTER_CONFIG.subcategory.routeKey]);
@@ -124,7 +126,9 @@ export default function CategoryManagementScreen() {
           <h1 className="text-2xl font-semibold text-gray-800">Categories &amp; Subcategories</h1>
           <p className="text-sm text-gray-500">Complaint ticketing setup</p>
         </div>
-        <Button label="Add Category" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(categoryRoutes.newPath)} />
+        {canAdd && (
+          <Button label="Add Category" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(categoryRoutes.newPath)} />
+        )}
       </div>
 
       <DataTable
@@ -186,7 +190,7 @@ export default function CategoryManagementScreen() {
               {selectedCategory ? "" : "Select a category above to manage its subcategories."}
             </p>
           </div>
-          {selectedCategory && (
+          {selectedCategory && canAdd && (
             <Button label="Add Subcategory" icon="pi pi-plus" className="p-button-success" onClick={addSubcategory} />
           )}
         </div>

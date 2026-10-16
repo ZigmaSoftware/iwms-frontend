@@ -17,10 +17,13 @@ import { departmentApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const { encStaffMasters, encDepartments } = getEncryptedRoute();
 const { newPath: NEW_PATH } = createCrudRoutePaths(
@@ -59,6 +62,7 @@ const SORTABLE_FIELDS = new Set(["department_name", "department_code"]);
 
 export default function DepartmentListPage() {
   const navigate = useNavigate();
+  const { canEdit } = useScreenAccess();
   const [records, setRecords] = useState<DepartmentRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
@@ -72,7 +76,7 @@ export default function DepartmentListPage() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters();
 
   const ordering =
@@ -198,19 +202,19 @@ export default function DepartmentListPage() {
     }
   };
 
-  const getFilteredExportRows = (allRows: DepartmentRecord[]) => {
-    const search = globalFilterValue.trim().toLowerCase();
-    return allRows.filter((row) => {
-      if (statusValue !== "all") {
-        const wantActive = statusValue === "active";
-        if (Boolean(row.is_active) !== wantActive) return false;
-      }
-      if (!search) return true;
-      return [row.department_name, row.department_code, row.description]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(search));
-    });
-  };
+  // "All data" is built server-side with the list's own filters; "Current
+  // page" uses the rows already on screen.
+  const onServerExport = (filename: string, sheetName: string) =>
+    departmentApi.exportToExcel(
+      {
+        params: {
+          ...(searchTerm ? { search: searchTerm } : {}),
+          ...(statusValue !== "all" ? { status: statusValue } : {}),
+        },
+      },
+      filename,
+      sheetName,
+    );
 
   return (
     <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
@@ -227,24 +231,25 @@ export default function DepartmentListPage() {
           </h1>
           <p className="text-sm text-gray-500">Organize the departments available to staff and designations.</p>
         </div>
-        <Button
-          label="Add Department"
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(NEW_PATH)}
-        />
+        <Can action="add">
+          <Button
+            label="Add Department"
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(NEW_PATH)}
+          />
+        </Can>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
+        filterPanel={combineFilters(statusFilter)}
         header={<div className="border-b border-gray-100 bg-gray-50/70 p-3"><FilterBar
           searchValue={globalFilterValue}
           onSearchChange={onGlobalFilterChange}
           searchPlaceholder="Search departments"
-          statusValue={statusValue}
-          onStatusChange={onStatusFilterChange}
         /></div>}
-        loadExportRows={async () => getFilteredExportRows(records)}
+        onServerExport={onServerExport}
         value={records}
         dataKey="unique_id"
         lazy
@@ -278,6 +283,7 @@ export default function DepartmentListPage() {
           body={(row) => (
             <Switch
               checked={Boolean(row.is_active)}
+              disabled={!canEdit}
               onCheckedChange={(value) => toggleStatus(row, value)}
             />
           )}

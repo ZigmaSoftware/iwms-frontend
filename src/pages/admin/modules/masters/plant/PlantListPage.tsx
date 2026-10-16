@@ -18,9 +18,12 @@ import type {
 import { ActionMenu } from "@/components/ui/ActionMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 import { plantApi } from "@/helpers/admin";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const toDisplay = (value: unknown): string =>
   value === null || value === undefined || String(value).trim() === ""
@@ -43,6 +46,7 @@ const SORTABLE_FIELDS = new Set(["name", "is_active"]);
 
 export default function PlantListPage() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
   const navigate = useNavigate();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [records, setRecords] = useState<PlantRecord[]>([]);
@@ -53,9 +57,6 @@ export default function PlantListPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusValue, setStatusValue] = useState<"all" | "active" | "inactive">(
-    "all",
-  );
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const requestIdRef = useRef(0);
@@ -64,21 +65,13 @@ export default function PlantListPage() {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const companyProject = useCompanyProjectFilter(() => setFirst(0), {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
+  const statusFilter = useStatusFilter(() => setFirst(0));
 
   const { encMasters, encPlants } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
@@ -143,10 +136,7 @@ export default function PlantListPage() {
     if (isSuperAdmin && companies.length === 0) return [] as PlantRecord[];
     if (!companyUniqueId && !isSuperAdmin) return [] as PlantRecord[];
 
-    if (statusValue === "all") return records;
-
-    const wantActive = statusValue === "active";
-    return records.filter((row) => Boolean(row.is_active) === wantActive);
+    return records.filter(statusFilter.matches);
   })();
 
   const onPage = (event: DataTablePageEvent) => {
@@ -230,24 +220,28 @@ export default function PlantListPage() {
     return (
       <Switch
         checked={Boolean(row.is_active)}
-        disabled={isUpdating && pendingStatusId === String(row.unique_id)}
+        disabled={
+          !canEdit || (isUpdating && pendingStatusId === String(row.unique_id))
+        }
         onCheckedChange={updateStatus}
       />
     );
   };
 
-  // "All data" re-fetches every plant matching the active filters, since the
+  // "All data" is exported server-side for the active filters, since the
   // table is lazily paginated and only holds one page.
-  const loadAllExportRows = async () =>
-    toRecordList(
-      await plantApi.readAllForExport({
+  const onServerExport = (filename: string, sheetName: string) =>
+    plantApi.exportToExcel(
+      {
         params: {
           company_id: companyUniqueId,
           project_id: projectId || undefined,
           ...(searchTerm ? { search: searchTerm } : {}),
         },
-      }),
-    ) as unknown as Record<string, unknown>[];
+      },
+      filename,
+      sheetName,
+    );
 
   return (
     <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
@@ -263,44 +257,30 @@ export default function PlantListPage() {
           <p className="text-sm text-gray-500">Manage plant records</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button
-            label="Add Plant"
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() =>
-              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
-            }
-          />
+          <Can action="add">
+            <Button
+              label="Add Plant"
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() =>
+                navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
+              }
+            />
+          </Can>
         </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
       <DataTable
-        loadExportRows={loadAllExportRows}
-        header={<div className="border-b border-gray-100 bg-gray-50/70 p-3"><FilterBar
+        onServerExport={onServerExport}
+        header={
+          <FilterBar
             searchValue={globalFilterValue}
             onSearchChange={setGlobalFilterValue}
             searchPlaceholder="Search plants…"
-            statusValue={statusValue}
-            onStatusChange={setStatusValue}
-          >
-            <FilterBarSelect
-              value={companyUniqueId || ""}
-              onChange={onCompanyChange}
-              options={companies}
-              placeholder="All Companies"
-              disabled={!isSuperAdmin || companies.length === 0}
-            />
-            <FilterBarSelect
-              value={projectId || ""}
-              onChange={setProjectId}
-              options={projects}
-              placeholder={showAllProjectsOption ? "All Projects" : undefined}
-              disabled={
-                (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-              }
-            />
-          </FilterBar></div>}
+          />
+        }
+        filterPanel={combineFilters(companyProject, statusFilter)}
         value={rows}
         dataKey="unique_id"
         lazy

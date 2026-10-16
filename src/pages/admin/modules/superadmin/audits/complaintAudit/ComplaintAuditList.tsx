@@ -12,8 +12,12 @@ import { Column } from "primereact/column";
 import type { DataTablePageEvent } from "primereact/datatable";
 
 import { complaintAuditApi } from "@/helpers/admin";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import { Input } from "@/components/ui/input";
+import { FilterBar } from "@/components/common/FilterBar";
+import { FormSelect } from "@/components/common/FormSelect";
+import { FilterSection } from "@/components/common/ListToolbar";
+import { useDateRangeFilter } from "@/components/filters/useDateRangeFilter";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
 import ComplaintAuditDetail from "./ComplaintAuditDetail";
 import { formatDateTime, formatDuration, STATUS_COLORS } from "./format";
 
@@ -25,12 +29,8 @@ const toRecordList = (value: unknown): ComplaintAuditRecord[] => {
   return [];
 };
 
-const LabeledFilter = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="flex min-w-0 flex-col gap-1">
-    <label className="text-xs font-medium text-gray-600 dark:text-gray-300">{label}</label>
-    {children}
-  </div>
-);
+const nameOf = (options: { label: string; value: string }[], value: string) =>
+  options.find((option) => option.value === value)?.label ?? value;
 
 const StatTile = ({ label, value }: { label: string; value: ReactNode }) => (
   <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -57,14 +57,6 @@ export default function ComplaintAuditList() {
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [companyFilter, setCompanyFilter] = useState("");
-  const [projectFilter, setProjectFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [historyFilter, setHistoryFilter] = useState("");
-  const [deletedFilter, setDeletedFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const [filterOptions, setFilterOptions] = useState<ComplaintAuditFilterOptions | null>(null);
 
   const [selectedDetail, setSelectedDetail] = useState<DetailRecord | null>(null);
@@ -83,6 +75,57 @@ export default function ComplaintAuditList() {
   const projectOptions = useMemo(() => toOptions(filterOptions?.projects), [filterOptions]);
   const statusOptions = useMemo(() => toOptions(filterOptions?.statuses), [filterOptions]);
   const categoryOptions = useMemo(() => toOptions(filterOptions?.categories), [filterOptions]);
+
+  const resetPage = () => setFirst(0);
+
+  // Company → Project, Status and Category, edited in the Filters panel as a
+  // draft and sent once applied.
+  const scope = useDraftFilter({
+    empty: { company: "", project: "", status: "", category: "" },
+    chips: {
+      company: { label: "Company", format: (v) => nameOf(companyOptions, v), clears: ["project"] },
+      project: { label: "Project", format: (v) => nameOf(projectOptions, v) },
+      status: { label: "Status", format: (v) => nameOf(statusOptions, v) },
+      category: { label: "Category", format: (v) => nameOf(categoryOptions, v) },
+    },
+    onAppliedChange: resetPage,
+  });
+  const {
+    company: companyFilter,
+    project: projectFilter,
+    status: statusFilter,
+    category: categoryFilter,
+  } = scope.applied;
+  const draft = scope.draft;
+
+  const history = useOptionFilter({
+    param: "history",
+    label: "History",
+    options: HISTORY_OPTIONS,
+    allLabel: t("common.all"),
+    onAppliedChange: resetPage,
+  });
+  const historyFilter = history.value;
+
+  const deleted = useOptionFilter({
+    param: "deleted",
+    label: "Deleted",
+    options: DELETED_OPTIONS,
+    allLabel: "Include deleted",
+    onAppliedChange: resetPage,
+  });
+  const deletedFilter = deleted.value;
+
+  const raised = useDateRangeFilter({
+    section: "Raised on",
+    fromLabel: "Raised from",
+    toLabel: "Raised to",
+    fromParam: "date_from",
+    toParam: "date_to",
+    onAppliedChange: resetPage,
+  });
+  const dateFrom = raised.from;
+  const dateTo = raised.to;
 
   const queryParams = useMemo(
     () => ({
@@ -128,7 +171,7 @@ export default function ComplaintAuditList() {
     const loadFilterOptions = async () => {
       try {
         const data = (await complaintAuditApi.read("filter-options", {
-          params: companyFilter ? { company_id: companyFilter } : {},
+          params: draft.company ? { company_id: draft.company } : {},
         })) as unknown as ComplaintAuditFilterOptions;
         if (mounted && data) setFilterOptions(data);
       } catch {
@@ -139,7 +182,7 @@ export default function ComplaintAuditList() {
     return () => {
       mounted = false;
     };
-  }, [companyFilter]);
+  }, [draft.company]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -179,11 +222,6 @@ export default function ComplaintAuditList() {
     setRowsPerPage(event.rows);
   };
 
-  const resetPage = <T,>(setter: (value: T) => void) => (value: T) => {
-    setFirst(0);
-    setter(value);
-  };
-
   const openDetail = useCallback(
     async (row: ComplaintAuditRecord) => {
       try {
@@ -200,6 +238,47 @@ export default function ComplaintAuditList() {
   const averageResolution = resolvedOnPage.length
     ? Math.round(resolvedOnPage.reduce((s, r) => s + (r.total_resolution_seconds ?? 0), 0) / resolvedOnPage.length)
     : null;
+
+  const scopeField = (
+    <>
+      <FilterSection label="Company & project">
+        <div className="grid grid-cols-2 gap-2">
+          <FormSelect
+            label="Company"
+            value={draft.company}
+            onChange={(value) => scope.setDraft((d) => ({ ...d, company: value, project: "" }))}
+            options={companyOptions}
+            placeholder={t("common.all")}
+          />
+          <FormSelect
+            label="Project"
+            value={draft.project}
+            onChange={(value) => scope.setField("project", value)}
+            options={projectOptions}
+            placeholder={t("common.all")}
+          />
+        </div>
+      </FilterSection>
+      <FilterSection label="Complaint">
+        <div className="grid grid-cols-2 gap-2">
+          <FormSelect
+            label="Status"
+            value={draft.status}
+            onChange={(value) => scope.setField("status", value)}
+            options={statusOptions}
+            placeholder={t("common.all")}
+          />
+          <FormSelect
+            label="Category"
+            value={draft.category}
+            onChange={(value) => scope.setField("category", value)}
+            options={categoryOptions}
+            placeholder={t("common.all")}
+          />
+        </div>
+      </FilterSection>
+    </>
+  );
 
   return (
     <div className="p-3">
@@ -226,82 +305,16 @@ export default function ComplaintAuditList() {
         <StatTile label="Avg. time to resolve (this page)" value={formatDuration(averageResolution)} />
       </div>
 
-      <div className="mb-4 space-y-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-        <FilterBar
-          searchValue={globalFilterValue}
-          onSearchChange={setGlobalFilterValue}
-          searchPlaceholder="Search ticket no, title, reporter, phone…"
-        />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <LabeledFilter label="Company">
-            <FilterBarSelect
-              value={companyFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setCompanyFilter(value);
-                setProjectFilter("");
-              }}
-              options={companyOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label="Project">
-            <FilterBarSelect
-              value={projectFilter}
-              onChange={resetPage(setProjectFilter)}
-              options={projectOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label="Status">
-            <FilterBarSelect
-              value={statusFilter}
-              onChange={resetPage(setStatusFilter)}
-              options={statusOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label="Category">
-            <FilterBarSelect
-              value={categoryFilter}
-              onChange={resetPage(setCategoryFilter)}
-              options={categoryOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label="History">
-            <FilterBarSelect
-              value={historyFilter}
-              onChange={resetPage(setHistoryFilter)}
-              options={HISTORY_OPTIONS}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label="Deleted">
-            <FilterBarSelect
-              value={deletedFilter}
-              onChange={resetPage(setDeletedFilter)}
-              options={DELETED_OPTIONS}
-              placeholder="Include deleted"
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label="Raised from">
-            <Input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => resetPage(setDateFrom)(e.target.value)} />
-          </LabeledFilter>
-          <LabeledFilter label="Raised to">
-            <Input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => resetPage(setDateTo)(e.target.value)} />
-          </LabeledFilter>
-        </div>
-      </div>
-
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <DataTable
+          header={
+            <FilterBar
+              searchValue={globalFilterValue}
+              onSearchChange={setGlobalFilterValue}
+              searchPlaceholder="Search ticket no, title, reporter, phone…"
+            />
+          }
+          filterPanel={combineFilters({ ...scope, field: scopeField }, history, deleted, raised)}
           loadExportRows={loadAllExportRows}
           value={records}
           dataKey="unique_id"

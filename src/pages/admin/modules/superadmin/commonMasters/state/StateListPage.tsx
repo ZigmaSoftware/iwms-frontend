@@ -27,6 +27,9 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { stateApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -69,6 +72,7 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 
 export default function StateList() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
 
   const [states, setStates] = useState<StateRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -92,7 +96,7 @@ export default function StateList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters();
 
   const navigate = useNavigate();
@@ -176,30 +180,22 @@ export default function StateList() {
     setSortOrder(event.sortOrder);
   };
 
-  // Feeds the table's single "Download Excel" button: the "All data" option
-  // fetches every row matching the current filters, while "Current page"
-  // uses the rows already on screen.
-  const loadAllExportRows = async () => {
-    try {
-      const response = await stateApi.readAllForExport({
+  // Feeds the table's single "Download Excel" button: "All data" is built
+  // server-side for the current filters, while "Current page" uses the rows
+  // already on screen.
+  const onServerExport = (filename: string, sheetName: string) =>
+    stateApi.exportToExcel(
+      {
         params: {
           ...(searchTerm ? { search: searchTerm } : {}),
           ...(statusValue !== "all"
             ? { is_active: statusValue === "active" }
             : {}),
         },
-      });
-      const rows = unwrapRows(response);
-      return rows;
-    } catch (error) {
-      Swal.fire(
-        t("common.error"),
-        extractErrorMessage(error, t("common.fetch_failed")),
-        "error",
-      );
-    }
-    return [];
-  };
+      },
+      filename,
+      sheetName,
+    );
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -236,7 +232,7 @@ export default function StateList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={isUpdating && pendingStatusId === stateId}
+        disabled={!canEdit || (isUpdating && pendingStatusId === stateId)}
         onCheckedChange={(checked) => void updateStatus(row, checked)}
       />
     );
@@ -291,15 +287,18 @@ export default function StateList() {
           </p>
         </div>
 
-        <Button
-          label={t("common.add_item", { item: t("admin.nav.state") })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <Can action="add">
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.state") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </Can>
       </div>
 
       <DataTable
+        filterPanel={combineFilters(statusFilter)}
         header={
           <FilterBar
             searchValue={globalFilterValue}
@@ -307,11 +306,9 @@ export default function StateList() {
             searchPlaceholder={t("common.search_placeholder", {
               item: t("admin.nav.state"),
             })}
-            statusValue={statusValue}
-            onStatusChange={onStatusFilterChange}
           />
         }
-        loadExportRows={loadAllExportRows}
+        onServerExport={onServerExport}
         value={states}
         dataKey="unique_id"
         lazy

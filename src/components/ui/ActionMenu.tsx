@@ -2,6 +2,7 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { cn } from "@/lib/utils";
 import { PencilIcon, TrashBinIcon, MoreVerticalIcon } from "@/icons";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 export interface ActionMenuItem {
   key: string;
@@ -71,15 +72,20 @@ export function ActionMenu({
   actions = [],
 }: ActionMenuProps) {
   const [open, setOpen] = React.useState(false);
+  // Edit / Delete only for users the current page grants them to (no
+  // ScreenPermissionProvider → everything allowed, the backend decides).
+  const { canEdit, canDelete } = useScreenAccess();
+  const editAction = canEdit ? onEdit : undefined;
+  const deleteAction = canDelete ? onDelete : undefined;
 
   const items: ActionMenuItem[] = [
-    ...(onEdit
+    ...(editAction
       ? [
           {
             key: "edit",
             label: editLabel,
             icon: <PencilIcon />,
-            onClick: onEdit,
+            onClick: editAction,
             disabled: editDisabled,
             disabledReason: editDisabledReason,
             variant: "default" as const,
@@ -87,13 +93,13 @@ export function ActionMenu({
         ]
       : []),
     ...actions,
-    ...(onDelete
+    ...(deleteAction
       ? [
           {
             key: "delete",
             label: deleteLabel,
             icon: <TrashBinIcon />,
-            onClick: onDelete,
+            onClick: deleteAction,
             disabled: deleteDisabled,
             disabledReason: deleteDisabledReason,
             variant: "destructive" as const,

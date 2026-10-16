@@ -23,22 +23,35 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import QrPreviewDialog from "@/components/common/QrPreviewDialog";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import {
+  combineFilters,
+  useOptionFilter,
+} from "@/components/filters/useOptionFilter";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { customerCreationApi, wasteTypeApi } from "@/helpers/admin";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
-import {
-  FilterBar,
-  FilterBarSelect,
-  type StatusFilterValue,
-} from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
 import {
   excelFileToCsvFile,
   exportRecordsToExcel,
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
+  readExcelRows,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
+import BulkUploadResultDialog from "@/components/common/BulkUploadResultDialog";
+import BulkRejectedPanel from "@/components/common/BulkRejectedPanel";
+import {
+  clearBulkResult,
+  loadBulkResult,
+  normalizeBulkErrors,
+  saveBulkResult,
+  type BulkUploadResult,
+} from "@/utils/bulkUpload";
+import { runBulkUpload } from "@/utils/backgroundJobs";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import {
   createCustomerQrPdfBlob,
   downloadCustomerQrPdf,
@@ -189,6 +202,8 @@ const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   },
 ];
 
+const BULK_KEY = "customer-creations";
+
 export default function CustomerCreationListPage() {
   const { t } = useTranslation();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
@@ -215,11 +230,15 @@ export default function CustomerCreationListPage() {
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingQrStickers, setIsExportingQrStickers] = useState(false);
   const requestIdRef = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { canAdd, canEdit, canImport } = useScreenAccess();
+  const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(() =>
+    loadBulkResult(BULK_KEY),
+  );
+  const [resultOpen, setResultOpen] = useState(false);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [globalSearchTerm, setGlobalSearchTerm] = useState("");
-  const [statusFilterValue, setStatusFilterValue] =
-    useState<StatusFilterValue>("all");
 
   const navigate = useNavigate();
   const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
@@ -229,20 +248,23 @@ export default function CustomerCreationListPage() {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    showAllProjectsOption,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  const resetPage = () => setFirst(0);
+  const companyProject = useCompanyProjectFilter(resetPage, {
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
+  });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
+
+  // Active / Inactive → `?active_status=1|0`.
+  const statusFilter = useOptionFilter({
+    param: "active_status",
+    label: "Status",
+    options: [
+      { label: "Active", value: "1" },
+      { label: "Inactive", value: "0" },
+    ],
+    onAppliedChange: resetPage,
   });
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } =
@@ -254,12 +276,7 @@ export default function CustomerCreationListPage() {
     ? `${sortOrder === -1 ? "-" : ""}${mappedSortField}`
     : undefined;
 
-  const activeStatusParam =
-    statusFilterValue === "all"
-      ? ""
-      : statusFilterValue === "active"
-        ? "1"
-        : "0";
+  const activeStatusParam = statusFilter.value;
 
   // ── Load data (server-side pagination) ──────────────────────────────────
   const loadRows = async (
@@ -369,11 +386,6 @@ export default function CustomerCreationListPage() {
 
   const onSearchValueChange = (value: string) => setGlobalFilterValue(value);
 
-  const onStatusFilterChange = (value: StatusFilterValue) => {
-    setStatusFilterValue(value);
-    setFirst(0);
-  };
-
   // ── Download template ─────────────────────────────────────────────────────
   const downloadTemplate = async () => {
     // List the project's real waste type names in the template's "Column
@@ -428,6 +440,7 @@ export default function CustomerCreationListPage() {
 
     setIsUploading(true);
     try {
+      const originalRows = (await readExcelRows(file)) as Record<string, unknown>[];
       const csvFile = await excelFileToCsvFile(
         file,
         "customer_bulk_upload.csv",
@@ -437,24 +450,33 @@ export default function CustomerCreationListPage() {
       formDataObj.append("company_id", companyUniqueId || "");
       formDataObj.append("project_id", projectId || "");
 
-      const result = await customerCreationApi.action<Record<string, unknown>>(
-        "bulk-upload",
-        formDataObj,
-        { headers: { "Content-Type": "multipart/form-data" } },
-      );
-      const success = Number(result?.success_count ?? 0);
-      const errors = Array.isArray(result?.errors) ? result.errors.length : 0;
+      const result = await runBulkUpload(customerCreationApi, formDataObj);
+      const successCount = Number(result?.success_count ?? 0);
+      const errors = normalizeBulkErrors(result?.errors, originalRows);
       recordExcelAudit("upload_excel", {
         file_name: file.name,
         status: "completed",
-        success_count: success,
-        error_count: errors,
+        success_count: successCount,
+        error_count: errors.length,
       });
 
+      const uploadSummary: BulkUploadResult = {
+        fileName: file.name,
+        successCount,
+        errors,
+        originalRows,
+      };
+      if (errors.length > 0) saveBulkResult(BULK_KEY, uploadSummary);
+      else clearBulkResult(BULK_KEY);
+      setUploadResult(uploadSummary);
+      setResultOpen(true);
+
       Swal.fire({
+        icon: errors.length > 0 ? "warning" : "success",
         title: String(result?.message ?? "Upload Completed"),
-        html: `<b>Success:</b> ${success} <br/> <b>Errors:</b> ${errors}`,
-        icon: "success",
+        text: `Success: ${successCount} · Rejected: ${errors.length}. ${
+          errors.length > 0 ? "See rejected list below." : ""
+        }`,
       });
 
       setRefetchTrigger((prev) => prev + 1);
@@ -540,12 +562,11 @@ export default function CustomerCreationListPage() {
       }
       // Stamp the sheet with whichever company / project is selected above;
       // an empty value means "All", which the sheet resolves on its own.
+      const appliedLabel = (key: string) =>
+        companyProject.chips.find((chip) => chip.key === key)?.value;
       await downloadCustomerQrStickerPdf(rows, {
-        companyName: companies.find(
-          (company) => company.value === companyUniqueId,
-        )?.label,
-        projectName: projects.find((project) => project.value === projectId)
-          ?.label,
+        companyName: appliedLabel("company_id"),
+        projectName: appliedLabel("project_id"),
       });
     } catch (error) {
       Swal.fire({
@@ -562,8 +583,8 @@ export default function CustomerCreationListPage() {
   };
 
   const header = (
-    <div className="flex justify-between items-center">
-      <div className="flex items-center gap-3 px-3 py-2">
+    <div className="flex flex-wrap items-center gap-3">
+      <Can action="add">
         <Button
           label={t("admin.customer_creation.add")}
           icon="pi pi-plus"
@@ -572,62 +593,15 @@ export default function CustomerCreationListPage() {
             navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
           }
         />
-        <Button
-          label="Download Template"
-          icon="pi pi-download"
-          className="p-button-secondary"
-          onClick={() => void downloadTemplate()}
-        />
-        <Button
-          label="Upload Excel"
-          icon="pi pi-upload"
-          className="p-button-info"
-          disabled={!companyUniqueId || !projectId || isUploading}
-          onClick={() => document.getElementById("excelUpload")?.click()}
-        />
-        <Button
-          label={isExportingPdf ? "Preparing..." : "Download PDF"}
-          icon="pi pi-file-pdf"
-          className="p-button-outlined"
-          disabled={isExportingPdf}
-          onClick={handleDownloadPdf}
-        />
-        <Button
-          label={isExportingQrStickers ? "Preparing..." : "Download QR"}
-          icon="pi pi-qrcode"
-          className="p-button-outlined"
-          disabled={isExportingQrStickers}
-          onClick={handleDownloadQrStickers}
-        />
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
+      </Can>
+      <div className="min-w-0 flex-1">
         <FilterBar
           searchValue={globalFilterValue}
           onSearchChange={onSearchValueChange}
           searchPlaceholder={t("admin.customer_creation.search_placeholder")}
-          statusValue={showCol("is_active") ? statusFilterValue : undefined}
-          onStatusChange={
-            showCol("is_active") ? onStatusFilterChange : undefined
-          }
-        >
-          <FilterBarSelect
-            value={companyUniqueId || ""}
-            onChange={(value) => onCompanyChange(value)}
-            options={companies}
-            placeholder="All Companies"
-            disabled={!isSuperAdmin || companies.length === 0}
-          />
-          <FilterBarSelect
-            value={projectId || ""}
-            onChange={(value) => setProjectId(value)}
-            options={projects}
-            placeholder={showAllProjectsOption ? "All Projects" : undefined}
-            disabled={
-              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-            }
-          />
-        </FilterBar>
+        />
         <input
+          ref={fileInputRef}
           id="excelUpload"
           type="file"
           accept=".xlsx,.xls"
@@ -637,6 +611,10 @@ export default function CustomerCreationListPage() {
       </div>
     </div>
   );
+
+  const filterPanel = showCol("is_active")
+    ? combineFilters(companyProject, statusFilter)
+    : combineFilters(companyProject);
 
   const qrTemplate = (customer: Customer) => {
     if (!customer.qr_code) {
@@ -746,7 +724,7 @@ export default function CustomerCreationListPage() {
       <Switch
         checked={row.is_active}
         onCheckedChange={updateStatus}
-        disabled={isUpdating && pendingStatusId === row.unique_id}
+        disabled={!canEdit || (isUpdating && pendingStatusId === row.unique_id)}
       />
     );
   };
@@ -807,6 +785,23 @@ export default function CustomerCreationListPage() {
           </div>
         </div>
 
+        {uploadResult && uploadResult.errors.length > 0 && (
+          <BulkRejectedPanel
+            result={uploadResult}
+            onClear={() => {
+              clearBulkResult(BULK_KEY);
+              setUploadResult(null);
+            }}
+            onReupload={
+              canAdd && canImport && companyUniqueId && projectId
+                ? () => fileInputRef.current?.click()
+                : undefined
+            }
+            onViewAll={() => setResultOpen(true)}
+            downloadFilename="customer_rejected.xlsx"
+          />
+        )}
+
         <DataTable
           loadExportRows={loadAllExportRows}
           value={customers}
@@ -840,6 +835,23 @@ export default function CustomerCreationListPage() {
             "waste_types",
           ]}
           header={header}
+          filterPanel={filterPanel}
+          documentActions={{
+            downloadTemplate: { onClick: () => void downloadTemplate() },
+            uploadExcel: {
+              onClick: () => fileInputRef.current?.click(),
+              busy: isUploading,
+              disabled: !companyUniqueId || !projectId,
+            },
+            downloadPdf: {
+              onClick: () => void handleDownloadPdf(),
+              busy: isExportingPdf,
+            },
+            downloadQr: {
+              onClick: () => void handleDownloadQrStickers(),
+              busy: isExportingQrStickers,
+            },
+          }}
           emptyMessage={t("admin.customer_creation.empty_message")}
           stripedRows
           showGridlines
@@ -949,6 +961,13 @@ export default function CustomerCreationListPage() {
           />
         </DataTable>
       </div>
+      <BulkUploadResultDialog
+        visible={resultOpen}
+        onClose={() => setResultOpen(false)}
+        title="Customer bulk upload — rejected records"
+        result={uploadResult}
+        downloadFilename="customer_rejected.xlsx"
+      />
       <QrPreviewDialog
         open={Boolean(selectedQrCustomer)}
         onOpenChange={(open) => !open && setSelectedQrCustomer(null)}

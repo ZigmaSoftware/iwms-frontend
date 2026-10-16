@@ -27,6 +27,9 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { countryApi } from "@/helpers/admin";
 import { FilterBar } from "@/components/common/FilterBar";
 import { useFilterBarFilters } from "@/hooks/useFilterBarFilters";
+import { combineFilters } from "@/components/filters/useOptionFilter";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -70,6 +73,7 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 
 export default function CountryList() {
   const { t } = useTranslation();
+  const { canEdit } = useScreenAccess();
 
   const [countries, setCountries] = useState<CountryRecord[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -93,7 +97,7 @@ export default function CountryList() {
     globalFilterValue,
     onGlobalFilterChange,
     statusValue,
-    onStatusFilterChange,
+    statusFilter,
   } = useFilterBarFilters();
 
   const navigate = useNavigate();
@@ -177,30 +181,22 @@ export default function CountryList() {
     setSortOrder(event.sortOrder);
   };
 
-  // Feeds the table's single "Download Excel" button: the "All data" option
-  // fetches every row matching the current filters, while "Current page"
-  // uses the rows already on screen.
-  const loadAllExportRows = async () => {
-    try {
-      const response = await countryApi.readAllForExport({
+  // Feeds the table's single "Download Excel" button: "All data" is built
+  // server-side for the current filters, while "Current page" uses the rows
+  // already on screen.
+  const onServerExport = (filename: string, sheetName: string) =>
+    countryApi.exportToExcel(
+      {
         params: {
           ...(searchTerm ? { search: searchTerm } : {}),
           ...(statusValue !== "all"
             ? { is_active: statusValue === "active" }
             : {}),
         },
-      });
-      const rows = unwrapRows(response);
-      return rows;
-    } catch (error) {
-      Swal.fire(
-        t("common.error"),
-        extractErrorMessage(error, t("common.fetch_failed")),
-        "error",
-      );
-    }
-    return [];
-  };
+      },
+      filename,
+      sheetName,
+    );
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -237,7 +233,7 @@ export default function CountryList() {
     return (
       <Switch
         checked={row.is_active}
-        disabled={isUpdating && pendingStatusId === countryId}
+        disabled={!canEdit || (isUpdating && pendingStatusId === countryId)}
         onCheckedChange={(checked) => void updateStatus(row, checked)}
       />
     );
@@ -292,15 +288,18 @@ export default function CountryList() {
           </p>
         </div>
 
-        <Button
-          label={t("common.add_item", { item: t("admin.nav.country") })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
+        <Can action="add">
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.country") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        </Can>
       </div>
 
       <DataTable
+        filterPanel={combineFilters(statusFilter)}
         header={
           <FilterBar
             searchValue={globalFilterValue}
@@ -308,11 +307,9 @@ export default function CountryList() {
             searchPlaceholder={t("common.search_placeholder", {
               item: t("admin.nav.country"),
             })}
-            statusValue={statusValue}
-            onStatusChange={onStatusFilterChange}
           />
         }
-        loadExportRows={loadAllExportRows}
+        onServerExport={onServerExport}
         value={countries}
         dataKey="unique_id"
         lazy

@@ -12,7 +12,11 @@ import { Column } from "primereact/column";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { staticRouteAuditApi } from "@/helpers/admin";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { FormSelect } from "@/components/common/FormSelect";
+import { FilterSection } from "@/components/common/ListToolbar";
+import { useDraftFilter } from "@/components/filters/useDraftFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import StaticRouteAuditDetail from "./StaticRouteAuditDetail";
 
 const SORTABLE_FIELDS = new Set(["timestamp", "change_type", "distance_change_meters", "new_version"]);
@@ -30,12 +34,8 @@ const formatDateTime = (value?: string | null) => (value ? new Date(value).toLoc
 const formatKm = (meters?: number | null) =>
   meters == null ? "-" : `${(meters / 1000).toFixed(2)} km`;
 
-const LabeledFilter = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="flex w-full flex-col gap-1 sm:w-[220px]">
-    <label className="text-xs font-medium text-gray-600 dark:text-gray-300">{label}</label>
-    {children}
-  </div>
-);
+const nameOf = (options: { label: string; value: string }[], value: string) =>
+  options.find((option) => option.value === value)?.label ?? value;
 
 const StatTile = ({ label, value }: { label: string; value: ReactNode }) => (
   <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -59,11 +59,6 @@ export default function StaticRouteAuditList() {
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [companyFilter, setCompanyFilter] = useState("");
-  const [projectFilter, setProjectFilter] = useState("");
-  const [planFilter, setPlanFilter] = useState("");
-  const [changeTypeFilter, setChangeTypeFilter] = useState("");
-  const [triggerFilter, setTriggerFilter] = useState("");
   const [filterOptions, setFilterOptions] = useState<StaticRouteAuditFilterOptions | null>(null);
 
   const [selectedDetail, setSelectedDetail] = useState<DetailRecord | null>(null);
@@ -98,6 +93,28 @@ export default function StaticRouteAuditList() {
     () => (filterOptions?.triggers ?? []).map((c) => ({ label: c.name, value: c.unique_id })),
     [filterOptions],
   );
+
+  // Company → Project → Trip plan, Deviation type and Trigger, edited in the
+  // Filters panel as a draft and sent once applied.
+  const scope = useDraftFilter({
+    empty: { company: "", project: "", plan: "", changeType: "", trigger: "" },
+    chips: {
+      company: { label: "Company", format: (v) => nameOf(companyOptions, v), clears: ["project", "plan"] },
+      project: { label: "Project", format: (v) => nameOf(projectOptions, v), clears: ["plan"] },
+      plan: { label: "Trip plan", format: (v) => nameOf(planOptions, v) },
+      changeType: { label: "Deviation type", format: (v) => nameOf(changeTypeOptions, v) },
+      trigger: { label: "Trigger", format: (v) => nameOf(triggerOptions, v) },
+    },
+    onAppliedChange: () => setFirst(0),
+  });
+  const {
+    company: companyFilter,
+    project: projectFilter,
+    plan: planFilter,
+    changeType: changeTypeFilter,
+    trigger: triggerFilter,
+  } = scope.applied;
+  const draft = scope.draft;
 
   const ordering =
     sortField && SORTABLE_FIELDS.has(sortField) ? `${sortOrder === -1 ? "-" : ""}${sortField}` : undefined;
@@ -146,7 +163,7 @@ export default function StaticRouteAuditList() {
     const loadFilterOptions = async () => {
       try {
         const data = (await staticRouteAuditApi.read("filter-options", {
-          params: companyFilter ? { company_id: companyFilter } : {},
+          params: draft.company ? { company_id: draft.company } : {},
         })) as unknown as StaticRouteAuditFilterOptions;
         if (mounted && data) setFilterOptions(data);
       } catch {
@@ -157,7 +174,7 @@ export default function StaticRouteAuditList() {
     return () => {
       mounted = false;
     };
-  }, [companyFilter]);
+  }, [draft.company]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -167,10 +184,8 @@ export default function StaticRouteAuditList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const loadAllExportRows = async () => {
-    const data = await staticRouteAuditApi.readAllForExport({ params: queryParams });
-    return toRecordList(data) as unknown as Record<string, unknown>[];
-  };
+  const serverExport = (filename: string, sheetName: string) =>
+    staticRouteAuditApi.exportToExcel({ params: queryParams }, filename, sheetName);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -255,6 +270,55 @@ export default function StaticRouteAuditList() {
 
   const changedOnPage = records.filter((r) => r.change_type !== "RESAVED").length;
 
+  const scopeField = (
+    <>
+      <FilterSection label="Company & project">
+        <div className="grid grid-cols-2 gap-2">
+          <FormSelect
+            label="Company"
+            value={draft.company}
+            onChange={(value) => scope.setDraft((d) => ({ ...d, company: value, project: "", plan: "" }))}
+            options={companyOptions}
+            placeholder={t("common.all")}
+          />
+          <FormSelect
+            label="Project"
+            value={draft.project}
+            onChange={(value) => scope.setDraft((d) => ({ ...d, project: value, plan: "" }))}
+            options={projectOptions}
+            placeholder={t("common.all")}
+          />
+        </div>
+      </FilterSection>
+      <FilterSection label="Trip plan">
+        <FormSelect
+          value={draft.plan}
+          onChange={(value) => scope.setField("plan", value)}
+          options={planOptions}
+          placeholder={t("common.all")}
+        />
+      </FilterSection>
+      <FilterSection label="Deviation">
+        <div className="grid grid-cols-2 gap-2">
+          <FormSelect
+            label="Deviation type"
+            value={draft.changeType}
+            onChange={(value) => scope.setField("changeType", value)}
+            options={changeTypeOptions}
+            placeholder={t("common.all")}
+          />
+          <FormSelect
+            label="Trigger"
+            value={draft.trigger}
+            onChange={(value) => scope.setField("trigger", value)}
+            options={triggerOptions}
+            placeholder={t("common.all")}
+          />
+        </div>
+      </FilterSection>
+    </>
+  );
+
   return (
     <div className="p-3">
       <div className="mb-4 flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -282,81 +346,17 @@ export default function StaticRouteAuditList() {
         />
       </div>
 
-      <div className="mb-4 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-        <FilterBar
-          searchValue={globalFilterValue}
-          onSearchChange={setGlobalFilterValue}
-          searchPlaceholder="Search plan code, plan id, user…"
-        >
-          <LabeledFilter label="Company">
-            <FilterBarSelect
-              value={companyFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setCompanyFilter(value);
-                setProjectFilter("");
-                setPlanFilter("");
-              }}
-              options={companyOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label="Project">
-            <FilterBarSelect
-              value={projectFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setProjectFilter(value);
-                setPlanFilter("");
-              }}
-              options={projectOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label="Trip plan">
-            <FilterBarSelect
-              value={planFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setPlanFilter(value);
-              }}
-              options={planOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label="Deviation type">
-            <FilterBarSelect
-              value={changeTypeFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setChangeTypeFilter(value);
-              }}
-              options={changeTypeOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label="Trigger">
-            <FilterBarSelect
-              value={triggerFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setTriggerFilter(value);
-              }}
-              options={triggerOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-        </FilterBar>
-      </div>
-
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <DataTable
-          loadExportRows={loadAllExportRows}
+          header={
+            <FilterBar
+              searchValue={globalFilterValue}
+              onSearchChange={setGlobalFilterValue}
+              searchPlaceholder="Search plan code, plan id, user…"
+            />
+          }
+          filterPanel={combineFilters({ ...scope, field: scopeField })}
+          onServerExport={serverExport}
           value={records}
           dataKey="id"
           lazy

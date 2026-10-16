@@ -22,12 +22,14 @@ import type {
 } from "primereact/datatable";
 
 import { ActionMenu, type ActionMenuItem } from "@/components/ui/ActionMenu";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import { useScreenAccess } from "@/contexts/screenPermission";
+import { useCompanyProjectFilter } from "@/components/filters/useCompanyProjectFilter";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { api } from "@/api";
 import { vehicleBreakdownApi } from "@/helpers/admin";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -593,26 +595,22 @@ function RejectDialog({
 export default function VehicleBreakdownList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { canAdd, canEdit } = useScreenAccess();
   const location = useLocation();
   const restoredState = location.state as {
     companyUniqueId?: string;
     projectId?: string;
   } | null;
 
-  const {
-    companyUniqueId,
-    projectId,
-    companies,
-    projects,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
+  // Company/Project live in the table's Filters panel as a draft; the list,
+  // exports and "Report Breakdown" context use the APPLIED pair.
+  const companyProject = useCompanyProjectFilter(() => setFirst(0), {
+    // coming back from the form restores the company/project it was opened with
     initialCompanyId: restoredState?.companyUniqueId,
     initialProjectId: restoredState?.projectId,
   });
+  const { companyId: companyUniqueId, projectId } = companyProject;
+  const { companies, isSuperAdmin } = companyProject.selection;
 
   const { encScheduleOperations, encVehicleBreakdown } = getEncryptedRoute();
   const { newPath, editPath } = createCrudRoutePaths(
@@ -884,7 +882,7 @@ export default function VehicleBreakdownList() {
       },
     ];
 
-    if (isPending) {
+    if (isPending && canEdit) {
       extraActions.push(
         {
           key: "verify",
@@ -934,24 +932,7 @@ export default function VehicleBreakdownList() {
       searchValue={globalFilterValue}
       onSearchChange={onGlobalFilterChange}
       searchPlaceholder="Search breakdowns…"
-    >
-      {isSuperAdmin && (
-        <FilterBarSelect
-          value={companyUniqueId || ""}
-          onChange={(value) => onCompanyChange(value)}
-          options={companies}
-          placeholder="All Companies"
-          disabled={companies.length === 0}
-        />
-      )}
-      <FilterBarSelect
-        value={projectId || ""}
-        onChange={(value) => setProjectId(value)}
-        options={projects}
-        placeholder="All Projects"
-        disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-      />
-    </FilterBar>
+    />
   );
 
   /* ════════════════════════════════════════════════════════════════
@@ -970,12 +951,14 @@ export default function VehicleBreakdownList() {
           </p>
         </div>
         <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
-          <Button
-            label="Report Breakdown"
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-            onClick={() => navigate(newPath, { state: selectedContext })}
-          />
+          {canAdd && (
+            <Button
+              label="Report Breakdown"
+              icon="pi pi-plus"
+              className="p-button-success p-button-sm"
+              onClick={() => navigate(newPath, { state: selectedContext })}
+            />
+          )}
         </div>
       </div>
 
@@ -996,6 +979,7 @@ export default function VehicleBreakdownList() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
         header={header}
+        filterPanel={combineFilters(companyProject)}
         stripedRows
         showGridlines
         className="p-datatable-sm"

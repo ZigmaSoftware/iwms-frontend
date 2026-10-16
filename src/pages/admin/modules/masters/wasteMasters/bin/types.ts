@@ -35,6 +35,7 @@ export type Bin = {
   project_name?: string | null;
   panchayat_name?: string;
   panchayat?: string;
+  zone_name?: string;
   ward_name: string;
   ward?: string;
   bin_type?: string;
